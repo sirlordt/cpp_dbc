@@ -1,0 +1,11 @@
+Container_Name="cpp_dbc"
+Container_Bin_Name="cpp_dbc_demo"
+Container_Bin_Path="/usr/local/bin/${Container_Bin_Name}/"
+Container_Description="my demo app for distro box"
+Container_Mantainer="dev1 <dev001@domain.com>;dev2 <dev2@domain.com>"
+Container_Tags="latest;tag1;tag2;${YYYY}-${MM}-${DD}-${HH}-${MM}-${SS}_${Z}"
+Container_Group="cpp_dbc"
+Container_User="cpp_dbc"
+Container_Group_Id=1000
+Container_User_Id=1000
+Container_App_Folders="${Container_Bin_Path}/logs;${Container_Bin_Path}/data/${YYYY}-${MM}-${DD}-${HH}-${MM}-${SS}_${Z}"

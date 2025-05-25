@@ -1,0 +1,24 @@
+@PACKAGE_INIT@
+
+include(${CMAKE_CURRENT_LIST_DIR}/cpp_dbc-targets.cmake)
+
+# Check if MySQL support is enabled
+set(CPP_DBC_USE_MYSQL @USE_MYSQL@)
+
+# Check if PostgreSQL support is enabled
+set(CPP_DBC_USE_POSTGRESQL @USE_POSTGRESQL@)
+
+# Check for required dependencies
+if(CPP_DBC_USE_MYSQL)
+    # Include our custom FindMySQL module
+    include(${CMAKE_CURRENT_LIST_DIR}/FindMySQL.cmake)
+    # The FindMySQL.cmake module will define MySQL_FOUND, MySQL_INCLUDE_DIRS, and MySQL_LIBRARIES
+endif()
+
+if(CPP_DBC_USE_POSTGRESQL)
+    # Include our custom FindPostgreSQL module
+    include(${CMAKE_CURRENT_LIST_DIR}/FindPostgreSQL.cmake)
+    # The FindPostgreSQL.cmake module will define PostgreSQL_FOUND, PostgreSQL_INCLUDE_DIRS, and PostgreSQL_LIBRARIES
+endif()
+
+check_required_components(cpp_dbc)

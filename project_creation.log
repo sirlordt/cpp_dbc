@@ -1,0 +1,335 @@
+Creating project 'cpp_dbc' from template 'cpp_demo'...
+ * Operation: Create
+    From: cpp_demo
+    To: cpp_dbc
+    Result: Success
+
+ * Operation: Create
+    From: cpp_demo/build
+    To: cpp_dbc/build
+    Result: Success
+
+Copying files from template...
+ * Operation: Copy
+    From: cpp_demo/
+    To: cpp_dbc/
+    File: CMakeUserPresets.json
+    Result: Success
+
+ * Operation: Create
+    From: cpp_demo/memory-bank
+    To: cpp_dbc/memory-bank
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/memory-bank/
+    To: cpp_dbc/memory-bank/
+    File: systemPatterns.md
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/memory-bank/
+    To: cpp_dbc/memory-bank/
+    File: productContext.md
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/memory-bank/
+    To: cpp_dbc/memory-bank/
+    File: activeContext.md
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/memory-bank/
+    To: cpp_dbc/memory-bank/
+    File: projectbrief.md
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/memory-bank/
+    To: cpp_dbc/memory-bank/
+    File: git_commands.md
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/memory-bank/
+    To: cpp_dbc/memory-bank/
+    File: techContext.md
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/memory-bank/
+    To: cpp_dbc/memory-bank/
+    File: progress.md
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/
+    To: cpp_dbc/
+    File: README.md
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/
+    To: cpp_dbc/
+    File: build.dist.sh
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/
+    To: cpp_dbc/
+    File: inject_cline_custom_instructions.sh
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/
+    To: cpp_dbc/
+    File: build.sh
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/
+    To: cpp_dbc/
+    File: CMakeLists.txt
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/
+    To: cpp_dbc/
+    File: .dist_build
+    Result: Success
+
+ * Operation: Create
+    From: cpp_demo/.vscode
+    To: cpp_dbc/.vscode
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/.vscode/
+    To: cpp_dbc/.vscode/
+    File: tasks.json
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/.vscode/
+    To: cpp_dbc/.vscode/
+    File: c_cpp_properties.json
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/.vscode/
+    To: cpp_dbc/.vscode/
+    File: extensions.json
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/.vscode/
+    To: cpp_dbc/.vscode/
+    File: launch.json
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/.vscode/
+    To: cpp_dbc/.vscode/
+    File: settings.json
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/
+    To: cpp_dbc/
+    File: conanfile.txt
+    Result: Success
+
+ * Operation: Create
+    From: cpp_demo/src
+    To: cpp_dbc/src
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/src/
+    To: cpp_dbc/src/
+    File: main.cpp
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/
+    To: cpp_dbc/
+    File: helper.sh
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/
+    To: cpp_dbc/
+    File: main.cpp
+    Result: Success
+
+ * Operation: Copy
+    From: cpp_demo/
+    To: cpp_dbc/
+    File: .env_dist
+    Result: Success
+
+Replacing template name occurrences...
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/memory-bank/techContext.md
+    Line: 108
+    Column: 8
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/memory-bank/techContext.md
+    Line: 245
+    Column: 20
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/build.dist.sh
+    Line: 17
+    Column: 36
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/build.dist.sh
+    Line: 18
+    Column: 34
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/build.dist.sh
+    Line: 62
+    Column: 27
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/build.dist.sh
+    Line: 64
+    Column: 42
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/build.dist.sh
+    Line: 109
+    Column: 20
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/build.sh
+    Line: 32
+    Column: 14
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/CMakeLists.txt
+    Line: 2
+    Column: 8
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/CMakeLists.txt
+    Line: 17
+    Column: 22
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/.dist_build
+    Line: 1
+    Column: 16
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/.dist_build
+    Line: 2
+    Column: 20
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/.dist_build
+    Line: 7
+    Column: 17
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/.dist_build
+    Line: 8
+    Column: 16
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/.vscode/launch.json
+    Line: 8
+    Column: 49
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/helper.sh
+    Line: 4
+    Column: 53
+    Result: Success
+
+ * Operation: Replace
+    From: cpp_demo
+    To: cpp_dbc
+    File: cpp_dbc/.env_dist
+    Line: 1
+    Column: 9
+    Result: Success
+
+Processing launch.json file if it exists...
+Found launch.json file, processing program lines...
+ * Operation: Modify
+    From: Comment out all program lines
+    To: 
+    File: cpp_dbc/.vscode/launch.json
+    Result: Success
+
+ * Operation: Modify
+    From: Add project-specific program line
+    To: 
+    File: cpp_dbc/.vscode/launch.json
+    Result: Success
+
+ * Operation: Modify
+    From: Clean up duplicate project name entries
+    To: 
+    File: cpp_dbc/.vscode/launch.json
+    Result: Success
+
+ * Operation: Modify
+    From: Add template program line
+    To: 
+    File: cpp_dbc/.vscode/launch.json
+    Result: Success
+
+Project 'cpp_dbc' created successfully!
