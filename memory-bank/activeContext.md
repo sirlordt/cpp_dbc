@@ -60,10 +60,19 @@ Recent changes to the codebase include:
    - Enhanced `helper.sh` to support multiple commands in a single invocation
    - Added `--test` option to build tests
    - Added `--run-test` option to run tests
-   - Added `--ldd` option to check executable dependencies
+   - Added `--ldd` option to check executable dependencies inside the container
+   - Added `--ldd-bin` option to check executable dependencies locally
    - Added `--run-bin` option to run the executable
    - Improved error handling and reporting
    - Added support for getting executable name from `.dist_build`
+
+3. **Enhanced Docker Container Build**:
+   - Modified `build.dist.sh` to accept the same parameters as `build.sh`
+   - Implemented automatic detection of shared library dependencies
+   - Added mapping of libraries to their corresponding Debian packages
+   - Ensured correct package names for special cases (e.g., libsasl2-2)
+   - Improved Docker container creation with only necessary dependencies
+   - Fixed numbering of build steps for better readability
 
 3. **Reorganized Project Structure**:
    - Moved all content from `src/libs/cpp_dbc/` to `libs/cpp_dbc/` in the root of the project

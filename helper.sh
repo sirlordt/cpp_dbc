@@ -65,7 +65,8 @@ show_usage() {
   echo "  --postgres           Enable PostgreSQL configuration support"
   echo "  --mysql-off          Disable MySQL configuration support"
   echo "  --examples           Build cpp_dbc examples"
-  echo "  --ldd                Run ldd on the final executable"
+  echo "  --ldd [name]         Run ldd on the executable inside the container"
+  echo "  --ldd-bin            Run ldd on the final executable"
   echo "  --run-bin            Run the final executable"
   echo ""
   echo "Multiple commands can be combined, e.g.:"
@@ -140,7 +141,7 @@ get_bin_name() {
   echo "$BIN_NAME"
 }
 
-cmd_ldd() {
+cmd_ldd_bin() {
   local bin_name=$(get_bin_name)
   local bin_path="build/${bin_name}"
   
@@ -172,7 +173,40 @@ cmd_build_dist() {
   echo "Building Docker image. Output logging to $log."
   mkdir -p build
   cleanup_old_logs
-  ./build.dist.sh 2>&1 | tee "$log"
+  
+  # Build command with options
+  local build_cmd="./build.dist.sh"
+  
+  if [ "$USE_YAML" = "1" ]; then
+    build_cmd="$build_cmd --yaml"
+    echo "Enabling YAML support"
+  fi
+
+  if [ "$USE_MYSQL" = "1" ]; then
+    build_cmd="$build_cmd --mysql"
+    echo "Enabling MySQL support"
+  else
+    echo "Disabling MySQL support"
+    build_cmd="$build_cmd --mysql-off"
+  fi
+
+  if [ "$USE_POSTGRES" = "1" ]; then
+    build_cmd="$build_cmd --postgres"
+    echo "Enabling PostgreSQL support"
+  fi
+
+  if [ "$BUILD_EXAMPLES" = "1" ]; then
+    build_cmd="$build_cmd --examples"
+    echo "Building examples"
+  fi
+
+  if [ "$BUILD_TEST" = "1" ]; then
+    build_cmd="$build_cmd --test"
+    echo "Building test"
+  fi
+
+  echo "Running: $build_cmd"
+  $build_cmd 2>&1 | tee "$log"
 }
 
 cmd_run() {
@@ -211,6 +245,33 @@ cmd_env() {
   fi
   echo "Environment variables in image '$name':"
   docker inspect --format='{{range .Config.Env}}{{println .}}{{end}}' "$name"
+}
+
+cmd_ldd() {
+  local name
+  if ! get_container_name "$1" name; then
+    echo "Cannot run ldd in container without valid name."
+    exit 1
+  fi
+  
+  # Get the container binary path from the image labels
+  local bin_path=$(docker inspect --format='{{index .Config.Labels "path"}}' "$name" 2>/dev/null)
+  local bin_name=$(get_bin_name)
+  
+  if [ -z "$bin_path" ]; then
+    echo "Warning: Could not find binary path from container labels. Using default path."
+    bin_path="/usr/local/bin/cpp_dbc"
+  fi
+  
+  # Ensure bin_path ends with a slash
+  if [[ "$bin_path" != */ ]]; then
+    bin_path="${bin_path}/"
+  fi
+  
+  local container_bin_path="${bin_path}${bin_name}"
+  
+  echo "Running ldd on $container_bin_path inside container $name:"
+  docker run --rm --entrypoint ldd "$name" "$container_bin_path"
 }
 
 cmd_clean_build() {
@@ -326,7 +387,15 @@ while [ $i -lt ${#args[@]} ]; do
       cmd_run_test
       ;;
     --ldd)
-      cmd_ldd || exit_code=$?
+      i=$((i+1))
+      if [ $i -lt ${#args[@]} ] && [[ "${args[$i]}" != --* ]]; then
+        container_name="${args[$i]}"
+        i=$((i+1))
+      fi
+      cmd_ldd "$container_name" || exit_code=$?
+      ;;
+    --ldd-bin)
+      cmd_ldd_bin || exit_code=$?
       ;;
     --run-bin)
       cmd_run_bin || exit_code=$?

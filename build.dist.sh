@@ -142,15 +142,240 @@ else
     echo "Warning: .env_dist.temp file not found."
 fi
 
-# 8. Build locally with Conan + CMake
+# 8. Parse command line arguments to set build options
+USE_MYSQL=ON
+USE_POSTGRESQL=OFF
+USE_CPP_YAML=OFF
+BUILD_TYPE=Debug
+BUILD_TESTS=OFF
+BUILD_EXAMPLES=OFF
+
+for arg in "$@"
+do
+    case $arg in
+        --mysql|--mysql-on)
+        USE_MYSQL=ON
+        ;;
+        --mysql-off)
+        USE_MYSQL=OFF
+        ;;
+        --postgres|--postgres-on)
+        USE_POSTGRESQL=ON
+        ;;
+        --postgres-off)
+        USE_POSTGRESQL=OFF
+        ;;
+        --yaml|--yaml-on)
+        USE_CPP_YAML=ON
+        ;;
+        --release)
+        BUILD_TYPE=Release
+        ;;
+        --test)
+        BUILD_TESTS=ON
+        ;;
+        --examples)
+        BUILD_EXAMPLES=ON
+        ;;
+        --help)
+        echo "Usage: $0 [options]"
+        echo "Options:"
+        echo "  --mysql, --mysql-on    Enable MySQL support (default)"
+        echo "  --mysql-off            Disable MySQL support"
+        echo "  --postgres, --postgres-on  Enable PostgreSQL support"
+        echo "  --postgres-off         Disable PostgreSQL support"
+        echo "  --yaml, --yaml-on      Enable YAML configuration support"
+        echo "  --release              Build in Release mode (default: Debug)"
+        echo "  --test                 Build cpp_dbc tests"
+        echo "  --examples             Build cpp_dbc examples"
+        echo "  --help                 Show this help message"
+        exit 0
+        ;;
+    esac
+done
+
+# Build command with options
+BUILD_CMD="./build.sh"
+
+if [ "$USE_MYSQL" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --mysql"
+else
+    BUILD_CMD="$BUILD_CMD --mysql-off"
+fi
+
+if [ "$USE_POSTGRESQL" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --postgres"
+fi
+
+if [ "$USE_CPP_YAML" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --yaml"
+fi
+
+if [ "$BUILD_TYPE" = "Release" ]; then
+    BUILD_CMD="$BUILD_CMD --release"
+fi
+
+if [ "$BUILD_TESTS" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --test"
+fi
+
+if [ "$BUILD_EXAMPLES" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --examples"
+fi
+
+# 9. Build locally with Conan + CMake
 echo "Building project with Conan and CMake..."
-./build.sh
+echo "Running: $BUILD_CMD"
+$BUILD_CMD
 
-# 9. Detect dependencies
-PACKAGES="ca-certificates libc6 libgcc-s1"
-CONTAINER_DEPS="libc6:$(dpkg-query -W -f='${Version}' libc6);libgcc-s1:$(dpkg-query -W -f='${Version}' libgcc-s1)"
+# 10. Detect dependencies
+echo "Detecting shared library dependencies..."
+# Start with basic packages that are always needed
+PACKAGES="ca-certificates"
+CONTAINER_DEPS=""
 
-# 10. Generate dockerfile.dist
+# Map of known libraries to their packages
+declare -A LIB_TO_PKG_MAP
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libasan.so.6"]="libasan6"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libstdc++.so.6"]="libstdc++6"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libubsan.so.1"]="libubsan1"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libm.so.6"]="libc6"  # libm is part of libc6
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libresolv.so.2"]="libc6"  # libresolv is part of libc6
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libcrypto.so.3"]="libssl3"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libssl.so.3"]="libssl3"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libmysqlclient.so.21"]="libmysqlclient21"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libpq.so.5"]="libpq5"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libsasl2.so.2"]="libsasl2-2"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libgnutls.so.30"]="libgnutls30"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libgmp.so.10"]="libgmp10"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libffi.so.8"]="libffi8"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libnettle.so.8"]="libnettle8"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libhogweed.so.6"]="libhogweed6"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libidn2.so.0"]="libidn2-0"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libp11-kit.so.0"]="libp11-kit0"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libtasn1.so.6"]="libtasn1-6"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libunistring.so.2"]="libunistring2"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libzstd.so.1"]="libzstd1"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libkrb5.so.3"]="libkrb5-3"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libk5crypto.so.3"]="libkrb5-3"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libkrb5support.so.0"]="libkrb5support0"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libgssapi_krb5.so.2"]="libgssapi-krb5-2"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/liblber-2.5.so.0"]="libldap-2.5-0"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libldap-2.5.so.0"]="libldap-2.5-0"
+
+# Function to add a package to our list
+add_package() {
+    local pkg="$1"
+    
+    # Check if package is already in our list
+    if [[ ! " $PACKAGES " =~ " $pkg " ]]; then
+        echo "Adding package: $pkg"
+        PACKAGES="$PACKAGES $pkg"
+        
+        # Get package version
+        PKG_VERSION=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null)
+        if [ -n "$PKG_VERSION" ]; then
+            if [ -n "$CONTAINER_DEPS" ]; then
+                CONTAINER_DEPS="$CONTAINER_DEPS;"
+            fi
+            CONTAINER_DEPS="${CONTAINER_DEPS}${pkg}:${PKG_VERSION}"
+        else
+            echo "Warning: Could not determine version for package: $pkg"
+        fi
+    fi
+}
+
+# Use ldd to detect shared library dependencies
+if [ -f "build/$Container_Bin_Name" ]; then
+    echo "Analyzing executable: build/$Container_Bin_Name"
+    
+    # Get all shared libraries used by the executable
+    LIBS=$(ldd "build/$Container_Bin_Name" | grep "=>" | awk '{print $3}' | sort | uniq)
+    
+    echo "Found shared libraries:"
+    echo "$LIBS"
+    
+    # Find which Debian packages provide these libraries
+    for lib in $LIBS; do
+        # Skip libraries that don't exist (like linux-vdso.so.1)
+        if [ ! -f "$lib" ]; then
+            continue
+        fi
+        
+        # Check if we have this library in our known map
+        if [ -n "${LIB_TO_PKG_MAP[$lib]}" ]; then
+            pkg="${LIB_TO_PKG_MAP[$lib]}"
+            echo "Library $lib provided by package (from map): $pkg"
+            add_package "$pkg"
+        else
+            # Find the package that provides this library
+            PKG=$(dpkg -S "$lib" 2>/dev/null | cut -d: -f1 | sort | uniq)
+            
+            if [ -n "$PKG" ]; then
+                for pkg in $PKG; do
+                    echo "Library $lib provided by package: $pkg"
+                    add_package "$pkg"
+                done
+            else
+                echo "Warning: Could not determine package for library: $lib"
+                
+                # Try to guess based on filename
+                base_name=$(basename "$lib")
+                if [[ "$base_name" =~ ^lib([^.]+)\.so\. ]]; then
+                    lib_name="${BASH_REMATCH[1]}"
+                    
+                    # Special case for libsasl2.so.2
+                    if [[ "$lib_name" == "sasl2" ]]; then
+                        potential_pkg="libsasl2-2"
+                    # Special case for other common libraries with different naming patterns
+                    elif [[ "$lib_name" == "tasn1" ]]; then
+                        potential_pkg="libtasn1-6"
+                    elif [[ "$lib_name" == "idn2" ]]; then
+                        potential_pkg="libidn2-0"
+                    else
+                        potential_pkg="lib${lib_name}"
+                    fi
+                    
+                    # Check if this package exists
+                    if dpkg -l "$potential_pkg" &>/dev/null; then
+                        echo "Guessing package for $lib: $potential_pkg"
+                        add_package "$potential_pkg"
+                    else
+                        # Try with a number suffix for common libraries
+                        for suffix in {0..9}; do
+                            test_pkg="${potential_pkg}${suffix}"
+                            if dpkg -l "$test_pkg" &>/dev/null; then
+                                echo "Guessing package for $lib: $test_pkg"
+                                add_package "$test_pkg"
+                                break
+                            fi
+                        done
+                        
+                        if [[ ! " $PACKAGES " =~ " $potential_pkg " ]] && [[ ! " $PACKAGES " =~ " ${potential_pkg}[0-9] " ]]; then
+                            echo "Could not guess package for $lib"
+                        fi
+                    fi
+                fi
+            fi
+        fi
+    done
+    
+    # Always add these critical packages for C++ applications
+    add_package "libc6"
+    add_package "libgcc-s1"
+    add_package "libstdc++6"
+else
+    echo "Warning: Executable not found at build/$Container_Bin_Name"
+    echo "Using default dependencies: libc6 libgcc-s1 libstdc++6"
+    add_package "libc6"
+    add_package "libgcc-s1"
+    add_package "libstdc++6"
+fi
+
+echo "Detected packages: $PACKAGES"
+echo "Container dependencies: $CONTAINER_DEPS"
+
+# 11. Generate dockerfile.dist
 echo "Generating dockerfile.dist..."
 cat > dockerfile.dist <<EOF
 # Generated by build.dist.sh on $(date)
@@ -191,7 +416,7 @@ WORKDIR $PROCESSED_CONTAINER_BIN_PATH
 ENTRYPOINT ["$PROCESSED_CONTAINER_BIN_PATH/$Container_Bin_Name"]
 EOF
 
-# 11. Build and tag
+# 12. Build and tag
 echo "Dockerfile generated: dockerfile.dist"
 docker build -t "$Container_Name" -f dockerfile.dist .
 
@@ -207,7 +432,18 @@ done
 
 echo "Docker image '$Container_Name' built successfully!"
 
+# Print build options used
+echo ""
+echo "Build options used:"
+echo "  MySQL: $USE_MYSQL"
+echo "  PostgreSQL: $USE_POSTGRESQL"
+echo "  YAML support: $USE_CPP_YAML"
+echo "  Build type: $BUILD_TYPE"
+echo "  Build tests: $BUILD_TESTS"
+echo "  Build examples: $BUILD_EXAMPLES"
+
 # Debug information
+echo ""
 echo "Temporary files created for debugging:"
 echo "- .build_env.temp: Expanded values from .dist_build"
 echo "- .env_dist.temp: Expanded values from .env_dist"

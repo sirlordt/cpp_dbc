@@ -203,8 +203,11 @@ The project includes a helper script (`helper.sh`) that provides various utiliti
 # Run the tests
 ./helper.sh --run-test
 
-# Check shared library dependencies of the executable
+# Check shared library dependencies of the executable inside the container
 ./helper.sh --ldd
+
+# Check shared library dependencies of the executable locally
+./helper.sh --ldd-bin
 
 # Run the executable
 ./helper.sh --run-bin
@@ -422,8 +425,44 @@ connection_pool:
 
 The `build.dist.sh` script generates a Dockerfile for the application and builds the Docker image:
 
+```bash
+# Build Docker image with default options
+./build.dist.sh
+
+# Enable PostgreSQL support
+./build.dist.sh --postgres
+
+# Enable YAML configuration support
+./build.dist.sh --yaml
+
+# Build in Release mode
+./build.dist.sh --release
+
+# Build with tests
+./build.dist.sh --test
+
+# Build with examples
+./build.dist.sh --examples
+
+# Show help
+./build.dist.sh --help
+```
+
+The script performs the following steps:
+
 1. Processes variables from `.dist_build` and `.env_dist` files
-2. Builds the project to detect dependencies
-3. Analyzes dependencies to determine required packages
-4. Generates a Dockerfile with only the necessary dependencies
-5. Builds and tags the Docker image
+2. Builds the project with the specified options
+3. Automatically analyzes the executable to detect shared library dependencies
+4. Maps libraries to their corresponding Debian packages
+5. Generates a Dockerfile with only the necessary dependencies
+6. Builds and tags the Docker image
+
+The automatic dependency detection ensures that the Docker container includes all required libraries for the executable to run properly, regardless of which database drivers or features are enabled.
+
+You can use the `--ldd` option in the helper script to check the shared library dependencies inside the container:
+
+```bash
+./helper.sh --ldd
+```
+
+This will run the `ldd` command inside the Docker container on the executable, showing all shared libraries that the executable depends on within the container environment.
