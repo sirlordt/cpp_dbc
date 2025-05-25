@@ -189,7 +189,7 @@ TEST_EXECUTABLE="${TEST_BUILD_DIR}/test/cpp_dbc_tests"
 # Check if the tests are built
 if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
     # Build with appropriate options
-    BUILD_CMD="./build_test_cpp_dbc.sh"
+    BUILD_CMD="${SCRIPT_DIR}/build_test_cpp_dbc.sh --test"  # Always include --test to ensure tests are built
     if [ "$ENABLE_ASAN" = true ]; then
         BUILD_CMD="$BUILD_CMD --asan"
     fi

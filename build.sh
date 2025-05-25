@@ -10,10 +10,11 @@ echo "Building C++ demo application..."
 # Build the cpp_dbc library using its own build script
 echo "Building cpp_dbc library..."
 
-# Parse command line arguments to set USE_MYSQL, USE_POSTGRESQL, and BUILD_TYPE
+# Parse command line arguments to set USE_MYSQL, USE_POSTGRESQL, BUILD_TYPE, and BUILD_TESTS
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 BUILD_TYPE=Debug
+BUILD_TESTS=OFF
 
 for arg in "$@"
 do
@@ -33,6 +34,9 @@ do
         --release)
         BUILD_TYPE=Release
         ;;
+        --test)
+        BUILD_TESTS=ON
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -41,6 +45,7 @@ do
         echo "  --postgres, --postgres-on  Enable PostgreSQL support"
         echo "  --postgres-off         Disable PostgreSQL support"
         echo "  --release              Build in Release mode (default: Debug)"
+        echo "  --test                 Build cpp_dbc tests"
         echo "  --help                 Show this help message"
         exit 0
         ;;
@@ -51,6 +56,7 @@ done
 export USE_MYSQL
 export USE_POSTGRESQL
 export BUILD_TYPE
+export BUILD_TESTS
 
 # Call the cpp_dbc build script with explicit parameters
 if [ "$USE_MYSQL" = "ON" ]; then
@@ -72,6 +78,13 @@ else
     BUILD_TYPE_PARAM=""
 fi
 
+# Pass the build tests option to the cpp_dbc build script
+if [ "$BUILD_TESTS" = "ON" ]; then
+    BUILD_TESTS_PARAM="--test"
+else
+    BUILD_TESTS_PARAM=""
+fi
+
 # First, install dependencies for cpp_dbc library including Catch2
 echo "Installing dependencies for cpp_dbc library..."
 cd libs/cpp_dbc
@@ -79,7 +92,7 @@ conan install . --build=missing -s build_type=$BUILD_TYPE
 cd ../..
 
 # Now build the cpp_dbc library
-./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $BUILD_TYPE_PARAM
+./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM
 
 # If the cpp_dbc build script fails, stop the build process
 if [ $? -ne 0 ]; then
@@ -133,3 +146,4 @@ echo "Database driver status:"
 echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
 echo "  Build type: $BUILD_TYPE"
+echo "  Build tests: $BUILD_TESTS"

@@ -9,6 +9,7 @@ set -e
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 BUILD_TYPE=Debug
+BUILD_TESTS=OFF
 
 # Parse command line arguments
 for arg in "$@"
@@ -38,6 +39,10 @@ do
         BUILD_TYPE=Release
         shift
         ;;
+        --test)
+        BUILD_TESTS=ON
+        shift
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -47,6 +52,7 @@ do
         echo "  --postgres-off         Disable PostgreSQL support"
         echo "  --debug                Build in Debug mode (default)"
         echo "  --release              Build in Release mode"
+        echo "  --test                 Build cpp_dbc tests"
         echo "  --help                 Show this help message"
         exit 1
         ;;
@@ -58,6 +64,7 @@ echo "Database driver configuration:"
 echo "  MySQL support: $USE_MYSQL"
 echo "  PostgreSQL support: $USE_POSTGRESQL"
 echo "  Build type: $BUILD_TYPE"
+echo "  Build tests: $BUILD_TESTS"
 
 # Check for MySQL dependencies
 if [ "$USE_MYSQL" = "ON" ]; then
@@ -145,6 +152,7 @@ cmake "${SCRIPT_DIR}" \
       -DUSE_MYSQL=$USE_MYSQL \
       -DUSE_POSTGRESQL=$USE_POSTGRESQL \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
+      -DCPP_DBC_BUILD_TESTS=$BUILD_TESTS \
       -Wno-dev
 
 # Build and install the library
@@ -158,3 +166,4 @@ echo "Database driver status:"
 echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
 echo "  Build type: $BUILD_TYPE"
+echo "  Build tests: $BUILD_TESTS"

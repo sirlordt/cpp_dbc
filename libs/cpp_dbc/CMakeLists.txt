@@ -121,7 +121,7 @@ install(FILES
 )
 
 # Add tests subdirectory if testing is enabled
-option(CPP_DBC_BUILD_TESTS "Build cpp_dbc tests" ON)
+option(CPP_DBC_BUILD_TESTS "Build cpp_dbc tests" OFF)
 
 if(CPP_DBC_BUILD_TESTS)
     enable_testing()

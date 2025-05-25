@@ -47,6 +47,10 @@ while [[ $# -gt 0 ]]; do
             ENABLE_ASAN=ON
             shift
             ;;
+        --test)
+            # Option accepted for compatibility, but not needed since this script always builds tests
+            shift
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
