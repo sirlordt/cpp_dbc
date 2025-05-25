@@ -36,6 +36,32 @@ index a123456..b789012 100644
      return 0;
 ```
 
+## Viewing Staged Changes for Documentation Updates
+
+```bash
+git --no-pager diff --cached
+```
+
+This command is identical to `git --no-pager diff --staged` (they are aliases). It shows the differences between the staging area and the last commit without using a pager program.
+
+### When to Use
+
+- When updating CHANGELOG.md to document recent changes
+- When crafting comprehensive git commit messages
+- To get a clear summary of all staged changes for documentation purposes
+
+### Example Workflow
+
+1. Make changes to your code
+2. Stage the changes with `git add`
+3. Run `git --no-pager diff --cached` to review all staged changes
+4. Use the output to:
+   - Update CHANGELOG.md with detailed descriptions of changes
+   - Write a comprehensive commit message that accurately reflects all changes
+   - Document the changes in project documentation
+
+This approach ensures that your documentation and commit messages precisely match the actual code changes, making the project history more useful and maintainable.
+
 ## Other Useful Git Commands
 
 ### Viewing Commit History

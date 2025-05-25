@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/home/dsystems/Desktop/projects/cpp/cpp_dbc/build",
+  "command": "/usr/bin/c++ -DUSE_MYSQL=1 -DUSE_POSTGRESQL=1 -I/home/dsystems/Desktop/projects/cpp/cpp_dbc/build/Debug/generators -isystem /home/dsystems/Desktop/projects/cpp/cpp_dbc/build/libs/cpp_dbc/include -isystem /usr/include/mysql -isystem /usr/include/postgresql -isystem /home/dsystems/Desktop/distrobox/containers/home/cpp_dev_env/.conan2/p/b/fmtb35aed56337f1/p/include -isystem /home/dsystems/Desktop/distrobox/containers/home/cpp_dev_env/.conan2/p/nlohm1bed1ddc0a2fa/p/include -m64 -g -std=c++23 -o CMakeFiles/cpp_dbc_demo.dir/src/main.cpp.o -c /home/dsystems/Desktop/projects/cpp/cpp_dbc/src/main.cpp",
+  "file": "/home/dsystems/Desktop/projects/cpp/cpp_dbc/src/main.cpp",
+  "output": "CMakeFiles/cpp_dbc_demo.dir/src/main.cpp.o"
+}
+]

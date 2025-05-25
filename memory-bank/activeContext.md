@@ -40,6 +40,10 @@ Recent changes to the codebase include:
      - Configured proper include paths for IntelliSense
      - Added CMake-based debugging configuration with direct path to executable
      - Fixed tasks.json to support CMake builds
+   - Identified IntelliSense issue with preprocessor definitions:
+     - IntelliSense may show `USE_POSTGRESQL` as 0 even after compilation has activated it
+     - Solution: After compilation, use CTRL+SHIFT+P and select "Developer: Reload Window"
+     - This forces IntelliSense to reload with the updated preprocessor definitions
 
 4. Previous changes:
    - Fixed build issues with PostgreSQL support

@@ -105,6 +105,10 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Configured proper include paths for IntelliSense
      - Added CMake-based debugging configuration with direct path to executable
      - Fixed tasks.json to support CMake builds
+   - Identified and documented IntelliSense issue with preprocessor definitions:
+     - IntelliSense may show `USE_POSTGRESQL` as 0 even after compilation has activated it
+     - Solution: After compilation, use CTRL+SHIFT+P and select "Developer: Reload Window"
+     - This forces IntelliSense to reload with the updated preprocessor definitions
    - These changes ensure that VS Code can find all header files and properly debug the application.
 
 4. **Installation Directory**:

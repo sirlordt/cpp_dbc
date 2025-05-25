@@ -60,6 +60,12 @@ The project includes VSCode configuration files for seamless development:
 
 The project is configured to work with the CMakeTools extension, but does not rely on CMake presets to avoid configuration issues. Instead, it uses direct configuration settings in the VSCode files.
 
+#### Known VSCode Issues
+- **IntelliSense Preprocessor Definition Caching**: IntelliSense may show `USE_POSTGRESQL` as 0 even after compilation has activated it. This can cause confusion when working with conditional code. To fix this issue:
+  1. After compilation, press `CTRL+SHIFT+P`
+  2. Type and select "Developer: Reload Window"
+  3. This forces IntelliSense to reload with the updated preprocessor definitions
+
 ## Technical Constraints
 
 ### Database Support
