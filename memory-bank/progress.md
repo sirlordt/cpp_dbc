@@ -14,6 +14,7 @@ The project includes example code demonstrating:
 - Basic database operations
 - Connection pooling
 - Transaction management across threads
+- YAML configuration loading and management
 
 ## What Works
 
@@ -49,6 +50,13 @@ The project includes example code demonstrating:
 - Transaction timeout handling
 - Automatic cleanup of abandoned transactions
 
+### YAML Configuration
+- Database configuration loading from YAML files
+- Connection pool configuration from YAML files
+- Test query configuration from YAML files
+- Conditional compilation with USE_CPP_YAML flag
+- Example application demonstrating YAML configuration usage
+
 ## What's Left to Build
 
 Based on the current state of the project, potential areas for enhancement include:
@@ -74,6 +82,8 @@ Based on the current state of the project, potential areas for enhancement inclu
    - More comprehensive documentation
    - Additional example applications
    - Performance benchmarks
+   - More configuration examples with different database systems
+   - Examples of using configuration with connection pooling and transaction management
 
 5. **Testing**:
    - Expand the basic unit tests implemented with Catch2
@@ -84,7 +94,22 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 
 ### Fixed Issues
-1. **Project Structure Reorganization**:
+1. **YAML Configuration Support**:
+   - Added optional YAML configuration support to the library
+   - Created database configuration classes in `include/cpp_dbc/config/database_config.hpp`
+   - Implemented YAML configuration loader in `include/cpp_dbc/config/yaml_config_loader.hpp` and `src/config/yaml_config_loader.cpp`
+   - Added `--yaml` option to `build.sh` and `build_cpp_dbc.sh` to enable YAML support
+   - Modified CMakeLists.txt to conditionally include YAML-related files based on USE_CPP_YAML flag
+   - Fixed issue with Conan generators directory path in `build_cpp_dbc.sh`
+
+2. **Examples Improvements**:
+   - Added `--examples` option to `build.sh` and `build_cpp_dbc.sh` to build examples
+   - Created YAML configuration example in `examples/config_example.cpp`
+   - Added example YAML configuration file in `examples/example_config.yml`
+   - Created script to run the configuration example in `examples/run_config_example.sh`
+   - Fixed initialization issue in `examples/transaction_manager_example.cpp`
+
+3. **Project Structure Reorganization**:
    - Moved all content from `src/libs/cpp_dbc/` to `libs/cpp_dbc/` in the root of the project.
    - Reorganized the internal structure of the library with separate `src/` and `include/cpp_dbc/` directories.
    - Updated all CMake files and include paths to reflect the new directory structure.
@@ -193,6 +218,12 @@ The project shows evidence of several key architectural decisions:
 5. **Smart Pointer Usage**:
    - The use of `std::shared_ptr` simplifies resource management
    - This approach reduces the risk of resource leaks
+
+6. **Configuration Management**:
+   - The decision to implement a configuration system allows for centralized database settings
+   - The YAML support is optional to avoid unnecessary dependencies
+   - The configuration classes are designed to be extensible for other formats
+   - This approach provides flexibility in how database connections are configured
 
 These decisions reflect a focus on:
 - Clean architecture

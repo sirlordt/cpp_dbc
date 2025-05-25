@@ -8,6 +8,7 @@ This document provides a comprehensive guide to the CPP_DBC library, a C++ Datab
 - [PostgreSQL Implementation](#postgresql-implementation)
 - [Connection Pool](#connection-pool)
 - [Transaction Manager](#transaction-manager)
+- [Configuration System](#configuration-system)
 - [Build and Installation](#build-and-installation)
 
 ---
@@ -246,12 +247,95 @@ Manages transactions across different threads.
 
 ---
 
+## Configuration System
+*Components defined in config/database_config.hpp and config/yaml_config_loader.hpp*
+
+### DatabaseConfig
+Represents a database configuration.
+
+**Methods:**
+- `setName(string)`: Sets the name of the database configuration.
+- `getName()`: Gets the name of the database configuration.
+- `setType(string)`: Sets the database type (mysql, postgresql, etc.).
+- `getType()`: Gets the database type.
+- `setHost(string)`: Sets the database host.
+- `getHost()`: Gets the database host.
+- `setPort(int)`: Sets the database port.
+- `getPort()`: Gets the database port.
+- `setDatabase(string)`: Sets the database name.
+- `getDatabase()`: Gets the database name.
+- `setUsername(string)`: Sets the database username.
+- `getUsername()`: Gets the database username.
+- `setPassword(string)`: Sets the database password.
+- `getPassword()`: Gets the database password.
+- `setOption(string, string)`: Sets a database-specific option.
+- `getOption(string)`: Gets a database-specific option.
+- `getOptions()`: Gets all database-specific options.
+- `createConnectionString()`: Creates a connection string for this configuration.
+
+### ConnectionPoolConfig
+Represents a connection pool configuration.
+
+**Properties:**
+- `initialSize`: Initial number of connections
+- `maxSize`: Maximum number of connections
+- `connectionTimeout`: Connection timeout in milliseconds
+- `idleTimeout`: Idle timeout in milliseconds
+- `validationInterval`: Validation interval in milliseconds
+
+**Methods:**
+- `setName(string)`: Sets the name of the connection pool configuration.
+- `getName()`: Gets the name of the connection pool configuration.
+- `setInitialSize(int)`: Sets the initial size of the connection pool.
+- `getInitialSize()`: Gets the initial size of the connection pool.
+- `setMaxSize(int)`: Sets the maximum size of the connection pool.
+- `getMaxSize()`: Gets the maximum size of the connection pool.
+- `setConnectionTimeout(int)`: Sets the connection timeout.
+- `getConnectionTimeout()`: Gets the connection timeout.
+- `setIdleTimeout(int)`: Sets the idle timeout.
+- `getIdleTimeout()`: Gets the idle timeout.
+- `setValidationInterval(int)`: Sets the validation interval.
+- `getValidationInterval()`: Gets the validation interval.
+
+### TestQueries
+Represents a collection of test queries for different database types.
+
+**Methods:**
+- `setConnectionTest(string)`: Sets the connection test query.
+- `getConnectionTest()`: Gets the connection test query.
+- `setQuery(string, string, string)`: Sets a test query for a specific database type.
+- `getQuery(string, string)`: Gets a test query for a specific database type.
+- `getQueries(string)`: Gets all test queries for a specific database type.
+
+### DatabaseConfigManager
+Manages database configurations.
+
+**Methods:**
+- `addDatabaseConfig(DatabaseConfig)`: Adds a database configuration.
+- `getDatabaseByName(string)`: Gets a database configuration by name.
+- `getDatabases()`: Gets all database configurations.
+- `addConnectionPoolConfig(ConnectionPoolConfig)`: Adds a connection pool configuration.
+- `getConnectionPoolByName(string)`: Gets a connection pool configuration by name.
+- `getConnectionPools()`: Gets all connection pool configurations.
+- `setTestQueries(TestQueries)`: Sets the test queries.
+- `getTestQueries()`: Gets the test queries.
+
+### YamlConfigLoader
+Loads database configurations from YAML files.
+
+**Methods:**
+- `loadFromFile(string)`: Loads database configurations from a YAML file.
+- `loadFromString(string)`: Loads database configurations from a YAML string.
+
+---
+
 ## Build and Installation
 
 ### Prerequisites
 - C++23 compiler
 - MySQL development libraries (for MySQL support)
 - PostgreSQL development libraries (for PostgreSQL support)
+- yaml-cpp library (for YAML configuration support)
 - CMake 3.15 or later
 - Conan for dependency management
 
@@ -268,6 +352,15 @@ The library provides build scripts to simplify the build process:
 
 # Build with PostgreSQL support only
 ./build.sh --mysql-off --postgres
+
+# Enable YAML configuration support
+./build.sh --yaml
+
+# Build examples
+./build.sh --examples
+
+# Enable YAML and build examples
+./build.sh --yaml --examples
 ```
 
 The build script:
@@ -275,6 +368,20 @@ The build script:
 2. Configures the library with CMake
 3. Builds and installs the library to the `build/cpp_dbc` directory
 4. Builds the main application
+
+### Running the YAML Configuration Example
+
+To run the YAML configuration example:
+
+```bash
+# First, build the library with YAML support and examples
+./build.sh --yaml --examples
+
+# Then run the example
+./libs/cpp_dbc/examples/run_config_example.sh
+```
+
+This will load the example YAML configuration file and display the database configurations.
 
 ### Manual Build with CMake
 
@@ -285,8 +392,11 @@ You can also build the library manually with CMake:
 mkdir -p src/libs/cpp_dbc/build
 cd src/libs/cpp_dbc/build
 
-# Configure with CMake (MySQL enabled, PostgreSQL disabled)
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DCMAKE_INSTALL_PREFIX="../../../../build/cpp_dbc"
+# Configure with CMake (MySQL enabled, PostgreSQL disabled, YAML disabled)
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../../build/cpp_dbc"
+
+# Configure with YAML support
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=ON -DCMAKE_INSTALL_PREFIX="../../../../build/cpp_dbc"
 
 # Build and install
 cmake --build . --target install
@@ -299,7 +409,10 @@ mkdir -p build
 cd build
 
 # Configure with CMake
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DCMAKE_PREFIX_PATH=../build/cpp_dbc
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=OFF -DCMAKE_PREFIX_PATH=../build/cpp_dbc
+
+# Configure with YAML support
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=ON -DCMAKE_PREFIX_PATH=../build/cpp_dbc
 
 # Build
 cmake --build .
@@ -325,6 +438,8 @@ target_compile_definitions(your_app PRIVATE
     $<$<NOT:$<BOOL:${USE_MYSQL}>>:USE_MYSQL=0>
     $<$<BOOL:${USE_POSTGRESQL}>:USE_POSTGRESQL=1>
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
+    $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
+    $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
 )
 ```
 
@@ -340,3 +455,26 @@ In your C++ code:
 #endif
 
 // Use the library...
+
+// Using YAML configuration
+#ifdef USE_CPP_YAML
+#include <cpp_dbc/config/database_config.hpp>
+#include <cpp_dbc/config/yaml_config_loader.hpp>
+
+// Load configuration from YAML file
+cpp_dbc::config::DatabaseConfigManager configManager =
+    cpp_dbc::config::YamlConfigLoader::loadFromFile("config.yml");
+
+// Get a specific database configuration
+const auto* dbConfig = configManager.getDatabaseByName("dev_mysql");
+if (dbConfig) {
+    // Use the configuration to create a connection
+    std::string connStr = dbConfig->createConnectionString();
+    auto conn = cpp_dbc::DriverManager::getConnection(
+        connStr, dbConfig->getUsername(), dbConfig->getPassword()
+    );
+    
+    // Use the connection...
+    conn->close();
+}
+#endif

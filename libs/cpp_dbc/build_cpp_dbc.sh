@@ -8,8 +8,10 @@ set -e
 # Default values
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
+USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
+BUILD_EXAMPLES=OFF
 
 # Parse command line arguments
 for arg in "$@"
@@ -31,6 +33,10 @@ do
         USE_POSTGRESQL=OFF
         shift
         ;;
+        --yaml|--yaml-on)
+        USE_CPP_YAML=ON
+        shift
+        ;;
         --debug)
         BUILD_TYPE=Debug
         shift
@@ -43,6 +49,14 @@ do
         BUILD_TESTS=ON
         shift
         ;;
+        --examples)
+        BUILD_EXAMPLES=ON
+        shift
+        ;;
+        --examples)
+        BUILD_EXAMPLES=ON
+        shift
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -50,9 +64,11 @@ do
         echo "  --mysql-off            Disable MySQL support"
         echo "  --postgres, --postgres-on  Enable PostgreSQL support"
         echo "  --postgres-off         Disable PostgreSQL support"
+        echo "  --yaml, --yaml-on      Enable YAML configuration support"
         echo "  --debug                Build in Debug mode (default)"
         echo "  --release              Build in Release mode"
         echo "  --test                 Build cpp_dbc tests"
+        echo "  --examples             Build cpp_dbc examples"
         echo "  --help                 Show this help message"
         exit 1
         ;;
@@ -63,8 +79,10 @@ echo "Building cpp_dbc library..."
 echo "Database driver configuration:"
 echo "  MySQL support: $USE_MYSQL"
 echo "  PostgreSQL support: $USE_POSTGRESQL"
+echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
+echo "  Build examples: $BUILD_EXAMPLES"
 
 # Check for MySQL dependencies
 if [ "$USE_MYSQL" = "ON" ]; then
@@ -145,14 +163,30 @@ INSTALL_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc"
 mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
 
+# Define Conan directory
+CONAN_DIR="${SCRIPT_DIR}/build"
+
 # Configure with CMake
 echo "Configuring with CMake..."
+
+# If YAML support is enabled, add the Conan generators directory to CMAKE_PREFIX_PATH
+if [ "$USE_CPP_YAML" = "ON" ]; then
+    CONAN_GENERATORS_DIR="${CONAN_DIR}/${BUILD_TYPE}/generators"
+    echo "Using Conan generators directory: ${CONAN_GENERATORS_DIR}"
+    CMAKE_PREFIX_PATH_ARG="-DCMAKE_PREFIX_PATH=${CONAN_GENERATORS_DIR}"
+else
+    CMAKE_PREFIX_PATH_ARG=""
+fi
+
 cmake "${SCRIPT_DIR}" \
       -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
       -DUSE_MYSQL=$USE_MYSQL \
       -DUSE_POSTGRESQL=$USE_POSTGRESQL \
+      -DUSE_CPP_YAML=$USE_CPP_YAML \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DCPP_DBC_BUILD_TESTS=$BUILD_TESTS \
+      -DCPP_DBC_BUILD_EXAMPLES=$BUILD_EXAMPLES \
+      $CMAKE_PREFIX_PATH_ARG \
       -Wno-dev
 
 # Build and install the library
@@ -165,5 +199,7 @@ echo ""
 echo "Database driver status:"
 echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
+echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
+echo "  Build examples: $BUILD_EXAMPLES"

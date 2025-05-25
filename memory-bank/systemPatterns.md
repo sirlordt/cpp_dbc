@@ -7,13 +7,15 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
 1. **Interface Layer**: Abstract base classes defining the API (`Connection`, `PreparedStatement`, `ResultSet`, etc.) in the `include/cpp_dbc/` directory
 2. **Driver Layer**: Database-specific implementations of the interfaces in the `src/drivers/` directory
 3. **Connection Management Layer**: Connection pooling and transaction management in the `src/` directory
-4. **Client Application Layer**: User code that interacts with the library
+4. **Configuration Layer**: Database configuration management in the `include/cpp_dbc/config/` and `src/config/` directories
+5. **Client Application Layer**: User code that interacts with the library
 
 The architecture follows this flow:
 ```
 Client Application → DriverManager → Driver → Connection → PreparedStatement/ResultSet
                    → ConnectionPool → PooledConnection → Connection
                    → TransactionManager → Connection
+                   → DatabaseConfigManager → DatabaseConfig → Connection
 ```
 
 ## Design Patterns
@@ -44,6 +46,14 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 ### Strategy Pattern
 - Different database drivers implement different strategies for executing SQL operations
 
+### Builder Pattern
+- `DatabaseConfig` uses a builder-like pattern with setter methods for constructing database configurations
+- This allows for flexible configuration creation with optional parameters
+
+### Bridge Pattern
+- The configuration system separates the abstraction (`DatabaseConfigManager`) from implementation (`YamlConfigLoader`)
+- This allows for different configuration sources without changing the core configuration classes
+
 ## Key Technical Decisions
 
 ### Thread Safety
@@ -69,6 +79,13 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 - Automatic transaction timeout and cleanup
 - Support for distributed transactions across multiple operations
 
+### Configuration Management
+- Optional YAML configuration support with conditional compilation
+- Database configurations stored in a central manager for easy access
+- Connection pool configurations customizable through YAML
+- Test queries configurable for different database types
+- Extensible design to support additional configuration formats
+
 ## Component Relationships
 
 ### Driver Components
@@ -86,6 +103,12 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 - `TransactionManager` → Manages → `TransactionContext`
 - `TransactionContext` → Contains → `Connection`
 - `TransactionManager` → Uses → `ConnectionPool` (to obtain connections)
+
+### Configuration Components
+- `DatabaseConfigManager` → Manages → `DatabaseConfig`
+- `DatabaseConfig` → Contains → Connection parameters
+- `YamlConfigLoader` → Creates → `DatabaseConfigManager` (from YAML file)
+- `ConnectionPoolConfig` → Configures → `ConnectionPool`
 
 ## Critical Implementation Paths
 
@@ -112,3 +135,11 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 4. Client performs operations using the connection
 5. Client commits or rolls back the transaction using the transaction ID
 6. `TransactionManager` handles the actual commit/rollback on the connection
+
+### Configuration Flow
+1. Client loads configuration from a YAML file using `YamlConfigLoader`
+2. `YamlConfigLoader` parses the YAML file and creates a `DatabaseConfigManager`
+3. `DatabaseConfigManager` contains multiple `DatabaseConfig` objects
+4. Client retrieves a specific `DatabaseConfig` by name
+5. Client uses the `DatabaseConfig` to create a connection string
+6. Connection string is used with `DriverManager` to create a connection

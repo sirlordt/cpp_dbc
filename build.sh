@@ -13,8 +13,10 @@ echo "Building cpp_dbc library..."
 # Parse command line arguments to set USE_MYSQL, USE_POSTGRESQL, BUILD_TYPE, and BUILD_TESTS
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
+USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
+BUILD_EXAMPLES=OFF
 
 for arg in "$@"
 do
@@ -31,11 +33,17 @@ do
         --postgres-off)
         USE_POSTGRESQL=OFF
         ;;
+        --yaml|--yaml-on)
+        USE_CPP_YAML=ON
+        ;;
         --release)
         BUILD_TYPE=Release
         ;;
         --test)
         BUILD_TESTS=ON
+        ;;
+        --examples)
+        BUILD_EXAMPLES=ON
         ;;
         --help)
         echo "Usage: $0 [options]"
@@ -44,8 +52,10 @@ do
         echo "  --mysql-off            Disable MySQL support"
         echo "  --postgres, --postgres-on  Enable PostgreSQL support"
         echo "  --postgres-off         Disable PostgreSQL support"
+        echo "  --yaml, --yaml-on      Enable YAML configuration support"
         echo "  --release              Build in Release mode (default: Debug)"
         echo "  --test                 Build cpp_dbc tests"
+        echo "  --examples             Build cpp_dbc examples"
         echo "  --help                 Show this help message"
         exit 0
         ;;
@@ -55,8 +65,10 @@ done
 # Export the variables so they're available to the build script
 export USE_MYSQL
 export USE_POSTGRESQL
+export USE_CPP_YAML
 export BUILD_TYPE
 export BUILD_TESTS
+export BUILD_EXAMPLES
 
 # Call the cpp_dbc build script with explicit parameters
 if [ "$USE_MYSQL" = "ON" ]; then
@@ -85,6 +97,20 @@ else
     BUILD_TESTS_PARAM=""
 fi
 
+# Pass the build examples option to the cpp_dbc build script
+if [ "$BUILD_EXAMPLES" = "ON" ]; then
+    BUILD_EXAMPLES_PARAM="--examples"
+else
+    BUILD_EXAMPLES_PARAM=""
+fi
+
+# Pass the YAML support option to the cpp_dbc build script
+if [ "$USE_CPP_YAML" = "ON" ]; then
+    YAML_PARAM="--yaml"
+else
+    YAML_PARAM=""
+fi
+
 # First, install dependencies for cpp_dbc library including Catch2
 echo "Installing dependencies for cpp_dbc library..."
 cd libs/cpp_dbc
@@ -92,7 +118,7 @@ conan install . --build=missing -s build_type=$BUILD_TYPE
 cd ../..
 
 # Now build the cpp_dbc library
-./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM
+./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM
 
 # If the cpp_dbc build script fails, stop the build process
 if [ $? -ne 0 ]; then
@@ -145,5 +171,7 @@ echo ""
 echo "Database driver status:"
 echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
+echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
+echo "  Build examples: $BUILD_EXAMPLES"

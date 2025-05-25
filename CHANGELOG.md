@@ -1,5 +1,27 @@
 # Changelog
 
+## 2025-05-25 11:32:00 AM -0700
+
+### YAML Configuration Support
+* Added optional YAML configuration support to the library
+* Created database configuration classes in `include/cpp_dbc/config/database_config.hpp`
+* Implemented YAML configuration loader in `include/cpp_dbc/config/yaml_config_loader.hpp` and `src/config/yaml_config_loader.cpp`
+* Added `--yaml` option to `build.sh` and `build_cpp_dbc.sh` to enable YAML support
+* Modified CMakeLists.txt to conditionally include YAML-related files based on USE_CPP_YAML flag
+
+### Examples Improvements
+* Added `--examples` option to `build.sh` and `build_cpp_dbc.sh` to build examples
+* Created YAML configuration example in `examples/config_example.cpp`
+* Added example YAML configuration file in `examples/example_config.yml`
+* Created script to run the configuration example in `examples/run_config_example.sh`
+* Fixed initialization issue in `examples/transaction_manager_example.cpp`
+
+### Build System Enhancements
+* Modified `build.sh` to support `--yaml` and `--examples` options
+* Updated `build_cpp_dbc.sh` to support `--yaml` and `--examples` options
+* Fixed issue with Conan generators directory path in `build_cpp_dbc.sh`
+* Improved error handling in build scripts
+
 ## 2025-05-25 10:28:43 AM -0700
 
 ### Testing Improvements

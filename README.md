@@ -10,6 +10,7 @@ This project provides a C++ Database Connectivity library inspired by JDBC, with
 - **Prepared Statements**: Protection against SQL injection
 - **Conditional Compilation**: Build with only the database drivers you need
 - **Modern C++ Design**: Uses C++23 features and RAII principles
+- **YAML Configuration**: Optional support for loading database configurations from YAML files
 
 ## Database Support
 
@@ -27,6 +28,8 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - `include/cpp_dbc/connection_pool.hpp` & `src/connection_pool.cpp`: Connection pooling implementation
   - `include/cpp_dbc/transaction_manager.hpp` & `src/transaction_manager.cpp`: Transaction management implementation
   - `src/driver_manager.cpp`: Driver management implementation
+  - `include/cpp_dbc/config/database_config.hpp`: Database configuration classes
+  - `include/cpp_dbc/config/yaml_config_loader.hpp` & `src/config/yaml_config_loader.cpp`: YAML configuration loader
 
 - **Database Drivers**:
   - `include/cpp_dbc/drivers/driver_mysql.hpp` & `src/drivers/driver_mysql.cpp`: MySQL implementation
@@ -36,6 +39,9 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - `examples/example.cpp`: Basic usage example
   - `examples/connection_pool_example.cpp`: Connection pool example
   - `examples/transaction_manager_example.cpp`: Transaction management example
+  - `examples/config_example.cpp`: YAML configuration example
+  - `examples/example_config.yml`: Example YAML configuration file
+  - `examples/run_config_example.sh`: Script to run the configuration example
 
 ## Building the Library
 
@@ -50,10 +56,12 @@ The build script will automatically check for and install these dependencies if 
 
 ### Build Options
 
-The library supports conditional compilation of database drivers:
+The library supports conditional compilation of database drivers and features:
 
 - `USE_MYSQL`: Enable/disable MySQL support (ON by default)
 - `USE_POSTGRESQL`: Enable/disable PostgreSQL support (OFF by default)
+- `USE_CPP_YAML`: Enable/disable YAML configuration support (OFF by default)
+- `CPP_DBC_BUILD_EXAMPLES`: Enable/disable building examples (OFF by default)
 
 ### Using the build scripts
 
@@ -76,6 +84,15 @@ The `libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the c
 
 # Build in Release mode (default is Debug)
 ./libs/cpp_dbc/build_cpp_dbc.sh --release
+
+# Enable YAML configuration support
+./libs/cpp_dbc/build_cpp_dbc.sh --yaml
+
+# Build examples
+./libs/cpp_dbc/build_cpp_dbc.sh --examples
+
+# Enable YAML and build examples
+./libs/cpp_dbc/build_cpp_dbc.sh --yaml --examples
 
 # Show help
 ./libs/cpp_dbc/build_cpp_dbc.sh --help
@@ -108,6 +125,15 @@ The `build.sh` script builds the main application, passing all parameters to the
 
 # Enable PostgreSQL and disable MySQL
 ./build.sh --postgres --mysql-off
+
+# Enable YAML configuration support
+./build.sh --yaml
+
+# Build examples
+./build.sh --examples
+
+# Enable YAML and build examples
+./build.sh --yaml --examples
 
 # Show help
 ./build.sh --help
@@ -142,6 +168,20 @@ The project includes scripts for building and running tests:
 ```
 
 The `run_test.sh` script will automatically build the project and tests if they haven't been built yet.
+
+#### Running the YAML Configuration Example
+
+To run the YAML configuration example:
+
+```bash
+# First, build the library with YAML support and examples
+./build.sh --yaml --examples
+
+# Then run the example
+./libs/cpp_dbc/examples/run_config_example.sh
+```
+
+This will load the example YAML configuration file and display the database configurations.
 
 #### Helper Script
 
@@ -290,6 +330,92 @@ int main() {
     
     return 0;
 }
+```
+
+## YAML Configuration Example
+
+The library provides optional support for loading database configurations from YAML files:
+
+```cpp
+#include "cpp_dbc/config/database_config.hpp"
+
+#ifdef USE_CPP_YAML
+#include "cpp_dbc/config/yaml_config_loader.hpp"
+#endif
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <config_file.yml>" << std::endl;
+        return 1;
+    }
+
+#ifdef USE_CPP_YAML
+    try {
+        // Load configuration from YAML file
+        std::cout << "Loading configuration from YAML file: " << argv[1] << std::endl;
+        cpp_dbc::config::DatabaseConfigManager configManager =
+            cpp_dbc::config::YamlConfigLoader::loadFromFile(argv[1]);
+        
+        // Get a specific database configuration
+        const auto* dbConfig = configManager.getDatabaseByName("dev_mysql");
+        if (dbConfig) {
+            // Use the configuration to create a connection
+            std::string connStr = dbConfig->createConnectionString();
+            std::cout << "Connection String: " << connStr << std::endl;
+            std::cout << "Username: " << dbConfig->getUsername() << std::endl;
+            std::cout << "Password: " << dbConfig->getPassword() << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+#else
+    std::cerr << "YAML support not enabled. Rebuild with --yaml option." << std::endl;
+    return 1;
+#endif
+
+    return 0;
+}
+```
+
+Example YAML configuration file:
+
+```yaml
+# Database configurations
+databases:
+  - name: dev_mysql
+    type: mysql
+    host: localhost
+    port: 3306
+    database: TestDB
+    username: root
+    password: password
+    options:
+      connect_timeout: 5
+      charset: utf8mb4
+      autocommit: true
+
+  - name: prod_postgresql
+    type: postgresql
+    host: db.example.com
+    port: 5432
+    database: ProdDB
+    username: prod_user
+    password: prod_password
+    options:
+      connect_timeout: 10
+      application_name: cpp_dbc_prod
+      client_encoding: UTF8
+      sslmode: require
+
+# Connection pool configurations
+connection_pool:
+  default:
+    initial_size: 5
+    max_size: 20
+    connection_timeout: 5000
+    idle_timeout: 60000
+    validation_interval: 30000
 ```
 
 ## Distribution

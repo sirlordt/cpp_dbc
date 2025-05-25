@@ -37,6 +37,7 @@ add_executable(cpp_dbc_tests
     test_main.cpp
     test_basic.cpp
     test_yaml.cpp
+    test_db_config.cpp
 )
 
 # Link against Catch2, cpp_dbc and yaml-cpp
@@ -60,5 +61,10 @@ target_compile_definitions(cpp_dbc_tests PRIVATE
 include(CTest)
 include(Catch)
 catch_discover_tests(cpp_dbc_tests)
+
+# Copy the test_db_connections.yml file directly to the directory where the executable is
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/test_db_connections.yml
+    ${CMAKE_CURRENT_BINARY_DIR}/../test_db_connections.yml
+    COPYONLY)
 
 # We'll set environment variables in the run script instead

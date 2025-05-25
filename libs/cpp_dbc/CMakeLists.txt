@@ -4,6 +4,7 @@ project(cpp_dbc VERSION 0.1.0 LANGUAGES CXX)
 # Options for conditional compilation
 option(USE_MYSQL "Enable MySQL support" ON)
 option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
+option(USE_CPP_YAML "Enable YAML configuration support" OFF)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 23)
@@ -20,6 +21,13 @@ add_library(cpp_dbc
     src/driver_manager.cpp
 )
 
+# Conditionally add YAML config loader
+if(USE_CPP_YAML)
+    target_sources(cpp_dbc PRIVATE
+        src/config/yaml_config_loader.cpp
+    )
+endif()
+
 # Create an alias target for use in the same build tree
 add_library(cpp_dbc::cpp_dbc ALIAS cpp_dbc)
 
@@ -29,6 +37,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<NOT:$<BOOL:${USE_MYSQL}>>:USE_MYSQL=0>
     $<$<BOOL:${USE_POSTGRESQL}>:USE_POSTGRESQL=1>
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
+    $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
+    $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
 )
 
 # Include directories
@@ -64,6 +74,20 @@ if(USE_POSTGRESQL)
     find_package(PostgreSQL REQUIRED)
     target_include_directories(cpp_dbc PUBLIC ${PostgreSQL_INCLUDE_DIRS})
     target_link_libraries(cpp_dbc PUBLIC ${PostgreSQL_LIBRARIES})
+endif()
+
+# Conditionally add YAML-CPP dependencies
+if(USE_CPP_YAML)
+    # Find YAML-CPP package
+    # First try to find it using the config file provided by Conan
+    if(EXISTS "${CMAKE_BINARY_DIR}/generators/yaml-cpp-config.cmake")
+        set(yaml-cpp_DIR "${CMAKE_BINARY_DIR}/generators")
+    elseif(EXISTS "${CMAKE_BINARY_DIR}/../${CMAKE_BUILD_TYPE}/generators/yaml-cpp-config.cmake")
+        set(yaml-cpp_DIR "${CMAKE_BINARY_DIR}/../${CMAKE_BUILD_TYPE}/generators")
+    endif()
+
+    find_package(yaml-cpp REQUIRED)
+    target_link_libraries(cpp_dbc PUBLIC yaml-cpp::yaml-cpp)
 endif()
 
 # Generate and install export targets
@@ -126,4 +150,25 @@ option(CPP_DBC_BUILD_TESTS "Build cpp_dbc tests" OFF)
 if(CPP_DBC_BUILD_TESTS)
     enable_testing()
     add_subdirectory(test)
+endif()
+
+# Add examples
+option(CPP_DBC_BUILD_EXAMPLES "Build cpp_dbc examples" OFF)
+
+if(CPP_DBC_BUILD_EXAMPLES)
+    # Basic example
+    add_executable(cpp_dbc_example examples/example.cpp)
+    target_link_libraries(cpp_dbc_example PRIVATE cpp_dbc)
+
+    # Connection pool example
+    add_executable(connection_pool_example examples/connection_pool_example.cpp)
+    target_link_libraries(connection_pool_example PRIVATE cpp_dbc)
+
+    # Transaction manager example
+    add_executable(transaction_manager_example examples/transaction_manager_example.cpp)
+    target_link_libraries(transaction_manager_example PRIVATE cpp_dbc)
+
+    # Configuration example
+    add_executable(config_example examples/config_example.cpp)
+    target_link_libraries(config_example PRIVATE cpp_dbc)
 endif()

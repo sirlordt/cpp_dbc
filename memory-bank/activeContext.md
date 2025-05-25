@@ -27,7 +27,27 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Enhanced Testing Support**:
+1. **YAML Configuration Support**:
+   - Added optional YAML configuration support to the library
+   - Created database configuration classes in `include/cpp_dbc/config/database_config.hpp`
+   - Implemented YAML configuration loader in `include/cpp_dbc/config/yaml_config_loader.hpp` and `src/config/yaml_config_loader.cpp`
+   - Added `--yaml` option to `build.sh` and `build_cpp_dbc.sh` to enable YAML support
+   - Modified CMakeLists.txt to conditionally include YAML-related files based on USE_CPP_YAML flag
+
+2. **Examples Improvements**:
+   - Added `--examples` option to `build.sh` and `build_cpp_dbc.sh` to build examples
+   - Created YAML configuration example in `examples/config_example.cpp`
+   - Added example YAML configuration file in `examples/example_config.yml`
+   - Created script to run the configuration example in `examples/run_config_example.sh`
+   - Fixed initialization issue in `examples/transaction_manager_example.cpp`
+
+3. **Build System Enhancements**:
+   - Modified `build.sh` to support `--yaml` and `--examples` options
+   - Updated `build_cpp_dbc.sh` to support `--yaml` and `--examples` options
+   - Fixed issue with Conan generators directory path in `build_cpp_dbc.sh`
+   - Improved error handling in build scripts
+
+4. **Enhanced Testing Support**:
    - Added `--test` option to `build.sh` to enable building tests
    - Created `run_test.sh` script in the root directory to run tests
    - Modified `build_cpp_dbc.sh` to accept the `--test` option
@@ -113,6 +133,8 @@ Potential next steps for the project could include:
    - Creating comprehensive API documentation
    - Developing more example applications
    - Writing performance benchmarks
+   - Expanding YAML configuration support with more features
+   - Adding more configuration formats (JSON, XML, etc.)
 
 5. **Testing**:
    - Implementing comprehensive unit tests
@@ -169,6 +191,9 @@ The codebase demonstrates several important patterns and preferences:
    - Connection pool uses a configuration structure with sensible defaults
    - Transaction manager has configurable timeouts
    - URL-based connection strings follow JDBC format
+   - Database configurations can be loaded from YAML files
+   - Configuration classes follow a clean, object-oriented design
+   - Configuration loading is abstracted to support multiple formats
 
 ## Learnings and Project Insights
 

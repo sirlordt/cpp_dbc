@@ -21,6 +21,11 @@
   - Uses the C API (`libpq-fe.h`)
   - Requires libpq development package
 
+- **YAML-CPP Library**: For YAML configuration support (optional)
+  - Used for parsing YAML configuration files
+  - Included via Conan dependency management
+  - Only compiled when USE_CPP_YAML is enabled
+
 ### Threading
 - **Standard C++ Thread Library**: For multi-threading support
   - `std::thread` for background maintenance tasks
@@ -43,6 +48,10 @@ The project uses:
 - Conan for dependency management
 - Custom build scripts (`build.sh`, `libs/cpp_dbc/build_cpp_dbc.sh`, and `build.dist.sh`) for simplified building
 - Debug mode by default, with option for Release mode
+- Conditional compilation options:
+  - `--yaml`: Enable YAML configuration support
+  - `--examples`: Build example applications
+  - `--test`: Build unit tests
 
 ### Development Environment
 The code is structured to be developed in any C++ IDE or text editor, with common options being:
@@ -99,6 +108,12 @@ The project is configured to work with the CMakeTools extension, but does not re
   - Typically installed via package manager (e.g., `libpq-dev` on Debian/Ubuntu)
   - Header: `libpq-fe.h`
 
+- **YAML-CPP Library**:
+  - Optional dependency for YAML configuration support
+  - Managed via Conan package manager
+  - Only required when building with `--yaml` option
+  - Header: `yaml-cpp/yaml.h`
+
 ### Standard Library Dependencies
 - `<string>`: For string handling
 - `<vector>`: For dynamic arrays
@@ -134,3 +149,10 @@ The project is configured to work with the CMakeTools extension, but does not re
 - SQLException should be caught and handled appropriately
 - Connection errors should be handled with retry logic when appropriate
 - Transaction errors should trigger rollback
+
+### Configuration Management
+- YAML configuration files should be used for managing database settings
+- Configuration should be loaded at application startup
+- Database configurations can be retrieved by name
+- Connection pool configurations can be customized in the YAML file
+- Test queries can be defined in the YAML file for different database types

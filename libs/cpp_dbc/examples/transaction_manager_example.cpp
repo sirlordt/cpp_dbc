@@ -81,7 +81,7 @@ void workerThread(cpp_dbc::TransactionManager &txnManager, TaskQueue &taskQueue,
 {
     try
     {
-        WorkflowTask task;
+        WorkflowTask task{"", 0, [] {}}; // Initialize with default values
 
         while (taskQueue.pop(task))
         {
