@@ -27,7 +27,25 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Reorganized Project Structure**:
+1. **Enhanced Testing Support**:
+   - Added `--test` option to `build.sh` to enable building tests
+   - Created `run_test.sh` script in the root directory to run tests
+   - Modified `build_cpp_dbc.sh` to accept the `--test` option
+   - Changed default value of `CPP_DBC_BUILD_TESTS` to `OFF` in CMakeLists.txt
+   - Fixed path issues in `run_test_cpp_dbc.sh`
+   - Added `yaml-cpp` dependency to `libs/cpp_dbc/conanfile.txt` for tests
+   - Added automatic project build detection in `run_test.sh`
+
+2. **Improved Helper Script**:
+   - Enhanced `helper.sh` to support multiple commands in a single invocation
+   - Added `--test` option to build tests
+   - Added `--run-test` option to run tests
+   - Added `--ldd` option to check executable dependencies
+   - Added `--run-bin` option to run the executable
+   - Improved error handling and reporting
+   - Added support for getting executable name from `.dist_build`
+
+3. **Reorganized Project Structure**:
    - Moved all content from `src/libs/cpp_dbc/` to `libs/cpp_dbc/` in the root of the project
    - Reorganized the internal structure of the library:
      - Created `src/` directory for implementation files (.cpp)
@@ -36,13 +54,13 @@ Recent changes to the codebase include:
    - Updated all CMake files to reflect the new directory structure
    - Updated include paths in all source files
 
-2. **Modified Build Configuration**:
+4. **Modified Build Configuration**:
    - Changed the default build type from Release to Debug
    - Added support for `--release` argument to build in Release mode when needed
    - Ensured both the library and the main project use the same build type
    - Fixed issues with finding the correct `conan_toolchain.cmake` file based on build type
 
-3. **Fixed VS Code Debugging Issues**:
+5. **Fixed VS Code Debugging Issues**:
    - Added the correct include path for nlohmann_json library
    - Updated the `c_cpp_properties.json` file to include the necessary paths
    - Modified CMakeLists.txt to add explicit include directories
@@ -57,7 +75,7 @@ Recent changes to the codebase include:
      - Solution: After compilation, use CTRL+SHIFT+P and select "Developer: Reload Window"
      - This forces IntelliSense to reload with the updated preprocessor definitions
 
-4. Previous changes:
+6. Previous changes:
    - Fixed build issues with PostgreSQL support
    - Modified the installation directory to use `build/libs/cpp_dbc`
    - Suppressed CMake warnings with `-Wno-dev` flag

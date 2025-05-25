@@ -1,6 +1,66 @@
 # Changelog
 
-## 2025-05-25 00:00
+## 2025-05-25 10:28:43 AM -0700
+
+### Testing Improvements
+* Added `--test` option to `build.sh` to enable building tests
+* Created `run_test.sh` script in the root directory to run tests
+* Modified `build_cpp_dbc.sh` to accept the `--test` option
+* Changed default value of `CPP_DBC_BUILD_TESTS` to `OFF` in CMakeLists.txt
+* Fixed path issues in `run_test_cpp_dbc.sh`
+* Added `yaml-cpp` dependency to `libs/cpp_dbc/conanfile.txt` for tests
+* Added automatic project build detection in `run_test.sh`
+
+### Helper Script Enhancements
+* Improved `helper.sh` to support multiple commands in a single invocation
+* Added `--test` option to build tests
+* Added `--run-test` option to run tests
+* Added `--ldd` option to check executable dependencies
+* Added `--run-bin` option to run the executable
+* Improved error handling and reporting
+* Added support for getting executable name from `.dist_build`
+
+### Documentation Updates
+* Updated README.md with information about testing and helper script
+* Updated memory-bank/activeContext.md with recent changes
+* Updated memory-bank/progress.md with testing improvements
+* Added documentation about IntelliSense issue with USE_POSTGRESQL preprocessor definition:
+  * Added to memory-bank/techContext.md under "Known VSCode Issues"
+  * Added to memory-bank/activeContext.md under "Fixed VS Code Debugging Issues"
+  * Added to memory-bank/progress.md under "VS Code Debugging Issues"
+* Added useful Git command to memory-bank/git_commands.md:
+  * Documented `git --no-pager diff --cached` for viewing staged changes
+  * Added workflow for using this command when updating CHANGELOG.md
+  * Added guidance for creating comprehensive commit messages
+
+## 2025-05-25 10:21:44 AM -0700
+
+### Test Integration Improvements
+* Enhanced `helper.sh` with better error handling and test support
+* Updated `libs/cpp_dbc/conanfile.txt` with required test dependencies
+* Refined `run_test.sh` for better test execution flow
+
+## 2025-05-25 10:06:29 AM -0700
+
+### Test Framework Integration
+* Modified build scripts to support test compilation
+* Added `run_test.sh` in the root directory for easy test execution
+* Updated CMake configuration for test integration
+* Improved test build and run scripts with better error handling
+
+## 2025-05-25 09:43:28 AM -0700
+
+### Initial Test Implementation
+* Added test directory structure in `libs/cpp_dbc/test/`
+* Created test files: test_basic.cpp, test_main.cpp, test_yaml.cpp
+* Added test build script `libs/cpp_dbc/build_test_cpp_dbc.sh`
+* Added test run script `libs/cpp_dbc/run_test_cpp_dbc.sh`
+* Added CMake configuration for tests
+* Created documentation for AddressSanitizer issues in `memory-bank/asan_issues.md`
+* Updated memory-bank files with test information
+* Modified build configuration to support test compilation
+
+## 2025-05-25 12:01:46 AM -0700
 
 ### Documentation Updates
 * Added documentation about IntelliSense issue with USE_POSTGRESQL preprocessor definition:
@@ -12,7 +72,7 @@
   * Added workflow for using this command when updating CHANGELOG.md
   * Added guidance for creating comprehensive commit messages
 
-## 2025-05-24 23:07
+## 2025-05-24 11:15:11 PM -0700
 
 ### Build System Improvements
 * Added support for fmt and nlohmann_json packages in CMakeLists.txt

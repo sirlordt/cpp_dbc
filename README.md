@@ -123,6 +123,56 @@ The script will:
 4. Configure the project with CMake using the specified options
 5. Build the project in Debug mode by default (or Release mode if specified)
 
+#### Test Build and Execution
+
+The project includes scripts for building and running tests:
+
+```bash
+# Build with tests enabled
+./build.sh --test
+
+# Run the tests
+./run_test.sh
+
+# Run tests with specific options
+./run_test.sh --valgrind  # Run tests with Valgrind
+./run_test.sh --asan      # Run tests with AddressSanitizer
+./run_test.sh --ctest     # Run tests using CTest
+./run_test.sh --rebuild   # Force rebuild of tests before running
+```
+
+The `run_test.sh` script will automatically build the project and tests if they haven't been built yet.
+
+#### Helper Script
+
+The project includes a helper script (`helper.sh`) that provides various utilities:
+
+```bash
+# Build the project
+./helper.sh --build
+
+# Clean the build directory
+./helper.sh --clean-build
+
+# Clear the Conan cache
+./helper.sh --clean-conan-cache
+
+# Build the tests
+./helper.sh --test
+
+# Run the tests
+./helper.sh --run-test
+
+# Check shared library dependencies of the executable
+./helper.sh --ldd
+
+# Run the executable
+./helper.sh --run-bin
+
+# Multiple commands can be combined
+./helper.sh --clean-build --clean-conan-cache --build
+```
+
 ### Manual CMake configuration
 
 You can also configure the build manually with CMake:

@@ -121,8 +121,24 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Created test directory structure in `libs/cpp_dbc/test`
    - Added build scripts for tests with ASAN and Valgrind support
    - Documented ASAN issues in `memory-bank/asan_issues.md`
+   - Added `--test` option to `build.sh` to enable building tests
+   - Created `run_test.sh` script in the root directory to run tests
+   - Modified `build_cpp_dbc.sh` to accept the `--test` option
+   - Changed default value of `CPP_DBC_BUILD_TESTS` to `OFF` in CMakeLists.txt
+   - Fixed path issues in `run_test_cpp_dbc.sh`
+   - Added `yaml-cpp` dependency to `libs/cpp_dbc/conanfile.txt` for tests
+   - Added automatic project build detection in `run_test.sh`
 
-6. **Previous Fixed Issues**:
+6. **Enhanced Helper Script**:
+   - Improved `helper.sh` to support multiple commands in a single invocation
+   - Added `--test` option to build tests
+   - Added `--run-test` option to run tests
+   - Added `--ldd` option to check executable dependencies
+   - Added `--run-bin` option to run the executable
+   - Improved error handling and reporting
+   - Added support for getting executable name from `.dist_build`
+
+7. **Previous Fixed Issues**:
    - Fixed PostgreSQL header propagation issues.
    - Fixed naming conflicts with executable names.
    - Suppressed CMake warnings with `-Wno-dev` flag.
