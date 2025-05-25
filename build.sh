@@ -168,7 +168,7 @@ else
 fi
 echo "You can run the application with: ./build/${BIN_NAME}"
 echo ""
-echo "Database driver status:"
+echo "Options status:"
 echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
 echo "  YAML support: $USE_CPP_YAML"

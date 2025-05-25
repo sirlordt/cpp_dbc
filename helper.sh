@@ -61,6 +61,10 @@ show_usage() {
   echo "  --clean-conan-cache  Clear Conan local cache"
   echo "  --test               Build the tests"
   echo "  --run-test           Build (if needed) and run the tests"
+  echo "  --yaml               Enable YAML configuration support"
+  echo "  --postgres           Enable PostgreSQL configuration support"
+  echo "  --mysql-off          Disable MySQL configuration support"
+  echo "  --examples           Build cpp_dbc examples"
   echo "  --ldd                Run ldd on the final executable"
   echo "  --run-bin            Run the final executable"
   echo ""
@@ -81,7 +85,40 @@ cmd_build() {
   echo "Building project. Output logging to $log."
   mkdir -p build
   cleanup_old_logs
-  ./build.sh 2>&1 | tee "$log"
+  
+  # Build command with options
+  local build_cmd="./build.sh"
+  
+  if [ "$USE_YAML" = "1" ]; then
+    build_cmd="$build_cmd --yaml"
+    echo "Enabling YAML support"
+  fi
+
+  if [ "$USE_MYSQL" = "1" ]; then
+    build_cmd="$build_cmd --mysql"
+    echo "Enabling MySQL support"
+  else
+    echo "Disabling MySQL support"
+    build_cmd="$build_cmd --mysql-off"
+  fi
+
+  if [ "$USE_POSTGRES" = "1" ]; then
+    build_cmd="$build_cmd --postgres"
+    echo "Enabling PostgreSQL support"
+  fi
+
+  if [ "$BUILD_EXAMPLES" = "1" ]; then
+    build_cmd="$build_cmd --examples"
+    echo "Building examples"
+  fi
+
+  if [ "$BUILD_TEST" = "1" ]; then
+    build_cmd="$build_cmd --test"
+    echo "Building test"
+  fi
+
+  echo "Running: $build_cmd"
+  $build_cmd 2>&1 | tee "$log"
 }
 
 cmd_test() {
@@ -193,12 +230,51 @@ if [[ $# -lt 1 ]]; then
   exit 1
 fi
 
-# Process multiple commands
+# Initialize variables
 container_name=""
 exit_code=0
+USE_YAML="0"
+BUILD_EXAMPLES="0"
+BUILD_TEST="0"
+USE_POSTGRES="0"
+USE_MYSQL="1"
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
+# Process arguments
+args=("$@")
+i=0
+while [ $i -lt ${#args[@]} ]; do
+  case "${args[$i]}" in
+    --yaml)
+      USE_YAML="1"
+      echo "Setting YAML support to enabled"
+      ;;
+    --postgres)
+      USE_POSTGRES="1"
+      echo "Setting PostgreSQL support to enabled"
+      ;;
+    --mysql-off)
+      USE_MYSQL="0"
+      echo "Setting MySQL support to disabled"
+      ;;
+    --examples)
+      BUILD_EXAMPLES="1"
+      echo "Setting examples build to enabled"
+      ;;
+    --test)
+      BUILD_TEST="1"
+      echo "Setting test build to enabled"
+      ;;
+    *)
+      # Other arguments will be processed in the next loop
+      ;;
+  esac
+  i=$((i+1))
+done
+
+# Process commands
+i=0
+while [ $i -lt ${#args[@]} ]; do
+  case "${args[$i]}" in
     --build)
       cmd_build
       ;;
@@ -206,34 +282,34 @@ while [[ $# -gt 0 ]]; do
       cmd_build_dist
       ;;
     --run)
-      shift
-      if [[ "$1" != --* && -n "$1" ]]; then
-        container_name="$1"
-        shift
+      i=$((i+1))
+      if [ $i -lt ${#args[@]} ] && [[ "${args[$i]}" != --* ]]; then
+        container_name="${args[$i]}"
+        i=$((i+1))
       fi
       cmd_run "$container_name" || exit_code=$?
       ;;
     --labels)
-      shift
-      if [[ "$1" != --* && -n "$1" ]]; then
-        container_name="$1"
-        shift
+      i=$((i+1))
+      if [ $i -lt ${#args[@]} ] && [[ "${args[$i]}" != --* ]]; then
+        container_name="${args[$i]}"
+        i=$((i+1))
       fi
       cmd_labels "$container_name" || exit_code=$?
       ;;
     --tags)
-      shift
-      if [[ "$1" != --* && -n "$1" ]]; then
-        container_name="$1"
-        shift
+      i=$((i+1))
+      if [ $i -lt ${#args[@]} ] && [[ "${args[$i]}" != --* ]]; then
+        container_name="${args[$i]}"
+        i=$((i+1))
       fi
       cmd_tags "$container_name" || exit_code=$?
       ;;
     --env)
-      shift
-      if [[ "$1" != --* && -n "$1" ]]; then
-        container_name="$1"
-        shift
+      i=$((i+1))
+      if [ $i -lt ${#args[@]} ] && [[ "${args[$i]}" != --* ]]; then
+        container_name="${args[$i]}"
+        i=$((i+1))
       fi
       cmd_env "$container_name" || exit_code=$?
       ;;
@@ -243,9 +319,9 @@ while [[ $# -gt 0 ]]; do
     --clean-conan-cache)
       cmd_clean_conan_cache
       ;;
-    --test)
-      cmd_test
-      ;;
+    #--test)
+    #  cmd_test
+    #  ;;
     --run-test)
       cmd_run_test
       ;;
@@ -255,13 +331,16 @@ while [[ $# -gt 0 ]]; do
     --run-bin)
       cmd_run_bin || exit_code=$?
       ;;
+    --yaml|--examples|--test|--postgres|--mysql-off)
+      # Already processed in first pass
+      ;;
     *)
-      echo "Unknown option: $1"
+      echo "Unknown option: ${args[$i]}"
       show_usage
       exit 1
       ;;
   esac
-  shift
+  i=$((i+1))
 done
 
 exit $exit_code

@@ -87,10 +87,6 @@ int main()
         // Create MySQL connection pool
 #if USE_MYSQL
         cpp_dbc::MySQL::MySQLConnectionPool mysqlPool(mysqlConfig);
-#else
-        std::cout << "MySQL support is not enabled. Skipping MySQL example." << std::endl;
-        return 0;
-#endif
 
         std::cout << "MySQL connection pool created with "
                   << mysqlPool.getIdleConnectionCount() << " idle connections" << std::endl;
@@ -121,6 +117,9 @@ int main()
         // Close the pool
         mysqlPool.close();
         std::cout << "MySQL connection pool closed." << std::endl;
+#else
+        std::cout << "MySQL support is not enabled. Skipping MySQL example." << std::endl;
+#endif
 
 #if USE_POSTGRESQL
         // PostgreSQL example would be similar

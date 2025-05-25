@@ -121,10 +121,6 @@ int main()
         config.maxSize = 20;
 
         cpp_dbc::MySQL::MySQLConnectionPool pool(config);
-#else
-        std::cout << "MySQL support is not enabled. This example requires MySQL." << std::endl;
-        return 0;
-#endif
 
         // Create transaction manager
         cpp_dbc::TransactionManager txnManager(pool);
@@ -236,6 +232,9 @@ int main()
         pool.close();
 
         std::cout << "Transaction manager and connection pool closed." << std::endl;
+#else
+        std::cout << "MySQL support is not enabled. This example requires MySQL." << std::endl;
+#endif
     }
     catch (const std::exception &e)
     {
