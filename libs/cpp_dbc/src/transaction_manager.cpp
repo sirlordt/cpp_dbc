@@ -1,7 +1,7 @@
 // CPPDBC_TransactionManager.cpp
 // Implementation of transaction manager
 
-#include "transaction_manager.hpp"
+#include "cpp_dbc/transaction_manager.hpp"
 #include <sstream>
 #include <iomanip>
 

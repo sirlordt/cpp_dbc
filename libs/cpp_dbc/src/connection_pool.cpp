@@ -1,7 +1,7 @@
 // CPPDBC_ConnectionPool.cpp
 // Implementation of connection pool for cpp_dbc
 
-#include "connection_pool.hpp"
+#include "cpp_dbc/connection_pool.hpp"
 #include <algorithm>
 
 namespace cpp_dbc

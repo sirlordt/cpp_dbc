@@ -8,6 +8,7 @@ set -e
 # Default values
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
+BUILD_TYPE=Debug
 
 # Parse command line arguments
 for arg in "$@"
@@ -29,6 +30,14 @@ do
         USE_POSTGRESQL=OFF
         shift
         ;;
+        --debug)
+        BUILD_TYPE=Debug
+        shift
+        ;;
+        --release)
+        BUILD_TYPE=Release
+        shift
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -36,6 +45,8 @@ do
         echo "  --mysql-off            Disable MySQL support"
         echo "  --postgres, --postgres-on  Enable PostgreSQL support"
         echo "  --postgres-off         Disable PostgreSQL support"
+        echo "  --debug                Build in Debug mode (default)"
+        echo "  --release              Build in Release mode"
         echo "  --help                 Show this help message"
         exit 1
         ;;
@@ -46,6 +57,7 @@ echo "Building cpp_dbc library..."
 echo "Database driver configuration:"
 echo "  MySQL support: $USE_MYSQL"
 echo "  PostgreSQL support: $USE_POSTGRESQL"
+echo "  Build type: $BUILD_TYPE"
 
 # Check for MySQL dependencies
 if [ "$USE_MYSQL" = "ON" ]; then
@@ -119,7 +131,7 @@ fi
 
 # Create build directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-PROJECT_ROOT="$( cd "${SCRIPT_DIR}/../../.." &> /dev/null && pwd )"
+PROJECT_ROOT="$( cd "${SCRIPT_DIR}/../.." &> /dev/null && pwd )"
 BUILD_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc/build"
 INSTALL_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc"
 
@@ -129,7 +141,7 @@ cd "${BUILD_DIR}"
 # Configure with CMake
 echo "Configuring with CMake..."
 cmake "${SCRIPT_DIR}" \
-      -DCMAKE_BUILD_TYPE=Debug \
+      -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
       -DUSE_MYSQL=$USE_MYSQL \
       -DUSE_POSTGRESQL=$USE_POSTGRESQL \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
@@ -145,3 +157,4 @@ echo ""
 echo "Database driver status:"
 echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
+echo "  Build type: $BUILD_TYPE"

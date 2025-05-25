@@ -4,9 +4,9 @@
 
 CPP_DBC follows a layered architecture with clear separation of concerns:
 
-1. **Interface Layer**: Abstract base classes defining the API (`Connection`, `PreparedStatement`, `ResultSet`, etc.)
-2. **Driver Layer**: Database-specific implementations of the interfaces
-3. **Connection Management Layer**: Connection pooling and transaction management
+1. **Interface Layer**: Abstract base classes defining the API (`Connection`, `PreparedStatement`, `ResultSet`, etc.) in the `include/cpp_dbc/` directory
+2. **Driver Layer**: Database-specific implementations of the interfaces in the `src/drivers/` directory
+3. **Connection Management Layer**: Connection pooling and transaction management in the `src/` directory
 4. **Client Application Layer**: User code that interacts with the library
 
 The architecture follows this flow:

@@ -1,7 +1,7 @@
 // driver_manager.cpp
 // Implementation of the DriverManager class
 
-#include "cpp_dbc.hpp"
+#include "cpp_dbc/cpp_dbc.hpp"
 
 namespace cpp_dbc
 {

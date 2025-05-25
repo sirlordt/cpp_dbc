@@ -15,30 +15,39 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. Fixed build issues with PostgreSQL support:
-   - Changed the include directories visibility from PRIVATE to PUBLIC in the library's CMakeLists.txt for both PostgreSQL and MySQL
-   - This ensures that the PostgreSQL header files (specifically `libpq-fe.h`) are properly propagated to targets that link against the cpp_dbc library
+1. **Reorganized Project Structure**:
+   - Moved all content from `src/libs/cpp_dbc/` to `libs/cpp_dbc/` in the root of the project
+   - Reorganized the internal structure of the library:
+     - Created `src/` directory for implementation files (.cpp)
+     - Created `include/cpp_dbc/` directory for header files (.hpp)
+     - Moved drivers to their respective folders: `src/drivers/` and `include/cpp_dbc/drivers/`
+   - Updated all CMake files to reflect the new directory structure
+   - Updated include paths in all source files
 
-2. Modified the installation directory:
-   - Changed the installation path in build_cpp_dbc.sh to install the library to `/home/dsystems/Desktop/projects/cpp/cpp_dbc/build/cpp_dbc` instead of `/home/dsystems/Desktop/projects/cpp/cpp_dbc/src/install`
-   - Updated the main CMakeLists.txt to look for the library in the new location
-   - Fixed a naming conflict by changing the executable name in .dist_build from "cpp_dbc" to "cpp_dbc_demo" to avoid conflicts with the directory name
+2. **Modified Build Configuration**:
+   - Changed the default build type from Release to Debug
+   - Added support for `--release` argument to build in Release mode when needed
+   - Ensured both the library and the main project use the same build type
+   - Fixed issues with finding the correct `conan_toolchain.cmake` file based on build type
 
-3. Suppressed CMake warnings:
-   - Added the `-Wno-dev` flag to the CMake commands in both build scripts to silence developer warnings about package name mismatches
+3. **Fixed VS Code Debugging Issues**:
+   - Added the correct include path for nlohmann_json library
+   - Updated the `c_cpp_properties.json` file to include the necessary paths
+   - Modified CMakeLists.txt to add explicit include directories
+   - Configured VSCode to use CMakeTools for better integration:
+     - Updated settings.json to use direct configuration (without presets)
+     - Added Debug and Release configurations
+     - Configured proper include paths for IntelliSense
+     - Added CMake-based debugging configuration with direct path to executable
+     - Fixed tasks.json to support CMake builds
 
-4. Fixed the empty database driver status:
-   - Modified the main build.sh script to properly parse and export the command-line arguments
-
-5. Fixed build issues when MySQL support is disabled:
-   - Created a separate driver_manager.cpp file with the DriverManager implementation
-   - Removed the DriverManager implementation from driver_mysql.cpp
-   - Added the new file to the CMakeLists.txt
-   - This ensures that the DriverManager is available regardless of which database drivers are enabled
-
-6. Updated C++ standard to C++23:
-   - Changed the C++ standard from C++17 to C++23 in both CMakeLists.txt files
-   - Updated all documentation files to reflect the new C++23 requirement
+4. Previous changes:
+   - Fixed build issues with PostgreSQL support
+   - Modified the installation directory to use `build/libs/cpp_dbc`
+   - Suppressed CMake warnings with `-Wno-dev` flag
+   - Fixed the empty database driver status
+   - Fixed build issues when MySQL support is disabled
+   - Updated C++ standard to C++23
 
 The project structure suggests a mature library with complete implementations for:
 

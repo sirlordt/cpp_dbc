@@ -23,18 +23,19 @@ Each database driver can be enabled or disabled at compile time to reduce depend
 ## Project Structure
 
 - **Core Components**:
-  - `cpp_dbc.hpp`: Core interfaces and types
-  - `connection_pool.hpp/cpp`: Connection pooling implementation
-  - `transaction_manager.hpp/cpp`: Transaction management implementation
+  - `include/cpp_dbc/cpp_dbc.hpp`: Core interfaces and types
+  - `include/cpp_dbc/connection_pool.hpp` & `src/connection_pool.cpp`: Connection pooling implementation
+  - `include/cpp_dbc/transaction_manager.hpp` & `src/transaction_manager.cpp`: Transaction management implementation
+  - `src/driver_manager.cpp`: Driver management implementation
 
 - **Database Drivers**:
-  - `drivers/driver_mysql.hpp/cpp`: MySQL implementation
-  - `drivers/driver_postgresql.hpp/cpp`: PostgreSQL implementation
+  - `include/cpp_dbc/drivers/driver_mysql.hpp` & `src/drivers/driver_mysql.cpp`: MySQL implementation
+  - `include/cpp_dbc/drivers/driver_postgresql.hpp` & `src/drivers/driver_postgresql.cpp`: PostgreSQL implementation
 
 - **Examples**:
-  - `examples/CPPDBC_Example.cpp`: Basic usage example
-  - `examples/CPPDBC_ConnectionPool_Example.cpp`: Connection pool example
-  - `examples/CPPDBC_TransactionManager_Example.cpp`: Transaction management example
+  - `examples/example.cpp`: Basic usage example
+  - `examples/connection_pool_example.cpp`: Connection pool example
+  - `examples/transaction_manager_example.cpp`: Transaction management example
 
 ## Building the Library
 
@@ -58,36 +59,39 @@ The library supports conditional compilation of database drivers:
 
 #### Library Build Script
 
-The `src/libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the cpp_dbc library:
+The `libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the cpp_dbc library:
 
 ```bash
 # Build with MySQL support only (default)
-./src/libs/cpp_dbc/build_cpp_dbc.sh
+./libs/cpp_dbc/build_cpp_dbc.sh
 
 # Enable PostgreSQL support
-./src/libs/cpp_dbc/build_cpp_dbc.sh --postgres
+./libs/cpp_dbc/build_cpp_dbc.sh --postgres
 
 # Enable both MySQL and PostgreSQL
-./src/libs/cpp_dbc/build_cpp_dbc.sh --mysql --postgres
+./libs/cpp_dbc/build_cpp_dbc.sh --mysql --postgres
 
 # Disable MySQL support
-./src/libs/cpp_dbc/build_cpp_dbc.sh --mysql-off
+./libs/cpp_dbc/build_cpp_dbc.sh --mysql-off
+
+# Build in Release mode (default is Debug)
+./libs/cpp_dbc/build_cpp_dbc.sh --release
 
 # Show help
-./src/libs/cpp_dbc/build_cpp_dbc.sh --help
+./libs/cpp_dbc/build_cpp_dbc.sh --help
 ```
 
 This script:
 1. Checks for and installs required development libraries
 2. Configures the library with CMake
-3. Builds and installs the library to the `build/cpp_dbc` directory
+3. Builds and installs the library to the `build/libs/cpp_dbc` directory
 
 #### Main Build Script
 
 The `build.sh` script builds the main application, passing all parameters to the library build script:
 
 ```bash
-# Build with MySQL support only (default)
+# Build with MySQL support only (default in Debug mode)
 ./build.sh
 
 # Enable PostgreSQL support
@@ -99,6 +103,9 @@ The `build.sh` script builds the main application, passing all parameters to the
 # Disable MySQL support
 ./build.sh --mysql-off
 
+# Build in Release mode
+./build.sh --release
+
 # Enable PostgreSQL and disable MySQL
 ./build.sh --postgres --mysql-off
 
@@ -106,7 +113,7 @@ The `build.sh` script builds the main application, passing all parameters to the
 ./build.sh --help
 ```
 
-The main build script simply forwards all command-line arguments to the library build script and stops if the library build fails.
+The main build script forwards command-line arguments to the library build script and stops if the library build fails.
 
 The script will:
 
@@ -114,7 +121,7 @@ The script will:
 2. Create the build directory if it doesn't exist
 3. Generate Conan files
 4. Configure the project with CMake using the specified options
-5. Build the project
+5. Build the project in Debug mode by default (or Release mode if specified)
 
 ### Manual CMake configuration
 

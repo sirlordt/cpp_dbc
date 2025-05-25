@@ -1,7 +1,7 @@
 // CPPDBC_MySQL.cpp
 // Implementation of MySQL classes for cpp_dbc
 
-#include "driver_mysql.hpp"
+#include "cpp_dbc/drivers/driver_mysql.hpp"
 #include <cstring>
 #include <sstream>
 #include <iostream>

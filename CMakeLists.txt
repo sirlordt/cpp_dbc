@@ -33,8 +33,25 @@ if(EXISTS "${CMAKE_BINARY_DIR}/conan_toolchain.cmake")
     include("${CMAKE_BINARY_DIR}/conan_toolchain.cmake")
 endif()
 
+# Add Conan generators directory to include path
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(CONAN_GENERATORS_DIR "${CMAKE_BINARY_DIR}/Debug/generators")
+else()
+    set(CONAN_GENERATORS_DIR "${CMAKE_BINARY_DIR}/Release/generators")
+endif()
+
+message(STATUS "Conan generators directory: ${CONAN_GENERATORS_DIR}")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+
+# Find Conan packages
+find_package(fmt REQUIRED)
+find_package(nlohmann_json REQUIRED)
+
 # Add the path where the cpp_dbc library is installed
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/build/libs/cpp_dbc")
+
+# Add the path to the cpp_dbc source
+set(CPP_DBC_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/cpp_dbc")
 
 # Find the cpp_dbc library
 find_package(cpp_dbc REQUIRED)
@@ -42,8 +59,17 @@ find_package(cpp_dbc REQUIRED)
 # Main executable
 add_executable(${APP_BIN_NAME} src/main.cpp)
 
-# Link against the cpp_dbc library
-target_link_libraries(${APP_BIN_NAME} PRIVATE cpp_dbc::cpp_dbc)
+# Link against the cpp_dbc library and other dependencies
+target_link_libraries(${APP_BIN_NAME} PRIVATE
+    cpp_dbc::cpp_dbc
+    fmt::fmt
+    nlohmann_json::nlohmann_json
+)
+
+# Add include directories for the main executable
+target_include_directories(${APP_BIN_NAME} PRIVATE
+    ${CONAN_GENERATORS_DIR}
+)
 
 # Add compile definitions for the database drivers
 target_compile_definitions(${APP_BIN_NAME} PRIVATE
@@ -56,3 +82,5 @@ target_compile_definitions(${APP_BIN_NAME} PRIVATE
 # Installation rules
 install(TARGETS ${APP_BIN_NAME}
     DESTINATION bin)
+
+# No tests

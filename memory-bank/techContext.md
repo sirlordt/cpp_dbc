@@ -3,13 +3,14 @@
 ## Technologies Used
 
 ### Programming Language
-- **C++11 or later**: The library uses modern C++ features including:
+- **C++23**: The library uses modern C++ features including:
   - Smart pointers (`std::shared_ptr`)
   - Lambda expressions
   - Thread support library
   - Chrono library for time management
   - Atomic operations
   - Move semantics
+  - Other C++23 features as needed
 
 ### Database Client Libraries
 - **MySQL Client Library**: For MySQL database connectivity
@@ -30,22 +31,34 @@
 ## Development Setup
 
 ### Required Packages
-- C++ compiler with C++11 support (GCC, Clang, MSVC)
-- MySQL development libraries
-- PostgreSQL development libraries
+- C++ compiler with C++23 support (GCC, Clang, MSVC)
+- MySQL development libraries (for MySQL support)
+- PostgreSQL development libraries (for PostgreSQL support)
 - CMake (for build system)
+- Conan (for dependency management)
 
 ### Build System
-The project appears to use a custom build script (`build.sh` and `build.dist.sh`), but could potentially be adapted to use:
+The project uses:
 - CMake for cross-platform build configuration
-- Make for build execution
+- Conan for dependency management
+- Custom build scripts (`build.sh`, `libs/cpp_dbc/build_cpp_dbc.sh`, and `build.dist.sh`) for simplified building
+- Debug mode by default, with option for Release mode
 
 ### Development Environment
 The code is structured to be developed in any C++ IDE or text editor, with common options being:
-- Visual Studio Code with C++ extensions
+- Visual Studio Code with C++ extensions and CMakeTools
 - CLion
 - Visual Studio
 - Eclipse with CDT
+
+#### VSCode Configuration
+The project includes VSCode configuration files for seamless development:
+- `.vscode/settings.json`: Configures CMake to use Debug mode by default (without using presets)
+- `.vscode/c_cpp_properties.json`: Sets up include paths for IntelliSense
+- `.vscode/launch.json`: Provides debugging configurations (standard and CMake-based)
+- `.vscode/tasks.json`: Defines build tasks including "CMake: build"
+
+The project is configured to work with the CMakeTools extension, but does not rely on CMake presets to avoid configuration issues. Instead, it uses direct configuration settings in the VSCode files.
 
 ## Technical Constraints
 

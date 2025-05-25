@@ -83,33 +83,41 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 
 ### Fixed Issues
-1. **Build Configuration**:
-   - Fixed an issue where PostgreSQL header files (`libpq-fe.h`) were not properly propagated to the main application, causing compilation errors when PostgreSQL support was enabled.
-   - Changed the include directories visibility from PRIVATE to PUBLIC in the library's CMakeLists.txt for both PostgreSQL and MySQL.
+1. **Project Structure Reorganization**:
+   - Moved all content from `src/libs/cpp_dbc/` to `libs/cpp_dbc/` in the root of the project.
+   - Reorganized the internal structure of the library with separate `src/` and `include/cpp_dbc/` directories.
+   - Updated all CMake files and include paths to reflect the new directory structure.
+   - This provides a cleaner, more standard library organization that follows C++ best practices.
 
-2. **Installation Directory**:
-   - Modified the installation path to use `/home/dsystems/Desktop/projects/cpp/cpp_dbc/build/cpp_dbc` instead of `/home/dsystems/Desktop/projects/cpp/cpp_dbc/src/install`.
+2. **Build Configuration**:
+   - Changed the default build type from Release to Debug to facilitate development and debugging.
+   - Added support for `--release` argument to build in Release mode when needed.
+   - Fixed issues with finding the correct `conan_toolchain.cmake` file based on build type.
+   - Ensured both the library and the main project use the same build type.
+
+3. **VS Code Debugging Issues**:
+   - Added the correct include path for nlohmann_json library.
+   - Updated the `c_cpp_properties.json` file to include the necessary paths.
+   - Modified CMakeLists.txt to add explicit include directories.
+   - Configured VSCode to use CMakeTools for better integration:
+     - Updated settings.json to use direct configuration (without presets)
+     - Added Debug and Release configurations
+     - Configured proper include paths for IntelliSense
+     - Added CMake-based debugging configuration with direct path to executable
+     - Fixed tasks.json to support CMake builds
+   - These changes ensure that VS Code can find all header files and properly debug the application.
+
+4. **Installation Directory**:
+   - Modified the installation path to use `/home/dsystems/Desktop/projects/cpp/cpp_dbc/build/libs/cpp_dbc` for consistency.
    - Updated the main CMakeLists.txt to look for the library in the new location.
 
-3. **Naming Conflicts**:
-   - Fixed a naming conflict by changing the executable name in .dist_build from "cpp_dbc" to "cpp_dbc_demo" to avoid conflicts with the directory name.
-
-4. **CMake Warnings**:
-   - Suppressed developer warnings about package name mismatches by adding the `-Wno-dev` flag to the CMake commands.
-
-5. **Environment Variables**:
-   - Fixed the empty database driver status by properly parsing and exporting the command-line arguments in the main build.sh script.
-
-6. **MySQL-Only Dependencies**:
-   - Fixed an issue where the DriverManager implementation was in the MySQL driver file, causing linker errors when MySQL support was disabled.
-   - Created a separate driver_manager.cpp file with the DriverManager implementation.
-   - Removed the DriverManager implementation from driver_mysql.cpp.
-   - Added the new file to the CMakeLists.txt.
-   - This ensures that the DriverManager is available regardless of which database drivers are enabled.
-
-7. **C++ Standard**:
-   - Updated the C++ standard from C++17 to C++23 in both CMakeLists.txt files.
-   - Updated all documentation files to reflect the new C++23 requirement.
+5. **Previous Fixed Issues**:
+   - Fixed PostgreSQL header propagation issues.
+   - Fixed naming conflicts with executable names.
+   - Suppressed CMake warnings with `-Wno-dev` flag.
+   - Fixed environment variable issues for database driver status.
+   - Fixed MySQL-only dependencies by separating the DriverManager implementation.
+   - Updated C++ standard to C++23.
 
 ### Potential Areas of Concern
 Based on the code structure, potential areas of concern might include:

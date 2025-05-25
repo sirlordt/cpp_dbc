@@ -15,12 +15,9 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Define the library
 add_library(cpp_dbc
-    cpp_dbc.hpp
-    connection_pool.hpp
-    connection_pool.cpp
-    transaction_manager.hpp
-    transaction_manager.cpp
-    driver_manager.cpp
+    src/connection_pool.cpp
+    src/transaction_manager.cpp
+    src/driver_manager.cpp
 )
 
 # Create an alias target for use in the same build tree
@@ -36,15 +33,19 @@ target_compile_definitions(cpp_dbc PUBLIC
 
 # Include directories
 target_include_directories(cpp_dbc PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
+)
+
+# Add include directory for source files
+target_include_directories(cpp_dbc PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 # Conditionally add MySQL driver files and dependencies
 if(USE_MYSQL)
     target_sources(cpp_dbc PRIVATE
-        drivers/driver_mysql.hpp
-        drivers/driver_mysql.cpp
+        src/drivers/driver_mysql.cpp
     )
 
     # Find MySQL package
@@ -56,8 +57,7 @@ endif()
 # Conditionally add PostgreSQL driver files and dependencies
 if(USE_POSTGRESQL)
     target_sources(cpp_dbc PRIVATE
-        drivers/driver_postgresql.hpp
-        drivers/driver_postgresql.cpp
+        src/drivers/driver_postgresql.cpp
     )
 
     # Find PostgreSQL package
@@ -80,22 +80,10 @@ install(TARGETS cpp_dbc
 )
 
 # Install header files
-install(FILES
-    cpp_dbc.hpp
-    connection_pool.hpp
-    transaction_manager.hpp
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/cpp_dbc
+install(DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.hpp"
 )
-
-if(USE_MYSQL)
-    install(FILES drivers/driver_mysql.hpp
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/cpp_dbc/drivers)
-endif()
-
-if(USE_POSTGRESQL)
-    install(FILES drivers/driver_postgresql.hpp
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/cpp_dbc/drivers)
-endif()
 
 # Install the export targets
 install(EXPORT cpp_dbc-targets
