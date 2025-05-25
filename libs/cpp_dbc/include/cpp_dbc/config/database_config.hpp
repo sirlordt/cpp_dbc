@@ -6,6 +6,13 @@
 #include <vector>
 #include <memory>
 
+// Forward declarations
+namespace cpp_dbc
+{
+    class Connection;
+    class ConnectionPool;
+}
+
 namespace cpp_dbc
 {
     namespace config
@@ -148,12 +155,18 @@ namespace cpp_dbc
 
             /**
              * @brief Create a connection string for this database
-             * @return Connection string in the format "cppdbc:type://host:port/database"
+             * @return Connection string in the format "cpp_dbc:type://host:port/database"
              */
             std::string createConnectionString() const
             {
-                return "cppdbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+                return "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
             }
+
+            /**
+             * @brief Create a connection using this configuration
+             * @return A shared pointer to a Connection object
+             */
+            std::shared_ptr<Connection> createConnection() const;
         };
 
         /**
@@ -163,17 +176,34 @@ namespace cpp_dbc
         {
         private:
             std::string name;
+            std::string url;
+            std::string username;
+            std::string password;
             int initialSize;
             int maxSize;
-            int connectionTimeout;
-            int idleTimeout;
-            int validationInterval;
+            int minIdle;
+            long connectionTimeout;
+            long idleTimeout;
+            long validationInterval;
+            long maxLifetimeMillis;
+            bool testOnBorrow;
+            bool testOnReturn;
+            std::string validationQuery;
 
         public:
-            ConnectionPoolConfig() = default;
+            ConnectionPoolConfig() : initialSize(5),
+                                     maxSize(20),
+                                     minIdle(3),
+                                     connectionTimeout(30000),
+                                     idleTimeout(300000),
+                                     validationInterval(5000),
+                                     maxLifetimeMillis(1800000),
+                                     testOnBorrow(true),
+                                     testOnReturn(false),
+                                     validationQuery("SELECT 1") {}
 
             /**
-             * @brief Constructor with parameters
+             * @brief Constructor with basic parameters
              * @param name Pool configuration name
              * @param initialSize Initial pool size
              * @param maxSize Maximum pool size
@@ -185,27 +215,96 @@ namespace cpp_dbc
                 const std::string &name,
                 int initialSize,
                 int maxSize,
-                int connectionTimeout,
-                int idleTimeout,
-                int validationInterval) : name(name), initialSize(initialSize), maxSize(maxSize),
-                                          connectionTimeout(connectionTimeout), idleTimeout(idleTimeout),
-                                          validationInterval(validationInterval) {}
+                long connectionTimeout,
+                long idleTimeout,
+                long validationInterval) : name(name),
+                                           initialSize(initialSize),
+                                           maxSize(maxSize),
+                                           minIdle(3),
+                                           connectionTimeout(connectionTimeout),
+                                           idleTimeout(idleTimeout),
+                                           validationInterval(validationInterval),
+                                           maxLifetimeMillis(1800000),
+                                           testOnBorrow(true),
+                                           testOnReturn(false),
+                                           validationQuery("SELECT 1") {}
+
+            /**
+             * @brief Full constructor with all parameters
+             */
+            ConnectionPoolConfig(
+                const std::string &name,
+                const std::string &url,
+                const std::string &username,
+                const std::string &password,
+                int initialSize,
+                int maxSize,
+                int minIdle,
+                long connectionTimeout,
+                long idleTimeout,
+                long validationInterval,
+                long maxLifetimeMillis,
+                bool testOnBorrow,
+                bool testOnReturn,
+                const std::string &validationQuery) : name(name),
+                                                      url(url),
+                                                      username(username),
+                                                      password(password),
+                                                      initialSize(initialSize),
+                                                      maxSize(maxSize),
+                                                      minIdle(minIdle),
+                                                      connectionTimeout(connectionTimeout),
+                                                      idleTimeout(idleTimeout),
+                                                      validationInterval(validationInterval),
+                                                      maxLifetimeMillis(maxLifetimeMillis),
+                                                      testOnBorrow(testOnBorrow),
+                                                      testOnReturn(testOnReturn),
+                                                      validationQuery(validationQuery) {}
 
             // Getters
             const std::string &getName() const { return name; }
+            const std::string &getUrl() const { return url; }
+            const std::string &getUsername() const { return username; }
+            const std::string &getPassword() const { return password; }
             int getInitialSize() const { return initialSize; }
             int getMaxSize() const { return maxSize; }
-            int getConnectionTimeout() const { return connectionTimeout; }
-            int getIdleTimeout() const { return idleTimeout; }
-            int getValidationInterval() const { return validationInterval; }
+            int getMinIdle() const { return minIdle; }
+            long getConnectionTimeout() const { return connectionTimeout; }
+            long getIdleTimeout() const { return idleTimeout; }
+            long getValidationInterval() const { return validationInterval; }
+            long getMaxLifetimeMillis() const { return maxLifetimeMillis; }
+            bool getTestOnBorrow() const { return testOnBorrow; }
+            bool getTestOnReturn() const { return testOnReturn; }
+            const std::string &getValidationQuery() const { return validationQuery; }
 
             // Setters
             void setName(const std::string &value) { name = value; }
+            void setUrl(const std::string &value) { url = value; }
+            void setUsername(const std::string &value) { username = value; }
+            void setPassword(const std::string &value) { password = value; }
             void setInitialSize(int value) { initialSize = value; }
             void setMaxSize(int value) { maxSize = value; }
-            void setConnectionTimeout(int value) { connectionTimeout = value; }
-            void setIdleTimeout(int value) { idleTimeout = value; }
-            void setValidationInterval(int value) { validationInterval = value; }
+            void setMinIdle(int value) { minIdle = value; }
+            void setConnectionTimeout(long value) { connectionTimeout = value; }
+            void setIdleTimeout(long value) { idleTimeout = value; }
+            void setValidationInterval(long value) { validationInterval = value; }
+            void setMaxLifetimeMillis(long value) { maxLifetimeMillis = value; }
+            void setTestOnBorrow(bool value) { testOnBorrow = value; }
+            void setTestOnReturn(bool value) { testOnReturn = value; }
+            void setValidationQuery(const std::string &value) { validationQuery = value; }
+
+            /**
+             * @brief Configure this pool with database connection details
+             * @param dbConfig The database configuration to use
+             * @return Reference to this object for method chaining
+             */
+            ConnectionPoolConfig &withDatabaseConfig(const DatabaseConfig &dbConfig)
+            {
+                url = dbConfig.createConnectionString();
+                username = dbConfig.getUsername();
+                password = dbConfig.getPassword();
+                return *this;
+            }
         };
 
         /**
@@ -393,6 +492,22 @@ namespace cpp_dbc
             {
                 return testQueries;
             }
+
+            /**
+             * @brief Create a connection using a named database configuration
+             * @param configName Name of the database configuration
+             * @return A shared pointer to a Connection object, or nullptr if the configuration doesn't exist
+             */
+            std::shared_ptr<Connection> createConnection(const std::string &configName) const;
+
+            /**
+             * @brief Create a connection pool using a named database configuration and pool configuration
+             * @param dbConfigName Name of the database configuration
+             * @param poolConfigName Name of the pool configuration (default: "default")
+             * @return A shared pointer to a ConnectionPool object, or nullptr if any configuration doesn't exist
+             */
+            std::shared_ptr<ConnectionPool> createConnectionPool(const std::string &dbConfigName,
+                                                                 const std::string &poolConfigName = "default") const;
         };
 
     } // namespace config

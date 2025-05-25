@@ -334,8 +334,8 @@ Loads database configurations from YAML files.
 ### Prerequisites
 - C++23 compiler
 - MySQL development libraries (for MySQL support)
-- PostgreSQL development libraries (for PostgreSQL support)
-- yaml-cpp library (for YAML configuration support)
+- PostgreSQL development libraries (for PostgreSQL support, optional)
+- yaml-cpp library (for YAML configuration support, optional)
 - CMake 3.15 or later
 - Conan for dependency management
 
@@ -359,15 +359,63 @@ The library provides build scripts to simplify the build process:
 # Build examples
 ./build.sh --examples
 
+# Build tests
+./build.sh --test
+
+# Build in Release mode
+./build.sh --release
+
 # Enable YAML and build examples
 ./build.sh --yaml --examples
+
+# Build Docker container
+./build.dist.sh
+
+# Build Docker container with PostgreSQL and YAML support
+./build.dist.sh --postgres --yaml
 ```
 
 The build script:
 1. Checks for and installs required dependencies
 2. Configures the library with CMake
-3. Builds and installs the library to the `build/cpp_dbc` directory
+3. Builds and installs the library to the `build/libs/cpp_dbc` directory
 4. Builds the main application
+
+The `build.dist.sh` script:
+1. Builds the project with the specified options
+2. Automatically detects shared library dependencies
+3. Generates a Dockerfile with only the necessary dependencies
+4. Builds and tags the Docker image
+
+### Helper Script
+
+The project includes a helper script (`helper.sh`) that provides various utilities:
+
+```bash
+# Build the project with MySQL support
+./helper.sh --build
+
+# Build with PostgreSQL support
+./helper.sh --build --postgres
+
+# Build with YAML support
+./helper.sh --build --yaml
+
+# Build and run tests
+./helper.sh --test --run-test
+
+# Check executable dependencies locally
+./helper.sh --ldd-bin
+
+# Check executable dependencies inside the container
+./helper.sh --ldd [container_name]
+
+# Run the executable
+./helper.sh --run-bin
+
+# Multiple commands can be combined
+./helper.sh --build --yaml --examples --run-bin
+```
 
 ### Running the YAML Configuration Example
 
@@ -389,30 +437,30 @@ You can also build the library manually with CMake:
 
 ```bash
 # Create build directory for the library
-mkdir -p src/libs/cpp_dbc/build
-cd src/libs/cpp_dbc/build
+mkdir -p libs/cpp_dbc/build
+cd libs/cpp_dbc/build
 
 # Configure with CMake (MySQL enabled, PostgreSQL disabled, YAML disabled)
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../../build/cpp_dbc"
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Configure with YAML support
-# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=ON -DCMAKE_INSTALL_PREFIX="../../../../build/cpp_dbc"
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Build and install
 cmake --build . --target install
 
 # Return to root directory
-cd ../../../..
+cd ../../..
 
 # Create build directory for the main application
 mkdir -p build
 cd build
 
 # Configure with CMake
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=OFF -DCMAKE_PREFIX_PATH=../build/cpp_dbc
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=OFF -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc
 
 # Configure with YAML support
-# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=ON -DCMAKE_PREFIX_PATH=../build/cpp_dbc
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=ON -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc
 
 # Build
 cmake --build .

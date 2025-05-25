@@ -27,7 +27,24 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **YAML Configuration Support**:
+1. **Database Configuration Integration**:
+   - Added integration between database configuration and connection classes
+   - Created new `config_integration_example.cpp` with examples of different connection methods
+   - Added `createConnection()` method to `DatabaseConfig` class
+   - Added `createConnection()` and `createConnectionPool()` methods to `DatabaseConfigManager`
+   - Added new methods to `DriverManager` to work with configuration classes
+   - Added script to run the configuration integration example
+   - Changed URL format from "cppdbc:" to "cpp_dbc:" for consistency
+   - Updated all examples, tests, and code to use the new format
+
+2. **Connection Pool Enhancements**:
+   - Moved `ConnectionPoolConfig` from connection_pool.hpp to config/database_config.hpp
+   - Enhanced `ConnectionPoolConfig` with more options and better encapsulation
+   - Added new constructors and factory methods to `ConnectionPool`
+   - Added integration between connection pool and database configuration
+   - Improved code organization with forward declarations
+
+3. **YAML Configuration Support**:
    - Added optional YAML configuration support to the library
    - Created database configuration classes in `include/cpp_dbc/config/database_config.hpp`
    - Implemented YAML configuration loader in `include/cpp_dbc/config/yaml_config_loader.hpp` and `src/config/yaml_config_loader.cpp`

@@ -5,6 +5,16 @@
 #define CPP_DBC_CONNECTION_POOL_HPP
 
 #include "cpp_dbc.hpp"
+
+// Forward declarations for configuration classes
+namespace cpp_dbc
+{
+    namespace config
+    {
+        class DatabaseConfig;
+        class ConnectionPoolConfig;
+    }
+}
 #include <queue>
 #include <vector>
 #include <mutex>
@@ -20,23 +30,11 @@ namespace cpp_dbc
     // Forward declaration
     class PooledConnection;
 
-    // Configuration for connection pools
-    struct ConnectionPoolConfig
+    // Forward declaration of configuration classes
+    namespace config
     {
-        std::string url;
-        std::string username;
-        std::string password;
-        int initialSize = 5;                      // Initial number of connections
-        int maxSize = 20;                         // Maximum number of connections
-        int minIdle = 3;                          // Minimum number of idle connections
-        long maxWaitMillis = 30000;               // Maximum wait time for a connection in milliseconds
-        long validationTimeoutMillis = 5000;      // Timeout for connection validation
-        long idleTimeoutMillis = 300000;          // Maximum time a connection can be idle before being closed
-        long maxLifetimeMillis = 1800000;         // Maximum lifetime of a connection
-        bool testOnBorrow = true;                 // Test connection before borrowing
-        bool testOnReturn = false;                // Test connection when returning to pool
-        std::string validationQuery = "SELECT 1"; // Query used to validate connections
-    };
+        class ConnectionPoolConfig;
+    }
 
     // Connection Pool class
     class ConnectionPool
@@ -44,7 +42,20 @@ namespace cpp_dbc
     private:
         friend class PooledConnection;
 
-        ConnectionPoolConfig config;
+        // Connection parameters
+        std::string url;
+        std::string username;
+        std::string password;
+        int initialSize;              // Initial number of connections
+        int maxSize;                  // Maximum number of connections
+        int minIdle;                  // Minimum number of idle connections
+        long maxWaitMillis;           // Maximum wait time for a connection in milliseconds
+        long validationTimeoutMillis; // Timeout for connection validation
+        long idleTimeoutMillis;       // Maximum time a connection can be idle before being closed
+        long maxLifetimeMillis;       // Maximum lifetime of a connection
+        bool testOnBorrow;            // Test connection before borrowing
+        bool testOnReturn;            // Test connection when returning to pool
+        std::string validationQuery;  // Query used to validate connections
         std::vector<std::shared_ptr<PooledConnection>> allConnections;
         std::queue<std::shared_ptr<PooledConnection>> idleConnections;
         mutable std::mutex mutex;
@@ -69,7 +80,27 @@ namespace cpp_dbc
         void maintenanceTask();
 
     public:
-        ConnectionPool(const ConnectionPoolConfig &config);
+        // Constructor that takes individual parameters
+        ConnectionPool(const std::string &url,
+                       const std::string &username,
+                       const std::string &password,
+                       int initialSize = 5,
+                       int maxSize = 20,
+                       int minIdle = 3,
+                       long maxWaitMillis = 30000,
+                       long validationTimeoutMillis = 5000,
+                       long idleTimeoutMillis = 300000,
+                       long maxLifetimeMillis = 1800000,
+                       bool testOnBorrow = true,
+                       bool testOnReturn = false,
+                       const std::string &validationQuery = "SELECT 1");
+
+        // Constructor that accepts a configuration object
+        ConnectionPool(const config::ConnectionPoolConfig &config);
+
+        // Static factory method
+        static std::shared_ptr<ConnectionPool> create(const config::ConnectionPoolConfig &config);
+
         ~ConnectionPool();
 
         // Borrows a connection from the pool
@@ -129,7 +160,11 @@ namespace cpp_dbc
         class MySQLConnectionPool : public ConnectionPool
         {
         public:
-            MySQLConnectionPool(const ConnectionPoolConfig &config);
+            MySQLConnectionPool(const std::string &url,
+                                const std::string &username,
+                                const std::string &password);
+
+            MySQLConnectionPool(const config::ConnectionPoolConfig &config);
         };
     }
 
@@ -138,7 +173,11 @@ namespace cpp_dbc
         class PostgreSQLConnectionPool : public ConnectionPool
         {
         public:
-            PostgreSQLConnectionPool(const ConnectionPoolConfig &config);
+            PostgreSQLConnectionPool(const std::string &url,
+                                     const std::string &username,
+                                     const std::string &password);
+
+            PostgreSQLConnectionPool(const config::ConnectionPoolConfig &config);
         };
     }
 

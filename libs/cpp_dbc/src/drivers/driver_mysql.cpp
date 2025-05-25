@@ -650,7 +650,7 @@ namespace cpp_dbc
 
         bool MySQLDriver::acceptsURL(const std::string &url)
         {
-            return url.substr(0, 14) == "cppdbc:mysql:";
+            return url.substr(0, 16) == "cpp_dbc:mysql:";
         }
 
         bool MySQLDriver::parseURL(const std::string &url,
@@ -658,14 +658,14 @@ namespace cpp_dbc
                                    int &port,
                                    std::string &database)
         {
-            // Parse URL of format: cppdbc:mysql://host:port/database
+            // Parse URL of format: cpp_dbc:mysql://host:port/database
             if (!acceptsURL(url))
             {
                 return false;
             }
 
             // Extract host, port, and database
-            std::string temp = url.substr(16); // Remove "cppdbc:mysql://"
+            std::string temp = url.substr(18); // Remove "cpp_dbc:mysql://"
 
             // Find host:port separator
             size_t hostEnd = temp.find(":");

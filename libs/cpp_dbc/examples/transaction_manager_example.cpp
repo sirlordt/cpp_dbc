@@ -10,6 +10,7 @@
 #endif
 #include "cpp_dbc/connection_pool.hpp"
 #include "cpp_dbc/transaction_manager.hpp"
+#include "cpp_dbc/config/database_config.hpp"
 #include <iostream>
 #include <vector>
 #include <thread>
@@ -113,12 +114,12 @@ int main()
     {
 #if USE_MYSQL
         // Initialize MySQL driver and connection pool
-        cpp_dbc::ConnectionPoolConfig config;
-        config.url = "cppdbc:mysql://localhost:3306/testdb";
-        config.username = "username";
-        config.password = "password";
-        config.initialSize = 5;
-        config.maxSize = 20;
+        cpp_dbc::config::ConnectionPoolConfig config;
+        config.setUrl("cpp_dbc:mysql://localhost:3306/testdb");
+        config.setUsername("username");
+        config.setPassword("password");
+        config.setInitialSize(5);
+        config.setMaxSize(20);
 
         cpp_dbc::MySQL::MySQLConnectionPool pool(config);
 

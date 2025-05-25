@@ -9,6 +9,7 @@
 #include <cpp_dbc/drivers/driver_postgresql.hpp>
 #endif
 #include "cpp_dbc/connection_pool.hpp"
+#include "cpp_dbc/config/database_config.hpp"
 #include <iostream>
 #include <vector>
 #include <thread>
@@ -76,13 +77,13 @@ int main()
     try
     {
         // Configure MySQL connection pool
-        cpp_dbc::ConnectionPoolConfig mysqlConfig;
-        mysqlConfig.url = "cppdbc:mysql://localhost:3306/testdb";
-        mysqlConfig.username = "username";
-        mysqlConfig.password = "password";
-        mysqlConfig.initialSize = 3;
-        mysqlConfig.maxSize = 10;
-        mysqlConfig.validationQuery = "SELECT 1";
+        cpp_dbc::config::ConnectionPoolConfig mysqlConfig;
+        mysqlConfig.setUrl("cpp_dbc:mysql://localhost:3306/testdb");
+        mysqlConfig.setUsername("username");
+        mysqlConfig.setPassword("password");
+        mysqlConfig.setInitialSize(3);
+        mysqlConfig.setMaxSize(10);
+        mysqlConfig.setValidationQuery("SELECT 1");
 
         // Create MySQL connection pool
 #if USE_MYSQL
@@ -126,13 +127,13 @@ int main()
         std::cout << "\nNow demonstrating PostgreSQL connection pool..." << std::endl;
 
         // Configure PostgreSQL connection pool
-        cpp_dbc::ConnectionPoolConfig pgConfig;
-        pgConfig.url = "cppdbc:postgresql://localhost:5432/testdb";
-        pgConfig.username = "username";
-        pgConfig.password = "password";
-        pgConfig.initialSize = 3;
-        pgConfig.maxSize = 10;
-        pgConfig.validationQuery = "SELECT 1";
+        cpp_dbc::config::ConnectionPoolConfig pgConfig;
+        pgConfig.setUrl("cpp_dbc:postgresql://localhost:5432/testdb");
+        pgConfig.setUsername("username");
+        pgConfig.setPassword("password");
+        pgConfig.setInitialSize(3);
+        pgConfig.setMaxSize(10);
+        pgConfig.setValidationQuery("SELECT 1");
 
         // Create PostgreSQL connection pool
         cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pgPool(pgConfig);

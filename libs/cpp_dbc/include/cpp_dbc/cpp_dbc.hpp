@@ -20,6 +20,16 @@
 #include <map>
 #include <stdexcept>
 
+// Forward declaration of configuration classes
+namespace cpp_dbc
+{
+    namespace config
+    {
+        class DatabaseConfig;
+        class DatabaseConfigManager;
+    }
+}
+
 namespace cpp_dbc
 {
 
@@ -146,6 +156,12 @@ namespace cpp_dbc
         static std::shared_ptr<Connection> getConnection(const std::string &url,
                                                          const std::string &user,
                                                          const std::string &password);
+
+        // New methods for integration with configuration classes
+        static std::shared_ptr<Connection> getConnection(const config::DatabaseConfig &dbConfig);
+
+        static std::shared_ptr<Connection> getConnection(const config::DatabaseConfigManager &configManager,
+                                                         const std::string &configName);
     };
 
 #if USE_MYSQL

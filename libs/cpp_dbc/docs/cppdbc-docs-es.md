@@ -1,4 +1,4 @@
-# Documentación de la Biblioteca CPP_DBC
+ Documentación de la Biblioteca CPP_DBC
 
 Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC.
 
@@ -334,8 +334,8 @@ Carga configuraciones de bases de datos desde archivos YAML.
 ### Requisitos Previos
 - Compilador de C++23
 - Bibliotecas de desarrollo de MySQL (para soporte MySQL)
-- Bibliotecas de desarrollo de PostgreSQL (para soporte PostgreSQL)
-- Biblioteca yaml-cpp (para soporte de configuración YAML)
+- Bibliotecas de desarrollo de PostgreSQL (para soporte PostgreSQL, opcional)
+- Biblioteca yaml-cpp (para soporte de configuración YAML, opcional)
 - CMake 3.15 o posterior
 - Conan para gestión de dependencias
 
@@ -359,15 +359,63 @@ La biblioteca proporciona scripts de compilación para simplificar el proceso:
 # Compilar ejemplos
 ./build.sh --examples
 
+# Compilar pruebas
+./build.sh --test
+
+# Compilar en modo Release
+./build.sh --release
+
 # Habilitar YAML y compilar ejemplos
 ./build.sh --yaml --examples
+
+# Compilar contenedor Docker
+./build.dist.sh
+
+# Compilar contenedor Docker con soporte PostgreSQL y YAML
+./build.dist.sh --postgres --yaml
 ```
 
 El script de compilación:
 1. Verifica e instala las dependencias necesarias
 2. Configura la biblioteca con CMake
-3. Compila e instala la biblioteca en el directorio `build/cpp_dbc`
+3. Compila e instala la biblioteca en el directorio `build/libs/cpp_dbc`
 4. Compila la aplicación principal
+
+El script `build.dist.sh`:
+1. Compila el proyecto con las opciones especificadas
+2. Detecta automáticamente las dependencias de bibliotecas compartidas
+3. Genera un Dockerfile con solo las dependencias necesarias
+4. Compila y etiqueta la imagen Docker
+
+### Script de Ayuda
+
+El proyecto incluye un script de ayuda (`helper.sh`) que proporciona varias utilidades:
+
+```bash
+# Compilar el proyecto con soporte MySQL
+./helper.sh --build
+
+# Compilar con soporte PostgreSQL
+./helper.sh --build --postgres
+
+# Compilar con soporte YAML
+./helper.sh --build --yaml
+
+# Compilar y ejecutar pruebas
+./helper.sh --test --run-test
+
+# Verificar dependencias del ejecutable localmente
+./helper.sh --ldd-bin
+
+# Verificar dependencias del ejecutable dentro del contenedor
+./helper.sh --ldd [nombre_contenedor]
+
+# Ejecutar el ejecutable
+./helper.sh --run-bin
+
+# Se pueden combinar múltiples comandos
+./helper.sh --build --yaml --examples --run-bin
+```
 
 ### Ejecutar el Ejemplo de Configuración YAML
 
@@ -389,30 +437,30 @@ También puedes compilar la biblioteca manualmente con CMake:
 
 ```bash
 # Crear directorio de compilación para la biblioteca
-mkdir -p src/libs/cpp_dbc/build
-cd src/libs/cpp_dbc/build
+mkdir -p libs/cpp_dbc/build
+cd libs/cpp_dbc/build
 
 # Configurar con CMake (MySQL habilitado, PostgreSQL deshabilitado, YAML deshabilitado)
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../../build/cpp_dbc"
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Configurar con soporte YAML
-# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=ON -DCMAKE_INSTALL_PREFIX="../../../../build/cpp_dbc"
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Compilar e instalar
 cmake --build . --target install
 
 # Volver al directorio raíz
-cd ../../../..
+cd ../../..
 
 # Crear directorio de compilación para la aplicación principal
 mkdir -p build
 cd build
 
 # Configurar con CMake
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=OFF -DCMAKE_PREFIX_PATH=../build/cpp_dbc
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=OFF -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc
 
 # Configurar con soporte YAML
-# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=ON -DCMAKE_PREFIX_PATH=../build/cpp_dbc
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=ON -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc
 
 # Compilar
 cmake --build .

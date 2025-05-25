@@ -2,18 +2,44 @@
 // Implementation of connection pool for cpp_dbc
 
 #include "cpp_dbc/connection_pool.hpp"
+#include "cpp_dbc/config/database_config.hpp"
 #include <algorithm>
 
 namespace cpp_dbc
 {
 
     // ConnectionPool implementation
-    ConnectionPool::ConnectionPool(const ConnectionPoolConfig &config)
-        : config(config), running(true), activeConnections(0)
+    ConnectionPool::ConnectionPool(const std::string &url,
+                                   const std::string &username,
+                                   const std::string &password,
+                                   int initialSize,
+                                   int maxSize,
+                                   int minIdle,
+                                   long maxWaitMillis,
+                                   long validationTimeoutMillis,
+                                   long idleTimeoutMillis,
+                                   long maxLifetimeMillis,
+                                   bool testOnBorrow,
+                                   bool testOnReturn,
+                                   const std::string &validationQuery)
+        : url(url),
+          username(username),
+          password(password),
+          initialSize(initialSize),
+          maxSize(maxSize),
+          minIdle(minIdle),
+          maxWaitMillis(maxWaitMillis),
+          validationTimeoutMillis(validationTimeoutMillis),
+          idleTimeoutMillis(idleTimeoutMillis),
+          maxLifetimeMillis(maxLifetimeMillis),
+          testOnBorrow(testOnBorrow),
+          testOnReturn(testOnReturn),
+          validationQuery(validationQuery),
+          running(true),
+          activeConnections(0)
     {
-
         // Create initial connections
-        for (int i = 0; i < config.initialSize; i++)
+        for (int i = 0; i < initialSize; i++)
         {
             auto pooledConn = createPooledConnection();
             idleConnections.push(pooledConn);
@@ -24,6 +50,40 @@ namespace cpp_dbc
         maintenanceThread = std::thread(&ConnectionPool::maintenanceTask, this);
     }
 
+    ConnectionPool::ConnectionPool(const config::ConnectionPoolConfig &config)
+        : url(config.getUrl()),
+          username(config.getUsername()),
+          password(config.getPassword()),
+          initialSize(config.getInitialSize()),
+          maxSize(config.getMaxSize()),
+          minIdle(config.getMinIdle()),
+          maxWaitMillis(config.getConnectionTimeout()),
+          validationTimeoutMillis(config.getValidationInterval()),
+          idleTimeoutMillis(config.getIdleTimeout()),
+          maxLifetimeMillis(config.getMaxLifetimeMillis()),
+          testOnBorrow(config.getTestOnBorrow()),
+          testOnReturn(config.getTestOnReturn()),
+          validationQuery(config.getValidationQuery()),
+          running(true),
+          activeConnections(0)
+    {
+        // Create initial connections
+        for (int i = 0; i < initialSize; i++)
+        {
+            auto pooledConn = createPooledConnection();
+            idleConnections.push(pooledConn);
+            allConnections.push_back(pooledConn);
+        }
+
+        // Start maintenance thread
+        maintenanceThread = std::thread(&ConnectionPool::maintenanceTask, this);
+    }
+
+    std::shared_ptr<ConnectionPool> ConnectionPool::create(const config::ConnectionPoolConfig &config)
+    {
+        return std::make_shared<ConnectionPool>(config);
+    }
+
     ConnectionPool::~ConnectionPool()
     {
         close();
@@ -31,7 +91,7 @@ namespace cpp_dbc
 
     std::shared_ptr<Connection> ConnectionPool::createConnection()
     {
-        return DriverManager::getConnection(config.url, config.username, config.password);
+        return DriverManager::getConnection(url, username, password);
     }
 
     std::shared_ptr<PooledConnection> ConnectionPool::createPooledConnection()
@@ -45,7 +105,7 @@ namespace cpp_dbc
         try
         {
             // Use validation query to check connection
-            auto resultSet = conn->executeQuery(config.validationQuery);
+            auto resultSet = conn->executeQuery(validationQuery);
             return true;
         }
         catch (const SQLException &e)
@@ -65,7 +125,7 @@ namespace cpp_dbc
         }
 
         // Test connection before returning to pool if configured
-        if (config.testOnReturn)
+        if (testOnReturn)
         {
             if (!validateConnection(conn->getUnderlyingConnection()))
             {
@@ -77,7 +137,7 @@ namespace cpp_dbc
                 }
 
                 // Replace with new connection if pool is running
-                if (running && allConnections.size() < config.minIdle)
+                if (running && allConnections.size() < minIdle)
                 {
                     auto newConn = createPooledConnection();
                     idleConnections.push(newConn);
@@ -117,7 +177,7 @@ namespace cpp_dbc
                 idleConnections.pop();
 
                 // Test connection before use if configured
-                if (config.testOnBorrow)
+                if (testOnBorrow)
                 {
                     if (!validateConnection(conn->getUnderlyingConnection()))
                     {
@@ -135,7 +195,7 @@ namespace cpp_dbc
 
                 return conn;
             }
-            else if (allConnections.size() < config.maxSize)
+            else if (allConnections.size() < maxSize)
             {
                 // Create new connection since we haven't reached max size
                 return createPooledConnection();
@@ -155,7 +215,7 @@ namespace cpp_dbc
             while (result == nullptr)
             {
                 auto waitStatus = condition.wait_for(lock,
-                                                     std::chrono::milliseconds(config.maxWaitMillis));
+                                                     std::chrono::milliseconds(maxWaitMillis));
 
                 if (waitStatus == std::cv_status::timeout)
                 {
@@ -172,7 +232,7 @@ namespace cpp_dbc
                 // Check if we've waited too long
                 auto now = std::chrono::steady_clock::now();
                 auto waitedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - waitStart).count();
-                if (result == nullptr && waitedMs >= config.maxWaitMillis)
+                if (result == nullptr && waitedMs >= maxWaitMillis)
                 {
                     throw SQLException("Timeout waiting for connection from the pool");
                 }
@@ -230,11 +290,11 @@ namespace cpp_dbc
                                     now - pooledConn->getCreationTime())
                                     .count();
 
-                bool expired = (idleTime > config.idleTimeoutMillis) ||
-                               (lifeTime > config.maxLifetimeMillis);
+                bool expired = (idleTime > idleTimeoutMillis) ||
+                               (lifeTime > maxLifetimeMillis);
 
                 // Close and remove expired connections if we have more than minIdle
-                if (expired && allConnections.size() > config.minIdle)
+                if (expired && allConnections.size() > minIdle)
                 {
                     // Remove from idle queue if present
                     std::queue<std::shared_ptr<PooledConnection>> tempQueue;
@@ -260,7 +320,7 @@ namespace cpp_dbc
             }
 
             // Ensure we have at least minIdle connections
-            while (running && allConnections.size() < config.minIdle)
+            while (running && allConnections.size() < minIdle)
             {
                 auto pooledConn = createPooledConnection();
                 idleConnections.push(pooledConn);
@@ -461,7 +521,15 @@ namespace cpp_dbc
     // MySQL connection pool implementation
     namespace MySQL
     {
-        MySQLConnectionPool::MySQLConnectionPool(const ConnectionPoolConfig &config)
+        MySQLConnectionPool::MySQLConnectionPool(const std::string &url,
+                                                 const std::string &username,
+                                                 const std::string &password)
+            : ConnectionPool(url, username, password)
+        {
+            // MySQL-specific initialization if needed
+        }
+
+        MySQLConnectionPool::MySQLConnectionPool(const config::ConnectionPoolConfig &config)
             : ConnectionPool(config)
         {
             // MySQL-specific initialization if needed
@@ -471,7 +539,15 @@ namespace cpp_dbc
     // PostgreSQL connection pool implementation
     namespace PostgreSQL
     {
-        PostgreSQLConnectionPool::PostgreSQLConnectionPool(const ConnectionPoolConfig &config)
+        PostgreSQLConnectionPool::PostgreSQLConnectionPool(const std::string &url,
+                                                           const std::string &username,
+                                                           const std::string &password)
+            : ConnectionPool(url, username, password)
+        {
+            // PostgreSQL-specific initialization if needed
+        }
+
+        PostgreSQLConnectionPool::PostgreSQLConnectionPool(const config::ConnectionPoolConfig &config)
             : ConnectionPool(config)
         {
             // PostgreSQL-specific initialization if needed

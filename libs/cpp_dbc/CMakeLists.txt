@@ -21,12 +21,17 @@ add_library(cpp_dbc
     src/driver_manager.cpp
 )
 
-# Conditionally add YAML config loader
+# Conditionally add YAML config loader and database config implementation
 if(USE_CPP_YAML)
     target_sources(cpp_dbc PRIVATE
         src/config/yaml_config_loader.cpp
     )
 endif()
+
+# Add database config implementation
+target_sources(cpp_dbc PRIVATE
+    src/config/database_config.cpp
+)
 
 # Create an alias target for use in the same build tree
 add_library(cpp_dbc::cpp_dbc ALIAS cpp_dbc)
@@ -171,4 +176,8 @@ if(CPP_DBC_BUILD_EXAMPLES)
     # Configuration example
     add_executable(config_example examples/config_example.cpp)
     target_link_libraries(config_example PRIVATE cpp_dbc)
+
+    # Configuration integration example
+    add_executable(config_integration_example examples/config_integration_example.cpp)
+    target_link_libraries(config_integration_example PRIVATE cpp_dbc)
 endif()

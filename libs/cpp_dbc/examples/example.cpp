@@ -102,7 +102,7 @@ int main()
         // Example with MySQL
         std::cout << "Connecting to MySQL..." << std::endl;
         auto mysqlConn = cpp_dbc::DriverManager::getConnection(
-            "cppdbc:mysql://localhost:3306/testdb",
+            "cpp_dbc:mysql://localhost:3306/testdb",
             "username",
             "password");
 
@@ -113,7 +113,7 @@ int main()
         // Example with PostgreSQL
         std::cout << "\nConnecting to PostgreSQL..." << std::endl;
         auto pgConn = cpp_dbc::DriverManager::getConnection(
-            "cppdbc:postgresql://localhost:5432/testdb",
+            "cpp_dbc:postgresql://localhost:5432/testdb",
             "username",
             "password");
 

@@ -316,7 +316,7 @@ int main() {
 
     // Get a connection (will use whichever driver is available)
     auto conn = cpp_dbc::DriverManager::getConnection(
-        "cppdbc:mysql://localhost:3306/testdb",
+        "cpp_dbc:mysql://localhost:3306/testdb",
         "username",
         "password"
     );

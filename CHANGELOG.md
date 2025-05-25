@@ -1,23 +1,38 @@
 # Changelog
 
-## 2025-05-25 12:58:00 PM -0700 [pending]
+## 2025-05-25 2:06:00 PM -0700 [f4c7947]
 
-### Docker Container Build Improvements
-* Enhanced `build.dist.sh` to accept the same parameters as `build.sh` (--mysql, --postgres, --yaml, etc.)
-* Implemented automatic detection of shared library dependencies using ldd
-* Added mapping of libraries to their corresponding Debian packages
-* Ensured correct package names for special cases (e.g., libsasl2-2)
-* Fixed numbering of build steps for better readability
+### Database Configuration Integration
+* Added integration between database configuration and connection classes
+* Created new `config_integration_example.cpp` with examples of different connection methods
+* Added `createConnection()` method to `DatabaseConfig` class
+* Added `createConnection()` and `createConnectionPool()` methods to `DatabaseConfigManager`
+* Added new methods to `DriverManager` to work with configuration classes
+* Added script to run the configuration integration example
 
-### Helper Script Enhancements
-* Added `--ldd` command to check executable dependencies inside the container
-* Renamed previous `--ldd` to `--ldd-bin` for checking dependencies locally
+### Connection Pool Enhancements
+* Moved `ConnectionPoolConfig` from connection_pool.hpp to config/database_config.hpp
+* Enhanced `ConnectionPoolConfig` with more options and better encapsulation
+* Added new constructors and factory methods to `ConnectionPool`
+* Added integration between connection pool and database configuration
+
+### URL Format Change
+* Changed URL format from "cppdbc:" to "cpp_dbc:" for consistency
+* Updated all examples, tests, and code to use the new format
+
+### Code Organization
+* Added database_config.cpp implementation file
+* Added forward declarations to improve header organization
+* Fixed CMakeLists.txt to include database_config.cpp
+* Updated all examples to use the new configuration classes
 
 ### Documentation Updates
 * Updated memory-bank/progress.md with build.dist.sh and helper.sh improvements
 * Updated memory-bank/activeContext.md with recent changes
 * Enhanced README.md with detailed information about build.dist.sh and --ldd option
 * Updated libs/cpp_dbc/docs/cppdbc-package.md with current project structure and features
+* Updated libs/cpp_dbc/docs/cppdbc-docs-en.md with new build options and helper script information
+* Updated libs/cpp_dbc/docs/cppdbc-docs-es.md with the same changes in Spanish
 
 ## 2025-05-25 12:32:00 PM -0700 [4536048]
 

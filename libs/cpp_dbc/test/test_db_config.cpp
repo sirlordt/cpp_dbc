@@ -34,7 +34,7 @@ std::string createConnectionString(const YAML::Node &dbConfig)
     int port = dbConfig["port"].as<int>();
     std::string database = dbConfig["database"].as<std::string>();
 
-    return "cppdbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+    return "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 }
 
 // Helper class to manage database configurations
@@ -379,14 +379,14 @@ TEST_CASE("Create connection strings from configuration", "[config][connection]"
         }
 
         // Verify connection strings for MySQL databases
-        REQUIRE(connectionStrings["dev_mysql"] == "cppdbc:mysql://localhost:3306/Test01DB");
-        REQUIRE(connectionStrings["test_mysql"] == "cppdbc:mysql://localhost:3306/Test01DB");
-        REQUIRE(connectionStrings["prod_mysql"] == "cppdbc:mysql://db.example.com:3306/Test01DB");
+        REQUIRE(connectionStrings["dev_mysql"] == "cpp_dbc:mysql://localhost:3306/Test01DB");
+        REQUIRE(connectionStrings["test_mysql"] == "cpp_dbc:mysql://localhost:3306/Test01DB");
+        REQUIRE(connectionStrings["prod_mysql"] == "cpp_dbc:mysql://db.example.com:3306/Test01DB");
 
         // Verify connection strings for PostgreSQL databases
-        REQUIRE(connectionStrings["dev_postgresql"] == "cppdbc:postgresql://localhost:5432/Test01DB");
-        REQUIRE(connectionStrings["test_postgresql"] == "cppdbc:postgresql://localhost:5432/Test01DB");
-        REQUIRE(connectionStrings["prod_postgresql"] == "cppdbc:postgresql://db.example.com:5432/Test01DB");
+        REQUIRE(connectionStrings["dev_postgresql"] == "cpp_dbc:postgresql://localhost:5432/Test01DB");
+        REQUIRE(connectionStrings["test_postgresql"] == "cpp_dbc:postgresql://localhost:5432/Test01DB");
+        REQUIRE(connectionStrings["prod_postgresql"] == "cpp_dbc:postgresql://db.example.com:5432/Test01DB");
 
         // In a real application, you would use these connection strings with DriverManager:
         // for (const auto& [dbName, connStr] : connectionStrings) {
@@ -418,7 +418,7 @@ TEST_CASE("Select MySQL database for dev environment", "[config][environment]")
     std::string connStr = createConnectionString(dbConfig);
 
     // Verify the connection string format
-    REQUIRE(connStr.find("cppdbc:mysql://") == 0);
+    REQUIRE(connStr.find("cpp_dbc:mysql://") == 0);
 
     // Verify that we can access the credentials
     std::string username = dbConfig["username"].as<std::string>();
@@ -440,7 +440,7 @@ TEST_CASE("Select MySQL database for test environment", "[config][environment]")
 
     // Create connection string
     std::string connStr = createConnectionString(dbConfig);
-    REQUIRE(connStr.find("cppdbc:mysql://") == 0);
+    REQUIRE(connStr.find("cpp_dbc:mysql://") == 0);
 }
 
 TEST_CASE("Select MySQL database for prod environment", "[config][environment]")
@@ -455,7 +455,7 @@ TEST_CASE("Select MySQL database for prod environment", "[config][environment]")
 
     // Create connection string
     std::string connStr = createConnectionString(dbConfig);
-    REQUIRE(connStr.find("cppdbc:mysql://") == 0);
+    REQUIRE(connStr.find("cpp_dbc:mysql://") == 0);
 }
 
 TEST_CASE("Select PostgreSQL database for dev environment", "[config][environment]")
@@ -470,7 +470,7 @@ TEST_CASE("Select PostgreSQL database for dev environment", "[config][environmen
 
     // Create connection string
     std::string connStr = createConnectionString(dbConfig);
-    REQUIRE(connStr.find("cppdbc:postgresql://") == 0);
+    REQUIRE(connStr.find("cpp_dbc:postgresql://") == 0);
 }
 
 TEST_CASE("Select PostgreSQL database for test environment", "[config][environment]")
@@ -485,7 +485,7 @@ TEST_CASE("Select PostgreSQL database for test environment", "[config][environme
 
     // Create connection string
     std::string connStr = createConnectionString(dbConfig);
-    REQUIRE(connStr.find("cppdbc:postgresql://") == 0);
+    REQUIRE(connStr.find("cpp_dbc:postgresql://") == 0);
 }
 
 TEST_CASE("Select PostgreSQL database for prod environment", "[config][environment]")
@@ -500,5 +500,5 @@ TEST_CASE("Select PostgreSQL database for prod environment", "[config][environme
 
     // Create connection string
     std::string connStr = createConnectionString(dbConfig);
-    REQUIRE(connStr.find("cppdbc:postgresql://") == 0);
+    REQUIRE(connStr.find("cpp_dbc:postgresql://") == 0);
 }
