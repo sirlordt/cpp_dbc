@@ -97,6 +97,50 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Check if the project has been built
+# Get the binary name from .dist_build
+if [ -f ".dist_build" ]; then
+    BIN_NAME=$(awk -F'"' '/^Container_Bin_Name=/{print $2}' .dist_build)
+else
+    BIN_NAME="cpp_dbc_demo"  # Default name if .dist_build is not found
+fi
+
+MAIN_EXECUTABLE="build/${BIN_NAME}"
+if [ ! -f "$MAIN_EXECUTABLE" ]; then
+    echo "Project has not been built yet. Building the project first..."
+    
+    # Build the project with appropriate options
+    BUILD_CMD="./build.sh"
+    
+    # Pass the same database options to build.sh
+    if [ "$USE_MYSQL" = "OFF" ]; then
+        BUILD_CMD="$BUILD_CMD --mysql-off"
+    fi
+    
+    if [ "$USE_POSTGRESQL" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --postgres-on"
+    fi
+    
+    if [ "$BUILD_TYPE" = "Release" ]; then
+        BUILD_CMD="$BUILD_CMD --release"
+    fi
+    
+    # Always include --test to ensure tests are built
+    BUILD_CMD="$BUILD_CMD --test"
+    
+    echo "Running build command: $BUILD_CMD"
+    $BUILD_CMD
+    
+    # Check if build was successful
+    if [ $? -ne 0 ]; then
+        echo "Error: Project build failed. Cannot run tests."
+        exit 1
+    fi
+    
+    echo "Project built successfully. Continuing with tests..."
+    echo ""
+fi
+
 # Check for incompatible options
 if [ "$USE_VALGRIND" = true ] && [ "$ENABLE_ASAN" = true ]; then
     echo -e "\nWARNING: Valgrind and AddressSanitizer are not fully compatible."

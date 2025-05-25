@@ -49,7 +49,7 @@ get_container_name() {
 }
 
 show_usage() {
-  echo "Usage: $(basename "$0") COMMAND [container_name]"
+  echo "Usage: $(basename "$0") COMMAND [COMMAND...] [container_name]"
   echo "Commands:"
   echo "  --build              Build via ./build.sh, logs to build/build-<timestamp>.log"
   echo "  --build-dist         Build via ./build.dist.sh, logs to build/build-dist-<timestamp>.log"
@@ -59,6 +59,13 @@ show_usage() {
   echo "  --env [name]         Show environment variables defined in the image"
   echo "  --clean-build        Remove build directory"
   echo "  --clean-conan-cache  Clear Conan local cache"
+  echo "  --test               Build the tests"
+  echo "  --run-test           Build (if needed) and run the tests"
+  echo "  --ldd                Run ldd on the final executable"
+  echo "  --run-bin            Run the final executable"
+  echo ""
+  echo "Multiple commands can be combined, e.g.:"
+  echo "  $(basename "$0") --clean-build --clean-conan-cache --build"
 }
 
 cleanup_old_logs() {
@@ -75,6 +82,51 @@ cmd_build() {
   mkdir -p build
   cleanup_old_logs
   ./build.sh 2>&1 | tee "$log"
+}
+
+cmd_test() {
+  echo "Building tests..."
+  ./build.sh --test
+}
+
+cmd_run_test() {
+  echo "Running tests..."
+  ./run_test.sh
+}
+
+get_bin_name() {
+  if [ -f ".dist_build" ]; then
+    BIN_NAME=$(awk -F'"' '/^Container_Bin_Name=/{print $2}' .dist_build)
+  else
+    BIN_NAME="cpp_dbc_demo"  # Default name if .dist_build is not found
+  fi
+  echo "$BIN_NAME"
+}
+
+cmd_ldd() {
+  local bin_name=$(get_bin_name)
+  local bin_path="build/${bin_name}"
+  
+  if [ ! -f "$bin_path" ]; then
+    echo "Error: Executable '$bin_path' not found. Build the project first."
+    return 1
+  fi
+  
+  echo "Running ldd on $bin_path:"
+  ldd "$bin_path"
+}
+
+cmd_run_bin() {
+  local bin_name=$(get_bin_name)
+  local bin_path="build/${bin_name}"
+  
+  if [ ! -f "$bin_path" ]; then
+    echo "Error: Executable '$bin_path' not found. Build the project first."
+    return 1
+  fi
+  
+  echo "Running $bin_path:"
+  "$bin_path"
 }
 
 cmd_build_dist() {
@@ -141,14 +193,75 @@ if [[ $# -lt 1 ]]; then
   exit 1
 fi
 
-case "$1" in
-  --build)             shift; cmd_build "$@" ;;
-  --build-dist)        shift; cmd_build_dist "$@" ;;
-  --run)               shift; cmd_run "$@" ;;
-  --labels)            shift; cmd_labels "$@" ;;
-  --tags)              shift; cmd_tags "$@" ;;
-  --env)               shift; cmd_env "$@" ;;
-  --clean-build)       shift; cmd_clean_build ;;
-  --clean-conan-cache) shift; cmd_clean_conan_cache ;;
-  *)                   show_usage; exit 1 ;;
-esac
+# Process multiple commands
+container_name=""
+exit_code=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --build)
+      cmd_build
+      ;;
+    --build-dist)
+      cmd_build_dist
+      ;;
+    --run)
+      shift
+      if [[ "$1" != --* && -n "$1" ]]; then
+        container_name="$1"
+        shift
+      fi
+      cmd_run "$container_name" || exit_code=$?
+      ;;
+    --labels)
+      shift
+      if [[ "$1" != --* && -n "$1" ]]; then
+        container_name="$1"
+        shift
+      fi
+      cmd_labels "$container_name" || exit_code=$?
+      ;;
+    --tags)
+      shift
+      if [[ "$1" != --* && -n "$1" ]]; then
+        container_name="$1"
+        shift
+      fi
+      cmd_tags "$container_name" || exit_code=$?
+      ;;
+    --env)
+      shift
+      if [[ "$1" != --* && -n "$1" ]]; then
+        container_name="$1"
+        shift
+      fi
+      cmd_env "$container_name" || exit_code=$?
+      ;;
+    --clean-build)
+      cmd_clean_build
+      ;;
+    --clean-conan-cache)
+      cmd_clean_conan_cache
+      ;;
+    --test)
+      cmd_test
+      ;;
+    --run-test)
+      cmd_run_test
+      ;;
+    --ldd)
+      cmd_ldd || exit_code=$?
+      ;;
+    --run-bin)
+      cmd_run_bin || exit_code=$?
+      ;;
+    *)
+      echo "Unknown option: $1"
+      show_usage
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+exit $exit_code
