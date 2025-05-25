@@ -119,3 +119,11 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindPostgreSQL.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/cpp_dbc
 )
+
+# Add tests subdirectory if testing is enabled
+option(CPP_DBC_BUILD_TESTS "Build cpp_dbc tests" ON)
+
+if(CPP_DBC_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(test)
+endif()

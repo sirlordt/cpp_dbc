@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <yaml-cpp/yaml.h>
 
 // Include paths for using the library as an external dependency
 #include <cpp_dbc/cpp_dbc.hpp>
@@ -104,6 +105,57 @@ int main(int argc, char *argv[])
     // Print the modified JSON
     std::cout << "\nModified database configuration:" << std::endl;
     std::cout << db_config.dump(4) << std::endl;
+
+    // Demonstrate yaml-cpp usage
+    std::cout << "\nDemonstrating yaml-cpp usage:" << std::endl;
+
+    // Create a YAML node with database configuration
+    YAML::Node yaml_config;
+    yaml_config["connections"] = YAML::Node(YAML::NodeType::Sequence);
+
+    // Add MySQL connection
+    YAML::Node mysql_conn;
+    mysql_conn["name"] = "mysql_local";
+    mysql_conn["type"] = "mysql";
+    mysql_conn["host"] = "localhost";
+    mysql_conn["port"] = 3306;
+    mysql_conn["user"] = "root";
+    mysql_conn["database"] = "test_db";
+    yaml_config["connections"].push_back(mysql_conn);
+
+    // Add PostgreSQL connection
+    YAML::Node pg_conn;
+    pg_conn["name"] = "postgres_dev";
+    pg_conn["type"] = "postgresql";
+    pg_conn["host"] = "db.example.com";
+    pg_conn["port"] = 5432;
+    pg_conn["user"] = "dev_user";
+    pg_conn["database"] = "dev_db";
+    yaml_config["connections"].push_back(pg_conn);
+
+    // Print the YAML configuration
+    std::cout << "Database configuration YAML:" << std::endl;
+    std::cout << yaml_config << std::endl;
+
+    // Access YAML values
+    std::cout << "\nAccessing YAML values:" << std::endl;
+    std::cout << "Number of connections: " << yaml_config["connections"].size() << std::endl;
+    std::cout << "First connection name: " << yaml_config["connections"][0]["name"].as<std::string>() << std::endl;
+    std::cout << "Second connection type: " << yaml_config["connections"][1]["type"].as<std::string>() << std::endl;
+
+    // Modify YAML values
+    yaml_config["connections"][0]["port"] = 3307;
+
+    // Add a new connection
+    YAML::Node sqlite_conn;
+    sqlite_conn["name"] = "sqlite_local";
+    sqlite_conn["type"] = "sqlite";
+    sqlite_conn["database"] = "local.db";
+    yaml_config["connections"].push_back(sqlite_conn);
+
+    // Print the modified YAML
+    std::cout << "\nModified database configuration:" << std::endl;
+    std::cout << yaml_config << std::endl;
 
     return 0;
 }

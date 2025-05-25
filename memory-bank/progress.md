@@ -76,9 +76,10 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Performance benchmarks
 
 5. **Testing**:
-   - Comprehensive unit tests
-   - Integration tests with actual databases
-   - Performance tests
+   - Expand the basic unit tests implemented with Catch2
+   - Add more comprehensive test cases for all components
+   - Implement integration tests with actual databases
+   - Develop performance tests
 
 ## Known Issues
 
@@ -115,7 +116,13 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Modified the installation path to use `/home/dsystems/Desktop/projects/cpp/cpp_dbc/build/libs/cpp_dbc` for consistency.
    - Updated the main CMakeLists.txt to look for the library in the new location.
 
-5. **Previous Fixed Issues**:
+5. **Testing Infrastructure**:
+   - Implemented basic unit tests using Catch2
+   - Created test directory structure in `libs/cpp_dbc/test`
+   - Added build scripts for tests with ASAN and Valgrind support
+   - Documented ASAN issues in `memory-bank/asan_issues.md`
+
+6. **Previous Fixed Issues**:
    - Fixed PostgreSQL header propagation issues.
    - Fixed naming conflicts with executable names.
    - Suppressed CMake warnings with `-Wno-dev` flag.
@@ -141,6 +148,11 @@ Based on the code structure, potential areas of concern might include:
 4. **Performance**:
    - Connection pool tuning for different workloads
    - Optimization of prepared statement handling
+
+5. **AddressSanitizer Issues**:
+   - Random crashes during compilation with ASAN enabled
+   - See `memory-bank/asan_issues.md` for detailed information and workarounds
+   - Consider using Valgrind as an alternative for memory checking
 
 ## Evolution of Project Decisions
 

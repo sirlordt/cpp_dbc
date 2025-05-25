@@ -72,6 +72,13 @@ else
     BUILD_TYPE_PARAM=""
 fi
 
+# First, install dependencies for cpp_dbc library including Catch2
+echo "Installing dependencies for cpp_dbc library..."
+cd libs/cpp_dbc
+conan install . --build=missing -s build_type=$BUILD_TYPE
+cd ../..
+
+# Now build the cpp_dbc library
 ./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $BUILD_TYPE_PARAM
 
 # If the cpp_dbc build script fails, stop the build process

@@ -46,6 +46,7 @@ message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 # Find Conan packages
 find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 # Add the path where the cpp_dbc library is installed
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/build/libs/cpp_dbc")
@@ -64,6 +65,7 @@ target_link_libraries(${APP_BIN_NAME} PRIVATE
     cpp_dbc::cpp_dbc
     fmt::fmt
     nlohmann_json::nlohmann_json
+    yaml-cpp::yaml-cpp
 )
 
 # Add include directories for the main executable

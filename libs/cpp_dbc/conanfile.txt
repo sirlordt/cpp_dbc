@@ -1,6 +1,10 @@
 [requires]
-# No se requieren dependencias externas de Conan para la biblioteca cpp_dbc
 # Las dependencias de MySQL y PostgreSQL se manejan a través de los paquetes del sistema
+catch2/3.3.2
 
 [generators]
-cmake
+CMakeDeps
+CMakeToolchain
+
+[layout]
+cmake_layout

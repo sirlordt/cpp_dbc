@@ -1,5 +1,17 @@
 # CPP_DBC Active Context
 
+## Important Memory Bank Files
+
+When working with this project, always review these key memory bank files:
+
+1. **projectbrief.md**: Core project overview and goals
+2. **techContext.md**: Technical details and environment setup
+3. **systemPatterns.md**: Architecture and design patterns
+4. **git_commands.md**: Git workflow and common commands
+5. **asan_issues.md**: Known issues with AddressSanitizer and workarounds
+
+These files contain critical information for understanding the project structure, development workflow, and known issues.
+
 ## Current Work Focus
 
 The current focus appears to be on maintaining and potentially extending the CPP_DBC library. The library provides a C++ database connectivity framework inspired by Java's JDBC, with support for:
