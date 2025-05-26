@@ -905,7 +905,7 @@ namespace cpp_dbc
 
         bool PostgreSQLDriver::acceptsURL(const std::string &url)
         {
-            return url.substr(0, 24) == "cpp_dbc:postgresql://";
+            return url.substr(0, 21) == "cpp_dbc:postgresql://";
         }
 
         bool PostgreSQLDriver::parseURL(const std::string &url,
@@ -920,7 +920,7 @@ namespace cpp_dbc
             }
 
             // Extract host, port, and database
-            std::string temp = url.substr(24); // Remove "cpp_dbc:postgresql://"
+            std::string temp = url.substr(21); // Remove "cpp_dbc:postgresql://"
 
             // Find host:port separator
             size_t hostEnd = temp.find(":");

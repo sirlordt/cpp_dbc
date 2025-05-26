@@ -654,51 +654,26 @@ namespace cpp_dbc
         {
             std::string host;
             int port;
-            std::string database;
+            std::string database = ""; // Default to empty database
 
-            // Check if the URL is in the expected format
-            if (acceptsURL(url))
+            // Simple parsing for common URL formats
+            if (url.substr(0, 16) == "cpp_dbc:mysql://")
             {
-                // URL is in the format cpp_dbc:mysql://host:port/database
-                if (!parseURL(url, host, port, database))
+                std::string temp = url.substr(16); // Remove "cpp_dbc:mysql://"
+
+                // Check if there's a port specified
+                size_t colonPos = temp.find(":");
+                if (colonPos != std::string::npos)
                 {
-                    throw SQLException("Invalid MySQL connection URL: " + url);
-                }
-            }
-            else
-            {
-                // Try to extract host, port, and database directly
-                size_t hostStart = url.find("://");
-                if (hostStart != std::string::npos)
-                {
-                    std::string temp = url.substr(hostStart + 3);
+                    // Host with port
+                    host = temp.substr(0, colonPos);
 
-                    // Find host:port separator
-                    size_t hostEnd = temp.find(":");
-                    if (hostEnd == std::string::npos)
+                    // Find if there's a database specified
+                    size_t slashPos = temp.find("/", colonPos);
+                    if (slashPos != std::string::npos)
                     {
-                        // Try to find database separator if no port is specified
-                        hostEnd = temp.find("/");
-                        if (hostEnd == std::string::npos)
-                        {
-                            throw SQLException("Invalid MySQL connection URL: " + url);
-                        }
-
-                        host = temp.substr(0, hostEnd);
-                        port = 3306; // Default MySQL port
-                    }
-                    else
-                    {
-                        host = temp.substr(0, hostEnd);
-
-                        // Find port/database separator
-                        size_t portEnd = temp.find("/", hostEnd + 1);
-                        if (portEnd == std::string::npos)
-                        {
-                            throw SQLException("Invalid MySQL connection URL: " + url);
-                        }
-
-                        std::string portStr = temp.substr(hostEnd + 1, portEnd - hostEnd - 1);
+                        // Extract port
+                        std::string portStr = temp.substr(colonPos + 1, slashPos - colonPos - 1);
                         try
                         {
                             port = std::stoi(portStr);
@@ -708,14 +683,54 @@ namespace cpp_dbc
                             throw SQLException("Invalid port in URL: " + url);
                         }
 
-                        // Extract database
-                        database = temp.substr(portEnd + 1);
+                        // Extract database (if any)
+                        if (slashPos + 1 < temp.length())
+                        {
+                            database = temp.substr(slashPos + 1);
+                        }
+                    }
+                    else
+                    {
+                        // No database specified, just port
+                        std::string portStr = temp.substr(colonPos + 1);
+                        try
+                        {
+                            port = std::stoi(portStr);
+                        }
+                        catch (...)
+                        {
+                            throw SQLException("Invalid port in URL: " + url);
+                        }
                     }
                 }
                 else
                 {
-                    throw SQLException("Invalid MySQL connection URL: " + url);
+                    // No port specified
+                    size_t slashPos = temp.find("/");
+                    if (slashPos != std::string::npos)
+                    {
+                        // Host with database
+                        host = temp.substr(0, slashPos);
+
+                        // Extract database (if any)
+                        if (slashPos + 1 < temp.length())
+                        {
+                            database = temp.substr(slashPos + 1);
+                        }
+
+                        port = 3306; // Default MySQL port
+                    }
+                    else
+                    {
+                        // Just host
+                        host = temp;
+                        port = 3306; // Default MySQL port
+                    }
                 }
+            }
+            else
+            {
+                throw SQLException("Invalid MySQL connection URL: " + url);
             }
 
             return std::make_shared<MySQLConnection>(host, port, database, user, password);
@@ -748,7 +763,11 @@ namespace cpp_dbc
                 hostEnd = temp.find("/");
                 if (hostEnd == std::string::npos)
                 {
-                    return false;
+                    // No port and no database specified
+                    host = temp;
+                    port = 3306;   // Default MySQL port
+                    database = ""; // No database
+                    return true;
                 }
 
                 host = temp.substr(0, hostEnd);
@@ -762,24 +781,46 @@ namespace cpp_dbc
                 size_t portEnd = temp.find("/", hostEnd + 1);
                 if (portEnd == std::string::npos)
                 {
-                    return false;
-                }
+                    // No database specified, just port
+                    std::string portStr = temp.substr(hostEnd + 1);
+                    try
+                    {
+                        port = std::stoi(portStr);
+                    }
+                    catch (...)
+                    {
+                        return false;
+                    }
 
-                std::string portStr = temp.substr(hostEnd + 1, portEnd - hostEnd - 1);
-                try
-                {
-                    port = std::stoi(portStr);
+                    // No database part
+                    temp = "";
                 }
-                catch (...)
+                else
                 {
-                    return false;
-                }
+                    std::string portStr = temp.substr(hostEnd + 1, portEnd - hostEnd - 1);
+                    try
+                    {
+                        port = std::stoi(portStr);
+                    }
+                    catch (...)
+                    {
+                        return false;
+                    }
 
-                temp = temp.substr(portEnd);
+                    temp = temp.substr(portEnd);
+                }
             }
 
             // Extract database name (remove leading '/')
-            database = temp.substr(1);
+            if (temp.length() > 0)
+            {
+                database = temp.substr(1);
+            }
+            else
+            {
+                // No database specified
+                database = "";
+            }
 
             return true;
         }

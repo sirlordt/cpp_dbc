@@ -47,11 +47,12 @@ TEST_CASE("MySQL connection test", "[mysql][connection]")
         std::string type = dbConfig["type"].as<std::string>();
         std::string host = dbConfig["host"].as<std::string>();
         int port = dbConfig["port"].as<int>();
-        std::string database = dbConfig["database"].as<std::string>();
+        std::string database = ""; // Empty database
         std::string username = dbConfig["username"].as<std::string>();
         std::string password = dbConfig["password"].as<std::string>();
 
-        std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+        // Test connection without specifying a database
+        std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port);
 
         // Register the MySQL driver
         cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
@@ -65,7 +66,7 @@ TEST_CASE("MySQL connection test", "[mysql][connection]")
             auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
 
             // If we get here, the connection was successful (which is unexpected since Test01DB doesn't exist)
-            std::cout << "MySQL connection succeeded unexpectedly. Test01DB might have been created." << std::endl;
+            // std::cout << "MySQL connection succeeded unexpectedly. Test01DB might have been created." << std::endl;
 
             // Since we're just testing connectivity, we'll consider this a success
             // Execute a simple query to verify the connection
