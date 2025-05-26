@@ -38,6 +38,8 @@ add_executable(cpp_dbc_tests
     test_basic.cpp
     test_yaml.cpp
     test_db_config.cpp
+    test_mysql_connection.cpp
+    test_postgresql_connection.cpp
 )
 
 # Link against Catch2, cpp_dbc and yaml-cpp

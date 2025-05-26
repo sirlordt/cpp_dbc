@@ -838,9 +838,66 @@ namespace cpp_dbc
             int port;
             std::string database;
 
-            if (!parseURL(url, host, port, database))
+            // Check if the URL is in the expected format
+            if (acceptsURL(url))
             {
-                throw SQLException("Invalid PostgreSQL connection URL: " + url);
+                // URL is in the format cpp_dbc:postgresql://host:port/database
+                if (!parseURL(url, host, port, database))
+                {
+                    throw SQLException("Invalid PostgreSQL connection URL: " + url);
+                }
+            }
+            else
+            {
+                // Try to extract host, port, and database directly
+                size_t hostStart = url.find("://");
+                if (hostStart != std::string::npos)
+                {
+                    std::string temp = url.substr(hostStart + 3);
+
+                    // Find host:port separator
+                    size_t hostEnd = temp.find(":");
+                    if (hostEnd == std::string::npos)
+                    {
+                        // Try to find database separator if no port is specified
+                        hostEnd = temp.find("/");
+                        if (hostEnd == std::string::npos)
+                        {
+                            throw SQLException("Invalid PostgreSQL connection URL: " + url);
+                        }
+
+                        host = temp.substr(0, hostEnd);
+                        port = 5432; // Default PostgreSQL port
+                    }
+                    else
+                    {
+                        host = temp.substr(0, hostEnd);
+
+                        // Find port/database separator
+                        size_t portEnd = temp.find("/", hostEnd + 1);
+                        if (portEnd == std::string::npos)
+                        {
+                            throw SQLException("Invalid PostgreSQL connection URL: " + url);
+                        }
+
+                        std::string portStr = temp.substr(hostEnd + 1, portEnd - hostEnd - 1);
+                        try
+                        {
+                            port = std::stoi(portStr);
+                        }
+                        catch (...)
+                        {
+                            throw SQLException("Invalid port in URL: " + url);
+                        }
+
+                        // Extract database
+                        database = temp.substr(portEnd + 1);
+                    }
+                }
+                else
+                {
+                    throw SQLException("Invalid PostgreSQL connection URL: " + url);
+                }
             }
 
             return std::make_shared<PostgreSQLConnection>(host, port, database, user, password);
@@ -848,7 +905,7 @@ namespace cpp_dbc
 
         bool PostgreSQLDriver::acceptsURL(const std::string &url)
         {
-            return url.substr(0, 22) == "cpp_dbc:postgresql:";
+            return url.substr(0, 24) == "cpp_dbc:postgresql://";
         }
 
         bool PostgreSQLDriver::parseURL(const std::string &url,

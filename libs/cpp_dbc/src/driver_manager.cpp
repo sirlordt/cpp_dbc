@@ -32,7 +32,7 @@ namespace cpp_dbc
             throw SQLException("Invalid URL format. Expected cpp_dbc:driverName://host:port/database");
         }
 
-        std::string driverName = url.substr(7, driverEndPos - 7);
+        std::string driverName = url.substr(8, driverEndPos - 8);
 
         // Find the driver
         auto it = drivers.find(driverName);

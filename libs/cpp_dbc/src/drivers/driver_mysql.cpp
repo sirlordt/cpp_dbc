@@ -491,14 +491,30 @@ namespace cpp_dbc
                 throw SQLException("Failed to initialize MySQL connection");
             }
 
+            // Force TCP/IP connection
+            unsigned int protocol = MYSQL_PROTOCOL_TCP;
+            mysql_options(mysql, MYSQL_OPT_PROTOCOL, &protocol);
+
             // Connect to the database
             if (!mysql_real_connect(mysql, host.c_str(), user.c_str(), password.c_str(),
-                                    database.c_str(), port, nullptr, 0))
+                                    nullptr, port, nullptr, 0))
             {
                 std::string error = mysql_error(mysql);
                 mysql_close(mysql);
                 mysql = nullptr;
                 throw SQLException("Failed to connect to MySQL: " + error);
+            }
+
+            // Select the database if provided
+            if (!database.empty())
+            {
+                if (mysql_select_db(mysql, database.c_str()) != 0)
+                {
+                    std::string error = mysql_error(mysql);
+                    mysql_close(mysql);
+                    mysql = nullptr;
+                    throw SQLException("Failed to select database: " + error);
+                }
             }
 
             // Disable auto-commit by default to match JDBC behavior
@@ -640,9 +656,66 @@ namespace cpp_dbc
             int port;
             std::string database;
 
-            if (!parseURL(url, host, port, database))
+            // Check if the URL is in the expected format
+            if (acceptsURL(url))
             {
-                throw SQLException("Invalid MySQL connection URL: " + url);
+                // URL is in the format cpp_dbc:mysql://host:port/database
+                if (!parseURL(url, host, port, database))
+                {
+                    throw SQLException("Invalid MySQL connection URL: " + url);
+                }
+            }
+            else
+            {
+                // Try to extract host, port, and database directly
+                size_t hostStart = url.find("://");
+                if (hostStart != std::string::npos)
+                {
+                    std::string temp = url.substr(hostStart + 3);
+
+                    // Find host:port separator
+                    size_t hostEnd = temp.find(":");
+                    if (hostEnd == std::string::npos)
+                    {
+                        // Try to find database separator if no port is specified
+                        hostEnd = temp.find("/");
+                        if (hostEnd == std::string::npos)
+                        {
+                            throw SQLException("Invalid MySQL connection URL: " + url);
+                        }
+
+                        host = temp.substr(0, hostEnd);
+                        port = 3306; // Default MySQL port
+                    }
+                    else
+                    {
+                        host = temp.substr(0, hostEnd);
+
+                        // Find port/database separator
+                        size_t portEnd = temp.find("/", hostEnd + 1);
+                        if (portEnd == std::string::npos)
+                        {
+                            throw SQLException("Invalid MySQL connection URL: " + url);
+                        }
+
+                        std::string portStr = temp.substr(hostEnd + 1, portEnd - hostEnd - 1);
+                        try
+                        {
+                            port = std::stoi(portStr);
+                        }
+                        catch (...)
+                        {
+                            throw SQLException("Invalid port in URL: " + url);
+                        }
+
+                        // Extract database
+                        database = temp.substr(portEnd + 1);
+                    }
+                }
+                else
+                {
+                    throw SQLException("Invalid MySQL connection URL: " + url);
+                }
             }
 
             return std::make_shared<MySQLConnection>(host, port, database, user, password);
@@ -650,7 +723,7 @@ namespace cpp_dbc
 
         bool MySQLDriver::acceptsURL(const std::string &url)
         {
-            return url.substr(0, 16) == "cpp_dbc:mysql:";
+            return url.substr(0, 18) == "cpp_dbc:mysql://";
         }
 
         bool MySQLDriver::parseURL(const std::string &url,
