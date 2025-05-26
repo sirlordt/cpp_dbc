@@ -40,6 +40,12 @@ add_executable(cpp_dbc_tests
     test_db_config.cpp
     test_mysql_connection.cpp
     test_postgresql_connection.cpp
+    test_connection_pool.cpp
+    test_transaction_manager.cpp
+    test_database_config.cpp
+    test_yaml_config_loader.cpp
+    test_drivers.cpp
+    test_integration.cpp
 )
 
 # Link against Catch2, cpp_dbc and yaml-cpp
