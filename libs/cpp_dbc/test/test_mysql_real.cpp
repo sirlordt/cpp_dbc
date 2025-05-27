@@ -265,14 +265,36 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
 
                         // Insert a row
                         int id = i * 100 + j;
-                        {
-                            // Scope the PreparedStatement to ensure it's destroyed before closing the connection
-                            auto pstmt = conn->prepareStatement(insertDataQuery);
-                            pstmt->setInt(1, id);
-                            pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
-                            pstmt->executeUpdate();
-                            // pstmt is destroyed here when it goes out of scope
+                        //{
+                        auto pstmt = conn->prepareStatement(insertDataQuery);
+                        pstmt->setInt(1, id);
+                        pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
+                        pstmt->executeUpdate();
+                        
+                        // PreparedStatement is automatically closed after executeUpdate() (single-use)
+                        // Attempting to use it again should fail
+                        try {
+                            pstmt->executeUpdate(); // This should fail
+                            FAIL("Expected SQLException for reusing closed PreparedStatement");
+                        } catch (const cpp_dbc::SQLException& e) {
+                            // Expected behavior - statement is closed after first use
+                            cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(),
+                                "Expected exception caught: " + std::string(e.what()));
                         }
+                        
+                        // Test ResultSet close() method
+                        auto rs = conn->executeQuery("SELECT 1 as test_value");
+                        REQUIRE(rs != nullptr);
+                        REQUIRE(rs->next());
+                        REQUIRE(rs->getString("test_value") == "1");
+                        
+                        // Explicitly close the ResultSet
+                        rs->close();
+                        
+                        // Attempting to use it after close should be safe (no crash)
+                        // but may return invalid data - this is expected behavior
+                        cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(),
+                            "ResultSet closed successfully");
 
                         cpp_dbc::system_utils::safePrint( cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(), "(3) Closing connection" );
                         conn->close();

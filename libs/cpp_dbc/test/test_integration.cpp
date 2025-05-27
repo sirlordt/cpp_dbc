@@ -4,6 +4,7 @@
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 #include <cpp_dbc/config/yaml_config_loader.hpp>
+#include "test_mocks.hpp"
 #if USE_MYSQL
 #include <cpp_dbc/drivers/driver_mysql.hpp>
 #endif
@@ -23,312 +24,6 @@
 // Helper function to get the path to the test_db_connections.yml file
 std::string getConfigFilePath();
 
-// Mock classes for integration testing without actual database connections
-namespace
-{
-    class MockResultSet : public cpp_dbc::ResultSet
-    {
-    private:
-        std::vector<std::map<std::string, std::string>> data;
-        int currentRow = -1; // -1 means before first
-        std::vector<std::string> columnNames;
-
-    public:
-        MockResultSet(const std::vector<std::map<std::string, std::string>> &data,
-                      const std::vector<std::string> &columnNames)
-            : data(data), columnNames(columnNames) {}
-
-        bool next() override
-        {
-            if (currentRow < static_cast<int>(data.size()) - 1)
-            {
-                currentRow++;
-                return true;
-            }
-            return false;
-        }
-
-        bool isBeforeFirst() override { return currentRow == -1; }
-        bool isAfterLast() override { return currentRow >= static_cast<int>(data.size()); }
-        int getRow() override { return currentRow + 1; }
-
-        int getInt(int columnIndex) override
-        {
-            if (columnIndex <= 0 || columnIndex > static_cast<int>(columnNames.size()))
-            {
-                throw cpp_dbc::SQLException("Column index out of range");
-            }
-            return std::stoi(data[currentRow][columnNames[columnIndex - 1]]);
-        }
-
-        int getInt(const std::string &columnName) override
-        {
-            if (data[currentRow].find(columnName) == data[currentRow].end())
-            {
-                throw cpp_dbc::SQLException("Column not found: " + columnName);
-            }
-            return std::stoi(data[currentRow][columnName]);
-        }
-
-        long getLong(int columnIndex) override
-        {
-            if (columnIndex <= 0 || columnIndex > static_cast<int>(columnNames.size()))
-            {
-                throw cpp_dbc::SQLException("Column index out of range");
-            }
-            return std::stol(data[currentRow][columnNames[columnIndex - 1]]);
-        }
-
-        long getLong(const std::string &columnName) override
-        {
-            if (data[currentRow].find(columnName) == data[currentRow].end())
-            {
-                throw cpp_dbc::SQLException("Column not found: " + columnName);
-            }
-            return std::stol(data[currentRow][columnName]);
-        }
-
-        double getDouble(int columnIndex) override
-        {
-            if (columnIndex <= 0 || columnIndex > static_cast<int>(columnNames.size()))
-            {
-                throw cpp_dbc::SQLException("Column index out of range");
-            }
-            return std::stod(data[currentRow][columnNames[columnIndex - 1]]);
-        }
-
-        double getDouble(const std::string &columnName) override
-        {
-            if (data[currentRow].find(columnName) == data[currentRow].end())
-            {
-                throw cpp_dbc::SQLException("Column not found: " + columnName);
-            }
-            return std::stod(data[currentRow][columnName]);
-        }
-
-        std::string getString(int columnIndex) override
-        {
-            if (columnIndex <= 0 || columnIndex > static_cast<int>(columnNames.size()))
-            {
-                throw cpp_dbc::SQLException("Column index out of range");
-            }
-            return data[currentRow][columnNames[columnIndex - 1]];
-        }
-
-        std::string getString(const std::string &columnName) override
-        {
-            if (data[currentRow].find(columnName) == data[currentRow].end())
-            {
-                throw cpp_dbc::SQLException("Column not found: " + columnName);
-            }
-            return data[currentRow][columnName];
-        }
-
-        bool getBoolean(int columnIndex) override
-        {
-            if (columnIndex <= 0 || columnIndex > static_cast<int>(columnNames.size()))
-            {
-                throw cpp_dbc::SQLException("Column index out of range");
-            }
-            std::string value = data[currentRow][columnNames[columnIndex - 1]];
-            return value == "true" || value == "1" || value == "yes";
-        }
-
-        bool getBoolean(const std::string &columnName) override
-        {
-            if (data[currentRow].find(columnName) == data[currentRow].end())
-            {
-                throw cpp_dbc::SQLException("Column not found: " + columnName);
-            }
-            std::string value = data[currentRow][columnName];
-            return value == "true" || value == "1" || value == "yes";
-        }
-
-        bool isNull(int columnIndex) override
-        {
-            if (columnIndex <= 0 || columnIndex > static_cast<int>(columnNames.size()))
-            {
-                throw cpp_dbc::SQLException("Column index out of range");
-            }
-            return data[currentRow][columnNames[columnIndex - 1]].empty();
-        }
-
-        bool isNull(const std::string &columnName) override
-        {
-            if (data[currentRow].find(columnName) == data[currentRow].end())
-            {
-                throw cpp_dbc::SQLException("Column not found: " + columnName);
-            }
-            return data[currentRow][columnName].empty();
-        }
-
-        std::vector<std::string> getColumnNames() override
-        {
-            return columnNames;
-        }
-
-        int getColumnCount() override
-        {
-            return static_cast<int>(columnNames.size());
-        }
-    };
-
-    class MockPreparedStatement : public cpp_dbc::PreparedStatement
-    {
-    private:
-        std::string sql;
-        std::map<int, std::string> parameters;
-        std::function<std::shared_ptr<cpp_dbc::ResultSet>()> queryResultProvider;
-        std::function<int()> updateResultProvider;
-
-    public:
-        MockPreparedStatement(const std::string &sql,
-                              std::function<std::shared_ptr<cpp_dbc::ResultSet>()> queryResultProvider,
-                              std::function<int()> updateResultProvider)
-            : sql(sql), queryResultProvider(queryResultProvider), updateResultProvider(updateResultProvider) {}
-
-        void setInt(int parameterIndex, int value) override
-        {
-            parameters[parameterIndex] = std::to_string(value);
-        }
-
-        void setLong(int parameterIndex, long value) override
-        {
-            parameters[parameterIndex] = std::to_string(value);
-        }
-
-        void setDouble(int parameterIndex, double value) override
-        {
-            parameters[parameterIndex] = std::to_string(value);
-        }
-
-        void setString(int parameterIndex, const std::string &value) override
-        {
-            parameters[parameterIndex] = value;
-        }
-
-        void setBoolean(int parameterIndex, bool value) override
-        {
-            parameters[parameterIndex] = value ? "true" : "false";
-        }
-
-        void setNull(int parameterIndex, cpp_dbc::Types type) override
-        {
-            parameters[parameterIndex] = "";
-        }
-
-        void setDate(int parameterIndex, const std::string &value) override
-        {
-            parameters[parameterIndex] = value;
-        }
-
-        void setTimestamp(int parameterIndex, const std::string &value) override
-        {
-            parameters[parameterIndex] = value;
-        }
-
-        std::shared_ptr<cpp_dbc::ResultSet> executeQuery() override
-        {
-            return queryResultProvider();
-        }
-
-        int executeUpdate() override
-        {
-            return updateResultProvider();
-        }
-
-        bool execute() override
-        {
-            return true;
-        }
-
-        // Helper method for testing
-        std::string getParameter(int index) const
-        {
-            auto it = parameters.find(index);
-            if (it != parameters.end())
-            {
-                return it->second;
-            }
-            return "";
-        }
-    };
-
-    class MockConnection : public cpp_dbc::Connection
-    {
-    private:
-        bool closed = false;
-        bool autoCommit = true;
-        bool committed = false;
-        bool rolledBack = false;
-        std::function<std::shared_ptr<cpp_dbc::ResultSet>(const std::string &)> queryResultProvider;
-        std::function<int(const std::string &)> updateResultProvider;
-        std::function<std::shared_ptr<cpp_dbc::PreparedStatement>(const std::string &)> preparedStatementProvider;
-
-    public:
-        MockConnection(
-            std::function<std::shared_ptr<cpp_dbc::ResultSet>(const std::string &)> queryResultProvider,
-            std::function<int(const std::string &)> updateResultProvider,
-            std::function<std::shared_ptr<cpp_dbc::PreparedStatement>(const std::string &)> preparedStatementProvider)
-            : queryResultProvider(queryResultProvider),
-              updateResultProvider(updateResultProvider),
-              preparedStatementProvider(preparedStatementProvider) {}
-
-        void close() override { closed = true; }
-        bool isClosed() override { return closed; }
-
-        std::shared_ptr<cpp_dbc::PreparedStatement> prepareStatement(const std::string &sql) override
-        {
-            return preparedStatementProvider(sql);
-        }
-
-        std::shared_ptr<cpp_dbc::ResultSet> executeQuery(const std::string &sql) override
-        {
-            return queryResultProvider(sql);
-        }
-
-        int executeUpdate(const std::string &sql) override
-        {
-            return updateResultProvider(sql);
-        }
-
-        void setAutoCommit(bool ac) override { autoCommit = ac; }
-        bool getAutoCommit() override { return autoCommit; }
-
-        void commit() override { committed = true; }
-        void rollback() override { rolledBack = true; }
-
-        // Helper methods for testing
-        bool isCommitted() const { return committed; }
-        bool isRolledBack() const { return rolledBack; }
-        void reset()
-        {
-            committed = false;
-            rolledBack = false;
-        }
-    };
-
-    class MockDriver : public cpp_dbc::Driver
-    {
-    private:
-        std::function<std::shared_ptr<cpp_dbc::Connection>(const std::string &, const std::string &, const std::string &)> connectionProvider;
-
-    public:
-        MockDriver(std::function<std::shared_ptr<cpp_dbc::Connection>(const std::string &, const std::string &, const std::string &)> connectionProvider)
-            : connectionProvider(connectionProvider) {}
-
-        std::shared_ptr<cpp_dbc::Connection> connect(const std::string &url, const std::string &user, const std::string &password) override
-        {
-            return connectionProvider(url, user, password);
-        }
-
-        bool acceptsURL(const std::string &url) override
-        {
-            return url.find("cpp_dbc:mock:") == 0;
-        }
-    };
-}
-
 // Integration test case
 TEST_CASE("Integration test with mock database", "[integration]")
 {
@@ -346,19 +41,15 @@ TEST_CASE("Integration test with mock database", "[integration]")
         // Simple SQL parsing to determine what to return
         if (sql.find("SELECT") != std::string::npos && sql.find("users") != std::string::npos)
         {
-            return std::make_shared<MockResultSet>(userData, userColumns);
+            return std::make_shared<cpp_dbc_test::MockResultSet>();
         }
         else if (sql == "SELECT 1")
         {
-            return std::make_shared<MockResultSet>(
-                std::vector<std::map<std::string, std::string>>{{{"value", "1"}}},
-                std::vector<std::string>{"value"});
+            return std::make_shared<cpp_dbc_test::MockResultSet>();
         }
 
         // Default empty result set
-        return std::make_shared<MockResultSet>(
-            std::vector<std::map<std::string, std::string>>{},
-            std::vector<std::string>{});
+        return std::make_shared<cpp_dbc_test::MockResultSet>();
     };
 
     // Create update result provider function
@@ -387,19 +78,15 @@ TEST_CASE("Integration test with mock database", "[integration]")
         {
             if (sql.find("SELECT") != std::string::npos && sql.find("users") != std::string::npos)
             {
-                return std::make_shared<MockResultSet>(userData, userColumns);
+                return std::make_shared<cpp_dbc_test::MockResultSet>();
             }
             else if (sql == "SELECT 1")
             {
-                return std::make_shared<MockResultSet>(
-                    std::vector<std::map<std::string, std::string>>{{{"value", "1"}}},
-                    std::vector<std::string>{"value"});
+                return std::make_shared<cpp_dbc_test::MockResultSet>();
             }
 
             // Default empty result set
-            return std::make_shared<MockResultSet>(
-                std::vector<std::map<std::string, std::string>>{},
-                std::vector<std::string>{});
+            return std::make_shared<cpp_dbc_test::MockResultSet>();
         };
 
         auto updateProvider = [sql]() -> int
@@ -420,18 +107,18 @@ TEST_CASE("Integration test with mock database", "[integration]")
             return 0; // Default: no rows affected
         };
 
-        return std::make_shared<MockPreparedStatement>(sql, queryProvider, updateProvider);
+        return std::make_shared<cpp_dbc_test::MockPreparedStatement>();
     };
 
     // Create connection provider function
     auto createConnection = [&createUserResultSet, &createUpdateResult, &createPreparedStatement](
                                 const std::string &url, const std::string &user, const std::string &password) -> std::shared_ptr<cpp_dbc::Connection>
     {
-        return std::make_shared<MockConnection>(createUserResultSet, createUpdateResult, createPreparedStatement);
+        return std::make_shared<cpp_dbc_test::MockConnection>();
     };
 
     // Register the mock driver
-    cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<MockDriver>(createConnection));
+    cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<cpp_dbc_test::MockDriver>());
 
     SECTION("Integration test with direct connection")
     {

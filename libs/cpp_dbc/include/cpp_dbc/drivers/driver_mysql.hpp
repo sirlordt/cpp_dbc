@@ -56,6 +56,7 @@ namespace cpp_dbc
 
             std::vector<std::string> getColumnNames() override;
             int getColumnCount() override;
+            void close() override;
         };
 
         class MySQLPreparedStatement : public PreparedStatement
@@ -71,6 +72,7 @@ namespace cpp_dbc
             std::vector<long> longValues;             // To keep long values alive
             std::vector<double> doubleValues;         // To keep double values alive
             std::vector<char> nullFlags;              // To keep null flags alive (char instead of bool for pointer access)
+            long connectionId;                        // ID of the connection that created this statement
 
         public:
             MySQLPreparedStatement(MYSQL *mysql, const std::string &sql);
@@ -88,6 +90,7 @@ namespace cpp_dbc
             std::shared_ptr<ResultSet> executeQuery() override;
             int executeUpdate() override;
             bool execute() override;
+            void close() override;
         };
 
         class MySQLConnection : public Connection

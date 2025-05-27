@@ -161,83 +161,13 @@ TEST_CASE("Types enum tests", "[types]")
     }
 }
 
-// Mock classes for testing the abstract interfaces
-namespace
-{
-    class MockResultSet : public cpp_dbc::ResultSet
-    {
-    public:
-        bool next() override { return false; }
-        bool isBeforeFirst() override { return true; }
-        bool isAfterLast() override { return false; }
-        int getRow() override { return 0; }
-        int getInt(int) override { return 1; }
-        int getInt(const std::string &) override { return 1; }
-        long getLong(int) override { return 1L; }
-        long getLong(const std::string &) override { return 1L; }
-        double getDouble(int) override { return 1.0; }
-        double getDouble(const std::string &) override { return 1.0; }
-        std::string getString(int) override { return "mock"; }
-        std::string getString(const std::string &) override { return "mock"; }
-        bool getBoolean(int) override { return true; }
-        bool getBoolean(const std::string &) override { return true; }
-        bool isNull(int) override { return false; }
-        bool isNull(const std::string &) override { return false; }
-        std::vector<std::string> getColumnNames() override { return {"mock"}; }
-        int getColumnCount() override { return 1; }
-    };
-
-    class MockPreparedStatement : public cpp_dbc::PreparedStatement
-    {
-    public:
-        void setInt(int, int) override {}
-        void setLong(int, long) override {}
-        void setDouble(int, double) override {}
-        void setString(int, const std::string &) override {}
-        void setBoolean(int, bool) override {}
-        void setNull(int, cpp_dbc::Types) override {}
-        void setDate(int, const std::string &) override {}
-        void setTimestamp(int, const std::string &) override {}
-        std::shared_ptr<cpp_dbc::ResultSet> executeQuery() override
-        {
-            return std::make_shared<MockResultSet>();
-        }
-        int executeUpdate() override { return 1; }
-        bool execute() override { return true; }
-    };
-
-    class MockConnection : public cpp_dbc::Connection
-    {
-    private:
-        bool closed = false;
-        bool autoCommit = true;
-
-    public:
-        void close() override { closed = true; }
-        bool isClosed() override { return closed; }
-        std::shared_ptr<cpp_dbc::PreparedStatement> prepareStatement(const std::string &) override
-        {
-            return std::make_shared<MockPreparedStatement>();
-        }
-        std::shared_ptr<cpp_dbc::ResultSet> executeQuery(const std::string &) override
-        {
-            return std::make_shared<MockResultSet>();
-        }
-        int executeUpdate(const std::string &) override { return 1; }
-        void setAutoCommit(bool ac) override { autoCommit = ac; }
-        bool getAutoCommit() override { return autoCommit; }
-        void commit() override {}
-        void rollback() override {}
-    };
-}
-
 // Test case for abstract interfaces
 TEST_CASE("Abstract interface tests", "[interface]")
 {
     SECTION("ResultSet interface")
     {
         // Create a mock result set
-        auto rs = std::make_shared<MockResultSet>();
+        auto rs = std::make_shared<cpp_dbc_test::MockResultSet>();
 
         // Check that we can call the methods
         REQUIRE(rs->next() == false);
@@ -263,7 +193,7 @@ TEST_CASE("Abstract interface tests", "[interface]")
     SECTION("PreparedStatement interface")
     {
         // Create a mock prepared statement
-        auto stmt = std::make_shared<MockPreparedStatement>();
+        auto stmt = std::make_shared<cpp_dbc_test::MockPreparedStatement>();
 
         // Check that we can call the methods
         REQUIRE_NOTHROW(stmt->setInt(1, 42));
@@ -283,7 +213,7 @@ TEST_CASE("Abstract interface tests", "[interface]")
     SECTION("Connection interface")
     {
         // Create a mock connection
-        auto conn = std::make_shared<MockConnection>();
+        auto conn = std::make_shared<cpp_dbc_test::MockConnection>();
 
         // Check that we can call the methods
         REQUIRE(conn->isClosed() == false);

@@ -46,6 +46,7 @@ namespace cpp_dbc_test
         bool isNull(const std::string &) override { return false; }
         std::vector<std::string> getColumnNames() override { return columnNames; }
         int getColumnCount() override { return 1; }
+        void close() override { /* Mock implementation - do nothing */ }
     };
 
     // Basic mock implementation of PreparedStatement
@@ -104,6 +105,7 @@ namespace cpp_dbc_test
 
         int executeUpdate() override { return 1; }
         bool execute() override { return true; }
+        void close() override { /* Mock implementation - do nothing */ }
 
         // Helper method for testing
         std::string getParameter(int index) const

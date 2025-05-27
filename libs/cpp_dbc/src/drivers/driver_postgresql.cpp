@@ -36,11 +36,7 @@ namespace cpp_dbc
 
         PostgreSQLResultSet::~PostgreSQLResultSet()
         {
-            if (result)
-            {
-                PQclear(result);
-                result = nullptr;
-            }
+            close();
         }
 
         bool PostgreSQLResultSet::next()
@@ -261,6 +257,18 @@ namespace cpp_dbc
             return fieldCount;
         }
 
+        void PostgreSQLResultSet::close()
+        {
+            if (result)
+            {
+                PQclear(result);
+                result = nullptr;
+                rowPosition = 0;
+                rowCount = 0;
+                fieldCount = 0;
+            }
+        }
+
         // PostgreSQLPreparedStatement implementation
         PostgreSQLPreparedStatement::PostgreSQLPreparedStatement(PGconn *conn_handle, const std::string &sql_stmt, const std::string &stmt_name)
             : conn(conn_handle), sql(sql_stmt), prepared(false), statementCounter(0), stmtName(stmt_name)
@@ -310,11 +318,17 @@ namespace cpp_dbc
 
         PostgreSQLPreparedStatement::~PostgreSQLPreparedStatement()
         {
+            close();
+        }
+
+        void PostgreSQLPreparedStatement::close()
+        {
             if (prepared)
             {
                 // Deallocate the prepared statement
                 std::string deallocateSQL = "DEALLOCATE " + stmtName;
                 PQexec(conn, deallocateSQL.c_str());
+                prepared = false;
             }
         }
 
@@ -511,7 +525,13 @@ namespace cpp_dbc
                 throw SQLException("Failed to execute query: " + error);
             }
 
-            return std::make_shared<PostgreSQLResultSet>(result);
+            auto resultSet = std::make_shared<PostgreSQLResultSet>(result);
+
+            // Close the statement after execution (single-use)
+            // This is safe because PQexecPrepared() copies all data to the PGresult
+            close();
+
+            return resultSet;
         }
 
         int PostgreSQLPreparedStatement::executeUpdate()
@@ -569,6 +589,10 @@ namespace cpp_dbc
             }
 
             PQclear(result);
+
+            // Close the statement after execution (single-use)
+            close();
+
             return rowCount;
         }
 

@@ -5,6 +5,7 @@
 #include <cstring>
 #include <sstream>
 #include <iostream>
+#include <cpp_dbc/common/system_utils.hpp>
 
 namespace cpp_dbc
 {
@@ -37,11 +38,7 @@ namespace cpp_dbc
 
         MySQLResultSet::~MySQLResultSet()
         {
-            if (result)
-            {
-                mysql_free_result(result);
-                result = nullptr;
-            }
+            close();
         }
 
         bool MySQLResultSet::next()
@@ -234,6 +231,19 @@ namespace cpp_dbc
             return fieldCount;
         }
 
+        void MySQLResultSet::close()
+        {
+            if (result)
+            {
+                mysql_free_result(result);
+                result = nullptr;
+                currentRow = nullptr;
+                rowPosition = 0;
+                rowCount = 0;
+                fieldCount = 0;
+            }
+        }
+
         // MySQLPreparedStatement implementation
         MySQLPreparedStatement::MySQLPreparedStatement(MYSQL *mysql_conn, const std::string &sql_stmt)
             : mysql(mysql_conn), sql(sql_stmt), stmt(nullptr)
@@ -254,6 +264,7 @@ namespace cpp_dbc
             {
                 std::string error = mysql_stmt_error(stmt);
                 mysql_stmt_close(stmt);
+                stmt = nullptr;
                 throw SQLException("Failed to prepare statement: " + error);
             }
 
@@ -276,6 +287,11 @@ namespace cpp_dbc
         }
 
         MySQLPreparedStatement::~MySQLPreparedStatement()
+        {
+            close();
+        }
+
+        void MySQLPreparedStatement::close()
         {
             if (stmt)
             {
@@ -491,7 +507,7 @@ namespace cpp_dbc
         {
             if (!stmt)
             {
-                throw SQLException("Statement is not initialized");
+                throw SQLException("Statement is applied");
             }
 
             // Reconstruct the query with bound parameters to avoid "Commands out of sync" issue
@@ -519,14 +535,20 @@ namespace cpp_dbc
                 throw SQLException(std::string("Failed to get result set: ") + mysql_error(mysql));
             }
 
-            return std::make_shared<MySQLResultSet>(result);
+            auto resultSet = std::make_shared<MySQLResultSet>(result);
+
+            // Close the statement after execution (single-use)
+            // This is safe because mysql_store_result() copies all data to client memory
+            close();
+
+            return resultSet;
         }
 
         int MySQLPreparedStatement::executeUpdate()
         {
             if (!stmt)
             {
-                throw SQLException("Statement is not initialized");
+                throw SQLException("Statement is applied");
             }
 
             // Bind parameters
@@ -541,8 +563,12 @@ namespace cpp_dbc
                 throw SQLException(std::string("Failed to execute update: ") + mysql_stmt_error(stmt));
             }
 
+            auto result = mysql_stmt_affected_rows(stmt);
+
+            this->close();
+
             // Return the number of affected rows
-            return mysql_stmt_affected_rows(stmt);
+            return result;
         }
 
         bool MySQLPreparedStatement::execute()
@@ -576,7 +602,6 @@ namespace cpp_dbc
                                          const std::string &password)
             : mysql(nullptr), closed(false), autoCommit(true)
         {
-
             mysql = mysql_init(nullptr);
             if (!mysql)
             {

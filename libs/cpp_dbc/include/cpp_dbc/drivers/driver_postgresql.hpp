@@ -55,6 +55,7 @@ namespace cpp_dbc
 
             std::vector<std::string> getColumnNames() override;
             int getColumnCount() override;
+            void close() override;
         };
 
         class PostgreSQLPreparedStatement : public PreparedStatement
@@ -86,6 +87,7 @@ namespace cpp_dbc
             std::shared_ptr<ResultSet> executeQuery() override;
             int executeUpdate() override;
             bool execute() override;
+            void close() override;
         };
 
         class PostgreSQLConnection : public Connection

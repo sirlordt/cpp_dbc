@@ -91,6 +91,9 @@ namespace cpp_dbc
 
         virtual std::vector<std::string> getColumnNames() = 0;
         virtual int getColumnCount() = 0;
+
+        // Close the result set and free resources
+        virtual void close() = 0;
     };
 
     // Abstract base class for prepared statements
@@ -111,6 +114,9 @@ namespace cpp_dbc
         virtual std::shared_ptr<ResultSet> executeQuery() = 0;
         virtual int executeUpdate() = 0;
         virtual bool execute() = 0;
+
+        // Close the prepared statement and release resources
+        virtual void close() = 0;
     };
 
     // Abstract base class for database connections
