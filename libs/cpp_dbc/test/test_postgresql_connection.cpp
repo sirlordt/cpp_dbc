@@ -9,20 +9,17 @@
 #include <iostream>
 
 // Helper function to get the path to the test_db_connections.yml file
-static std::string getPostgresConfigFilePath()
-{
-    return "test_db_connections.yml";
-}
+std::string getConfigFilePath();
 
 // Test case to verify PostgreSQL connection
-TEST_CASE("PostgreSQL connection test", "[postgresql][connection]")
+TEST_CASE("PostgreSQL connection test", "[postgresql_connection]")
 {
 #if USE_POSTGRESQL
     // Skip this test if PostgreSQL support is not enabled
     SECTION("Test PostgreSQL connection")
     {
         // Load the YAML configuration
-        std::string config_path = getPostgresConfigFilePath();
+        std::string config_path = getConfigFilePath();
         YAML::Node config = YAML::LoadFile(config_path);
 
         // Find the dev_postgresql configuration

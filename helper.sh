@@ -68,6 +68,7 @@ show_usage() {
   echo "  --ldd [name]         Run ldd on the executable inside the container"
   echo "  --ldd-bin            Run ldd on the final executable"
   echo "  --run-bin            Run the final executable"
+  echo "  --mc-combo-01        Equivalent to --clean-build --build --postgres --test --yaml --examples"
   echo ""
   echo "Multiple commands can be combined, e.g.:"
   echo "  $(basename "$0") --clean-build --clean-conan-cache --build"
@@ -401,7 +402,16 @@ while [ $i -lt ${#args[@]} ]; do
       cmd_run_bin || exit_code=$?
       ;;
     --yaml|--examples|--test|--postgres|--mysql-off)
-      # Already processed in first pass
+      cmd_build
+      ;;
+    --mc-combo-01)
+      # Equivalent to --clean-build --build --postgres --test --yaml --examples
+      USE_POSTGRES="1"
+      BUILD_TEST="1"
+      USE_YAML="1"
+      BUILD_EXAMPLES="1"
+      cmd_clean_build
+      cmd_build
       ;;
     *)
       echo "Unknown option: ${args[$i]}"

@@ -264,6 +264,15 @@ namespace cpp_dbc
 
             // Initialize string values vector
             stringValues.resize(paramCount);
+
+            // Initialize parameter values vector for query reconstruction
+            parameterValues.resize(paramCount);
+
+            // Initialize numeric value vectors
+            intValues.resize(paramCount);
+            longValues.resize(paramCount);
+            doubleValues.resize(paramCount);
+            nullFlags.resize(paramCount);
         }
 
         MySQLPreparedStatement::~MySQLPreparedStatement()
@@ -284,10 +293,16 @@ namespace cpp_dbc
 
             int idx = parameterIndex - 1;
 
+            // Store the value in our vector
+            intValues[idx] = value;
+
             binds[idx].buffer_type = MYSQL_TYPE_LONG;
-            binds[idx].buffer = new int(value);
+            binds[idx].buffer = &intValues[idx];
             binds[idx].is_null = nullptr;
             binds[idx].length = nullptr;
+
+            // Store parameter value for query reconstruction
+            parameterValues[idx] = std::to_string(value);
         }
 
         void MySQLPreparedStatement::setLong(int parameterIndex, long value)
@@ -299,10 +314,16 @@ namespace cpp_dbc
 
             int idx = parameterIndex - 1;
 
+            // Store the value in our vector
+            longValues[idx] = value;
+
             binds[idx].buffer_type = MYSQL_TYPE_LONGLONG;
-            binds[idx].buffer = new long(value);
+            binds[idx].buffer = &longValues[idx];
             binds[idx].is_null = nullptr;
             binds[idx].length = nullptr;
+
+            // Store parameter value for query reconstruction
+            parameterValues[idx] = std::to_string(value);
         }
 
         void MySQLPreparedStatement::setDouble(int parameterIndex, double value)
@@ -314,10 +335,16 @@ namespace cpp_dbc
 
             int idx = parameterIndex - 1;
 
+            // Store the value in our vector
+            doubleValues[idx] = value;
+
             binds[idx].buffer_type = MYSQL_TYPE_DOUBLE;
-            binds[idx].buffer = new double(value);
+            binds[idx].buffer = &doubleValues[idx];
             binds[idx].is_null = nullptr;
             binds[idx].length = nullptr;
+
+            // Store parameter value for query reconstruction
+            parameterValues[idx] = std::to_string(value);
         }
 
         void MySQLPreparedStatement::setString(int parameterIndex, const std::string &value)
@@ -337,11 +364,38 @@ namespace cpp_dbc
             binds[idx].buffer_length = stringValues[idx].length();
             binds[idx].is_null = nullptr;
             binds[idx].length = nullptr;
+
+            // Store parameter value for query reconstruction (with proper escaping)
+            std::string escapedValue = value;
+            // Simple escape for single quotes
+            size_t pos = 0;
+            while ((pos = escapedValue.find("'", pos)) != std::string::npos)
+            {
+                escapedValue.replace(pos, 1, "''");
+                pos += 2;
+            }
+            parameterValues[idx] = "'" + escapedValue + "'";
         }
 
         void MySQLPreparedStatement::setBoolean(int parameterIndex, bool value)
         {
-            setInt(parameterIndex, value ? 1 : 0);
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
+            {
+                throw SQLException("Invalid parameter index");
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store as int value
+            intValues[idx] = value ? 1 : 0;
+
+            binds[idx].buffer_type = MYSQL_TYPE_LONG;
+            binds[idx].buffer = &intValues[idx];
+            binds[idx].is_null = nullptr;
+            binds[idx].length = nullptr;
+
+            // Store parameter value for query reconstruction
+            parameterValues[idx] = std::to_string(intValues[idx]);
         }
 
         void MySQLPreparedStatement::setNull(int parameterIndex, Types type)
@@ -385,10 +439,51 @@ namespace cpp_dbc
                 mysqlType = MYSQL_TYPE_NULL;
             }
 
+            // Store the null flag in our vector (1 for true, 0 for false)
+            nullFlags[idx] = 1;
+
             binds[idx].buffer_type = mysqlType;
-            binds[idx].is_null = new bool(true); // Set to NULL
+            binds[idx].is_null = reinterpret_cast<bool *>(&nullFlags[idx]);
             binds[idx].buffer = nullptr;
             binds[idx].buffer_length = 0;
+            binds[idx].length = nullptr;
+        }
+
+        void MySQLPreparedStatement::setDate(int parameterIndex, const std::string &value)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
+            {
+                throw SQLException("Invalid parameter index");
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store the date string in our vector to keep it alive
+            stringValues[idx] = value;
+
+            binds[idx].buffer_type = MYSQL_TYPE_DATE;
+            binds[idx].buffer = (void *)stringValues[idx].c_str();
+            binds[idx].buffer_length = stringValues[idx].length();
+            binds[idx].is_null = nullptr;
+            binds[idx].length = nullptr;
+        }
+
+        void MySQLPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
+            {
+                throw SQLException("Invalid parameter index");
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store the timestamp string in our vector to keep it alive
+            stringValues[idx] = value;
+
+            binds[idx].buffer_type = MYSQL_TYPE_TIMESTAMP;
+            binds[idx].buffer = (void *)stringValues[idx].c_str();
+            binds[idx].buffer_length = stringValues[idx].length();
+            binds[idx].is_null = nullptr;
             binds[idx].length = nullptr;
         }
 
@@ -399,30 +494,27 @@ namespace cpp_dbc
                 throw SQLException("Statement is not initialized");
             }
 
-            // Bind parameters
-            if (!binds.empty() && mysql_stmt_bind_param(stmt, binds.data()) != 0)
+            // Reconstruct the query with bound parameters to avoid "Commands out of sync" issue
+            std::string finalQuery = sql;
+
+            // Replace each '?' with the corresponding parameter value
+            for (size_t i = 0; i < parameterValues.size(); i++)
             {
-                throw SQLException(std::string("Failed to bind parameters: ") + mysql_stmt_error(stmt));
+                size_t pos = finalQuery.find('?');
+                if (pos != std::string::npos)
+                {
+                    finalQuery.replace(pos, 1, parameterValues[i]);
+                }
             }
 
-            // Execute the query
-            if (mysql_stmt_execute(stmt) != 0)
+            // Execute the reconstructed query using the regular connection interface
+            if (mysql_query(mysql, finalQuery.c_str()) != 0)
             {
-                throw SQLException(std::string("Failed to execute query: ") + mysql_stmt_error(stmt));
+                throw SQLException(std::string("Query failed: ") + mysql_error(mysql));
             }
-
-            // Get the result
-            if (mysql_stmt_store_result(stmt) != 0)
-            {
-                throw SQLException(std::string("Failed to store result: ") + mysql_stmt_error(stmt));
-            }
-
-            // We need to convert MYSQL_STMT result to MYSQL_RES for our ResultSet
-            // In a real implementation, we'd create a dedicated MySQLPreparedResultSet class
-            // For simplicity, we'll execute the query again using the regular interface
 
             MYSQL_RES *result = mysql_store_result(mysql);
-            if (!result)
+            if (!result && mysql_field_count(mysql) > 0)
             {
                 throw SQLException(std::string("Failed to get result set: ") + mysql_error(mysql));
             }
@@ -738,7 +830,7 @@ namespace cpp_dbc
 
         bool MySQLDriver::acceptsURL(const std::string &url)
         {
-            return url.substr(0, 18) == "cpp_dbc:mysql://";
+            return url.substr(0, 16) == "cpp_dbc:mysql://";
         }
 
         bool MySQLDriver::parseURL(const std::string &url,
@@ -753,7 +845,7 @@ namespace cpp_dbc
             }
 
             // Extract host, port, and database
-            std::string temp = url.substr(18); // Remove "cpp_dbc:mysql://"
+            std::string temp = url.substr(16); // Remove "cpp_dbc:mysql://"
 
             // Find host:port separator
             size_t hostEnd = temp.find(":");

@@ -16,6 +16,7 @@ set -e  # Exit on error
 # Default values
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
+USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 ENABLE_ASAN=OFF
 NO_REBUILD_DEPS=false
@@ -23,6 +24,14 @@ NO_REBUILD_DEPS=false
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --yaml|--yaml-on)
+            USE_CPP_YAML=ON
+            shift
+            ;;
+        --yaml-off)
+            USE_CPP_YAML=OFF
+            shift
+            ;;
         --mysql|--mysql-on)
             USE_MYSQL=ON
             shift
@@ -43,6 +52,10 @@ while [[ $# -gt 0 ]]; do
             BUILD_TYPE=Release
             shift
             ;;
+        --debug)
+            BUILD_TYPE=Debug
+            shift
+            ;;
         --asan)
             ENABLE_ASAN=ON
             shift
@@ -54,11 +67,14 @@ while [[ $# -gt 0 ]]; do
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
+            echo "  --yaml, --yaml-on      Enable yaml support"
+            echo "  --yaml-off             Disable yaml support"
             echo "  --mysql, --mysql-on    Enable MySQL support (default)"
             echo "  --mysql-off            Disable MySQL support"
             echo "  --postgres, --postgres-on  Enable PostgreSQL support"
             echo "  --postgres-off         Disable PostgreSQL support"
             echo "  --release              Build in Release mode (default: Debug)"
+            echo "  --debug                Build in Debug mode (default)"
             echo "  --asan                 Enable Address Sanitizer"
             echo "  --help                 Show this help message"
             exit 0
@@ -66,7 +82,7 @@ while [[ $# -gt 0 ]]; do
         *)
             # Unknown option
             echo "Unknown option: $1"
-            echo "Usage: $0 [--mysql-on|--mysql-off] [--postgres-on|--postgres-off] [--release] [--asan] [--help]"
+            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--release] [--asan] [--help]"
             exit 1
             ;;
     esac
@@ -133,6 +149,7 @@ fi
 
 echo "Building cpp_dbc tests..."
 echo "Configuration:"
+echo "  CPP-YAML support: $USE_CPP_YAML"
 echo "  MySQL support: $USE_MYSQL"
 echo "  PostgreSQL support: $USE_POSTGRESQL"
 echo "  Build type: $BUILD_TYPE"
@@ -141,7 +158,8 @@ echo "  Address Sanitizer: $ENABLE_ASAN"
 # Create build directory for tests
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 CPP_DBC_DIR="${SCRIPT_DIR}"
-TEST_BUILD_DIR="${CPP_DBC_DIR}/build/test_build"
+#TEST_BUILD_DIR="${CPP_DBC_DIR}/build/test_build"
+TEST_BUILD_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/test"
 
 mkdir -p "${TEST_BUILD_DIR}"
 cd "${TEST_BUILD_DIR}"
@@ -149,16 +167,19 @@ cd "${TEST_BUILD_DIR}"
 # Print commands before executing them
 set -x
 
+# Define Conan directory in the project root's build directory
+CONAN_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/conan"
+mkdir -p "${CONAN_DIR}"
+
 # Install dependencies with Conan
 echo "Installing dependencies with Conan..."
 cd "${CPP_DBC_DIR}"
-conan install . --build=missing -s build_type=$BUILD_TYPE
+conan install . --output-folder="${CONAN_DIR}" --build=missing -s build_type=$BUILD_TYPE
 cd "${TEST_BUILD_DIR}"
 
 # Find the conan_toolchain.cmake file
-CONAN_DIR="${CPP_DBC_DIR}/build"
-if [ -d "${CONAN_DIR}/${BUILD_TYPE}" ]; then
-    TOOLCHAIN_FILE="${CONAN_DIR}/${BUILD_TYPE}/generators/conan_toolchain.cmake"
+if [ -d "${CONAN_DIR}/build/${BUILD_TYPE}" ]; then
+    TOOLCHAIN_FILE="${CONAN_DIR}/build/${BUILD_TYPE}/generators/conan_toolchain.cmake"
 else
     TOOLCHAIN_FILE="${CONAN_DIR}/generators/conan_toolchain.cmake"
 fi
@@ -175,6 +196,7 @@ echo "Configuring with CMake..."
 cmake "${CPP_DBC_DIR}" \
       -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_FILE" \
       -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+      -DUSE_CPP_YAML=$USE_CPP_YAML \
       -DUSE_MYSQL=$USE_MYSQL \
       -DUSE_POSTGRESQL=$USE_POSTGRESQL \
       -DCPP_DBC_BUILD_TESTS=ON \

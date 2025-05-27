@@ -262,19 +262,13 @@ namespace cpp_dbc
         }
 
         // PostgreSQLPreparedStatement implementation
-        PostgreSQLPreparedStatement::PostgreSQLPreparedStatement(PGconn *conn_handle, const std::string &sql_stmt)
-            : conn(conn_handle), sql(sql_stmt), prepared(false), statementCounter(0)
+        PostgreSQLPreparedStatement::PostgreSQLPreparedStatement(PGconn *conn_handle, const std::string &sql_stmt, const std::string &stmt_name)
+            : conn(conn_handle), sql(sql_stmt), prepared(false), statementCounter(0), stmtName(stmt_name)
         {
-
             if (!conn)
             {
                 throw SQLException("Invalid PostgreSQL connection");
             }
-
-            // Generate a unique statement name
-            std::stringstream ss;
-            ss << "stmt_" << statementCounter++;
-            stmtName = ss.str();
 
             // Count parameters (using $1, $2, etc. instead of ?)
             // This is a simplification - in reality, PostgreSQL allows more complex parameter references
@@ -441,6 +435,34 @@ namespace cpp_dbc
             paramTypes[idx] = pgType;
             paramLengths[idx] = 0;
             paramFormats[idx] = 0; // Text format
+        }
+
+        void PostgreSQLPreparedStatement::setDate(int parameterIndex, const std::string &value)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            {
+                throw SQLException("Invalid parameter index");
+            }
+
+            int idx = parameterIndex - 1;
+            paramValues[idx] = value;
+            paramLengths[idx] = paramValues[idx].length();
+            paramFormats[idx] = 0;  // Text format
+            paramTypes[idx] = 1082; // DATEOID
+        }
+
+        void PostgreSQLPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            {
+                throw SQLException("Invalid parameter index");
+            }
+
+            int idx = parameterIndex - 1;
+            paramValues[idx] = value;
+            paramLengths[idx] = paramValues[idx].length();
+            paramFormats[idx] = 0;  // Text format
+            paramTypes[idx] = 1114; // TIMESTAMPOID
         }
 
         std::shared_ptr<ResultSet> PostgreSQLPreparedStatement::executeQuery()
@@ -630,6 +652,13 @@ namespace cpp_dbc
                 throw SQLException("Failed to connect to PostgreSQL: " + error);
             }
 
+            // Set up a notice processor to suppress NOTICE messages
+            PQsetNoticeProcessor(conn, [](void *, const char *)
+                                 {
+                                     // Do nothing with the notice message
+                                 },
+                                 nullptr);
+
             // Set auto-commit mode
             setAutoCommit(true);
         }
@@ -661,7 +690,9 @@ namespace cpp_dbc
                 throw SQLException("Connection is closed");
             }
 
-            return std::make_shared<PostgreSQLPreparedStatement>(conn, sql);
+            // Generate a unique statement name and pass it to the prepared statement
+            std::string stmtName = generateStatementName();
+            return std::make_shared<PostgreSQLPreparedStatement>(conn, sql, stmtName);
         }
 
         std::shared_ptr<ResultSet> PostgreSQLConnection::executeQuery(const std::string &sql)

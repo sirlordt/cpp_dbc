@@ -8,7 +8,7 @@
 #include <memory>
 
 // Test case for ConnectionOptions
-TEST_CASE("ConnectionOptions tests", "[config][options]")
+TEST_CASE("ConnectionOptions tests", "[database_config]")
 {
     SECTION("Default constructor creates empty options")
     {
@@ -63,7 +63,7 @@ TEST_CASE("ConnectionOptions tests", "[config][options]")
 }
 
 // Test case for DatabaseConfig
-TEST_CASE("DatabaseConfig tests", "[config][database]")
+TEST_CASE("DatabaseConfig tests", "[database_config]")
 {
     SECTION("Default constructor creates empty config")
     {
@@ -168,7 +168,7 @@ TEST_CASE("DatabaseConfig tests", "[config][database]")
 }
 
 // Test case for TestQueries
-TEST_CASE("TestQueries tests", "[config][queries]")
+TEST_CASE("TestQueries tests", "[database_config]")
 {
     SECTION("Default constructor creates empty queries")
     {
@@ -236,7 +236,7 @@ TEST_CASE("TestQueries tests", "[config][queries]")
 }
 
 // Test case for DatabaseConfigManager
-TEST_CASE("DatabaseConfigManager tests", "[config][manager]")
+TEST_CASE("DatabaseConfigManager tests", "[database_config]")
 {
     SECTION("Default constructor creates empty manager")
     {

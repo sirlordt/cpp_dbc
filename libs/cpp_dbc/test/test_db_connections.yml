@@ -113,6 +113,7 @@ test_queries:
   
   # MySQL specific test queries
   mysql:
+    create_database: "CREATE DATABASE IF NOT EXISTS Test01DB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
     create_table: "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100))"
     insert_data: "INSERT INTO test_table (id, name) VALUES (?, ?)"
     select_data: "SELECT * FROM test_table WHERE id = ?"

@@ -71,7 +71,7 @@ namespace cpp_dbc
             int statementCounter;
 
         public:
-            PostgreSQLPreparedStatement(PGconn *conn, const std::string &sql);
+            PostgreSQLPreparedStatement(PGconn *conn, const std::string &sql, const std::string &stmt_name);
             ~PostgreSQLPreparedStatement() override;
 
             void setInt(int parameterIndex, int value) override;
@@ -80,6 +80,8 @@ namespace cpp_dbc
             void setString(int parameterIndex, const std::string &value) override;
             void setBoolean(int parameterIndex, bool value) override;
             void setNull(int parameterIndex, Types type) override;
+            void setDate(int parameterIndex, const std::string &value) override;
+            void setTimestamp(int parameterIndex, const std::string &value) override;
 
             std::shared_ptr<ResultSet> executeQuery() override;
             int executeUpdate() override;

@@ -19,6 +19,8 @@ add_library(cpp_dbc
     src/connection_pool.cpp
     src/transaction_manager.cpp
     src/driver_manager.cpp
+    src/config/database_config.cpp
+    src/common/system_utils.cpp
 )
 
 # Conditionally add YAML config loader and database config implementation
@@ -29,9 +31,8 @@ if(USE_CPP_YAML)
 endif()
 
 # Add database config implementation
-target_sources(cpp_dbc PRIVATE
-    src/config/database_config.cpp
-)
+# target_sources(cpp_dbc PRIVATE
+# )
 
 # Create an alias target for use in the same build tree
 add_library(cpp_dbc::cpp_dbc ALIAS cpp_dbc)
@@ -87,8 +88,8 @@ if(USE_CPP_YAML)
     # First try to find it using the config file provided by Conan
     if(EXISTS "${CMAKE_BINARY_DIR}/generators/yaml-cpp-config.cmake")
         set(yaml-cpp_DIR "${CMAKE_BINARY_DIR}/generators")
-    elseif(EXISTS "${CMAKE_BINARY_DIR}/../${CMAKE_BUILD_TYPE}/generators/yaml-cpp-config.cmake")
-        set(yaml-cpp_DIR "${CMAKE_BINARY_DIR}/../${CMAKE_BUILD_TYPE}/generators")
+    elseif(EXISTS "${CMAKE_BINARY_DIR}/../../${CMAKE_BUILD_TYPE}/generators/yaml-cpp-config.cmake")
+        set(yaml-cpp_DIR "${CMAKE_BINARY_DIR}/../../${CMAKE_BUILD_TYPE}/generators")
     endif()
 
     find_package(yaml-cpp REQUIRED)

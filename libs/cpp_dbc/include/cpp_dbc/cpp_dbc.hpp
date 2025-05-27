@@ -105,6 +105,8 @@ namespace cpp_dbc
         virtual void setString(int parameterIndex, const std::string &value) = 0;
         virtual void setBoolean(int parameterIndex, bool value) = 0;
         virtual void setNull(int parameterIndex, Types type) = 0;
+        virtual void setDate(int parameterIndex, const std::string &value) = 0;
+        virtual void setTimestamp(int parameterIndex, const std::string &value) = 0;
 
         virtual std::shared_ptr<ResultSet> executeQuery() = 0;
         virtual int executeUpdate() = 0;
@@ -162,6 +164,15 @@ namespace cpp_dbc
 
         static std::shared_ptr<Connection> getConnection(const config::DatabaseConfigManager &configManager,
                                                          const std::string &configName);
+
+        // Get list of registered driver names
+        static std::vector<std::string> getRegisteredDrivers();
+
+        // Clear all registered drivers (useful for testing)
+        static void clearDrivers();
+
+        // Unregister a specific driver
+        static void unregisterDriver(const std::string &name);
     };
 
 #if USE_MYSQL

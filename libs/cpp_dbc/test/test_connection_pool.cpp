@@ -12,16 +12,14 @@
 #include <iostream>
 
 // Helper function to get the path to the test_db_connections.yml file
-static std::string getConfigFilePath()
-{
-    return "test_db_connections.yml";
-}
+std::string getConfigFilePath();
 
 // Test case for ConnectionPoolConfig
-TEST_CASE("ConnectionPoolConfig tests", "[config][pool]")
+TEST_CASE("ConnectionPoolConfig tests", "[connection_pool]")
 {
     SECTION("Default constructor sets default values")
     {
+        INFO("Default constructor sets default values");
         cpp_dbc::config::ConnectionPoolConfig config;
 
         REQUIRE(config.getInitialSize() == 5);
@@ -38,6 +36,7 @@ TEST_CASE("ConnectionPoolConfig tests", "[config][pool]")
 
     SECTION("Constructor with basic parameters")
     {
+        INFO("Constructor with basic parameters");
         cpp_dbc::config::ConnectionPoolConfig config(
             "test_pool", 10, 50, 10000, 60000, 15000);
 
@@ -58,6 +57,7 @@ TEST_CASE("ConnectionPoolConfig tests", "[config][pool]")
 
     SECTION("Full constructor with all parameters")
     {
+        INFO("Full constructor with all parameters");
         cpp_dbc::config::ConnectionPoolConfig config(
             "full_pool", "cpp_dbc:mysql://localhost:3306/test", "user", "pass",
             15, 100, 5, 20000, 120000, 30000, 3600000, false, true, "SELECT version()");
@@ -80,6 +80,7 @@ TEST_CASE("ConnectionPoolConfig tests", "[config][pool]")
 
     SECTION("Setters and getters")
     {
+        INFO("Setters and getters");
         cpp_dbc::config::ConnectionPoolConfig config;
 
         config.setName("setter_test");
@@ -115,6 +116,7 @@ TEST_CASE("ConnectionPoolConfig tests", "[config][pool]")
 
     SECTION("withDatabaseConfig method")
     {
+        INFO("withDatabaseConfig method");
         // Create a database config
         cpp_dbc::config::DatabaseConfig dbConfig(
             "test_db", "mysql", "localhost", 3306, "testdb", "root", "password");
@@ -131,10 +133,11 @@ TEST_CASE("ConnectionPoolConfig tests", "[config][pool]")
 }
 
 // Test case for ConnectionPool creation and basic operations
-TEST_CASE("ConnectionPool basic tests", "[pool][basic]")
+TEST_CASE("ConnectionPool basic tests", "[connection_pool]")
 {
     SECTION("Create ConnectionPool with configuration")
     {
+        INFO("Create ConnectionPool with configuration");
         // Load the YAML configuration
         std::string config_path = getConfigFilePath();
         YAML::Node config = YAML::LoadFile(config_path);
@@ -161,95 +164,21 @@ TEST_CASE("ConnectionPool basic tests", "[pool][basic]")
     }
 }
 
-// Mock classes for testing ConnectionPool without actual database connections
-namespace
-{
-    class MockResultSet : public cpp_dbc::ResultSet
-    {
-    public:
-        bool next() override { return false; }
-        bool isBeforeFirst() override { return true; }
-        bool isAfterLast() override { return false; }
-        int getRow() override { return 0; }
-        int getInt(int) override { return 1; }
-        int getInt(const std::string &) override { return 1; }
-        long getLong(int) override { return 1L; }
-        long getLong(const std::string &) override { return 1L; }
-        double getDouble(int) override { return 1.0; }
-        double getDouble(const std::string &) override { return 1.0; }
-        std::string getString(int) override { return "mock"; }
-        std::string getString(const std::string &) override { return "mock"; }
-        bool getBoolean(int) override { return true; }
-        bool getBoolean(const std::string &) override { return true; }
-        bool isNull(int) override { return false; }
-        bool isNull(const std::string &) override { return false; }
-        std::vector<std::string> getColumnNames() override { return {"mock"}; }
-        int getColumnCount() override { return 1; }
-    };
+// Include the mock classes from test_mocks.hpp
+#include "test_mocks.hpp"
 
-    class MockPreparedStatement : public cpp_dbc::PreparedStatement
-    {
-    public:
-        void setInt(int, int) override {}
-        void setLong(int, long) override {}
-        void setDouble(int, double) override {}
-        void setString(int, const std::string &) override {}
-        void setBoolean(int, bool) override {}
-        void setNull(int, cpp_dbc::Types) override {}
-        std::shared_ptr<cpp_dbc::ResultSet> executeQuery() override
-        {
-            return std::make_shared<MockResultSet>();
-        }
-        int executeUpdate() override { return 1; }
-        bool execute() override { return true; }
-    };
-
-    class MockConnection : public cpp_dbc::Connection
-    {
-    private:
-        bool closed = false;
-        bool autoCommit = true;
-
-    public:
-        void close() override { closed = true; }
-        bool isClosed() override { return closed; }
-        std::shared_ptr<cpp_dbc::PreparedStatement> prepareStatement(const std::string &) override
-        {
-            return std::make_shared<MockPreparedStatement>();
-        }
-        std::shared_ptr<cpp_dbc::ResultSet> executeQuery(const std::string &) override
-        {
-            return std::make_shared<MockResultSet>();
-        }
-        int executeUpdate(const std::string &) override { return 1; }
-        void setAutoCommit(bool ac) override { autoCommit = ac; }
-        bool getAutoCommit() override { return autoCommit; }
-        void commit() override {}
-        void rollback() override {}
-    };
-
-    class MockDriver : public cpp_dbc::Driver
-    {
-    public:
-        std::shared_ptr<cpp_dbc::Connection> connect(const std::string &, const std::string &, const std::string &) override
-        {
-            return std::make_shared<MockConnection>();
-        }
-        bool acceptsURL(const std::string &url) override
-        {
-            return url.find("cpp_dbc:mock:") == 0;
-        }
-    };
-}
+// Use the mock classes from test_mocks.hpp
+using namespace cpp_dbc_test;
 
 // Test case for ConnectionPool with mock connections
-TEST_CASE("ConnectionPool with mock connections", "[pool][mock]")
+TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
 {
     // Register the mock driver
-    cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<MockDriver>());
+    cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<cpp_dbc_test::MockDriver>());
 
     SECTION("Create and use ConnectionPool with mock driver")
     {
+        INFO("Create and use ConnectionPool with mock driver");
         // Create a connection pool with mock driver
         cpp_dbc::ConnectionPool pool(
             "cpp_dbc:mock://localhost:1234/mockdb",
@@ -308,6 +237,7 @@ TEST_CASE("ConnectionPool with mock connections", "[pool][mock]")
 
     SECTION("Test ConnectionPool with multiple threads")
     {
+        INFO("Test ConnectionPool with multiple threads");
         // Create a connection pool with mock driver
         cpp_dbc::ConnectionPool pool(
             "cpp_dbc:mock://localhost:1234/mockdb",

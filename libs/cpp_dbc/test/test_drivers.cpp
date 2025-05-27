@@ -1,11 +1,13 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cpp_dbc/cpp_dbc.hpp>
+#include "test_mocks.hpp"
 #if USE_MYSQL
 #include <cpp_dbc/drivers/driver_mysql.hpp>
 #endif
 #if USE_POSTGRESQL
 #include <cpp_dbc/drivers/driver_postgresql.hpp>
 #endif
+#include "test_mocks.hpp"
 #include <string>
 #include <memory>
 #include <iostream>
@@ -15,30 +17,18 @@ TEST_CASE("DriverManager tests", "[driver][manager]")
 {
     SECTION("Register and retrieve drivers")
     {
-        // Create a mock driver
-        class MockDriver : public cpp_dbc::Driver
-        {
-        public:
-            std::shared_ptr<cpp_dbc::Connection> connect(const std::string &, const std::string &, const std::string &) override
-            {
-                return nullptr;
-            }
-            bool acceptsURL(const std::string &url) override
-            {
-                return url.find("cpp_dbc:mock:") == 0;
-            }
-        };
+        // Use the mock driver from test_mocks.hpp
 
         // Register the mock driver
-        cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<MockDriver>());
+        cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<cpp_dbc_test::MockDriver>());
 
         // Try to get a connection with the mock driver
-        // This should not throw, but return nullptr since our mock driver returns nullptr
+        // This should not throw and return a valid connection
         REQUIRE_NOTHROW([&]()
                         {
             auto conn = cpp_dbc::DriverManager::getConnection("cpp_dbc:mock://localhost:1234/mockdb", "user", "pass");
-            // The connection should be nullptr since our mock driver returns nullptr
-            REQUIRE(conn == nullptr); }());
+            // The connection should be valid
+            REQUIRE(conn != nullptr); }());
 
         // Try to get a connection with a non-existent driver
         REQUIRE_THROWS_AS(
@@ -206,6 +196,8 @@ namespace
         void setString(int, const std::string &) override {}
         void setBoolean(int, bool) override {}
         void setNull(int, cpp_dbc::Types) override {}
+        void setDate(int, const std::string &) override {}
+        void setTimestamp(int, const std::string &) override {}
         std::shared_ptr<cpp_dbc::ResultSet> executeQuery() override
         {
             return std::make_shared<MockResultSet>();
@@ -313,5 +305,47 @@ TEST_CASE("Abstract interface tests", "[interface]")
 
         conn->close();
         REQUIRE(conn->isClosed() == true);
+    }
+}
+
+// Test case for DriverManager getRegisteredDrivers method
+TEST_CASE("DriverManager getRegisteredDrivers tests", "[driver_manager]")
+{
+    SECTION("Get registered drivers")
+    {
+        // Get the current list of registered drivers
+        auto drivers = cpp_dbc::DriverManager::getRegisteredDrivers();
+
+        // The method should return a vector (even if empty)
+        REQUIRE(drivers.size() >= 0);
+
+        // If we have drivers registered, they should be valid strings
+        for (const auto &driverName : drivers)
+        {
+            REQUIRE(!driverName.empty());
+        }
+
+        // Register a test driver to verify the method works
+        auto mockDriver = std::make_shared<cpp_dbc_test::MockDriver>();
+        cpp_dbc::DriverManager::registerDriver("test_driver", mockDriver);
+
+        // Get the updated list
+        auto updatedDrivers = cpp_dbc::DriverManager::getRegisteredDrivers();
+        REQUIRE(updatedDrivers.size() >= 1);
+
+        // Check that our test driver is in the list
+        bool found = false;
+        for (const auto &driverName : updatedDrivers)
+        {
+            if (driverName == "test_driver")
+            {
+                found = true;
+                break;
+            }
+        }
+        REQUIRE(found);
+
+        // Verify the list size increased by at least 1
+        REQUIRE(updatedDrivers.size() >= drivers.size());
     }
 }

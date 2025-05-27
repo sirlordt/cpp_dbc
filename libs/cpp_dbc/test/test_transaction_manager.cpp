@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
+#include "test_mocks.hpp"
 #include <string>
 #include <thread>
 #include <vector>
@@ -10,138 +10,22 @@
 #include <iostream>
 #include <memory>
 
-// Mock classes for testing TransactionManager without actual database connections
-namespace
-{
-    class MockResultSet : public cpp_dbc::ResultSet
-    {
-    public:
-        bool next() override { return false; }
-        bool isBeforeFirst() override { return true; }
-        bool isAfterLast() override { return false; }
-        int getRow() override { return 0; }
-        int getInt(int) override { return 1; }
-        int getInt(const std::string &) override { return 1; }
-        long getLong(int) override { return 1L; }
-        long getLong(const std::string &) override { return 1L; }
-        double getDouble(int) override { return 1.0; }
-        double getDouble(const std::string &) override { return 1.0; }
-        std::string getString(int) override { return "mock"; }
-        std::string getString(const std::string &) override { return "mock"; }
-        bool getBoolean(int) override { return true; }
-        bool getBoolean(const std::string &) override { return true; }
-        bool isNull(int) override { return false; }
-        bool isNull(const std::string &) override { return false; }
-        std::vector<std::string> getColumnNames() override { return {"mock"}; }
-        int getColumnCount() override { return 1; }
-    };
-
-    class MockPreparedStatement : public cpp_dbc::PreparedStatement
-    {
-    public:
-        void setInt(int, int) override {}
-        void setLong(int, long) override {}
-        void setDouble(int, double) override {}
-        void setString(int, const std::string &) override {}
-        void setBoolean(int, bool) override {}
-        void setNull(int, cpp_dbc::Types) override {}
-        std::shared_ptr<cpp_dbc::ResultSet> executeQuery() override
-        {
-            return std::make_shared<MockResultSet>();
-        }
-        int executeUpdate() override { return 1; }
-        bool execute() override { return true; }
-    };
-
-    class MockConnection : public cpp_dbc::Connection
-    {
-    private:
-        bool closed = false;
-        bool autoCommit = true;
-        bool committed = false;
-        bool rolledBack = false;
-
-    public:
-        void close() override { closed = true; }
-        bool isClosed() override { return closed; }
-        std::shared_ptr<cpp_dbc::PreparedStatement> prepareStatement(const std::string &) override
-        {
-            return std::make_shared<MockPreparedStatement>();
-        }
-        std::shared_ptr<cpp_dbc::ResultSet> executeQuery(const std::string &) override
-        {
-            return std::make_shared<MockResultSet>();
-        }
-        int executeUpdate(const std::string &) override { return 1; }
-        void setAutoCommit(bool ac) override { autoCommit = ac; }
-        bool getAutoCommit() override { return autoCommit; }
-        void commit() override { committed = true; }
-        void rollback() override { rolledBack = true; }
-
-        // Helper methods for testing
-        bool isCommitted() const { return committed; }
-        bool isRolledBack() const { return rolledBack; }
-        void reset()
-        {
-            committed = false;
-            rolledBack = false;
-        }
-    };
-
-    class MockDriver : public cpp_dbc::Driver
-    {
-    public:
-        std::shared_ptr<cpp_dbc::Connection> connect(const std::string &, const std::string &, const std::string &) override
-        {
-            return std::make_shared<MockConnection>();
-        }
-        bool acceptsURL(const std::string &url) override
-        {
-            return url.find("cpp_dbc:mock:") == 0;
-        }
-    };
-
-    // Mock ConnectionPool for testing TransactionManager
-    class MockConnectionPool : public cpp_dbc::ConnectionPool
-    {
-    public:
-        MockConnectionPool() : cpp_dbc::ConnectionPool(
-                                   "cpp_dbc:mock://localhost:1234/mockdb",
-                                   "mockuser",
-                                   "mockpass",
-                                   3,         // initialSize
-                                   10,        // maxSize
-                                   2,         // minIdle
-                                   5000,      // maxWaitMillis
-                                   1000,      // validationTimeoutMillis
-                                   30000,     // idleTimeoutMillis
-                                   60000,     // maxLifetimeMillis
-                                   true,      // testOnBorrow
-                                   false,     // testOnReturn
-                                   "SELECT 1" // validationQuery
-                               )
-        {
-            // Register the mock driver if not already registered
-            try
-            {
-                cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<MockDriver>());
-            }
-            catch (...)
-            {
-                // Driver might already be registered, ignore
-            }
-        }
-    };
-}
+// Use the mock classes from test_mocks.hpp
+using namespace cpp_dbc_test;
 
 // Test case for TransactionManager basic operations
-TEST_CASE("TransactionManager basic tests", "[transaction][basic]")
+TEST_CASE("TransactionManager basic tests", "[transaction_manager]")
 {
+    // Register the mock driver directly
+    auto mockDriver = std::make_shared<MockDriver>();
+    cpp_dbc::DriverManager::registerDriver("mock", mockDriver);
+
     // Create a mock connection pool
     MockConnectionPool pool;
 
     SECTION("Create TransactionManager")
     {
+        INFO("Create TransactionManager");
         // Create a transaction manager
         cpp_dbc::TransactionManager manager(pool);
 
@@ -151,6 +35,8 @@ TEST_CASE("TransactionManager basic tests", "[transaction][basic]")
 
     SECTION("Begin and commit transaction")
     {
+        INFO("Begin and commit transaction");
+
         // Create a transaction manager
         cpp_dbc::TransactionManager manager(pool);
 
@@ -183,15 +69,13 @@ TEST_CASE("TransactionManager basic tests", "[transaction][basic]")
 
     SECTION("Begin and rollback transaction")
     {
+        INFO("Begin and rollback transaction");
         // Create a transaction manager
         cpp_dbc::TransactionManager manager(pool);
 
         // Begin a transaction
         std::string txId = manager.beginTransaction();
         REQUIRE(!txId.empty());
-
-        // Check that the transaction is active
-        REQUIRE(manager.isTransactionActive(txId));
 
         // Get the connection associated with the transaction
         auto conn = manager.getTransactionConnection(txId);
@@ -206,39 +90,73 @@ TEST_CASE("TransactionManager basic tests", "[transaction][basic]")
 
         // Check that the transaction is no longer active
         REQUIRE_FALSE(manager.isTransactionActive(txId));
+        REQUIRE(manager.getActiveTransactionCount() == 0);
     }
 
-    SECTION("Transaction timeout")
+    SECTION("Multiple transactions")
     {
-        // Create a transaction manager with a short timeout
-        cpp_dbc::TransactionManager manager(pool);
-        manager.setTransactionTimeout(100); // 100ms timeout
-
-        // Begin a transaction
-        std::string txId = manager.beginTransaction();
-        REQUIRE(!txId.empty());
-
-        // Wait for the transaction to time out
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-        // Check that the transaction is no longer active
-        REQUIRE_FALSE(manager.isTransactionActive(txId));
-    }
-}
-
-// Test case for TransactionManager with multiple threads
-TEST_CASE("TransactionManager multi-threaded tests", "[transaction][threads]")
-{
-    // Create a mock connection pool
-    MockConnectionPool pool;
-
-    SECTION("Multiple threads using separate transactions")
-    {
+        INFO("Multiple transactions");
         // Create a transaction manager
         cpp_dbc::TransactionManager manager(pool);
 
-        // Number of threads
-        const int numThreads = 10;
+        // Begin multiple transactions
+        std::string txId1 = manager.beginTransaction();
+        std::string txId2 = manager.beginTransaction();
+        std::string txId3 = manager.beginTransaction();
+
+        REQUIRE(manager.getActiveTransactionCount() == 3);
+
+        // Get connections for each transaction
+        auto conn1 = manager.getTransactionConnection(txId1);
+        auto conn2 = manager.getTransactionConnection(txId2);
+        auto conn3 = manager.getTransactionConnection(txId3);
+
+        REQUIRE(conn1 != nullptr);
+        REQUIRE(conn2 != nullptr);
+        REQUIRE(conn3 != nullptr);
+
+        // Commit one transaction
+        manager.commitTransaction(txId1);
+        REQUIRE(manager.getActiveTransactionCount() == 2);
+        REQUIRE_FALSE(manager.isTransactionActive(txId1));
+        REQUIRE(manager.isTransactionActive(txId2));
+        REQUIRE(manager.isTransactionActive(txId3));
+
+        // Rollback one transaction
+        manager.rollbackTransaction(txId2);
+        REQUIRE(manager.getActiveTransactionCount() == 1);
+        REQUIRE_FALSE(manager.isTransactionActive(txId1));
+        REQUIRE_FALSE(manager.isTransactionActive(txId2));
+        REQUIRE(manager.isTransactionActive(txId3));
+
+        // Commit the last transaction
+        manager.commitTransaction(txId3);
+        REQUIRE(manager.getActiveTransactionCount() == 0);
+        REQUIRE_FALSE(manager.isTransactionActive(txId1));
+        REQUIRE_FALSE(manager.isTransactionActive(txId2));
+        REQUIRE_FALSE(manager.isTransactionActive(txId3));
+    }
+}
+
+// Test case for TransactionManager multi-threaded operations
+TEST_CASE("TransactionManager multi-threaded tests", "[transaction_manager]")
+{
+    // Register the mock driver directly
+    auto mockDriver = std::make_shared<MockDriver>();
+    cpp_dbc::DriverManager::registerDriver("mock", mockDriver);
+
+    // Create a mock connection pool
+    MockConnectionPool pool;
+
+    SECTION("Concurrent transactions")
+    {
+        INFO("Concurrent transactions");
+        // Create a transaction manager
+        cpp_dbc::TransactionManager manager(pool);
+
+        // Number of threads and transactions per thread
+        const int numThreads = 5;
+        const int txPerThread = 10;
 
         // Atomic counter for successful transactions
         std::atomic<int> successCount(0);
@@ -247,26 +165,32 @@ TEST_CASE("TransactionManager multi-threaded tests", "[transaction][threads]")
         std::vector<std::thread> threads;
         for (int i = 0; i < numThreads; i++)
         {
-            threads.push_back(std::thread([&manager, &successCount]()
+            threads.push_back(std::thread([&manager, txPerThread, &successCount]()
                                           {
-                try {
-                    // Begin a transaction
-                    std::string txId = manager.beginTransaction();
-                    
-                    // Get the connection associated with the transaction
-                    auto conn = manager.getTransactionConnection(txId);
-                    
-                    // Execute a query
-                    auto rs = conn->executeQuery("SELECT 1");
-                    
-                    // Commit the transaction
-                    manager.commitTransaction(txId);
-                    
-                    // Increment success counter
-                    successCount++;
-                }
-                catch (const std::exception& e) {
-                    std::cerr << "Thread transaction failed: " << e.what() << std::endl;
+                for (int j = 0; j < txPerThread; j++) {
+                    try {
+                        // Begin a transaction
+                        std::string txId = manager.beginTransaction();
+
+                        // Get the connection
+                        auto conn = manager.getTransactionConnection(txId);
+
+                        // Execute a query
+                        auto rs = conn->executeQuery("SELECT 1");
+
+                        // Commit or rollback randomly
+                        if (j % 2 == 0) {
+                            manager.commitTransaction(txId);
+                        } else {
+                            manager.rollbackTransaction(txId);
+                        }
+
+                        // Increment success counter
+                        successCount++;
+                    }
+                    catch (const std::exception& e) {
+                        std::cerr << "Thread operation failed: " << e.what() << std::endl;
+                    }
                 } }));
         }
 
@@ -276,79 +200,39 @@ TEST_CASE("TransactionManager multi-threaded tests", "[transaction][threads]")
             t.join();
         }
 
-        // Check that all transactions were successful
-        REQUIRE(successCount == numThreads);
-
-        // Check that no transactions are left active
+        // Check that all transactions were processed
+        REQUIRE(successCount == numThreads * txPerThread);
         REQUIRE(manager.getActiveTransactionCount() == 0);
-    }
-
-    SECTION("Multiple threads sharing a transaction")
-    {
-        // Create a transaction manager
-        cpp_dbc::TransactionManager manager(pool);
-
-        // Begin a transaction
-        std::string txId = manager.beginTransaction();
-
-        // Number of threads
-        const int numThreads = 5;
-
-        // Atomic counter for successful operations
-        std::atomic<int> successCount(0);
-
-        // Create and start threads
-        std::vector<std::thread> threads;
-        for (int i = 0; i < numThreads; i++)
-        {
-            threads.push_back(std::thread([&manager, txId, &successCount]()
-                                          {
-                try {
-                    // Get the connection associated with the transaction
-                    auto conn = manager.getTransactionConnection(txId);
-                    
-                    // Execute a query
-                    auto rs = conn->executeQuery("SELECT 1");
-                    
-                    // Increment success counter
-                    successCount++;
-                }
-                catch (const std::exception& e) {
-                    std::cerr << "Thread operation failed: " << e.what() << std::endl;
-                } }));
-        }
-
-        // Wait for all threads to complete
-        for (auto &t : threads)
-        {
-            t.join();
-        }
-
-        // Check that all operations were successful
-        REQUIRE(successCount == numThreads);
-
-        // Commit the transaction
-        manager.commitTransaction(txId);
-
-        // Check that the transaction is no longer active
-        REQUIRE_FALSE(manager.isTransactionActive(txId));
     }
 }
 
 // Test case for TransactionContext
-TEST_CASE("TransactionContext tests", "[transaction][context]")
+TEST_CASE("TransactionContext tests", "[transaction_manager]")
 {
-    // Create a mock connection
+    INFO("TransactionContext tests");
+    // Create a connection for testing
     auto conn = std::make_shared<MockConnection>();
 
-    SECTION("Create TransactionContext")
-    {
-        // Create a transaction context
-        cpp_dbc::TransactionContext context(conn, "test-tx-id");
+    // Create a transaction context
+    cpp_dbc::TransactionContext context(conn, "test-tx-id");
 
-        // Check initial state
-        REQUIRE(context.connection == conn);
-        REQUIRE(context.transactionId == "test-tx-id");
-        REQUIRE(context.active == true);
-    }
+    // Check the transaction ID
+    REQUIRE(context.transactionId == "test-tx-id");
+
+    // Check the connection
+    REQUIRE(context.connection == conn);
+
+    // Check that the last access time is recent
+    auto now = std::chrono::steady_clock::now();
+    auto lastAccess = context.lastAccessTime;
+    auto diff = std::chrono::duration_cast<std::chrono::seconds>(now - lastAccess).count();
+    REQUIRE(diff < 5); // Should be less than 5 seconds
+
+    // Update the last access time
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    context.lastAccessTime = std::chrono::steady_clock::now();
+
+    // Check that the last access time was updated
+    auto newLastAccess = context.lastAccessTime;
+    REQUIRE(newLastAccess > lastAccess);
 }

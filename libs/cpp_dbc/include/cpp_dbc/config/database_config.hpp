@@ -91,7 +91,7 @@ namespace cpp_dbc
             ConnectionOptions options;
 
         public:
-            DatabaseConfig() = default;
+            DatabaseConfig() : port(0) {}
 
             /**
              * @brief Constructor with parameters

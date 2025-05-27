@@ -5,6 +5,8 @@ set -e  # Exit on error
 # Description: Runs the cpp_dbc library tests
 # Usage: ./run_test_cpp_dbc.sh [options]
 # Options:
+#   --yaml, --yaml-on      Enable CPP-YAML support
+#   --yaml-off             Disable CPP-YAML support
 #   --mysql, --mysql-on    Enable MySQL support (default)
 #   --mysql-off            Disable MySQL support
 #   --postgres, --postgres-on  Enable PostgreSQL support
@@ -15,10 +17,13 @@ set -e  # Exit on error
 #   --ctest                Run tests using CTest
 #   --check                Check shared library dependencies of test executable
 #   --rebuild              Rebuild the test targets before running
+#   --list                 List available tests only (does not run tests)
+#   --run-test="tag"       Run only tests with the specified tag
 #   --help                 Show this help message
 
 # Default values for options
 USE_MYSQL=ON
+USE_CPP_YAML=OFF
 USE_POSTGRESQL=OFF
 BUILD_TYPE=Debug
 ASAN_OPTIONS=""
@@ -27,10 +32,20 @@ RUN_CTEST=false
 USE_VALGRIND=false
 CHECK_DEPENDENCIES=false
 REBUILD=false
+LIST_ONLY=false
+RUN_SPECIFIC_TEST=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --yaml|--yaml-on)
+            USE_CPP_YAML=ON
+            shift
+            ;;
+        --yaml-off)
+            USE_CPP_YAML=OFF
+            shift
+            ;;
         --mysql|--mysql-on)
             USE_MYSQL=ON
             shift
@@ -72,6 +87,14 @@ while [[ $# -gt 0 ]]; do
             REBUILD=true
             shift
             ;;
+        --list)
+            LIST_ONLY=true
+            shift
+            ;;
+        --run-test=*)
+            RUN_SPECIFIC_TEST="${1#*=}"
+            shift
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
@@ -85,6 +108,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --ctest                Run tests using CTest"
             echo "  --check                Check shared library dependencies of test executable"
             echo "  --rebuild              Rebuild the test targets before running"
+            echo "  --list                 List available tests only (does not run tests)"
+            echo "  --run-test=\"tag\"       Run only tests with the specified tag"
             echo "  --help                 Show this help message"
             exit 0
             ;;
@@ -183,7 +208,8 @@ fi
 # Set paths
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 CPP_DBC_DIR="${SCRIPT_DIR}"
-TEST_BUILD_DIR="${CPP_DBC_DIR}/build/test_build"
+#TEST_BUILD_DIR="${CPP_DBC_DIR}/build/test_build"
+TEST_BUILD_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/test"
 TEST_EXECUTABLE="${TEST_BUILD_DIR}/test/cpp_dbc_tests"
 
 # Check if the tests are built
@@ -193,14 +219,29 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
     if [ "$ENABLE_ASAN" = true ]; then
         BUILD_CMD="$BUILD_CMD --asan"
     fi
-    if [ "$USE_MYSQL" = "OFF" ]; then
+
+    if [ "$USE_CPP_YAML" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --yaml"
+    else
+        BUILD_CMD="$BUILD_CMD --yaml-off"
+    fi
+
+    if [ "$USE_MYSQL" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --mysql"
+    else
         BUILD_CMD="$BUILD_CMD --mysql-off"
     fi
+
     if [ "$USE_POSTGRESQL" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --postgres-on"
+    else 
+        BUILD_CMD="$BUILD_CMD --postgres-off"
     fi
+    
     if [ "$BUILD_TYPE" = "Release" ]; then
         BUILD_CMD="$BUILD_CMD --release"
+    else
+        BUILD_CMD="$BUILD_CMD --debug"
     fi
 
     # Execute the build command
@@ -249,6 +290,15 @@ run_test() {
     fi
 }
 
+# Handle the --list option
+if [ "$LIST_ONLY" = true ]; then
+    echo -e "Listing available tests:\n"
+    run_test --list-tests
+    echo -e "\nListing available tags:\n"
+    run_test --list-tags
+    exit 0
+fi
+
 # Run tests with CTest if requested
 if [ "$RUN_CTEST" = true ]; then
     echo -e "Running tests with CTest...\n"
@@ -262,7 +312,29 @@ if [ "$RUN_CTEST" = true ]; then
 else
     # Run tests directly
     echo -e "Running tests directly...\n"
-    run_test
+    
+    # First list all available tests
+    echo -e "Available tests:\n"
+    run_test --list-tests
+    
+    # If a specific test tag was provided, run only that test
+    if [ -n "$RUN_SPECIFIC_TEST" ]; then
+        echo -e "\nRunning tests with tag [$RUN_SPECIFIC_TEST]...\n"
+        run_test -s -r compact "[$RUN_SPECIFIC_TEST]"
+    else
+        # Then run the tests with detailed output
+        echo -e "\nRunning tests with detailed output:\n"
+        
+        # Get all test tags
+        echo -e "Getting all test tags...\n"
+        TAGS=$(run_test --list-tags | grep -oP '\[\K[^\]]+' | sort -u)
+        
+        # Run tests by tags to avoid hanging
+        for TAG in $TAGS; do
+            echo -e "\nRunning tests with tag [$TAG]...\n"
+            run_test -s -r compact "[$TAG]" || true
+        done
+    fi
 fi
 
 echo -e "\n========== All Tests Completed ==========\n"

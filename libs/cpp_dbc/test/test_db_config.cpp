@@ -10,21 +10,12 @@
 #include <filesystem>
 #include <unistd.h>
 
-// Helper function to get the path to the test_db_connections.yml file
-std::string getConfigFilePath()
-{
-    // Print current working directory for debugging
-    // char cwd[1024];
-    // if (getcwd(cwd, sizeof(cwd)) != NULL)
-    //{
-    // std::cout << "Current working directory: " << cwd << std::endl;
-    //}
+#include <unistd.h>
+#include <iostream>
+#include <string>
+#include <vector>
 
-    // The YAML file is copied to the build directory by CMake
-    // So we can just use the filename
-    // std::cout << "Attempting to open file: test_db_connections.yml" << std::endl;
-    return "test_db_connections.yml";
-}
+std::string getConfigFilePath();
 
 // Helper function to create a connection string based on database type
 std::string createConnectionString(const YAML::Node &dbConfig)
@@ -53,9 +44,10 @@ public:
     std::vector<YAML::Node> getAllDatabases() const
     {
         std::vector<YAML::Node> result;
-        for (const auto &db : config["databases"])
+        for (size_t i = 0; i < config["databases"].size(); i++)
         {
-            result.push_back(db);
+            YAML::Node db = config["databases"][i];
+            result.push_back(YAML::Node(db));
         }
         return result;
     }
@@ -64,11 +56,12 @@ public:
     std::vector<YAML::Node> getDatabasesByType(const std::string &type) const
     {
         std::vector<YAML::Node> result;
-        for (const auto &db : config["databases"])
+        for (size_t i = 0; i < config["databases"].size(); i++)
         {
+            YAML::Node db = config["databases"][i];
             if (db["type"].as<std::string>() == type)
             {
-                result.push_back(db);
+                result.push_back(YAML::Node(db));
             }
         }
         return result;
@@ -77,11 +70,12 @@ public:
     // Get a database by name
     YAML::Node getDatabaseByName(const std::string &name) const
     {
-        for (const auto &db : config["databases"])
+        for (size_t i = 0; i < config["databases"].size(); i++)
         {
+            YAML::Node db = config["databases"][i];
             if (db["name"].as<std::string>() == name)
             {
-                return db;
+                return YAML::Node(db);
             }
         }
         // Return an undefined node if not found
@@ -110,7 +104,7 @@ public:
 };
 
 // Test case to verify that the database configuration file can be loaded
-TEST_CASE("Database configuration loading", "[config]")
+TEST_CASE("Database configuration loading", "[db_config]")
 {
     SECTION("Load database configuration file")
     {
@@ -139,7 +133,7 @@ TEST_CASE("Database configuration loading", "[config]")
 }
 
 // Test case to verify database configurations
-TEST_CASE("Database configurations", "[config][databases]")
+TEST_CASE("Database configurations", "[db_config]")
 {
     DatabaseConfigManager configManager(getConfigFilePath());
 
@@ -216,7 +210,7 @@ TEST_CASE("Database configurations", "[config][databases]")
 }
 
 // Test case to verify specific database configurations
-TEST_CASE("Specific database configurations", "[config][database]")
+TEST_CASE("Specific database configurations", "[db_config]")
 {
     DatabaseConfigManager configManager(getConfigFilePath());
 
@@ -278,7 +272,7 @@ TEST_CASE("Specific database configurations", "[config][database]")
 }
 
 // Test case to verify connection pool configurations
-TEST_CASE("Connection pool configurations", "[config][pool]")
+TEST_CASE("Connection pool configurations", "[db_config]")
 {
     DatabaseConfigManager configManager(getConfigFilePath());
 
@@ -314,7 +308,7 @@ TEST_CASE("Connection pool configurations", "[config][pool]")
 }
 
 // Test case to verify test queries
-TEST_CASE("Test queries", "[config][queries]")
+TEST_CASE("Test queries", "[db_config]")
 {
     DatabaseConfigManager configManager(getConfigFilePath());
 
@@ -358,7 +352,7 @@ TEST_CASE("Test queries", "[config][queries]")
 }
 
 // Example of how to use the configuration to create connection strings
-TEST_CASE("Create connection strings from configuration", "[config][connection]")
+TEST_CASE("Create connection strings from configuration", "[db_config]")
 {
     DatabaseConfigManager configManager(getConfigFilePath());
 
@@ -402,7 +396,7 @@ TEST_CASE("Create connection strings from configuration", "[config][connection]"
 }
 
 // Test database configurations for different environments and types
-TEST_CASE("Select MySQL database for dev environment", "[config][environment]")
+TEST_CASE("Select MySQL database for dev environment", "[db_config]")
 {
     DatabaseConfigManager configManager(getConfigFilePath());
     std::string dbName = "dev_mysql";
@@ -428,7 +422,7 @@ TEST_CASE("Select MySQL database for dev environment", "[config][environment]")
     REQUIRE(password == "dsystems");
 }
 
-TEST_CASE("Select MySQL database for test environment", "[config][environment]")
+TEST_CASE("Select MySQL database for test environment", "[db_config]")
 {
     DatabaseConfigManager configManager(getConfigFilePath());
     std::string dbName = "test_mysql";
@@ -443,7 +437,7 @@ TEST_CASE("Select MySQL database for test environment", "[config][environment]")
     REQUIRE(connStr.find("cpp_dbc:mysql://") == 0);
 }
 
-TEST_CASE("Select MySQL database for prod environment", "[config][environment]")
+TEST_CASE("Select MySQL database for prod environment", "[db_config]")
 {
     DatabaseConfigManager configManager(getConfigFilePath());
     std::string dbName = "prod_mysql";
@@ -458,7 +452,7 @@ TEST_CASE("Select MySQL database for prod environment", "[config][environment]")
     REQUIRE(connStr.find("cpp_dbc:mysql://") == 0);
 }
 
-TEST_CASE("Select PostgreSQL database for dev environment", "[config][environment]")
+TEST_CASE("Select PostgreSQL database for dev environment", "[db_config]")
 {
     DatabaseConfigManager configManager(getConfigFilePath());
     std::string dbName = "dev_postgresql";
@@ -473,7 +467,7 @@ TEST_CASE("Select PostgreSQL database for dev environment", "[config][environmen
     REQUIRE(connStr.find("cpp_dbc:postgresql://") == 0);
 }
 
-TEST_CASE("Select PostgreSQL database for test environment", "[config][environment]")
+TEST_CASE("Select PostgreSQL database for test environment", "[db_config]")
 {
     DatabaseConfigManager configManager(getConfigFilePath());
     std::string dbName = "test_postgresql";
@@ -488,7 +482,7 @@ TEST_CASE("Select PostgreSQL database for test environment", "[config][environme
     REQUIRE(connStr.find("cpp_dbc:postgresql://") == 0);
 }
 
-TEST_CASE("Select PostgreSQL database for prod environment", "[config][environment]")
+TEST_CASE("Select PostgreSQL database for prod environment", "[db_config]")
 {
     DatabaseConfigManager configManager(getConfigFilePath());
     std::string dbName = "prod_postgresql";

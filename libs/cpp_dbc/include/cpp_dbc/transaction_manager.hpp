@@ -14,6 +14,7 @@
 #include <random>
 #include <thread>
 #include <functional>
+#include <condition_variable>
 
 namespace cpp_dbc
 {
@@ -46,6 +47,8 @@ namespace cpp_dbc
         std::mutex transactionMutex;
         std::thread cleanupThread;
         std::atomic<bool> running;
+        std::condition_variable cleanupCondition;
+        std::mutex cleanupMutex;
 
         // Configuration
         long transactionTimeoutMillis = 300000; // 5 minutes by default

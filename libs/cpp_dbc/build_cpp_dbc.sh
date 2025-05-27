@@ -163,20 +163,32 @@ INSTALL_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc"
 mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
 
-# Define Conan directory
-CONAN_DIR="${SCRIPT_DIR}/build"
+# Define Conan directory - use the build directory in the project root
+CONAN_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc/conan"
+mkdir -p "${CONAN_DIR}"
+
+# Run Conan in the project root's build directory, not in libs/cpp_dbc/build
+echo "Installing dependencies with Conan..."
+cd "${SCRIPT_DIR}"
+conan install . --output-folder="${CONAN_DIR}" --build=missing -s build_type=$BUILD_TYPE
+cd "${BUILD_DIR}"
 
 # Configure with CMake
 echo "Configuring with CMake..."
 
-# If YAML support is enabled, add the Conan generators directory to CMAKE_PREFIX_PATH
-if [ "$USE_CPP_YAML" = "ON" ]; then
-    CONAN_GENERATORS_DIR="${CONAN_DIR}/${BUILD_TYPE}/generators"
-    echo "Using Conan generators directory: ${CONAN_GENERATORS_DIR}"
-    CMAKE_PREFIX_PATH_ARG="-DCMAKE_PREFIX_PATH=${CONAN_GENERATORS_DIR}"
+# Find the conan_toolchain.cmake file
+if [ -d "${CONAN_DIR}/build/${BUILD_TYPE}" ]; then
+    TOOLCHAIN_FILE="${CONAN_DIR}/build/${BUILD_TYPE}/generators/conan_toolchain.cmake"
 else
-    CMAKE_PREFIX_PATH_ARG=""
+    TOOLCHAIN_FILE="${CONAN_DIR}/generators/conan_toolchain.cmake"
 fi
+
+if [ ! -f "$TOOLCHAIN_FILE" ]; then
+    echo "Error: Could not find conan_toolchain.cmake file. Conan installation may have failed."
+    exit 1
+fi
+
+echo "Using toolchain file: $TOOLCHAIN_FILE"
 
 cmake "${SCRIPT_DIR}" \
       -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
@@ -186,7 +198,7 @@ cmake "${SCRIPT_DIR}" \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DCPP_DBC_BUILD_TESTS=$BUILD_TESTS \
       -DCPP_DBC_BUILD_EXAMPLES=$BUILD_EXAMPLES \
-      $CMAKE_PREFIX_PATH_ARG \
+      -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
       -Wno-dev
 
 # Build and install the library
@@ -196,6 +208,43 @@ cmake --build . --target install
 echo "cpp_dbc library build completed successfully."
 echo "The library has been installed to: ${INSTALL_DIR}"
 echo ""
+
+# If tests are enabled, call build_test_cpp_dbc.sh with the appropriate parameters
+if [ "$BUILD_TESTS" = "ON" ]; then
+    echo "Building tests using build_test_cpp_dbc.sh..."
+    
+    # Prepare parameters to pass to build_test_cpp_dbc.sh
+    TEST_PARAMS=""
+
+    # Pass Yaml configuration
+    if [ "$USE_CPP_YAML" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --yaml"
+    else
+        TEST_PARAMS="$TEST_PARAMS --yaml-off"
+    fi
+    
+    # Pass MySQL configuration
+    if [ "$USE_MYSQL" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --mysql"
+    else
+        TEST_PARAMS="$TEST_PARAMS --mysql-off"
+    fi
+    
+    # Pass PostgreSQL configuration
+    if [ "$USE_POSTGRESQL" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --postgres"
+    fi
+    
+    # Pass build type
+    if [ "$BUILD_TYPE" = "Release" ]; then
+        TEST_PARAMS="$TEST_PARAMS --release"
+    fi
+    
+    # Call build_test_cpp_dbc.sh with the parameters
+    echo "Running: ${SCRIPT_DIR}/build_test_cpp_dbc.sh $TEST_PARAMS"
+    "${SCRIPT_DIR}/build_test_cpp_dbc.sh" $TEST_PARAMS
+fi
+
 echo "Database driver status:"
 echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"

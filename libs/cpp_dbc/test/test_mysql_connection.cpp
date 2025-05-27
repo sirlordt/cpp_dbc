@@ -9,13 +9,10 @@
 #include <iostream>
 
 // Helper function to get the path to the test_db_connections.yml file
-static std::string getConfigFilePath()
-{
-    return "test_db_connections.yml";
-}
+std::string getConfigFilePath();
 
 // Test case to verify MySQL connection
-TEST_CASE("MySQL connection test", "[mysql][connection]")
+TEST_CASE("MySQL connection test", "[mysql_connection]")
 {
 #if USE_MYSQL
     // Skip this test if MySQL support is not enabled

@@ -65,7 +65,12 @@ namespace cpp_dbc
             std::string sql;
             MYSQL_STMT *stmt;
             std::vector<MYSQL_BIND> binds;
-            std::vector<std::string> stringValues; // To keep string values alive
+            std::vector<std::string> stringValues;    // To keep string values alive
+            std::vector<std::string> parameterValues; // To store parameter values for query reconstruction
+            std::vector<int> intValues;               // To keep int values alive
+            std::vector<long> longValues;             // To keep long values alive
+            std::vector<double> doubleValues;         // To keep double values alive
+            std::vector<char> nullFlags;              // To keep null flags alive (char instead of bool for pointer access)
 
         public:
             MySQLPreparedStatement(MYSQL *mysql, const std::string &sql);
@@ -77,6 +82,8 @@ namespace cpp_dbc
             void setString(int parameterIndex, const std::string &value) override;
             void setBoolean(int parameterIndex, bool value) override;
             void setNull(int parameterIndex, Types type) override;
+            void setDate(int parameterIndex, const std::string &value) override;
+            void setTimestamp(int parameterIndex, const std::string &value) override;
 
             std::shared_ptr<ResultSet> executeQuery() override;
             int executeUpdate() override;

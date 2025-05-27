@@ -23,6 +23,7 @@ namespace cpp_dbc
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <unordered_set>
 
 namespace cpp_dbc
 {
@@ -58,8 +59,14 @@ namespace cpp_dbc
         std::string validationQuery;  // Query used to validate connections
         std::vector<std::shared_ptr<PooledConnection>> allConnections;
         std::queue<std::shared_ptr<PooledConnection>> idleConnections;
-        mutable std::mutex mutex;
-        std::condition_variable condition;
+        // std::unordered_set<std::shared_ptr<PooledConnection>> idleConnectionsSet; // Track what's in the queue
+        mutable std::mutex mutexGetConnection;
+        mutable std::mutex mutexReturnConnection;
+        mutable std::mutex mutexAllConnections;
+        mutable std::mutex mutexIdleConnections;
+        mutable std::mutex mutexMaintenance;
+        // std::condition_variable condition;
+        std::condition_variable maintenanceCondition;
         std::atomic<bool> running;
         std::atomic<int> activeConnections;
         std::thread maintenanceThread;
@@ -79,6 +86,8 @@ namespace cpp_dbc
         // Maintenance thread function
         void maintenanceTask();
 
+        std::shared_ptr<PooledConnection> getIdleConnection();
+
     public:
         // Constructor that takes individual parameters
         ConnectionPool(const std::string &url,
@@ -87,7 +96,7 @@ namespace cpp_dbc
                        int initialSize = 5,
                        int maxSize = 20,
                        int minIdle = 3,
-                       long maxWaitMillis = 30000,
+                       long maxWaitMillis = 5000,
                        long validationTimeoutMillis = 5000,
                        long idleTimeoutMillis = 300000,
                        long maxLifetimeMillis = 1800000,
@@ -104,7 +113,7 @@ namespace cpp_dbc
         ~ConnectionPool();
 
         // Borrows a connection from the pool
-        std::shared_ptr<Connection> getConnection();
+        virtual std::shared_ptr<Connection> getConnection();
 
         // Gets current pool statistics
         int getActiveConnectionCount() const;
@@ -113,6 +122,9 @@ namespace cpp_dbc
 
         // Closes the pool and all connections
         void close();
+
+        // Check if pool is running
+        bool isRunning() const;
     };
 
     // PooledConnection wraps a physical connection
@@ -125,6 +137,8 @@ namespace cpp_dbc
         std::chrono::time_point<std::chrono::steady_clock> lastUsedTime;
         std::atomic<bool> active;
         std::atomic<bool> closed;
+
+        friend class ConnectionPool;
 
     public:
         PooledConnection(std::shared_ptr<Connection> conn, ConnectionPool *pool);

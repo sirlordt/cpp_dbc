@@ -144,8 +144,46 @@ namespace cpp_dbc
 
     bool TransactionManager::isTransactionActive(const std::string &transactionId)
     {
-        std::lock_guard<std::mutex> lock(transactionMutex);
-        return activeTransactions.find(transactionId) != activeTransactions.end();
+        std::string expiredTransactionId;
+
+        // First, check if the transaction exists and if it has timed out
+        {
+            std::lock_guard<std::mutex> lock(transactionMutex);
+
+            auto it = activeTransactions.find(transactionId);
+            if (it == activeTransactions.end())
+            {
+                return false;
+            }
+
+            // Check if the transaction has timed out
+            auto now = std::chrono::steady_clock::now();
+            auto idleTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                now - it->second->lastAccessTime)
+                                .count();
+
+            if (idleTime > transactionTimeoutMillis)
+            {
+                // Transaction has timed out, we need to clean it up
+                expiredTransactionId = transactionId;
+            }
+        }
+
+        // If the transaction has expired, clean it up outside the lock
+        if (!expiredTransactionId.empty())
+        {
+            try
+            {
+                rollbackTransaction(expiredTransactionId);
+            }
+            catch (...)
+            {
+                // Ignore errors during cleanup
+            }
+            return false;
+        }
+
+        return true;
     }
 
     int TransactionManager::getActiveTransactionCount()
@@ -163,8 +201,9 @@ namespace cpp_dbc
     {
         while (running)
         {
-            // Sleep for the cleanup interval
-            std::this_thread::sleep_for(std::chrono::milliseconds(cleanupIntervalMillis));
+            // Wait for the cleanup interval or until notified to stop
+            std::unique_lock<std::mutex> lock(cleanupMutex);
+            cleanupCondition.wait_for(lock, std::chrono::milliseconds(cleanupIntervalMillis));
 
             if (!running)
             {
@@ -261,6 +300,9 @@ namespace cpp_dbc
         {
             return; // Already closed
         }
+
+        // Notify the cleanup thread to wake up and exit
+        cleanupCondition.notify_all();
 
         // Join the cleanup thread
         if (cleanupThread.joinable())
