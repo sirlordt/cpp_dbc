@@ -127,6 +127,8 @@ namespace cpp_dbc
 
         virtual void close() = 0;
         virtual bool isClosed() = 0;
+        virtual void returnToPool() = 0;
+        virtual bool isPooled() = 0;
 
         virtual std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) = 0;
         virtual std::shared_ptr<ResultSet> executeQuery(const std::string &sql) = 0;

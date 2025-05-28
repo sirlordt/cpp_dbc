@@ -10,6 +10,8 @@
 #include <libpq-fe.h>
 #include <map>
 #include <memory>
+#include <set>
+#include <mutex>
 
 namespace cpp_dbc
 {
@@ -60,6 +62,8 @@ namespace cpp_dbc
 
         class PostgreSQLPreparedStatement : public PreparedStatement
         {
+            friend class PostgreSQLConnection;
+
         private:
             PGconn *conn;
             std::string sql;
@@ -70,6 +74,9 @@ namespace cpp_dbc
             std::vector<Oid> paramTypes;
             bool prepared;
             int statementCounter;
+
+            // Internal method called by connection when closing
+            void notifyConnClosing();
 
         public:
             PostgreSQLPreparedStatement(PGconn *conn, const std::string &sql, const std::string &stmt_name);
@@ -98,6 +105,13 @@ namespace cpp_dbc
             bool autoCommit;
             int statementCounter;
 
+            std::set<std::shared_ptr<PostgreSQLPreparedStatement>> activeStatements;
+            std::mutex statementsMutex;
+
+            // Internal methods for statement registry
+            void registerStatement(std::shared_ptr<PostgreSQLPreparedStatement> stmt);
+            void unregisterStatement(std::shared_ptr<PostgreSQLPreparedStatement> stmt);
+
         public:
             PostgreSQLConnection(const std::string &host,
                                  int port,
@@ -108,6 +122,8 @@ namespace cpp_dbc
 
             void close() override;
             bool isClosed() override;
+            void returnToPool() override;
+            bool isPooled() override;
 
             std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
             std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;

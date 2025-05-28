@@ -5,6 +5,8 @@
 #include <cstring>
 #include <sstream>
 #include <iostream>
+#include <thread>
+#include <chrono>
 
 namespace cpp_dbc
 {
@@ -327,9 +329,20 @@ namespace cpp_dbc
             {
                 // Deallocate the prepared statement
                 std::string deallocateSQL = "DEALLOCATE " + stmtName;
-                PQexec(conn, deallocateSQL.c_str());
+                PGresult *res = PQexec(conn, deallocateSQL.c_str());
+                if (res)
+                {
+                    PQclear(res);
+                }
                 prepared = false;
             }
+        }
+
+        void PostgreSQLPreparedStatement::notifyConnClosing()
+        {
+            // Connection is closing, invalidate the statement without calling mysql_stmt_close
+            // since the connection is already being destroyed
+            this->close();
         }
 
         void PostgreSQLPreparedStatement::setInt(int parameterIndex, int value)
@@ -696,6 +709,24 @@ namespace cpp_dbc
         {
             if (!closed && conn)
             {
+
+                // Notify all active statements that connection is closing
+                {
+                    std::lock_guard<std::mutex> lock(statementsMutex);
+                    for (auto &stmt : activeStatements)
+                    {
+                        // if (auto stmt = weakStmt.lock())
+                        if (stmt)
+                        {
+                            stmt->notifyConnClosing();
+                        }
+                    }
+                    activeStatements.clear();
+                }
+
+                // Sleep for 10ms to avoid problems with corrency
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
                 PQfinish(conn);
                 conn = nullptr;
                 closed = true;
@@ -707,6 +738,16 @@ namespace cpp_dbc
             return closed;
         }
 
+        void PostgreSQLConnection::returnToPool()
+        {
+            this->close();
+        }
+
+        bool PostgreSQLConnection::isPooled()
+        {
+            return false;
+        }
+
         std::shared_ptr<PreparedStatement> PostgreSQLConnection::prepareStatement(const std::string &sql)
         {
             if (closed || !conn)
@@ -716,7 +757,11 @@ namespace cpp_dbc
 
             // Generate a unique statement name and pass it to the prepared statement
             std::string stmtName = generateStatementName();
-            return std::make_shared<PostgreSQLPreparedStatement>(conn, sql, stmtName);
+            auto stmt = std::make_shared<PostgreSQLPreparedStatement>(conn, sql, stmtName);
+
+            registerStatement(stmt);
+
+            return stmt;
         }
 
         std::shared_ptr<ResultSet> PostgreSQLConnection::executeQuery(const std::string &sql)
@@ -872,6 +917,20 @@ namespace cpp_dbc
             std::stringstream ss;
             ss << "stmt_" << statementCounter++;
             return ss.str();
+        }
+
+        void PostgreSQLConnection::registerStatement(std::shared_ptr<PostgreSQLPreparedStatement> stmt)
+        {
+            std::lock_guard<std::mutex> lock(statementsMutex);
+            // activeStatements.insert(std::weak_ptr<MySQLPreparedStatement>(stmt));
+            activeStatements.insert(stmt);
+        }
+
+        void PostgreSQLConnection::unregisterStatement(std::shared_ptr<PostgreSQLPreparedStatement> stmt)
+        {
+            std::lock_guard<std::mutex> lock(statementsMutex);
+            // activeStatements.erase(std::weak_ptr<MySQLPreparedStatement>(stmt));
+            activeStatements.erase(stmt);
         }
 
         // PostgreSQLDriver implementation

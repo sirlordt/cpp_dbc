@@ -131,6 +131,8 @@ namespace cpp_dbc_test
     public:
         void close() override { closed = true; }
         bool isClosed() override { return closed; }
+        void returnToPool() override {};
+        bool isPooled() override { return false; };
 
         std::shared_ptr<cpp_dbc::PreparedStatement> prepareStatement(const std::string &) override
         {
@@ -260,6 +262,9 @@ namespace cpp_dbc_test
                     underlying->close();
                 }
             }
+
+            void returnToPool() override { this->close(); };
+            bool isPooled() override { return false; };
 
             bool isClosed() override { return closed || underlying->isClosed(); }
             std::shared_ptr<cpp_dbc::PreparedStatement> prepareStatement(const std::string &sql) override

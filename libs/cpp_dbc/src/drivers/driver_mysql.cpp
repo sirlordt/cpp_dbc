@@ -5,6 +5,8 @@
 #include <cstring>
 #include <sstream>
 #include <iostream>
+#include <thread>
+#include <chrono>
 #include <cpp_dbc/common/system_utils.hpp>
 
 namespace cpp_dbc
@@ -300,6 +302,13 @@ namespace cpp_dbc
             }
         }
 
+        void MySQLPreparedStatement::notifyConnClosing()
+        {
+            // Connection is closing, invalidate the statement without calling mysql_stmt_close
+            // since the connection is already being destroyed
+            this->close();
+        }
+
         void MySQLPreparedStatement::setInt(int parameterIndex, int value)
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
@@ -539,7 +548,7 @@ namespace cpp_dbc
 
             // Close the statement after execution (single-use)
             // This is safe because mysql_store_result() copies all data to client memory
-            close();
+            // close();
 
             return resultSet;
         }
@@ -563,12 +572,12 @@ namespace cpp_dbc
                 throw SQLException(std::string("Failed to execute update: ") + mysql_stmt_error(stmt));
             }
 
-            auto result = mysql_stmt_affected_rows(stmt);
+            // auto result = mysql_stmt_affected_rows(stmt);
 
-            this->close();
+            // this->close();
 
             // Return the number of affected rows
-            return result;
+            return mysql_stmt_affected_rows(stmt);
         }
 
         bool MySQLPreparedStatement::execute()
@@ -640,6 +649,8 @@ namespace cpp_dbc
 
         MySQLConnection::~MySQLConnection()
         {
+            // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis(), "(1) MySQLConnection::~MySQLConnection()");
+
             close();
         }
 
@@ -647,6 +658,24 @@ namespace cpp_dbc
         {
             if (!closed && mysql)
             {
+                // Notify all active statements that connection is closing
+                {
+                    std::lock_guard<std::mutex> lock(statementsMutex);
+                    for (auto &stmt : activeStatements)
+                    {
+                        // if (auto stmt = weakStmt.lock())
+                        if (stmt)
+                        {
+                            stmt->notifyConnClosing();
+                        }
+                    }
+                    activeStatements.clear();
+                }
+
+                // Sleep for 10ms to avoid problems with corrency
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+                // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis(), "(1) MySQLConnection::close()");
                 mysql_close(mysql);
                 mysql = nullptr;
                 closed = true;
@@ -658,6 +687,16 @@ namespace cpp_dbc
             return closed;
         }
 
+        void MySQLConnection::returnToPool()
+        {
+            this->close();
+        }
+
+        bool MySQLConnection::isPooled()
+        {
+            return false;
+        }
+
         std::shared_ptr<PreparedStatement> MySQLConnection::prepareStatement(const std::string &sql)
         {
             if (closed || !mysql)
@@ -665,7 +704,12 @@ namespace cpp_dbc
                 throw SQLException("Connection is closed");
             }
 
-            return std::make_shared<MySQLPreparedStatement>(mysql, sql);
+            auto stmt = std::make_shared<MySQLPreparedStatement>(mysql, sql);
+
+            // Register the statement in our registry
+            registerStatement(stmt);
+
+            return stmt;
         }
 
         std::shared_ptr<ResultSet> MySQLConnection::executeQuery(const std::string &sql)
@@ -750,6 +794,20 @@ namespace cpp_dbc
             {
                 throw SQLException(std::string("Rollback failed: ") + mysql_error(mysql));
             }
+        }
+
+        void MySQLConnection::registerStatement(std::shared_ptr<MySQLPreparedStatement> stmt)
+        {
+            std::lock_guard<std::mutex> lock(statementsMutex);
+            // activeStatements.insert(std::weak_ptr<MySQLPreparedStatement>(stmt));
+            activeStatements.insert(stmt);
+        }
+
+        void MySQLConnection::unregisterStatement(std::shared_ptr<MySQLPreparedStatement> stmt)
+        {
+            std::lock_guard<std::mutex> lock(statementsMutex);
+            // activeStatements.erase(std::weak_ptr<MySQLPreparedStatement>(stmt));
+            activeStatements.erase(stmt);
         }
 
         // MySQLDriver implementation

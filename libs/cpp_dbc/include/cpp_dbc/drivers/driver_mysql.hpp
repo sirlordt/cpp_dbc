@@ -10,6 +10,8 @@
 #include <mysql/mysql.h>
 #include <map>
 #include <memory>
+#include <set>
+#include <mutex>
 
 namespace cpp_dbc
 {
@@ -61,6 +63,8 @@ namespace cpp_dbc
 
         class MySQLPreparedStatement : public PreparedStatement
         {
+            friend class MySQLConnection;
+
         private:
             MYSQL *mysql;
             std::string sql;
@@ -72,7 +76,9 @@ namespace cpp_dbc
             std::vector<long> longValues;             // To keep long values alive
             std::vector<double> doubleValues;         // To keep double values alive
             std::vector<char> nullFlags;              // To keep null flags alive (char instead of bool for pointer access)
-            long connectionId;                        // ID of the connection that created this statement
+
+            // Internal method called by connection when closing
+            void notifyConnClosing();
 
         public:
             MySQLPreparedStatement(MYSQL *mysql, const std::string &sql);
@@ -100,6 +106,15 @@ namespace cpp_dbc
             bool closed;
             bool autoCommit;
 
+            // Registry of active prepared statements
+            // std::set<std::weak_ptr<MySQLPreparedStatement>, std::owner_less<std::weak_ptr<MySQLPreparedStatement>>> activeStatements;
+            std::set<std::shared_ptr<MySQLPreparedStatement>> activeStatements;
+            std::mutex statementsMutex;
+
+            // Internal methods for statement registry
+            void registerStatement(std::shared_ptr<MySQLPreparedStatement> stmt);
+            void unregisterStatement(std::shared_ptr<MySQLPreparedStatement> stmt);
+
         public:
             MySQLConnection(const std::string &host,
                             int port,
@@ -110,6 +125,8 @@ namespace cpp_dbc
 
             void close() override;
             bool isClosed() override;
+            void returnToPool() override;
+            bool isPooled() override;
 
             std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
             std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;

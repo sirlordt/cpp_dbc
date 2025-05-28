@@ -87,8 +87,7 @@ namespace cpp_dbc
         }
         // cpp_dbc::system_utils::safePrint("A3B4C5D6", "ConnectionPool: All initial connections created. Pool ready.");
 
-        // Start maintenance thread - DISABLED FOR DEBUGGING
-        // maintenanceThread = std::thread(&ConnectionPool::maintenanceTask, this);
+        maintenanceThread = std::thread(&ConnectionPool::maintenanceTask, this);
     }
 
     std::shared_ptr<ConnectionPool> ConnectionPool::create(const config::ConnectionPoolConfig &config)
@@ -707,7 +706,7 @@ namespace cpp_dbc
                 // cpp_dbc::system_utils::safePrint("D9E0F1B2", "PooledConnection::close - Returning connection to pool");
                 pool->returnConnection(std::static_pointer_cast<PooledConnection>(shared_from_this()));
                 closed.store(false);
-                // cpp_dbc::system_utils::safePrint("B3C4D5F6", "PooledConnection::close - Connection returned to pool successfully");
+                //  cpp_dbc::system_utils::safePrint("B3C4D5F6", "PooledConnection::close - Connection returned to pool successfully");
             }
             else
             {
@@ -829,6 +828,16 @@ namespace cpp_dbc
     bool PooledConnection::isActive() const
     {
         return active;
+    }
+
+    void PooledConnection::returnToPool()
+    {
+        this->close();
+    }
+
+    bool PooledConnection::isPooled()
+    {
+        return this->isActive() == false;
     }
 
     std::shared_ptr<Connection> PooledConnection::getUnderlyingConnection()

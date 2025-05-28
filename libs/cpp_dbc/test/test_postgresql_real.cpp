@@ -216,7 +216,6 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         conn->close();
     }
 
-    /*
     SECTION("PostgreSQL connection pool")
     {
         // Create a connection pool configuration
@@ -393,7 +392,6 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         // Close the pool
         pool.close();
     }
-    */
 
     SECTION("PostgreSQL metadata retrieval")
     {
@@ -472,7 +470,6 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         conn->close();
     }
 
-    /*
     SECTION("PostgreSQL stress test")
     {
         // Create a connection pool configuration
@@ -614,7 +611,6 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         // Close the connection
         conn->close();
     }
-    */
 }
 #else
 // Skip tests if PostgreSQL support is not enabled

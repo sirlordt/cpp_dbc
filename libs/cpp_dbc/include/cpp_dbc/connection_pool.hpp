@@ -147,6 +147,8 @@ namespace cpp_dbc
         // Overridden Connection interface methods
         void close() override;
         bool isClosed() override;
+        void returnToPool() override;
+        bool isPooled() override;
 
         std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
         std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;

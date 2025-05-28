@@ -333,6 +333,7 @@ else
         for TAG in $TAGS; do
             echo -e "\nRunning tests with tag [$TAG]...\n"
             run_test -s -r compact "[$TAG]" || true
+            read -p "Press Enter to continue with the next test..."
         done
     fi
 fi
