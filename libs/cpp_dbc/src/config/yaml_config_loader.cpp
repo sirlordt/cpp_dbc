@@ -148,7 +148,7 @@ namespace cpp_dbc
                             }
                             else
                             {
-                                throw cpp_dbc::DBException("Transaction isolation unknown: " + isolationStr);
+                                throw cpp_dbc::DBException("1W2X3Y4Z5A6B: Transaction isolation unknown: " + isolationStr);
                             }
                         }
 
@@ -197,11 +197,11 @@ namespace cpp_dbc
             }
             catch (const YAML::Exception &e)
             {
-                throw std::runtime_error("Error loading YAML configuration: " + std::string(e.what()));
+                throw std::runtime_error("7C8D9E0F1G2H: Error loading YAML configuration: " + std::string(e.what()));
             }
             catch (const std::exception &e)
             {
-                throw std::runtime_error("Error loading configuration: " + std::string(e.what()));
+                throw std::runtime_error("3I4J5K6L7M8N: Error loading configuration: " + std::string(e.what()));
             }
         }
 

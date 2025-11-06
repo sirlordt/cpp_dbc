@@ -65,7 +65,7 @@ namespace cpp_dbc
         auto it = activeTransactions.find(transactionId);
         if (it == activeTransactions.end())
         {
-            throw DBException("Transaction not found: " + transactionId);
+            throw DBException("3A4B5C6D7E8F: Transaction not found: " + transactionId);
         }
 
         // Update last access time
@@ -85,7 +85,7 @@ namespace cpp_dbc
             auto it = activeTransactions.find(transactionId);
             if (it == activeTransactions.end())
             {
-                throw DBException("Transaction not found: " + transactionId);
+                throw DBException("9G0H1I2J3K4L: Transaction not found: " + transactionId);
             }
 
             transContext = it->second;
@@ -135,7 +135,7 @@ namespace cpp_dbc
             auto it = activeTransactions.find(transactionId);
             if (it == activeTransactions.end())
             {
-                throw DBException("Transaction not found: " + transactionId);
+                throw DBException("5M6N7O8P9Q0R: Transaction not found: " + transactionId);
             }
 
             transContext = it->second;

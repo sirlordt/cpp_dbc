@@ -1021,7 +1021,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             }
             INFO("Error message: [" << what << "]");
 
-            REQUIRE(what == "Update failed: ERROR:  could not serialize access due to concurrent update");
+            REQUIRE(what == "1U2V3W4X5Y6Z: Update failed: ERROR:  could not serialize access due to concurrent update");
 
             // SKIP("Could not run PostgreSQL test: " + std::string(e.what()));
         }

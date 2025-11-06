@@ -314,7 +314,7 @@ namespace cpp_dbc
         if (!running.load())
         {
             // std::cout << "ConnectionPool::getConnection - Pool is closed" << std::endl;
-            throw DBException("Connection pool is closed");
+            throw DBException("5Q6R7S8T9U0V: Connection pool is closed");
         }
 
         /*

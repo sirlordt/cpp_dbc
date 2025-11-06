@@ -32,14 +32,14 @@ namespace cpp_dbc
         if (prefixPos != 0)
         {
             // std::cout << "Invalid URL format: missing cpp_dbc: prefix" << std::endl;
-            throw DBException("Invalid URL format. Expected cpp_dbc:driverName://host:port/database");
+            throw DBException("1S2T3U4V5W6X: Invalid URL format. Expected cpp_dbc:driverName://host:port/database");
         }
 
         size_t driverEndPos = url.find("://", 7);
         if (driverEndPos == std::string::npos)
         {
             // std::cout << "Invalid URL format: missing :// separator" << std::endl;
-            throw DBException("Invalid URL format. Expected cpp_dbc:driverName://host:port/database");
+            throw DBException("7Y8Z9A0B1C2D: Invalid URL format. Expected cpp_dbc:driverName://host:port/database");
         }
 
         std::string driverName = url.substr(8, driverEndPos - 8);
@@ -57,7 +57,7 @@ namespace cpp_dbc
         if (it == drivers.end())
         {
             // std::cout << "Driver '" << driverName << "' not found!" << std::endl;
-            throw DBException("No suitable driver found for " + url);
+            throw DBException("3E4F5G6H7I8J: No suitable driver found for " + url);
         }
 
         // std::cout << "Driver '" << driverName << "' found, creating connection..." << std::endl;
@@ -80,7 +80,7 @@ namespace cpp_dbc
         const auto *dbConfig = configManager.getDatabaseByName(configName);
         if (!dbConfig)
         {
-            throw DBException("Database configuration not found: " + configName);
+            throw DBException("9K0L1M2N3O4P: Database configuration not found: " + configName);
         }
 
         return getConnection(
