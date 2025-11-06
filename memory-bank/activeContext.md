@@ -18,7 +18,7 @@ The current focus appears to be on maintaining and potentially extending the CPP
 
 1. MySQL and PostgreSQL databases
 2. Connection pooling
-3. Transaction management
+3. Transaction management with isolation levels
 4. Prepared statements and result sets
 
 The code is organized in a modular fashion with clear separation between interfaces and implementations, following object-oriented design principles.
@@ -27,7 +27,16 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Database Configuration Integration**:
+1. **Transaction Isolation Level Support**:
+   - Added transaction isolation level support following JDBC standard
+   - Implemented `TransactionIsolationLevel` enum with JDBC-compatible isolation levels
+   - Added `setTransactionIsolation` and `getTransactionIsolation` methods to Connection interface
+   - Implemented methods in MySQL and PostgreSQL drivers
+   - Updated PooledConnection to delegate isolation level methods to underlying connection
+   - Default isolation levels set to database defaults (REPEATABLE READ for MySQL, READ COMMITTED for PostgreSQL)
+   - Added comprehensive tests for transaction isolation levels in test_transaction_isolation.cpp
+
+2. **Database Configuration Integration**:
    - Added integration between database configuration and connection classes
    - Created new `config_integration_example.cpp` with examples of different connection methods
    - Added `createConnection()` method to `DatabaseConfig` class
@@ -239,6 +248,9 @@ Key insights from the project:
    - Distributed transactions require careful coordination
    - Transaction IDs provide a way to track transactions across threads
    - Timeout handling is essential for preventing resource leaks
+   - Transaction isolation levels control how concurrent transactions interact
+   - Different isolation levels provide trade-offs between consistency and performance
+   - JDBC-compatible isolation levels (READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE)
 
 4. **Thread Safety**:
    - Proper synchronization is critical for connection pooling

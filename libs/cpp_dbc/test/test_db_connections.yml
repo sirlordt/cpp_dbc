@@ -98,6 +98,7 @@ connection_pool:
     connection_timeout: 5000  # milliseconds
     idle_timeout: 60000       # milliseconds
     validation_interval: 30000 # milliseconds
+    transaction_isolation: read_committed
   
   high_performance:
     initial_size: 10
@@ -105,6 +106,7 @@ connection_pool:
     connection_timeout: 3000  # milliseconds
     idle_timeout: 30000       # milliseconds
     validation_interval: 15000 # milliseconds
+    transaction_isolation: serializable
 
 # Test queries
 test_queries:

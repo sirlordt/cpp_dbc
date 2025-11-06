@@ -139,6 +139,8 @@ The project is configured to work with the CMakeTools extension, but does not re
 - Transactions should be managed through the TransactionManager for thread safety
 - Transaction IDs should be passed between components that need to work within the same transaction
 - Explicit commit or rollback is required to complete a transaction
+- Transaction isolation levels can be set on connections to control concurrency behavior
+- Default isolation levels are database-specific (REPEATABLE READ for MySQL, READ COMMITTED for PostgreSQL)
 
 ### Query Execution
 - Prepared statements should be used for parameterized queries

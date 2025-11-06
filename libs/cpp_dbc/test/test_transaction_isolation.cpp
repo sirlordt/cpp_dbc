@@ -125,6 +125,30 @@ TEST_CASE("Pooled connection transaction isolation tests", "[transaction][isolat
         // Check that the isolation level was updated
         REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED);
     }
+
+    SECTION("Connection pool respects configured transaction isolation level")
+    {
+        // Create a mock connection pool with specific transaction isolation level
+        auto mockPool = std::make_shared<cpp_dbc_test::MockConnectionPool>();
+
+        // Set the transaction isolation level to SERIALIZABLE
+        mockPool->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+
+        // Get a connection from the pool
+        auto conn = mockPool->getConnection();
+
+        // Check that the connection has the correct isolation level
+        REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+
+        // Set a different isolation level for the pool
+        mockPool->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
+
+        // Get another connection from the pool
+        auto conn2 = mockPool->getConnection();
+
+        // Check that the new connection has the updated isolation level
+        REQUIRE(conn2->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
+    }
 }
 
 #if USE_MYSQL

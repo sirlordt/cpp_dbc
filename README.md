@@ -7,6 +7,7 @@ This project provides a C++ Database Connectivity library inspired by JDBC, with
 - **Database Abstraction**: Unified API for different database systems
 - **Connection Pooling**: Efficient connection management
 - **Transaction Management**: Support for distributed transactions
+- **Transaction Isolation Levels**: JDBC-compatible isolation levels (READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE)
 - **Prepared Statements**: Protection against SQL injection
 - **Conditional Compilation**: Build with only the database drivers you need
 - **Modern C++ Design**: Uses C++23 features and RAII principles

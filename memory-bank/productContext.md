@@ -17,7 +17,7 @@ CPP_DBC solves these problems by providing:
 1. **Unified API**: A consistent interface for database operations regardless of the underlying database system
 2. **Driver Architecture**: Database-specific implementations encapsulated behind common interfaces
 3. **Connection Pooling**: Efficient management of database connections to improve performance
-4. **Transaction Management**: Simplified transaction handling across threads
+4. **Transaction Management**: Simplified transaction handling across threads with JDBC-compatible isolation levels
 5. **Prepared Statements**: Support for parameterized queries to prevent SQL injection
 
 ## Target Users
@@ -32,7 +32,8 @@ CPP_DBC solves these problems by providing:
 1. **Cross-Database Applications**: Systems that need to work with both MySQL and PostgreSQL
 2. **High-Performance Applications**: Applications that benefit from connection pooling
 3. **Distributed Systems**: Applications with complex transaction requirements across multiple components
-4. **Security-Critical Applications**: Systems that need protection against SQL injection through prepared statements
+4. **Concurrent Data Access**: Applications requiring fine-grained control over transaction isolation levels
+5. **Security-Critical Applications**: Systems that need protection against SQL injection through prepared statements
 
 ## Comparison with Alternatives
 

@@ -50,6 +50,12 @@ The project includes example code demonstrating:
 - Cross-thread transaction coordination
 - Transaction timeout handling
 - Automatic cleanup of abandoned transactions
+- Transaction isolation levels (JDBC-compatible)
+  - TRANSACTION_NONE
+  - TRANSACTION_READ_UNCOMMITTED
+  - TRANSACTION_READ_COMMITTED
+  - TRANSACTION_REPEATABLE_READ
+  - TRANSACTION_SERIALIZABLE
 
 ### YAML Configuration
 - Database configuration loading from YAML files

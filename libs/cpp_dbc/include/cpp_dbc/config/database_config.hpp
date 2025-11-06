@@ -1,6 +1,7 @@
 #ifndef CPP_DBC_DATABASE_CONFIG_HPP
 #define CPP_DBC_DATABASE_CONFIG_HPP
 
+#include <cpp_dbc/cpp_dbc.hpp>
 #include <string>
 #include <map>
 #include <vector>
@@ -189,6 +190,7 @@ namespace cpp_dbc
             bool testOnBorrow;
             bool testOnReturn;
             std::string validationQuery;
+            TransactionIsolationLevel transactionIsolation;
 
         public:
             ConnectionPoolConfig() : initialSize(5),
@@ -200,7 +202,8 @@ namespace cpp_dbc
                                      maxLifetimeMillis(1800000),
                                      testOnBorrow(true),
                                      testOnReturn(false),
-                                     validationQuery("SELECT 1") {}
+                                     validationQuery("SELECT 1"),
+                                     transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) {}
 
             /**
              * @brief Constructor with basic parameters
@@ -227,7 +230,8 @@ namespace cpp_dbc
                                            maxLifetimeMillis(1800000),
                                            testOnBorrow(true),
                                            testOnReturn(false),
-                                           validationQuery("SELECT 1") {}
+                                           validationQuery("SELECT 1"),
+                                           transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) {}
 
             /**
              * @brief Full constructor with all parameters
@@ -246,20 +250,22 @@ namespace cpp_dbc
                 long maxLifetimeMillis,
                 bool testOnBorrow,
                 bool testOnReturn,
-                const std::string &validationQuery) : name(name),
-                                                      url(url),
-                                                      username(username),
-                                                      password(password),
-                                                      initialSize(initialSize),
-                                                      maxSize(maxSize),
-                                                      minIdle(minIdle),
-                                                      connectionTimeout(connectionTimeout),
-                                                      idleTimeout(idleTimeout),
-                                                      validationInterval(validationInterval),
-                                                      maxLifetimeMillis(maxLifetimeMillis),
-                                                      testOnBorrow(testOnBorrow),
-                                                      testOnReturn(testOnReturn),
-                                                      validationQuery(validationQuery) {}
+                const std::string &validationQuery,
+                TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) : name(name),
+                                                                                                                          url(url),
+                                                                                                                          username(username),
+                                                                                                                          password(password),
+                                                                                                                          initialSize(initialSize),
+                                                                                                                          maxSize(maxSize),
+                                                                                                                          minIdle(minIdle),
+                                                                                                                          connectionTimeout(connectionTimeout),
+                                                                                                                          idleTimeout(idleTimeout),
+                                                                                                                          validationInterval(validationInterval),
+                                                                                                                          maxLifetimeMillis(maxLifetimeMillis),
+                                                                                                                          testOnBorrow(testOnBorrow),
+                                                                                                                          testOnReturn(testOnReturn),
+                                                                                                                          validationQuery(validationQuery),
+                                                                                                                          transactionIsolation(transactionIsolation) {}
 
             // Getters
             const std::string &getName() const { return name; }
@@ -276,6 +282,7 @@ namespace cpp_dbc
             bool getTestOnBorrow() const { return testOnBorrow; }
             bool getTestOnReturn() const { return testOnReturn; }
             const std::string &getValidationQuery() const { return validationQuery; }
+            TransactionIsolationLevel getTransactionIsolation() const { return transactionIsolation; }
 
             // Setters
             void setName(const std::string &value) { name = value; }
@@ -292,6 +299,7 @@ namespace cpp_dbc
             void setTestOnBorrow(bool value) { testOnBorrow = value; }
             void setTestOnReturn(bool value) { testOnReturn = value; }
             void setValidationQuery(const std::string &value) { validationQuery = value; }
+            void setTransactionIsolation(TransactionIsolationLevel value) { transactionIsolation = value; }
 
             /**
              * @brief Configure this pool with database connection details

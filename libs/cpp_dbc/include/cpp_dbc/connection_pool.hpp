@@ -47,16 +47,17 @@ namespace cpp_dbc
         std::string url;
         std::string username;
         std::string password;
-        int initialSize;              // Initial number of connections
-        int maxSize;                  // Maximum number of connections
-        int minIdle;                  // Minimum number of idle connections
-        long maxWaitMillis;           // Maximum wait time for a connection in milliseconds
-        long validationTimeoutMillis; // Timeout for connection validation
-        long idleTimeoutMillis;       // Maximum time a connection can be idle before being closed
-        long maxLifetimeMillis;       // Maximum lifetime of a connection
-        bool testOnBorrow;            // Test connection before borrowing
-        bool testOnReturn;            // Test connection when returning to pool
-        std::string validationQuery;  // Query used to validate connections
+        int initialSize;                                // Initial number of connections
+        int maxSize;                                    // Maximum number of connections
+        int minIdle;                                    // Minimum number of idle connections
+        long maxWaitMillis;                             // Maximum wait time for a connection in milliseconds
+        long validationTimeoutMillis;                   // Timeout for connection validation
+        long idleTimeoutMillis;                         // Maximum time a connection can be idle before being closed
+        long maxLifetimeMillis;                         // Maximum lifetime of a connection
+        bool testOnBorrow;                              // Test connection before borrowing
+        bool testOnReturn;                              // Test connection when returning to pool
+        std::string validationQuery;                    // Query used to validate connections
+        TransactionIsolationLevel transactionIsolation; // Transaction isolation level for connections
         std::vector<std::shared_ptr<PooledConnection>> allConnections;
         std::queue<std::shared_ptr<PooledConnection>> idleConnections;
         // std::unordered_set<std::shared_ptr<PooledConnection>> idleConnectionsSet; // Track what's in the queue
@@ -102,7 +103,8 @@ namespace cpp_dbc
                        long maxLifetimeMillis = 1800000,
                        bool testOnBorrow = true,
                        bool testOnReturn = false,
-                       const std::string &validationQuery = "SELECT 1");
+                       const std::string &validationQuery = "SELECT 1",
+                       TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
         // Constructor that accepts a configuration object
         ConnectionPool(const config::ConnectionPoolConfig &config);

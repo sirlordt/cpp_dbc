@@ -35,6 +35,16 @@ Representa tipos de parámetros SQL.
 - `BOOLEAN`: Para valores booleanos
 - `BLOB`: Para objetos binarios grandes
 
+### Enum TransactionIsolationLevel
+Representa niveles de aislamiento de transacciones siguiendo el estándar JDBC.
+
+**Valores:**
+- `TRANSACTION_NONE`: No se admiten transacciones
+- `TRANSACTION_READ_UNCOMMITTED`: Permite lecturas sucias, lecturas no repetibles y lecturas fantasma
+- `TRANSACTION_READ_COMMITTED`: Evita lecturas sucias, pero permite lecturas no repetibles y lecturas fantasma
+- `TRANSACTION_REPEATABLE_READ`: Evita lecturas sucias y lecturas no repetibles, pero permite lecturas fantasma
+- `TRANSACTION_SERIALIZABLE`: Evita lecturas sucias, lecturas no repetibles y lecturas fantasma
+
 ### ResultSet
 Una clase base abstracta que representa un conjunto de resultados de una consulta SQL.
 
@@ -79,6 +89,8 @@ Una clase base abstracta que representa una conexión a una base de datos.
 - `getAutoCommit()`: Devuelve el modo de auto-commit.
 - `commit()`: Confirma la transacción actual.
 - `rollback()`: Revierte la transacción actual.
+- `setTransactionIsolation(TransactionIsolationLevel)`: Establece el nivel de aislamiento de transacción.
+- `getTransactionIsolation()`: Devuelve el nivel de aislamiento de transacción actual.
 
 ### Driver
 Una clase base abstracta que representa un controlador de base de datos.
@@ -119,6 +131,8 @@ Implementación de Connection para MySQL.
 **Métodos:**
 Los mismos que Connection, más:
 - `MySQLConnection(string, int, string, string, string)`: Constructor que toma host, puerto, base de datos, usuario y contraseña.
+- `setTransactionIsolation(TransactionIsolationLevel)`: Establece el nivel de aislamiento de transacción para MySQL (predeterminado: REPEATABLE READ).
+- `getTransactionIsolation()`: Devuelve el nivel de aislamiento de transacción actual.
 
 ### MySQLDriver
 Implementación de Driver para MySQL.
@@ -154,6 +168,8 @@ Implementación de Connection para PostgreSQL.
 Los mismos que Connection, más:
 - `PostgreSQLConnection(string, int, string, string, string)`: Constructor que toma host, puerto, base de datos, usuario y contraseña.
 - `generateStatementName()`: Genera un nombre único para declaraciones preparadas.
+- `setTransactionIsolation(TransactionIsolationLevel)`: Establece el nivel de aislamiento de transacción para PostgreSQL (predeterminado: READ COMMITTED).
+- `getTransactionIsolation()`: Devuelve el nivel de aislamiento de transacción actual.
 
 ### PostgreSQLDriver
 Implementación de Driver para PostgreSQL.
@@ -213,6 +229,8 @@ Los mismos que Connection, más:
 - `setActive(bool)`: Establece si la conexión está activa.
 - `isActive()`: Devuelve si la conexión está activa.
 - `getUnderlyingConnection()`: Devuelve la conexión física subyacente.
+- `setTransactionIsolation(TransactionIsolationLevel)`: Delega a la conexión subyacente.
+- `getTransactionIsolation()`: Delega a la conexión subyacente.
 
 ---
 

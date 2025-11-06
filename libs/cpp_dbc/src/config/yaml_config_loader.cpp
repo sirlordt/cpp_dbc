@@ -114,6 +114,44 @@ namespace cpp_dbc
                         poolCfg.setIdleTimeout(poolConfig["idle_timeout"].as<int>());
                         poolCfg.setValidationInterval(poolConfig["validation_interval"].as<int>());
 
+                        // Load transaction isolation level if present
+                        if (poolConfig["transaction_isolation"])
+                        {
+                            std::string isolationStr = poolConfig["transaction_isolation"].as<std::string>();
+
+                            // Convert to lowercase for case-insensitive comparison
+                            std::string isolationLower = isolationStr;
+                            std::transform(isolationLower.begin(), isolationLower.end(), isolationLower.begin(),
+                                           [](unsigned char c)
+                                           { return std::tolower(c); });
+
+                            // Convert string to TransactionIsolationLevel enum
+                            if (isolationLower == "none")
+                            {
+                                poolCfg.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_NONE);
+                            }
+                            else if (isolationLower == "read_uncommitted")
+                            {
+                                poolCfg.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED);
+                            }
+                            else if (isolationLower == "read_committed")
+                            {
+                                poolCfg.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
+                            }
+                            else if (isolationLower == "repeatable_read")
+                            {
+                                poolCfg.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ);
+                            }
+                            else if (isolationLower == "serializable")
+                            {
+                                poolCfg.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+                            }
+                            else
+                            {
+                                throw cpp_dbc::SQLException("Transaction isolation unknown: " + isolationStr);
+                            }
+                        }
+
                         // Add pool config to manager
                         configManager.addConnectionPoolConfig(poolCfg);
                     }

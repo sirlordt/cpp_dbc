@@ -35,6 +35,16 @@ Represents SQL parameter types.
 - `BOOLEAN`: For boolean values
 - `BLOB`: For binary large objects
 
+### TransactionIsolationLevel Enum
+Represents transaction isolation levels following the JDBC standard.
+
+**Values:**
+- `TRANSACTION_NONE`: No transactions supported
+- `TRANSACTION_READ_UNCOMMITTED`: Allows dirty reads, non-repeatable reads, and phantom reads
+- `TRANSACTION_READ_COMMITTED`: Prevents dirty reads, but allows non-repeatable reads and phantom reads
+- `TRANSACTION_REPEATABLE_READ`: Prevents dirty reads and non-repeatable reads, but allows phantom reads
+- `TRANSACTION_SERIALIZABLE`: Prevents dirty reads, non-repeatable reads, and phantom reads
+
 ### ResultSet
 An abstract base class representing a result set from a SQL query.
 
@@ -79,6 +89,8 @@ An abstract base class representing a connection to a database.
 - `getAutoCommit()`: Returns the auto-commit mode.
 - `commit()`: Commits the current transaction.
 - `rollback()`: Rolls back the current transaction.
+- `setTransactionIsolation(TransactionIsolationLevel)`: Sets the transaction isolation level.
+- `getTransactionIsolation()`: Returns the current transaction isolation level.
 
 ### Driver
 An abstract base class representing a database driver.
@@ -119,6 +131,8 @@ Implementation of Connection for MySQL.
 **Methods:**
 Same as Connection, plus:
 - `MySQLConnection(string, int, string, string, string)`: Constructor that takes host, port, database, user, and password.
+- `setTransactionIsolation(TransactionIsolationLevel)`: Sets the transaction isolation level for MySQL (default: REPEATABLE READ).
+- `getTransactionIsolation()`: Returns the current transaction isolation level.
 
 ### MySQLDriver
 Implementation of Driver for MySQL.
@@ -154,6 +168,8 @@ Implementation of Connection for PostgreSQL.
 Same as Connection, plus:
 - `PostgreSQLConnection(string, int, string, string, string)`: Constructor that takes host, port, database, user, and password.
 - `generateStatementName()`: Generates a unique name for prepared statements.
+- `setTransactionIsolation(TransactionIsolationLevel)`: Sets the transaction isolation level for PostgreSQL (default: READ COMMITTED).
+- `getTransactionIsolation()`: Returns the current transaction isolation level.
 
 ### PostgreSQLDriver
 Implementation of Driver for PostgreSQL.
@@ -213,6 +229,8 @@ Same as Connection, plus:
 - `setActive(bool)`: Sets whether the connection is active.
 - `isActive()`: Returns whether the connection is active.
 - `getUnderlyingConnection()`: Returns the underlying physical connection.
+- `setTransactionIsolation(TransactionIsolationLevel)`: Delegates to the underlying connection.
+- `getTransactionIsolation()`: Delegates to the underlying connection.
 
 ---
 

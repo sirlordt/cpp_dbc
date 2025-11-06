@@ -428,6 +428,7 @@ namespace cpp_dbc_test
     private:
         mutable std::mutex poolMutex;
         std::atomic<int> activeCount{0};
+        cpp_dbc::TransactionIsolationLevel transactionIsolation = cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED;
 
     public:
         MockConnectionPool() : cpp_dbc::ConnectionPool(
@@ -470,6 +471,9 @@ namespace cpp_dbc_test
             // Create a new mock connection for each request
             auto mockConnection = std::make_shared<MockConnection>();
 
+            // Set the transaction isolation level from the pool
+            mockConnection->setTransactionIsolation(transactionIsolation);
+
             // Wrap it in a custom connection that decrements the counter when closed
             return std::make_shared<MockPooledConnection>(mockConnection, this);
         }
@@ -477,6 +481,12 @@ namespace cpp_dbc_test
         void decrementActiveCount()
         {
             activeCount--;
+        }
+
+        // Set transaction isolation level for the pool
+        void setTransactionIsolation(cpp_dbc::TransactionIsolationLevel level)
+        {
+            transactionIsolation = level;
         }
 
     private:

@@ -9,7 +9,7 @@ CPP_DBC is a C++ Database Connectivity library inspired by Java's JDBC (Java Dat
 1. Provide a consistent API for database operations across different database systems
 2. Support prepared statements for secure and efficient database queries
 3. Implement connection pooling for efficient connection management
-4. Support transaction management across multiple threads
+4. Support transaction management across multiple threads with configurable isolation levels
 5. Maintain a clean, object-oriented design with proper abstraction layers
 
 ## Key Features
@@ -17,7 +17,7 @@ CPP_DBC is a C++ Database Connectivity library inspired by Java's JDBC (Java Dat
 - Abstract interfaces for database operations (Connection, PreparedStatement, ResultSet)
 - Driver-based architecture for database-specific implementations
 - Connection pooling with configurable parameters
-- Transaction management with support for distributed transactions
+- Transaction management with support for distributed transactions and isolation levels
 - Support for MySQL and PostgreSQL databases
 
 ## Technical Requirements

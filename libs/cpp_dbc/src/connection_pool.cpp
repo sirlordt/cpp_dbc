@@ -30,7 +30,8 @@ namespace cpp_dbc
                                    long maxLifetimeMillis,
                                    bool testOnBorrow,
                                    bool testOnReturn,
-                                   const std::string &validationQuery)
+                                   const std::string &validationQuery,
+                                   TransactionIsolationLevel transactionIsolation)
         : url(url),
           username(username),
           password(password),
@@ -44,6 +45,7 @@ namespace cpp_dbc
           testOnBorrow(testOnBorrow),
           testOnReturn(testOnReturn),
           validationQuery(validationQuery),
+          transactionIsolation(transactionIsolation),
           running(true),
           activeConnections(0)
     {
@@ -76,6 +78,7 @@ namespace cpp_dbc
           testOnBorrow(config.getTestOnBorrow()),
           testOnReturn(config.getTestOnReturn()),
           validationQuery(config.getValidationQuery()),
+          transactionIsolation(config.getTransactionIsolation()),
           running(true),
           activeConnections(0)
     {
@@ -123,6 +126,10 @@ namespace cpp_dbc
         // cpp_dbc::system_utils::safePrint("A5B6C7D8", "createPooledConnection: Starting...");
         auto conn = createConnection();
         // cpp_dbc::system_utils::safePrint("E9F0A1B2", "createPooledConnection: Physical connection created");
+
+        // Set transaction isolation level on the new connection
+        conn->setTransactionIsolation(transactionIsolation);
+
         auto pooledConn = std::make_shared<PooledConnection>(conn, this);
         // cpp_dbc::system_utils::safePrint("C3D4E5F6", "createPooledConnection: PooledConnection wrapper created");
         return pooledConn;

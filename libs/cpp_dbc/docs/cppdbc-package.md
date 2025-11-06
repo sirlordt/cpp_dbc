@@ -116,8 +116,9 @@ cmake --build .
 3. Prepared statement support
 4. Thread-safe connection pool
 5. Cross-thread transaction manager with UUIDs
-6. YAML configuration support
-7. Docker container generation with automatic dependency detection
+6. Transaction isolation levels (JDBC-compatible: READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE)
+7. YAML configuration support
+8. Docker container generation with automatic dependency detection
 
 ## Dependencies
 

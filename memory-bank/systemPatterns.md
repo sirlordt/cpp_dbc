@@ -78,6 +78,8 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 - Unique transaction IDs for tracking transactions across threads
 - Automatic transaction timeout and cleanup
 - Support for distributed transactions across multiple operations
+- JDBC-compatible transaction isolation levels (READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE)
+- Database-specific implementation of isolation levels with appropriate defaults
 
 ### Configuration Management
 - Optional YAML configuration support with conditional compilation
@@ -132,9 +134,10 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 1. Client begins a transaction via `TransactionManager`
 2. Transaction ID is generated and returned to the client
 3. Client uses the transaction ID to obtain the associated connection
-4. Client performs operations using the connection
-5. Client commits or rolls back the transaction using the transaction ID
-6. `TransactionManager` handles the actual commit/rollback on the connection
+4. Client can set a specific isolation level on the connection if needed
+5. Client performs operations using the connection
+6. Client commits or rolls back the transaction using the transaction ID
+7. `TransactionManager` handles the actual commit/rollback on the connection
 
 ### Configuration Flow
 1. Client loads configuration from a YAML file using `YamlConfigLoader`
