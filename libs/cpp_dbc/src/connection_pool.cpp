@@ -203,6 +203,14 @@ namespace cpp_dbc
             }
         }
 
+        // Check if the connection's transaction isolation level is different from the pool's
+        // If so, reset it to match the pool's level
+        TransactionIsolationLevel connIsolation = conn->getTransactionIsolation();
+        if (connIsolation != transactionIsolation)
+        {
+            conn->setTransactionIsolation(transactionIsolation);
+        }
+
         // Mark as inactive and update last used time
         // cpp_dbc::system_utils::safePrint("E3F4A5B6", "ConnectionPool::returnConnection - Marking connection as inactive");
         conn->setActive(false);
