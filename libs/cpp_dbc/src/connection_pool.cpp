@@ -833,6 +833,26 @@ namespace cpp_dbc
         conn->rollback();
     }
 
+    void PooledConnection::setTransactionIsolation(TransactionIsolationLevel level)
+    {
+        if (closed)
+        {
+            throw SQLException("F7A2B9C3D1E5: Connection is closed");
+        }
+        lastUsedTime = std::chrono::steady_clock::now();
+        conn->setTransactionIsolation(level);
+    }
+
+    TransactionIsolationLevel PooledConnection::getTransactionIsolation()
+    {
+        if (closed)
+        {
+            throw SQLException("A4B5C6D7E8F9: Connection is closed");
+        }
+        lastUsedTime = std::chrono::steady_clock::now();
+        return conn->getTransactionIsolation();
+    }
+
     std::chrono::time_point<std::chrono::steady_clock> PooledConnection::getCreationTime() const
     {
         return creationTime;

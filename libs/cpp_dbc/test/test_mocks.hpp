@@ -322,6 +322,7 @@ namespace cpp_dbc_test
         bool autoCommit = true;
         bool committed = false;
         bool rolledBack = false;
+        cpp_dbc::TransactionIsolationLevel isolationLevel = cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED;
 
     public:
         void close() override { closed = true; }
@@ -391,6 +392,10 @@ namespace cpp_dbc_test
         bool getAutoCommit() override { return autoCommit; }
         void commit() override { committed = true; }
         void rollback() override { rolledBack = true; }
+
+        // Transaction isolation level methods
+        void setTransactionIsolation(cpp_dbc::TransactionIsolationLevel level) override { isolationLevel = level; }
+        cpp_dbc::TransactionIsolationLevel getTransactionIsolation() override { return isolationLevel; }
 
         // Helper methods for testing
         bool isCommitted() const { return committed; }
@@ -536,6 +541,17 @@ namespace cpp_dbc_test
             void rollback() override
             {
                 underlying->rollback();
+            }
+
+            // Transaction isolation level methods
+            void setTransactionIsolation(cpp_dbc::TransactionIsolationLevel level) override
+            {
+                underlying->setTransactionIsolation(level);
+            }
+
+            cpp_dbc::TransactionIsolationLevel getTransactionIsolation() override
+            {
+                return underlying->getTransactionIsolation();
             }
         };
     };

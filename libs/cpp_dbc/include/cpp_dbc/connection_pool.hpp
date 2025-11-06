@@ -160,6 +160,10 @@ namespace cpp_dbc
         void commit() override;
         void rollback() override;
 
+        // Transaction isolation level methods
+        void setTransactionIsolation(TransactionIsolationLevel level) override;
+        TransactionIsolationLevel getTransactionIsolation() override;
+
         // PooledConnection specific methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const;
         std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime() const;

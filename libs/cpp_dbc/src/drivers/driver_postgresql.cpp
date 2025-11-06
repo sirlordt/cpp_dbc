@@ -7,6 +7,8 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <algorithm>
+#include <cctype>
 
 namespace cpp_dbc
 {
@@ -669,7 +671,8 @@ namespace cpp_dbc
                                                    const std::string &database,
                                                    const std::string &user,
                                                    const std::string &password)
-            : conn(nullptr), closed(false), autoCommit(true), statementCounter(0)
+            : conn(nullptr), closed(false), autoCommit(true), statementCounter(0),
+              isolationLevel(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) // PostgreSQL default
         {
             // Build connection string
             std::stringstream conninfo;
@@ -822,14 +825,47 @@ namespace cpp_dbc
             if (this->autoCommit && !autoCommit)
             {
                 // Start a transaction
-                PGresult *result = PQexec(conn, "BEGIN");
-                if (PQresultStatus(result) != PGRES_COMMAND_OK)
+                std::string beginCmd = "BEGIN";
+
+                // For SERIALIZABLE isolation, we need to ensure the snapshot is acquired immediately
+                // by using a READ ONLY DEFERRABLE transaction when possible
+                if (isolationLevel == TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
                 {
-                    std::string error = PQresultErrorMessage(result);
-                    PQclear(result);
-                    throw SQLException("Failed to start transaction: " + error);
+                    beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+
+                    // Execute a dummy SELECT to force snapshot acquisition immediately
+                    PGresult *dummyResult = PQexec(conn, beginCmd.c_str());
+                    if (PQresultStatus(dummyResult) != PGRES_COMMAND_OK)
+                    {
+                        std::string error = PQresultErrorMessage(dummyResult);
+                        PQclear(dummyResult);
+                        throw SQLException("Failed to start SERIALIZABLE transaction: " + error);
+                    }
+                    PQclear(dummyResult);
+
+                    // Force snapshot acquisition with a dummy query
+                    PGresult *snapshotResult = PQexec(conn, "SELECT 1");
+                    if (PQresultStatus(snapshotResult) != PGRES_TUPLES_OK)
+                    {
+                        std::string error = PQresultErrorMessage(snapshotResult);
+                        PQclear(snapshotResult);
+                        throw SQLException("Failed to acquire snapshot: " + error);
+                    }
+                    PQclear(snapshotResult);
+                    return; // We've already started the transaction and acquired the snapshot
                 }
-                PQclear(result);
+                else
+                {
+                    // Standard BEGIN for other isolation levels
+                    PGresult *result = PQexec(conn, beginCmd.c_str());
+                    if (PQresultStatus(result) != PGRES_COMMAND_OK)
+                    {
+                        std::string error = PQresultErrorMessage(result);
+                        PQclear(result);
+                        throw SQLException("Failed to start transaction: " + error);
+                    }
+                    PQclear(result);
+                }
             }
             else if (!this->autoCommit && autoCommit)
             {
@@ -910,6 +946,139 @@ namespace cpp_dbc
                 }
                 PQclear(result);
             }
+        }
+
+        void PostgreSQLConnection::setTransactionIsolation(TransactionIsolationLevel level)
+        {
+            if (closed || !conn)
+            {
+                throw SQLException("Connection is closed");
+            }
+
+            std::string query;
+            switch (level)
+            {
+            case TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED:
+                // PostgreSQL treats READ UNCOMMITTED the same as READ COMMITTED
+                query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";
+                break;
+            case TransactionIsolationLevel::TRANSACTION_READ_COMMITTED:
+                query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED";
+                break;
+            case TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ:
+                query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ";
+                break;
+            case TransactionIsolationLevel::TRANSACTION_SERIALIZABLE:
+                query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+                break;
+            default:
+                throw SQLException("Unsupported transaction isolation level");
+            }
+
+            PGresult *result = PQexec(conn, query.c_str());
+            if (PQresultStatus(result) != PGRES_COMMAND_OK)
+            {
+                std::string error = PQresultErrorMessage(result);
+                PQclear(result);
+                throw SQLException("Failed to set transaction isolation level: " + error);
+            }
+            PQclear(result);
+
+            this->isolationLevel = level;
+
+            // If we're in a transaction (autoCommit = false), we need to restart it
+            // for the new isolation level to take effect
+            if (!autoCommit)
+            {
+                result = PQexec(conn, "COMMIT");
+                if (PQresultStatus(result) != PGRES_COMMAND_OK)
+                {
+                    std::string error = PQresultErrorMessage(result);
+                    PQclear(result);
+                    throw SQLException("Failed to commit transaction: " + error);
+                }
+                PQclear(result);
+
+                // For SERIALIZABLE isolation, we need special handling
+                if (isolationLevel == TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
+                {
+                    std::string beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+                    result = PQexec(conn, beginCmd.c_str());
+                    if (PQresultStatus(result) != PGRES_COMMAND_OK)
+                    {
+                        std::string error = PQresultErrorMessage(result);
+                        PQclear(result);
+                        throw SQLException("Failed to start SERIALIZABLE transaction: " + error);
+                    }
+                    PQclear(result);
+
+                    // Force snapshot acquisition with a dummy query
+                    PGresult *snapshotResult = PQexec(conn, "SELECT 1");
+                    if (PQresultStatus(snapshotResult) != PGRES_TUPLES_OK)
+                    {
+                        std::string error = PQresultErrorMessage(snapshotResult);
+                        PQclear(snapshotResult);
+                        throw SQLException("Failed to acquire snapshot: " + error);
+                    }
+                    PQclear(snapshotResult);
+                }
+                else
+                {
+                    // Standard BEGIN for other isolation levels
+                    result = PQexec(conn, "BEGIN");
+                    if (PQresultStatus(result) != PGRES_COMMAND_OK)
+                    {
+                        std::string error = PQresultErrorMessage(result);
+                        PQclear(result);
+                        throw SQLException("Failed to start transaction: " + error);
+                    }
+                    PQclear(result);
+                }
+            }
+        }
+
+        TransactionIsolationLevel PostgreSQLConnection::getTransactionIsolation()
+        {
+            if (closed || !conn)
+            {
+                throw SQLException("Connection is closed");
+            }
+
+            // Query the current isolation level
+            PGresult *result = PQexec(conn, "SHOW transaction_isolation");
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQresultErrorMessage(result);
+                PQclear(result);
+                throw SQLException("Failed to get transaction isolation level: " + error);
+            }
+
+            if (PQntuples(result) == 0)
+            {
+                PQclear(result);
+                throw SQLException("Failed to fetch transaction isolation level");
+            }
+
+            std::string level = PQgetvalue(result, 0, 0);
+            PQclear(result);
+
+            // Convert the string value to the enum - handle both formats
+            std::string levelLower = level;
+            // Convert to lowercase for case-insensitive comparison
+            std::transform(levelLower.begin(), levelLower.end(), levelLower.begin(),
+                           [](unsigned char c)
+                           { return std::tolower(c); });
+
+            if (levelLower == "read uncommitted" || levelLower == "read_uncommitted")
+                return TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED;
+            else if (levelLower == "read committed" || levelLower == "read_committed")
+                return TransactionIsolationLevel::TRANSACTION_READ_COMMITTED;
+            else if (levelLower == "repeatable read" || levelLower == "repeatable_read")
+                return TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ;
+            else if (levelLower == "serializable")
+                return TransactionIsolationLevel::TRANSACTION_SERIALIZABLE;
+            else
+                return TransactionIsolationLevel::TRANSACTION_NONE;
         }
 
         std::string PostgreSQLConnection::generateStatementName()

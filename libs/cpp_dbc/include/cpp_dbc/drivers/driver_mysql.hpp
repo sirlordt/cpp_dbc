@@ -105,6 +105,7 @@ namespace cpp_dbc
             MYSQL *mysql;
             bool closed;
             bool autoCommit;
+            TransactionIsolationLevel isolationLevel;
 
             // Registry of active prepared statements
             // std::set<std::weak_ptr<MySQLPreparedStatement>, std::owner_less<std::weak_ptr<MySQLPreparedStatement>>> activeStatements;
@@ -137,6 +138,10 @@ namespace cpp_dbc
 
             void commit() override;
             void rollback() override;
+
+            // Transaction isolation level methods
+            void setTransactionIsolation(TransactionIsolationLevel level) override;
+            TransactionIsolationLevel getTransactionIsolation() override;
         };
 
         class MySQLDriver : public Driver

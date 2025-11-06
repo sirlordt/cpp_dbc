@@ -104,6 +104,7 @@ namespace cpp_dbc
             bool closed;
             bool autoCommit;
             int statementCounter;
+            TransactionIsolationLevel isolationLevel;
 
             std::set<std::shared_ptr<PostgreSQLPreparedStatement>> activeStatements;
             std::mutex statementsMutex;
@@ -134,6 +135,10 @@ namespace cpp_dbc
 
             void commit() override;
             void rollback() override;
+
+            // Transaction isolation level methods
+            void setTransactionIsolation(TransactionIsolationLevel level) override;
+            TransactionIsolationLevel getTransactionIsolation() override;
 
             // Helper to generate unique statement names
             std::string generateStatementName();

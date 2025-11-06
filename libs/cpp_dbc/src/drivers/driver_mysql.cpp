@@ -609,7 +609,8 @@ namespace cpp_dbc
                                          const std::string &database,
                                          const std::string &user,
                                          const std::string &password)
-            : mysql(nullptr), closed(false), autoCommit(true)
+            : mysql(nullptr), closed(false), autoCommit(true),
+              isolationLevel(TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ) // MySQL default
         {
             mysql = mysql_init(nullptr);
             if (!mysql)
@@ -793,6 +794,124 @@ namespace cpp_dbc
             if (mysql_query(mysql, "ROLLBACK") != 0)
             {
                 throw SQLException(std::string("Rollback failed: ") + mysql_error(mysql));
+            }
+        }
+
+        void MySQLConnection::setTransactionIsolation(TransactionIsolationLevel level)
+        {
+            if (closed || !mysql)
+            {
+                throw SQLException("Connection is closed");
+            }
+
+            std::string query;
+            switch (level)
+            {
+            case TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED:
+                query = "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";
+                break;
+            case TransactionIsolationLevel::TRANSACTION_READ_COMMITTED:
+                query = "SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED";
+                break;
+            case TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ:
+                query = "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ";
+                break;
+            case TransactionIsolationLevel::TRANSACTION_SERIALIZABLE:
+                query = "SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+                break;
+            default:
+                throw SQLException("Unsupported transaction isolation level");
+            }
+
+            if (mysql_query(mysql, query.c_str()) != 0)
+            {
+                throw SQLException(std::string("Failed to set transaction isolation level: ") + mysql_error(mysql));
+            }
+
+            // Verify that the isolation level was actually set
+            TransactionIsolationLevel actualLevel = getTransactionIsolation();
+            if (actualLevel != level)
+            {
+                // Some MySQL configurations might not allow certain isolation levels
+                // In this case, we'll update our internal state to match what MySQL actually set
+                this->isolationLevel = actualLevel;
+            }
+            else
+            {
+                this->isolationLevel = level;
+            }
+        }
+
+        TransactionIsolationLevel MySQLConnection::getTransactionIsolation()
+        {
+            if (closed || !mysql)
+            {
+                throw SQLException("Connection is closed");
+            }
+
+            // If we're being called from setTransactionIsolation, return the cached value
+            // to avoid potential infinite recursion
+            static bool inGetTransactionIsolation = false;
+            if (inGetTransactionIsolation)
+            {
+                return this->isolationLevel;
+            }
+
+            inGetTransactionIsolation = true;
+
+            try
+            {
+                // Query the current isolation level
+                if (mysql_query(mysql, "SELECT @@transaction_isolation") != 0)
+                {
+                    // Fall back to older MySQL versions that use tx_isolation
+                    if (mysql_query(mysql, "SELECT @@tx_isolation") != 0)
+                    {
+                        inGetTransactionIsolation = false;
+                        throw SQLException(std::string("Failed to get transaction isolation level: ") + mysql_error(mysql));
+                    }
+                }
+
+                MYSQL_RES *result = mysql_store_result(mysql);
+                if (!result)
+                {
+                    inGetTransactionIsolation = false;
+                    throw SQLException(std::string("Failed to get result set: ") + mysql_error(mysql));
+                }
+
+                MYSQL_ROW row = mysql_fetch_row(result);
+                if (!row)
+                {
+                    mysql_free_result(result);
+                    inGetTransactionIsolation = false;
+                    throw SQLException("Failed to fetch transaction isolation level");
+                }
+
+                std::string level = row[0];
+                mysql_free_result(result);
+
+                // Convert the string value to the enum
+                TransactionIsolationLevel isolationResult;
+                if (level == "READ-UNCOMMITTED" || level == "READ_UNCOMMITTED")
+                    isolationResult = TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED;
+                else if (level == "READ-COMMITTED" || level == "READ_COMMITTED")
+                    isolationResult = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED;
+                else if (level == "REPEATABLE-READ" || level == "REPEATABLE_READ")
+                    isolationResult = TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ;
+                else if (level == "SERIALIZABLE")
+                    isolationResult = TransactionIsolationLevel::TRANSACTION_SERIALIZABLE;
+                else
+                    isolationResult = TransactionIsolationLevel::TRANSACTION_NONE;
+
+                // Update our cached value
+                this->isolationLevel = isolationResult;
+                inGetTransactionIsolation = false;
+                return isolationResult;
+            }
+            catch (...)
+            {
+                inGetTransactionIsolation = false;
+                throw;
             }
         }
 

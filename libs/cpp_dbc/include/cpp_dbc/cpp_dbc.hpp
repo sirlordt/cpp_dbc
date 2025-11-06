@@ -60,6 +60,16 @@ namespace cpp_dbc
         BLOB
     };
 
+    // Transaction isolation levels (following JDBC standard)
+    enum class TransactionIsolationLevel
+    {
+        TRANSACTION_NONE = 0,
+        TRANSACTION_READ_UNCOMMITTED = 1,
+        TRANSACTION_READ_COMMITTED = 2,
+        TRANSACTION_REPEATABLE_READ = 4,
+        TRANSACTION_SERIALIZABLE = 8
+    };
+
     // Abstract base class for result sets
     class ResultSet
     {
@@ -139,6 +149,10 @@ namespace cpp_dbc
 
         virtual void commit() = 0;
         virtual void rollback() = 0;
+
+        // Transaction isolation level methods
+        virtual void setTransactionIsolation(TransactionIsolationLevel level) = 0;
+        virtual TransactionIsolationLevel getTransactionIsolation() = 0;
     };
 
     // Abstract driver class

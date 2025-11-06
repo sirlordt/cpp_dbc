@@ -1,6 +1,16 @@
 # Changelog
 
-## 2025-11-05 4:48:00 PM -0800 [Current]
+## 2025-11-05 6:03:00 PM -0800 [Current]
+
+### Transaction Isolation Level Support
+* Added transaction isolation level support following JDBC standard:
+  * Added `TransactionIsolationLevel` enum with JDBC-compatible isolation levels
+  * Added `setTransactionIsolation` and `getTransactionIsolation` methods to Connection interface
+  * Implemented methods in MySQL and PostgreSQL drivers
+  * Updated PooledConnection to delegate isolation level methods to underlying connection
+  * Default isolation levels set to database defaults (REPEATABLE READ for MySQL, READ COMMITTED for PostgreSQL)
+
+## 2025-11-05 4:48:00 PM -0800
 
 ### Debug Features and Test Improvements
 * Added debug options for ConnectionPool and TransactionManager:
@@ -14,6 +24,7 @@
   * Fixed test assertions in test_drivers.cpp for empty result sets
   * Uncommented code in test_transaction_manager_real.cpp for more thorough testing
   * Updated expected return values for executeUpdate in mock implementations
+  * Added comprehensive tests for transaction isolation levels in test_transaction_isolation.cpp
 
 ## 2025-05-25 2:13:00 PM -0700 [e6091bd]
 

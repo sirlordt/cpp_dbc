@@ -49,6 +49,7 @@ add_executable(cpp_dbc_tests
     test_postgresql_real.cpp
     test_connection_pool_real.cpp
     test_transaction_manager_real.cpp
+    test_transaction_isolation.cpp
 )
 
 # Link against Catch2, cpp_dbc and yaml-cpp
