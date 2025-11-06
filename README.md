@@ -62,6 +62,8 @@ The library supports conditional compilation of database drivers and features:
 - `USE_POSTGRESQL`: Enable/disable PostgreSQL support (OFF by default)
 - `USE_CPP_YAML`: Enable/disable YAML configuration support (OFF by default)
 - `CPP_DBC_BUILD_EXAMPLES`: Enable/disable building examples (OFF by default)
+- `DEBUG_CONNECTION_POOL`: Enable debug output for ConnectionPool (OFF by default)
+- `DEBUG_TRANSACTION_MANAGER`: Enable debug output for TransactionManager (OFF by default)
 
 ### Using the build scripts
 
@@ -90,6 +92,15 @@ The `libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the c
 
 # Build examples
 ./libs/cpp_dbc/build_cpp_dbc.sh --examples
+
+# Enable debug output for ConnectionPool
+./libs/cpp_dbc/build_cpp_dbc.sh --debug-pool
+
+# Enable debug output for TransactionManager
+./libs/cpp_dbc/build_cpp_dbc.sh --debug-txmgr
+
+# Enable all debug output
+./libs/cpp_dbc/build_cpp_dbc.sh --debug-all
 
 # Enable YAML and build examples
 ./libs/cpp_dbc/build_cpp_dbc.sh --yaml --examples
@@ -135,6 +146,15 @@ The `build.sh` script builds the main application, passing all parameters to the
 # Enable YAML and build examples
 ./build.sh --yaml --examples
 
+# Enable debug output for ConnectionPool
+./build.sh --debug-pool
+
+# Enable debug output for TransactionManager
+./build.sh --debug-txmgr
+
+# Enable all debug output
+./build.sh --debug-all
+
 # Show help
 ./build.sh --help
 ```
@@ -166,6 +186,24 @@ The project includes scripts for building and running tests:
 ./run_test.sh --ctest     # Run tests using CTest
 ./run_test.sh --rebuild   # Force rebuild of tests before running
 ```
+
+### Valgrind Memory Leak Suppression
+
+When running tests with Valgrind, you might encounter "still reachable" memory leaks from the PostgreSQL driver. These leaks come from the GSSAPI/Kerberos libraries used by libpq (PostgreSQL's client library), not from our code directly.
+
+To handle these leaks, the project includes:
+
+1. A Valgrind suppression file (`libs/cpp_dbc/valgrind-suppressions.txt`) that ignores specific memory leaks from the GSSAPI/Kerberos libraries.
+2. Code improvements in the PostgreSQL driver to minimize memory leaks.
+
+To run tests with the suppression file:
+
+```bash
+# Run tests with Valgrind using the suppression file
+./run_test.sh --valgrind
+```
+
+For more details about this issue and its solution, see the [Valgrind PostgreSQL Memory Leak documentation](memory-bank/valgrind_postgresql_memory_leak.md).
 
 The `run_test.sh` script will automatically build the project and tests if they haven't been built yet.
 

@@ -724,12 +724,12 @@ namespace cpp_dbc
                     activeStatements.clear();
                 }
 
-                // Sleep for 10ms to avoid problems with corrency
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
                 PQfinish(conn);
                 conn = nullptr;
                 closed = true;
+
+                // Sleep for 5ms to avoid problems with concurrency and memory stability
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
             }
         }
 
@@ -941,7 +941,11 @@ namespace cpp_dbc
 
         PostgreSQLDriver::~PostgreSQLDriver()
         {
-            // PostgreSQL doesn't require explicit cleanup like MySQL
+            // Also call PQfinish with nullptr as a fallback
+            PQfinish(nullptr);
+
+            // Sleep a bit more to ensure all resources are properly released
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
 
         std::shared_ptr<Connection> PostgreSQLDriver::connect(const std::string &url,

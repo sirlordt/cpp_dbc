@@ -1,5 +1,20 @@
 # Changelog
 
+## 2025-11-05 4:48:00 PM -0800 [Current]
+
+### Debug Features and Test Improvements
+* Added debug options for ConnectionPool and TransactionManager:
+  * Added `DEBUG_CONNECTION_POOL` and `DEBUG_TRANSACTION_MANAGER` options to CMakeLists.txt
+  * Added `--debug-pool`, `--debug-txmgr`, and `--debug-all` options to build_test_cpp_dbc.sh
+  * Updated build scripts to pass debug options to CMake
+* Enhanced test framework:
+  * Completely overhauled MockResultSet implementation in test_mocks.hpp with in-memory data storage
+  * Added more realistic behavior to mock database implementations
+  * Added timing information output in test_integration.cpp
+  * Fixed test assertions in test_drivers.cpp for empty result sets
+  * Uncommented code in test_transaction_manager_real.cpp for more thorough testing
+  * Updated expected return values for executeUpdate in mock implementations
+
 ## 2025-05-25 2:13:00 PM -0700 [e6091bd]
 
 ### Documentation Updates

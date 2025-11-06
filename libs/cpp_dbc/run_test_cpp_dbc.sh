@@ -305,10 +305,19 @@ run_test() {
     
     if [ "$USE_VALGRIND" = true ]; then
         # Using Valgrind
+        # Check if suppression file exists
+        SUPPRESSION_FILE="${SCRIPT_DIR}/valgrind-suppressions.txt"
+        VALGRIND_OPTS="--leak-check=full --show-leak-kinds=all --track-origins=yes --verbose"
+        
+        if [ -f "$SUPPRESSION_FILE" ]; then
+            echo "Using Valgrind suppression file: $SUPPRESSION_FILE"
+            VALGRIND_OPTS="$VALGRIND_OPTS --suppressions=$SUPPRESSION_FILE"
+        fi
+        
         if [ -n "$ASAN_OPTIONS" ]; then
-            env ASAN_OPTIONS="$ASAN_OPTIONS" valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose "$TEST_EXECUTABLE" $@
+            env ASAN_OPTIONS="$ASAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $@
         else
-            valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose "$TEST_EXECUTABLE" $@
+            valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $@
         fi
     else
         # Not using Valgrind
