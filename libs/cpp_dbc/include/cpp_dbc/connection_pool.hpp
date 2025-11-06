@@ -89,6 +89,13 @@ namespace cpp_dbc
 
         std::shared_ptr<PooledConnection> getIdleConnection();
 
+    protected:
+        // Sets the transaction isolation level for the pool
+        void setPoolTransactionIsolation(TransactionIsolationLevel level)
+        {
+            transactionIsolation = level;
+        }
+
     public:
         // Constructor that takes individual parameters
         ConnectionPool(const std::string &url,
@@ -200,6 +207,19 @@ namespace cpp_dbc
                                      const std::string &password);
 
             PostgreSQLConnectionPool(const config::ConnectionPoolConfig &config);
+        };
+    }
+
+    namespace SQLite
+    {
+        class SQLiteConnectionPool : public ConnectionPool
+        {
+        public:
+            SQLiteConnectionPool(const std::string &url,
+                                 const std::string &username,
+                                 const std::string &password);
+
+            SQLiteConnectionPool(const config::ConnectionPoolConfig &config);
         };
     }
 

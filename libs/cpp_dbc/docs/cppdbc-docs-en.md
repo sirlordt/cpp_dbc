@@ -207,6 +207,12 @@ Same as Connection, plus:
 - `SQLiteConnection(string)`: Constructor that takes a database path.
 - `setTransactionIsolation(TransactionIsolationLevel)`: Sets the transaction isolation level for SQLite (only SERIALIZABLE is supported).
 - `getTransactionIsolation()`: Returns the current transaction isolation level.
+- `registerStatement(std::shared_ptr<SQLitePreparedStatement>)`: Registers a statement with the connection for proper cleanup.
+- `unregisterStatement(std::shared_ptr<SQLitePreparedStatement>)`: Unregisters a statement from the connection.
+
+**Static Members:**
+- `activeConnections`: A set of active SQLite connections for statement cleanup.
+- `connectionsListMutex`: Mutex for thread-safe access to the active connections list.
 
 ### SQLiteDriver
 Implementation of Driver for SQLite.
@@ -220,6 +226,13 @@ Same as Driver, plus:
 
 ## Connection Pool
 *Components defined in connection_pool.hpp and connection_pool.cpp*
+
+### SQLiteConnectionPool
+Implementation of ConnectionPool for SQLite databases.
+
+**Methods:**
+- `SQLiteConnectionPool(string, string, string)`: Constructor that takes a URL, username, and password.
+- `SQLiteConnectionPool(ConnectionPoolConfig)`: Constructor that takes a pool configuration.
 
 ### ConnectionPoolConfig
 Configuration structure for connection pools.

@@ -16,10 +16,11 @@ These files contain critical information for understanding the project structure
 
 The current focus appears to be on maintaining and potentially extending the CPP_DBC library. The library provides a C++ database connectivity framework inspired by Java's JDBC, with support for:
 
-1. MySQL and PostgreSQL databases
-2. Connection pooling
+1. MySQL, PostgreSQL, and SQLite databases
+2. Connection pooling for all supported databases
 3. Transaction management with isolation levels
 4. Prepared statements and result sets
+5. YAML configuration for database connections and pools
 
 The code is organized in a modular fashion with clear separation between interfaces and implementations, following object-oriented design principles.
 
@@ -27,7 +28,26 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Transaction Isolation Level Support**:
+1. **SQLite Connection Pool Implementation**:
+   - Added SQLite connection pool support with `SQLiteConnectionPool` class
+   - Added SQLite-specific connection pool configuration in test_db_connections.yml
+   - Added SQLite connection pool tests in test_connection_pool_real.cpp
+   - Improved connection handling for SQLite connections
+   - Added transaction isolation level support for SQLite pools
+
+2. **SQLite Driver Improvements**:
+   - Enhanced SQLite driver with better resource management
+   - Added static list of active connections for statement cleanup
+   - Improved connection closing with sqlite3_close_v2 instead of sqlite3_close
+   - Added better handling of prepared statements with shared_from_this
+   - Fixed memory leaks in SQLite connection and statement handling
+
+3. **Test Script Enhancements**:
+   - Added new options to run_test_cpp_dbc.sh
+   - Added `--auto` option to automatically continue to next test set if tests pass
+   - Added `--gssapi-leak-ok` option to ignore GSSAPI leaks in PostgreSQL with Valgrind
+
+4. **Transaction Isolation Level Support**:
    - Added transaction isolation level support following JDBC standard
    - Implemented `TransactionIsolationLevel` enum with JDBC-compatible isolation levels
    - Added `setTransactionIsolation` and `getTransactionIsolation` methods to Connection interface

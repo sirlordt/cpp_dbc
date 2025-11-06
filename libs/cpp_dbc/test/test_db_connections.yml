@@ -132,6 +132,14 @@ connection_pool:
     idle_timeout: 30000       # milliseconds
     validation_interval: 15000 # milliseconds
     transaction_isolation: serializable
+    
+  sqlite_pool:
+    initial_size: 5
+    max_size: 10
+    connection_timeout: 5000  # milliseconds
+    idle_timeout: 60000       # milliseconds
+    validation_interval: 30000 # milliseconds
+    transaction_isolation: serializable
 
 # Test queries
 test_queries:

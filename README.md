@@ -1,6 +1,6 @@
 # C++ Database Connectivity (CPP_DBC) Library
 
-This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, and SQLite databases.
+This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, and SQLite databases. The library includes connection pooling, transaction management, and support for different transaction isolation levels.
 
 ## Features
 

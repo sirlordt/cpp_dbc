@@ -1012,7 +1012,18 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         }
         catch (const cpp_dbc::SQLException &e)
         {
-            SKIP("Could not run PostgreSQL test: " + std::string(e.what()));
+
+            auto what = std::string(e.what());
+            // Remove possible newline characters at the end
+            if (!what.empty() && what.back() == '\n')
+            {
+                what.pop_back();
+            }
+            INFO("Error message: [" << what << "]");
+
+            REQUIRE(what == "Update failed: ERROR:  could not serialize access due to concurrent update");
+
+            // SKIP("Could not run PostgreSQL test: " + std::string(e.what()));
         }
     }
 

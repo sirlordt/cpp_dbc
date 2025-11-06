@@ -16,6 +16,8 @@ set -e  # Exit on error
 #   --release              Run in Release mode (default: Debug)
 #   --asan                 Enable Address Sanitizer
 #   --valgrind             Run tests with Valgrind
+#   --auto                 Automatically continue to next test set if tests pass
+#   --gssapi-leak-ok       Ignore GSSAPI leaks in PostgreSQL (only with --valgrind)
 #   --ctest                Run tests using CTest
 #   --check                Check shared library dependencies of test executable
 #   --rebuild              Rebuild the test targets before running
@@ -36,6 +38,8 @@ ASAN_OPTIONS=""
 ENABLE_ASAN=false
 RUN_CTEST=false
 USE_VALGRIND=false
+AUTO_CONTINUE=false
+GSSAPI_LEAK_OK=false
 CHECK_DEPENDENCIES=false
 REBUILD=false
 LIST_ONLY=false
@@ -91,6 +95,14 @@ while [[ $# -gt 0 ]]; do
             USE_VALGRIND=true
             shift
             ;;
+        --auto)
+            AUTO_CONTINUE=true
+            shift
+            ;;
+        --gssapi-leak-ok)
+            GSSAPI_LEAK_OK=true
+            shift
+            ;;
         --ctest)
             RUN_CTEST=true
             shift
@@ -136,6 +148,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --release              Run in Release mode (default: Debug)"
             echo "  --asan                 Enable Address Sanitizer"
             echo "  --valgrind             Run tests with Valgrind"
+            echo "  --auto                 Automatically continue to next test set if tests pass"
+            echo "  --gssapi-leak-ok       Ignore GSSAPI leaks in PostgreSQL (only with --valgrind)"
             echo "  --ctest                Run tests using CTest"
             echo "  --check                Check shared library dependencies of test executable"
             echo "  --rebuild              Rebuild the test targets before running"
@@ -390,8 +404,56 @@ else
         # Run tests by tags to avoid hanging
         for TAG in $TAGS; do
             echo -e "\nRunning tests with tag [$TAG]...\n"
-            run_test -s -r compact "[$TAG]" || true
-            read -p "Press Enter to continue with the next test..."
+            
+            # Run the test and capture its output
+            TEST_OUTPUT=$(run_test -s -r compact "[$TAG]" 2>&1) || true
+            echo "$TEST_OUTPUT"
+            
+            # Check if we should continue automatically
+            if [ "$AUTO_CONTINUE" = true ]; then
+                # Check if tests passed
+                if echo "$TEST_OUTPUT" | grep -q "All tests passed"; then
+                    # If valgrind is enabled, check for memory leaks
+                    if [ "$USE_VALGRIND" = true ]; then
+                        # Special case for GSSAPI leaks if --gssapi-leak-ok is set
+                        if [ "$GSSAPI_LEAK_OK" = true ] && echo "$TEST_OUTPUT" | grep -q "PostgreSQL_GSSAPI_leak"; then
+                            # Check if there are no errors despite the GSSAPI leaks
+                            if echo "$TEST_OUTPUT" | grep -q "ERROR SUMMARY: 0 errors from 0 contexts"; then
+                                echo -e "\nGSSAPI leaks detected but ignored as requested. Continuing to next test..."
+                                continue
+                            fi
+                        fi
+                        
+                        # Standard case - check for no memory leaks
+                        if echo "$TEST_OUTPUT" | grep -q "All heap blocks were freed -- no leaks are possible" && \
+                           echo "$TEST_OUTPUT" | grep -q "ERROR SUMMARY: 0 errors from 0 contexts"; then
+                            echo -e "\nNo memory leaks detected. Continuing to next test..."
+                            continue
+                        else
+                            echo -e "\nTest [$TAG]: Memory leaks or errors detected. Press Enter to continue or ESC to abort..."
+                            read -n 1 key
+                            if [[ $key = $'\e' ]]; then
+                                echo -e "\nTest execution aborted by user during test [$TAG]."
+                                exit 1
+                            fi
+                        fi
+                    else
+                        # No valgrind, just continue if tests passed
+                        echo -e "\nAll tests passed. Continuing to next test..."
+                        continue
+                    fi
+                else
+                    echo -e "\nTest [$TAG]: Tests failed. Press Enter to continue or ESC to abort..."
+                    read -n 1 key
+                    if [[ $key = $'\e' ]]; then
+                        echo -e "\nTest execution aborted by user during test [$TAG]."
+                        exit 1
+                    fi
+                fi
+            else
+                # Original behavior - always wait for user input
+                read -p "Press Enter to continue with the next test..."
+            fi
         done
     fi
 fi

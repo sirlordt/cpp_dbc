@@ -69,7 +69,10 @@ namespace cpp_dbc
             void close() override;
         };
 
-        class SQLitePreparedStatement : public PreparedStatement
+        // Forward declaration
+        class SQLiteConnection;
+
+        class SQLitePreparedStatement : public PreparedStatement, public std::enable_shared_from_this<SQLitePreparedStatement>
         {
             friend class SQLiteConnection;
 
@@ -103,6 +106,8 @@ namespace cpp_dbc
 
         class SQLiteConnection : public Connection
         {
+            friend class SQLitePreparedStatement;
+
         private:
             sqlite3 *db;
             bool closed;
@@ -116,6 +121,10 @@ namespace cpp_dbc
             // Internal methods for statement registry
             void registerStatement(std::shared_ptr<SQLitePreparedStatement> stmt);
             void unregisterStatement(std::shared_ptr<SQLitePreparedStatement> stmt);
+
+            // Static list of active connections for statement cleanup
+            static std::set<SQLiteConnection *> activeConnections;
+            static std::mutex connectionsListMutex;
 
         public:
             SQLiteConnection(const std::string &database);

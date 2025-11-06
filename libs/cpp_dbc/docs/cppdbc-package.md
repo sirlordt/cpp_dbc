@@ -1,6 +1,6 @@
 # CPPDBC - C++ Database Connectivity Library
 
-This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, and SQLite databases using a unified interface.
+This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, and SQLite databases using a unified interface. The library includes connection pooling, transaction management with different isolation levels, and support for YAML configuration.
 
 ## File Structure
 
@@ -24,10 +24,11 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `src/config/yaml_config_loader.cpp` - YAML configuration loader implementation
 
 ### Examples
-- `examples/example.cpp` - Basic usage example with MySQL and PostgreSQL
+- `examples/example.cpp` - Basic usage example with MySQL, PostgreSQL, and SQLite
 - `examples/connection_pool_example.cpp` - Connection pool usage example
 - `examples/transaction_manager_example.cpp` - Cross-thread transaction example
 - `examples/config_example.cpp` - YAML configuration example
+- `examples/config_integration_example.cpp` - Database configuration integration example
 - `examples/example_config.yml` - Example YAML configuration file
 
 ## Building

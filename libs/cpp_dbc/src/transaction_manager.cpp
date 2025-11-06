@@ -98,14 +98,10 @@ namespace cpp_dbc
             transContext->connection->commit();
             // Re-enable auto-commit before returning to pool
             transContext->connection->setAutoCommit(true);
-            // Explicitly close the connection to return it to the pool
-            transContext->connection->close();
 
-            // Ensure the connection is properly returned to the pool
-            if (transContext->connection->isPooled())
-            {
-                transContext->connection->returnToPool();
-            }
+            // Return the connection to the pool
+            // No need to call close() first, as returnToPool() will handle the connection properly
+            transContext->connection->returnToPool();
         }
         catch (const SQLException &e)
         {
@@ -113,8 +109,6 @@ namespace cpp_dbc
             try
             {
                 transContext->connection->setAutoCommit(true);
-                // Try to close the connection even on error
-                transContext->connection->close();
 
                 // Ensure the connection is properly returned to the pool
                 if (transContext->connection->isPooled())
@@ -154,14 +148,10 @@ namespace cpp_dbc
             transContext->connection->rollback();
             // Re-enable auto-commit before returning to pool
             transContext->connection->setAutoCommit(true);
-            // Explicitly close the connection to return it to the pool
-            transContext->connection->close();
 
-            // Ensure the connection is properly returned to the pool
-            if (transContext->connection->isPooled())
-            {
-                transContext->connection->returnToPool();
-            }
+            // Return the connection to the pool
+            // No need to call close() first, as returnToPool() will handle the connection properly
+            transContext->connection->returnToPool();
         }
         catch (const SQLException &e)
         {
@@ -169,8 +159,6 @@ namespace cpp_dbc
             try
             {
                 transContext->connection->setAutoCommit(true);
-                // Try to close the connection even on error
-                transContext->connection->close();
 
                 // Ensure the connection is properly returned to the pool
                 if (transContext->connection->isPooled())

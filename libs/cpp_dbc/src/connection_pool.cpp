@@ -964,4 +964,26 @@ namespace cpp_dbc
         }
     }
 
+    // SQLite connection pool implementation
+    namespace SQLite
+    {
+        SQLiteConnectionPool::SQLiteConnectionPool(const std::string &url,
+                                                   const std::string &username,
+                                                   const std::string &password)
+            : ConnectionPool(url, username, password)
+        {
+            // SQLite only supports SERIALIZABLE isolation level
+            // Override the isolation level from the constructor
+            this->setPoolTransactionIsolation(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+        }
+
+        SQLiteConnectionPool::SQLiteConnectionPool(const config::ConnectionPoolConfig &config)
+            : ConnectionPool(config)
+        {
+            // SQLite only supports SERIALIZABLE isolation level
+            // Override the isolation level from the config
+            this->setPoolTransactionIsolation(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+        }
+    }
+
 } // namespace cpp_dbc

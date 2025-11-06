@@ -1,6 +1,29 @@
 # Changelog
 
-## 2025-11-06 11:43:35 AM -0800 [Current]
+## 2025-11-06 2:58:00 PM -0800 [Current]
+
+### SQLite Connection Pool Implementation
+* Added SQLite connection pool support:
+  * Added `SQLiteConnectionPool` class in connection_pool.hpp
+  * Added SQLite-specific connection pool configuration in test_db_connections.yml
+  * Added SQLite connection pool tests in test_connection_pool_real.cpp
+  * Improved connection handling for SQLite connections
+  * Added transaction isolation level support for SQLite pools
+
+### SQLite Driver Improvements
+* Enhanced SQLite driver with better resource management:
+  * Added static list of active connections for statement cleanup
+  * Improved connection closing with sqlite3_close_v2 instead of sqlite3_close
+  * Added better handling of prepared statements with shared_from_this
+  * Fixed memory leaks in SQLite connection and statement handling
+  * Improved error handling in SQLite driver
+
+### Test Script Enhancements
+* Added new options to run_test_cpp_dbc.sh:
+  * Added `--auto` option to automatically continue to next test set if tests pass
+  * Added `--gssapi-leak-ok` option to ignore GSSAPI leaks in PostgreSQL with Valgrind
+
+## 2025-11-06 11:43:35 AM -0800
 
 ### SQLite Driver Implementation
 * Added SQLite database driver support:

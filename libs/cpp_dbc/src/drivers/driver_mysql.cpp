@@ -690,7 +690,25 @@ namespace cpp_dbc
 
         void MySQLConnection::returnToPool()
         {
-            this->close();
+            // Don't physically close the connection, just mark it as available
+            // so it can be reused by the pool
+
+            // Reset the connection state if necessary
+            try
+            {
+                // Make sure autocommit is enabled for the next time the connection is used
+                if (!autoCommit)
+                {
+                    setAutoCommit(true);
+                }
+
+                // We don't set closed = true because we want to keep the connection open
+                // Just mark it as available for reuse
+            }
+            catch (...)
+            {
+                // Ignore errors during cleanup
+            }
         }
 
         bool MySQLConnection::isPooled()

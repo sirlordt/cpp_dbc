@@ -8,8 +8,8 @@ The CPP_DBC library appears to be in a functional state with the following compo
 2. **MySQL Implementation**: Complete implementation of MySQL driver
 3. **PostgreSQL Implementation**: Complete implementation of PostgreSQL driver
 4. **SQLite Implementation**: Complete implementation of SQLite driver
-5. **Connection Pool**: Fully implemented with configuration options
-6. **Transaction Manager**: Fully implemented with transaction tracking and timeout
+5. **Connection Pool**: Fully implemented with configuration options for MySQL, PostgreSQL, and SQLite
+6. **Transaction Manager**: Fully implemented with transaction tracking, timeout, and improved resource management
 
 The project includes example code demonstrating:
 - Basic database operations
@@ -45,6 +45,10 @@ The project includes example code demonstrating:
 - Idle connection cleanup
 - Connection timeout handling
 - Thread-safe connection borrowing and returning
+- Database-specific connection pool implementations:
+  - MySQL: MySQLConnectionPool
+  - PostgreSQL: PostgreSQLConnectionPool
+  - SQLite: SQLiteConnectionPool
 
 ### SQLite Support
 - Connection to SQLite databases
@@ -53,6 +57,10 @@ The project includes example code demonstrating:
 - Transaction management
 - In-memory database support
 - File-based database support
+- Connection pooling with SQLiteConnectionPool
+- Improved resource management with shared_from_this
+- Better statement cleanup with active connections tracking
+- Enhanced connection closing with sqlite3_close_v2
 
 ### Transaction Management
 - Transaction creation and tracking

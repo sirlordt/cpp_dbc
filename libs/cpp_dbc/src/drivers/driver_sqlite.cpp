@@ -16,6 +16,9 @@ namespace cpp_dbc
 {
     namespace SQLite
     {
+        // Initialize static members
+        std::set<SQLiteConnection *> SQLiteConnection::activeConnections;
+        std::mutex SQLiteConnection::connectionsListMutex;
 
         // SQLiteResultSet implementation
         SQLiteResultSet::SQLiteResultSet(sqlite3_stmt *stmt, bool ownStatement)
@@ -269,7 +272,22 @@ namespace cpp_dbc
 
         SQLitePreparedStatement::~SQLitePreparedStatement()
         {
-            close();
+            try
+            {
+                // Make sure to close the statement and clean up resources
+                close();
+            }
+            catch (...)
+            {
+                // Ignore exceptions during destruction
+            }
+
+            // If close() failed or wasn't called, ensure we clean up
+            if (!closed && stmt)
+            {
+                sqlite3_finalize(stmt);
+                stmt = nullptr;
+            }
         }
 
         void SQLitePreparedStatement::close()
@@ -278,6 +296,20 @@ namespace cpp_dbc
             {
                 sqlite3_finalize(stmt);
                 stmt = nullptr;
+
+                // Unregister from the connection if it's still valid
+                if (db)
+                {
+                    // Find the connection object that owns this statement
+                    for (auto &conn : SQLiteConnection::activeConnections)
+                    {
+                        if (conn->db == db)
+                        {
+                            conn->unregisterStatement(shared_from_this());
+                            break;
+                        }
+                    }
+                }
             }
             closed = true;
         }
@@ -605,26 +637,48 @@ namespace cpp_dbc
         }
 
         // SQLiteConnection implementation
+
         SQLiteConnection::SQLiteConnection(const std::string &database)
             : db(nullptr), closed(false), autoCommit(true),
               isolationLevel(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE) // SQLite default
         {
-            int result = sqlite3_open(database.c_str(), &db);
+            int result = sqlite3_open_v2(database.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
             if (result != SQLITE_OK)
             {
                 std::string error = sqlite3_errmsg(db);
-                sqlite3_close(db);
+                sqlite3_close_v2(db);
                 db = nullptr;
                 throw SQLException("Failed to connect to SQLite database: " + error);
             }
 
             // Enable foreign keys
             executeUpdate("PRAGMA foreign_keys = ON");
+
+            // Register this connection in the active connections list
+            {
+                std::lock_guard<std::mutex> lock(connectionsListMutex);
+                activeConnections.insert(this);
+            }
         }
 
         SQLiteConnection::~SQLiteConnection()
         {
-            close();
+            // Make sure to close the connection and clean up resources
+            try
+            {
+                close();
+            }
+            catch (...)
+            {
+                // Ignore exceptions during destruction
+            }
+
+            // Ensure this connection is removed from the active connections list
+            // even if close() wasn't called or failed
+            {
+                std::lock_guard<std::mutex> lock(connectionsListMutex);
+                activeConnections.erase(this);
+            }
         }
 
         void SQLiteConnection::close()
@@ -644,9 +698,17 @@ namespace cpp_dbc
                     activeStatements.clear();
                 }
 
-                sqlite3_close(db);
+                // Use sqlite3_close_v2 instead of sqlite3_close
+                // sqlite3_close_v2 will handle unfinalized prepared statements gracefully
+                sqlite3_close_v2(db);
                 db = nullptr;
                 closed = true;
+
+                // Remove this connection from the active connections list
+                {
+                    std::lock_guard<std::mutex> lock(connectionsListMutex);
+                    activeConnections.erase(this);
+                }
             }
         }
 
@@ -657,10 +719,24 @@ namespace cpp_dbc
 
         void SQLiteConnection::returnToPool()
         {
-            // Make sure to close the connection properly
-            if (!closed && db)
+            // Don't physically close the connection, just mark it as available
+            // so it can be reused by the pool
+
+            // Reset the connection state if necessary
+            try
             {
-                this->close();
+                // Make sure autocommit is enabled for the next time the connection is used
+                if (!autoCommit)
+                {
+                    setAutoCommit(true);
+                }
+
+                // We don't set closed = true because we want to keep the connection open
+                // Just mark it as available for reuse
+            }
+            catch (...)
+            {
+                // Ignore errors during cleanup
             }
         }
 
@@ -799,12 +875,18 @@ namespace cpp_dbc
 
         void SQLiteConnection::registerStatement(std::shared_ptr<SQLitePreparedStatement> stmt)
         {
+            if (!stmt)
+                return;
+
             std::lock_guard<std::mutex> lock(statementsMutex);
             activeStatements.insert(stmt);
         }
 
         void SQLiteConnection::unregisterStatement(std::shared_ptr<SQLitePreparedStatement> stmt)
         {
+            if (!stmt)
+                return;
+
             std::lock_guard<std::mutex> lock(statementsMutex);
             activeStatements.erase(stmt);
         }
