@@ -1,13 +1,13 @@
 # C++ Database Connectivity (CPP_DBC) Library
 
-This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL and PostgreSQL databases.
+This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, and SQLite databases.
 
 ## Features
 
 - **Database Abstraction**: Unified API for different database systems
 - **Connection Pooling**: Efficient connection management
 - **Transaction Management**: Support for distributed transactions
-- **Transaction Isolation Levels**: JDBC-compatible isolation levels (READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE)
+- **Transaction Isolation Levels**: JDBC-compatible isolation levels (READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE) with database-specific implementations
 - **Prepared Statements**: Protection against SQL injection
 - **Conditional Compilation**: Build with only the database drivers you need
 - **Modern C++ Design**: Uses C++23 features and RAII principles
@@ -19,6 +19,7 @@ The library currently supports:
 
 - **MySQL**: Full support for MySQL databases (enabled by default)
 - **PostgreSQL**: Full support for PostgreSQL databases (disabled by default)
+- **SQLite**: Full support for SQLite databases (disabled by default)
 
 Each database driver can be enabled or disabled at compile time to reduce dependencies. By default, only MySQL support is enabled.
 
@@ -35,6 +36,7 @@ Each database driver can be enabled or disabled at compile time to reduce depend
 - **Database Drivers**:
   - `include/cpp_dbc/drivers/driver_mysql.hpp` & `src/drivers/driver_mysql.cpp`: MySQL implementation
   - `include/cpp_dbc/drivers/driver_postgresql.hpp` & `src/drivers/driver_postgresql.cpp`: PostgreSQL implementation
+  - `include/cpp_dbc/drivers/driver_sqlite.hpp` & `src/drivers/driver_sqlite.cpp`: SQLite implementation
 
 - **Examples**:
   - `examples/example.cpp`: Basic usage example
@@ -52,6 +54,7 @@ Depending on which database drivers you enable, you'll need:
 
 - For MySQL support: MySQL development libraries (`libmysqlclient-dev` on Debian/Ubuntu, `mysql-devel` on RHEL/CentOS)
 - For PostgreSQL support: PostgreSQL development libraries (`libpq-dev` on Debian/Ubuntu, `postgresql-devel` on RHEL/CentOS)
+- For SQLite support: SQLite development libraries (`libsqlite3-dev` on Debian/Ubuntu, `sqlite-devel` on RHEL/CentOS)
 
 The build script will automatically check for and install these dependencies if needed.
 
@@ -61,6 +64,7 @@ The library supports conditional compilation of database drivers and features:
 
 - `USE_MYSQL`: Enable/disable MySQL support (ON by default)
 - `USE_POSTGRESQL`: Enable/disable PostgreSQL support (OFF by default)
+- `USE_SQLITE`: Enable/disable SQLite support (OFF by default)
 - `USE_CPP_YAML`: Enable/disable YAML configuration support (OFF by default)
 - `CPP_DBC_BUILD_EXAMPLES`: Enable/disable building examples (OFF by default)
 - `DEBUG_CONNECTION_POOL`: Enable debug output for ConnectionPool (OFF by default)
@@ -81,6 +85,12 @@ The `libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the c
 
 # Enable both MySQL and PostgreSQL
 ./libs/cpp_dbc/build_cpp_dbc.sh --mysql --postgres
+
+# Enable SQLite support
+./libs/cpp_dbc/build_cpp_dbc.sh --sqlite
+
+# Enable all database drivers
+./libs/cpp_dbc/build_cpp_dbc.sh --mysql --postgres --sqlite
 
 # Disable MySQL support
 ./libs/cpp_dbc/build_cpp_dbc.sh --mysql-off
@@ -128,6 +138,12 @@ The `build.sh` script builds the main application, passing all parameters to the
 
 # Enable both MySQL and PostgreSQL
 ./build.sh --mysql --postgres
+
+# Enable SQLite support
+./build.sh --sqlite
+
+# Enable all database drivers
+./build.sh --mysql --postgres --sqlite
 
 # Disable MySQL support
 ./build.sh --mysql-off
@@ -294,6 +310,8 @@ target_compile_definitions(your_app PRIVATE
     $<$<NOT:$<BOOL:${USE_MYSQL}>>:USE_MYSQL=0>
     $<$<BOOL:${USE_POSTGRESQL}>:USE_POSTGRESQL=1>
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
+    $<$<BOOL:${USE_SQLITE}>:USE_SQLITE=1>
+    $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
 )
 ```
 
@@ -301,6 +319,7 @@ The library exports the following CMake variables that you can use to check whic
 
 - `CPP_DBC_USE_MYSQL`: Set to ON if MySQL support is enabled
 - `CPP_DBC_USE_POSTGRESQL`: Set to ON if PostgreSQL support is enabled
+- `CPP_DBC_USE_SQLITE`: Set to ON if SQLite support is enabled
 
 You can use these variables to conditionally include code in your project:
 
@@ -311,6 +330,10 @@ endif()
 
 if(CPP_DBC_USE_POSTGRESQL)
     # PostgreSQL-specific code
+endif()
+
+if(CPP_DBC_USE_SQLITE)
+    # SQLite-specific code
 endif()
 ```
 
@@ -325,6 +348,9 @@ When using the library as an external dependency, include the headers as follows
 #endif
 #if USE_POSTGRESQL
 #include <cpp_dbc/drivers/driver_postgresql.hpp>
+#endif
+#if USE_SQLITE
+#include <cpp_dbc/drivers/driver_sqlite.hpp>
 #endif
 ```
 
@@ -341,6 +367,10 @@ When using the library as an external dependency, include the headers as follows
 #include "cpp_dbc/drivers/driver_postgresql.hpp"
 #endif
 
+#if USE_SQLITE
+#include "cpp_dbc/drivers/driver_sqlite.hpp"
+#endif
+
 int main() {
     // Register available drivers
 #if USE_MYSQL
@@ -351,6 +381,11 @@ int main() {
 #if USE_POSTGRESQL
     cpp_dbc::DriverManager::registerDriver("postgresql",
         std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+#endif
+
+#if USE_SQLITE
+    cpp_dbc::DriverManager::registerDriver("sqlite",
+        std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
 #endif
 
     // Get a connection (will use whichever driver is available)

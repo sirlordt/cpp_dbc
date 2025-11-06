@@ -1,6 +1,30 @@
 # Changelog
 
-## 2025-11-05 6:03:00 PM -0800 [Current]
+## 2025-11-06 11:43:35 AM -0800 [Current]
+
+### SQLite Driver Implementation
+* Added SQLite database driver support:
+  * Added `driver_sqlite.hpp` and `driver_sqlite.cpp` with full SQLite implementation
+  * Added SQLite connection string format support (`cpp_dbc:sqlite://path/to/database.db`)
+  * Added SQLite-specific transaction isolation level handling (only SERIALIZABLE supported)
+  * Added SQLite test cases in `test_sqlite_connection.cpp` and `test_sqlite_real.cpp`
+  * Updated build scripts with `--sqlite` option to enable SQLite support
+  * Added SQLite dependency detection and installation in build scripts
+  * Added SQLite configuration in test YAML file with dev, test, and prod environments
+  * Updated test cases to handle SQLite-specific connection parameters
+
+### Connection Pool and Transaction Manager Improvements
+* Enhanced connection pool with better connection handling:
+  * Added transaction isolation level preservation when returning connections to pool
+  * Improved connection closing mechanism with proper cleanup
+  * Added better handling of connection errors during transaction isolation level setting
+  * Fixed issue with active connections not being properly marked as inactive
+* Enhanced transaction manager with better resource management:
+  * Improved connection return to pool after transaction completion
+  * Added explicit connection closing in transaction commit and rollback
+  * Ensured connections are properly returned to pool even on errors
+
+## 2025-11-05 6:03:00 PM -0800
 
 ### Transaction Isolation Level Support
 * Added transaction isolation level support following JDBC standard:

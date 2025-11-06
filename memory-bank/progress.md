@@ -7,8 +7,9 @@ The CPP_DBC library appears to be in a functional state with the following compo
 1. **Core Interfaces**: All core interfaces (`Connection`, `PreparedStatement`, `ResultSet`, `Driver`) are defined
 2. **MySQL Implementation**: Complete implementation of MySQL driver
 3. **PostgreSQL Implementation**: Complete implementation of PostgreSQL driver
-4. **Connection Pool**: Fully implemented with configuration options
-5. **Transaction Manager**: Fully implemented with transaction tracking and timeout
+4. **SQLite Implementation**: Complete implementation of SQLite driver
+5. **Connection Pool**: Fully implemented with configuration options
+6. **Transaction Manager**: Fully implemented with transaction tracking and timeout
 
 The project includes example code demonstrating:
 - Basic database operations
@@ -45,6 +46,14 @@ The project includes example code demonstrating:
 - Connection timeout handling
 - Thread-safe connection borrowing and returning
 
+### SQLite Support
+- Connection to SQLite databases
+- Prepared statements with parameter binding
+- Result set processing
+- Transaction management
+- In-memory database support
+- File-based database support
+
 ### Transaction Management
 - Transaction creation and tracking
 - Cross-thread transaction coordination
@@ -56,6 +65,10 @@ The project includes example code demonstrating:
   - TRANSACTION_READ_COMMITTED
   - TRANSACTION_REPEATABLE_READ
   - TRANSACTION_SERIALIZABLE
+- Database-specific isolation level implementations:
+  - MySQL: All levels supported (default: REPEATABLE_READ)
+  - PostgreSQL: All levels supported (default: READ_COMMITTED)
+  - SQLite: Only SERIALIZABLE supported
 
 ### YAML Configuration
 - Database configuration loading from YAML files
@@ -71,8 +84,8 @@ Based on the current state of the project, potential areas for enhancement inclu
 
 1. **Additional Database Support**:
    - Oracle Database driver
-   - SQLite driver
    - Microsoft SQL Server driver
+   - ODBC driver for generic database support
 
 2. **Feature Enhancements**:
    - Batch statement execution
@@ -102,7 +115,24 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 
 ### Fixed Issues
-1. **Database Configuration Integration**:
+1. **SQLite Driver Implementation**:
+   - Added SQLite database driver support with full implementation
+   - Added SQLite connection string format support
+   - Added SQLite-specific transaction isolation level handling
+   - Added SQLite test cases and configuration
+   - Updated build scripts with `--sqlite` option
+   - Added SQLite dependency detection and installation in build scripts
+   - Added SQLite configuration in test YAML file
+
+2. **Connection Pool and Transaction Manager Improvements**:
+   - Enhanced connection pool with better connection handling
+   - Added transaction isolation level preservation when returning connections to pool
+   - Improved connection closing mechanism with proper cleanup
+   - Added better handling of connection errors
+   - Enhanced transaction manager with better resource management
+   - Improved connection return to pool after transaction completion
+
+3. **Database Configuration Integration**:
    - Added integration between database configuration and connection classes
    - Created new `config_integration_example.cpp` with examples of different connection methods
    - Added `createConnection()` method to `DatabaseConfig` class

@@ -1,6 +1,6 @@
  Documentación de la Biblioteca CPP_DBC
 
-Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC.
+Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL y SQLite.
 
 ## Tabla de Contenidos
 - [Componentes Principales](#componentes-principales)

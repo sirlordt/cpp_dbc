@@ -21,11 +21,20 @@ std::string getConfigFilePath();
 std::string createConnectionString(const YAML::Node &dbConfig)
 {
     std::string type = dbConfig["type"].as<std::string>();
-    std::string host = dbConfig["host"].as<std::string>();
-    int port = dbConfig["port"].as<int>();
     std::string database = dbConfig["database"].as<std::string>();
 
-    return "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+    // SQLite connection strings are different - they don't have host/port
+    if (type == "sqlite")
+    {
+        return "cpp_dbc:" + type + "://" + database;
+    }
+    else
+    {
+        // MySQL and PostgreSQL connection strings
+        std::string host = dbConfig["host"].as<std::string>();
+        int port = dbConfig["port"].as<int>();
+        return "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+    }
 }
 
 // Helper class to manage database configurations
@@ -142,19 +151,27 @@ TEST_CASE("Database configurations", "[db_config]")
         auto allDatabases = configManager.getAllDatabases();
 
         // Check that we have the expected number of databases
-        REQUIRE(allDatabases.size() == 6); // 3 MySQL + 3 PostgreSQL
+        REQUIRE(allDatabases.size() == 9); // 3 MySQL + 3 PostgreSQL + 3 SQLite
 
         // Check that each database has the required fields
         for (const auto &db : allDatabases)
         {
+            std::string type = db["type"].as<std::string>();
+
+            // Common fields for all database types
             REQUIRE(db["name"]);
             REQUIRE(db["type"]);
-            REQUIRE(db["host"]);
-            REQUIRE(db["port"]);
             REQUIRE(db["database"]);
-            REQUIRE(db["username"]);
-            REQUIRE(db["password"]);
             REQUIRE(db["options"]);
+
+            // Host and port are only required for MySQL and PostgreSQL
+            if (type == "mysql" || type == "postgresql")
+            {
+                REQUIRE(db["host"]);
+                REQUIRE(db["port"]);
+                REQUIRE(db["username"]);
+                REQUIRE(db["password"]);
+            }
         }
     }
 
@@ -207,6 +224,31 @@ TEST_CASE("Database configurations", "[db_config]")
         REQUIRE(std::find(dbNames.begin(), dbNames.end(), "test_postgresql") != dbNames.end());
         REQUIRE(std::find(dbNames.begin(), dbNames.end(), "prod_postgresql") != dbNames.end());
     }
+
+    SECTION("Verify SQLite databases")
+    {
+        auto sqliteDatabases = configManager.getDatabasesByType("sqlite");
+
+        // Check that we have the expected number of SQLite databases
+        REQUIRE(sqliteDatabases.size() == 3);
+
+        // Check that all databases have the correct type
+        for (const auto &db : sqliteDatabases)
+        {
+            REQUIRE(db["type"].as<std::string>() == "sqlite");
+        }
+
+        // Check that we have the expected database names
+        std::vector<std::string> dbNames;
+        for (const auto &db : sqliteDatabases)
+        {
+            dbNames.push_back(db["name"].as<std::string>());
+        }
+
+        REQUIRE(std::find(dbNames.begin(), dbNames.end(), "dev_sqlite") != dbNames.end());
+        REQUIRE(std::find(dbNames.begin(), dbNames.end(), "test_sqlite") != dbNames.end());
+        REQUIRE(std::find(dbNames.begin(), dbNames.end(), "prod_sqlite") != dbNames.end());
+    }
 }
 
 // Test case to verify specific database configurations
@@ -238,7 +280,7 @@ TEST_CASE("Specific database configurations", "[db_config]")
         REQUIRE(options["auto_reconnect"].as<bool>() == true);
     }
 
-    SECTION("Verify prod_postgresql configuration")
+    SECTION("Verify dev_postgresql configuration")
     {
         YAML::Node prodPostgreSQL = configManager.getDatabaseByName("prod_postgresql");
 
@@ -268,6 +310,64 @@ TEST_CASE("Specific database configurations", "[db_config]")
         // Check that the database does not have a name field
         // This is a more reliable way to check if the database exists
         REQUIRE_FALSE(nonExistentDB["name"].IsDefined());
+    }
+}
+
+// Test case to verify specific SQLite database configurations
+TEST_CASE("Specific SQLite database configurations", "[db_config]")
+{
+    DatabaseConfigManager configManager(getConfigFilePath());
+
+    SECTION("Verify dev_sqlite configuration")
+    {
+        YAML::Node devSQLite = configManager.getDatabaseByName("dev_sqlite");
+
+        // Check that the database was found
+        REQUIRE(devSQLite.IsDefined());
+
+        // Check connection parameters
+        REQUIRE(devSQLite["type"].as<std::string>() == "sqlite");
+        REQUIRE(devSQLite["database"].as<std::string>() == ":memory:");
+
+        // Check options
+        YAML::Node options = devSQLite["options"];
+        REQUIRE(options["foreign_keys"].as<bool>() == true);
+        REQUIRE(options["journal_mode"].as<std::string>() == "WAL");
+    }
+
+    SECTION("Verify test_sqlite configuration")
+    {
+        YAML::Node testSQLite = configManager.getDatabaseByName("test_sqlite");
+
+        // Check that the database was found
+        REQUIRE(testSQLite.IsDefined());
+
+        // Check connection parameters
+        REQUIRE(testSQLite["type"].as<std::string>() == "sqlite");
+        REQUIRE(testSQLite["database"].as<std::string>() == "test_sqlite.db");
+
+        // Check options
+        YAML::Node options = testSQLite["options"];
+        REQUIRE(options["foreign_keys"].as<bool>() == true);
+        REQUIRE(options["journal_mode"].as<std::string>() == "WAL");
+    }
+
+    SECTION("Verify prod_sqlite configuration")
+    {
+        YAML::Node prodSQLite = configManager.getDatabaseByName("prod_sqlite");
+
+        // Check that the database was found
+        REQUIRE(prodSQLite.IsDefined());
+
+        // Check connection parameters
+        REQUIRE(prodSQLite["type"].as<std::string>() == "sqlite");
+        REQUIRE(prodSQLite["database"].as<std::string>() == "/path/to/production.db");
+
+        // Check options
+        YAML::Node options = prodSQLite["options"];
+        REQUIRE(options["foreign_keys"].as<bool>() == true);
+        REQUIRE(options["journal_mode"].as<std::string>() == "WAL");
+        REQUIRE(options["synchronous"].as<std::string>() == "FULL");
     }
 }
 
@@ -349,6 +449,21 @@ TEST_CASE("Test queries", "[db_config]")
         REQUIRE(pgQueries["insert_data"].as<std::string>().find("$1") != std::string::npos);
         REQUIRE(pgQueries["select_data"].as<std::string>().find("$1") != std::string::npos);
     }
+
+    SECTION("Verify SQLite test queries")
+    {
+        YAML::Node sqliteQueries = configManager.getTestQueriesForType("sqlite");
+
+        // Check that all expected queries exist
+        REQUIRE(sqliteQueries["create_table"].as<std::string>().find("CREATE TABLE") != std::string::npos);
+        REQUIRE(sqliteQueries["insert_data"].as<std::string>().find("INSERT INTO") != std::string::npos);
+        REQUIRE(sqliteQueries["select_data"].as<std::string>().find("SELECT") != std::string::npos);
+        REQUIRE(sqliteQueries["drop_table"].as<std::string>().find("DROP TABLE") != std::string::npos);
+
+        // Check SQLite parameter style (? placeholders)
+        REQUIRE(sqliteQueries["insert_data"].as<std::string>().find("?") != std::string::npos);
+        REQUIRE(sqliteQueries["select_data"].as<std::string>().find("?") != std::string::npos);
+    }
 }
 
 // Example of how to use the configuration to create connection strings
@@ -381,6 +496,12 @@ TEST_CASE("Create connection strings from configuration", "[db_config]")
         REQUIRE(connectionStrings["dev_postgresql"] == "cpp_dbc:postgresql://localhost:5432/Test01DB");
         REQUIRE(connectionStrings["test_postgresql"] == "cpp_dbc:postgresql://localhost:5432/Test01DB");
         REQUIRE(connectionStrings["prod_postgresql"] == "cpp_dbc:postgresql://db.example.com:5432/Test01DB");
+
+        // Verify connection strings for SQLite databases
+        // SQLite connection strings are different as they don't have host/port
+        REQUIRE(connectionStrings["dev_sqlite"] == "cpp_dbc:sqlite://:memory:");
+        REQUIRE(connectionStrings["test_sqlite"] == "cpp_dbc:sqlite://test_sqlite.db");
+        REQUIRE(connectionStrings["prod_sqlite"] == "cpp_dbc:sqlite:///path/to/production.db");
 
         // In a real application, you would use these connection strings with DriverManager:
         // for (const auto& [dbName, connStr] : connectionStrings) {
@@ -495,4 +616,49 @@ TEST_CASE("Select PostgreSQL database for prod environment", "[db_config]")
     // Create connection string
     std::string connStr = createConnectionString(dbConfig);
     REQUIRE(connStr.find("cpp_dbc:postgresql://") == 0);
+}
+
+TEST_CASE("Select SQLite database for dev environment", "[db_config]")
+{
+    DatabaseConfigManager configManager(getConfigFilePath());
+    std::string dbName = "dev_sqlite";
+    YAML::Node dbConfig = configManager.getDatabaseByName(dbName);
+
+    // Check that the database was found
+    REQUIRE(dbConfig.IsDefined());
+    REQUIRE(dbConfig["type"].as<std::string>() == "sqlite");
+
+    // Create connection string
+    std::string connStr = createConnectionString(dbConfig);
+    REQUIRE(connStr == "cpp_dbc:sqlite://:memory:");
+}
+
+TEST_CASE("Select SQLite database for test environment", "[db_config]")
+{
+    DatabaseConfigManager configManager(getConfigFilePath());
+    std::string dbName = "test_sqlite";
+    YAML::Node dbConfig = configManager.getDatabaseByName(dbName);
+
+    // Check that the database was found
+    REQUIRE(dbConfig.IsDefined());
+    REQUIRE(dbConfig["type"].as<std::string>() == "sqlite");
+
+    // Create connection string
+    std::string connStr = createConnectionString(dbConfig);
+    REQUIRE(connStr == "cpp_dbc:sqlite://test_sqlite.db");
+}
+
+TEST_CASE("Select SQLite database for prod environment", "[db_config]")
+{
+    DatabaseConfigManager configManager(getConfigFilePath());
+    std::string dbName = "prod_sqlite";
+    YAML::Node dbConfig = configManager.getDatabaseByName(dbName);
+
+    // Check that the database was found
+    REQUIRE(dbConfig.IsDefined());
+    REQUIRE(dbConfig["type"].as<std::string>() == "sqlite");
+
+    // Create connection string
+    std::string connStr = createConnectionString(dbConfig);
+    REQUIRE(connStr == "cpp_dbc:sqlite:///path/to/production.db");
 }

@@ -79,7 +79,7 @@ databases:
   # PostgreSQL production database (example)
   - name: prod_postgresql
     type: postgresql
-    host: localhost
+    host: db.example.com
     port: 5432
     database: Test01DB
     username: root
