@@ -491,7 +491,7 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
                     // Close the connection
                     conn->close();
                 }
-                catch (const cpp_dbc::SQLException &e)
+                catch (const cpp_dbc::DBException &e)
                 {
                     std::cout << "Connection to " << name << " failed: " << e.what() << std::endl;
                     // We'll just warn instead of failing the test, since the database might not be available

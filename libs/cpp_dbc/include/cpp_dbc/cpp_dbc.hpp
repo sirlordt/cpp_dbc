@@ -45,10 +45,10 @@ namespace cpp_dbc
     class DriverManager;
 
     // Custom exceptions
-    class SQLException : public std::runtime_error
+    class DBException : public std::runtime_error
     {
     public:
-        explicit SQLException(const std::string &message) : std::runtime_error(message) {}
+        explicit DBException(const std::string &message) : std::runtime_error(message) {}
     };
 
     // Represents a SQL parameter type

@@ -79,7 +79,7 @@ namespace cpp_dbc
         {
             if (!result || !currentRow || columnIndex < 1 || columnIndex > fieldCount)
             {
-                throw SQLException("Invalid column index");
+                throw DBException("Invalid column index");
             }
 
             // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
@@ -97,7 +97,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw SQLException("Column not found: " + columnName);
+                throw DBException("Column not found: " + columnName);
             }
 
             return getInt(it->second + 1); // +1 because getInt(int) is 1-based
@@ -107,7 +107,7 @@ namespace cpp_dbc
         {
             if (!result || !currentRow || columnIndex < 1 || columnIndex > fieldCount)
             {
-                throw SQLException("Invalid column index");
+                throw DBException("Invalid column index");
             }
 
             int idx = columnIndex - 1;
@@ -124,7 +124,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw SQLException("Column not found: " + columnName);
+                throw DBException("Column not found: " + columnName);
             }
 
             return getLong(it->second + 1);
@@ -134,7 +134,7 @@ namespace cpp_dbc
         {
             if (!result || !currentRow || columnIndex < 1 || columnIndex > fieldCount)
             {
-                throw SQLException("Invalid column index");
+                throw DBException("Invalid column index");
             }
 
             int idx = columnIndex - 1;
@@ -151,7 +151,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw SQLException("Column not found: " + columnName);
+                throw DBException("Column not found: " + columnName);
             }
 
             return getDouble(it->second + 1);
@@ -161,7 +161,7 @@ namespace cpp_dbc
         {
             if (!result || !currentRow || columnIndex < 1 || columnIndex > fieldCount)
             {
-                throw SQLException("Invalid column index");
+                throw DBException("Invalid column index");
             }
 
             int idx = columnIndex - 1;
@@ -178,7 +178,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw SQLException("Column not found: " + columnName);
+                throw DBException("Column not found: " + columnName);
             }
 
             return getString(it->second + 1);
@@ -195,7 +195,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw SQLException("Column not found: " + columnName);
+                throw DBException("Column not found: " + columnName);
             }
 
             return getBoolean(it->second + 1);
@@ -205,7 +205,7 @@ namespace cpp_dbc
         {
             if (!result || !currentRow || columnIndex < 1 || columnIndex > fieldCount)
             {
-                throw SQLException("Invalid column index");
+                throw DBException("Invalid column index");
             }
 
             int idx = columnIndex - 1;
@@ -217,7 +217,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw SQLException("Column not found: " + columnName);
+                throw DBException("Column not found: " + columnName);
             }
 
             return isNull(it->second + 1);
@@ -253,13 +253,13 @@ namespace cpp_dbc
 
             if (!mysql)
             {
-                throw SQLException("Invalid MySQL connection");
+                throw DBException("Invalid MySQL connection");
             }
 
             stmt = mysql_stmt_init(mysql);
             if (!stmt)
             {
-                throw SQLException("Failed to initialize statement");
+                throw DBException("Failed to initialize statement");
             }
 
             if (mysql_stmt_prepare(stmt, sql.c_str(), sql.length()) != 0)
@@ -267,7 +267,7 @@ namespace cpp_dbc
                 std::string error = mysql_stmt_error(stmt);
                 mysql_stmt_close(stmt);
                 stmt = nullptr;
-                throw SQLException("Failed to prepare statement: " + error);
+                throw DBException("Failed to prepare statement: " + error);
             }
 
             // Count parameters (question marks) in the SQL
@@ -313,7 +313,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -334,7 +334,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -355,7 +355,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -376,7 +376,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -406,7 +406,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -427,7 +427,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -478,7 +478,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -497,7 +497,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -516,7 +516,7 @@ namespace cpp_dbc
         {
             if (!stmt)
             {
-                throw SQLException("Statement is applied");
+                throw DBException("Statement is applied");
             }
 
             // Reconstruct the query with bound parameters to avoid "Commands out of sync" issue
@@ -535,13 +535,13 @@ namespace cpp_dbc
             // Execute the reconstructed query using the regular connection interface
             if (mysql_query(mysql, finalQuery.c_str()) != 0)
             {
-                throw SQLException(std::string("Query failed: ") + mysql_error(mysql));
+                throw DBException(std::string("Query failed: ") + mysql_error(mysql));
             }
 
             MYSQL_RES *result = mysql_store_result(mysql);
             if (!result && mysql_field_count(mysql) > 0)
             {
-                throw SQLException(std::string("Failed to get result set: ") + mysql_error(mysql));
+                throw DBException(std::string("Failed to get result set: ") + mysql_error(mysql));
             }
 
             auto resultSet = std::make_shared<MySQLResultSet>(result);
@@ -557,19 +557,19 @@ namespace cpp_dbc
         {
             if (!stmt)
             {
-                throw SQLException("Statement is applied");
+                throw DBException("Statement is applied");
             }
 
             // Bind parameters
             if (!binds.empty() && mysql_stmt_bind_param(stmt, binds.data()) != 0)
             {
-                throw SQLException(std::string("Failed to bind parameters: ") + mysql_stmt_error(stmt));
+                throw DBException(std::string("Failed to bind parameters: ") + mysql_stmt_error(stmt));
             }
 
             // Execute the query
             if (mysql_stmt_execute(stmt) != 0)
             {
-                throw SQLException(std::string("Failed to execute update: ") + mysql_stmt_error(stmt));
+                throw DBException(std::string("Failed to execute update: ") + mysql_stmt_error(stmt));
             }
 
             // auto result = mysql_stmt_affected_rows(stmt);
@@ -584,19 +584,19 @@ namespace cpp_dbc
         {
             if (!stmt)
             {
-                throw SQLException("Statement is not initialized");
+                throw DBException("Statement is not initialized");
             }
 
             // Bind parameters
             if (!binds.empty() && mysql_stmt_bind_param(stmt, binds.data()) != 0)
             {
-                throw SQLException(std::string("Failed to bind parameters: ") + mysql_stmt_error(stmt));
+                throw DBException(std::string("Failed to bind parameters: ") + mysql_stmt_error(stmt));
             }
 
             // Execute the query
             if (mysql_stmt_execute(stmt) != 0)
             {
-                throw SQLException(std::string("Failed to execute statement: ") + mysql_stmt_error(stmt));
+                throw DBException(std::string("Failed to execute statement: ") + mysql_stmt_error(stmt));
             }
 
             // Return whether there's a result set
@@ -615,7 +615,7 @@ namespace cpp_dbc
             mysql = mysql_init(nullptr);
             if (!mysql)
             {
-                throw SQLException("Failed to initialize MySQL connection");
+                throw DBException("Failed to initialize MySQL connection");
             }
 
             // Force TCP/IP connection
@@ -629,7 +629,7 @@ namespace cpp_dbc
                 std::string error = mysql_error(mysql);
                 mysql_close(mysql);
                 mysql = nullptr;
-                throw SQLException("Failed to connect to MySQL: " + error);
+                throw DBException("Failed to connect to MySQL: " + error);
             }
 
             // Select the database if provided
@@ -640,7 +640,7 @@ namespace cpp_dbc
                     std::string error = mysql_error(mysql);
                     mysql_close(mysql);
                     mysql = nullptr;
-                    throw SQLException("Failed to select database: " + error);
+                    throw DBException("Failed to select database: " + error);
                 }
             }
 
@@ -720,7 +720,7 @@ namespace cpp_dbc
         {
             if (closed || !mysql)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             auto stmt = std::make_shared<MySQLPreparedStatement>(mysql, sql);
@@ -735,18 +735,18 @@ namespace cpp_dbc
         {
             if (closed || !mysql)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             if (mysql_query(mysql, sql.c_str()) != 0)
             {
-                throw SQLException(std::string("Query failed: ") + mysql_error(mysql));
+                throw DBException(std::string("Query failed: ") + mysql_error(mysql));
             }
 
             MYSQL_RES *result = mysql_store_result(mysql);
             if (!result && mysql_field_count(mysql) > 0)
             {
-                throw SQLException(std::string("Failed to get result set: ") + mysql_error(mysql));
+                throw DBException(std::string("Failed to get result set: ") + mysql_error(mysql));
             }
 
             return std::make_shared<MySQLResultSet>(result);
@@ -756,12 +756,12 @@ namespace cpp_dbc
         {
             if (closed || !mysql)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             if (mysql_query(mysql, sql.c_str()) != 0)
             {
-                throw SQLException(std::string("Update failed: ") + mysql_error(mysql));
+                throw DBException(std::string("Update failed: ") + mysql_error(mysql));
             }
 
             return mysql_affected_rows(mysql);
@@ -771,14 +771,14 @@ namespace cpp_dbc
         {
             if (closed || !mysql)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             // MySQL: autocommit=0 disables auto-commit, autocommit=1 enables it
             std::string query = "SET autocommit=" + std::to_string(autoCommit ? 1 : 0);
             if (mysql_query(mysql, query.c_str()) != 0)
             {
-                throw SQLException(std::string("Failed to set autocommit mode: ") + mysql_error(mysql));
+                throw DBException(std::string("Failed to set autocommit mode: ") + mysql_error(mysql));
             }
 
             this->autoCommit = autoCommit;
@@ -793,12 +793,12 @@ namespace cpp_dbc
         {
             if (closed || !mysql)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             if (mysql_query(mysql, "COMMIT") != 0)
             {
-                throw SQLException(std::string("Commit failed: ") + mysql_error(mysql));
+                throw DBException(std::string("Commit failed: ") + mysql_error(mysql));
             }
         }
 
@@ -806,12 +806,12 @@ namespace cpp_dbc
         {
             if (closed || !mysql)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             if (mysql_query(mysql, "ROLLBACK") != 0)
             {
-                throw SQLException(std::string("Rollback failed: ") + mysql_error(mysql));
+                throw DBException(std::string("Rollback failed: ") + mysql_error(mysql));
             }
         }
 
@@ -819,7 +819,7 @@ namespace cpp_dbc
         {
             if (closed || !mysql)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             std::string query;
@@ -838,12 +838,12 @@ namespace cpp_dbc
                 query = "SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE";
                 break;
             default:
-                throw SQLException("Unsupported transaction isolation level");
+                throw DBException("Unsupported transaction isolation level");
             }
 
             if (mysql_query(mysql, query.c_str()) != 0)
             {
-                throw SQLException(std::string("Failed to set transaction isolation level: ") + mysql_error(mysql));
+                throw DBException(std::string("Failed to set transaction isolation level: ") + mysql_error(mysql));
             }
 
             // Verify that the isolation level was actually set
@@ -864,7 +864,7 @@ namespace cpp_dbc
         {
             if (closed || !mysql)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             // If we're being called from setTransactionIsolation, return the cached value
@@ -886,7 +886,7 @@ namespace cpp_dbc
                     if (mysql_query(mysql, "SELECT @@tx_isolation") != 0)
                     {
                         inGetTransactionIsolation = false;
-                        throw SQLException(std::string("Failed to get transaction isolation level: ") + mysql_error(mysql));
+                        throw DBException(std::string("Failed to get transaction isolation level: ") + mysql_error(mysql));
                     }
                 }
 
@@ -894,7 +894,7 @@ namespace cpp_dbc
                 if (!result)
                 {
                     inGetTransactionIsolation = false;
-                    throw SQLException(std::string("Failed to get result set: ") + mysql_error(mysql));
+                    throw DBException(std::string("Failed to get result set: ") + mysql_error(mysql));
                 }
 
                 MYSQL_ROW row = mysql_fetch_row(result);
@@ -902,7 +902,7 @@ namespace cpp_dbc
                 {
                     mysql_free_result(result);
                     inGetTransactionIsolation = false;
-                    throw SQLException("Failed to fetch transaction isolation level");
+                    throw DBException("Failed to fetch transaction isolation level");
                 }
 
                 std::string level = row[0];
@@ -992,7 +992,7 @@ namespace cpp_dbc
                         }
                         catch (...)
                         {
-                            throw SQLException("Invalid port in URL: " + url);
+                            throw DBException("Invalid port in URL: " + url);
                         }
 
                         // Extract database (if any)
@@ -1011,7 +1011,7 @@ namespace cpp_dbc
                         }
                         catch (...)
                         {
-                            throw SQLException("Invalid port in URL: " + url);
+                            throw DBException("Invalid port in URL: " + url);
                         }
                     }
                 }
@@ -1042,7 +1042,7 @@ namespace cpp_dbc
             }
             else
             {
-                throw SQLException("Invalid MySQL connection URL: " + url);
+                throw DBException("Invalid MySQL connection URL: " + url);
             }
 
             return std::make_shared<MySQLConnection>(host, port, database, user, password);

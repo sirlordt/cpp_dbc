@@ -148,7 +148,7 @@ namespace cpp_dbc
                             }
                             else
                             {
-                                throw cpp_dbc::SQLException("Transaction isolation unknown: " + isolationStr);
+                                throw cpp_dbc::DBException("Transaction isolation unknown: " + isolationStr);
                             }
                         }
 

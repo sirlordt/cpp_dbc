@@ -74,7 +74,7 @@ TEST_CASE("MySQL connection test", "[mysql_connection]")
             // Close the connection
             conn->close();
         }
-        catch (const cpp_dbc::SQLException &e)
+        catch (const cpp_dbc::DBException &e)
         {
             // We expect an exception since Test01DB doesn't exist
             std::string errorMsg = e.what();

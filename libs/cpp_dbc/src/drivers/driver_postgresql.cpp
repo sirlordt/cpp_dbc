@@ -73,7 +73,7 @@ namespace cpp_dbc
         {
             if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
             {
-                throw SQLException("Invalid column index or row position");
+                throw DBException("Invalid column index or row position");
             }
 
             // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
@@ -92,7 +92,7 @@ namespace cpp_dbc
             }
             catch (const std::exception &e)
             {
-                throw SQLException("Failed to convert value to int");
+                throw DBException("Failed to convert value to int");
             }
         }
 
@@ -101,7 +101,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw SQLException("Column not found: " + columnName);
+                throw DBException("Column not found: " + columnName);
             }
 
             return getInt(it->second + 1); // +1 because getInt(int) is 1-based
@@ -111,7 +111,7 @@ namespace cpp_dbc
         {
             if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
             {
-                throw SQLException("Invalid column index or row position");
+                throw DBException("Invalid column index or row position");
             }
 
             int idx = columnIndex - 1;
@@ -129,7 +129,7 @@ namespace cpp_dbc
             }
             catch (const std::exception &e)
             {
-                throw SQLException("Failed to convert value to long");
+                throw DBException("Failed to convert value to long");
             }
         }
 
@@ -138,7 +138,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw SQLException("Column not found: " + columnName);
+                throw DBException("Column not found: " + columnName);
             }
 
             return getLong(it->second + 1);
@@ -148,7 +148,7 @@ namespace cpp_dbc
         {
             if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
             {
-                throw SQLException("Invalid column index or row position");
+                throw DBException("Invalid column index or row position");
             }
 
             int idx = columnIndex - 1;
@@ -166,7 +166,7 @@ namespace cpp_dbc
             }
             catch (const std::exception &e)
             {
-                throw SQLException("Failed to convert value to double");
+                throw DBException("Failed to convert value to double");
             }
         }
 
@@ -175,7 +175,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw SQLException("Column not found: " + columnName);
+                throw DBException("Column not found: " + columnName);
             }
 
             return getDouble(it->second + 1);
@@ -185,7 +185,7 @@ namespace cpp_dbc
         {
             if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
             {
-                throw SQLException("Invalid column index or row position");
+                throw DBException("Invalid column index or row position");
             }
 
             int idx = columnIndex - 1;
@@ -204,7 +204,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw SQLException("Column not found: " + columnName);
+                throw DBException("Column not found: " + columnName);
             }
 
             return getString(it->second + 1);
@@ -221,7 +221,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw SQLException("Column not found: " + columnName);
+                throw DBException("Column not found: " + columnName);
             }
 
             return getBoolean(it->second + 1);
@@ -231,7 +231,7 @@ namespace cpp_dbc
         {
             if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
             {
-                throw SQLException("Invalid column index or row position");
+                throw DBException("Invalid column index or row position");
             }
 
             int idx = columnIndex - 1;
@@ -245,7 +245,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw SQLException("Column not found: " + columnName);
+                throw DBException("Column not found: " + columnName);
             }
 
             return isNull(it->second + 1);
@@ -279,7 +279,7 @@ namespace cpp_dbc
         {
             if (!conn)
             {
-                throw SQLException("Invalid PostgreSQL connection");
+                throw DBException("Invalid PostgreSQL connection");
             }
 
             // Count parameters (using $1, $2, etc. instead of ?)
@@ -351,7 +351,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -365,7 +365,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -379,7 +379,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -393,7 +393,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -407,7 +407,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -421,7 +421,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -470,7 +470,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -484,7 +484,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
             {
-                throw SQLException("Invalid parameter index");
+                throw DBException("Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -498,7 +498,7 @@ namespace cpp_dbc
         {
             if (!conn)
             {
-                throw SQLException("Connection is invalid");
+                throw DBException("Connection is invalid");
             }
 
             // Prepare the statement if not already prepared
@@ -509,7 +509,7 @@ namespace cpp_dbc
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
                     PQclear(prepareResult);
-                    throw SQLException("Failed to prepare statement: " + error);
+                    throw DBException("Failed to prepare statement: " + error);
                 }
                 PQclear(prepareResult);
                 prepared = true;
@@ -537,7 +537,7 @@ namespace cpp_dbc
             {
                 std::string error = PQresultErrorMessage(result);
                 PQclear(result);
-                throw SQLException("Failed to execute query: " + error);
+                throw DBException("Failed to execute query: " + error);
             }
 
             auto resultSet = std::make_shared<PostgreSQLResultSet>(result);
@@ -553,7 +553,7 @@ namespace cpp_dbc
         {
             if (!conn)
             {
-                throw SQLException("Connection is invalid");
+                throw DBException("Connection is invalid");
             }
 
             // Prepare the statement if not already prepared
@@ -564,7 +564,7 @@ namespace cpp_dbc
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
                     PQclear(prepareResult);
-                    throw SQLException("Failed to prepare statement: " + error);
+                    throw DBException("Failed to prepare statement: " + error);
                 }
                 PQclear(prepareResult);
                 prepared = true;
@@ -592,7 +592,7 @@ namespace cpp_dbc
             {
                 std::string error = PQresultErrorMessage(result);
                 PQclear(result);
-                throw SQLException("Failed to execute update: " + error);
+                throw DBException("Failed to execute update: " + error);
             }
 
             // Get the number of affected rows
@@ -615,7 +615,7 @@ namespace cpp_dbc
         {
             if (!conn)
             {
-                throw SQLException("Connection is invalid");
+                throw DBException("Connection is invalid");
             }
 
             // Prepare the statement if not already prepared
@@ -626,7 +626,7 @@ namespace cpp_dbc
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
                     PQclear(prepareResult);
-                    throw SQLException("Failed to prepare statement: " + error);
+                    throw DBException("Failed to prepare statement: " + error);
                 }
                 PQclear(prepareResult);
                 prepared = true;
@@ -658,7 +658,7 @@ namespace cpp_dbc
             {
                 std::string error = PQresultErrorMessage(result);
                 PQclear(result);
-                throw SQLException("Failed to execute statement: " + error);
+                throw DBException("Failed to execute statement: " + error);
             }
 
             PQclear(result);
@@ -689,7 +689,7 @@ namespace cpp_dbc
                 std::string error = PQerrorMessage(conn);
                 PQfinish(conn);
                 conn = nullptr;
-                throw SQLException("Failed to connect to PostgreSQL: " + error);
+                throw DBException("Failed to connect to PostgreSQL: " + error);
             }
 
             // Set up a notice processor to suppress NOTICE messages
@@ -773,7 +773,7 @@ namespace cpp_dbc
         {
             if (closed || !conn)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             // Generate a unique statement name and pass it to the prepared statement
@@ -789,7 +789,7 @@ namespace cpp_dbc
         {
             if (closed || !conn)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             PGresult *result = PQexec(conn, sql.c_str());
@@ -797,7 +797,7 @@ namespace cpp_dbc
             {
                 std::string error = PQresultErrorMessage(result);
                 PQclear(result);
-                throw SQLException("Query failed: " + error);
+                throw DBException("Query failed: " + error);
             }
 
             return std::make_shared<PostgreSQLResultSet>(result);
@@ -807,7 +807,7 @@ namespace cpp_dbc
         {
             if (closed || !conn)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             PGresult *result = PQexec(conn, sql.c_str());
@@ -815,7 +815,7 @@ namespace cpp_dbc
             {
                 std::string error = PQresultErrorMessage(result);
                 PQclear(result);
-                throw SQLException("Update failed: " + error);
+                throw DBException("Update failed: " + error);
             }
 
             // Get the number of affected rows
@@ -834,7 +834,7 @@ namespace cpp_dbc
         {
             if (closed || !conn)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             // PostgreSQL: BEGIN starts a transaction, COMMIT ends it
@@ -857,7 +857,7 @@ namespace cpp_dbc
                     {
                         std::string error = PQresultErrorMessage(dummyResult);
                         PQclear(dummyResult);
-                        throw SQLException("Failed to start SERIALIZABLE transaction: " + error);
+                        throw DBException("Failed to start SERIALIZABLE transaction: " + error);
                     }
                     PQclear(dummyResult);
 
@@ -867,7 +867,7 @@ namespace cpp_dbc
                     {
                         std::string error = PQresultErrorMessage(snapshotResult);
                         PQclear(snapshotResult);
-                        throw SQLException("Failed to acquire snapshot: " + error);
+                        throw DBException("Failed to acquire snapshot: " + error);
                     }
                     PQclear(snapshotResult);
                     return; // We've already started the transaction and acquired the snapshot
@@ -880,7 +880,7 @@ namespace cpp_dbc
                     {
                         std::string error = PQresultErrorMessage(result);
                         PQclear(result);
-                        throw SQLException("Failed to start transaction: " + error);
+                        throw DBException("Failed to start transaction: " + error);
                     }
                     PQclear(result);
                 }
@@ -893,7 +893,7 @@ namespace cpp_dbc
                 {
                     std::string error = PQresultErrorMessage(result);
                     PQclear(result);
-                    throw SQLException("Failed to commit transaction: " + error);
+                    throw DBException("Failed to commit transaction: " + error);
                 }
                 PQclear(result);
             }
@@ -910,7 +910,7 @@ namespace cpp_dbc
         {
             if (closed || !conn)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             PGresult *result = PQexec(conn, "COMMIT");
@@ -918,7 +918,7 @@ namespace cpp_dbc
             {
                 std::string error = PQresultErrorMessage(result);
                 PQclear(result);
-                throw SQLException("Commit failed: " + error);
+                throw DBException("Commit failed: " + error);
             }
             PQclear(result);
 
@@ -930,7 +930,7 @@ namespace cpp_dbc
                 {
                     std::string error = PQresultErrorMessage(result);
                     PQclear(result);
-                    throw SQLException("Failed to start transaction: " + error);
+                    throw DBException("Failed to start transaction: " + error);
                 }
                 PQclear(result);
             }
@@ -940,7 +940,7 @@ namespace cpp_dbc
         {
             if (closed || !conn)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             PGresult *result = PQexec(conn, "ROLLBACK");
@@ -948,7 +948,7 @@ namespace cpp_dbc
             {
                 std::string error = PQresultErrorMessage(result);
                 PQclear(result);
-                throw SQLException("Rollback failed: " + error);
+                throw DBException("Rollback failed: " + error);
             }
             PQclear(result);
 
@@ -960,7 +960,7 @@ namespace cpp_dbc
                 {
                     std::string error = PQresultErrorMessage(result);
                     PQclear(result);
-                    throw SQLException("Failed to start transaction: " + error);
+                    throw DBException("Failed to start transaction: " + error);
                 }
                 PQclear(result);
             }
@@ -970,7 +970,7 @@ namespace cpp_dbc
         {
             if (closed || !conn)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             std::string query;
@@ -990,7 +990,7 @@ namespace cpp_dbc
                 query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE";
                 break;
             default:
-                throw SQLException("Unsupported transaction isolation level");
+                throw DBException("Unsupported transaction isolation level");
             }
 
             PGresult *result = PQexec(conn, query.c_str());
@@ -998,7 +998,7 @@ namespace cpp_dbc
             {
                 std::string error = PQresultErrorMessage(result);
                 PQclear(result);
-                throw SQLException("Failed to set transaction isolation level: " + error);
+                throw DBException("Failed to set transaction isolation level: " + error);
             }
             PQclear(result);
 
@@ -1013,7 +1013,7 @@ namespace cpp_dbc
                 {
                     std::string error = PQresultErrorMessage(result);
                     PQclear(result);
-                    throw SQLException("Failed to commit transaction: " + error);
+                    throw DBException("Failed to commit transaction: " + error);
                 }
                 PQclear(result);
 
@@ -1026,7 +1026,7 @@ namespace cpp_dbc
                     {
                         std::string error = PQresultErrorMessage(result);
                         PQclear(result);
-                        throw SQLException("Failed to start SERIALIZABLE transaction: " + error);
+                        throw DBException("Failed to start SERIALIZABLE transaction: " + error);
                     }
                     PQclear(result);
 
@@ -1036,7 +1036,7 @@ namespace cpp_dbc
                     {
                         std::string error = PQresultErrorMessage(snapshotResult);
                         PQclear(snapshotResult);
-                        throw SQLException("Failed to acquire snapshot: " + error);
+                        throw DBException("Failed to acquire snapshot: " + error);
                     }
                     PQclear(snapshotResult);
                 }
@@ -1048,7 +1048,7 @@ namespace cpp_dbc
                     {
                         std::string error = PQresultErrorMessage(result);
                         PQclear(result);
-                        throw SQLException("Failed to start transaction: " + error);
+                        throw DBException("Failed to start transaction: " + error);
                     }
                     PQclear(result);
                 }
@@ -1059,7 +1059,7 @@ namespace cpp_dbc
         {
             if (closed || !conn)
             {
-                throw SQLException("Connection is closed");
+                throw DBException("Connection is closed");
             }
 
             // Query the current isolation level
@@ -1068,13 +1068,13 @@ namespace cpp_dbc
             {
                 std::string error = PQresultErrorMessage(result);
                 PQclear(result);
-                throw SQLException("Failed to get transaction isolation level: " + error);
+                throw DBException("Failed to get transaction isolation level: " + error);
             }
 
             if (PQntuples(result) == 0)
             {
                 PQclear(result);
-                throw SQLException("Failed to fetch transaction isolation level");
+                throw DBException("Failed to fetch transaction isolation level");
             }
 
             std::string level = PQgetvalue(result, 0, 0);
@@ -1149,7 +1149,7 @@ namespace cpp_dbc
                 // URL is in the format cpp_dbc:postgresql://host:port/database
                 if (!parseURL(url, host, port, database))
                 {
-                    throw SQLException("Invalid PostgreSQL connection URL: " + url);
+                    throw DBException("Invalid PostgreSQL connection URL: " + url);
                 }
             }
             else
@@ -1168,7 +1168,7 @@ namespace cpp_dbc
                         hostEnd = temp.find("/");
                         if (hostEnd == std::string::npos)
                         {
-                            throw SQLException("Invalid PostgreSQL connection URL: " + url);
+                            throw DBException("Invalid PostgreSQL connection URL: " + url);
                         }
 
                         host = temp.substr(0, hostEnd);
@@ -1182,7 +1182,7 @@ namespace cpp_dbc
                         size_t portEnd = temp.find("/", hostEnd + 1);
                         if (portEnd == std::string::npos)
                         {
-                            throw SQLException("Invalid PostgreSQL connection URL: " + url);
+                            throw DBException("Invalid PostgreSQL connection URL: " + url);
                         }
 
                         std::string portStr = temp.substr(hostEnd + 1, portEnd - hostEnd - 1);
@@ -1192,7 +1192,7 @@ namespace cpp_dbc
                         }
                         catch (...)
                         {
-                            throw SQLException("Invalid port in URL: " + url);
+                            throw DBException("Invalid port in URL: " + url);
                         }
 
                         // Extract database
@@ -1201,7 +1201,7 @@ namespace cpp_dbc
                 }
                 else
                 {
-                    throw SQLException("Invalid PostgreSQL connection URL: " + url);
+                    throw DBException("Invalid PostgreSQL connection URL: " + url);
                 }
             }
 

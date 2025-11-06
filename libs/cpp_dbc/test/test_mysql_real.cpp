@@ -281,8 +281,8 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
                         // // Attempting to use it again should fail
                         // try {
                         //     pstmt->executeUpdate(); // This should fail
-                        //     FAIL("Expected SQLException for reusing closed PreparedStatement");
-                        // } catch (const cpp_dbc::SQLException& e) {
+                        //     FAIL("Expected DBException for reusing closed PreparedStatement");
+                        // } catch (const cpp_dbc::DBException& e) {
                         //     // Expected behavior - statement is closed after first use
                         //     cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(),
                         //         "Expected exception caught: " + std::string(e.what()));

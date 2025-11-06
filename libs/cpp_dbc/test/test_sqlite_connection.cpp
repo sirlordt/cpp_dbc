@@ -120,7 +120,7 @@ TEST_CASE("SQLite connection test", "[sqlite_connection]")
             // Close the connection
             conn->close();
         }
-        catch (const cpp_dbc::SQLException &e)
+        catch (const cpp_dbc::DBException &e)
         {
             std::string errorMsg = e.what();
             std::cout << "SQLite connection error: " << errorMsg << std::endl;
@@ -170,7 +170,7 @@ TEST_CASE("SQLite in-memory database test", "[sqlite_memory]")
             // Attempting to set a different isolation level should throw an exception
             REQUIRE_THROWS_AS(
                 conn->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED),
-                cpp_dbc::SQLException);
+                cpp_dbc::DBException);
 
             // Close all result sets and statements before closing the connection
             resultSet->close();
@@ -179,7 +179,7 @@ TEST_CASE("SQLite in-memory database test", "[sqlite_memory]")
             // Close the connection
             conn->close();
         }
-        catch (const cpp_dbc::SQLException &e)
+        catch (const cpp_dbc::DBException &e)
         {
             std::string errorMsg = e.what();
             std::cout << "SQLite in-memory database error: " << errorMsg << std::endl;

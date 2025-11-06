@@ -65,7 +65,7 @@ namespace cpp_dbc
         auto it = activeTransactions.find(transactionId);
         if (it == activeTransactions.end())
         {
-            throw SQLException("Transaction not found: " + transactionId);
+            throw DBException("Transaction not found: " + transactionId);
         }
 
         // Update last access time
@@ -85,7 +85,7 @@ namespace cpp_dbc
             auto it = activeTransactions.find(transactionId);
             if (it == activeTransactions.end())
             {
-                throw SQLException("Transaction not found: " + transactionId);
+                throw DBException("Transaction not found: " + transactionId);
             }
 
             transContext = it->second;
@@ -103,7 +103,7 @@ namespace cpp_dbc
             // No need to call close() first, as returnToPool() will handle the connection properly
             transContext->connection->returnToPool();
         }
-        catch (const SQLException &e)
+        catch (const DBException &e)
         {
             // Make sure to reset auto-commit even on error
             try
@@ -135,7 +135,7 @@ namespace cpp_dbc
             auto it = activeTransactions.find(transactionId);
             if (it == activeTransactions.end())
             {
-                throw SQLException("Transaction not found: " + transactionId);
+                throw DBException("Transaction not found: " + transactionId);
             }
 
             transContext = it->second;
@@ -153,7 +153,7 @@ namespace cpp_dbc
             // No need to call close() first, as returnToPool() will handle the connection properly
             transContext->connection->returnToPool();
         }
-        catch (const SQLException &e)
+        catch (const DBException &e)
         {
             // Make sure to reset auto-commit even on error
             try

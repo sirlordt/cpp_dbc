@@ -17,11 +17,11 @@ Este documento proporciona una guía completa de la biblioteca CPP_DBC, una bibl
 ## Componentes Principales
 *Componentes definidos en cpp_dbc.hpp*
 
-### SQLException
-Una clase de excepción personalizada para errores relacionados con SQL.
+### DBException
+Una clase de excepción personalizada para errores relacionados con la base de datos.
 
 **Métodos:**
-- `SQLException(const std::string& message)`: Constructor que toma un mensaje de error.
+- `DBException(const std::string& message)`: Constructor que toma un mensaje de error.
 
 ### Enum Types
 Representa tipos de parámetros SQL.

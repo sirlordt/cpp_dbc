@@ -170,7 +170,7 @@ TEST_CASE("SQLite real database operations", "[sqlite_real]")
             // Close the connection
             conn->close();
         }
-        catch (const cpp_dbc::SQLException &e)
+        catch (const cpp_dbc::DBException &e)
         {
             std::string errorMsg = e.what();
             std::cout << "SQLite real database error: " << errorMsg << std::endl;

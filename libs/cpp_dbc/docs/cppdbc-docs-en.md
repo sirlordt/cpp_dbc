@@ -17,11 +17,11 @@ This document provides a comprehensive guide to the CPP_DBC library, a C++ Datab
 ## Core Components
 *Components defined in cpp_dbc.hpp*
 
-### SQLException
-A custom exception class for SQL-related errors.
+### DBException
+A custom exception class for database-related errors.
 
 **Methods:**
-- `SQLException(const std::string& message)`: Constructor that takes an error message.
+- `DBException(const std::string& message)`: Constructor that takes an error message.
 
 ### Types Enum
 Represents SQL parameter types.

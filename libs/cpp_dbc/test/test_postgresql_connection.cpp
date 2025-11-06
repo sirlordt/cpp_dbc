@@ -74,7 +74,7 @@ TEST_CASE("PostgreSQL connection test", "[postgresql_connection]")
             // Close the connection
             conn->close();
         }
-        catch (const cpp_dbc::SQLException &e)
+        catch (const cpp_dbc::DBException &e)
         {
             // If we get here, the connection failed
             std::string errorMsg = e.what();

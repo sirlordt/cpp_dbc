@@ -33,7 +33,7 @@ TEST_CASE("DriverManager tests", "[driver][manager]")
         // Try to get a connection with a non-existent driver
         REQUIRE_THROWS_AS(
             cpp_dbc::DriverManager::getConnection("cpp_dbc:nonexistent://localhost:1234/db", "user", "pass"),
-            cpp_dbc::SQLException);
+            cpp_dbc::DBException);
     }
 }
 
@@ -65,11 +65,11 @@ TEST_CASE("MySQL driver tests", "[driver][mysql]")
         // We can't actually connect to a database in unit tests,
         // but we can verify that the driver correctly parses connection strings
 
-        // This would normally throw a SQLException if the database doesn't exist,
+        // This would normally throw a DBException if the database doesn't exist,
         // but we're just testing the URL parsing logic
         REQUIRE_THROWS_AS(
             driver.connect("cpp_dbc:mysql://localhost:3306/non_existent_db", "user", "pass"),
-            cpp_dbc::SQLException);
+            cpp_dbc::DBException);
     }
 }
 #endif
@@ -102,34 +102,34 @@ TEST_CASE("PostgreSQL driver tests", "[driver][postgresql]")
         // We can't actually connect to a database in unit tests,
         // but we can verify that the driver correctly parses connection strings
 
-        // This would normally throw a SQLException if the database doesn't exist,
+        // This would normally throw a DBException if the database doesn't exist,
         // but we're just testing the URL parsing logic
         REQUIRE_THROWS_AS(
             driver.connect("cpp_dbc:postgresql://localhost:5432/non_existent_db", "user", "pass"),
-            cpp_dbc::SQLException);
+            cpp_dbc::DBException);
     }
 }
 #endif
 
-// Test case for SQLException
-TEST_CASE("SQLException tests", "[exception]")
+// Test case for DBException
+TEST_CASE("DBException tests", "[exception]")
 {
-    SECTION("Create and throw SQLException")
+    SECTION("Create and throw DBException")
     {
         // Create an exception
-        cpp_dbc::SQLException ex("Test error message");
+        cpp_dbc::DBException ex("Test error message");
 
         // Check the error message
         REQUIRE(std::string(ex.what()) == "Test error message");
 
         // Check that we can throw and catch it
         REQUIRE_THROWS_AS(
-            throw cpp_dbc::SQLException("Test throw"),
-            cpp_dbc::SQLException);
+            throw cpp_dbc::DBException("Test throw"),
+            cpp_dbc::DBException);
 
         // Check that we can catch it as a std::exception
         REQUIRE_THROWS_AS(
-            throw cpp_dbc::SQLException("Test throw"),
+            throw cpp_dbc::DBException("Test throw"),
             std::exception);
     }
 }
