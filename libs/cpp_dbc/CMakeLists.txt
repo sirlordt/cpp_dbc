@@ -4,6 +4,7 @@ project(cpp_dbc VERSION 0.1.0 LANGUAGES CXX)
 # Options for conditional compilation
 option(USE_MYSQL "Enable MySQL support" ON)
 option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
+option(USE_SQLITE "Enable SQLite support" OFF)
 option(USE_CPP_YAML "Enable YAML configuration support" OFF)
 
 # Debug options
@@ -47,6 +48,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<NOT:$<BOOL:${USE_MYSQL}>>:USE_MYSQL=0>
     $<$<BOOL:${USE_POSTGRESQL}>:USE_POSTGRESQL=1>
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
+    $<$<BOOL:${USE_SQLITE}>:USE_SQLITE=1>
+    $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
     $<$<BOOL:${DEBUG_CONNECTION_POOL}>:DEBUG_CONNECTION_POOL=1>
@@ -86,6 +89,18 @@ if(USE_POSTGRESQL)
     find_package(PostgreSQL REQUIRED)
     target_include_directories(cpp_dbc PUBLIC ${PostgreSQL_INCLUDE_DIRS})
     target_link_libraries(cpp_dbc PUBLIC ${PostgreSQL_LIBRARIES})
+endif()
+
+# Conditionally add SQLite driver files and dependencies
+if(USE_SQLITE)
+    target_sources(cpp_dbc PRIVATE
+        src/drivers/driver_sqlite.cpp
+    )
+
+    # Find SQLite package
+    find_package(SQLite3 REQUIRED)
+    target_include_directories(cpp_dbc PUBLIC ${SQLite3_INCLUDE_DIRS})
+    target_link_libraries(cpp_dbc PUBLIC ${SQLite3_LIBRARIES})
 endif()
 
 # Conditionally add YAML-CPP dependencies
@@ -153,6 +168,7 @@ install(FILES
 install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindMySQL.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindPostgreSQL.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSQLite3.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/cpp_dbc
 )
 

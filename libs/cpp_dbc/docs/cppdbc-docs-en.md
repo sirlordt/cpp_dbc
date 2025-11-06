@@ -6,6 +6,7 @@ This document provides a comprehensive guide to the CPP_DBC library, a C++ Datab
 - [Core Components](#core-components)
 - [MySQL Implementation](#mysql-implementation)
 - [PostgreSQL Implementation](#postgresql-implementation)
+- [SQLite Implementation](#sqlite-implementation)
 - [Connection Pool](#connection-pool)
 - [Transaction Manager](#transaction-manager)
 - [Configuration System](#configuration-system)
@@ -181,6 +182,42 @@ Same as Driver, plus:
 
 ---
 
+## SQLite Implementation
+*Components defined in drivers/driver_sqlite.hpp and drivers/driver_sqlite.cpp*
+
+### SQLiteResultSet
+Implementation of ResultSet for SQLite.
+
+**Methods:**
+Same as ResultSet, plus:
+- `SQLiteResultSet(sqlite3_stmt*, bool)`: Constructor that takes a SQLite statement and ownership flag.
+
+### SQLitePreparedStatement
+Implementation of PreparedStatement for SQLite.
+
+**Methods:**
+Same as PreparedStatement, plus:
+- `SQLitePreparedStatement(sqlite3*, string)`: Constructor that takes a SQLite database connection and SQL statement.
+
+### SQLiteConnection
+Implementation of Connection for SQLite.
+
+**Methods:**
+Same as Connection, plus:
+- `SQLiteConnection(string)`: Constructor that takes a database path.
+- `setTransactionIsolation(TransactionIsolationLevel)`: Sets the transaction isolation level for SQLite (only SERIALIZABLE is supported).
+- `getTransactionIsolation()`: Returns the current transaction isolation level.
+
+### SQLiteDriver
+Implementation of Driver for SQLite.
+
+**Methods:**
+Same as Driver, plus:
+- `SQLiteDriver()`: Constructor.
+- `parseURL(string, string&)`: Parses a connection URL.
+
+---
+
 ## Connection Pool
 *Components defined in connection_pool.hpp and connection_pool.cpp*
 
@@ -353,6 +390,7 @@ Loads database configurations from YAML files.
 - C++23 compiler
 - MySQL development libraries (for MySQL support)
 - PostgreSQL development libraries (for PostgreSQL support, optional)
+- SQLite development libraries (for SQLite support, optional)
 - yaml-cpp library (for YAML configuration support, optional)
 - CMake 3.15 or later
 - Conan for dependency management
@@ -370,6 +408,12 @@ The library provides build scripts to simplify the build process:
 
 # Build with PostgreSQL support only
 ./build.sh --mysql-off --postgres
+
+# Build with SQLite support
+./build.sh --sqlite
+
+# Build with MySQL, PostgreSQL and SQLite support
+./build.sh --mysql --postgres --sqlite
 
 # Enable YAML configuration support
 ./build.sh --yaml
@@ -391,6 +435,12 @@ The library provides build scripts to simplify the build process:
 
 # Build Docker container with PostgreSQL and YAML support
 ./build.dist.sh --postgres --yaml
+
+# Build Docker container with SQLite support
+./build.dist.sh --sqlite
+
+# Build Docker container with all database drivers
+./build.dist.sh --postgres --sqlite --yaml
 ```
 
 The build script:
@@ -415,6 +465,9 @@ The project includes a helper script (`helper.sh`) that provides various utiliti
 
 # Build with PostgreSQL support
 ./helper.sh --build --postgres
+
+# Build with SQLite support
+./helper.sh --build --sqlite
 
 # Build with YAML support
 ./helper.sh --build --yaml
@@ -458,11 +511,14 @@ You can also build the library manually with CMake:
 mkdir -p libs/cpp_dbc/build
 cd libs/cpp_dbc/build
 
-# Configure with CMake (MySQL enabled, PostgreSQL disabled, YAML disabled)
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+# Configure with CMake (MySQL enabled, PostgreSQL disabled, SQLite disabled, YAML disabled)
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Configure with YAML support
-# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+
+# Configure with SQLite support
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=ON -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Build and install
 cmake --build . --target install
@@ -475,10 +531,13 @@ mkdir -p build
 cd build
 
 # Configure with CMake
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=OFF -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc
 
 # Configure with YAML support
-# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_CPP_YAML=ON -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=ON -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc
+
+# Configure with SQLite support
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=ON -DUSE_CPP_YAML=OFF -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc
 
 # Build
 cmake --build .

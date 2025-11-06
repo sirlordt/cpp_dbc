@@ -10,9 +10,10 @@ echo "Building C++ demo application..."
 # Build the cpp_dbc library using its own build script
 echo "Building cpp_dbc library..."
 
-# Parse command line arguments to set USE_MYSQL, USE_POSTGRESQL, BUILD_TYPE, and BUILD_TESTS
+# Parse command line arguments to set USE_MYSQL, USE_POSTGRESQL, USE_SQLITE, BUILD_TYPE, and BUILD_TESTS
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
+USE_SQLITE=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
@@ -33,6 +34,12 @@ do
         --postgres-off)
         USE_POSTGRESQL=OFF
         ;;
+        --sqlite|--sqlite-on)
+        USE_SQLITE=ON
+        ;;
+        --sqlite-off)
+        USE_SQLITE=OFF
+        ;;
         --yaml|--yaml-on)
         USE_CPP_YAML=ON
         ;;
@@ -52,6 +59,8 @@ do
         echo "  --mysql-off            Disable MySQL support"
         echo "  --postgres, --postgres-on  Enable PostgreSQL support"
         echo "  --postgres-off         Disable PostgreSQL support"
+        echo "  --sqlite, --sqlite-on  Enable SQLite support"
+        echo "  --sqlite-off           Disable SQLite support"
         echo "  --yaml, --yaml-on      Enable YAML configuration support"
         echo "  --release              Build in Release mode (default: Debug)"
         echo "  --test                 Build cpp_dbc tests"
@@ -65,6 +74,7 @@ done
 # Export the variables so they're available to the build script
 export USE_MYSQL
 export USE_POSTGRESQL
+export USE_SQLITE
 export USE_CPP_YAML
 export BUILD_TYPE
 export BUILD_TESTS
@@ -81,6 +91,12 @@ if [ "$USE_POSTGRESQL" = "ON" ]; then
     POSTGRES_PARAM="--postgres"
 else
     POSTGRES_PARAM="--postgres-off"
+fi
+
+if [ "$USE_SQLITE" = "ON" ]; then
+    SQLITE_PARAM="--sqlite"
+else
+    SQLITE_PARAM="--sqlite-off"
 fi
 
 # Pass the build type to the cpp_dbc build script
@@ -112,7 +128,7 @@ else
 fi
 
 # Build the cpp_dbc library
-./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM
+./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM
 
 # If the cpp_dbc build script fails, stop the build process
 if [ $? -ne 0 ]; then
@@ -145,6 +161,7 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
          -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
          -DUSE_MYSQL=$USE_MYSQL \
          -DUSE_POSTGRESQL=$USE_POSTGRESQL \
+         -DUSE_SQLITE=$USE_SQLITE \
          -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc \
          -Wno-dev
 
@@ -165,6 +182,7 @@ echo ""
 echo "Options status:"
 echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
+echo "  SQLite: $USE_SQLITE"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"

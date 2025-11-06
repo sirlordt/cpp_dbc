@@ -11,10 +11,16 @@
 #if USE_POSTGRESQL
 #include <cpp_dbc/drivers/driver_postgresql.hpp>
 #endif
+#if USE_SQLITE
+#include <cpp_dbc/drivers/driver_sqlite.hpp>
+#endif
 #include "test_mocks.hpp"
 #include <string>
 #include <memory>
 #include <thread>
+#if USE_CPP_YAML
+#include <yaml-cpp/yaml.h>
+#endif
 #include <vector>
 #include <atomic>
 #include <chrono>
@@ -393,5 +399,109 @@ TEST_CASE("Load and use test_db_connections.yml", "[integration]")
 
         // We'll skip the actual YAML parsing here since it depends on the YAML-CPP library
         // which might not be available in all builds
+    }
+}
+
+// Test case for real database integration with all available drivers
+TEST_CASE("Real database integration with all drivers", "[integration][real]")
+{
+    // Register all available drivers
+#if USE_MYSQL
+    cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+    std::cout << "MySQL driver registered" << std::endl;
+#endif
+
+#if USE_POSTGRESQL
+    cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+    std::cout << "PostgreSQL driver registered" << std::endl;
+#endif
+
+#if USE_SQLITE
+    cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+    std::cout << "SQLite driver registered" << std::endl;
+#endif
+
+    SECTION("Test connection to all available databases")
+    {
+#if USE_CPP_YAML
+        // Load the YAML configuration
+        std::string config_path = getConfigFilePath();
+        YAML::Node config = YAML::LoadFile(config_path);
+
+        if (config["databases"].IsSequence())
+        {
+            for (std::size_t i = 0; i < config["databases"].size(); ++i)
+            {
+                YAML::Node db = config["databases"][i];
+                std::string name = db["name"].as<std::string>();
+                std::string type = db["type"].as<std::string>();
+
+                // Skip if the driver is not enabled
+#if !USE_MYSQL
+                if (type == "mysql")
+                    continue;
+#endif
+#if !USE_POSTGRESQL
+                if (type == "postgresql")
+                    continue;
+#endif
+#if !USE_SQLITE
+                if (type == "sqlite")
+                    continue;
+#endif
+
+                std::cout << "Testing connection to " << name << " (" << type << ")" << std::endl;
+
+                try
+                {
+                    // Create connection string
+                    std::string connStr;
+                    std::string username;
+                    std::string password;
+
+                    if (type == "sqlite")
+                    {
+                        std::string database = db["database"].as<std::string>();
+                        connStr = "cpp_dbc:" + type + "://" + database;
+                        username = "";
+                        password = "";
+                    }
+                    else
+                    {
+                        std::string host = db["host"].as<std::string>();
+                        int port = db["port"].as<int>();
+                        std::string database = db["database"].as<std::string>();
+                        username = db["username"].as<std::string>();
+                        password = db["password"].as<std::string>();
+
+                        connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+                    }
+
+                    // Attempt to connect
+                    auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+
+                    // Execute a simple query to verify the connection
+                    auto resultSet = conn->executeQuery("SELECT 1 as test_value");
+                    if (resultSet->next())
+                    {
+                        std::cout << "Connection to " << name << " successful" << std::endl;
+                        REQUIRE(resultSet->getInt("test_value") == 1);
+                    }
+
+                    // Close the connection
+                    conn->close();
+                }
+                catch (const cpp_dbc::SQLException &e)
+                {
+                    std::cout << "Connection to " << name << " failed: " << e.what() << std::endl;
+                    // We'll just warn instead of failing the test, since the database might not be available
+                    WARN("Connection to " << name << " failed: " << e.what());
+                }
+            }
+        }
+#else
+        // Skip this test if YAML is not enabled
+        SKIP("YAML support is not enabled, cannot load database configurations");
+#endif
     }
 }

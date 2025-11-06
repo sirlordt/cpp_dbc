@@ -40,6 +40,7 @@ add_executable(cpp_dbc_tests
     test_db_config.cpp
     test_mysql_connection.cpp
     test_postgresql_connection.cpp
+    test_sqlite_connection.cpp
     test_connection_pool.cpp
     test_transaction_manager.cpp
     test_database_config.cpp
@@ -47,6 +48,7 @@ add_executable(cpp_dbc_tests
     test_integration.cpp
     test_mysql_real.cpp
     test_postgresql_real.cpp
+    test_sqlite_real.cpp
     test_connection_pool_real.cpp
     test_transaction_manager_real.cpp
     test_transaction_isolation.cpp
@@ -65,6 +67,8 @@ target_compile_definitions(cpp_dbc_tests PUBLIC
     $<$<NOT:$<BOOL:${USE_MYSQL}>>:USE_MYSQL=0>
     $<$<BOOL:${USE_POSTGRESQL}>:USE_POSTGRESQL=1>
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
+    $<$<BOOL:${USE_SQLITE}>:USE_SQLITE=1>
+    $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
 )

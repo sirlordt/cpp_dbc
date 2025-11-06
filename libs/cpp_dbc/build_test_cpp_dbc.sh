@@ -9,6 +9,8 @@ set -e  # Exit on error
 #   --mysql-off            Disable MySQL support
 #   --postgres, --postgres-on  Enable PostgreSQL support
 #   --postgres-off         Disable PostgreSQL support
+#   --sqlite, --sqlite-on  Enable SQLite support
+#   --sqlite-off           Disable SQLite support
 #   --release              Build in Release mode (default: Debug)
 #   --asan                 Enable Address Sanitizer
 #   --debug-pool           Enable debug output for ConnectionPool
@@ -19,6 +21,7 @@ set -e  # Exit on error
 # Default values
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
+USE_SQLITE=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 ENABLE_ASAN=OFF
@@ -51,6 +54,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --postgres-off)
             USE_POSTGRESQL=OFF
+            shift
+            ;;
+        --sqlite|--sqlite-on)
+            USE_SQLITE=ON
+            shift
+            ;;
+        --sqlite-off)
+            USE_SQLITE=OFF
             shift
             ;;
         --release)
@@ -91,6 +102,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --mysql-off            Disable MySQL support"
             echo "  --postgres, --postgres-on  Enable PostgreSQL support"
             echo "  --postgres-off         Disable PostgreSQL support"
+            echo "  --sqlite, --sqlite-on  Enable SQLite support"
+            echo "  --sqlite-off           Disable SQLite support"
             echo "  --release              Build in Release mode (default: Debug)"
             echo "  --debug                Build in Debug mode (default)"
             echo "  --asan                 Enable Address Sanitizer"
@@ -103,7 +116,7 @@ while [[ $# -gt 0 ]]; do
         *)
             # Unknown option
             echo "Unknown option: $1"
-            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--release] [--asan] [--help]"
+            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--sqlite|--sqlite-on|--sqlite-off] [--release] [--asan] [--help]"
             exit 1
             ;;
     esac
@@ -173,6 +186,7 @@ echo "Configuration:"
 echo "  CPP-YAML support: $USE_CPP_YAML"
 echo "  MySQL support: $USE_MYSQL"
 echo "  PostgreSQL support: $USE_POSTGRESQL"
+echo "  SQLite support: $USE_SQLITE"
 echo "  Build type: $BUILD_TYPE"
 echo "  Address Sanitizer: $ENABLE_ASAN"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
@@ -222,6 +236,7 @@ cmake "${CPP_DBC_DIR}" \
       -DUSE_CPP_YAML=$USE_CPP_YAML \
       -DUSE_MYSQL=$USE_MYSQL \
       -DUSE_POSTGRESQL=$USE_POSTGRESQL \
+      -DUSE_SQLITE=$USE_SQLITE \
       -DCPP_DBC_BUILD_TESTS=ON \
       -DENABLE_ASAN=$ENABLE_ASAN \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \

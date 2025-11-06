@@ -14,6 +14,10 @@
 #define USE_POSTGRESQL 1 // Default to enabled
 #endif
 
+#ifndef USE_SQLITE
+#define USE_SQLITE 0 // Default to disabled
+#endif
+
 #include <string>
 #include <vector>
 #include <memory>
@@ -216,6 +220,17 @@ namespace cpp_dbc
         class PostgreSQLConnection;
         class PostgreSQLPreparedStatement;
         class PostgreSQLResultSet;
+    }
+#endif
+
+#if USE_SQLITE
+    // SQLite specific implementation declarations
+    namespace SQLite
+    {
+        class SQLiteDriver;
+        class SQLiteConnection;
+        class SQLitePreparedStatement;
+        class SQLiteResultSet;
     }
 #endif
 

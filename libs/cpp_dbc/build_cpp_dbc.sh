@@ -8,6 +8,7 @@ set -e
 # Default values
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
+USE_SQLITE=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
@@ -31,6 +32,14 @@ do
         ;;
         --postgres-off)
         USE_POSTGRESQL=OFF
+        shift
+        ;;
+        --sqlite|--sqlite-on)
+        USE_SQLITE=ON
+        shift
+        ;;
+        --sqlite-off)
+        USE_SQLITE=OFF
         shift
         ;;
         --yaml|--yaml-on)
@@ -64,6 +73,8 @@ do
         echo "  --mysql-off            Disable MySQL support"
         echo "  --postgres, --postgres-on  Enable PostgreSQL support"
         echo "  --postgres-off         Disable PostgreSQL support"
+        echo "  --sqlite, --sqlite-on  Enable SQLite support"
+        echo "  --sqlite-off           Disable SQLite support"
         echo "  --yaml, --yaml-on      Enable YAML configuration support"
         echo "  --debug                Build in Debug mode (default)"
         echo "  --release              Build in Release mode"
@@ -79,6 +90,7 @@ echo "Building cpp_dbc library..."
 echo "Database driver configuration:"
 echo "  MySQL support: $USE_MYSQL"
 echo "  PostgreSQL support: $USE_POSTGRESQL"
+echo "  SQLite support: $USE_SQLITE"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
@@ -154,6 +166,41 @@ if [ "$USE_POSTGRESQL" = "ON" ]; then
     fi
 fi
 
+# Check for SQLite dependencies
+if [ "$USE_SQLITE" = "ON" ]; then
+    echo "Checking for SQLite development libraries..."
+    
+    # Detect package manager
+    if command -v apt-get &> /dev/null; then
+        # Debian/Ubuntu
+        if ! dpkg -l | grep -q libsqlite3-dev; then
+            echo "SQLite development libraries not found. Installing..."
+            sudo apt-get update
+            sudo apt-get install -y libsqlite3-dev
+        else
+            echo "SQLite development libraries already installed."
+        fi
+    elif command -v dnf &> /dev/null; then
+        # Fedora/RHEL/CentOS
+        if ! rpm -q sqlite-devel &> /dev/null; then
+            echo "SQLite development libraries not found. Installing..."
+            sudo dnf install -y sqlite-devel
+        else
+            echo "SQLite development libraries already installed."
+        fi
+    elif command -v yum &> /dev/null; then
+        # Older RHEL/CentOS
+        if ! rpm -q sqlite-devel &> /dev/null; then
+            echo "SQLite development libraries not found. Installing..."
+            sudo yum install -y sqlite-devel
+        else
+            echo "SQLite development libraries already installed."
+        fi
+    else
+        echo "Warning: Could not detect package manager. Please install SQLite development libraries manually."
+    fi
+fi
+
 # Create build directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_ROOT="$( cd "${SCRIPT_DIR}/../.." &> /dev/null && pwd )"
@@ -194,6 +241,7 @@ cmake "${SCRIPT_DIR}" \
       -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
       -DUSE_MYSQL=$USE_MYSQL \
       -DUSE_POSTGRESQL=$USE_POSTGRESQL \
+      -DUSE_SQLITE=$USE_SQLITE \
       -DUSE_CPP_YAML=$USE_CPP_YAML \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DCPP_DBC_BUILD_TESTS=$BUILD_TESTS \
@@ -235,6 +283,11 @@ if [ "$BUILD_TESTS" = "ON" ]; then
         TEST_PARAMS="$TEST_PARAMS --postgres"
     fi
     
+    # Pass SQLite configuration
+    if [ "$USE_SQLITE" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --sqlite"
+    fi
+    
     # Pass build type
     if [ "$BUILD_TYPE" = "Release" ]; then
         TEST_PARAMS="$TEST_PARAMS --release"
@@ -248,6 +301,7 @@ fi
 echo "Database driver status:"
 echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
+echo "  SQLite: $USE_SQLITE"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"

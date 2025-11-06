@@ -11,6 +11,8 @@ set -e  # Exit on error
 #   --mysql-off            Disable MySQL support
 #   --postgres, --postgres-on  Enable PostgreSQL support
 #   --postgres-off         Disable PostgreSQL support
+#   --sqlite, --sqlite-on  Enable SQLite support
+#   --sqlite-off           Disable SQLite support
 #   --release              Run in Release mode (default: Debug)
 #   --asan                 Enable Address Sanitizer
 #   --valgrind             Run tests with Valgrind
@@ -28,6 +30,7 @@ set -e  # Exit on error
 USE_MYSQL=ON
 USE_CPP_YAML=OFF
 USE_POSTGRESQL=OFF
+USE_SQLITE=OFF
 BUILD_TYPE=Debug
 ASAN_OPTIONS=""
 ENABLE_ASAN=false
@@ -65,6 +68,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --postgres-off)
             USE_POSTGRESQL=OFF
+            shift
+            ;;
+        --sqlite|--sqlite-on)
+            USE_SQLITE=ON
+            shift
+            ;;
+        --sqlite-off)
+            USE_SQLITE=OFF
             shift
             ;;
         --release)
@@ -120,6 +131,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --mysql-off            Disable MySQL support"
             echo "  --postgres, --postgres-on  Enable PostgreSQL support"
             echo "  --postgres-off         Disable PostgreSQL support"
+            echo "  --sqlite, --sqlite-on  Enable SQLite support"
+            echo "  --sqlite-off           Disable SQLite support"
             echo "  --release              Run in Release mode (default: Debug)"
             echo "  --asan                 Enable Address Sanitizer"
             echo "  --valgrind             Run tests with Valgrind"
@@ -255,8 +268,14 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
 
     if [ "$USE_POSTGRESQL" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --postgres-on"
-    else 
+    else
         BUILD_CMD="$BUILD_CMD --postgres-off"
+    fi
+    
+    if [ "$USE_SQLITE" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --sqlite"
+    else
+        BUILD_CMD="$BUILD_CMD --sqlite-off"
     fi
     
     if [ "$BUILD_TYPE" = "Release" ]; then

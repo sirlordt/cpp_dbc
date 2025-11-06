@@ -89,6 +89,31 @@ databases:
       application_name: cpp_dbc_prod
       client_encoding: UTF8
       sslmode: require
+      
+  # SQLite development database
+  - name: dev_sqlite
+    type: sqlite
+    database: ":memory:"
+    options:
+      foreign_keys: true
+      journal_mode: WAL
+      
+  # SQLite testing database
+  - name: test_sqlite
+    type: sqlite
+    database: "test_sqlite.db"
+    options:
+      foreign_keys: true
+      journal_mode: WAL
+      
+  # SQLite production database (example)
+  - name: prod_sqlite
+    type: sqlite
+    database: "/path/to/production.db"
+    options:
+      foreign_keys: true
+      journal_mode: WAL
+      synchronous: FULL
 
 # Connection pool configuration for tests
 connection_pool:
@@ -126,4 +151,11 @@ test_queries:
     create_table: "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100))"
     insert_data: "INSERT INTO test_table (id, name) VALUES ($1, $2)"
     select_data: "SELECT * FROM test_table WHERE id = $1"
+    drop_table: "DROP TABLE IF EXISTS test_table"
+    
+  # SQLite specific test queries
+  sqlite:
+    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)"
+    insert_data: "INSERT INTO test_table (id, name) VALUES (?, ?)"
+    select_data: "SELECT * FROM test_table WHERE id = ?"
     drop_table: "DROP TABLE IF EXISTS test_table"

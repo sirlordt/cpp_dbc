@@ -1,0 +1,174 @@
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+#include <yaml-cpp/yaml.h>
+#include <cpp_dbc/cpp_dbc.hpp>
+#if USE_SQLITE
+#include <cpp_dbc/drivers/driver_sqlite.hpp>
+#endif
+#include <string>
+#include <fstream>
+#include <iostream>
+#include <vector>
+
+// Helper function to get the path to the test_db_connections.yml file
+extern std::string getConfigFilePath();
+
+// Test case for SQLite real database operations
+TEST_CASE("SQLite real database operations", "[sqlite_real]")
+{
+#if USE_SQLITE
+    // Skip this test if SQLite support is not enabled
+    SECTION("Test SQLite real database operations")
+    {
+        // Load the YAML configuration
+        std::string config_path = getConfigFilePath();
+        YAML::Node config = YAML::LoadFile(config_path);
+
+        // Find the test_sqlite configuration
+        YAML::Node dbConfig;
+        if (config["databases"].IsSequence())
+        {
+            for (std::size_t i = 0; i < config["databases"].size(); ++i)
+            {
+                YAML::Node db = config["databases"][i];
+                if (db["name"].as<std::string>() == "test_sqlite")
+                {
+                    dbConfig = db;
+                    break;
+                }
+            }
+        }
+
+        // Check that the database configuration was found
+        REQUIRE(dbConfig.IsDefined());
+
+        // Create connection string
+        std::string type = dbConfig["type"].as<std::string>();
+        std::string database = dbConfig["database"].as<std::string>();
+
+        // Test connection
+        std::string connStr = "cpp_dbc:" + type + "://" + database;
+
+        // Register the SQLite driver
+        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+
+        try
+        {
+            // Attempt to connect to SQLite
+            std::cout << "Attempting to connect to SQLite with connection string: " << connStr << std::endl;
+
+            auto conn = cpp_dbc::DriverManager::getConnection(connStr, "", "");
+
+            // Clean up any existing test table
+            conn->executeUpdate("DROP TABLE IF EXISTS test_table");
+
+            // Create a test table
+            conn->executeUpdate("CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT, value REAL, is_active INTEGER)");
+
+            // Test batch insert using prepared statement
+            auto insertStmt = conn->prepareStatement("INSERT INTO test_table (id, name, value, is_active) VALUES (?, ?, ?, ?)");
+
+            // Insert 100 rows
+            for (int i = 1; i <= 100; i++)
+            {
+                insertStmt->setInt(1, i);
+                insertStmt->setString(2, "Name " + std::to_string(i));
+                insertStmt->setDouble(3, i * 1.5);
+                insertStmt->setBoolean(4, i % 2 == 0);
+                int rowsAffected = insertStmt->executeUpdate();
+                REQUIRE(rowsAffected == 1);
+            }
+
+            // Test query with filtering
+            auto queryStmt = conn->prepareStatement("SELECT * FROM test_table WHERE is_active = ? AND value > ?");
+            queryStmt->setBoolean(1, true);
+            queryStmt->setDouble(2, 50.0);
+
+            auto resultSet = queryStmt->executeQuery();
+
+            // Count the results
+            int count = 0;
+            std::vector<int> ids;
+            while (resultSet->next())
+            {
+                count++;
+                ids.push_back(resultSet->getInt("id"));
+
+                // Verify the row data
+                REQUIRE(resultSet->getString("name") == "Name " + std::to_string(resultSet->getInt("id")));
+                REQUIRE(resultSet->getDouble("value") == Catch::Approx(resultSet->getInt("id") * 1.5));
+                REQUIRE(resultSet->getBoolean("is_active") == true);
+            }
+
+            // We should have all even numbers from 34 to 100 (34, 36, 38, ..., 100)
+            // That's (100 - 34) / 2 + 1 = 34 rows
+            REQUIRE(count == 34);
+
+            // Test transaction support
+            conn->setAutoCommit(false);
+
+            // Delete half the rows
+            auto deleteStmt = conn->prepareStatement("DELETE FROM test_table WHERE id <= ?");
+            deleteStmt->setInt(1, 50);
+            int deletedRows = deleteStmt->executeUpdate();
+            REQUIRE(deletedRows == 50);
+
+            // Verify rows are deleted in this transaction
+            auto countStmt = conn->prepareStatement("SELECT COUNT(*) as count FROM test_table");
+            auto countResult = countStmt->executeQuery();
+            REQUIRE(countResult->next());
+            REQUIRE(countResult->getInt("count") == 50);
+
+            // Rollback the transaction
+            conn->rollback();
+
+            // Verify the rows are back
+            countResult = countStmt->executeQuery();
+            REQUIRE(countResult->next());
+            REQUIRE(countResult->getInt("count") == 100);
+
+            // Now delete and commit
+            deletedRows = deleteStmt->executeUpdate();
+            REQUIRE(deletedRows == 50);
+            conn->commit();
+
+            // Verify the deletion is permanent
+            countResult = countStmt->executeQuery();
+            REQUIRE(countResult->next());
+            REQUIRE(countResult->getInt("count") == 50);
+
+            // Test NULL handling
+            auto nullStmt = conn->prepareStatement("INSERT INTO test_table (id, name, value, is_active) VALUES (?, ?, ?, ?)");
+            nullStmt->setInt(1, 101);
+            nullStmt->setString(2, "Null Test");
+            nullStmt->setNull(3, cpp_dbc::Types::DOUBLE);
+            nullStmt->setNull(4, cpp_dbc::Types::BOOLEAN);
+            nullStmt->executeUpdate();
+
+            // Verify NULL values
+            auto nullQueryStmt = conn->prepareStatement("SELECT * FROM test_table WHERE id = ?");
+            nullQueryStmt->setInt(1, 101);
+            auto nullResult = nullQueryStmt->executeQuery();
+            REQUIRE(nullResult->next());
+            REQUIRE(nullResult->getString("name") == "Null Test");
+            REQUIRE(nullResult->isNull(3)); // value column
+            REQUIRE(nullResult->isNull(4)); // is_active column
+
+            // Clean up
+            conn->executeUpdate("DROP TABLE IF EXISTS test_table");
+
+            // Close the connection
+            conn->close();
+        }
+        catch (const cpp_dbc::SQLException &e)
+        {
+            std::string errorMsg = e.what();
+            std::cout << "SQLite real database error: " << errorMsg << std::endl;
+            FAIL("SQLite real database test failed: " + std::string(e.what()));
+        }
+    }
+#else
+    // Skip this test if SQLite support is not enabled
+    SKIP("SQLite support is not enabled");
+#endif
+}

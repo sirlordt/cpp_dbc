@@ -1,0 +1,181 @@
+#include <catch2/catch_test_macros.hpp>
+#include <yaml-cpp/yaml.h>
+#include <cpp_dbc/cpp_dbc.hpp>
+#if USE_SQLITE
+#include <cpp_dbc/drivers/driver_sqlite.hpp>
+#endif
+#include <string>
+#include <fstream>
+#include <iostream>
+
+// Helper function to get the path to the test_db_connections.yml file
+extern std::string getConfigFilePath();
+
+// Test case to verify SQLite connection
+TEST_CASE("SQLite connection test", "[sqlite_connection]")
+{
+#if USE_SQLITE
+    // Skip this test if SQLite support is not enabled
+    SECTION("Test SQLite connection")
+    {
+        // Load the YAML configuration
+        std::string config_path = getConfigFilePath();
+        YAML::Node config = YAML::LoadFile(config_path);
+
+        // Find the dev_sqlite configuration
+        YAML::Node dbConfig;
+        if (config["databases"].IsSequence())
+        {
+            for (std::size_t i = 0; i < config["databases"].size(); ++i)
+            {
+                YAML::Node db = config["databases"][i];
+                if (db["name"].as<std::string>() == "dev_sqlite")
+                {
+                    dbConfig = db;
+                    break;
+                }
+            }
+        }
+
+        // Check that the database configuration was found
+        REQUIRE(dbConfig.IsDefined());
+
+        // Create connection string
+        std::string type = dbConfig["type"].as<std::string>();
+        std::string database = dbConfig["database"].as<std::string>();
+
+        // Test connection
+        std::string connStr = "cpp_dbc:" + type + "://" + database;
+
+        // Register the SQLite driver
+        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+
+        try
+        {
+            // Attempt to connect to SQLite
+            std::cout << "Attempting to connect to SQLite with connection string: " << connStr << std::endl;
+
+            auto conn = cpp_dbc::DriverManager::getConnection(connStr, "", "");
+
+            // Execute a simple query to verify the connection
+            auto resultSet = conn->executeQuery("SELECT 1 as test_value");
+            REQUIRE(resultSet->next());
+            REQUIRE(resultSet->getInt("test_value") == 1);
+
+            // Test creating a table
+            conn->executeUpdate("CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)");
+
+            // Test inserting data using a prepared statement
+            auto stmt = conn->prepareStatement("INSERT INTO test_table (id, name) VALUES (?, ?)");
+            stmt->setInt(1, 1);
+            stmt->setString(2, "Test Name");
+            int rowsAffected = stmt->executeUpdate();
+            REQUIRE(rowsAffected == 1);
+
+            // Test querying the inserted data
+            auto queryStmt = conn->prepareStatement("SELECT * FROM test_table WHERE id = ?");
+            queryStmt->setInt(1, 1);
+            auto queryResult = queryStmt->executeQuery();
+            REQUIRE(queryResult->next());
+            REQUIRE(queryResult->getInt("id") == 1);
+            REQUIRE(queryResult->getString("name") == "Test Name");
+
+            // Test transaction support
+            conn->setAutoCommit(false);
+            REQUIRE(conn->getAutoCommit() == false);
+
+            // Insert another row in a transaction
+            conn->executeUpdate("INSERT INTO test_table (id, name) VALUES (2, 'Transaction Test')");
+
+            // Rollback the transaction
+            conn->rollback();
+
+            // Verify the row was not inserted
+            auto verifyStmt = conn->prepareStatement("SELECT COUNT(*) as count FROM test_table WHERE id = ?");
+            verifyStmt->setInt(1, 2);
+            auto verifyResult = verifyStmt->executeQuery();
+            REQUIRE(verifyResult->next());
+            REQUIRE(verifyResult->getInt("count") == 0);
+
+            // Insert again and commit
+            conn->executeUpdate("INSERT INTO test_table (id, name) VALUES (2, 'Transaction Test')");
+            conn->commit();
+
+            // Verify the row was inserted
+            verifyResult = verifyStmt->executeQuery();
+            REQUIRE(verifyResult->next());
+            REQUIRE(verifyResult->getInt("count") == 1);
+
+            // Clean up
+            conn->executeUpdate("DROP TABLE IF EXISTS test_table");
+
+            // Close the connection
+            conn->close();
+        }
+        catch (const cpp_dbc::SQLException &e)
+        {
+            std::string errorMsg = e.what();
+            std::cout << "SQLite connection error: " << errorMsg << std::endl;
+            FAIL("SQLite connection failed: " + std::string(e.what()));
+        }
+    }
+#else
+    // Skip this test if SQLite support is not enabled
+    SKIP("SQLite support is not enabled");
+#endif
+}
+
+// Test case for SQLite in-memory database
+TEST_CASE("SQLite in-memory database test", "[sqlite_memory]")
+{
+#if USE_SQLITE
+    SECTION("Test SQLite in-memory database")
+    {
+        // Register the SQLite driver
+        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+
+        try
+        {
+            // Connect to an in-memory database
+            auto conn = cpp_dbc::DriverManager::getConnection("cpp_dbc:sqlite://:memory:", "", "");
+
+            // Create a table
+            conn->executeUpdate("CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT)");
+
+            // Insert data
+            auto stmt = conn->prepareStatement("INSERT INTO test_table (id, name) VALUES (?, ?)");
+            for (int i = 1; i <= 10; i++)
+            {
+                stmt->setInt(1, i);
+                stmt->setString(2, "Name " + std::to_string(i));
+                stmt->executeUpdate();
+            }
+
+            // Query data
+            auto resultSet = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
+            REQUIRE(resultSet->next());
+            REQUIRE(resultSet->getInt("count") == 10);
+
+            // Test transaction isolation (SQLite only supports SERIALIZABLE)
+            REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+
+            // Attempting to set a different isolation level should throw an exception
+            REQUIRE_THROWS_AS(
+                conn->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED),
+                cpp_dbc::SQLException);
+
+            // Close the connection
+            conn->close();
+        }
+        catch (const cpp_dbc::SQLException &e)
+        {
+            std::string errorMsg = e.what();
+            std::cout << "SQLite in-memory database error: " << errorMsg << std::endl;
+            FAIL("SQLite in-memory database test failed: " + std::string(e.what()));
+        }
+    }
+#else
+    // Skip this test if SQLite support is not enabled
+    SKIP("SQLite support is not enabled");
+#endif
+}
