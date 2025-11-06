@@ -318,10 +318,14 @@ TEST_CASE("Integration test with mock database", "[integration]")
 
         // Check that the transaction is no longer active
         REQUIRE_FALSE(manager.isTransactionActive(txId));
+
+        INFO("Time after REQUIRE_FALSE: " << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
     }
 
     SECTION("Integration test with configuration")
     {
+        INFO("Time at start of configuration test: " << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+
         // Create a database configuration
         cpp_dbc::config::DatabaseConfig dbConfig(
             "mock_db",

@@ -7,6 +7,13 @@
 #include <algorithm>
 #include <iostream>
 
+// Debug output is controlled by -DDEBUG_CONNECTION_POOL=1 CMake option
+#if defined(DEBUG_CONNECTION_POOL) && DEBUG_CONNECTION_POOL
+#define CP_DEBUG(x) std::cout << x << std::endl
+#else
+#define CP_DEBUG(x)
+#endif
+
 namespace cpp_dbc
 {
 
@@ -97,9 +104,13 @@ namespace cpp_dbc
 
     ConnectionPool::~ConnectionPool()
     {
-        // cpp_dbc::system_utils::safePrint("E7F8A9B0", "ConnectionPool::~ConnectionPool - Starting destructor");
+        CP_DEBUG("ConnectionPool::~ConnectionPool - Starting destructor at "
+                 << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+
         close();
-        // cpp_dbc::system_utils::safePrint("C1D2E3F4", "ConnectionPool::~ConnectionPool - Destructor completed");
+
+        CP_DEBUG("ConnectionPool::~ConnectionPool - Destructor completed at "
+                 << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
     }
 
     std::shared_ptr<Connection> ConnectionPool::createConnection()
@@ -545,31 +556,43 @@ namespace cpp_dbc
 
     void ConnectionPool::close()
     {
+        time_t start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        CP_DEBUG("ConnectionPool::close - Starting close operation at " << start_time);
 
-        // cpp_dbc::system_utils::safePrint("D9E0F1A2", "ConnectionPool::close - Starting close operation");
         if (!running.exchange(false))
         {
-            // cpp_dbc::system_utils::safePrint("B3C4D5E6", "ConnectionPool::close - Already closed, returning");
+            CP_DEBUG("ConnectionPool::close - Already closed, returning");
             return; // Already closed
         }
 
-        // cpp_dbc::system_utils::safePrint("F7A8B9C0", "ConnectionPool::close - Waiting for active operations to complete");
+        CP_DEBUG("ConnectionPool::close - Waiting for active operations to complete at "
+                 << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
         // Wait for all active operations to complete
         {
-            // std::unique_lock<std::mutex> lockAllGetConnection(mutexGetConnection);
-            // std::unique_lock<std::mutex> lockIdleReturnConnection(mutexReturnConnection);
             auto waitStart = std::chrono::steady_clock::now();
+            int initialActiveConnections = activeConnections.load();
+            CP_DEBUG("ConnectionPool::close - Initial active connections: " << initialActiveConnections);
+
             while (activeConnections.load() > 0)
             {
-                // cpp_dbc::system_utils::safePrint("D1E2F3A4", "ConnectionPool::close - Waiting for " + std::to_string(activeConnections) + " active connections to finish");
-                // auto waitStatus = condition.wait_for(lock1, std::chrono::milliseconds(100));
+                CP_DEBUG("ConnectionPool::close - Waiting for " << activeConnections.load()
+                                                                << " active connections to finish at "
+                                                                << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
                 auto elapsed = std::chrono::steady_clock::now() - waitStart;
+                auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
+
+                if (elapsed_seconds > 0 && elapsed_seconds % 1 == 0)
+                {
+                    CP_DEBUG("ConnectionPool::close - Waited " << elapsed_seconds
+                                                               << " seconds for active connections");
+                }
 
                 if (elapsed > std::chrono::seconds(10))
                 {
-                    // cpp_dbc::system_utils::safePrint("B5C6D7E8", "ConnectionPool::close - Timeout waiting for active connections, forcing close");
+                    CP_DEBUG("ConnectionPool::close - Timeout waiting for active connections, forcing close at "
+                             << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
                     break;
                 }
             }

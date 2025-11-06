@@ -516,9 +516,9 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
 
             // Insert data
             auto pstmt1 = conn1->prepareStatement(insertDataQuery);
-            // pstmt1->setInt(1, 300);
-            // pstmt1->setString(2, "Isolation Level Test");
-            // pstmt1->executeUpdate();
+            pstmt1->setInt(1, 300);
+            pstmt1->setString(2, "Isolation Level Test");
+            pstmt1->executeUpdate();
 
             // Begin another transaction with READ COMMITTED isolation level
             auto conn2 = pool.getConnection();

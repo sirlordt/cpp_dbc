@@ -673,7 +673,7 @@ namespace cpp_dbc
                 }
 
                 // Sleep for 10ms to avoid problems with corrency
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
                 // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis(), "(1) MySQLConnection::close()");
                 mysql_close(mysql);

@@ -6,6 +6,10 @@ option(USE_MYSQL "Enable MySQL support" ON)
 option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
 option(USE_CPP_YAML "Enable YAML configuration support" OFF)
 
+# Debug options
+option(DEBUG_CONNECTION_POOL "Enable debug output for ConnectionPool" OFF)
+option(DEBUG_TRANSACTION_MANAGER "Enable debug output for TransactionManager" OFF)
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -45,6 +49,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
+    $<$<BOOL:${DEBUG_CONNECTION_POOL}>:DEBUG_CONNECTION_POOL=1>
+    $<$<BOOL:${DEBUG_TRANSACTION_MANAGER}>:DEBUG_TRANSACTION_MANAGER=1>
 )
 
 # Include directories

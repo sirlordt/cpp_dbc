@@ -19,6 +19,9 @@ set -e  # Exit on error
 #   --rebuild              Rebuild the test targets before running
 #   --list                 List available tests only (does not run tests)
 #   --run-test="tag"       Run only tests with the specified tag
+#   --debug-pool           Enable debug output for ConnectionPool
+#   --debug-txmgr          Enable debug output for TransactionManager
+#   --debug-all            Enable all debug output
 #   --help                 Show this help message
 
 # Default values for options
@@ -34,6 +37,8 @@ CHECK_DEPENDENCIES=false
 REBUILD=false
 LIST_ONLY=false
 RUN_SPECIFIC_TEST=""
+DEBUG_CONNECTION_POOL=OFF
+DEBUG_TRANSACTION_MANAGER=OFF
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -95,6 +100,19 @@ while [[ $# -gt 0 ]]; do
             RUN_SPECIFIC_TEST="${1#*=}"
             shift
             ;;
+        --debug-pool)
+            DEBUG_CONNECTION_POOL=ON
+            shift
+            ;;
+        --debug-txmgr)
+            DEBUG_TRANSACTION_MANAGER=ON
+            shift
+            ;;
+        --debug-all)
+            DEBUG_CONNECTION_POOL=ON
+            DEBUG_TRANSACTION_MANAGER=ON
+            shift
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
@@ -110,6 +128,9 @@ while [[ $# -gt 0 ]]; do
             echo "  --rebuild              Rebuild the test targets before running"
             echo "  --list                 List available tests only (does not run tests)"
             echo "  --run-test=\"tag\"       Run only tests with the specified tag"
+            echo "  --debug-pool           Enable debug output for ConnectionPool"
+            echo "  --debug-txmgr          Enable debug output for TransactionManager"
+            echo "  --debug-all            Enable all debug output"
             echo "  --help                 Show this help message"
             exit 0
             ;;
@@ -242,6 +263,15 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
         BUILD_CMD="$BUILD_CMD --release"
     else
         BUILD_CMD="$BUILD_CMD --debug"
+    fi
+
+    # Add debug options
+    if [ "$DEBUG_CONNECTION_POOL" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --debug-pool"
+    fi
+
+    if [ "$DEBUG_TRANSACTION_MANAGER" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --debug-txmgr"
     fi
 
     # Execute the build command
