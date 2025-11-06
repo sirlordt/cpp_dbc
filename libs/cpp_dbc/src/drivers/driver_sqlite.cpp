@@ -297,21 +297,8 @@ namespace cpp_dbc
                 throw SQLException("Statement is closed");
             }
 
-            // Reset the statement and clear bindings before setting new parameters
-            // This ensures we're starting with a clean slate
-            int resetResult = sqlite3_reset(stmt);
-            if (resetResult != SQLITE_OK)
-            {
-                throw SQLException("Failed to reset statement in setInt: " + std::string(sqlite3_errmsg(db)) +
-                                   " (result=" + std::to_string(resetResult) + ")");
-            }
-
-            int clearResult = sqlite3_clear_bindings(stmt);
-            if (clearResult != SQLITE_OK)
-            {
-                throw SQLException("Failed to clear bindings in setInt: " + std::string(sqlite3_errmsg(db)) +
-                                   " (result=" + std::to_string(clearResult) + ")");
-            }
+            // Do not reset or clear bindings here
+            // This would erase previously set parameters
 
             // SQLite parameter indices are 1-based, which matches our API
             // Make sure parameterIndex is valid
@@ -370,6 +357,9 @@ namespace cpp_dbc
                 throw SQLException("Statement is closed");
             }
 
+            // Do not reset or clear bindings here
+            // This would erase previously set parameters
+
             // SQLite parameter indices are 1-based, which matches our API
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
@@ -377,10 +367,25 @@ namespace cpp_dbc
                 throw SQLException("Invalid parameter index: " + std::to_string(parameterIndex));
             }
 
+            // Get the number of parameters in the statement
+            int paramCount = sqlite3_bind_parameter_count(stmt);
+            if (parameterIndex > paramCount)
+            {
+                throw SQLException("Parameter index out of range: " + std::to_string(parameterIndex) +
+                                   " (statement has " + std::to_string(paramCount) + " parameters)");
+            }
+
+            // Debug output
+            std::cout << "Binding double parameter " << parameterIndex << " with value " << value
+                      << " (statement has " << paramCount << " parameters)" << std::endl;
+
             int result = sqlite3_bind_double(stmt, parameterIndex, value);
             if (result != SQLITE_OK)
             {
-                throw SQLException("Failed to bind double parameter: " + std::string(sqlite3_errmsg(db)));
+                throw SQLException("Failed to bind double parameter: " + std::string(sqlite3_errmsg(db)) +
+                                   " (index=" + std::to_string(parameterIndex) +
+                                   ", value=" + std::to_string(value) +
+                                   ", result=" + std::to_string(result) + ")");
             }
         }
 
@@ -391,6 +396,9 @@ namespace cpp_dbc
                 throw SQLException("Statement is closed");
             }
 
+            // Do not reset or clear bindings here
+            // This would erase previously set parameters
+
             // SQLite parameter indices are 1-based, which matches our API
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
@@ -398,11 +406,26 @@ namespace cpp_dbc
                 throw SQLException("Invalid parameter index: " + std::to_string(parameterIndex));
             }
 
+            // Get the number of parameters in the statement
+            int paramCount = sqlite3_bind_parameter_count(stmt);
+            if (parameterIndex > paramCount)
+            {
+                throw SQLException("Parameter index out of range: " + std::to_string(parameterIndex) +
+                                   " (statement has " + std::to_string(paramCount) + " parameters)");
+            }
+
+            // Debug output
+            std::cout << "Binding string parameter " << parameterIndex << " with value '" << value
+                      << "' (statement has " << paramCount << " parameters)" << std::endl;
+
             // SQLITE_TRANSIENT tells SQLite to make its own copy of the data
             int result = sqlite3_bind_text(stmt, parameterIndex, value.c_str(), -1, SQLITE_TRANSIENT);
             if (result != SQLITE_OK)
             {
-                throw SQLException("Failed to bind string parameter: " + std::string(sqlite3_errmsg(db)));
+                throw SQLException("Failed to bind string parameter: " + std::string(sqlite3_errmsg(db)) +
+                                   " (index=" + std::to_string(parameterIndex) +
+                                   ", value='" + value + "'" +
+                                   ", result=" + std::to_string(result) + ")");
             }
         }
 
@@ -413,21 +436,8 @@ namespace cpp_dbc
                 throw SQLException("Statement is closed");
             }
 
-            // Reset the statement and clear bindings before setting new parameters
-            // This ensures we're starting with a clean slate
-            int resetResult = sqlite3_reset(stmt);
-            if (resetResult != SQLITE_OK)
-            {
-                throw SQLException("Failed to reset statement in setBoolean: " + std::string(sqlite3_errmsg(db)) +
-                                   " (result=" + std::to_string(resetResult) + ")");
-            }
-
-            int clearResult = sqlite3_clear_bindings(stmt);
-            if (clearResult != SQLITE_OK)
-            {
-                throw SQLException("Failed to clear bindings in setBoolean: " + std::string(sqlite3_errmsg(db)) +
-                                   " (result=" + std::to_string(clearResult) + ")");
-            }
+            // Do not reset or clear bindings here
+            // This would erase previously set parameters
 
             // SQLite parameter indices are 1-based, which matches our API
             // Make sure parameterIndex is valid
@@ -507,7 +517,15 @@ namespace cpp_dbc
                                    " (result=" + std::to_string(resetResult) + ")");
             }
 
+            // Debug output
+            int paramCount = sqlite3_bind_parameter_count(stmt);
+            std::cout << "Executing query with " << paramCount << " parameters" << std::endl;
+
+            // Print the SQL statement
+            std::cout << "SQL: " << sql << std::endl;
+
             // Create a result set that will own the statement
+            // We don't execute the first step here - let the ResultSet do it when next() is called
             auto resultSet = std::make_shared<SQLiteResultSet>(stmt, false);
 
             // Note: We don't clear bindings here because the ResultSet needs them
@@ -542,13 +560,16 @@ namespace cpp_dbc
             // Get the number of affected rows
             int changes = sqlite3_changes(db);
 
-            // Clear bindings after execution to allow reuse of the statement
-            int clearResult = sqlite3_clear_bindings(stmt);
-            if (clearResult != SQLITE_OK)
+            // Reset the statement after execution to allow reuse
+            resetResult = sqlite3_reset(stmt);
+            if (resetResult != SQLITE_OK)
             {
-                throw SQLException("Failed to clear bindings: " + std::string(sqlite3_errmsg(db)) +
-                                   " (result=" + std::to_string(clearResult) + ")");
+                throw SQLException("Failed to reset statement after execution: " + std::string(sqlite3_errmsg(db)) +
+                                   " (result=" + std::to_string(resetResult) + ")");
             }
+
+            // Note: We don't clear bindings here anymore
+            // This allows reusing the statement with the same parameters
 
             return changes;
         }
@@ -636,7 +657,11 @@ namespace cpp_dbc
 
         void SQLiteConnection::returnToPool()
         {
-            this->close();
+            // Make sure to close the connection properly
+            if (!closed && db)
+            {
+                this->close();
+            }
         }
 
         bool SQLiteConnection::isPooled()

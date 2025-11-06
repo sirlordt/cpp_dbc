@@ -106,6 +106,14 @@ TEST_CASE("SQLite connection test", "[sqlite_connection]")
             REQUIRE(verifyResult->next());
             REQUIRE(verifyResult->getInt("count") == 1);
 
+            // Close all result sets and statements before dropping the table
+            verifyResult->close();
+            verifyStmt->close();
+            queryResult->close();
+            queryStmt->close();
+            stmt->close();
+            resultSet->close();
+
             // Clean up
             conn->executeUpdate("DROP TABLE IF EXISTS test_table");
 
@@ -163,6 +171,10 @@ TEST_CASE("SQLite in-memory database test", "[sqlite_memory]")
             REQUIRE_THROWS_AS(
                 conn->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED),
                 cpp_dbc::SQLException);
+
+            // Close all result sets and statements before closing the connection
+            resultSet->close();
+            stmt->close();
 
             // Close the connection
             conn->close();

@@ -203,6 +203,7 @@ namespace cpp_dbc
             }
         }
 
+        /*
         // Check if the connection's transaction isolation level is different from the pool's
         // If so, reset it to match the pool's level
         TransactionIsolationLevel connIsolation = conn->getTransactionIsolation();
@@ -210,6 +211,7 @@ namespace cpp_dbc
         {
             conn->setTransactionIsolation(transactionIsolation);
         }
+        */
 
         // Mark as inactive and update last used time
         // cpp_dbc::system_utils::safePrint("E3F4A5B6", "ConnectionPool::returnConnection - Marking connection as inactive");
@@ -608,6 +610,9 @@ namespace cpp_dbc
                 {
                     CP_DEBUG("ConnectionPool::close - Timeout waiting for active connections, forcing close at "
                              << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+
+                    // Force active connections to be marked as inactive
+                    activeConnections.store(0);
                     break;
                 }
             }
@@ -641,7 +646,18 @@ namespace cpp_dbc
                 auto &conn = allConnections[i];
                 if (conn && conn->getUnderlyingConnection())
                 {
+                    // Mark connection as inactive before closing
+                    conn->setActive(false);
+
+                    // Close the underlying connection
                     conn->getUnderlyingConnection()->close();
+
+                    // Ensure the connection is properly returned to the pool
+                    if (conn->getUnderlyingConnection()->isPooled())
+                    {
+                        conn->getUnderlyingConnection()->returnToPool();
+                    }
+
                     // cpp_dbc::system_utils::safePrint("D7E8F9A0", "ConnectionPool::close - Connection " + std::to_string(i + 1) + " closed successfully");
                 }
                 else

@@ -154,6 +154,16 @@ TEST_CASE("SQLite real database operations", "[sqlite_real]")
             REQUIRE(nullResult->isNull(3)); // value column
             REQUIRE(nullResult->isNull(4)); // is_active column
 
+            // Close all statements and result sets before dropping the table
+            nullResult->close();
+            nullQueryStmt->close();
+            nullStmt->close();
+            countResult->close();
+            countStmt->close();
+            deleteStmt->close();
+            queryStmt->close();
+            insertStmt->close();
+
             // Clean up
             conn->executeUpdate("DROP TABLE IF EXISTS test_table");
 
