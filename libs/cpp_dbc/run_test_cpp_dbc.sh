@@ -23,6 +23,7 @@ set -e  # Exit on error
 #   --rebuild              Rebuild the test targets before running
 #   --list                 List available tests only (does not run tests)
 #   --run-test="tag"       Run only tests with the specified tag
+#   --run=N                Run all test sets N times (default: 1)
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
 #   --debug-all            Enable all debug output
@@ -46,6 +47,7 @@ LIST_ONLY=false
 RUN_SPECIFIC_TEST=""
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
+RUN_COUNT=1
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -123,6 +125,15 @@ while [[ $# -gt 0 ]]; do
             RUN_SPECIFIC_TEST="${1#*=}"
             shift
             ;;
+        --run=*)
+            RUN_COUNT="${1#*=}"
+            # Validate that RUN_COUNT is a positive integer
+            if ! [[ "$RUN_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+                echo "Error: --run parameter must be a positive integer."
+                exit 1
+            fi
+            shift
+            ;;
         --debug-pool)
             DEBUG_CONNECTION_POOL=ON
             shift
@@ -155,6 +166,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --rebuild              Rebuild the test targets before running"
             echo "  --list                 List available tests only (does not run tests)"
             echo "  --run-test=\"tag\"       Run only tests with the specified tag"
+            echo "  --run=N                Run all test sets N times (default: 1)"
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-all            Enable all debug output"
@@ -336,6 +348,10 @@ echo -e "\n========== Running Tests ==========\n"
 run_test() {
     cd "$TEST_BUILD_DIR"
     
+    # Force colored output for Catch2 tests
+    # This ensures colors are preserved even when output is piped
+    local COLOR_ARGS="--colour-mode=ansi"
+    
     if [ "$USE_VALGRIND" = true ]; then
         # Using Valgrind
         # Check if suppression file exists
@@ -348,16 +364,16 @@ run_test() {
         fi
         
         if [ -n "$ASAN_OPTIONS" ]; then
-            env ASAN_OPTIONS="$ASAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $@
+            env ASAN_OPTIONS="$ASAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS $@
         else
-            valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $@
+            valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS $@
         fi
     else
         # Not using Valgrind
         if [ -n "$ASAN_OPTIONS" ]; then
-            env ASAN_OPTIONS="$ASAN_OPTIONS" "$TEST_EXECUTABLE" $@
+            env ASAN_OPTIONS="$ASAN_OPTIONS" "$TEST_EXECUTABLE" $COLOR_ARGS $@
         else
-            "$TEST_EXECUTABLE" $@
+            "$TEST_EXECUTABLE" $COLOR_ARGS $@
         fi
     fi
 }
@@ -371,92 +387,113 @@ if [ "$LIST_ONLY" = true ]; then
     exit 0
 fi
 
-# Run tests with CTest if requested
-if [ "$RUN_CTEST" = true ]; then
-    echo -e "Running tests with CTest...\n"
-    cd "$TEST_BUILD_DIR"
+# Run all test sets multiple times
+for ((run=1; run<=RUN_COUNT; run++)); do
+    echo -e "\n========== Run $run of $RUN_COUNT ==========\n"
     
-    if [ -n "$ASAN_OPTIONS" ]; then
-        env ASAN_OPTIONS="$ASAN_OPTIONS" ctest -C "$BUILD_TYPE" --output-on-failure
-    else
-        ctest -C "$BUILD_TYPE" --output-on-failure
-    fi
-else
-    # Run tests directly
-    echo -e "Running tests directly...\n"
-    
-    # First list all available tests
-    echo -e "Available tests:\n"
-    run_test --list-tests
-    
-    # If a specific test tag was provided, run only that test
-    if [ -n "$RUN_SPECIFIC_TEST" ]; then
-        echo -e "\nRunning tests with tag [$RUN_SPECIFIC_TEST]...\n"
-        run_test -s -r compact "[$RUN_SPECIFIC_TEST]"
-    else
-        # Then run the tests with detailed output
-        echo -e "\nRunning tests with detailed output:\n"
+    # Run tests with CTest if requested
+    if [ "$RUN_CTEST" = true ]; then
+        echo -e "Running tests with CTest (Run $run of $RUN_COUNT)...\n"
+        cd "$TEST_BUILD_DIR"
         
-        # Get all test tags
-        echo -e "Getting all test tags...\n"
-        TAGS=$(run_test --list-tags | grep -oP '\[\K[^\]]+' | sort -u)
+        if [ -n "$ASAN_OPTIONS" ]; then
+            env ASAN_OPTIONS="$ASAN_OPTIONS" ctest -C "$BUILD_TYPE" --output-on-failure
+        else
+            ctest -C "$BUILD_TYPE" --output-on-failure
+        fi
+    else
+        # Run tests directly
+        echo -e "Running tests directly (Run $run of $RUN_COUNT)...\n"
         
-        # Run tests by tags to avoid hanging
-        for TAG in $TAGS; do
-            echo -e "\nRunning tests with tag [$TAG]...\n"
+        # First list all available tests (only on first run)
+        if [ "$run" -eq 1 ]; then
+            echo -e "Available tests:\n"
+            run_test --list-tests
+        fi
+        
+        # If a specific test tag was provided, run only that test
+        if [ -n "$RUN_SPECIFIC_TEST" ]; then
+            echo -e "\nRunning tests with tag [$RUN_SPECIFIC_TEST] (Run $run of $RUN_COUNT)...\n"
+            run_test -s -r compact "[$RUN_SPECIFIC_TEST]"
+        else
+            # Then run the tests with detailed output
+            echo -e "\nRunning tests with detailed output (Run $run of $RUN_COUNT):\n"
             
-            # Run the test and capture its output
-            TEST_OUTPUT=$(run_test -s -r compact "[$TAG]" 2>&1) || true
-            echo "$TEST_OUTPUT"
+            # Get all test tags (only on first run)
+            if [ "$run" -eq 1 ]; then
+                echo -e "Getting all test tags...\n"
+                TAGS=$(run_test --list-tags | grep -oP '\[\K[^\]]+' | sort -u)
+            fi
             
-            # Check if we should continue automatically
-            if [ "$AUTO_CONTINUE" = true ]; then
-                # Check if tests passed
-                if echo "$TEST_OUTPUT" | grep -q "All tests passed"; then
-                    # If valgrind is enabled, check for memory leaks
-                    if [ "$USE_VALGRIND" = true ]; then
-                        # Special case for GSSAPI leaks if --gssapi-leak-ok is set
-                        if [ "$GSSAPI_LEAK_OK" = true ] && echo "$TEST_OUTPUT" | grep -q "PostgreSQL_GSSAPI_leak"; then
-                            # Check if there are no errors despite the GSSAPI leaks
-                            if echo "$TEST_OUTPUT" | grep -q "ERROR SUMMARY: 0 errors from 0 contexts"; then
-                                echo -e "\nGSSAPI leaks detected but ignored as requested. Continuing to next test..."
+            # Run tests by tags to avoid hanging
+            for TAG in $TAGS; do
+                echo -e "\nRunning tests with tag [$TAG] (Run $run of $RUN_COUNT)...\n"
+                
+                # Run the test with real-time output while also capturing it for validation
+                echo -e "\nRunning test with tag [$TAG] (Run $run of $RUN_COUNT)...\n"
+                # Use a temporary file to capture output
+                TEST_OUTPUT_FILE=$(mktemp)
+                # Force color output
+                export CLICOLOR_FORCE=1
+                export FORCE_COLOR=1
+                # Run the test and tee the output to both the terminal and the temp file
+                run_test -s -r compact "[$TAG]" 2>&1 | tee "$TEST_OUTPUT_FILE" || true
+                # Store the exit code (this will be the exit code of run_test, not tee)
+                TEST_RESULT=${PIPESTATUS[0]}
+                # Read the output from the file
+                TEST_OUTPUT=$(cat "$TEST_OUTPUT_FILE")
+                # Remove the temporary file
+                rm -f "$TEST_OUTPUT_FILE"
+                
+                # Check if we should continue automatically
+                if [ "$AUTO_CONTINUE" = true ]; then
+                    # Check if tests passed based on exit code
+                    if [ $TEST_RESULT -eq 0 ]; then
+                        # If valgrind is enabled, check for memory leaks
+                        if [ "$USE_VALGRIND" = true ]; then
+                            # Special case for GSSAPI leaks if --gssapi-leak-ok is set
+                            if [ "$GSSAPI_LEAK_OK" = true ] && echo "$TEST_OUTPUT" | grep -q "PostgreSQL_GSSAPI_leak"; then
+                                # Check if there are no errors despite the GSSAPI leaks
+                                if echo "$TEST_OUTPUT" | grep -q "ERROR SUMMARY: 0 errors from 0 contexts"; then
+                                    echo -e "\nGSSAPI leaks detected but ignored as requested. Continuing to next test..."
+                                    continue
+                                fi
+                            fi
+                            
+                            # Standard case - check for no memory leaks
+                            if echo "$TEST_OUTPUT" | grep -q "All heap blocks were freed -- no leaks are possible" && \
+                               echo "$TEST_OUTPUT" | grep -q "ERROR SUMMARY: 0 errors from 0 contexts"; then
+                                echo -e "\nNo memory leaks detected. Continuing to next test..."
                                 continue
+                            else
+                                echo -e "\nTest [$TAG] (Run $run of $RUN_COUNT): Memory leaks or errors detected. Press Enter to continue or ESC to abort..."
+                                read -n 1 key
+                                if [[ $key = $'\e' ]]; then
+                                    echo -e "\nTest execution aborted by user during test [$TAG] in run $run of $RUN_COUNT."
+                                    exit 1
+                                fi
                             fi
-                        fi
-                        
-                        # Standard case - check for no memory leaks
-                        if echo "$TEST_OUTPUT" | grep -q "All heap blocks were freed -- no leaks are possible" && \
-                           echo "$TEST_OUTPUT" | grep -q "ERROR SUMMARY: 0 errors from 0 contexts"; then
-                            echo -e "\nNo memory leaks detected. Continuing to next test..."
-                            continue
                         else
-                            echo -e "\nTest [$TAG]: Memory leaks or errors detected. Press Enter to continue or ESC to abort..."
-                            read -n 1 key
-                            if [[ $key = $'\e' ]]; then
-                                echo -e "\nTest execution aborted by user during test [$TAG]."
-                                exit 1
-                            fi
+                            # No valgrind, just continue if tests passed
+                            echo -e "\nAll tests passed. Continuing to next test..."
+                            continue
                         fi
                     else
-                        # No valgrind, just continue if tests passed
-                        echo -e "\nAll tests passed. Continuing to next test..."
-                        continue
+                        echo -e "\nTest [$TAG] (Run $run of $RUN_COUNT): Tests failed. Press Enter to continue or ESC to abort..."
+                        read -n 1 key
+                        if [[ $key = $'\e' ]]; then
+                            echo -e "\nTest execution aborted by user during test [$TAG] in run $run of $RUN_COUNT."
+                            exit 1
+                        fi
                     fi
                 else
-                    echo -e "\nTest [$TAG]: Tests failed. Press Enter to continue or ESC to abort..."
-                    read -n 1 key
-                    if [[ $key = $'\e' ]]; then
-                        echo -e "\nTest execution aborted by user during test [$TAG]."
-                        exit 1
-                    fi
+                    # Original behavior - always wait for user input
+                    read -p "Press Enter to continue with the next test..."
                 fi
-            else
-                # Original behavior - always wait for user input
-                read -p "Press Enter to continue with the next test..."
-            fi
-        done
+            done
+        fi
     fi
-fi
+done
 
-echo -e "\n========== All Tests Completed ==========\n"
-echo -e "Test execution completed. Check the output above for any errors."
+echo -e "\n========== All Test Runs Completed ($RUN_COUNT total runs) ==========\n"
+echo -e "Test execution completed. All $RUN_COUNT runs have been executed. Check the output above for any errors."
