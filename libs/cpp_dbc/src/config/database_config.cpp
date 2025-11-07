@@ -15,7 +15,8 @@ namespace cpp_dbc
             return DriverManager::getConnection(
                 createConnectionString(),
                 getUsername(),
-                getPassword());
+                getPassword(),
+                getOptions());
         }
 
         // DatabaseConfigManager implementation

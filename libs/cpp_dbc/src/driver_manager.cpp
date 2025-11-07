@@ -22,7 +22,8 @@ namespace cpp_dbc
 
     std::shared_ptr<Connection> DriverManager::getConnection(const std::string &url,
                                                              const std::string &user,
-                                                             const std::string &password)
+                                                             const std::string &password,
+                                                             const std::map<std::string, std::string> &options)
     {
         // std::cout << "Getting connection for URL: " << url << std::endl;
 
@@ -63,7 +64,7 @@ namespace cpp_dbc
         // std::cout << "Driver '" << driverName << "' found, creating connection..." << std::endl;
 
         // Use the driver to create a connection
-        return it->second->connect(url, user, password);
+        return it->second->connect(url, user, password, options);
     }
 
     std::shared_ptr<Connection> DriverManager::getConnection(const config::DatabaseConfig &dbConfig)
@@ -71,7 +72,8 @@ namespace cpp_dbc
         return getConnection(
             dbConfig.createConnectionString(),
             dbConfig.getUsername(),
-            dbConfig.getPassword());
+            dbConfig.getPassword(),
+            dbConfig.getOptions());
     }
 
     std::shared_ptr<Connection> DriverManager::getConnection(const config::DatabaseConfigManager &configManager,
@@ -86,7 +88,8 @@ namespace cpp_dbc
         return getConnection(
             dbConfig->createConnectionString(),
             dbConfig->getUsername(),
-            dbConfig->getPassword());
+            dbConfig->getPassword(),
+            dbConfig->getOptions());
     }
 
     std::vector<std::string> DriverManager::getRegisteredDrivers()

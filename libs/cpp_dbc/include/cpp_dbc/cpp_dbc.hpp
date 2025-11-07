@@ -167,7 +167,8 @@ namespace cpp_dbc
 
         virtual std::shared_ptr<Connection> connect(const std::string &url,
                                                     const std::string &user,
-                                                    const std::string &password) = 0;
+                                                    const std::string &password,
+                                                    const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
 
         virtual bool acceptsURL(const std::string &url) = 0;
     };
@@ -183,7 +184,8 @@ namespace cpp_dbc
 
         static std::shared_ptr<Connection> getConnection(const std::string &url,
                                                          const std::string &user,
-                                                         const std::string &password);
+                                                         const std::string &password,
+                                                         const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
 
         // New methods for integration with configuration classes
         static std::shared_ptr<Connection> getConnection(const config::DatabaseConfig &dbConfig);

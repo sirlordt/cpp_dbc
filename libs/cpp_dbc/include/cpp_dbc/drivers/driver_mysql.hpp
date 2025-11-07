@@ -121,7 +121,8 @@ namespace cpp_dbc
                             int port,
                             const std::string &database,
                             const std::string &user,
-                            const std::string &password);
+                            const std::string &password,
+                            const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
             ~MySQLConnection() override;
 
             void close() override;
@@ -152,7 +153,8 @@ namespace cpp_dbc
 
             std::shared_ptr<Connection> connect(const std::string &url,
                                                 const std::string &user,
-                                                const std::string &password) override;
+                                                const std::string &password,
+                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
             bool acceptsURL(const std::string &url) override;
 
@@ -185,7 +187,8 @@ namespace cpp_dbc
 
             std::shared_ptr<Connection> connect(const std::string &url,
                                                 const std::string &user,
-                                                const std::string &password) override
+                                                const std::string &password,
+                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
             {
                 throw SQLException("MySQL support is not enabled in this build");
             }

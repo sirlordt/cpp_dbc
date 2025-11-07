@@ -417,7 +417,8 @@ namespace cpp_dbc_test
     class MockDriver : public cpp_dbc::Driver
     {
     public:
-        std::shared_ptr<cpp_dbc::Connection> connect(const std::string &, const std::string &, const std::string &) override
+        std::shared_ptr<cpp_dbc::Connection> connect(const std::string &, const std::string &, const std::string &,
+                                                     const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
         {
             return std::make_shared<MockConnection>();
         }
@@ -441,16 +442,17 @@ namespace cpp_dbc_test
                                    "cpp_dbc:mock://localhost:1234/mockdb",
                                    "mockuser",
                                    "mockpass",
-                                   0,         // initialSize - set to 0 to avoid creating connections
-                                   20,        // maxSize - large enough for concurrent tests
-                                   0,         // minIdle - set to 0 to avoid maintenance
-                                   1000,      // maxWaitMillis
-                                   1000,      // validationTimeoutMillis
-                                   10000,     // idleTimeoutMillis
-                                   10000,     // maxLifetimeMillis
-                                   false,     // testOnBorrow - disable to avoid validation
-                                   false,     // testOnReturn
-                                   "SELECT 1" // validationQuery
+                                   std::map<std::string, std::string>(), // options
+                                   0,                                    // initialSize - set to 0 to avoid creating connections
+                                   20,                                   // maxSize - large enough for concurrent tests
+                                   0,                                    // minIdle - set to 0 to avoid maintenance
+                                   1000,                                 // maxWaitMillis
+                                   1000,                                 // validationTimeoutMillis
+                                   10000,                                // idleTimeoutMillis
+                                   10000,                                // maxLifetimeMillis
+                                   false,                                // testOnBorrow - disable to avoid validation
+                                   false,                                // testOnReturn
+                                   "SELECT 1"                            // validationQuery
                                )
         {
             // Register the mock driver

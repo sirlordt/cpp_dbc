@@ -122,7 +122,13 @@ namespace cpp_dbc
             const std::string &getDatabase() const { return database; }
             const std::string &getUsername() const { return username; }
             const std::string &getPassword() const { return password; }
-            const ConnectionOptions &getOptions() const { return options; }
+            const ConnectionOptions &getOptionsObj() const { return options; }
+
+            /**
+             * @brief Get all connection options as a map
+             * @return Map of option names to option values
+             */
+            const std::map<std::string, std::string> &getOptions() const { return options.getAllOptions(); }
 
             // Setters
             void setName(const std::string &value) { name = value; }
@@ -180,6 +186,7 @@ namespace cpp_dbc
             std::string url;
             std::string username;
             std::string password;
+            std::map<std::string, std::string> options;
             int initialSize;
             int maxSize;
             int minIdle;
@@ -283,6 +290,7 @@ namespace cpp_dbc
             bool getTestOnReturn() const { return testOnReturn; }
             const std::string &getValidationQuery() const { return validationQuery; }
             TransactionIsolationLevel getTransactionIsolation() const { return transactionIsolation; }
+            const std::map<std::string, std::string> &getOptions() const { return options; }
 
             // Setters
             void setName(const std::string &value) { name = value; }
@@ -300,6 +308,7 @@ namespace cpp_dbc
             void setTestOnReturn(bool value) { testOnReturn = value; }
             void setValidationQuery(const std::string &value) { validationQuery = value; }
             void setTransactionIsolation(TransactionIsolationLevel value) { transactionIsolation = value; }
+            void setOptions(const std::map<std::string, std::string> &value) { options = value; }
 
             /**
              * @brief Configure this pool with database connection details
@@ -311,6 +320,7 @@ namespace cpp_dbc
                 url = dbConfig.createConnectionString();
                 username = dbConfig.getUsername();
                 password = dbConfig.getPassword();
+                options = dbConfig.getOptions();
                 return *this;
             }
         };

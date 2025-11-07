@@ -151,7 +151,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw DBException("Column not found: " + columnName);
+                throw DBException("71685784D1EB: Column not found: " + columnName);
             }
 
             return getDouble(it->second + 1);
@@ -161,7 +161,7 @@ namespace cpp_dbc
         {
             if (!result || !currentRow || columnIndex < 1 || columnIndex > fieldCount)
             {
-                throw DBException("Invalid column index");
+                throw DBException("089F37F0D90E: Invalid column index");
             }
 
             int idx = columnIndex - 1;
@@ -178,7 +178,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw DBException("Column not found: " + columnName);
+                throw DBException("45B8E019C425: Column not found: " + columnName);
             }
 
             return getString(it->second + 1);
@@ -195,7 +195,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw DBException("Column not found: " + columnName);
+                throw DBException("94A1D34DC156: Column not found: " + columnName);
             }
 
             return getBoolean(it->second + 1);
@@ -205,7 +205,7 @@ namespace cpp_dbc
         {
             if (!result || !currentRow || columnIndex < 1 || columnIndex > fieldCount)
             {
-                throw DBException("Invalid column index");
+                throw DBException("9BB5941B830C: Invalid column index");
             }
 
             int idx = columnIndex - 1;
@@ -217,7 +217,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw DBException("Column not found: " + columnName);
+                throw DBException("DA3E45676022: Column not found: " + columnName);
             }
 
             return isNull(it->second + 1);
@@ -557,19 +557,19 @@ namespace cpp_dbc
         {
             if (!stmt)
             {
-                throw DBException("Statement is applied");
+                throw DBException("255F5A0C6008: Statement is applied");
             }
 
             // Bind parameters
             if (!binds.empty() && mysql_stmt_bind_param(stmt, binds.data()) != 0)
             {
-                throw DBException(std::string("Failed to bind parameters: ") + mysql_stmt_error(stmt));
+                throw DBException(std::string("9B7E537EB656: Failed to bind parameters: ") + mysql_stmt_error(stmt));
             }
 
             // Execute the query
             if (mysql_stmt_execute(stmt) != 0)
             {
-                throw DBException(std::string("Failed to execute update: ") + mysql_stmt_error(stmt));
+                throw DBException(std::string("547F7466347C: Failed to execute update: ") + mysql_stmt_error(stmt));
             }
 
             // auto result = mysql_stmt_affected_rows(stmt);
@@ -608,7 +608,8 @@ namespace cpp_dbc
                                          int port,
                                          const std::string &database,
                                          const std::string &user,
-                                         const std::string &password)
+                                         const std::string &password,
+                                         const std::map<std::string, std::string> &options)
             : mysql(nullptr), closed(false), autoCommit(true),
               isolationLevel(TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ) // MySQL default
         {
@@ -621,6 +622,35 @@ namespace cpp_dbc
             // Force TCP/IP connection
             unsigned int protocol = MYSQL_PROTOCOL_TCP;
             mysql_options(mysql, MYSQL_OPT_PROTOCOL, &protocol);
+
+            // Aplicar opciones de conexión desde el mapa
+            for (const auto &option : options)
+            {
+                if (option.first == "connect_timeout")
+                {
+                    unsigned int timeout = std::stoi(option.second);
+                    mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
+                }
+                else if (option.first == "read_timeout")
+                {
+                    unsigned int timeout = std::stoi(option.second);
+                    mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, &timeout);
+                }
+                else if (option.first == "write_timeout")
+                {
+                    unsigned int timeout = std::stoi(option.second);
+                    mysql_options(mysql, MYSQL_OPT_WRITE_TIMEOUT, &timeout);
+                }
+                else if (option.first == "charset")
+                {
+                    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, option.second.c_str());
+                }
+                else if (option.first == "auto_reconnect" && option.second == "true")
+                {
+                    bool reconnect = true;
+                    mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
+                }
+            }
 
             // Connect to the database
             if (!mysql_real_connect(mysql, host.c_str(), user.c_str(), password.c_str(),
@@ -819,7 +849,7 @@ namespace cpp_dbc
         {
             if (closed || !mysql)
             {
-                throw DBException("Connection is closed");
+                throw DBException("47FCEE77D4F3: Connection is closed");
             }
 
             std::string query;
@@ -962,7 +992,8 @@ namespace cpp_dbc
 
         std::shared_ptr<Connection> MySQLDriver::connect(const std::string &url,
                                                          const std::string &user,
-                                                         const std::string &password)
+                                                         const std::string &password,
+                                                         const std::map<std::string, std::string> &options)
         {
             std::string host;
             int port;
@@ -1045,7 +1076,7 @@ namespace cpp_dbc
                 throw DBException("5M6N7O8P9Q0R: Invalid MySQL connection URL: " + url);
             }
 
-            return std::make_shared<MySQLConnection>(host, port, database, user, password);
+            return std::make_shared<MySQLConnection>(host, port, database, user, password, options);
         }
 
         bool MySQLDriver::acceptsURL(const std::string &url)

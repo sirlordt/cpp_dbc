@@ -10,6 +10,7 @@ The CPP_DBC library appears to be in a functional state with the following compo
 4. **SQLite Implementation**: Complete implementation of SQLite driver
 5. **Connection Pool**: Fully implemented with configuration options for MySQL, PostgreSQL, and SQLite
 6. **Transaction Manager**: Fully implemented with transaction tracking, timeout, and improved resource management
+7. **Connection Options**: Support for database-specific connection options in all drivers
 
 The project includes example code demonstrating:
 - Basic database operations
@@ -32,12 +33,14 @@ The project includes example code demonstrating:
 - Prepared statements with parameter binding
 - Result set processing
 - Transaction management
+- Connection options for database-specific settings
 
 ### PostgreSQL Support
 - Connection to PostgreSQL databases
 - Prepared statements with parameter binding
 - Result set processing
 - Transaction management
+- Configurable connection options (gssencmode, client_encoding, etc.)
 
 ### Connection Pooling
 - Dynamic connection creation and management
@@ -61,6 +64,7 @@ The project includes example code demonstrating:
 - Improved resource management with shared_from_this
 - Better statement cleanup with active connections tracking
 - Enhanced connection closing with sqlite3_close_v2
+- Configurable SQLite pragmas (journal_mode, synchronous, foreign_keys)
 
 ### Transaction Management
 - Transaction creation and tracking
@@ -123,7 +127,29 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 
 ### Fixed Issues
-1. **SQLite Driver Implementation**:
+1. **Connection Options Support**:
+   - Added connection options support for all database drivers
+   - Added options parameter to Driver::connect() method
+   - Added options parameter to all driver implementations
+   - Added options parameter to ConnectionPool constructor
+   - Added options map to ConnectionPoolConfig
+   - Updated DatabaseConfig to provide options through getOptions() method
+   - Renamed original getOptions() to getOptionsObj() for backward compatibility
+   - Updated all tests to support the new options parameter
+
+2. **PostgreSQL Driver Improvements**:
+   - Enhanced PostgreSQL driver with better configuration options
+   - Added support for passing connection options from configuration to PQconnectdb
+   - Made gssencmode configurable through options map (default: disable)
+   - Added error codes to exception messages for better debugging
+
+3. **SQLite Driver Improvements**:
+   - Enhanced SQLite driver with better configuration options
+   - Added support for configuring SQLite pragmas through options map
+   - Added support for journal_mode, synchronous, and foreign_keys options
+   - Added error codes to exception messages for better debugging
+
+4. **SQLite Driver Implementation**:
    - Added SQLite database driver support with full implementation
    - Added SQLite connection string format support
    - Added SQLite-specific transaction isolation level handling

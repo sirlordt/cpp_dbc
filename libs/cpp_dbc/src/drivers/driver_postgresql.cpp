@@ -204,7 +204,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw DBException("Column not found: " + columnName);
+                throw DBException("32DF0933F6D5: Column not found: " + columnName);
             }
 
             return getString(it->second + 1);
@@ -421,7 +421,7 @@ namespace cpp_dbc
         {
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
             {
-                throw DBException("Invalid parameter index");
+                throw DBException("4A049129B485: Invalid parameter index");
             }
 
             int idx = parameterIndex - 1;
@@ -670,7 +670,8 @@ namespace cpp_dbc
                                                    int port,
                                                    const std::string &database,
                                                    const std::string &user,
-                                                   const std::string &password)
+                                                   const std::string &password,
+                                                   const std::map<std::string, std::string> &options)
             : conn(nullptr), closed(false), autoCommit(true), statementCounter(0),
               isolationLevel(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) // PostgreSQL default
         {
@@ -681,8 +682,18 @@ namespace cpp_dbc
             conninfo << "dbname=" << database << " ";
             conninfo << "user=" << user << " ";
             conninfo << "password=" << password << " ";
-            // avoid memory leak in gss api reported by valgrind.
-            conninfo << "gssencmode=disable"; // TODO: Pass to conections options map. en configmap yaml
+
+            // Añadir opciones del mapa de configuración
+            for (const auto &option : options)
+            {
+                conninfo << option.first << "=" << option.second << " ";
+            }
+
+            // Si no se especificó gssencmode en las opciones, usar el valor por defecto
+            if (options.find("gssencmode") == options.end())
+            {
+                conninfo << "gssencmode=disable";
+            }
 
             // Connect to the database
             conn = PQconnectdb(conninfo.str().c_str());
@@ -1139,7 +1150,8 @@ namespace cpp_dbc
 
         std::shared_ptr<Connection> PostgreSQLDriver::connect(const std::string &url,
                                                               const std::string &user,
-                                                              const std::string &password)
+                                                              const std::string &password,
+                                                              const std::map<std::string, std::string> &options)
         {
             std::string host;
             int port;
@@ -1207,7 +1219,7 @@ namespace cpp_dbc
                 }
             }
 
-            return std::make_shared<PostgreSQLConnection>(host, port, database, user, password);
+            return std::make_shared<PostgreSQLConnection>(host, port, database, user, password, options);
         }
 
         bool PostgreSQLDriver::acceptsURL(const std::string &url)

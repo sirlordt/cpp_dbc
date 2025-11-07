@@ -184,16 +184,17 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
             "cpp_dbc:mock://localhost:1234/mockdb",
             "mockuser",
             "mockpass",
-            3,         // initialSize
-            10,        // maxSize
-            2,         // minIdle
-            5000,      // maxWaitMillis
-            1000,      // validationTimeoutMillis
-            30000,     // idleTimeoutMillis
-            60000,     // maxLifetimeMillis
-            true,      // testOnBorrow
-            false,     // testOnReturn
-            "SELECT 1" // validationQuery
+            std::map<std::string, std::string>(), // options
+            3,                                    // initialSize
+            10,                                   // maxSize
+            2,                                    // minIdle
+            5000,                                 // maxWaitMillis
+            1000,                                 // validationTimeoutMillis
+            30000,                                // idleTimeoutMillis
+            60000,                                // maxLifetimeMillis
+            true,                                 // testOnBorrow
+            false,                                // testOnReturn
+            "SELECT 1"                            // validationQuery
         );
 
         // Get a connection from the pool
@@ -243,16 +244,17 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
             "cpp_dbc:mock://localhost:1234/mockdb",
             "mockuser",
             "mockpass",
-            5,         // initialSize
-            20,        // maxSize
-            3,         // minIdle
-            5000,      // maxWaitMillis
-            1000,      // validationTimeoutMillis
-            30000,     // idleTimeoutMillis
-            60000,     // maxLifetimeMillis
-            true,      // testOnBorrow
-            false,     // testOnReturn
-            "SELECT 1" // validationQuery
+            std::map<std::string, std::string>{}, // options
+            5,                                    // initialSize
+            20,                                   // maxSize
+            3,                                    // minIdle
+            5000,                                 // maxWaitMillis
+            1000,                                 // validationTimeoutMillis
+            30000,                                // idleTimeoutMillis
+            60000,                                // maxLifetimeMillis
+            true,                                 // testOnBorrow
+            false,                                // testOnReturn
+            "SELECT 1"                            // validationQuery
         );
 
         // Number of threads and operations per thread

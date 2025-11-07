@@ -47,6 +47,7 @@ namespace cpp_dbc
         std::string url;
         std::string username;
         std::string password;
+        std::map<std::string, std::string> options;     // Connection options
         int initialSize;                                // Initial number of connections
         int maxSize;                                    // Maximum number of connections
         int minIdle;                                    // Minimum number of idle connections
@@ -101,6 +102,7 @@ namespace cpp_dbc
         ConnectionPool(const std::string &url,
                        const std::string &username,
                        const std::string &password,
+                       const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
                        int initialSize = 5,
                        int maxSize = 20,
                        int minIdle = 3,

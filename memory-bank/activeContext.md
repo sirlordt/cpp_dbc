@@ -28,21 +28,43 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **SQLite Connection Pool Implementation**:
+1. **Connection Options Support**:
+   - Added connection options support for all database drivers
+   - Added options parameter to Driver::connect() method
+   - Added options parameter to all driver implementations (MySQL, PostgreSQL, SQLite)
+   - Added options parameter to ConnectionPool constructor
+   - Added options map to ConnectionPoolConfig
+   - Updated DatabaseConfig to provide options through getOptions() method
+   - Renamed original getOptions() to getOptionsObj() for backward compatibility
+   - Updated all tests to support the new options parameter
+
+2. **PostgreSQL Driver Improvements**:
+   - Enhanced PostgreSQL driver with better configuration options
+   - Added support for passing connection options from configuration to PQconnectdb
+   - Made gssencmode configurable through options map (default: disable)
+   - Added error codes to exception messages for better debugging
+
+3. **SQLite Driver Improvements**:
+   - Enhanced SQLite driver with better configuration options
+   - Added support for configuring SQLite pragmas through options map
+   - Added support for journal_mode, synchronous, and foreign_keys options
+   - Added error codes to exception messages for better debugging
+
+4. **SQLite Connection Pool Implementation**:
    - Added SQLite connection pool support with `SQLiteConnectionPool` class
    - Added SQLite-specific connection pool configuration in test_db_connections.yml
    - Added SQLite connection pool tests in test_connection_pool_real.cpp
    - Improved connection handling for SQLite connections
    - Added transaction isolation level support for SQLite pools
 
-2. **SQLite Driver Improvements**:
+5. **SQLite Driver Improvements**:
    - Enhanced SQLite driver with better resource management
    - Added static list of active connections for statement cleanup
    - Improved connection closing with sqlite3_close_v2 instead of sqlite3_close
    - Added better handling of prepared statements with shared_from_this
    - Fixed memory leaks in SQLite connection and statement handling
 
-3. **Test Script Enhancements**:
+6. **Test Script Enhancements**:
    - Added new options to run_test_cpp_dbc.sh
    - Added `--auto` option to automatically continue to next test set if tests pass
    - Added `--gssapi-leak-ok` option to ignore GSSAPI leaks in PostgreSQL with Valgrind

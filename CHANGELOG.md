@@ -1,6 +1,30 @@
 # Changelog
 
-## 2025-11-06 2:58:00 PM -0800 [Current]
+## 2025-11-07 11:01:00 AM -0800 [Current]
+
+### Connection Options Support
+* Added connection options support for all database drivers:
+  * Added options parameter to Driver::connect() method
+  * Added options parameter to all driver implementations (MySQL, PostgreSQL, SQLite)
+  * Added options parameter to ConnectionPool constructor
+  * Added options map to ConnectionPoolConfig
+  * Updated DatabaseConfig to provide options through getOptions() method
+  * Renamed original getOptions() to getOptionsObj() for backward compatibility
+  * Updated all tests to support the new options parameter
+
+### PostgreSQL Driver Improvements
+* Enhanced PostgreSQL driver with better configuration options:
+  * Added support for passing connection options from configuration to PQconnectdb
+  * Made gssencmode configurable through options map (default: disable)
+  * Added error codes to exception messages for better debugging
+
+### SQLite Driver Improvements
+* Enhanced SQLite driver with better configuration options:
+  * Added support for configuring SQLite pragmas through options map
+  * Added support for journal_mode, synchronous, and foreign_keys options
+  * Added error codes to exception messages for better debugging
+
+## 2025-11-06 2:58:00 PM -0800
 
 ### SQLite Connection Pool Implementation
 * Added SQLite connection pool support:

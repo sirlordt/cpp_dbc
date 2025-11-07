@@ -127,7 +127,8 @@ namespace cpp_dbc
             static std::mutex connectionsListMutex;
 
         public:
-            SQLiteConnection(const std::string &database);
+            SQLiteConnection(const std::string &database,
+                             const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
             ~SQLiteConnection() override;
 
             void close() override;
@@ -158,7 +159,8 @@ namespace cpp_dbc
 
             std::shared_ptr<Connection> connect(const std::string &url,
                                                 const std::string &user,
-                                                const std::string &password) override;
+                                                const std::string &password,
+                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
             bool acceptsURL(const std::string &url) override;
 
@@ -182,15 +184,16 @@ namespace cpp_dbc
         public:
             SQLiteDriver()
             {
-                throw SQLException("SQLite support is not enabled in this build");
+                throw DBException("C27AD46A860B: SQLite support is not enabled in this build");
             }
             ~SQLiteDriver() override = default;
 
             std::shared_ptr<Connection> connect(const std::string &url,
                                                 const std::string &user,
-                                                const std::string &password) override
+                                                const std::string &password,
+                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
             {
-                throw SQLException("SQLite support is not enabled in this build");
+                throw DBException("269CC140F035: SQLite support is not enabled in this build");
             }
 
             bool acceptsURL(const std::string &url) override

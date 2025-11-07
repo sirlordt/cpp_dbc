@@ -21,6 +21,7 @@ namespace cpp_dbc
     ConnectionPool::ConnectionPool(const std::string &url,
                                    const std::string &username,
                                    const std::string &password,
+                                   const std::map<std::string, std::string> &options,
                                    int initialSize,
                                    int maxSize,
                                    int minIdle,
@@ -35,6 +36,7 @@ namespace cpp_dbc
         : url(url),
           username(username),
           password(password),
+          options(options),
           initialSize(initialSize),
           maxSize(maxSize),
           minIdle(minIdle),
@@ -68,6 +70,7 @@ namespace cpp_dbc
         : url(config.getUrl()),
           username(config.getUsername()),
           password(config.getPassword()),
+          options(config.getOptions()),
           initialSize(config.getInitialSize()),
           maxSize(config.getMaxSize()),
           minIdle(config.getMinIdle()),
@@ -118,7 +121,7 @@ namespace cpp_dbc
 
     std::shared_ptr<Connection> ConnectionPool::createConnection()
     {
-        return DriverManager::getConnection(url, username, password);
+        return DriverManager::getConnection(url, username, password, options);
     }
 
     std::shared_ptr<PooledConnection> ConnectionPool::createPooledConnection()
@@ -444,7 +447,7 @@ namespace cpp_dbc
                 //     //              << activeConnections << ", Idle: " << idleConnections.size()
                 //     //              << ", Total: " << allConnections.size() << ", Max: " << maxSize << std::endl;
 
-                //     throw DBException("Timeout waiting for connection from the pool");
+                //     throw DBException("DE04466AD05E: Timeout waiting for connection from the pool");
                 // }
 
                 if (!running.load())

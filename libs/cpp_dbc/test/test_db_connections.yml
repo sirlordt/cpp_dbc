@@ -61,6 +61,7 @@ databases:
       application_name: cpp_dbc_tests
       client_encoding: UTF8
       sslmode: prefer
+      gssencmode: disable #avoid memory leak in gss api reported by valgrind.
   
   # PostgreSQL testing database
   - name: test_postgresql
@@ -75,6 +76,7 @@ databases:
       application_name: cpp_dbc_tests
       client_encoding: UTF8
       sslmode: prefer
+      gssencmode: disable #avoid memory leak in gss api reported by valgrind.
   
   # PostgreSQL production database (example)
   - name: prod_postgresql
@@ -89,6 +91,7 @@ databases:
       application_name: cpp_dbc_prod
       client_encoding: UTF8
       sslmode: require
+      gssencmode: disable #avoid memory leak in gss api reported by valgrind.
       
   # SQLite development database
   - name: dev_sqlite

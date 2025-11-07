@@ -97,7 +97,7 @@ Una clase base abstracta que representa una conexión a una base de datos.
 Una clase base abstracta que representa un controlador de base de datos.
 
 **Métodos:**
-- `connect(string, string, string)`: Establece una conexión a la base de datos.
+- `connect(string, string, string, map<string, string>)`: Establece una conexión a la base de datos con opciones de conexión opcionales.
 - `acceptsURL(string)`: Devuelve true si el controlador puede conectarse a la URL dada.
 
 ### DriverManager
@@ -105,7 +105,8 @@ Una clase gestora para registrar y recuperar instancias de controladores.
 
 **Métodos:**
 - `registerDriver(string, Driver)`: Registra un controlador con el nombre dado.
-- `getConnection(string, string, string)`: Obtiene una conexión a la base de datos especificada por la URL.
+- `getConnection(string, string, string, map<string, string>)`: Obtiene una conexión a la base de datos especificada por la URL con opciones de conexión opcionales.
+- `getConnection(DatabaseConfig)`: Obtiene una conexión utilizando un objeto de configuración de base de datos.
 
 ---
 
@@ -131,7 +132,7 @@ Implementación de Connection para MySQL.
 
 **Métodos:**
 Los mismos que Connection, más:
-- `MySQLConnection(string, int, string, string, string)`: Constructor que toma host, puerto, base de datos, usuario y contraseña.
+- `MySQLConnection(string, int, string, string, string, map<string, string>)`: Constructor que toma host, puerto, base de datos, usuario, contraseña y opciones de conexión opcionales.
 - `setTransactionIsolation(TransactionIsolationLevel)`: Establece el nivel de aislamiento de transacción para MySQL (predeterminado: REPEATABLE READ).
 - `getTransactionIsolation()`: Devuelve el nivel de aislamiento de transacción actual.
 
@@ -167,7 +168,7 @@ Implementación de Connection para PostgreSQL.
 
 **Métodos:**
 Los mismos que Connection, más:
-- `PostgreSQLConnection(string, int, string, string, string)`: Constructor que toma host, puerto, base de datos, usuario y contraseña.
+- `PostgreSQLConnection(string, int, string, string, string, map<string, string>)`: Constructor que toma host, puerto, base de datos, usuario, contraseña y opciones de conexión opcionales.
 - `generateStatementName()`: Genera un nombre único para declaraciones preparadas.
 - `setTransactionIsolation(TransactionIsolationLevel)`: Establece el nivel de aislamiento de transacción para PostgreSQL (predeterminado: READ COMMITTED).
 - `getTransactionIsolation()`: Devuelve el nivel de aislamiento de transacción actual.
@@ -204,7 +205,7 @@ Implementación de Connection para SQLite.
 
 **Métodos:**
 Los mismos que Connection, más:
-- `SQLiteConnection(string)`: Constructor que toma una ruta de base de datos.
+- `SQLiteConnection(string, map<string, string>)`: Constructor que toma una ruta de base de datos y opciones de conexión opcionales.
 - `setTransactionIsolation(TransactionIsolationLevel)`: Establece el nivel de aislamiento de transacción para SQLite (solo se admite SERIALIZABLE).
 - `getTransactionIsolation()`: Devuelve el nivel de aislamiento de transacción actual.
 - `registerStatement(std::shared_ptr<SQLitePreparedStatement>)`: Registra una declaración con la conexión para una limpieza adecuada.
@@ -241,6 +242,7 @@ Estructura de configuración para pools de conexiones.
 - `url`: La URL de la base de datos
 - `username`: El nombre de usuario de la base de datos
 - `password`: La contraseña de la base de datos
+- `options`: Mapa de opciones de conexión específicas del tipo de base de datos
 - `initialSize`: Número inicial de conexiones (predeterminado 5)
 - `maxSize`: Número máximo de conexiones (predeterminado 20)
 - `minIdle`: Número mínimo de conexiones inactivas (predeterminado 3)
@@ -256,6 +258,7 @@ Estructura de configuración para pools de conexiones.
 Gestiona un pool de conexiones de base de datos.
 
 **Métodos:**
+- `ConnectionPool(string, string, string, map<string, string>, int, int, int, int, int, int, int, bool, bool, string)`: Constructor que toma parámetros de configuración individuales.
 - `ConnectionPool(ConnectionPoolConfig)`: Constructor que toma una configuración de pool.
 - `getConnection()`: Obtiene una conexión del pool.
 - `getActiveConnectionCount()`: Devuelve el número de conexiones activas.
@@ -338,7 +341,8 @@ Representa una configuración de base de datos.
 - `getPassword()`: Obtiene la contraseña de la base de datos.
 - `setOption(string, string)`: Establece una opción específica de la base de datos.
 - `getOption(string)`: Obtiene una opción específica de la base de datos.
-- `getOptions()`: Obtiene todas las opciones específicas de la base de datos.
+- `getOptionsObj()`: Obtiene el objeto ConnectionOptions.
+- `getOptions()`: Obtiene todas las opciones específicas de la base de datos como un mapa.
 - `createConnectionString()`: Crea una cadena de conexión para esta configuración.
 
 ### ConnectionPoolConfig

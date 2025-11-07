@@ -97,7 +97,7 @@ An abstract base class representing a connection to a database.
 An abstract base class representing a database driver.
 
 **Methods:**
-- `connect(string, string, string)`: Establishes a connection to the database.
+- `connect(string, string, string, map<string, string>)`: Establishes a connection to the database with optional connection options.
 - `acceptsURL(string)`: Returns true if the driver can connect to the given URL.
 
 ### DriverManager
@@ -105,7 +105,8 @@ A manager class to register and retrieve driver instances.
 
 **Methods:**
 - `registerDriver(string, Driver)`: Registers a driver with the given name.
-- `getConnection(string, string, string)`: Gets a connection to the database specified by the URL.
+- `getConnection(string, string, string, map<string, string>)`: Gets a connection to the database specified by the URL with optional connection options.
+- `getConnection(DatabaseConfig)`: Gets a connection using a database configuration object.
 
 ---
 
@@ -131,7 +132,7 @@ Implementation of Connection for MySQL.
 
 **Methods:**
 Same as Connection, plus:
-- `MySQLConnection(string, int, string, string, string)`: Constructor that takes host, port, database, user, and password.
+- `MySQLConnection(string, int, string, string, string, map<string, string>)`: Constructor that takes host, port, database, user, password, and optional connection options.
 - `setTransactionIsolation(TransactionIsolationLevel)`: Sets the transaction isolation level for MySQL (default: REPEATABLE READ).
 - `getTransactionIsolation()`: Returns the current transaction isolation level.
 
@@ -167,7 +168,7 @@ Implementation of Connection for PostgreSQL.
 
 **Methods:**
 Same as Connection, plus:
-- `PostgreSQLConnection(string, int, string, string, string)`: Constructor that takes host, port, database, user, and password.
+- `PostgreSQLConnection(string, int, string, string, string, map<string, string>)`: Constructor that takes host, port, database, user, password, and optional connection options.
 - `generateStatementName()`: Generates a unique name for prepared statements.
 - `setTransactionIsolation(TransactionIsolationLevel)`: Sets the transaction isolation level for PostgreSQL (default: READ COMMITTED).
 - `getTransactionIsolation()`: Returns the current transaction isolation level.
@@ -204,7 +205,7 @@ Implementation of Connection for SQLite.
 
 **Methods:**
 Same as Connection, plus:
-- `SQLiteConnection(string)`: Constructor that takes a database path.
+- `SQLiteConnection(string, map<string, string>)`: Constructor that takes a database path and optional connection options.
 - `setTransactionIsolation(TransactionIsolationLevel)`: Sets the transaction isolation level for SQLite (only SERIALIZABLE is supported).
 - `getTransactionIsolation()`: Returns the current transaction isolation level.
 - `registerStatement(std::shared_ptr<SQLitePreparedStatement>)`: Registers a statement with the connection for proper cleanup.
@@ -241,6 +242,7 @@ Configuration structure for connection pools.
 - `url`: The database URL
 - `username`: The database username
 - `password`: The database password
+- `options`: Map of connection options specific to the database type
 - `initialSize`: Initial number of connections (default 5)
 - `maxSize`: Maximum number of connections (default 20)
 - `minIdle`: Minimum number of idle connections (default 3)
@@ -256,6 +258,7 @@ Configuration structure for connection pools.
 Manages a pool of database connections.
 
 **Methods:**
+- `ConnectionPool(string, string, string, map<string, string>, int, int, int, int, int, int, int, bool, bool, string)`: Constructor that takes individual configuration parameters.
 - `ConnectionPool(ConnectionPoolConfig)`: Constructor that takes a pool configuration.
 - `getConnection()`: Gets a connection from the pool.
 - `getActiveConnectionCount()`: Returns the number of active connections.
@@ -338,7 +341,8 @@ Represents a database configuration.
 - `getPassword()`: Gets the database password.
 - `setOption(string, string)`: Sets a database-specific option.
 - `getOption(string)`: Gets a database-specific option.
-- `getOptions()`: Gets all database-specific options.
+- `getOptionsObj()`: Gets the ConnectionOptions object.
+- `getOptions()`: Gets all database-specific options as a map.
 - `createConnectionString()`: Creates a connection string for this configuration.
 
 ### ConnectionPoolConfig

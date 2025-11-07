@@ -121,7 +121,7 @@ namespace cpp_dbc
         {
             if (!stmt || closed || !hasData || columnIndex < 1 || columnIndex > fieldCount)
             {
-                throw DBException("Invalid column index or row position");
+                throw DBException("DDAABD02C9D3: Invalid column index or row position");
             }
 
             int idx = columnIndex - 1;
@@ -139,7 +139,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw DBException("Column not found: " + columnName);
+                throw DBException("20C1324B8D71: Column not found: " + columnName);
             }
 
             return getLong(it->second + 1);
@@ -196,7 +196,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw DBException("Column not found: " + columnName);
+                throw DBException("93A82C42FA7B: Column not found: " + columnName);
             }
 
             return getString(it->second + 1);
@@ -216,7 +216,7 @@ namespace cpp_dbc
         {
             if (!stmt || closed || !hasData || columnIndex < 1 || columnIndex > fieldCount)
             {
-                throw DBException("Invalid column index or row position");
+                throw DBException("407EBCBBE843: Invalid column index or row position");
             }
 
             int idx = columnIndex - 1;
@@ -228,7 +228,7 @@ namespace cpp_dbc
             auto it = columnMap.find(columnName);
             if (it == columnMap.end())
             {
-                throw DBException("Column not found: " + columnName);
+                throw DBException("8BAE4B58A947: Column not found: " + columnName);
             }
 
             return isNull(it->second + 1);
@@ -638,7 +638,8 @@ namespace cpp_dbc
 
         // SQLiteConnection implementation
 
-        SQLiteConnection::SQLiteConnection(const std::string &database)
+        SQLiteConnection::SQLiteConnection(const std::string &database,
+                                           const std::map<std::string, std::string> &options)
             : db(nullptr), closed(false), autoCommit(true),
               isolationLevel(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE) // SQLite default
         {
@@ -651,8 +652,36 @@ namespace cpp_dbc
                 throw DBException("9O0P1Q2R3S4T: Failed to connect to SQLite database: " + error);
             }
 
-            // Enable foreign keys
-            executeUpdate("PRAGMA foreign_keys = ON");
+            // Aplicar opciones de configuración
+            for (const auto &option : options)
+            {
+                if (option.first == "foreign_keys" && option.second == "true")
+                {
+                    executeUpdate("PRAGMA foreign_keys = ON");
+                }
+                else if (option.first == "journal_mode" && option.second == "WAL")
+                {
+                    executeUpdate("PRAGMA journal_mode = WAL");
+                }
+                else if (option.first == "synchronous" && option.second == "FULL")
+                {
+                    executeUpdate("PRAGMA synchronous = FULL");
+                }
+                else if (option.first == "synchronous" && option.second == "NORMAL")
+                {
+                    executeUpdate("PRAGMA synchronous = NORMAL");
+                }
+                else if (option.first == "synchronous" && option.second == "OFF")
+                {
+                    executeUpdate("PRAGMA synchronous = OFF");
+                }
+            }
+
+            // Si no se especificó foreign_keys en las opciones, habilitarlo por defecto
+            if (options.find("foreign_keys") == options.end())
+            {
+                executeUpdate("PRAGMA foreign_keys = ON");
+            }
 
             // Register this connection in the active connections list
             {
@@ -904,7 +933,8 @@ namespace cpp_dbc
 
         std::shared_ptr<Connection> SQLiteDriver::connect(const std::string &url,
                                                           const std::string &user,
-                                                          const std::string &password)
+                                                          const std::string &password,
+                                                          const std::map<std::string, std::string> &options)
         {
             std::string database;
 
@@ -931,7 +961,7 @@ namespace cpp_dbc
                 }
             }
 
-            return std::make_shared<SQLiteConnection>(database);
+            return std::make_shared<SQLiteConnection>(database, options);
         }
 
         bool SQLiteDriver::acceptsURL(const std::string &url)
