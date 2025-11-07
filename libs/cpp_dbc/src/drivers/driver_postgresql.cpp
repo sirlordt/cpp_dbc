@@ -680,7 +680,9 @@ namespace cpp_dbc
             conninfo << "port=" << port << " ";
             conninfo << "dbname=" << database << " ";
             conninfo << "user=" << user << " ";
-            conninfo << "password=" << password;
+            conninfo << "password=" << password << " ";
+            // avoid memory leak in gss api reported by valgrind.
+            conninfo << "gssencmode=disable"; // TODO: Pass to conections options map. en configmap yaml
 
             // Connect to the database
             conn = PQconnectdb(conninfo.str().c_str());

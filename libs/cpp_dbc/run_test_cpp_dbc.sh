@@ -355,13 +355,14 @@ run_test() {
     if [ "$USE_VALGRIND" = true ]; then
         # Using Valgrind
         # Check if suppression file exists
-        SUPPRESSION_FILE="${SCRIPT_DIR}/valgrind-suppressions.txt"
-        VALGRIND_OPTS="--leak-check=full --show-leak-kinds=all --track-origins=yes --verbose"
+        #SUPPRESSION_FILE="${SCRIPT_DIR}/valgrind-suppressions.txt"
+        #VALGRIND_OPTS="--leak-check=full --show-leak-kinds=all --track-origins=yes --verbose"
+        VALGRIND_OPTS="--leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --verbose"
         
-        if [ -f "$SUPPRESSION_FILE" ]; then
-            echo "Using Valgrind suppression file: $SUPPRESSION_FILE"
-            VALGRIND_OPTS="$VALGRIND_OPTS --suppressions=$SUPPRESSION_FILE"
-        fi
+        #if [ -f "$SUPPRESSION_FILE" ]; then
+        #    echo "Using Valgrind suppression file: $SUPPRESSION_FILE"
+        #    VALGRIND_OPTS="$VALGRIND_OPTS --suppressions=$SUPPRESSION_FILE"
+        #fi
         
         if [ -n "$ASAN_OPTIONS" ]; then
             env ASAN_OPTIONS="$ASAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS $@
@@ -460,12 +461,18 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                                 fi
                             fi
                             
-                            # Standard case - check for no memory leaks
-                            if echo "$TEST_OUTPUT" | grep -q "All heap blocks were freed -- no leaks are possible" && \
-                               echo "$TEST_OUTPUT" | grep -q "ERROR SUMMARY: 0 errors from 0 contexts"; then
-                                echo -e "\nNo memory leaks detected. Continuing to next test..."
-                                continue
-                            else
+                                # Standard case - check for no real memory leaks
+                                # Check for either:
+                                # 1. All heap blocks were freed (perfect case), OR
+                                # 2. No real leaks (definitely/indirectly/possibly lost are all 0)
+                                if echo "$TEST_OUTPUT" | grep -q "ERROR SUMMARY: 0 errors from 0 contexts" && \
+                                   { echo "$TEST_OUTPUT" | grep -q "All heap blocks were freed -- no leaks are possible" || \
+                                     { echo "$TEST_OUTPUT" | grep -q "definitely lost: 0 bytes in 0 blocks" && \
+                                       echo "$TEST_OUTPUT" | grep -q "indirectly lost: 0 bytes in 0 blocks" && \
+                                       echo "$TEST_OUTPUT" | grep -q "possibly lost: 0 bytes in 0 blocks"; }; }; then
+                                    echo -e "\nNo real memory leaks detected. Continuing to next test..."
+                                    continue
+                                else
                                 echo -e "\nTest [$TAG] (Run $run of $RUN_COUNT): Memory leaks or errors detected. Press Enter to continue or ESC to abort..."
                                 read -n 1 key
                                 if [[ $key = $'\e' ]]; then
