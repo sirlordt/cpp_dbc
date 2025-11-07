@@ -104,7 +104,7 @@ namespace cpp_dbc
             void close() override;
         };
 
-        class SQLiteConnection : public Connection
+        class SQLiteConnection : public Connection, public std::enable_shared_from_this<SQLiteConnection>
         {
             friend class SQLitePreparedStatement;
 
@@ -123,7 +123,7 @@ namespace cpp_dbc
             void unregisterStatement(std::shared_ptr<SQLitePreparedStatement> stmt);
 
             // Static list of active connections for statement cleanup
-            static std::set<SQLiteConnection *> activeConnections;
+            static std::set<std::weak_ptr<SQLiteConnection>, std::owner_less<std::weak_ptr<SQLiteConnection>>> activeConnections;
             static std::mutex connectionsListMutex;
 
         public:

@@ -17,7 +17,7 @@ namespace cpp_dbc
     namespace SQLite
     {
         // Initialize static members
-        std::set<SQLiteConnection *> SQLiteConnection::activeConnections;
+        std::set<std::weak_ptr<SQLiteConnection>, std::owner_less<std::weak_ptr<SQLiteConnection>>> SQLiteConnection::activeConnections;
         std::mutex SQLiteConnection::connectionsListMutex;
 
         // SQLiteResultSet implementation
@@ -301,9 +301,10 @@ namespace cpp_dbc
                 if (db)
                 {
                     // Find the connection object that owns this statement
-                    for (auto &conn : SQLiteConnection::activeConnections)
+                    for (auto &weak_conn : SQLiteConnection::activeConnections)
                     {
-                        if (conn->db == db)
+                        auto conn = weak_conn.lock();
+                        if (conn && conn->db == db)
                         {
                             conn->unregisterStatement(shared_from_this());
                             break;
@@ -683,10 +684,19 @@ namespace cpp_dbc
                 executeUpdate("PRAGMA foreign_keys = ON");
             }
 
-            // Register this connection in the active connections list
+            // Register this connection's weak_ptr in the active connections list
             {
                 std::lock_guard<std::mutex> lock(connectionsListMutex);
-                activeConnections.insert(this);
+                try
+                {
+                    // shared_from_this() will throw if the object wasn't created with make_shared
+                    activeConnections.insert(weak_from_this());
+                }
+                catch (const std::bad_weak_ptr &)
+                {
+                    // This should not happen if the connection was properly created with make_shared
+                    throw DBException("F8A2C7D1E6B5: SQLiteConnection not created with make_shared");
+                }
             }
         }
 
@@ -702,11 +712,24 @@ namespace cpp_dbc
                 // Ignore exceptions during destruction
             }
 
-            // Ensure this connection is removed from the active connections list
+            // Ensure this connection's weak_ptr is removed from the active connections list
             // even if close() wasn't called or failed
             {
                 std::lock_guard<std::mutex> lock(connectionsListMutex);
-                activeConnections.erase(this);
+                // Find and remove this connection's weak_ptr from the set
+                for (auto it = activeConnections.begin(); it != activeConnections.end();)
+                {
+                    // If the weak_ptr is expired or points to this connection, remove it
+                    auto conn_ptr = it->lock();
+                    if (!conn_ptr || conn_ptr.get() == this)
+                    {
+                        it = activeConnections.erase(it);
+                    }
+                    else
+                    {
+                        ++it;
+                    }
+                }
             }
         }
 
@@ -733,10 +756,23 @@ namespace cpp_dbc
                 db = nullptr;
                 closed = true;
 
-                // Remove this connection from the active connections list
+                // Remove this connection's weak_ptr from the active connections list
                 {
                     std::lock_guard<std::mutex> lock(connectionsListMutex);
-                    activeConnections.erase(this);
+                    // Find and remove this connection's weak_ptr from the set
+                    for (auto it = activeConnections.begin(); it != activeConnections.end();)
+                    {
+                        // If the weak_ptr is expired or points to this connection, remove it
+                        auto conn_ptr = it->lock();
+                        if (!conn_ptr || conn_ptr.get() == this)
+                        {
+                            it = activeConnections.erase(it);
+                        }
+                        else
+                        {
+                            ++it;
+                        }
+                    }
                 }
             }
         }
@@ -961,6 +997,7 @@ namespace cpp_dbc
                 }
             }
 
+            // It's crucial to use make_shared for shared_from_this() to work properly
             return std::make_shared<SQLiteConnection>(database, options);
         }
 
