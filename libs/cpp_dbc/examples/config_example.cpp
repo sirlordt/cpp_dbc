@@ -94,7 +94,7 @@ void printDatabaseConfigs(const cpp_dbc::config::DatabaseConfigManager &configMa
         std::cout << "Password: " << dbConfig.getPassword() << std::endl;
 
         std::cout << "Options:" << std::endl;
-        for (const auto &option : dbConfig.getOptions().getAllOptions())
+        for (const auto &option : dbConfig.getOptions())
         {
             std::cout << "  " << option.first << ": " << option.second << std::endl;
         }

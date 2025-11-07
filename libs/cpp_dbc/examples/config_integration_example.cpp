@@ -95,9 +95,9 @@ int main(int argc, char *argv[])
             conn->close();
             std::cout << "Connection closed" << std::endl;
         }
-        catch (const cpp_dbc::SQLException &e)
+        catch (const cpp_dbc::DBException &e)
         {
-            std::cerr << "SQL Error: " << e.what() << std::endl;
+            std::cerr << e.what() << std::endl;
         }
     }
 
@@ -115,9 +115,9 @@ int main(int argc, char *argv[])
             conn->close();
             std::cout << "Connection closed" << std::endl;
         }
-        catch (const cpp_dbc::SQLException &e)
+        catch (const cpp_dbc::DBException &e)
         {
-            std::cerr << "SQL Error: " << e.what() << std::endl;
+            std::cerr << e.what() << std::endl;
         }
     }
 
@@ -133,9 +133,9 @@ int main(int argc, char *argv[])
         conn->close();
         std::cout << "Connection closed" << std::endl;
     }
-    catch (const cpp_dbc::SQLException &e)
+    catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "SQL Error: " << e.what() << std::endl;
+        std::cerr << e.what() << std::endl;
     }
 
     std::cout << "\n=== Example 4: Creating a connection from DatabaseConfigManager ===" << std::endl;
@@ -157,9 +157,9 @@ int main(int argc, char *argv[])
             std::cerr << "Failed to create connection: Database configuration not found" << std::endl;
         }
     }
-    catch (const cpp_dbc::SQLException &e)
+    catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "SQL Error: " << e.what() << std::endl;
+        std::cerr << e.what() << std::endl;
     }
 
     std::cout << "\n=== Example 5: Creating a connection pool ===" << std::endl;
@@ -197,9 +197,9 @@ int main(int argc, char *argv[])
             std::cerr << "Failed to create connection pool: Configuration not found" << std::endl;
         }
     }
-    catch (const cpp_dbc::SQLException &e)
+    catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "SQL Error: " << e.what() << std::endl;
+        std::cerr << e.what() << std::endl;
     }
 
     return 0;

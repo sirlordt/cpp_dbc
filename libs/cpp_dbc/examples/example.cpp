@@ -71,7 +71,7 @@ void performDatabaseOperations(std::shared_ptr<cpp_dbc::Connection> conn)
             conn->commit();
             std::cout << "Transaction committed successfully." << std::endl;
         }
-        catch (const cpp_dbc::SQLException &e)
+        catch (const cpp_dbc::DBException &e)
         {
             // Rollback in case of error
             conn->rollback();
@@ -81,9 +81,9 @@ void performDatabaseOperations(std::shared_ptr<cpp_dbc::Connection> conn)
         // Restore auto-commit mode
         conn->setAutoCommit(true);
     }
-    catch (const cpp_dbc::SQLException &e)
+    catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "SQL Error: " << e.what() << std::endl;
+        std::cerr << e.what() << std::endl;
     }
 }
 
@@ -121,9 +121,9 @@ int main()
         performDatabaseOperations(pgConn);
         pgConn->close();
     }
-    catch (const cpp_dbc::SQLException &e)
+    catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database Error: " << e.what() << std::endl;
+        std::cerr << e.what() << std::endl;
         return 1;
     }
     catch (const std::exception &e)

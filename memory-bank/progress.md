@@ -61,10 +61,11 @@ The project includes example code demonstrating:
 - In-memory database support
 - File-based database support
 - Connection pooling with SQLiteConnectionPool
-- Improved resource management with shared_from_this
-- Better statement cleanup with active connections tracking
+- Improved resource management with enable_shared_from_this
+- Better statement cleanup with weak_ptr-based active connections tracking
 - Enhanced connection closing with sqlite3_close_v2
 - Configurable SQLite pragmas (journal_mode, synchronous, foreign_keys)
+- Safeguards to ensure connections are created with make_shared
 
 ### Transaction Management
 - Transaction creation and tracking
@@ -127,7 +128,15 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 
 ### Fixed Issues
-1. **Connection Options Support**:
+1. **SQLite Connection Management Improvements**:
+   - Enhanced SQLiteConnection to inherit from std::enable_shared_from_this
+   - Replaced raw pointer tracking with weak_ptr in activeConnections list
+   - Improved connection cleanup with weak_ptr-based reference tracking
+   - Added proper error handling for shared_from_this() usage
+   - Added safeguards to ensure connections are created with make_shared
+   - Fixed potential memory issues in connection and statement cleanup
+
+2. **Connection Options Support**:
    - Added connection options support for all database drivers
    - Added options parameter to Driver::connect() method
    - Added options parameter to all driver implementations
@@ -137,13 +146,13 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Renamed original getOptions() to getOptionsObj() for backward compatibility
    - Updated all tests to support the new options parameter
 
-2. **PostgreSQL Driver Improvements**:
+3. **PostgreSQL Driver Improvements**:
    - Enhanced PostgreSQL driver with better configuration options
    - Added support for passing connection options from configuration to PQconnectdb
    - Made gssencmode configurable through options map (default: disable)
    - Added error codes to exception messages for better debugging
 
-3. **SQLite Driver Improvements**:
+4. **SQLite Driver Improvements**:
    - Enhanced SQLite driver with better configuration options
    - Added support for configuring SQLite pragmas through options map
    - Added support for journal_mode, synchronous, and foreign_keys options
@@ -248,9 +257,13 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Improved `helper.sh` to support multiple commands in a single invocation
    - Added `--test` option to build tests
    - Added `--run-test` option to run tests
-   - Added `--ldd` option to check executable dependencies inside the container
-   - Added `--ldd-bin` option to check executable dependencies locally
-   - Added `--run-bin` option to run the executable
+   - Added `--ldd-bin-ctr` option to check executable dependencies inside the container
+   - Added `--ldd-build-bin` option to check executable dependencies locally
+   - Added `--run-build-bin` option to run the executable
+   - Added `--run-ctr` option to run the container
+   - Added `--show-labels-ctr` option to show container labels
+   - Added `--show-tags-ctr` option to show container tags
+   - Added `--show-env-ctr` option to show container environment variables
    - Improved error handling and reporting
    - Added support for getting executable name from `.dist_build`
 

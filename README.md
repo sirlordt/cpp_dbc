@@ -1,5 +1,22 @@
 # C++ Database Connectivity (CPP_DBC) Library
 
+## For Impatience
+
+If you're in a hurry and want to get started quickly, check out the [Quick Start Guide](QUICKSTART.md) for common commands and examples.
+
+```bash
+# Run tests with rebuild, SQLite, PostgreSQL, MySQL, YAML, Valgrind, auto mode, run once
+./helper.sh --bk-combo-01
+
+# Clean build with PostgreSQL, MySQL, SQLite, YAML, tests, and examples
+./helper.sh --mc-combo-01
+
+# Clean build of distribution with PostgreSQL, MySQL, SQLite, YAML, tests, and examples
+./helper.sh --kfc-combo-01
+```
+
+---
+
 This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, and SQLite databases. The library includes connection pooling, transaction management, and support for different transaction isolation levels.
 
 ## Features
@@ -259,13 +276,13 @@ The project includes a helper script (`helper.sh`) that provides various utiliti
 ./helper.sh --run-test
 
 # Check shared library dependencies of the executable inside the container
-./helper.sh --ldd
+./helper.sh --ldd-bin-ctr
 
 # Check shared library dependencies of the executable locally
-./helper.sh --ldd-bin
+./helper.sh --ldd-build-bin
 
 # Run the executable
-./helper.sh --run-bin
+./helper.sh --run-build-bin
 
 # Multiple commands can be combined
 ./helper.sh --clean-build --clean-conan-cache --build

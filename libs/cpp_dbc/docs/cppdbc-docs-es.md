@@ -211,8 +211,11 @@ Los mismos que Connection, más:
 - `registerStatement(std::shared_ptr<SQLitePreparedStatement>)`: Registra una declaración con la conexión para una limpieza adecuada.
 - `unregisterStatement(std::shared_ptr<SQLitePreparedStatement>)`: Anula el registro de una declaración de la conexión.
 
+**Herencia:**
+- Hereda de `Connection` y `std::enable_shared_from_this<SQLiteConnection>` para una gestión adecuada de recursos.
+
 **Miembros Estáticos:**
-- `activeConnections`: Un conjunto de conexiones SQLite activas para la limpieza de declaraciones.
+- `activeConnections`: Un conjunto de punteros débiles (weak_ptr) a conexiones SQLite activas para la limpieza de declaraciones.
 - `connectionsListMutex`: Mutex para acceso seguro a la lista de conexiones activas.
 
 ### SQLiteDriver

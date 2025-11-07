@@ -62,7 +62,7 @@ void performDatabaseOperation(cpp_dbc::ConnectionPool &pool, int threadId)
             std::cout << "Thread " << threadId << ": Returning connection to pool" << std::endl;
         }
     }
-    catch (const cpp_dbc::SQLException &e)
+    catch (const cpp_dbc::DBException &e)
     {
         std::lock_guard<std::mutex> lock(consoleMutex);
         std::cerr << "Thread " << threadId << " encountered error: " << e.what() << std::endl;
@@ -162,9 +162,9 @@ int main()
         std::cout << "\nPostgreSQL support is not enabled. Skipping PostgreSQL example." << std::endl;
 #endif
     }
-    catch (const cpp_dbc::SQLException &e)
+    catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database Error: " << e.what() << std::endl;
+        std::cerr << e.what() << std::endl;
         return 1;
     }
     catch (const std::exception &e)

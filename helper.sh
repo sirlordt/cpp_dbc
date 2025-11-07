@@ -51,27 +51,37 @@ get_container_name() {
 show_usage() {
   echo "Usage: $(basename "$0") COMMAND [COMMAND...] [container_name]"
   echo "Commands:"
-  echo "  --build              Build via ./build.sh, logs to build/build-<timestamp>.log"
-  echo "  --build-dist         Build via ./build.dist.sh, logs to build/build-dist-<timestamp>.log"
-  echo "  --run [name]         Run container"
-  echo "  --labels [name]      Show labels with Image ID"
-  echo "  --tags [name]        Show tags with Image ID"
-  echo "  --env [name]         Show environment variables defined in the image"
-  echo "  --clean-build        Remove build directory"
-  echo "  --clean-conan-cache  Clear Conan local cache"
-  echo "  --test               Build the tests"
-  echo "  --run-test           Build (if needed) and run the tests"
-  echo "  --yaml               Enable YAML configuration support"
-  echo "  --postgres           Enable PostgreSQL configuration support"
-  echo "  --mysql-off          Disable MySQL configuration support"
-  echo "  --examples           Build cpp_dbc examples"
-  echo "  --ldd [name]         Run ldd on the executable inside the container"
-  echo "  --ldd-bin            Run ldd on the final executable"
-  echo "  --run-bin            Run the final executable"
-  echo "  --mc-combo-01        Equivalent to --clean-build --build --postgres --test --yaml --examples"
+  echo "  --run-build              Build via ./build.sh, logs to build/run-build-<timestamp>.log"
+  echo "  --run-build=OPTIONS      Build with comma-separated options"
+  echo "                           Available options: clean,release,postgres,mysql,sqlite,yaml,test,examples"
+  echo "                           Example: --run-build=clean,sqlite,yaml,test"
+  echo "  --run-build-dist         Build via ./build.dist.sh, logs to build/run-build-dist-<timestamp>.log"
+  echo "  --run-build-dist=OPTIONS Build dist with comma-separated options"
+  echo "                           Available options: clean,release,postgres,mysql,sqlite,yaml,test,examples"
+  echo "                           Example: --run-build-dist=clean,sqlite,yaml,test"
+  echo "  --run-ctr [name]         Run container"
+  echo "  --show-labels-ctr [name] Show labels with Image ID"
+  echo "  --show-tags-ctr [name]   Show tags with Image ID"
+  echo "  --show-env-ctr [name]    Show environment variables defined in the image"
+  echo "  --clean-conan-cache      Clear Conan local cache"
+  echo "  --run-test               Build (if needed) and run the tests"
+  echo "  --run-test=OPTIONS       Run tests with comma-separated options"
+  echo "                           Available options: clean,release,rebuild,sqlite,mysql,postgres,valgrind,yaml,auto,asan,ctest,check,run=N"
+  echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3"
+  echo "  --ldd-bin-ctr [name]     Run ldd on the executable inside the container"
+  echo "  --ldd-build-bin          Run ldd on the final local build/ executable"
+  echo "  --run-build-bin          Run the final local build/ executable"
+  echo "  --bk-combo-01            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,yaml,valgrind,auto,run=1"
+  echo "  --bk-combo-02            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,yaml,auto,run=1"
+  echo "  --bk-combo-03            Equivalent to --run-test=sqlite,postgres,mysql,yaml,valgrind,auto,run=1"
+  echo "  --bk-combo-04            Equivalent to --run-test=sqlite,postgres,mysql,yaml,auto,run=1"
+  echo "  --mc-combo-01            Equivalent to --run-build=clean,postgres,mysql,sqlite,yaml,test,examples"
+  echo "  --mc-combo-02            Equivalent to --run-build=postgres,sqlite,mysql,yaml,test,examples"
+  echo "  --kfc-combo-01           Equivalent to --run-build-dist=clean,postgres,mysql,sqlite,yaml,test,examples"
+  echo "  --kfc-combo-02           Equivalent to --run-build-dist=postgres,sqlite,mysql,yaml,test,examples"
   echo ""
   echo "Multiple commands can be combined, e.g.:"
-  echo "  $(basename "$0") --clean-build --clean-conan-cache --build"
+  echo "  $(basename "$0") --clean-conan-cache --run-build"
 }
 
 cleanup_old_logs() {
@@ -81,9 +91,9 @@ cleanup_old_logs() {
   fi
 }
 
-cmd_build() {
+cmd_run_build() {
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
-  local log="build/build-${ts}.log"
+  local log="build/run-build-${ts}.log"
   echo "Building project. Output logging to $log."
   mkdir -p build
   cleanup_old_logs
@@ -91,46 +101,123 @@ cmd_build() {
   # Build command with options
   local build_cmd="./build.sh"
   
-  if [ "$USE_YAML" = "1" ]; then
-    build_cmd="$build_cmd --yaml"
-    echo "Enabling YAML support"
-  fi
-
-  if [ "$USE_MYSQL" = "1" ]; then
-    build_cmd="$build_cmd --mysql"
-    echo "Enabling MySQL support"
-  else
-    echo "Disabling MySQL support"
-    build_cmd="$build_cmd --mysql-off"
-  fi
-
-  if [ "$USE_POSTGRES" = "1" ]; then
-    build_cmd="$build_cmd --postgres"
-    echo "Enabling PostgreSQL support"
-  fi
-
-  if [ "$BUILD_EXAMPLES" = "1" ]; then
-    build_cmd="$build_cmd --examples"
-    echo "Building examples"
-  fi
-
-  if [ "$BUILD_TEST" = "1" ]; then
-    build_cmd="$build_cmd --test"
-    echo "Building test"
-  fi
+  # Process comma-separated options
+  IFS=',' read -ra OPTIONS <<< "$BUILD_OPTIONS"
+  for opt in "${OPTIONS[@]}"; do
+    case "$opt" in
+      clean)
+        build_cmd="$build_cmd --clean"
+        echo "Cleaning build directories"
+        ;;
+      postgres)
+        build_cmd="$build_cmd --postgres"
+        echo "Enabling PostgreSQL support"
+        ;;
+      mysql)
+        build_cmd="$build_cmd --mysql"
+        echo "Enabling MySQL support"
+        ;;
+      mysql-off)
+        build_cmd="$build_cmd --mysql-off"
+        echo "Disabling MySQL support"
+        ;;
+      sqlite)
+        build_cmd="$build_cmd --sqlite"
+        echo "Enabling SQLite support"
+        ;;
+      yaml)
+        build_cmd="$build_cmd --yaml"
+        echo "Enabling YAML support"
+        ;;
+      test)
+        build_cmd="$build_cmd --test"
+        echo "Building tests"
+        ;;
+      examples)
+        build_cmd="$build_cmd --examples"
+        echo "Building examples"
+        ;;
+      release)
+        build_cmd="$build_cmd --release"
+        echo "Building in release mode"
+        ;;
+      *)
+        echo "Warning: Unknown build option: $opt"
+        ;;
+    esac
+  done
 
   echo "Running: $build_cmd"
   $build_cmd 2>&1 | tee "$log"
 }
 
-cmd_test() {
-  echo "Building tests..."
-  ./build.sh --test
-}
-
 cmd_run_test() {
   echo "Running tests..."
-  ./run_test.sh
+  
+  # Build command with options
+  local run_test_cmd="./run_test.sh"
+  
+  # Process comma-separated options
+  IFS=',' read -ra OPTIONS <<< "$TEST_OPTIONS"
+  for opt in "${OPTIONS[@]}"; do
+    # Check if option is run=N format
+    if [[ "$opt" =~ ^run=[1-9][0-9]*$ ]]; then
+      # Extract the number after run=
+      local run_count="${opt#run=}"
+      run_test_cmd="$run_test_cmd --run=$run_count"
+      echo "Setting run count to $run_count"
+    else
+      case "$opt" in
+        clean)
+          run_test_cmd="$run_test_cmd --clean"
+          echo "Cleaning build directories"
+          ;;
+        rebuild)
+          run_test_cmd="$run_test_cmd --rebuild"
+          ;;
+        sqlite)
+          run_test_cmd="$run_test_cmd --sqlite"
+          ;;
+        mysql)
+          run_test_cmd="$run_test_cmd --mysql"
+          ;;
+        mysql-off)
+          run_test_cmd="$run_test_cmd --mysql-off"
+          ;;
+        postgres)
+          run_test_cmd="$run_test_cmd --postgres"
+          ;;
+        valgrind)
+          run_test_cmd="$run_test_cmd --valgrind"
+          ;;
+        yaml)
+          run_test_cmd="$run_test_cmd --yaml"
+          ;;
+        auto)
+          run_test_cmd="$run_test_cmd --auto"
+          ;;
+        asan)
+          run_test_cmd="$run_test_cmd --asan"
+          ;;
+        ctest)
+          run_test_cmd="$run_test_cmd --ctest"
+          ;;
+        check)
+          run_test_cmd="$run_test_cmd --check"
+          ;;
+        release)
+          run_test_cmd="$run_test_cmd --release"
+          echo "Building in release mode"
+          ;;
+        *)
+          echo "Warning: Unknown test option: $opt"
+          ;;
+      esac
+    fi
+  done
+  
+  echo "Running: $run_test_cmd"
+  $run_test_cmd
 }
 
 get_bin_name() {
@@ -168,9 +255,9 @@ cmd_run_bin() {
   "$bin_path"
 }
 
-cmd_build_dist() {
+cmd_run_build_dist() {
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
-  local log="build/build-dist-${ts}.log"
+  local log="build/run-build-dist-${ts}.log"
   echo "Building Docker image. Output logging to $log."
   mkdir -p build
   cleanup_old_logs
@@ -178,33 +265,51 @@ cmd_build_dist() {
   # Build command with options
   local build_cmd="./build.dist.sh"
   
-  if [ "$USE_YAML" = "1" ]; then
-    build_cmd="$build_cmd --yaml"
-    echo "Enabling YAML support"
-  fi
-
-  if [ "$USE_MYSQL" = "1" ]; then
-    build_cmd="$build_cmd --mysql"
-    echo "Enabling MySQL support"
-  else
-    echo "Disabling MySQL support"
-    build_cmd="$build_cmd --mysql-off"
-  fi
-
-  if [ "$USE_POSTGRES" = "1" ]; then
-    build_cmd="$build_cmd --postgres"
-    echo "Enabling PostgreSQL support"
-  fi
-
-  if [ "$BUILD_EXAMPLES" = "1" ]; then
-    build_cmd="$build_cmd --examples"
-    echo "Building examples"
-  fi
-
-  if [ "$BUILD_TEST" = "1" ]; then
-    build_cmd="$build_cmd --test"
-    echo "Building test"
-  fi
+  # Process comma-separated options
+  IFS=',' read -ra OPTIONS <<< "$BUILD_DIST_OPTIONS"
+  for opt in "${OPTIONS[@]}"; do
+    case "$opt" in
+      clean)
+        build_cmd="$build_cmd --clean"
+        echo "Cleaning build directories"
+        ;;
+      postgres)
+        build_cmd="$build_cmd --postgres"
+        echo "Enabling PostgreSQL support"
+        ;;
+      mysql)
+        build_cmd="$build_cmd --mysql"
+        echo "Enabling MySQL support"
+        ;;
+      mysql-off)
+        build_cmd="$build_cmd --mysql-off"
+        echo "Disabling MySQL support"
+        ;;
+      sqlite)
+        build_cmd="$build_cmd --sqlite"
+        echo "Enabling SQLite support"
+        ;;
+      yaml)
+        build_cmd="$build_cmd --yaml"
+        echo "Enabling YAML support"
+        ;;
+      test)
+        build_cmd="$build_cmd --test"
+        echo "Building tests"
+        ;;
+      examples)
+        build_cmd="$build_cmd --examples"
+        echo "Building examples"
+        ;;
+      release)
+        build_cmd="$build_cmd --release"
+        echo "Building release mode"
+        ;;
+      *)
+        echo "Warning: Unknown build option: $opt"
+        ;;
+    esac
+  done
 
   echo "Running: $build_cmd"
   $build_cmd 2>&1 | tee "$log"
@@ -275,11 +380,6 @@ cmd_ldd() {
   docker run --rm --entrypoint ldd "$name" "$container_bin_path"
 }
 
-cmd_clean_build() {
-  echo "Removing build directory..."
-  rm -rf build
-  echo "Build directory removed."
-}
 
 cmd_clean_conan_cache() {
   echo "Cleaning Conan cache..."
@@ -299,7 +399,13 @@ USE_YAML="0"
 BUILD_EXAMPLES="0"
 BUILD_TEST="0"
 USE_POSTGRES="0"
+USE_SQLITE="0"
 USE_MYSQL="1"
+USE_VALGRIND="0"
+USE_ASAN="0"
+USE_CTEST="0"
+TEST_OPTIONS=""
+BUILD_DIST_OPTIONS=""
 
 # Process arguments
 args=("$@")
@@ -314,6 +420,10 @@ while [ $i -lt ${#args[@]} ]; do
       USE_POSTGRES="1"
       echo "Setting PostgreSQL support to enabled"
       ;;
+    --sqlite)
+      USE_SQLITE="1"
+      echo "Setting SQLite support to enabled"
+      ;;
     --mysql-off)
       USE_MYSQL="0"
       echo "Setting MySQL support to disabled"
@@ -326,6 +436,18 @@ while [ $i -lt ${#args[@]} ]; do
       BUILD_TEST="1"
       echo "Setting test build to enabled"
       ;;
+    --valgrind)
+      USE_VALGRIND="1"
+      echo "Setting Valgrind to enabled"
+      ;;
+    --asan)
+      USE_ASAN="1"
+      echo "Setting Address Sanitizer to enabled"
+      ;;
+    --ctest)
+      USE_CTEST="1"
+      echo "Setting CTest to enabled"
+      ;;
     *)
       # Other arguments will be processed in the next loop
       ;;
@@ -337,13 +459,21 @@ done
 i=0
 while [ $i -lt ${#args[@]} ]; do
   case "${args[$i]}" in
-    --build)
-      cmd_build
+    --run-build=*)
+      BUILD_OPTIONS="${args[$i]#*=}"
+      cmd_run_build
       ;;
-    --build-dist)
-      cmd_build_dist
+    --run-build)
+      cmd_run_build
       ;;
-    --run)
+    --run-build-dist=*)
+      BUILD_DIST_OPTIONS="${args[$i]#*=}"
+      cmd_run_build_dist
+      ;;
+    --run-build-dist)
+      cmd_run_build_dist
+      ;;
+    --run-ctr)
       i=$((i+1))
       if [ $i -lt ${#args[@]} ] && [[ "${args[$i]}" != --* ]]; then
         container_name="${args[$i]}"
@@ -351,7 +481,7 @@ while [ $i -lt ${#args[@]} ]; do
       fi
       cmd_run "$container_name" || exit_code=$?
       ;;
-    --labels)
+    --show-labels-ctr)
       i=$((i+1))
       if [ $i -lt ${#args[@]} ] && [[ "${args[$i]}" != --* ]]; then
         container_name="${args[$i]}"
@@ -359,7 +489,7 @@ while [ $i -lt ${#args[@]} ]; do
       fi
       cmd_labels "$container_name" || exit_code=$?
       ;;
-    --tags)
+    --show-tags-ctr)
       i=$((i+1))
       if [ $i -lt ${#args[@]} ] && [[ "${args[$i]}" != --* ]]; then
         container_name="${args[$i]}"
@@ -367,7 +497,7 @@ while [ $i -lt ${#args[@]} ]; do
       fi
       cmd_tags "$container_name" || exit_code=$?
       ;;
-    --env)
+    --show-env-ctr)
       i=$((i+1))
       if [ $i -lt ${#args[@]} ] && [[ "${args[$i]}" != --* ]]; then
         container_name="${args[$i]}"
@@ -375,19 +505,17 @@ while [ $i -lt ${#args[@]} ]; do
       fi
       cmd_env "$container_name" || exit_code=$?
       ;;
-    --clean-build)
-      cmd_clean_build
-      ;;
     --clean-conan-cache)
       cmd_clean_conan_cache
       ;;
-    #--test)
-    #  cmd_test
-    #  ;;
+    --run-test=*)
+      TEST_OPTIONS="${args[$i]#*=}"
+      cmd_run_test
+      ;;
     --run-test)
       cmd_run_test
       ;;
-    --ldd)
+    --ldd-bin-ctr)
       i=$((i+1))
       if [ $i -lt ${#args[@]} ] && [[ "${args[$i]}" != --* ]]; then
         container_name="${args[$i]}"
@@ -395,23 +523,74 @@ while [ $i -lt ${#args[@]} ]; do
       fi
       cmd_ldd "$container_name" || exit_code=$?
       ;;
-    --ldd-bin)
+    --ldd-build-bin)
       cmd_ldd_bin || exit_code=$?
       ;;
-    --run-bin)
+    --run-build-bin)
       cmd_run_bin || exit_code=$?
       ;;
-    --yaml|--examples|--test|--postgres|--mysql-off)
-      cmd_build
+    --yaml|--examples|--test|--postgres|--sqlite|--mysql-off|--valgrind|--asan|--ctest)
+      cmd_run_build
       ;;
     --mc-combo-01)
-      # Equivalent to --clean-build --build --postgres --test --yaml --examples
-      USE_POSTGRES="1"
-      BUILD_TEST="1"
-      USE_YAML="1"
-      BUILD_EXAMPLES="1"
-      cmd_clean_build
-      cmd_build
+      # Equivalent to --run-build=clean,postgres,mysql,sqlite,yaml,test,examples
+      BUILD_OPTIONS="clean,postgres,mysql,sqlite,yaml,test,examples"
+      cmd_run_build
+      ;;
+    --mc-combo-02)
+      # Equivalent to --run-build=postgres,sqlite,mysql,yaml,test,examples
+      BUILD_OPTIONS="postgres,sqlite,mysql,yaml,test,examples"
+      cmd_run_build
+      ;;
+    --bk-combo-01)
+      # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,yaml,valgrind,auto,run=1
+      TEST_OPTIONS="rebuild,sqlite,postgres,mysql,yaml,valgrind,auto,run=1"
+      cmd_run_test
+      ;;
+    --bk-combo-02)
+      # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,yaml,auto,run=1
+      TEST_OPTIONS="rebuild,sqlite,postgres,mysql,yaml,auto,run=1"
+      cmd_run_test
+      ;;
+    --bk-combo-03)
+      # Equivalent to --run-test=sqlite,postgres,mysql,yaml,valgrind,auto,run=1
+      TEST_OPTIONS="sqlite,postgres,mysql,yaml,valgrind,auto,run=1"
+      cmd_run_test
+      ;;
+    --bk-combo-04)
+      # Equivalent to --run-test=sqlite,postgres,mysql,yaml,auto,run=1
+      TEST_OPTIONS="sqlite,postgres,mysql,yaml,auto,run=1"
+      cmd_run_test
+      ;;
+    --kfc-combo-01)
+      # Equivalent to --run-build-dist=clean,postgres,mysql,sqlite,yaml,test,examples
+      BUILD_DIST_OPTIONS="clean,postgres,mysql,sqlite,yaml,test,examples"
+      cmd_run_build_dist
+      ;;
+    --kfc-combo-02)
+      # Equivalent to --run-build-dist=postgres,sqlite,mysql,yaml,test,examples
+      BUILD_DIST_OPTIONS="postgres,sqlite,mysql,yaml,test,examples"
+      cmd_run_build_dist
+      ;;
+    --mc-combo-02)
+      # Equivalent to --run-build=postgres,sqlite,yaml,test,examples
+      BUILD_OPTIONS="postgres,sqlite,yaml,test,examples"
+      cmd_run_build
+      ;;
+    --bk-combo-01)
+      # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,yaml,valgrind,auto,run=1
+      TEST_OPTIONS="rebuild,sqlite,postgres,mysql,yaml,valgrind,auto,run=1"
+      cmd_run_test
+      ;;
+    --bk-combo-02)
+      # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,yaml,auto,run=1
+      TEST_OPTIONS="rebuild,sqlite,postgres,mysql,yaml,auto,run=1"
+      cmd_run_test
+      ;;
+    --bk-combo-03)
+      # Equivalent to --run-test=sqlite,postgres,mysql,yaml,auto,run=1
+      TEST_OPTIONS="sqlite,postgres,mysql,yaml,auto,run=1"
+      cmd_run_test
       ;;
     *)
       echo "Unknown option: ${args[$i]}"

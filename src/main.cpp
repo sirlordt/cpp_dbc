@@ -16,6 +16,9 @@ using json = nlohmann::json;
 #if USE_POSTGRESQL
 #include <cpp_dbc/drivers/driver_postgresql.hpp>
 #endif
+#if USE_SQLITE
+#include <cpp_dbc/drivers/driver_sqlite.hpp>
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -37,6 +40,12 @@ int main(int argc, char *argv[])
     std::cout << "- PostgreSQL (disabled)" << std::endl;
 #endif
 
+#if USE_SQLITE
+    std::cout << "- SQLITE" << std::endl;
+#else
+    std::cout << "- SQLITE (disabled)" << std::endl;
+#endif
+
     try
     {
         // Register available database drivers
@@ -52,15 +61,21 @@ int main(int argc, char *argv[])
                                                std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
 #endif
 
+#if USE_SQLITE
+        std::cout << "Registering SQLite driver..." << std::endl;
+        cpp_dbc::DriverManager::registerDriver("sqlite",
+                                               std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+#endif
+
         std::cout << "Driver registration complete." << std::endl;
     }
-    catch (const cpp_dbc::SQLException &e)
+    catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "SQL Error: " << e.what() << std::endl;
+        std::cerr << e.what() << std::endl;
     }
     catch (const std::exception &e)
     {
-        std::cerr << "Error: " << e.what() << std::endl;
+        std::cerr << e.what() << std::endl;
     }
 
     // Process command line arguments

@@ -9,17 +9,24 @@ set -e  # Exit on error
 #   --mysql-off            Disable MySQL support
 #   --postgres, --postgres-on  Enable PostgreSQL support
 #   --postgres-off         Disable PostgreSQL support
+#   --sqlite, --sqlite-on  Enable SQLite support
+#   --sqlite-off           Disable SQLite support
+#   --yaml, --yaml-on      Enable YAML configuration support
+#   --yaml-off             Disable YAML configuration support
+#   --auto                 Automatically run tests without user interaction
 #   --release              Run in Release mode (default: Debug)
 #   --asan                 Enable Address Sanitizer
 #   --valgrind             Run tests with Valgrind
 #   --ctest                Run tests using CTest
 #   --check                Check shared library dependencies of test executable
+#   --clean                Clean build directories before building
 #   --rebuild              Rebuild the test targets before running
 #   --help                 Show this help message
 
 # Default values for options
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
+USE_SQLITE=OFF
 BUILD_TYPE=Debug
 ASAN_OPTIONS=""
 ENABLE_ASAN=false
@@ -27,6 +34,8 @@ RUN_CTEST=false
 USE_VALGRIND=false
 CHECK_DEPENDENCIES=false
 REBUILD=false
+AUTO_MODE=true
+RUN_COUNT=1
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -45,6 +54,26 @@ while [[ $# -gt 0 ]]; do
             ;;
         --postgres-off)
             USE_POSTGRESQL=OFF
+            shift
+            ;;
+        --sqlite|--sqlite-on)
+            USE_SQLITE=ON
+            shift
+            ;;
+        --sqlite-off)
+            USE_SQLITE=OFF
+            shift
+            ;;
+        --yaml|--yaml-on)
+            USE_YAML=ON
+            shift
+            ;;
+        --yaml-off)
+            USE_YAML=OFF
+            shift
+            ;;
+        --auto)
+            AUTO_MODE=true
             shift
             ;;
         --release)
@@ -68,8 +97,25 @@ while [[ $# -gt 0 ]]; do
             CHECK_DEPENDENCIES=true
             shift
             ;;
+        --clean)
+            # Clean build directories before building
+            echo "Cleaning build directories..."
+            rm -rf build
+            rm -rf libs/cpp_dbc/build
+            REBUILD=true
+            shift
+            ;;
         --rebuild)
             REBUILD=true
+            shift
+            ;;
+        --run=*)
+            RUN_COUNT="${1#*=}"
+            # Validate that RUN_COUNT is a positive integer
+            if ! [[ "$RUN_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+                echo "Error: --run parameter must be a positive integer."
+                exit 1
+            fi
             shift
             ;;
         --help)
@@ -79,12 +125,19 @@ while [[ $# -gt 0 ]]; do
             echo "  --mysql-off            Disable MySQL support"
             echo "  --postgres, --postgres-on  Enable PostgreSQL support"
             echo "  --postgres-off         Disable PostgreSQL support"
+            echo "  --sqlite, --sqlite-on  Enable SQLite support"
+            echo "  --sqlite-off           Disable SQLite support"
+            echo "  --yaml, --yaml-on      Enable YAML configuration support"
+            echo "  --yaml-off             Disable YAML configuration support"
+            echo "  --auto                 Automatically run tests without user interaction"
             echo "  --release              Run in Release mode (default: Debug)"
             echo "  --asan                 Enable Address Sanitizer"
             echo "  --valgrind             Run tests with Valgrind"
             echo "  --ctest                Run tests using CTest"
             echo "  --check                Check shared library dependencies of test executable"
+            echo "  --clean                Clean build directories before building (Always activate the --rebuild flag)"
             echo "  --rebuild              Rebuild the test targets before running"
+            echo "  --run=N                Run all test sets N times (default: 1)"
             echo "  --help                 Show this help message"
             exit 0
             ;;
@@ -121,6 +174,14 @@ if [ ! -f "$MAIN_EXECUTABLE" ]; then
         BUILD_CMD="$BUILD_CMD --postgres-on"
     fi
     
+    if [ "$USE_SQLITE" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --sqlite"
+    fi
+    
+    if [ "$USE_YAML" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --yaml"
+    fi
+    
     if [ "$BUILD_TYPE" = "Release" ]; then
         BUILD_CMD="$BUILD_CMD --release"
     fi
@@ -147,14 +208,18 @@ if [ "$USE_VALGRIND" = true ] && [ "$ENABLE_ASAN" = true ]; then
     echo -e "You should use either Valgrind or AddressSanitizer, but not both."
     echo -e "Consider not using --asan with --valgrind.\n"
     
-    # Ask for confirmation
-    read -p "Do you want to continue anyway? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Exiting as requested."
-        exit 1
+    # Ask for confirmation if not in auto mode
+    if [ "$AUTO_MODE" = false ]; then
+        read -p "Do you want to continue anyway? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Exiting as requested."
+            exit 1
+        fi
+        echo -e "Continuing as requested. Expect potential issues.\n"
+    else
+        echo -e "Auto mode enabled. Continuing with both options. Expect potential issues.\n"
     fi
-    echo -e "Continuing as requested. Expect potential issues.\n"
 fi
 
 # Build the command to pass to run_test_cpp_dbc.sh
@@ -167,6 +232,18 @@ fi
 
 if [ "$USE_POSTGRESQL" = "ON" ]; then
     CMD="$CMD --postgres-on"
+fi
+
+if [ "$USE_SQLITE" = "ON" ]; then
+    CMD="$CMD --sqlite-on"
+fi
+
+if [ "$USE_YAML" = "ON" ]; then
+    CMD="$CMD --yaml-on"
+fi
+
+if [ "$AUTO_MODE" = true ]; then
+    CMD="$CMD --auto"
 fi
 
 if [ "$BUILD_TYPE" = "Release" ]; then
@@ -191,6 +268,11 @@ fi
 
 if [ "$REBUILD" = true ]; then
     CMD="$CMD --rebuild"
+fi
+
+# Add run count parameter
+if [ "$RUN_COUNT" -gt 1 ]; then
+    CMD="$CMD --run=$RUN_COUNT"
 fi
 
 # Execute the command

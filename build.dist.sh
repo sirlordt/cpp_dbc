@@ -145,6 +145,7 @@ fi
 # 8. Parse command line arguments to set build options
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
+USE_SQLITE=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
@@ -165,8 +166,20 @@ do
         --postgres-off)
         USE_POSTGRESQL=OFF
         ;;
+        --sqlite|--sqlite-on)
+        USE_SQLITE=ON
+        ;;
+        --sqlite-off)
+        USE_SQLITE=OFF
+        ;;
         --yaml|--yaml-on)
         USE_CPP_YAML=ON
+        ;;
+        --clean)
+        # Clean build directories before building
+        echo "Cleaning build directories..."
+        rm -rf build
+        rm -rf libs/cpp_dbc/build
         ;;
         --release)
         BUILD_TYPE=Release
@@ -184,7 +197,10 @@ do
         echo "  --mysql-off            Disable MySQL support"
         echo "  --postgres, --postgres-on  Enable PostgreSQL support"
         echo "  --postgres-off         Disable PostgreSQL support"
+        echo "  --sqlite, --sqlite-on  Enable SQLite support"
+        echo "  --sqlite-off           Disable SQLite support"
         echo "  --yaml, --yaml-on      Enable YAML configuration support"
+        echo "  --clean                Clean build directories before building"
         echo "  --release              Build in Release mode (default: Debug)"
         echo "  --test                 Build cpp_dbc tests"
         echo "  --examples             Build cpp_dbc examples"
@@ -205,6 +221,10 @@ fi
 
 if [ "$USE_POSTGRESQL" = "ON" ]; then
     BUILD_CMD="$BUILD_CMD --postgres"
+fi
+
+if [ "$USE_SQLITE" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --sqlite"
 fi
 
 if [ "$USE_CPP_YAML" = "ON" ]; then
@@ -437,6 +457,7 @@ echo ""
 echo "Build options used:"
 echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
+echo "  SQLite: $USE_SQLITE"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"

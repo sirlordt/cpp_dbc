@@ -52,6 +52,12 @@ do
         --examples)
         BUILD_EXAMPLES=ON
         ;;
+        --clean)
+        # Clean build directories before building
+        echo "Cleaning build directories..."
+        rm -rf build
+        rm -rf libs/cpp_dbc/build
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -62,6 +68,7 @@ do
         echo "  --sqlite, --sqlite-on  Enable SQLite support"
         echo "  --sqlite-off           Disable SQLite support"
         echo "  --yaml, --yaml-on      Enable YAML configuration support"
+        echo "  --clean                Clean build directories before building"
         echo "  --release              Build in Release mode (default: Debug)"
         echo "  --test                 Build cpp_dbc tests"
         echo "  --examples             Build cpp_dbc examples"

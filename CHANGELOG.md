@@ -1,6 +1,30 @@
 # Changelog
 
-## 2025-11-07 11:01:00 AM -0800 [Current]
+## 2025-11-07 02:15:00 PM -0800 [Current]
+
+### Helper Script Parameter Improvements
+* Renamed helper.sh script parameters for better clarity:
+  * Changed `--run` to `--run-ctr` for container execution
+  * Changed `--ldd` to `--ldd-bin-ctr` for container binary inspection
+  * Changed `--labels` to `--show-labels-ctr` for container label display
+  * Changed `--tags` to `--show-tags-ctr` for container tag display
+  * Changed `--env` to `--show-env-ctr` for container environment display
+  * Changed `--ldd-bin` to `--ldd-build-bin` for local binary inspection
+  * Changed `--run-bin` to `--run-build-bin` for local binary execution
+  * Updated usage information in show_usage() function
+
+## 2025-11-07 11:28:00 AM -0800
+
+### SQLite Connection Management Improvements
+* Enhanced SQLite connection management with better resource handling:
+  * Changed SQLiteConnection to inherit from std::enable_shared_from_this
+  * Replaced raw pointer tracking with weak_ptr in activeConnections list
+  * Improved connection cleanup with weak_ptr-based reference tracking
+  * Added proper error handling for shared_from_this() usage
+  * Added safeguards to ensure connections are created with make_shared
+  * Fixed potential memory issues in connection and statement cleanup
+
+## 2025-11-07 11:01:00 AM -0800
 
 ### Connection Options Support
 * Added connection options support for all database drivers:
