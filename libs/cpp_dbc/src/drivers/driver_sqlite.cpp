@@ -2,6 +2,7 @@
 // Implementation of SQLite classes for cpp_dbc
 
 #include "cpp_dbc/drivers/driver_sqlite.hpp"
+#include "cpp_dbc/drivers/sqlite_blob.hpp"
 #include <cstring>
 #include <sstream>
 #include <iostream>
@@ -352,7 +353,7 @@ namespace cpp_dbc
 
         // SQLitePreparedStatement implementation
         SQLitePreparedStatement::SQLitePreparedStatement(sqlite3 *db, const std::string &sql)
-            : db(db), sql(sql), stmt(nullptr), closed(false)
+            : db(db), sql(sql), stmt(nullptr), closed(false), blobValues(), blobObjects(), streamObjects()
         {
             if (!db)
             {
@@ -364,6 +365,12 @@ namespace cpp_dbc
             {
                 throw DBException("3K4L5M6N7O8P: Failed to prepare SQLite statement: " + std::string(sqlite3_errmsg(db)));
             }
+
+            // Initialize BLOB-related vectors
+            int paramCount = sqlite3_bind_parameter_count(stmt);
+            blobValues.resize(paramCount);
+            blobObjects.resize(paramCount);
+            streamObjects.resize(paramCount);
         }
 
         SQLitePreparedStatement::~SQLitePreparedStatement()
@@ -1374,7 +1381,393 @@ namespace cpp_dbc
             return true;
         }
 
-    } // namespace SQLite
-} // namespace cpp_dbc
+        // BLOB support methods for SQLiteResultSet
+        std::shared_ptr<Blob> SQLiteResultSet::getBlob(int columnIndex)
+        {
+            if (!stmt || closed || !hasData || columnIndex < 1 || columnIndex > fieldCount)
+            {
+                throw DBException("Invalid column index or row position for getBlob");
+            }
 
+            // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
+            int idx = columnIndex - 1;
+
+            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
+            {
+                return std::make_shared<SQLite::SQLiteBlob>(nullptr);
+            }
+
+            // Check if the column is a BLOB type
+            if (sqlite3_column_type(stmt, idx) != SQLITE_BLOB)
+            {
+                throw DBException("Column is not a BLOB type");
+            }
+
+            // Get the binary data
+            const void *blobData = sqlite3_column_blob(stmt, idx);
+            int blobSize = sqlite3_column_bytes(stmt, idx);
+
+            // Create a vector with the data
+            std::vector<uint8_t> data;
+            if (blobData && blobSize > 0)
+            {
+                data.resize(blobSize);
+                std::memcpy(data.data(), blobData, blobSize);
+            }
+
+            // Get a shared_ptr to the connection
+            auto conn = connection.lock();
+            if (!conn)
+            {
+                throw DBException("Connection is no longer valid");
+            }
+
+            // Create a new BLOB object with the data
+            return std::make_shared<SQLite::SQLiteBlob>(conn->db, data);
+        }
+
+        std::shared_ptr<Blob> SQLiteResultSet::getBlob(const std::string &columnName)
+        {
+            auto it = columnMap.find(columnName);
+            if (it == columnMap.end())
+            {
+                throw DBException("Column not found: " + columnName);
+            }
+
+            return getBlob(it->second + 1); // +1 because getBlob(int) is 1-based
+        }
+
+        std::shared_ptr<InputStream> SQLiteResultSet::getBinaryStream(int columnIndex)
+        {
+            if (!stmt || closed || !hasData || columnIndex < 1 || columnIndex > fieldCount)
+            {
+                throw DBException("Invalid column index or row position for getBinaryStream");
+            }
+
+            // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
+            int idx = columnIndex - 1;
+
+            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
+            {
+                // Return an empty stream
+                return std::make_shared<SQLite::SQLiteInputStream>(nullptr, 0);
+            }
+
+            // Get the binary data
+            const void *blobData = sqlite3_column_blob(stmt, idx);
+            int blobSize = sqlite3_column_bytes(stmt, idx);
+
+            // Create a new input stream with the data
+            return std::make_shared<SQLite::SQLiteInputStream>(blobData, blobSize);
+        }
+
+        std::shared_ptr<InputStream> SQLiteResultSet::getBinaryStream(const std::string &columnName)
+        {
+            auto it = columnMap.find(columnName);
+            if (it == columnMap.end())
+            {
+                throw DBException("Column not found: " + columnName);
+            }
+
+            return getBinaryStream(it->second + 1); // +1 because getBinaryStream(int) is 1-based
+        }
+
+        std::vector<uint8_t> SQLiteResultSet::getBytes(int columnIndex)
+        {
+            if (!stmt || closed || !hasData || columnIndex < 1 || columnIndex > fieldCount)
+            {
+                throw DBException("Invalid column index or row position for getBytes");
+            }
+
+            // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
+            int idx = columnIndex - 1;
+
+            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
+            {
+                return {};
+            }
+
+            // Get the binary data
+            const void *blobData = sqlite3_column_blob(stmt, idx);
+            int blobSize = sqlite3_column_bytes(stmt, idx);
+
+            // Create a vector with the data
+            std::vector<uint8_t> data;
+            if (blobData && blobSize > 0)
+            {
+                data.resize(blobSize);
+                std::memcpy(data.data(), blobData, blobSize);
+            }
+
+            return data;
+        }
+
+        std::vector<uint8_t> SQLiteResultSet::getBytes(const std::string &columnName)
+        {
+            auto it = columnMap.find(columnName);
+            if (it == columnMap.end())
+            {
+                throw DBException("Column not found: " + columnName);
+            }
+
+            return getBytes(it->second + 1); // +1 because getBytes(int) is 1-based
+        }
+
+        // BLOB support methods for SQLitePreparedStatement
+        void SQLitePreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
+        {
+            if (closed || !stmt)
+            {
+                throw DBException("Statement is closed");
+            }
+
+            // Make sure parameterIndex is valid
+            if (parameterIndex <= 0)
+            {
+                throw DBException("Invalid parameter index: " + std::to_string(parameterIndex));
+            }
+
+            // Get the number of parameters in the statement
+            int paramCount = sqlite3_bind_parameter_count(stmt);
+            if (parameterIndex > paramCount)
+            {
+                throw DBException("Parameter index out of range: " + std::to_string(parameterIndex) +
+                                  " (statement has " + std::to_string(paramCount) + " parameters)");
+            }
+
+            // Store the blob object to keep it alive
+            blobObjects[parameterIndex - 1] = x;
+
+            if (!x)
+            {
+                // Set to NULL
+                int result = sqlite3_bind_null(stmt, parameterIndex);
+                if (result != SQLITE_OK)
+                {
+                    throw DBException("Failed to bind null BLOB: " + std::string(sqlite3_errmsg(db)));
+                }
+                return;
+            }
+
+            // Get the blob data
+            std::vector<uint8_t> data = x->getBytes(0, x->length());
+
+            // Store the data in our vector to keep it alive
+            blobValues[parameterIndex - 1] = std::move(data);
+
+            // Bind the BLOB data
+            int result = sqlite3_bind_blob(stmt, parameterIndex,
+                                           blobValues[parameterIndex - 1].data(),
+                                           blobValues[parameterIndex - 1].size(),
+                                           SQLITE_STATIC);
+            if (result != SQLITE_OK)
+            {
+                throw DBException("Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)));
+            }
+        }
+
+        void SQLitePreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
+        {
+            if (closed || !stmt)
+            {
+                throw DBException("Statement is closed");
+            }
+
+            // Make sure parameterIndex is valid
+            if (parameterIndex <= 0)
+            {
+                throw DBException("Invalid parameter index: " + std::to_string(parameterIndex));
+            }
+
+            // Get the number of parameters in the statement
+            int paramCount = sqlite3_bind_parameter_count(stmt);
+            if (parameterIndex > paramCount)
+            {
+                throw DBException("Parameter index out of range: " + std::to_string(parameterIndex) +
+                                  " (statement has " + std::to_string(paramCount) + " parameters)");
+            }
+
+            // Store the stream object to keep it alive
+            streamObjects[parameterIndex - 1] = x;
+
+            if (!x)
+            {
+                // Set to NULL
+                int result = sqlite3_bind_null(stmt, parameterIndex);
+                if (result != SQLITE_OK)
+                {
+                    throw DBException("Failed to bind null BLOB: " + std::string(sqlite3_errmsg(db)));
+                }
+                return;
+            }
+
+            // Read all data from the stream
+            std::vector<uint8_t> data;
+            uint8_t buffer[4096];
+            int bytesRead;
+            while ((bytesRead = x->read(buffer, sizeof(buffer))) > 0)
+            {
+                data.insert(data.end(), buffer, buffer + bytesRead);
+            }
+
+            // Store the data in our vector to keep it alive
+            blobValues[parameterIndex - 1] = std::move(data);
+
+            // Bind the BLOB data
+            int result = sqlite3_bind_blob(stmt, parameterIndex,
+                                           blobValues[parameterIndex - 1].data(),
+                                           blobValues[parameterIndex - 1].size(),
+                                           SQLITE_STATIC);
+            if (result != SQLITE_OK)
+            {
+                throw DBException("Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)));
+            }
+        }
+
+        void SQLitePreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
+        {
+            if (closed || !stmt)
+            {
+                throw DBException("Statement is closed");
+            }
+
+            // Make sure parameterIndex is valid
+            if (parameterIndex <= 0)
+            {
+                throw DBException("Invalid parameter index: " + std::to_string(parameterIndex));
+            }
+
+            // Get the number of parameters in the statement
+            int paramCount = sqlite3_bind_parameter_count(stmt);
+            if (parameterIndex > paramCount)
+            {
+                throw DBException("Parameter index out of range: " + std::to_string(parameterIndex) +
+                                  " (statement has " + std::to_string(paramCount) + " parameters)");
+            }
+
+            // Store the stream object to keep it alive
+            streamObjects[parameterIndex - 1] = x;
+
+            if (!x)
+            {
+                // Set to NULL
+                int result = sqlite3_bind_null(stmt, parameterIndex);
+                if (result != SQLITE_OK)
+                {
+                    throw DBException("Failed to bind null BLOB: " + std::string(sqlite3_errmsg(db)));
+                }
+                return;
+            }
+
+            // Read up to 'length' bytes from the stream
+            std::vector<uint8_t> data;
+            data.reserve(length);
+            uint8_t buffer[4096];
+            size_t totalBytesRead = 0;
+            int bytesRead;
+            while (totalBytesRead < length && (bytesRead = x->read(buffer, std::min(sizeof(buffer), length - totalBytesRead))) > 0)
+            {
+                data.insert(data.end(), buffer, buffer + bytesRead);
+                totalBytesRead += bytesRead;
+            }
+
+            // Store the data in our vector to keep it alive
+            blobValues[parameterIndex - 1] = std::move(data);
+
+            // Bind the BLOB data
+            int result = sqlite3_bind_blob(stmt, parameterIndex,
+                                           blobValues[parameterIndex - 1].data(),
+                                           blobValues[parameterIndex - 1].size(),
+                                           SQLITE_STATIC);
+            if (result != SQLITE_OK)
+            {
+                throw DBException("Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)));
+            }
+        }
+
+        void SQLitePreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
+        {
+            if (closed || !stmt)
+            {
+                throw DBException("Statement is closed");
+            }
+
+            // Make sure parameterIndex is valid
+            if (parameterIndex <= 0)
+            {
+                throw DBException("Invalid parameter index: " + std::to_string(parameterIndex));
+            }
+
+            // Get the number of parameters in the statement
+            int paramCount = sqlite3_bind_parameter_count(stmt);
+            if (parameterIndex > paramCount)
+            {
+                throw DBException("Parameter index out of range: " + std::to_string(parameterIndex) +
+                                  " (statement has " + std::to_string(paramCount) + " parameters)");
+            }
+
+            // Store the data in our vector to keep it alive
+            blobValues[parameterIndex - 1] = x;
+
+            // Bind the BLOB data
+            int result = sqlite3_bind_blob(stmt, parameterIndex,
+                                           blobValues[parameterIndex - 1].data(),
+                                           blobValues[parameterIndex - 1].size(),
+                                           SQLITE_STATIC);
+            if (result != SQLITE_OK)
+            {
+                throw DBException("Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)));
+            }
+        }
+
+        void SQLitePreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
+        {
+            if (closed || !stmt)
+            {
+                throw DBException("Statement is closed");
+            }
+
+            // Make sure parameterIndex is valid
+            if (parameterIndex <= 0)
+            {
+                throw DBException("Invalid parameter index: " + std::to_string(parameterIndex));
+            }
+
+            // Get the number of parameters in the statement
+            int paramCount = sqlite3_bind_parameter_count(stmt);
+            if (parameterIndex > paramCount)
+            {
+                throw DBException("Parameter index out of range: " + std::to_string(parameterIndex) +
+                                  " (statement has " + std::to_string(paramCount) + " parameters)");
+            }
+
+            if (!x)
+            {
+                // Set to NULL
+                int result = sqlite3_bind_null(stmt, parameterIndex);
+                if (result != SQLITE_OK)
+                {
+                    throw DBException("Failed to bind null BLOB: " + std::string(sqlite3_errmsg(db)));
+                }
+                return;
+            }
+
+            // Store the data in our vector to keep it alive
+            blobValues[parameterIndex - 1].resize(length);
+            std::memcpy(blobValues[parameterIndex - 1].data(), x, length);
+
+            // Bind the BLOB data
+            int result = sqlite3_bind_blob(stmt, parameterIndex,
+                                           blobValues[parameterIndex - 1].data(),
+                                           blobValues[parameterIndex - 1].size(),
+                                           SQLITE_STATIC);
+            if (result != SQLITE_OK)
+            {
+                throw DBException("Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)));
+            }
+        }
+
+    } // namespace cpp_dbc
+
+}
 #endif // USE_SQLITE

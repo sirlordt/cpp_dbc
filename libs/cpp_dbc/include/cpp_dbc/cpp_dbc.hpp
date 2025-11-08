@@ -23,6 +23,7 @@
 #include <memory>
 #include <map>
 #include <stdexcept>
+#include <cstdint>
 
 // Forward declaration of configuration classes
 namespace cpp_dbc
@@ -38,6 +39,9 @@ namespace cpp_dbc
 {
 
     // Forward declarations
+    class Blob;
+    class InputStream;
+    class OutputStream;
     class ResultSet;
     class PreparedStatement;
     class Connection;
@@ -74,6 +78,70 @@ namespace cpp_dbc
         TRANSACTION_SERIALIZABLE = 8
     };
 
+    // Abstract base class for input streams
+    class InputStream
+    {
+    public:
+        virtual ~InputStream() = default;
+
+        // Read up to length bytes into the buffer
+        // Returns the number of bytes actually read, or -1 if end of stream
+        virtual int read(uint8_t *buffer, size_t length) = 0;
+
+        // Skip n bytes
+        virtual void skip(size_t n) = 0;
+
+        // Close the stream
+        virtual void close() = 0;
+    };
+
+    // Abstract base class for output streams
+    class OutputStream
+    {
+    public:
+        virtual ~OutputStream() = default;
+
+        // Write length bytes from the buffer
+        virtual void write(const uint8_t *buffer, size_t length) = 0;
+
+        // Flush any buffered data
+        virtual void flush() = 0;
+
+        // Close the stream
+        virtual void close() = 0;
+    };
+
+    // Abstract base class for BLOB objects
+    class Blob
+    {
+    public:
+        virtual ~Blob() = default;
+
+        // Get the length of the BLOB
+        virtual size_t length() const = 0;
+
+        // Get a portion of the BLOB as a vector of bytes
+        virtual std::vector<uint8_t> getBytes(size_t pos, size_t length) const = 0;
+
+        // Get a stream to read from the BLOB
+        virtual std::shared_ptr<InputStream> getBinaryStream() const = 0;
+
+        // Get a stream to write to the BLOB starting at position pos
+        virtual std::shared_ptr<OutputStream> setBinaryStream(size_t pos) = 0;
+
+        // Write bytes to the BLOB starting at position pos
+        virtual void setBytes(size_t pos, const std::vector<uint8_t> &bytes) = 0;
+
+        // Write bytes to the BLOB starting at position pos
+        virtual void setBytes(size_t pos, const uint8_t *bytes, size_t length) = 0;
+
+        // Truncate the BLOB to the specified length
+        virtual void truncate(size_t len) = 0;
+
+        // Free resources associated with the BLOB
+        virtual void free() = 0;
+    };
+
     // Abstract base class for result sets
     class ResultSet
     {
@@ -106,6 +174,16 @@ namespace cpp_dbc
         virtual std::vector<std::string> getColumnNames() = 0;
         virtual int getColumnCount() = 0;
 
+        // BLOB support methods
+        virtual std::shared_ptr<Blob> getBlob(int columnIndex) = 0;
+        virtual std::shared_ptr<Blob> getBlob(const std::string &columnName) = 0;
+
+        virtual std::shared_ptr<InputStream> getBinaryStream(int columnIndex) = 0;
+        virtual std::shared_ptr<InputStream> getBinaryStream(const std::string &columnName) = 0;
+
+        virtual std::vector<uint8_t> getBytes(int columnIndex) = 0;
+        virtual std::vector<uint8_t> getBytes(const std::string &columnName) = 0;
+
         // Close the result set and free resources
         virtual void close() = 0;
     };
@@ -124,6 +202,13 @@ namespace cpp_dbc
         virtual void setNull(int parameterIndex, Types type) = 0;
         virtual void setDate(int parameterIndex, const std::string &value) = 0;
         virtual void setTimestamp(int parameterIndex, const std::string &value) = 0;
+
+        // BLOB support methods
+        virtual void setBlob(int parameterIndex, std::shared_ptr<Blob> x) = 0;
+        virtual void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x) = 0;
+        virtual void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length) = 0;
+        virtual void setBytes(int parameterIndex, const std::vector<uint8_t> &x) = 0;
+        virtual void setBytes(int parameterIndex, const uint8_t *x, size_t length) = 0;
 
         virtual std::shared_ptr<ResultSet> executeQuery() = 0;
         virtual int executeUpdate() = 0;
@@ -211,6 +296,9 @@ namespace cpp_dbc
         class MySQLConnection;
         class MySQLPreparedStatement;
         class MySQLResultSet;
+        class MySQLBlob;
+        class MySQLInputStream;
+        class MySQLOutputStream;
     }
 #endif
 
@@ -222,6 +310,9 @@ namespace cpp_dbc
         class PostgreSQLConnection;
         class PostgreSQLPreparedStatement;
         class PostgreSQLResultSet;
+        class PostgreSQLBlob;
+        class PostgreSQLInputStream;
+        class PostgreSQLOutputStream;
     }
 #endif
 
@@ -233,6 +324,9 @@ namespace cpp_dbc
         class SQLiteConnection;
         class SQLitePreparedStatement;
         class SQLiteResultSet;
+        class SQLiteBlob;
+        class SQLiteInputStream;
+        class SQLiteOutputStream;
     }
 #endif
 

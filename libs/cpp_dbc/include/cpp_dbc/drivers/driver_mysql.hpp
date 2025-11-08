@@ -5,6 +5,7 @@
 #define CPP_DBC_DRIVER_MYSQL_HPP
 
 #include "../cpp_dbc.hpp"
+#include "mysql_blob.hpp"
 
 #if USE_MYSQL
 #include <mysql/mysql.h>
@@ -59,6 +60,16 @@ namespace cpp_dbc
             std::vector<std::string> getColumnNames() override;
             int getColumnCount() override;
             void close() override;
+
+            // BLOB support methods
+            std::shared_ptr<Blob> getBlob(int columnIndex) override;
+            std::shared_ptr<Blob> getBlob(const std::string &columnName) override;
+
+            std::shared_ptr<InputStream> getBinaryStream(int columnIndex) override;
+            std::shared_ptr<InputStream> getBinaryStream(const std::string &columnName) override;
+
+            std::vector<uint8_t> getBytes(int columnIndex) override;
+            std::vector<uint8_t> getBytes(const std::string &columnName) override;
         };
 
         class MySQLPreparedStatement : public PreparedStatement
@@ -70,12 +81,15 @@ namespace cpp_dbc
             std::string sql;
             MYSQL_STMT *stmt;
             std::vector<MYSQL_BIND> binds;
-            std::vector<std::string> stringValues;    // To keep string values alive
-            std::vector<std::string> parameterValues; // To store parameter values for query reconstruction
-            std::vector<int> intValues;               // To keep int values alive
-            std::vector<long> longValues;             // To keep long values alive
-            std::vector<double> doubleValues;         // To keep double values alive
-            std::vector<char> nullFlags;              // To keep null flags alive (char instead of bool for pointer access)
+            std::vector<std::string> stringValues;                   // To keep string values alive
+            std::vector<std::string> parameterValues;                // To store parameter values for query reconstruction
+            std::vector<int> intValues;                              // To keep int values alive
+            std::vector<long> longValues;                            // To keep long values alive
+            std::vector<double> doubleValues;                        // To keep double values alive
+            std::vector<char> nullFlags;                             // To keep null flags alive (char instead of bool for pointer access)
+            std::vector<std::vector<uint8_t>> blobValues;            // To keep blob values alive
+            std::vector<std::shared_ptr<Blob>> blobObjects;          // To keep blob objects alive
+            std::vector<std::shared_ptr<InputStream>> streamObjects; // To keep stream objects alive
 
             // Internal method called by connection when closing
             void notifyConnClosing();
@@ -92,6 +106,13 @@ namespace cpp_dbc
             void setNull(int parameterIndex, Types type) override;
             void setDate(int parameterIndex, const std::string &value) override;
             void setTimestamp(int parameterIndex, const std::string &value) override;
+
+            // BLOB support methods
+            void setBlob(int parameterIndex, std::shared_ptr<Blob> x) override;
+            void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x) override;
+            void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length) override;
+            void setBytes(int parameterIndex, const std::vector<uint8_t> &x) override;
+            void setBytes(int parameterIndex, const uint8_t *x, size_t length) override;
 
             std::shared_ptr<ResultSet> executeQuery() override;
             int executeUpdate() override;

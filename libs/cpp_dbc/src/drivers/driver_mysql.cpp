@@ -2,6 +2,7 @@
 // Implementation of MySQL classes for cpp_dbc
 
 #include "cpp_dbc/drivers/driver_mysql.hpp"
+#include "cpp_dbc/drivers/mysql_blob.hpp"
 #include <cstring>
 #include <sstream>
 #include <iostream>
@@ -246,6 +247,130 @@ namespace cpp_dbc
             }
         }
 
+        // BLOB support methods for MySQLResultSet
+        std::shared_ptr<Blob> MySQLResultSet::getBlob(int columnIndex)
+        {
+            if (!result || !currentRow || columnIndex < 1 || columnIndex > fieldCount)
+            {
+                throw DBException("Invalid column index for getBlob");
+            }
+
+            // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
+            int idx = columnIndex - 1;
+            if (currentRow[idx] == nullptr)
+            {
+                return std::make_shared<MySQL::MySQLBlob>(nullptr);
+            }
+
+            // Get the length of the BLOB data
+            unsigned long *lengths = mysql_fetch_lengths(result);
+            if (!lengths)
+            {
+                throw DBException("Failed to get BLOB data length");
+            }
+
+            // Create a new BLOB object with the data
+            std::vector<uint8_t> data;
+            if (lengths[idx] > 0)
+            {
+                data.resize(lengths[idx]);
+                std::memcpy(data.data(), currentRow[idx], lengths[idx]);
+            }
+
+            return std::make_shared<MySQL::MySQLBlob>(nullptr, data);
+        }
+
+        std::shared_ptr<Blob> MySQLResultSet::getBlob(const std::string &columnName)
+        {
+            auto it = columnMap.find(columnName);
+            if (it == columnMap.end())
+            {
+                throw DBException("Column not found: " + columnName);
+            }
+
+            return getBlob(it->second + 1); // +1 because getBlob(int) is 1-based
+        }
+
+        std::shared_ptr<InputStream> MySQLResultSet::getBinaryStream(int columnIndex)
+        {
+            if (!result || !currentRow || columnIndex < 1 || columnIndex > fieldCount)
+            {
+                throw DBException("Invalid column index for getBinaryStream");
+            }
+
+            // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
+            int idx = columnIndex - 1;
+            if (currentRow[idx] == nullptr)
+            {
+                // Return an empty stream
+                return std::make_shared<MySQL::MySQLInputStream>("", 0);
+            }
+
+            // Get the length of the BLOB data
+            unsigned long *lengths = mysql_fetch_lengths(result);
+            if (!lengths)
+            {
+                throw DBException("Failed to get BLOB data length");
+            }
+
+            // Create a new input stream with the data
+            return std::make_shared<MySQL::MySQLInputStream>(currentRow[idx], lengths[idx]);
+        }
+
+        std::shared_ptr<InputStream> MySQLResultSet::getBinaryStream(const std::string &columnName)
+        {
+            auto it = columnMap.find(columnName);
+            if (it == columnMap.end())
+            {
+                throw DBException("Column not found: " + columnName);
+            }
+
+            return getBinaryStream(it->second + 1); // +1 because getBinaryStream(int) is 1-based
+        }
+
+        std::vector<uint8_t> MySQLResultSet::getBytes(int columnIndex)
+        {
+            if (!result || !currentRow || columnIndex < 1 || columnIndex > fieldCount)
+            {
+                throw DBException("Invalid column index for getBytes");
+            }
+
+            // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
+            int idx = columnIndex - 1;
+            if (currentRow[idx] == nullptr)
+            {
+                return {};
+            }
+
+            // Get the length of the BLOB data
+            unsigned long *lengths = mysql_fetch_lengths(result);
+            if (!lengths)
+            {
+                throw DBException("Failed to get BLOB data length");
+            }
+
+            // Create a vector with the data
+            std::vector<uint8_t> data;
+            if (lengths[idx] > 0)
+            {
+                data.resize(lengths[idx]);
+                std::memcpy(data.data(), currentRow[idx], lengths[idx]);
+            }
+
+            return data;
+        }
+
+        std::vector<uint8_t> MySQLResultSet::getBytes(const std::string &columnName)
+        {
+            auto it = columnMap.find(columnName);
+            if (it == columnMap.end())
+            {
+                throw DBException("Column not found: " + columnName);
+            }
+
+            return getBytes(it->second + 1); // +1 because getBytes(int) is 1-based
+        }
+
         // MySQLPreparedStatement implementation
         MySQLPreparedStatement::MySQLPreparedStatement(MYSQL *mysql_conn, const std::string &sql_stmt)
             : mysql(mysql_conn), sql(sql_stmt), stmt(nullptr)
@@ -286,6 +411,11 @@ namespace cpp_dbc
             longValues.resize(paramCount);
             doubleValues.resize(paramCount);
             nullFlags.resize(paramCount);
+
+            // Initialize BLOB-related vectors
+            blobValues.resize(paramCount);
+            blobObjects.resize(paramCount);
+            streamObjects.resize(paramCount);
         }
 
         MySQLPreparedStatement::~MySQLPreparedStatement()
@@ -349,6 +479,199 @@ namespace cpp_dbc
 
             // Store parameter value for query reconstruction
             parameterValues[idx] = std::to_string(value);
+        }
+
+        // BLOB support methods
+        void MySQLPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
+            {
+                throw DBException("Invalid parameter index for setBlob");
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store the blob object to keep it alive
+            blobObjects[idx] = x;
+
+            if (!x)
+            {
+                // Set to NULL
+                nullFlags[idx] = 1;
+                binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+                binds[idx].is_null = reinterpret_cast<bool *>(&nullFlags[idx]);
+                binds[idx].buffer = nullptr;
+                binds[idx].buffer_length = 0;
+                binds[idx].length = nullptr;
+                return;
+            }
+
+            // Get the blob data
+            std::vector<uint8_t> data = x->getBytes(0, x->length());
+
+            // Store the data in our vector to keep it alive
+            blobValues[idx] = std::move(data);
+
+            binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+            binds[idx].buffer = blobValues[idx].data();
+            binds[idx].buffer_length = blobValues[idx].size();
+            binds[idx].is_null = nullptr;
+            binds[idx].length = nullptr;
+
+            // Store parameter value for query reconstruction (with proper escaping)
+            parameterValues[idx] = "BINARY DATA";
+        }
+
+        void MySQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
+            {
+                throw DBException("Invalid parameter index for setBinaryStream");
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store the stream object to keep it alive
+            streamObjects[idx] = x;
+
+            if (!x)
+            {
+                // Set to NULL
+                nullFlags[idx] = 1;
+                binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+                binds[idx].is_null = reinterpret_cast<bool *>(&nullFlags[idx]);
+                binds[idx].buffer = nullptr;
+                binds[idx].buffer_length = 0;
+                binds[idx].length = nullptr;
+                return;
+            }
+
+            // Read all data from the stream
+            std::vector<uint8_t> data;
+            uint8_t buffer[4096];
+            int bytesRead;
+            while ((bytesRead = x->read(buffer, sizeof(buffer))) > 0)
+            {
+                data.insert(data.end(), buffer, buffer + bytesRead);
+            }
+
+            // Store the data in our vector to keep it alive
+            blobValues[idx] = std::move(data);
+
+            binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+            binds[idx].buffer = blobValues[idx].data();
+            binds[idx].buffer_length = blobValues[idx].size();
+            binds[idx].is_null = nullptr;
+            binds[idx].length = nullptr;
+
+            // Store parameter value for query reconstruction
+            parameterValues[idx] = "BINARY DATA";
+        }
+
+        void MySQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
+            {
+                throw DBException("Invalid parameter index for setBinaryStream");
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store the stream object to keep it alive
+            streamObjects[idx] = x;
+
+            if (!x)
+            {
+                // Set to NULL
+                nullFlags[idx] = 1;
+                binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+                binds[idx].is_null = reinterpret_cast<bool *>(&nullFlags[idx]);
+                binds[idx].buffer = nullptr;
+                binds[idx].buffer_length = 0;
+                binds[idx].length = nullptr;
+                return;
+            }
+
+            // Read up to 'length' bytes from the stream
+            std::vector<uint8_t> data;
+            data.reserve(length);
+            uint8_t buffer[4096];
+            size_t totalBytesRead = 0;
+            int bytesRead;
+            while (totalBytesRead < length && (bytesRead = x->read(buffer, std::min(sizeof(buffer), length - totalBytesRead))) > 0)
+            {
+                data.insert(data.end(), buffer, buffer + bytesRead);
+                totalBytesRead += bytesRead;
+            }
+
+            // Store the data in our vector to keep it alive
+            blobValues[idx] = std::move(data);
+
+            binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+            binds[idx].buffer = blobValues[idx].data();
+            binds[idx].buffer_length = blobValues[idx].size();
+            binds[idx].is_null = nullptr;
+            binds[idx].length = nullptr;
+
+            // Store parameter value for query reconstruction
+            parameterValues[idx] = "BINARY DATA";
+        }
+
+        void MySQLPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
+            {
+                throw DBException("Invalid parameter index for setBytes");
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store the data in our vector to keep it alive
+            blobValues[idx] = x;
+
+            binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+            binds[idx].buffer = blobValues[idx].data();
+            binds[idx].buffer_length = blobValues[idx].size();
+            binds[idx].is_null = nullptr;
+            binds[idx].length = nullptr;
+
+            // Store parameter value for query reconstruction
+            parameterValues[idx] = "BINARY DATA";
+        }
+
+        void MySQLPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(binds.size()))
+            {
+                throw DBException("Invalid parameter index for setBytes");
+            }
+
+            int idx = parameterIndex - 1;
+
+            if (!x)
+            {
+                // Set to NULL
+                nullFlags[idx] = 1;
+                binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+                binds[idx].is_null = reinterpret_cast<bool *>(&nullFlags[idx]);
+                binds[idx].buffer = nullptr;
+                binds[idx].buffer_length = 0;
+                binds[idx].length = nullptr;
+                return;
+            }
+
+            // Store the data in our vector to keep it alive
+            blobValues[idx].resize(length);
+            std::memcpy(blobValues[idx].data(), x, length);
+
+            binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+            binds[idx].buffer = blobValues[idx].data();
+            binds[idx].buffer_length = blobValues[idx].size();
+            binds[idx].is_null = nullptr;
+            binds[idx].length = nullptr;
+
+            // Store parameter value for query reconstruction
+            parameterValues[idx] = "BINARY DATA";
         }
 
         void MySQLPreparedStatement::setDouble(int parameterIndex, double value)

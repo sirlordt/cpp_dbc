@@ -4,6 +4,7 @@ Este documento proporciona una guía completa de la biblioteca CPP_DBC, una bibl
 
 ## Tabla de Contenidos
 - [Componentes Principales](#componentes-principales)
+- [Soporte para BLOB](#soporte-para-blob)
 - [Implementación MySQL](#implementación-mysql)
 - [Implementación PostgreSQL](#implementación-postgresql)
 - [Implementación SQLite](#implementación-sqlite)
@@ -46,6 +47,35 @@ Representa niveles de aislamiento de transacciones siguiendo el estándar JDBC.
 - `TRANSACTION_REPEATABLE_READ`: Evita lecturas sucias y lecturas no repetibles, pero permite lecturas fantasma
 - `TRANSACTION_SERIALIZABLE`: Evita lecturas sucias, lecturas no repetibles y lecturas fantasma
 
+### InputStream
+Una clase base abstracta que representa un flujo de entrada para leer datos binarios.
+
+**Métodos:**
+- `read(uint8_t*, size_t)`: Lee hasta length bytes en el buffer, devuelve el número de bytes leídos o -1 si se alcanza el final del flujo.
+- `skip(size_t)`: Salta n bytes en el flujo.
+- `close()`: Cierra el flujo y libera recursos.
+
+### OutputStream
+Una clase base abstracta que representa un flujo de salida para escribir datos binarios.
+
+**Métodos:**
+- `write(const uint8_t*, size_t)`: Escribe length bytes desde el buffer.
+- `flush()`: Vacía cualquier dato almacenado en búfer.
+- `close()`: Cierra el flujo y libera recursos.
+
+### Blob
+Una clase base abstracta que representa un objeto binario grande (BLOB).
+
+**Métodos:**
+- `length()`: Devuelve la longitud del BLOB en bytes.
+- `getBytes(size_t, size_t)`: Recupera una porción del BLOB como un vector de bytes.
+- `getBinaryStream()`: Obtiene un flujo para leer desde el BLOB.
+- `setBinaryStream(size_t)`: Obtiene un flujo para escribir en el BLOB a partir de la posición indicada.
+- `setBytes(size_t, const std::vector<uint8_t>&)`: Escribe bytes en el BLOB a partir de la posición indicada.
+- `setBytes(size_t, const uint8_t*, size_t)`: Escribe bytes en el BLOB a partir de la posición indicada.
+- `truncate(size_t)`: Trunca el BLOB a la longitud especificada.
+- `free()`: Libera los recursos asociados con el BLOB.
+
 ### ResultSet
 Una clase base abstracta que representa un conjunto de resultados de una consulta SQL.
 
@@ -62,6 +92,9 @@ Una clase base abstracta que representa un conjunto de resultados de una consult
 - `isNull(int/string)`: Devuelve true si el valor de la columna designada es nulo.
 - `getColumnNames()`: Devuelve un vector con todos los nombres de columnas.
 - `getColumnCount()`: Devuelve el número de columnas en el conjunto de resultados.
+- `getBlob(int/string)`: Recupera el valor de la columna designada como un objeto Blob.
+- `getBinaryStream(int/string)`: Recupera el valor de la columna designada como un flujo de entrada binario.
+- `getBytes(int/string)`: Recupera el valor de la columna designada como un vector de bytes.
 
 ### PreparedStatement
 Una clase base abstracta que representa una declaración SQL precompilada.
@@ -73,6 +106,11 @@ Una clase base abstracta que representa una declaración SQL precompilada.
 - `setString(int, string)`: Establece el parámetro designado al valor de cadena dado.
 - `setBoolean(int, bool)`: Establece el parámetro designado al valor booleano dado.
 - `setNull(int, Types)`: Establece el parámetro designado a SQL NULL.
+- `setBlob(int, Blob)`: Establece el parámetro designado al objeto Blob dado.
+- `setBinaryStream(int, InputStream)`: Establece el parámetro designado al flujo de entrada binario dado.
+- `setBinaryStream(int, InputStream, size_t)`: Establece el parámetro designado al flujo de entrada binario dado con la longitud especificada.
+- `setBytes(int, const std::vector<uint8_t>&)`: Establece el parámetro designado al vector de bytes dado.
+- `setBytes(int, const uint8_t*, size_t)`: Establece el parámetro designado a los bytes dados con la longitud especificada.
 - `executeQuery()`: Ejecuta la consulta y devuelve un ResultSet.
 - `executeUpdate()`: Ejecuta la actualización y devuelve el número de filas afectadas.
 - `execute()`: Ejecuta la declaración SQL y devuelve true si el resultado es un ResultSet.
@@ -110,8 +148,126 @@ Una clase gestora para registrar y recuperar instancias de controladores.
 
 ---
 
+## Soporte para BLOB
+*Componentes definidos en blob.hpp*
+
+CPP_DBC proporciona soporte completo para objetos binarios grandes (BLOB) en todas las bases de datos soportadas. La implementación sigue un diseño similar a JDBC, con clases base abstractas y implementaciones específicas para cada motor de base de datos.
+
+### Clases Base
+
+#### MemoryInputStream
+Implementación base de InputStream que lee desde un buffer de memoria.
+
+**Métodos:**
+- `MemoryInputStream(const std::vector<uint8_t>&)`: Constructor que toma un vector de datos.
+- `read(uint8_t*, size_t)`: Lee datos del buffer de memoria.
+- `skip(size_t)`: Salta bytes en el flujo.
+- `close()`: Cierra el flujo.
+
+#### MemoryOutputStream
+Implementación base de OutputStream que escribe en un buffer de memoria.
+
+**Métodos:**
+- `MemoryOutputStream(std::vector<uint8_t>&, size_t)`: Constructor que toma un vector de datos y una posición inicial.
+- `write(const uint8_t*, size_t)`: Escribe datos en el buffer de memoria.
+- `flush()`: Vacía cualquier dato almacenado en búfer.
+- `close()`: Cierra el flujo.
+
+#### FileInputStream
+Implementación de InputStream que lee desde un archivo.
+
+**Métodos:**
+- `FileInputStream(const std::string&)`: Constructor que toma un nombre de archivo.
+- `read(uint8_t*, size_t)`: Lee datos del archivo.
+- `skip(size_t)`: Salta bytes en el flujo.
+- `close()`: Cierra el archivo.
+
+#### FileOutputStream
+Implementación de OutputStream que escribe en un archivo.
+
+**Métodos:**
+- `FileOutputStream(const std::string&, bool)`: Constructor que toma un nombre de archivo y una bandera de anexar.
+- `write(const uint8_t*, size_t)`: Escribe datos en el archivo.
+- `flush()`: Vacía cualquier dato almacenado en búfer.
+- `close()`: Cierra el archivo.
+
+#### MemoryBlob
+Implementación base de Blob que almacena datos en memoria.
+
+**Métodos:**
+- `MemoryBlob()`: Constructor predeterminado.
+- `MemoryBlob(const std::vector<uint8_t>&)`: Constructor que toma un vector de datos inicial.
+- `length()`: Devuelve la longitud del BLOB.
+- `getBytes(size_t, size_t)`: Recupera una porción del BLOB como un vector de bytes.
+- `getBinaryStream()`: Obtiene un flujo para leer desde el BLOB.
+- `setBinaryStream(size_t)`: Obtiene un flujo para escribir en el BLOB a partir de la posición indicada.
+- `setBytes(size_t, const std::vector<uint8_t>&)`: Escribe bytes en el BLOB a partir de la posición indicada.
+- `setBytes(size_t, const uint8_t*, size_t)`: Escribe bytes en el BLOB a partir de la posición indicada.
+- `truncate(size_t)`: Trunca el BLOB a la longitud especificada.
+- `free()`: Libera los recursos asociados con el BLOB.
+
+### Uso de BLOB
+
+Para trabajar con BLOB en CPP_DBC, se pueden utilizar los siguientes patrones:
+
+1. **Lectura de BLOB desde la base de datos:**
+   ```cpp
+   auto rs = conn->executeQuery("SELECT data FROM test_blobs WHERE id = 1");
+   if (rs->next()) {
+       // Obtener como vector de bytes
+       auto blobData = rs->getBytes("data");
+       
+       // O como objeto Blob
+       auto blob = rs->getBlob("data");
+       
+       // O como flujo de entrada
+       auto inputStream = rs->getBinaryStream("data");
+   }
+   ```
+
+2. **Escritura de BLOB en la base de datos:**
+   ```cpp
+   auto stmt = conn->prepareStatement("INSERT INTO test_blobs (id, name, data) VALUES (?, ?, ?)");
+   stmt->setInt(1, 1);
+   stmt->setString(2, "Test BLOB");
+   
+   // Usando vector de bytes
+   std::vector<uint8_t> data = {...};
+   stmt->setBytes(3, data);
+   
+   // O usando un objeto Blob
+   auto blob = std::make_shared<cpp_dbc::MemoryBlob>(data);
+   stmt->setBlob(3, blob);
+   
+   // O usando un flujo de entrada
+   auto inputStream = std::make_shared<cpp_dbc::MemoryInputStream>(data);
+   stmt->setBinaryStream(3, inputStream, data.size());
+   
+   stmt->executeUpdate();
+   ```
+
+---
+
 ## Implementación MySQL
-*Componentes definidos en drivers/driver_mysql.hpp y drivers/driver_mysql.cpp*
+*Componentes definidos en drivers/driver_mysql.hpp, drivers/driver_mysql.cpp y drivers/mysql_blob.hpp*
+
+### MySQLInputStream
+Implementación de InputStream para MySQL.
+
+**Métodos:**
+Los mismos que InputStream, más:
+- `MySQLInputStream(const char*, size_t)`: Constructor que toma un buffer y su longitud.
+
+### MySQLBlob
+Implementación de Blob para MySQL.
+
+**Métodos:**
+Los mismos que Blob, más:
+- `MySQLBlob(MYSQL*)`: Constructor para crear un nuevo BLOB.
+- `MySQLBlob(MYSQL*, const std::string&, const std::string&, const std::string&)`: Constructor para cargar un BLOB existente de una tabla, columna y cláusula WHERE específicas.
+- `MySQLBlob(MYSQL*, const std::vector<uint8_t>&)`: Constructor para crear un BLOB a partir de datos existentes.
+- `ensureLoaded()`: Asegura que los datos del BLOB estén cargados desde la base de datos.
+- `save()`: Guarda los datos del BLOB en la base de datos.
 
 ### MySQLResultSet
 Implementación de ResultSet para MySQL.
@@ -147,7 +303,26 @@ Los mismos que Driver, más:
 ---
 
 ## Implementación PostgreSQL
-*Componentes definidos en drivers/driver_postgresql.hpp y drivers/driver_postgresql.cpp*
+*Componentes definidos en drivers/driver_postgresql.hpp, drivers/driver_postgresql.cpp y drivers/postgresql_blob.hpp*
+
+### PostgreSQLInputStream
+Implementación de InputStream para PostgreSQL.
+
+**Métodos:**
+Los mismos que InputStream, más:
+- `PostgreSQLInputStream(const char*, size_t)`: Constructor que toma un buffer y su longitud.
+
+### PostgreSQLBlob
+Implementación de Blob para PostgreSQL.
+
+**Métodos:**
+Los mismos que Blob, más:
+- `PostgreSQLBlob(PGconn*)`: Constructor para crear un nuevo BLOB.
+- `PostgreSQLBlob(PGconn*, Oid)`: Constructor para cargar un BLOB existente por su OID.
+- `PostgreSQLBlob(PGconn*, const std::vector<uint8_t>&)`: Constructor para crear un BLOB a partir de datos existentes.
+- `ensureLoaded()`: Asegura que los datos del BLOB estén cargados desde la base de datos.
+- `save()`: Guarda los datos del BLOB en la base de datos y devuelve el OID.
+- `getOid()`: Devuelve el OID del objeto grande.
 
 ### PostgreSQLResultSet
 Implementación de ResultSet para PostgreSQL.
@@ -184,7 +359,25 @@ Los mismos que Driver, más:
 ---
 
 ## Implementación SQLite
-*Componentes definidos en drivers/driver_sqlite.hpp y drivers/driver_sqlite.cpp*
+*Componentes definidos en drivers/driver_sqlite.hpp, drivers/driver_sqlite.cpp y drivers/sqlite_blob.hpp*
+
+### SQLiteInputStream
+Implementación de InputStream para SQLite.
+
+**Métodos:**
+Los mismos que InputStream, más:
+- `SQLiteInputStream(const void*, size_t)`: Constructor que toma un buffer y su longitud.
+
+### SQLiteBlob
+Implementación de Blob para SQLite.
+
+**Métodos:**
+Los mismos que Blob, más:
+- `SQLiteBlob(sqlite3*)`: Constructor para crear un nuevo BLOB.
+- `SQLiteBlob(sqlite3*, const std::string&, const std::string&, const std::string&)`: Constructor para cargar un BLOB existente de una tabla, columna y rowId específicos.
+- `SQLiteBlob(sqlite3*, const std::vector<uint8_t>&)`: Constructor para crear un BLOB a partir de datos existentes.
+- `ensureLoaded()`: Asegura que los datos del BLOB estén cargados desde la base de datos.
+- `save()`: Guarda los datos del BLOB en la base de datos.
 
 ### SQLiteResultSet
 Implementación de ResultSet para SQLite.

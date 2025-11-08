@@ -9,6 +9,7 @@
 #include <chrono>
 #include <algorithm>
 #include <cctype>
+#include <iomanip>
 
 namespace cpp_dbc
 {
@@ -274,27 +275,23 @@ namespace cpp_dbc
         }
 
         // PostgreSQLPreparedStatement implementation
-        PostgreSQLPreparedStatement::PostgreSQLPreparedStatement(PGconn *conn_handle, const std::string &sql_stmt, const std::string &stmt_name)
-            : conn(conn_handle), sql(sql_stmt), prepared(false), statementCounter(0), stmtName(stmt_name)
+        // Helper method to process SQL and count parameters
+        int PostgreSQLPreparedStatement::processSQL(std::string &sqlQuery)
         {
-            if (!conn)
-            {
-                throw DBException("5Q6R7S8T9U0V: Invalid PostgreSQL connection");
-            }
-
-            // Count parameters (using $1, $2, etc. instead of ?)
-            // This is a simplification - in reality, PostgreSQL allows more complex parameter references
+            // Count parameters (using $1, $2, etc. or ? placeholders)
             int paramCount = 0;
+
+            // First, check for $n style parameters
             size_t pos = 0;
-            while ((pos = sql.find("$", pos)) != std::string::npos)
+            while ((pos = sqlQuery.find("$", pos)) != std::string::npos)
             {
                 pos++;
-                if (pos < sql.length() && isdigit(sql[pos]))
+                if (pos < sqlQuery.length() && isdigit(sqlQuery[pos]))
                 {
                     int paramIdx = 0;
-                    while (pos < sql.length() && isdigit(sql[pos]))
+                    while (pos < sqlQuery.length() && isdigit(sqlQuery[pos]))
                     {
-                        paramIdx = paramIdx * 10 + (sql[pos] - '0');
+                        paramIdx = paramIdx * 10 + (sqlQuery[pos] - '0');
                         pos++;
                     }
                     if (paramIdx > paramCount)
@@ -304,11 +301,66 @@ namespace cpp_dbc
                 }
             }
 
+            // If no $n parameters were found, check for ? style parameters
+            if (paramCount == 0)
+            {
+                pos = 0;
+                while ((pos = sqlQuery.find("?", pos)) != std::string::npos)
+                {
+                    paramCount++;
+                    pos++;
+                }
+
+                // If we found ? parameters, we need to convert the SQL to use $n parameters
+                if (paramCount > 0)
+                {
+                    std::string newSql;
+                    pos = 0;
+                    size_t lastPos = 0;
+                    int paramIdx = 1;
+
+                    while ((pos = sqlQuery.find("?", lastPos)) != std::string::npos)
+                    {
+                        newSql.append(sqlQuery, lastPos, pos - lastPos);
+                        newSql.append("$" + std::to_string(paramIdx++));
+                        lastPos = pos + 1;
+                    }
+
+                    // Append the rest of the SQL
+                    if (lastPos < sqlQuery.length())
+                    {
+                        newSql.append(sqlQuery, lastPos, sqlQuery.length() - lastPos);
+                    }
+
+                    // Replace the original SQL with the converted one
+                    sqlQuery = newSql;
+                }
+            }
+
+            return paramCount;
+        }
+
+        PostgreSQLPreparedStatement::PostgreSQLPreparedStatement(PGconn *conn_handle, const std::string &sql_stmt, const std::string &stmt_name)
+            : conn(conn_handle), sql(sql_stmt), prepared(false), statementCounter(0), stmtName(stmt_name)
+        {
+            if (!conn)
+            {
+                throw DBException("5Q6R7S8T9U0V: Invalid PostgreSQL connection");
+            }
+
+            // Process SQL and count parameters
+            int paramCount = processSQL(sql);
+
             // Initialize parameter arrays
             paramValues.resize(paramCount);
             paramLengths.resize(paramCount);
             paramFormats.resize(paramCount);
             paramTypes.resize(paramCount);
+
+            // Initialize BLOB-related vectors
+            blobValues.resize(paramCount);
+            blobObjects.resize(paramCount);
+            streamObjects.resize(paramCount);
 
             // Default to text format for all parameters
             for (int i = 0; i < paramCount; i++)
@@ -663,6 +715,366 @@ namespace cpp_dbc
 
             PQclear(result);
             return hasResultSet;
+        }
+
+        // BLOB support methods for PostgreSQLResultSet
+        std::shared_ptr<Blob> PostgreSQLResultSet::getBlob(int columnIndex)
+        {
+            if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
+            {
+                throw DBException("5K6L7M8N9O0P: Invalid column index or row position for getBlob");
+            }
+
+            // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
+            int idx = columnIndex - 1;
+            int row = rowPosition - 1;
+
+            if (PQgetisnull(result, row, idx))
+            {
+                return std::make_shared<PostgreSQLBlob>(nullptr);
+            }
+
+            // Check if the column is a bytea type
+            Oid type = PQftype(result, idx);
+            if (type != 17) // BYTEAOID
+            {
+                throw DBException("EA04B0D9155C: Column is not a BLOB/bytea type");
+            }
+
+            // Get the binary data
+            const char *value = PQgetvalue(result, row, idx);
+            int length = PQgetlength(result, row, idx);
+
+            // Create a vector with the data using our getBytes method
+            // This will properly handle the hex format
+            std::vector<uint8_t> data = getBytes(columnIndex);
+
+            // Create a PostgreSQLBlob with the data
+            return std::make_shared<PostgreSQLBlob>(nullptr, data);
+        }
+
+        std::shared_ptr<Blob> PostgreSQLResultSet::getBlob(const std::string &columnName)
+        {
+            auto it = columnMap.find(columnName);
+            if (it == columnMap.end())
+            {
+                throw DBException("392BEAA07684: Column not found: " + columnName);
+            }
+
+            return getBlob(it->second + 1); // +1 because getBlob(int) is 1-based
+        }
+
+        std::shared_ptr<InputStream> PostgreSQLResultSet::getBinaryStream(int columnIndex)
+        {
+            if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
+            {
+                throw DBException("FC94875EDF73: Invalid column index or row position for getBinaryStream");
+            }
+
+            // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
+            int idx = columnIndex - 1;
+            int row = rowPosition - 1;
+
+            if (PQgetisnull(result, row, idx))
+            {
+                // Return an empty stream
+                return std::make_shared<PostgreSQLInputStream>("", 0);
+            }
+
+            // Get the binary data using our getBytes method
+            // This will properly handle the hex format
+            std::vector<uint8_t> data = getBytes(columnIndex);
+
+            // Create a new input stream with the data
+            if (data.empty())
+            {
+                return std::make_shared<PostgreSQLInputStream>("", 0);
+            }
+            else
+            {
+                return std::make_shared<PostgreSQLInputStream>(
+                    reinterpret_cast<const char *>(data.data()),
+                    data.size());
+            }
+        }
+
+        std::shared_ptr<InputStream> PostgreSQLResultSet::getBinaryStream(const std::string &columnName)
+        {
+            auto it = columnMap.find(columnName);
+            if (it == columnMap.end())
+            {
+                throw DBException("27EF08AD722D: Column not found: " + columnName);
+            }
+
+            return getBinaryStream(it->second + 1); // +1 because getBinaryStream(int) is 1-based
+        }
+
+        std::vector<uint8_t> PostgreSQLResultSet::getBytes(int columnIndex)
+        {
+            if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
+            {
+                throw DBException("D5E8D5D3A7A4: Invalid column index or row position for getBytes");
+            }
+
+            // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
+            int idx = columnIndex - 1;
+            int row = rowPosition - 1;
+
+            if (PQgetisnull(result, row, idx))
+            {
+                return {};
+            }
+
+            // Get the binary data
+            const char *value = PQgetvalue(result, row, idx);
+            int length = PQgetlength(result, row, idx);
+
+            // Check if the column is a bytea type
+            Oid type = PQftype(result, idx);
+
+            // Create a vector with the data
+            std::vector<uint8_t> data;
+
+            if (length > 0)
+            {
+                // For BYTEA type, we need to handle the hex format
+                if (type == 17) // BYTEAOID
+                {
+                    // Check if the data is in hex format (starts with \x)
+                    if (length >= 2 && value[0] == '\\' && value[1] == 'x')
+                    {
+                        // Skip the \x prefix
+                        const char *hexData = value + 2;
+                        int hexLength = length - 2;
+
+                        // Each byte is represented by 2 hex characters
+                        data.reserve(hexLength / 2);
+
+                        for (int i = 0; i < hexLength; i += 2)
+                        {
+                            if (i + 1 < hexLength)
+                            {
+                                // Convert hex pair to byte
+                                char hexPair[3] = {hexData[i], hexData[i + 1], 0};
+                                uint8_t byte = static_cast<uint8_t>(strtol(hexPair, nullptr, 16));
+                                data.push_back(byte);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Use PQunescapeBytea for other bytea formats
+                        size_t unescapedLength;
+                        unsigned char *unescapedData = PQunescapeBytea(reinterpret_cast<const unsigned char *>(value), &unescapedLength);
+
+                        if (unescapedData)
+                        {
+                            data.resize(unescapedLength);
+                            std::memcpy(data.data(), unescapedData, unescapedLength);
+                            PQfreemem(unescapedData);
+                        }
+                    }
+                }
+                else
+                {
+                    // For non-BYTEA types, just copy the raw data
+                    data.resize(length);
+                    std::memcpy(data.data(), value, length);
+                }
+            }
+
+            return data;
+        }
+
+        std::vector<uint8_t> PostgreSQLResultSet::getBytes(const std::string &columnName)
+        {
+            auto it = columnMap.find(columnName);
+            if (it == columnMap.end())
+            {
+                throw DBException("599349A7DAA4: Column not found: " + columnName);
+            }
+
+            return getBytes(it->second + 1); // +1 because getBytes(int) is 1-based
+        }
+
+        // BLOB support methods for PostgreSQLPreparedStatement
+        void PostgreSQLPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            {
+                throw DBException("3C2333857671: Invalid parameter index for setBlob");
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store the blob object to keep it alive
+            blobObjects[idx] = x;
+
+            if (!x)
+            {
+                // Set to NULL
+                paramValues[idx] = "";
+                paramLengths[idx] = 0;
+                paramFormats[idx] = 0; // Text format
+                paramTypes[idx] = 17;  // BYTEAOID
+                return;
+            }
+
+            // Get the blob data
+            std::vector<uint8_t> data = x->getBytes(0, x->length());
+
+            // Store the data in our vector to keep it alive
+            blobValues[idx] = std::move(data);
+
+            // Use binary format for BYTEA data
+            paramValues[idx].resize(blobValues[idx].size());
+            std::memcpy(&paramValues[idx][0], blobValues[idx].data(), blobValues[idx].size());
+
+            paramLengths[idx] = blobValues[idx].size();
+            paramFormats[idx] = 1; // Binary format
+            paramTypes[idx] = 17;  // BYTEAOID
+        }
+
+        void PostgreSQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            {
+                throw DBException("D182B9C3A9CC: Invalid parameter index for setBinaryStream");
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store the stream object to keep it alive
+            streamObjects[idx] = x;
+
+            if (!x)
+            {
+                // Set to NULL
+                paramValues[idx] = "";
+                paramLengths[idx] = 0;
+                paramFormats[idx] = 0; // Text format
+                paramTypes[idx] = 17;  // BYTEAOID
+                return;
+            }
+
+            // Read all data from the stream
+            std::vector<uint8_t> data;
+            uint8_t buffer[4096];
+            int bytesRead;
+            while ((bytesRead = x->read(buffer, sizeof(buffer))) > 0)
+            {
+                data.insert(data.end(), buffer, buffer + bytesRead);
+            }
+
+            // Store the data in our vector to keep it alive
+            blobValues[idx] = std::move(data);
+
+            // Use binary format for BYTEA data
+            paramValues[idx].resize(blobValues[idx].size());
+            std::memcpy(&paramValues[idx][0], blobValues[idx].data(), blobValues[idx].size());
+
+            paramLengths[idx] = blobValues[idx].size();
+            paramFormats[idx] = 1; // Binary format
+            paramTypes[idx] = 17;  // BYTEAOID
+        }
+
+        void PostgreSQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            {
+                throw DBException("13B0690421E5: Invalid parameter index for setBinaryStream");
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store the stream object to keep it alive
+            streamObjects[idx] = x;
+
+            if (!x)
+            {
+                // Set to NULL
+                paramValues[idx] = "";
+                paramLengths[idx] = 0;
+                paramFormats[idx] = 0; // Text format
+                paramTypes[idx] = 17;  // BYTEAOID
+                return;
+            }
+
+            // Read up to 'length' bytes from the stream
+            std::vector<uint8_t> data;
+            data.reserve(length);
+            uint8_t buffer[4096];
+            size_t totalBytesRead = 0;
+            int bytesRead;
+            while (totalBytesRead < length && (bytesRead = x->read(buffer, std::min(sizeof(buffer), length - totalBytesRead))) > 0)
+            {
+                data.insert(data.end(), buffer, buffer + bytesRead);
+                totalBytesRead += bytesRead;
+            }
+
+            // Store the data in our vector to keep it alive
+            blobValues[idx] = std::move(data);
+
+            // Use binary format for BYTEA data
+            paramValues[idx].resize(blobValues[idx].size());
+            std::memcpy(&paramValues[idx][0], blobValues[idx].data(), blobValues[idx].size());
+
+            paramLengths[idx] = blobValues[idx].size();
+            paramFormats[idx] = 1; // Binary format
+            paramTypes[idx] = 17;  // BYTEAOID
+        }
+
+        void PostgreSQLPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            {
+                throw DBException("D6EC2CC8C12C: Invalid parameter index for setBytes");
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store the data in our vector to keep it alive
+            blobValues[idx] = x;
+
+            // Use binary format for BYTEA data
+            paramValues[idx].resize(blobValues[idx].size());
+            std::memcpy(&paramValues[idx][0], blobValues[idx].data(), blobValues[idx].size());
+
+            paramLengths[idx] = blobValues[idx].size();
+            paramFormats[idx] = 1; // Binary format
+            paramTypes[idx] = 17;  // BYTEAOID
+        }
+
+        void PostgreSQLPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
+        {
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            {
+                throw DBException("Invalid parameter index for setBytes");
+            }
+
+            int idx = parameterIndex - 1;
+
+            if (!x)
+            {
+                // Set to NULL
+                paramValues[idx] = "";
+                paramLengths[idx] = 0;
+                paramFormats[idx] = 0; // Text format
+                paramTypes[idx] = 17;  // BYTEAOID
+                return;
+            }
+
+            // Store the data in our vector to keep it alive
+            blobValues[idx].resize(length);
+            std::memcpy(blobValues[idx].data(), x, length);
+
+            // Use binary format for BYTEA data
+            paramValues[idx].resize(blobValues[idx].size());
+            std::memcpy(&paramValues[idx][0], blobValues[idx].data(), blobValues[idx].size());
+
+            paramLengths[idx] = blobValues[idx].size();
+            paramFormats[idx] = 1; // Binary format
+            paramTypes[idx] = 17;  // BYTEAOID
         }
 
         // PostgreSQLConnection implementation

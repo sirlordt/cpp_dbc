@@ -5,6 +5,7 @@
 #define CPP_DBC_DRIVER_POSTGRESQL_HPP
 
 #include "../cpp_dbc.hpp"
+#include "postgresql_blob.hpp"
 
 #if USE_POSTGRESQL
 #include <libpq-fe.h>
@@ -58,6 +59,16 @@ namespace cpp_dbc
             std::vector<std::string> getColumnNames() override;
             int getColumnCount() override;
             void close() override;
+
+            // BLOB support methods
+            std::shared_ptr<Blob> getBlob(int columnIndex) override;
+            std::shared_ptr<Blob> getBlob(const std::string &columnName) override;
+
+            std::shared_ptr<InputStream> getBinaryStream(int columnIndex) override;
+            std::shared_ptr<InputStream> getBinaryStream(const std::string &columnName) override;
+
+            std::vector<uint8_t> getBytes(int columnIndex) override;
+            std::vector<uint8_t> getBytes(const std::string &columnName) override;
         };
 
         class PostgreSQLPreparedStatement : public PreparedStatement
@@ -74,9 +85,15 @@ namespace cpp_dbc
             std::vector<Oid> paramTypes;
             bool prepared;
             int statementCounter;
+            std::vector<std::vector<uint8_t>> blobValues;            // To keep blob values alive
+            std::vector<std::shared_ptr<Blob>> blobObjects;          // To keep blob objects alive
+            std::vector<std::shared_ptr<InputStream>> streamObjects; // To keep stream objects alive
 
             // Internal method called by connection when closing
             void notifyConnClosing();
+
+            // Helper method to process SQL and count parameters
+            int processSQL(std::string &sqlQuery);
 
         public:
             PostgreSQLPreparedStatement(PGconn *conn, const std::string &sql, const std::string &stmt_name);
@@ -90,6 +107,13 @@ namespace cpp_dbc
             void setNull(int parameterIndex, Types type) override;
             void setDate(int parameterIndex, const std::string &value) override;
             void setTimestamp(int parameterIndex, const std::string &value) override;
+
+            // BLOB support methods
+            void setBlob(int parameterIndex, std::shared_ptr<Blob> x) override;
+            void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x) override;
+            void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length) override;
+            void setBytes(int parameterIndex, const std::vector<uint8_t> &x) override;
+            void setBytes(int parameterIndex, const uint8_t *x, size_t length) override;
 
             std::shared_ptr<ResultSet> executeQuery() override;
             int executeUpdate() override;

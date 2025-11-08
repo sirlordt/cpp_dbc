@@ -3,6 +3,7 @@
 
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/blob.hpp>
 #include <map>
 #include <functional>
 #include <memory>
@@ -15,6 +16,71 @@ namespace cpp_dbc_test
 {
     // Flag to control behavior for different test contexts
     static bool g_interfaceTestMode;
+
+    // Simple mock implementation of Blob for testing
+    class MockBlob : public cpp_dbc::Blob
+    {
+    private:
+        std::vector<uint8_t> data;
+
+    public:
+        MockBlob() = default;
+
+        size_t length() const override
+        {
+            return data.size();
+        }
+
+        std::vector<uint8_t> getBytes(size_t pos, size_t length) const override
+        {
+            return std::vector<uint8_t>();
+        }
+
+        std::shared_ptr<cpp_dbc::InputStream> getBinaryStream() const override
+        {
+            return nullptr;
+        }
+
+        std::shared_ptr<cpp_dbc::OutputStream> setBinaryStream(size_t pos) override
+        {
+            return nullptr;
+        }
+
+        void setBytes(size_t pos, const std::vector<uint8_t> &bytes) override
+        {
+        }
+
+        void setBytes(size_t pos, const uint8_t *bytes, size_t length) override
+        {
+        }
+
+        void truncate(size_t len) override
+        {
+        }
+
+        void free() override
+        {
+            data.clear();
+        }
+    };
+
+    // Simple mock implementation of InputStream for testing
+    class MockInputStream : public cpp_dbc::InputStream
+    {
+    public:
+        int read(uint8_t *buffer, size_t length) override
+        {
+            return -1; // End of stream
+        }
+
+        void skip(size_t n) override
+        {
+        }
+
+        void close() override
+        {
+        }
+    };
 
     // Improved mock implementation of ResultSet with in-memory data storage
     class MockResultSet : public cpp_dbc::ResultSet
@@ -222,6 +288,43 @@ namespace cpp_dbc_test
         {
             isClosed = true;
         }
+
+        // BLOB support methods
+        std::shared_ptr<cpp_dbc::Blob> getBlob(int columnIndex) override
+        {
+            // Return an empty mock blob
+            return std::make_shared<MockBlob>();
+        }
+
+        std::shared_ptr<cpp_dbc::Blob> getBlob(const std::string &columnName) override
+        {
+            // Return an empty mock blob
+            return std::make_shared<MockBlob>();
+        }
+
+        std::shared_ptr<cpp_dbc::InputStream> getBinaryStream(int columnIndex) override
+        {
+            // Return a mock input stream
+            return std::make_shared<MockInputStream>();
+        }
+
+        std::shared_ptr<cpp_dbc::InputStream> getBinaryStream(const std::string &columnName) override
+        {
+            // Return a mock input stream
+            return std::make_shared<MockInputStream>();
+        }
+
+        std::vector<uint8_t> getBytes(int columnIndex) override
+        {
+            // Return an empty vector
+            return std::vector<uint8_t>();
+        }
+
+        std::vector<uint8_t> getBytes(const std::string &columnName) override
+        {
+            // Return an empty vector
+            return std::vector<uint8_t>();
+        }
     };
 
     // Basic mock implementation of PreparedStatement
@@ -301,6 +404,37 @@ namespace cpp_dbc_test
         int executeUpdate() override { return 1; }
         bool execute() override { return true; }
         void close() override { /* Mock implementation - do nothing */ }
+
+        // BLOB support methods
+        void setBlob(int parameterIndex, std::shared_ptr<cpp_dbc::Blob> x) override
+        {
+            // Store a placeholder in parameters
+            parameters[parameterIndex] = "[BLOB]";
+        }
+
+        void setBinaryStream(int parameterIndex, std::shared_ptr<cpp_dbc::InputStream> x) override
+        {
+            // Store a placeholder in parameters
+            parameters[parameterIndex] = "[BINARY_STREAM]";
+        }
+
+        void setBinaryStream(int parameterIndex, std::shared_ptr<cpp_dbc::InputStream> x, size_t length) override
+        {
+            // Store a placeholder in parameters
+            parameters[parameterIndex] = "[BINARY_STREAM:" + std::to_string(length) + "]";
+        }
+
+        void setBytes(int parameterIndex, const std::vector<uint8_t> &x) override
+        {
+            // Store a placeholder in parameters
+            parameters[parameterIndex] = "[BYTES:" + std::to_string(x.size()) + "]";
+        }
+
+        void setBytes(int parameterIndex, const uint8_t *x, size_t length) override
+        {
+            // Store a placeholder in parameters
+            parameters[parameterIndex] = "[BYTES:" + std::to_string(length) + "]";
+        }
 
         // Helper method for testing
         std::string getParameter(int index) const
