@@ -11,6 +11,7 @@
   - Atomic operations
   - Move semantics
   - Other C++23 features as needed
+  - `<cstdint>` for fixed-width integer types (used in BLOB handling)
 
 ### Database Client Libraries
 - **MySQL Client Library**: For MySQL database connectivity
@@ -127,6 +128,8 @@ The project is configured to work with the CMakeTools extension, but does not re
 - `<chrono>`: For time management
 - `<functional>`: For function objects
 - `<random>`: For random number generation (used in UUID generation)
+- `<cstdint>`: For fixed-width integer types (used in BLOB handling)
+- `<fstream>`: For file I/O (used in file-based BLOB implementations)
 
 ## Tool Usage Patterns
 
@@ -146,6 +149,14 @@ The project is configured to work with the CMakeTools extension, but does not re
 - Prepared statements should be used for parameterized queries
 - Direct query execution should be limited to simple, non-parameterized queries
 - Result sets should be processed in a timely manner to avoid resource leaks
+- BLOB data should be handled using the provided BLOB interfaces for consistency
+
+### BLOB Handling
+- Use the Blob interface for working with binary data
+- Use InputStream and OutputStream for streaming binary data
+- Use getBlob(), getBinaryStream(), and getBytes() methods for retrieving BLOB data
+- Use setBlob(), setBinaryStream(), and setBytes() methods for storing BLOB data
+- Consider memory usage when working with large BLOBs
 
 ### Error Handling
 - SQLException should be caught and handled appropriately

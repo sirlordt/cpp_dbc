@@ -20,9 +20,10 @@ The current focus appears to be on maintaining and potentially extending the CPP
 2. Connection pooling for all supported databases
 3. Transaction management with isolation levels
 4. Prepared statements and result sets
-5. YAML configuration for database connections and pools
-6. Comprehensive testing for JOIN operations in SQLite
-7. Debug output options for troubleshooting
+5. BLOB (Binary Large Object) support for all database drivers
+6. YAML configuration for database connections and pools
+7. Comprehensive testing for JOIN operations and BLOB handling
+8. Debug output options for troubleshooting
 
 The code is organized in a modular fashion with clear separation between interfaces and implementations, following object-oriented design principles.
 
@@ -30,7 +31,24 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **SQLite JOIN Operations Testing**:
+1. **BLOB Support Implementation**:
+   - Added comprehensive BLOB (Binary Large Object) support for all database drivers
+   - Added `<cstdint>` include to several header files for fixed-width integer types
+   - Implemented base classes: `Blob`, `InputStream`, `OutputStream`
+   - Added memory-based implementations: `MemoryBlob`, `MemoryInputStream`, `MemoryOutputStream`
+   - Added file-based implementations: `FileInputStream`, `FileOutputStream`
+   - Implemented database-specific BLOB classes: `MySQLBlob`, `PostgreSQLBlob`, `SQLiteBlob`
+   - Added BLOB support methods to `ResultSet` and `PreparedStatement` interfaces
+   - Added test cases for BLOB operations in all database drivers:
+     - `test_mysql_real_blob.cpp`
+     - `test_postgresql_real_blob.cpp`
+     - `test_sqlite_real_blob.cpp`
+   - Added `test_blob_common.hpp` with helper functions for BLOB testing
+   - Added `test.jpg` file for BLOB testing
+   - Updated Spanish documentation with BLOB support information
+   - Updated CMakeLists.txt to include the new BLOB test files
+
+2. **SQLite JOIN Operations Testing**:
    - Added comprehensive test cases for SQLite JOIN operations
    - Added `test_sqlite_real_inner_join.cpp` with INNER JOIN test cases
    - Added `test_sqlite_real_left_join.cpp` with LEFT JOIN test cases
@@ -233,7 +251,7 @@ The project structure suggests a mature library with complete implementations fo
 Potential next steps for the project could include:
 
 1. **Additional Database Support**:
-   - Implementing drivers for additional database systems (Oracle, SQLite, SQL Server)
+   - Implementing drivers for additional database systems (Oracle, SQL Server)
    - Creating a common test suite for all database implementations
 
 2. **Feature Enhancements**:
@@ -241,6 +259,7 @@ Potential next steps for the project could include:
    - Implementing metadata retrieval functionality
    - Adding support for stored procedures and functions
    - Implementing connection event listeners
+   - Enhancing BLOB functionality with compression and encryption
 
 3. **Performance Optimizations**:
    - Statement caching

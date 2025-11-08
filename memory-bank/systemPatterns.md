@@ -7,14 +7,16 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
 1. **Interface Layer**: Abstract base classes defining the API (`Connection`, `PreparedStatement`, `ResultSet`, etc.) in the `include/cpp_dbc/` directory
 2. **Driver Layer**: Database-specific implementations of the interfaces in the `src/drivers/` directory
 3. **Connection Management Layer**: Connection pooling and transaction management in the `src/` directory
-4. **Configuration Layer**: Database configuration management in the `include/cpp_dbc/config/` and `src/config/` directories
-5. **Client Application Layer**: User code that interacts with the library
+4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/` directory and database-specific implementations in the `drivers/` directory
+5. **Configuration Layer**: Database configuration management in the `include/cpp_dbc/config/` and `src/config/` directories
+6. **Client Application Layer**: User code that interacts with the library
 
 The architecture follows this flow:
 ```
 Client Application → DriverManager → Driver → Connection → PreparedStatement/ResultSet
                    → ConnectionPool → PooledConnection → Connection
                    → TransactionManager → Connection
+                   → Blob → InputStream/OutputStream
                    → DatabaseConfigManager → DatabaseConfig → Connection
 ```
 
@@ -54,6 +56,10 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 - The configuration system separates the abstraction (`DatabaseConfigManager`) from implementation (`YamlConfigLoader`)
 - This allows for different configuration sources without changing the core configuration classes
 
+### Template Method Pattern
+- The `Blob`, `InputStream`, and `OutputStream` abstract classes define template methods
+- Concrete implementations like `MemoryBlob`, `FileInputStream`, etc. provide specific implementations
+
 ## Key Technical Decisions
 
 ### Thread Safety
@@ -88,6 +94,13 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 - Test queries configurable for different database types
 - Extensible design to support additional configuration formats
 
+### BLOB Management
+- Abstract `Blob`, `InputStream`, and `OutputStream` interfaces for consistent binary data handling
+- Memory-based implementations for in-memory BLOB operations
+- File-based implementations for file I/O operations
+- Database-specific BLOB implementations for each supported database
+- Streaming support for efficient handling of large binary data
+
 ## Component Relationships
 
 ### Driver Components
@@ -95,6 +108,8 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 - `Connection` → Creates → `PreparedStatement`
 - `Connection` → Creates → `ResultSet` (via direct query)
 - `PreparedStatement` → Creates → `ResultSet` (via prepared query)
+- `ResultSet` → Creates → `Blob` (via getBlob method)
+- `ResultSet` → Creates → `InputStream` (via getBinaryStream method)
 
 ### Connection Pool Components
 - `ConnectionPool` → Manages → `PooledConnection`
@@ -112,14 +127,22 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 - `YamlConfigLoader` → Creates → `DatabaseConfigManager` (from YAML file)
 - `ConnectionPoolConfig` → Configures → `ConnectionPool`
 
+### BLOB Components
+- `Blob` → Uses → `InputStream` (for reading)
+- `Blob` → Uses → `OutputStream` (for writing)
+- `MemoryBlob` → Implements → `Blob` (for in-memory BLOBs)
+- `MySQLBlob` → Implements → `Blob` (for MySQL BLOBs)
+- `PostgreSQLBlob` → Implements → `Blob` (for PostgreSQL BLOBs)
+- `SQLiteBlob` → Implements → `Blob` (for SQLite BLOBs)
+
 ## Critical Implementation Paths
 
 ### Database Operation Flow
 1. Client obtains a `Connection` (either directly or from a pool)
 2. Client creates a `PreparedStatement` with SQL
-3. Client sets parameters on the `PreparedStatement`
+3. Client sets parameters on the `PreparedStatement` (including BLOB data if needed)
 4. Client executes the `PreparedStatement` and gets a `ResultSet`
-5. Client processes the `ResultSet`
+5. Client processes the `ResultSet` (including retrieving BLOB data if needed)
 6. Resources are cleaned up (automatically with smart pointers)
 
 ### Connection Pooling Flow
@@ -138,6 +161,13 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 5. Client performs operations using the connection
 6. Client commits or rolls back the transaction using the transaction ID
 7. `TransactionManager` handles the actual commit/rollback on the connection
+
+### BLOB Operation Flow
+1. Client retrieves a BLOB from a `ResultSet` using `getBlob()`, `getBinaryStream()`, or `getBytes()`
+2. Client processes the BLOB data (read, modify, etc.)
+3. Client can create a new BLOB using `MemoryBlob` or database-specific BLOB implementations
+4. Client sets the BLOB on a `PreparedStatement` using `setBlob()`, `setBinaryStream()`, or `setBytes()`
+5. Client executes the `PreparedStatement` to store the BLOB in the database
 
 ### Configuration Flow
 1. Client loads configuration from a YAML file using `YamlConfigLoader`

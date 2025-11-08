@@ -11,6 +11,7 @@ The CPP_DBC library appears to be in a functional state with the following compo
 5. **Connection Pool**: Fully implemented with configuration options for MySQL, PostgreSQL, and SQLite
 6. **Transaction Manager**: Fully implemented with transaction tracking, timeout, and improved resource management
 7. **Connection Options**: Support for database-specific connection options in all drivers
+8. **BLOB Support**: Complete implementation of Binary Large Object (BLOB) support for all database drivers
 
 The project includes example code demonstrating:
 - Basic database operations
@@ -27,6 +28,7 @@ The project includes example code demonstrating:
 - Prepared statement creation and execution
 - Result set processing
 - Error handling through exceptions
+- Binary Large Object (BLOB) handling
 
 ### MySQL Support
 - Connection to MySQL databases
@@ -34,6 +36,7 @@ The project includes example code demonstrating:
 - Result set processing
 - Transaction management
 - Connection options for database-specific settings
+- BLOB data handling with MySQLBlob implementation
 
 ### PostgreSQL Support
 - Connection to PostgreSQL databases
@@ -41,6 +44,7 @@ The project includes example code demonstrating:
 - Result set processing
 - Transaction management
 - Configurable connection options (gssencmode, client_encoding, etc.)
+- BLOB data handling with PostgreSQLBlob implementation
 
 ### Connection Pooling
 - Dynamic connection creation and management
@@ -71,6 +75,8 @@ The project includes example code demonstrating:
   - LEFT JOIN with NULL checks
   - Tests for invalid columns and type mismatches
 - Debug output option for troubleshooting SQLite-specific issues
+- BLOB data handling with SQLiteBlob implementation
+- Comprehensive test cases for BLOB operations
 
 ### Transaction Management
 - Transaction creation and tracking
@@ -95,6 +101,7 @@ The project includes example code demonstrating:
 - Conditional compilation with USE_CPP_YAML flag
 - Example application demonstrating YAML configuration usage
 - Integration between database configuration and connection classes
+- Support for BLOB configuration in YAML files
 
 ### Debug and Testing Support
 - Debug output options for ConnectionPool, TransactionManager, and SQLite driver
@@ -118,6 +125,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Metadata retrieval (table information, etc.)
    - Connection event listeners
    - Statement caching
+   - Enhanced BLOB functionality (streaming, compression, etc.)
 
 3. **Performance Optimizations**:
    - Statement caching
@@ -142,7 +150,18 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 
 ### Recent Improvements
-1. **SQLite JOIN Operations Testing**:
+1. **BLOB Support Implementation**:
+   - Added comprehensive BLOB (Binary Large Object) support for all database drivers
+   - Implemented base classes: Blob, InputStream, OutputStream
+   - Added memory-based implementations: MemoryBlob, MemoryInputStream, MemoryOutputStream
+   - Added file-based implementations: FileInputStream, FileOutputStream
+   - Implemented database-specific BLOB classes: MySQLBlob, PostgreSQLBlob, SQLiteBlob
+   - Added BLOB support methods to ResultSet and PreparedStatement interfaces
+   - Added test cases for BLOB operations in all database drivers
+   - Added test.jpg file for BLOB testing
+   - Updated Spanish documentation with BLOB support information
+
+2. **SQLite JOIN Operations Testing**:
    - Added comprehensive test cases for SQLite JOIN operations
    - Added `test_sqlite_real_inner_join.cpp` with INNER JOIN test cases
    - Added `test_sqlite_real_left_join.cpp` with LEFT JOIN test cases

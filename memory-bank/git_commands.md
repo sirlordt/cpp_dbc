@@ -100,6 +100,7 @@ This command is particularly helpful when:
 - Updating CHANGELOG.md with recent changes
 - Updating memory-bank files with new features or improvements
 - Ensuring documentation accurately reflects code changes
+- Documenting new features like BLOB support across multiple files
 
 ## Git Integration with VSCode
 
