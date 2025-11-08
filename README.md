@@ -86,6 +86,7 @@ The library supports conditional compilation of database drivers and features:
 - `CPP_DBC_BUILD_EXAMPLES`: Enable/disable building examples (OFF by default)
 - `DEBUG_CONNECTION_POOL`: Enable debug output for ConnectionPool (OFF by default)
 - `DEBUG_TRANSACTION_MANAGER`: Enable debug output for TransactionManager (OFF by default)
+- `DEBUG_SQLITE`: Enable debug output for SQLite driver (OFF by default)
 
 ### Using the build scripts
 
@@ -126,6 +127,9 @@ The `libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the c
 
 # Enable debug output for TransactionManager
 ./libs/cpp_dbc/build_cpp_dbc.sh --debug-txmgr
+
+# Enable debug output for SQLite driver
+./libs/cpp_dbc/build_cpp_dbc.sh --debug-sqlite
 
 # Enable all debug output
 ./libs/cpp_dbc/build_cpp_dbc.sh --debug-all
@@ -186,6 +190,9 @@ The `build.sh` script builds the main application, passing all parameters to the
 # Enable debug output for TransactionManager
 ./build.sh --debug-txmgr
 
+# Enable debug output for SQLite driver
+./build.sh --debug-sqlite
+
 # Enable all debug output
 ./build.sh --debug-all
 
@@ -219,25 +226,40 @@ The project includes scripts for building and running tests:
 ./run_test.sh --asan      # Run tests with AddressSanitizer
 ./run_test.sh --ctest     # Run tests using CTest
 ./run_test.sh --rebuild   # Force rebuild of tests before running
+./run_test.sh --run-test="tag1+tag2"  # Run specific tests by tag
+./run_test.sh --debug-pool  # Enable debug output for ConnectionPool
+./run_test.sh --debug-txmgr  # Enable debug output for TransactionManager
+./run_test.sh --debug-sqlite  # Enable debug output for SQLite driver
+./run_test.sh --debug-all  # Enable all debug output
 ```
 
-### Valgrind Memory Leak Suppression
+### Memory Leak Prevention
 
-When running tests with Valgrind, you might encounter "still reachable" memory leaks from the PostgreSQL driver. These leaks come from the GSSAPI/Kerberos libraries used by libpq (PostgreSQL's client library), not from our code directly.
+The project includes several improvements to prevent memory leaks:
 
-To handle these leaks, the project includes:
+1. Enhanced SQLite connection management with better resource handling:
+   - SQLiteConnection inherits from std::enable_shared_from_this
+   - Replaced raw pointer tracking with weak_ptr in activeConnections list
+   - Improved connection cleanup with weak_ptr-based reference tracking
+   - Added proper error handling for shared_from_this() usage
+   - Added safeguards to ensure connections are created with make_shared
 
-1. A Valgrind suppression file (`libs/cpp_dbc/valgrind-suppressions.txt`) that ignores specific memory leaks from the GSSAPI/Kerberos libraries.
-2. Code improvements in the PostgreSQL driver to minimize memory leaks.
+2. Improved PostgreSQL driver with better memory management:
+   - Enhanced connection options handling
+   - Better cleanup of resources on connection close
+   - Improved error handling with detailed error codes
 
-To run tests with the suppression file:
+To run memory leak checks:
 
 ```bash
-# Run tests with Valgrind using the suppression file
+# Run tests with Valgrind
 ./run_test.sh --valgrind
+
+# Run tests with AddressSanitizer
+./run_test.sh --asan
 ```
 
-For more details about this issue and its solution, see the [Valgrind PostgreSQL Memory Leak documentation](memory-bank/valgrind_postgresql_memory_leak.md).
+For more details about memory leak issues and their solutions, see the [Valgrind PostgreSQL Memory Leak documentation](memory-bank/valgrind_postgresql_memory_leak.md) and [AddressSanitizer Issues documentation](memory-bank/asan_issues.md).
 
 The `run_test.sh` script will automatically build the project and tests if they haven't been built yet.
 

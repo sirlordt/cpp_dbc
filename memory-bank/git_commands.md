@@ -88,6 +88,19 @@ git diff -- path/to/file
 git diff commit1..commit2
 ```
 
+### Viewing Changes for Documentation Updates
+
+When updating documentation based on code changes, it's useful to see all staged changes at once:
+
+```bash
+git --no-pager diff --staged
+```
+
+This command is particularly helpful when:
+- Updating CHANGELOG.md with recent changes
+- Updating memory-bank files with new features or improvements
+- Ensuring documentation accurately reflects code changes
+
 ## Git Integration with VSCode
 
 Note that Git integration in VSCode is disabled in the container environment to prevent credential issues and unwanted Git operations. The following settings are applied:

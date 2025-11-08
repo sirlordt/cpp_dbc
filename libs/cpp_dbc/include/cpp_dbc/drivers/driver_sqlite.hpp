@@ -36,9 +36,10 @@ namespace cpp_dbc
             std::map<std::string, int> columnMap;
             bool hasData;
             bool closed;
+            std::weak_ptr<SQLiteConnection> connection; // Referencia débil a la conexión
 
         public:
-            SQLiteResultSet(sqlite3_stmt *stmt, bool ownStatement = true);
+            SQLiteResultSet(sqlite3_stmt *stmt, bool ownStatement = true, std::shared_ptr<SQLiteConnection> conn = nullptr);
             ~SQLiteResultSet() override;
 
             bool next() override;

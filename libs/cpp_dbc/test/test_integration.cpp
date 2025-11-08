@@ -410,17 +410,17 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
     // Register all available drivers
 #if USE_MYSQL
     cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
-    std::cout << "MySQL driver registered" << std::endl;
+    // std::cout << "MySQL driver registered" << std::endl;
 #endif
 
 #if USE_POSTGRESQL
     cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
-    std::cout << "PostgreSQL driver registered" << std::endl;
+    // std::cout << "PostgreSQL driver registered" << std::endl;
 #endif
 
 #if USE_SQLITE
     cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
-    std::cout << "SQLite driver registered" << std::endl;
+    // std::cout << "SQLite driver registered" << std::endl;
 #endif
 
     SECTION("Test connection to all available databases")
@@ -452,7 +452,10 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
                     continue;
 #endif
 
-                std::cout << "Testing connection to " << name << " (" << type << ")" << std::endl;
+                // std::cout << "Testing connection to " << name << " (" << type << ")" << std::endl;
+
+                // if (type == "sqlite")
+                //     continue;
 
                 try
                 {
@@ -463,10 +466,48 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
 
                     if (type == "sqlite")
                     {
-                        std::string database = db["database"].as<std::string>();
-                        connStr = "cpp_dbc:" + type + "://" + database;
-                        username = "";
-                        password = "";
+                        try
+                        {
+                            // std::cout << "DEBUG: Processing SQLite connection" << std::endl;
+                            std::string database = db["database"].as<std::string>();
+                            // std::cout << "DEBUG: SQLite database path: " << database << std::endl;
+                            connStr = "cpp_dbc:" + type + "://" + database;
+                            // std::cout << "DEBUG: SQLite connection string: " << connStr << std::endl;
+                            username = "";
+                            password = "";
+
+                            // Attempt to connect with extra debug info
+                            // std::cout << "DEBUG: About to get SQLite connection" << std::endl;
+                            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+                            // std::cout << "DEBUG: SQLite connection obtained successfully" << std::endl;
+
+                            // Execute a simple query to verify the connection
+                            // std::cout << "DEBUG: About to execute SQLite query" << std::endl;
+                            auto resultSet = conn->executeQuery("SELECT 1 as test_value");
+                            // std::cout << "DEBUG: SQLite query executed successfully" << std::endl;
+
+                            if (resultSet->next())
+                            {
+                                // std::cout << "DEBUG: SQLite result set has data" << std::endl;
+                                // std::cout << "Connection to " << name << " successful" << std::endl;
+                                REQUIRE(resultSet->getInt("test_value") == 1);
+                            }
+
+                            // Close the connection
+                            // std::cout << "DEBUG: About to close SQLite connection" << std::endl;
+                            conn->close();
+                            // std::cout << "DEBUG: SQLite connection closed successfully" << std::endl;
+                        }
+                        catch (const std::exception &e)
+                        {
+                            std::cerr << "DEBUG: SQLite exception: " << e.what() << std::endl;
+                            throw; // Re-throw to be caught by the outer catch block
+                        }
+                        catch (...)
+                        {
+                            std::cerr << "DEBUG: Unknown SQLite exception occurred" << std::endl;
+                            throw; // Re-throw to be caught by the outer catch block
+                        }
                     }
                     else
                     {
@@ -477,25 +518,25 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
                         password = db["password"].as<std::string>();
 
                         connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+
+                        // Attempt to connect
+                        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+
+                        // Execute a simple query to verify the connection
+                        auto resultSet = conn->executeQuery("SELECT 1 as test_value");
+                        if (resultSet->next())
+                        {
+                            // std::cout << "Connection to " << name << " successful" << std::endl;
+                            REQUIRE(resultSet->getInt("test_value") == 1);
+                        }
+
+                        // Close the connection
+                        conn->close();
                     }
-
-                    // Attempt to connect
-                    auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
-
-                    // Execute a simple query to verify the connection
-                    auto resultSet = conn->executeQuery("SELECT 1 as test_value");
-                    if (resultSet->next())
-                    {
-                        std::cout << "Connection to " << name << " successful" << std::endl;
-                        REQUIRE(resultSet->getInt("test_value") == 1);
-                    }
-
-                    // Close the connection
-                    conn->close();
                 }
                 catch (const cpp_dbc::DBException &e)
                 {
-                    std::cout << "Connection to " << name << " failed: " << e.what() << std::endl;
+                    // std::cout << "Connection to " << name << " failed: " << e.what() << std::endl;
                     // We'll just warn instead of failing the test, since the database might not be available
                     WARN("Connection to " << name << " failed: " << e.what());
                 }

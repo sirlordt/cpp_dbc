@@ -98,8 +98,28 @@ This will display the full usage information with all available options.
 
 # Run tests multiple times
 ./helper.sh --run-test=run=3
-```
 
+# Run specific tests by tag
+./helper.sh --run-test=test=sqlite_real_inner_join
+
+# Run multiple specific tests by tag
+./helper.sh --run-test=test=sqlite_real_inner_join+sqlite_real_left_join
+
+# Run tests with debug output for ConnectionPool
+./helper.sh --run-test=debug-pool
+
+# Run tests with debug output for TransactionManager
+./helper.sh --run-test=debug-txmgr
+
+# Run tests with debug output for SQLite driver
+./helper.sh --run-test=debug-sqlite
+
+# Run tests with all debug output enabled
+./helper.sh --run-test=debug-all
+
+# Combine options: Run specific tests with debug output
+./helper.sh --run-test=test=sqlite_real_inner_join,debug-sqlite,debug-pool
+```
 
 ### Container Operations
 
@@ -164,6 +184,13 @@ This will display the full usage information with all available options.
 ```bash
 # Run a quick test with SQLite only
 ./helper.sh --run-test=sqlite,auto
+```
+
+### Debug Specific Component
+
+```bash
+# Debug SQLite JOIN operations with debug output
+./helper.sh --run-test=rebuild,mysql,sqlite,postgres,test=sqlite_real_inner_join+sqlite_real_left_join,debug-sqlite
 ```
 
 ### Production Build

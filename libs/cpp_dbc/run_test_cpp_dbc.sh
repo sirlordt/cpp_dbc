@@ -22,10 +22,11 @@ set -e  # Exit on error
 #   --check                Check shared library dependencies of test executable
 #   --rebuild              Rebuild the test targets before running
 #   --list                 List available tests only (does not run tests)
-#   --run-test="tag"       Run only tests with the specified tag
+#   --run-test="tag"       Run only tests with the specified tag (use + to separate multiple tags, e.g. "tag1+tag2+tag3")
 #   --run=N                Run all test sets N times (default: 1)
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
+#   --debug-sqlite         Enable debug output for SQLite driver
 #   --debug-all            Enable all debug output
 #   --help                 Show this help message
 
@@ -47,6 +48,7 @@ LIST_ONLY=false
 RUN_SPECIFIC_TEST=""
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
+DEBUG_SQLITE=OFF
 RUN_COUNT=1
 
 # Parse command line arguments
@@ -142,9 +144,14 @@ while [[ $# -gt 0 ]]; do
             DEBUG_TRANSACTION_MANAGER=ON
             shift
             ;;
+        --debug-sqlite)
+            DEBUG_SQLITE=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
+            DEBUG_SQLITE=ON
             shift
             ;;
         --help)
@@ -165,10 +172,11 @@ while [[ $# -gt 0 ]]; do
             echo "  --check                Check shared library dependencies of test executable"
             echo "  --rebuild              Rebuild the test targets before running"
             echo "  --list                 List available tests only (does not run tests)"
-            echo "  --run-test=\"tag\"       Run only tests with the specified tag"
+            echo "  --run-test=\"tag\"       Run only tests with the specified tag (use + to separate multiple tags, e.g. \"tag1+tag2+tag3\")"
             echo "  --run=N                Run all test sets N times (default: 1)"
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
+            echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --help                 Show this help message"
             exit 0
@@ -319,6 +327,10 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
         BUILD_CMD="$BUILD_CMD --debug-txmgr"
     fi
 
+    if [ "$DEBUG_SQLITE" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --debug-sqlite"
+    fi
+
     # Execute the build command
     echo "Building tests with command: $BUILD_CMD"
     $BUILD_CMD
@@ -414,8 +426,24 @@ for ((run=1; run<=RUN_COUNT; run++)); do
         
         # If a specific test tag was provided, run only that test
         if [ -n "$RUN_SPECIFIC_TEST" ]; then
-            echo -e "\nRunning tests with tag [$RUN_SPECIFIC_TEST] (Run $run of $RUN_COUNT)...\n"
-            run_test -s -r compact "[$RUN_SPECIFIC_TEST]"
+            echo -e "\nDebug: RUN_SPECIFIC_TEST value: '$RUN_SPECIFIC_TEST'"
+            
+            # Check if there are multiple tags separated by plus sign
+            if [[ "$RUN_SPECIFIC_TEST" == *"+"* ]]; then
+                # Multiple tags separated by plus sign
+                IFS='+' read -ra TEST_TAGS <<< "$RUN_SPECIFIC_TEST"
+                echo -e "Debug: Multiple tags detected: ${#TEST_TAGS[@]}"
+                
+                # Run each tag separately
+                for TEST_TAG in "${TEST_TAGS[@]}"; do
+                    echo -e "\nRunning tests with tag [$TEST_TAG] (Run $run of $RUN_COUNT)...\n"
+                    run_test -s -r compact "[$TEST_TAG]"
+                done
+            else
+                # Single tag
+                echo -e "\nRunning tests with tag [$RUN_SPECIFIC_TEST] (Run $run of $RUN_COUNT)...\n"
+                run_test -s -r compact "[$RUN_SPECIFIC_TEST]"
+            fi
         else
             # Then run the tests with detailed output
             echo -e "\nRunning tests with detailed output (Run $run of $RUN_COUNT):\n"

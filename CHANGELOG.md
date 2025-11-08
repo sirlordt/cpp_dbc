@@ -1,6 +1,35 @@
 # Changelog
 
-## 2025-11-07 02:15:00 PM -0800 [Current]
+## 2025-11-08 05:49:00 AM -0800 [Current]
+
+### SQLite JOIN Operations Testing
+* Added comprehensive test cases for SQLite JOIN operations:
+  * Added `test_sqlite_real_inner_join.cpp` with INNER JOIN test cases
+  * Added `test_sqlite_real_left_join.cpp` with LEFT JOIN test cases
+  * Enhanced test coverage for complex JOIN operations with multiple tables
+  * Added tests for JOIN operations with NULL checks and invalid columns
+  * Added tests for type mismatches in JOIN conditions
+
+### Debug Output Options
+* Added debug output options for better troubleshooting:
+  * Added `--debug-pool` option to enable debug output for ConnectionPool
+  * Added `--debug-txmgr` option to enable debug output for TransactionManager
+  * Added `--debug-sqlite` option to enable debug output for SQLite driver
+  * Added `--debug-all` option to enable all debug output
+  * Updated build scripts to pass debug options to CMake
+  * Added debug output parameters to helper.sh script
+
+### Test Script Enhancements
+* Enhanced test script functionality:
+  * Added `--run-test="tag"` option to run specific tests by tag
+  * Added support for multiple test tags using + separator (e.g., "tag1+tag2+tag3")
+  * Added debug options to run_test.sh script
+  * Improved test command construction with better parameter handling
+
+### Valgrind Suppressions Removal
+* Removed valgrind-suppressions.txt file as it's no longer needed with improved PostgreSQL driver
+
+## 2025-11-07 02:15:00 PM -0800
 
 ### Helper Script Parameter Improvements
 * Renamed helper.sh script parameters for better clarity:

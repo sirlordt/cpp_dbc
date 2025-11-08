@@ -150,6 +150,9 @@ USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
 BUILD_EXAMPLES=OFF
+DEBUG_CONNECTION_POOL=OFF
+DEBUG_TRANSACTION_MANAGER=OFF
+DEBUG_SQLITE=OFF
 
 for arg in "$@"
 do
@@ -190,6 +193,20 @@ do
         --examples)
         BUILD_EXAMPLES=ON
         ;;
+        --debug-pool)
+        DEBUG_CONNECTION_POOL=ON
+        ;;
+        --debug-txmgr)
+        DEBUG_TRANSACTION_MANAGER=ON
+        ;;
+        --debug-sqlite)
+        DEBUG_SQLITE=ON
+        ;;
+        --debug-all)
+        DEBUG_CONNECTION_POOL=ON
+        DEBUG_TRANSACTION_MANAGER=ON
+        DEBUG_SQLITE=ON
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -204,6 +221,10 @@ do
         echo "  --release              Build in Release mode (default: Debug)"
         echo "  --test                 Build cpp_dbc tests"
         echo "  --examples             Build cpp_dbc examples"
+        echo "  --debug-pool           Enable debug output for ConnectionPool"
+        echo "  --debug-txmgr          Enable debug output for TransactionManager"
+        echo "  --debug-sqlite         Enable debug output for SQLite driver"
+        echo "  --debug-all            Enable all debug output"
         echo "  --help                 Show this help message"
         exit 0
         ;;
@@ -241,6 +262,19 @@ fi
 
 if [ "$BUILD_EXAMPLES" = "ON" ]; then
     BUILD_CMD="$BUILD_CMD --examples"
+fi
+
+# Pass debug options
+if [ "$DEBUG_CONNECTION_POOL" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --debug-pool"
+fi
+
+if [ "$DEBUG_TRANSACTION_MANAGER" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --debug-txmgr"
+fi
+
+if [ "$DEBUG_SQLITE" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --debug-sqlite"
 fi
 
 # 9. Build locally with Conan + CMake
@@ -462,6 +496,9 @@ echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
 echo "  Build examples: $BUILD_EXAMPLES"
+echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
+echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
+echo "  Debug SQLite: $DEBUG_SQLITE"
 
 # Debug information
 echo ""

@@ -53,12 +53,14 @@ show_usage() {
   echo "Commands:"
   echo "  --run-build              Build via ./build.sh, logs to build/run-build-<timestamp>.log"
   echo "  --run-build=OPTIONS      Build with comma-separated options"
-  echo "                           Available options: clean,release,postgres,mysql,sqlite,yaml,test,examples"
-  echo "                           Example: --run-build=clean,sqlite,yaml,test"
+  echo "                           Available options: clean,release,postgres,mysql,sqlite,yaml,test,examples,"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all"
+  echo "                           Example: --run-build=clean,sqlite,yaml,test,debug-pool"
   echo "  --run-build-dist         Build via ./build.dist.sh, logs to build/run-build-dist-<timestamp>.log"
   echo "  --run-build-dist=OPTIONS Build dist with comma-separated options"
-  echo "                           Available options: clean,release,postgres,mysql,sqlite,yaml,test,examples"
-  echo "                           Example: --run-build-dist=clean,sqlite,yaml,test"
+  echo "                           Available options: clean,release,postgres,mysql,sqlite,yaml,test,examples,"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all"
+  echo "                           Example: --run-build-dist=clean,sqlite,yaml,test,debug-sqlite"
   echo "  --run-ctr [name]         Run container"
   echo "  --show-labels-ctr [name] Show labels with Image ID"
   echo "  --show-tags-ctr [name]   Show tags with Image ID"
@@ -66,8 +68,12 @@ show_usage() {
   echo "  --clean-conan-cache      Clear Conan local cache"
   echo "  --run-test               Build (if needed) and run the tests"
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
-  echo "                           Available options: clean,release,rebuild,sqlite,mysql,postgres,valgrind,yaml,auto,asan,ctest,check,run=N"
-  echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3"
+  echo "                           Available options: clean,release,rebuild,sqlite,mysql,postgres,valgrind,"
+  echo "                                              yaml,auto,asan,ctest,check,run=N,test=Tag1+Tag2+Tag3,"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all"
+  echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3,test=integration+mysql_real_right_join"
+  echo "                           Example: --run-test=rebuild,sqlite,debug-pool,debug-sqlite,test=integration"
+  echo "                           Note: Multiple test tags can be specified using + as separator after test="
   echo "  --ldd-bin-ctr [name]     Run ldd on the executable inside the container"
   echo "  --ldd-build-bin          Run ldd on the final local build/ executable"
   echo "  --run-build-bin          Run the final local build/ executable"
@@ -141,6 +147,22 @@ cmd_run_build() {
         build_cmd="$build_cmd --release"
         echo "Building in release mode"
         ;;
+      debug-pool)
+        build_cmd="$build_cmd --debug-pool"
+        echo "Enabling debug output for ConnectionPool"
+        ;;
+      debug-txmgr)
+        build_cmd="$build_cmd --debug-txmgr"
+        echo "Enabling debug output for TransactionManager"
+        ;;
+      debug-sqlite)
+        build_cmd="$build_cmd --debug-sqlite"
+        echo "Enabling debug output for SQLite driver"
+        ;;
+      debug-all)
+        build_cmd="$build_cmd --debug-all"
+        echo "Enabling all debug output"
+        ;;
       *)
         echo "Warning: Unknown build option: $opt"
         ;;
@@ -157,9 +179,44 @@ cmd_run_test() {
   # Build command with options
   local run_test_cmd="./run_test.sh"
   
-  # Process comma-separated options
+  # First, extract all test tags from the options string
+  local test_tags=""
+  if [[ "$TEST_OPTIONS" =~ test= ]]; then
+    # Extract everything after test= up to the next option with =
+    local test_part=$(echo "$TEST_OPTIONS" | grep -o "test=[^=]*" | sed 's/,.*//')
+    
+    # If there are plus signs after test=, we need to handle them specially
+    if [[ "$TEST_OPTIONS" =~ test=([^,]+) ]]; then
+      # Get everything after test= up to the next option with =
+      local full_test_part=$(echo "$TEST_OPTIONS" | grep -o "test=[^=]*" | sed 's/,run=.*//')
+      # Remove the "test=" prefix
+      test_tags="${full_test_part#test=}"
+    else
+      # Simple case - just one tag
+      test_tags="${test_part#test=}"
+    fi
+    
+    # Remove test tags and any following test tags from the options string
+    TEST_OPTIONS=$(echo "$TEST_OPTIONS" | sed -E "s/test=[^,]+//g")
+    # Clean up any double commas that might have been created
+    TEST_OPTIONS=$(echo "$TEST_OPTIONS" | sed -E "s/,,/,/g")
+    # Remove trailing comma if present
+    TEST_OPTIONS=$(echo "$TEST_OPTIONS" | sed -E "s/,$//g")
+    
+    echo "Debug: Extracted test tags: '$test_tags'"
+    echo "Debug: Remaining options: '$TEST_OPTIONS'"
+  fi
+  
+  # Process remaining comma-separated options
+  local run_test_cmd="./run_test.sh"
   IFS=',' read -ra OPTIONS <<< "$TEST_OPTIONS"
+  
   for opt in "${OPTIONS[@]}"; do
+    # Skip empty options
+    if [[ -z "$opt" ]]; then
+      continue
+    fi
+    
     # Check if option is run=N format
     if [[ "$opt" =~ ^run=[1-9][0-9]*$ ]]; then
       # Extract the number after run=
@@ -205,6 +262,22 @@ cmd_run_test() {
         check)
           run_test_cmd="$run_test_cmd --check"
           ;;
+        debug-pool)
+          run_test_cmd="$run_test_cmd --debug-pool"
+          echo "Enabling debug output for ConnectionPool"
+          ;;
+        debug-txmgr)
+          run_test_cmd="$run_test_cmd --debug-txmgr"
+          echo "Enabling debug output for TransactionManager"
+          ;;
+        debug-sqlite)
+          run_test_cmd="$run_test_cmd --debug-sqlite"
+          echo "Enabling debug output for SQLite driver"
+          ;;
+        debug-all)
+          run_test_cmd="$run_test_cmd --debug-all"
+          echo "Enabling all debug output"
+          ;;
         release)
           run_test_cmd="$run_test_cmd --release"
           echo "Building in release mode"
@@ -215,6 +288,13 @@ cmd_run_test() {
       esac
     fi
   done
+  
+  # Add the test tags if they exist
+  if [ -n "$test_tags" ]; then
+    echo "Debug: Final test tags: '$test_tags'"
+    run_test_cmd="$run_test_cmd --run-test=$test_tags"
+    echo "Setting test tags to: $test_tags"
+  fi
   
   echo "Running: $run_test_cmd"
   $run_test_cmd
@@ -304,6 +384,22 @@ cmd_run_build_dist() {
       release)
         build_cmd="$build_cmd --release"
         echo "Building release mode"
+        ;;
+      debug-pool)
+        build_cmd="$build_cmd --debug-pool"
+        echo "Enabling debug output for ConnectionPool"
+        ;;
+      debug-txmgr)
+        build_cmd="$build_cmd --debug-txmgr"
+        echo "Enabling debug output for TransactionManager"
+        ;;
+      debug-sqlite)
+        build_cmd="$build_cmd --debug-sqlite"
+        echo "Enabling debug output for SQLite driver"
+        ;;
+      debug-all)
+        build_cmd="$build_cmd --debug-all"
+        echo "Enabling all debug output"
         ;;
       *)
         echo "Warning: Unknown build option: $opt"

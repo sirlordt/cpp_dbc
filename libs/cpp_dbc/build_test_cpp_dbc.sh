@@ -15,6 +15,7 @@ set -e  # Exit on error
 #   --asan                 Enable Address Sanitizer
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
+#   --debug-sqlite         Enable debug output for SQLite driver
 #   --debug-all            Enable all debug output
 #   --help                 Show this help message
 
@@ -28,6 +29,7 @@ ENABLE_ASAN=OFF
 NO_REBUILD_DEPS=false
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
+DEBUG_SQLITE=OFF
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -84,9 +86,14 @@ while [[ $# -gt 0 ]]; do
             DEBUG_TRANSACTION_MANAGER=ON
             shift
             ;;
+        --debug-sqlite)
+            DEBUG_SQLITE=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
+            DEBUG_SQLITE=ON
             shift
             ;;
         --test)
@@ -109,6 +116,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --asan                 Enable Address Sanitizer"
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
+            echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --help                 Show this help message"
             exit 0
@@ -191,6 +199,7 @@ echo "  Build type: $BUILD_TYPE"
 echo "  Address Sanitizer: $ENABLE_ASAN"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
+echo "  Debug SQLite: $DEBUG_SQLITE"
 
 # Create build directory for tests
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -241,6 +250,7 @@ cmake "${CPP_DBC_DIR}" \
       -DENABLE_ASAN=$ENABLE_ASAN \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
+      -DDEBUG_SQLITE=$DEBUG_SQLITE \
       -Wno-dev
 
 # Print status message about ASAN

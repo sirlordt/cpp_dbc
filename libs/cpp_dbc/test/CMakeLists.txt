@@ -47,8 +47,18 @@ add_executable(cpp_dbc_tests
     test_drivers.cpp
     test_integration.cpp
     test_mysql_real.cpp
+    test_mysql_real_inner_join.cpp
+    test_mysql_real_left_join.cpp
+    test_mysql_real_right_join.cpp
+    test_mysql_real_full_join.cpp
     test_postgresql_real.cpp
+    test_postgresql_real_inner_join.cpp
+    test_postgresql_real_left_join.cpp
+    test_postgresql_real_right_join.cpp
+    test_postgresql_real_full_join.cpp
     test_sqlite_real.cpp
+    test_sqlite_real_inner_join.cpp
+    test_sqlite_real_left_join.cpp
     test_connection_pool_real.cpp
     test_transaction_manager_real.cpp
     test_transaction_isolation.cpp

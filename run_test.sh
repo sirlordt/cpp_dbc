@@ -21,6 +21,11 @@ set -e  # Exit on error
 #   --check                Check shared library dependencies of test executable
 #   --clean                Clean build directories before building
 #   --rebuild              Rebuild the test targets before running
+#   --run-test="tag"       Run only tests with the specified tag (use + to separate multiple tags, e.g. "tag1+tag2+tag3")
+#   --debug-pool           Enable debug output for ConnectionPool
+#   --debug-txmgr          Enable debug output for TransactionManager
+#   --debug-sqlite         Enable debug output for SQLite driver
+#   --debug-all            Enable all debug output
 #   --help                 Show this help message
 
 # Default values for options
@@ -36,6 +41,10 @@ CHECK_DEPENDENCIES=false
 REBUILD=false
 AUTO_MODE=true
 RUN_COUNT=1
+RUN_SPECIFIC_TEST=""
+DEBUG_CONNECTION_POOL=OFF
+DEBUG_TRANSACTION_MANAGER=OFF
+DEBUG_SQLITE=OFF
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -118,6 +127,28 @@ while [[ $# -gt 0 ]]; do
             fi
             shift
             ;;
+        --run-test=*)
+            RUN_SPECIFIC_TEST="${1#*=}"
+            shift
+            ;;
+        --debug-pool)
+            DEBUG_CONNECTION_POOL=ON
+            shift
+            ;;
+        --debug-txmgr)
+            DEBUG_TRANSACTION_MANAGER=ON
+            shift
+            ;;
+        --debug-sqlite)
+            DEBUG_SQLITE=ON
+            shift
+            ;;
+        --debug-all)
+            DEBUG_CONNECTION_POOL=ON
+            DEBUG_TRANSACTION_MANAGER=ON
+            DEBUG_SQLITE=ON
+            shift
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
@@ -138,6 +169,11 @@ while [[ $# -gt 0 ]]; do
             echo "  --clean                Clean build directories before building (Always activate the --rebuild flag)"
             echo "  --rebuild              Rebuild the test targets before running"
             echo "  --run=N                Run all test sets N times (default: 1)"
+            echo "  --run-test=\"tag\"       Run only tests with the specified tag (use + to separate multiple tags, e.g. \"tag1+tag2+tag3\")"
+            echo "  --debug-pool           Enable debug output for ConnectionPool"
+            echo "  --debug-txmgr          Enable debug output for TransactionManager"
+            echo "  --debug-sqlite         Enable debug output for SQLite driver"
+            echo "  --debug-all            Enable all debug output"
             echo "  --help                 Show this help message"
             exit 0
             ;;
@@ -273,6 +309,26 @@ fi
 # Add run count parameter
 if [ "$RUN_COUNT" -gt 1 ]; then
     CMD="$CMD --run=$RUN_COUNT"
+fi
+
+# Add specific test parameter if provided
+if [ -n "$RUN_SPECIFIC_TEST" ]; then
+    echo "Debug: run_test.sh - RUN_SPECIFIC_TEST value: '$RUN_SPECIFIC_TEST'"
+    CMD="$CMD --run-test=$RUN_SPECIFIC_TEST"
+    echo "Debug: run_test.sh - Final command: $CMD"
+fi
+
+# Add debug options
+if [ "$DEBUG_CONNECTION_POOL" = "ON" ]; then
+    CMD="$CMD --debug-pool"
+fi
+
+if [ "$DEBUG_TRANSACTION_MANAGER" = "ON" ]; then
+    CMD="$CMD --debug-txmgr"
+fi
+
+if [ "$DEBUG_SQLITE" = "ON" ]; then
+    CMD="$CMD --debug-sqlite"
 fi
 
 # Execute the command

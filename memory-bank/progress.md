@@ -66,6 +66,11 @@ The project includes example code demonstrating:
 - Enhanced connection closing with sqlite3_close_v2
 - Configurable SQLite pragmas (journal_mode, synchronous, foreign_keys)
 - Safeguards to ensure connections are created with make_shared
+- Comprehensive test cases for JOIN operations:
+  - INNER JOIN with multiple tables
+  - LEFT JOIN with NULL checks
+  - Tests for invalid columns and type mismatches
+- Debug output option for troubleshooting SQLite-specific issues
 
 ### Transaction Management
 - Transaction creation and tracking
@@ -90,6 +95,13 @@ The project includes example code demonstrating:
 - Conditional compilation with USE_CPP_YAML flag
 - Example application demonstrating YAML configuration usage
 - Integration between database configuration and connection classes
+
+### Debug and Testing Support
+- Debug output options for ConnectionPool, TransactionManager, and SQLite driver
+- Ability to run specific tests by tag
+- Support for multiple test tags using + separator
+- Enhanced test script functionality with better parameter handling
+- Improved test command construction
 
 ## What's Left to Build
 
@@ -124,8 +136,38 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Add more comprehensive test cases for all components
    - Implement integration tests with actual databases
    - Develop performance tests
+   - Add test cases for other database operations (e.g., RIGHT JOIN, FULL JOIN)
+   - Enhance debug output options for other components
 
 ## Known Issues
+
+### Recent Improvements
+1. **SQLite JOIN Operations Testing**:
+   - Added comprehensive test cases for SQLite JOIN operations
+   - Added `test_sqlite_real_inner_join.cpp` with INNER JOIN test cases
+   - Added `test_sqlite_real_left_join.cpp` with LEFT JOIN test cases
+   - Enhanced test coverage for complex JOIN operations with multiple tables
+   - Added tests for JOIN operations with NULL checks and invalid columns
+   - Added tests for type mismatches in JOIN conditions
+
+2. **Debug Output Options**:
+   - Added debug output options for better troubleshooting
+   - Added `--debug-pool` option to enable debug output for ConnectionPool
+   - Added `--debug-txmgr` option to enable debug output for TransactionManager
+   - Added `--debug-sqlite` option to enable debug output for SQLite driver
+   - Added `--debug-all` option to enable all debug output
+   - Updated build scripts to pass debug options to CMake
+   - Added debug output parameters to helper.sh script
+
+3. **Test Script Enhancements**:
+   - Enhanced test script functionality
+   - Added `--run-test="tag"` option to run specific tests by tag
+   - Added support for multiple test tags using + separator (e.g., "tag1+tag2+tag3")
+   - Added debug options to run_test.sh script
+   - Improved test command construction with better parameter handling
+
+4. **Valgrind Suppressions Removal**:
+   - Removed valgrind-suppressions.txt file as it's no longer needed with improved PostgreSQL driver
 
 ### Fixed Issues
 1. **SQLite Connection Management Improvements**:

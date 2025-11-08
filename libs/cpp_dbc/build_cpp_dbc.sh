@@ -13,6 +13,9 @@ USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
 BUILD_EXAMPLES=OFF
+DEBUG_CONNECTION_POOL=OFF
+DEBUG_TRANSACTION_MANAGER=OFF
+DEBUG_SQLITE=OFF
 
 # Parse command line arguments
 for arg in "$@"
@@ -66,6 +69,24 @@ do
         BUILD_EXAMPLES=ON
         shift
         ;;
+        --debug-pool)
+        DEBUG_CONNECTION_POOL=ON
+        shift
+        ;;
+        --debug-txmgr)
+        DEBUG_TRANSACTION_MANAGER=ON
+        shift
+        ;;
+        --debug-sqlite)
+        DEBUG_SQLITE=ON
+        shift
+        ;;
+        --debug-all)
+        DEBUG_CONNECTION_POOL=ON
+        DEBUG_TRANSACTION_MANAGER=ON
+        DEBUG_SQLITE=ON
+        shift
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -80,6 +101,10 @@ do
         echo "  --release              Build in Release mode"
         echo "  --test                 Build cpp_dbc tests"
         echo "  --examples             Build cpp_dbc examples"
+        echo "  --debug-pool           Enable debug output for ConnectionPool"
+        echo "  --debug-txmgr          Enable debug output for TransactionManager"
+        echo "  --debug-sqlite         Enable debug output for SQLite driver"
+        echo "  --debug-all            Enable all debug output"
         echo "  --help                 Show this help message"
         exit 1
         ;;
@@ -95,6 +120,9 @@ echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
 echo "  Build examples: $BUILD_EXAMPLES"
+echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
+echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
+echo "  Debug SQLite: $DEBUG_SQLITE"
 
 # Check for MySQL dependencies
 if [ "$USE_MYSQL" = "ON" ]; then
@@ -246,6 +274,9 @@ cmake "${SCRIPT_DIR}" \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DCPP_DBC_BUILD_TESTS=$BUILD_TESTS \
       -DCPP_DBC_BUILD_EXAMPLES=$BUILD_EXAMPLES \
+      -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
+      -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
+      -DDEBUG_SQLITE=$DEBUG_SQLITE \
       -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
       -Wno-dev
 
@@ -293,6 +324,19 @@ if [ "$BUILD_TESTS" = "ON" ]; then
         TEST_PARAMS="$TEST_PARAMS --release"
     fi
     
+    # Pass debug options
+    if [ "$DEBUG_CONNECTION_POOL" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --debug-pool"
+    fi
+    
+    if [ "$DEBUG_TRANSACTION_MANAGER" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --debug-txmgr"
+    fi
+    
+    if [ "$DEBUG_SQLITE" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --debug-sqlite"
+    fi
+    
     # Call build_test_cpp_dbc.sh with the parameters
     echo "Running: ${SCRIPT_DIR}/build_test_cpp_dbc.sh $TEST_PARAMS"
     "${SCRIPT_DIR}/build_test_cpp_dbc.sh" $TEST_PARAMS
@@ -306,3 +350,6 @@ echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
 echo "  Build examples: $BUILD_EXAMPLES"
+echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
+echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
+echo "  Debug SQLite: $DEBUG_SQLITE"

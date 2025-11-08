@@ -18,6 +18,9 @@ USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
 BUILD_EXAMPLES=OFF
+DEBUG_CONNECTION_POOL=OFF
+DEBUG_TRANSACTION_MANAGER=OFF
+DEBUG_SQLITE=OFF
 
 for arg in "$@"
 do
@@ -58,6 +61,20 @@ do
         rm -rf build
         rm -rf libs/cpp_dbc/build
         ;;
+        --debug-pool)
+        DEBUG_CONNECTION_POOL=ON
+        ;;
+        --debug-txmgr)
+        DEBUG_TRANSACTION_MANAGER=ON
+        ;;
+        --debug-sqlite)
+        DEBUG_SQLITE=ON
+        ;;
+        --debug-all)
+        DEBUG_CONNECTION_POOL=ON
+        DEBUG_TRANSACTION_MANAGER=ON
+        DEBUG_SQLITE=ON
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -72,6 +89,10 @@ do
         echo "  --release              Build in Release mode (default: Debug)"
         echo "  --test                 Build cpp_dbc tests"
         echo "  --examples             Build cpp_dbc examples"
+        echo "  --debug-pool           Enable debug output for ConnectionPool"
+        echo "  --debug-txmgr          Enable debug output for TransactionManager"
+        echo "  --debug-sqlite         Enable debug output for SQLite driver"
+        echo "  --debug-all            Enable all debug output"
         echo "  --help                 Show this help message"
         exit 0
         ;;
@@ -86,6 +107,9 @@ export USE_CPP_YAML
 export BUILD_TYPE
 export BUILD_TESTS
 export BUILD_EXAMPLES
+export DEBUG_CONNECTION_POOL
+export DEBUG_TRANSACTION_MANAGER
+export DEBUG_SQLITE
 
 # Call the cpp_dbc build script with explicit parameters
 if [ "$USE_MYSQL" = "ON" ]; then
@@ -134,8 +158,22 @@ else
     YAML_PARAM=""
 fi
 
+# Pass the debug options to the cpp_dbc build script
+DEBUG_PARAMS=""
+if [ "$DEBUG_CONNECTION_POOL" = "ON" ]; then
+    DEBUG_PARAMS="$DEBUG_PARAMS --debug-pool"
+fi
+
+if [ "$DEBUG_TRANSACTION_MANAGER" = "ON" ]; then
+    DEBUG_PARAMS="$DEBUG_PARAMS --debug-txmgr"
+fi
+
+if [ "$DEBUG_SQLITE" = "ON" ]; then
+    DEBUG_PARAMS="$DEBUG_PARAMS --debug-sqlite"
+fi
+
 # Build the cpp_dbc library
-./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM
+./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM $DEBUG_PARAMS
 
 # If the cpp_dbc build script fails, stop the build process
 if [ $? -ne 0 ]; then
@@ -194,3 +232,6 @@ echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
 echo "  Build examples: $BUILD_EXAMPLES"
+echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
+echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
+echo "  Debug SQLite: $DEBUG_SQLITE"
