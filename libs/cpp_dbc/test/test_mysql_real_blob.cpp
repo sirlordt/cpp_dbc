@@ -15,8 +15,15 @@
 #include <iostream>
 #include <fstream>
 #include <yaml-cpp/yaml.h>
+#include <filesystem>
 #include "test_mysql_common.hpp"
 #include "test_blob_common.hpp"
+
+// External helper functions from test_main.cpp
+extern std::vector<uint8_t> readBinaryFile(const std::string &filePath);
+extern void writeBinaryFile(const std::string &filePath, const std::vector<uint8_t> &data);
+extern std::string getTestImagePath();
+extern std::string generateRandomTempFilename();
 
 // Helper function to get the path to the test_db_connections.yml file
 extern std::string getConfigFilePath();
@@ -213,6 +220,58 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
         // Verify the modification
         auto modifiedData = retrievedBlob->getBytes(2000, newData.size());
         REQUIRE(compareBinaryData(newData, modifiedData));
+    }
+
+    SECTION("Image file BLOB operations")
+    {
+        // Get the path to the test image
+        std::string imagePath = getTestImagePath();
+
+        // Read the image file
+        std::vector<uint8_t> imageData = readBinaryFile(imagePath);
+        REQUIRE(!imageData.empty());
+
+        // Insert the image data into the database
+        auto stmt = conn->prepareStatement(
+            "INSERT INTO test_blobs (id, name, long_data) "
+            "VALUES (?, ?, ?)");
+
+        stmt->setInt(1, 5);
+        stmt->setString(2, "Test Image");
+        stmt->setBytes(3, imageData);
+
+        int rowsAffected = stmt->executeUpdate();
+        REQUIRE(rowsAffected == 1);
+
+        // Retrieve the image data from the database
+        auto rs = conn->executeQuery("SELECT * FROM test_blobs WHERE id = 5");
+        REQUIRE(rs->next());
+
+        // Verify the image metadata
+        REQUIRE(rs->getInt("id") == 5);
+        REQUIRE(rs->getString("name") == "Test Image");
+
+        // Get the image data
+        auto retrievedImageData = rs->getBytes("long_data");
+        REQUIRE(!retrievedImageData.empty());
+
+        // Verify the image data is the same as the original
+        REQUIRE(retrievedImageData.size() == imageData.size());
+        REQUIRE(compareBinaryData(imageData, retrievedImageData));
+
+        // Write the retrieved image to a temporary file
+        std::string tempImagePath = generateRandomTempFilename();
+        writeBinaryFile(tempImagePath, retrievedImageData);
+
+        // Read back the temporary file
+        std::vector<uint8_t> tempImageData = readBinaryFile(tempImagePath);
+
+        // Verify the temporary file data is the same as the original
+        REQUIRE(tempImageData.size() == imageData.size());
+        REQUIRE(compareBinaryData(imageData, tempImageData));
+
+        // Clean up the temporary file
+        std::remove(tempImagePath.c_str());
     }
 
     // Clean up

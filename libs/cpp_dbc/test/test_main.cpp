@@ -6,6 +6,9 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include <fstream>
+#include <random>
+#include <cstring>
 
 std::string getExecutablePathAndName()
 {
@@ -39,4 +42,62 @@ std::string getConfigFilePath()
     // So we can just use the filename
     // std::cout << "Attempting to open file: test_db_connections.yml" << std::endl;
     return getOnlyExecutablePath() + "test_db_connections.yml";
+}
+
+// Helper function to read binary data from a file
+std::vector<uint8_t> readBinaryFile(const std::string &filePath)
+{
+    std::ifstream file(filePath, std::ios::binary);
+    if (!file)
+    {
+        throw std::runtime_error("Failed to open file: " + filePath);
+    }
+
+    // Get file size
+    file.seekg(0, std::ios::end);
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    // Read the data
+    std::vector<uint8_t> buffer(size);
+    if (!file.read(reinterpret_cast<char *>(buffer.data()), size))
+    {
+        throw std::runtime_error("Failed to read file: " + filePath);
+    }
+
+    return buffer;
+}
+
+// Helper function to write binary data to a file
+void writeBinaryFile(const std::string &filePath, const std::vector<uint8_t> &data)
+{
+    std::ofstream file(filePath, std::ios::binary);
+    if (!file)
+    {
+        throw std::runtime_error("Failed to create file: " + filePath);
+    }
+
+    file.write(reinterpret_cast<const char *>(data.data()), data.size());
+    if (!file)
+    {
+        throw std::runtime_error("Failed to write to file: " + filePath);
+    }
+}
+
+// Helper function to get the path to the test.jpg file
+std::string getTestImagePath()
+{
+    // Use the same approach as getConfigFilePath()
+    // The test.jpg file is copied to the build directory by CMake
+    return getOnlyExecutablePath() + "test.jpg";
+}
+
+// Helper function to generate a random filename in /tmp directory
+std::string generateRandomTempFilename()
+{
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> distrib(10000, 99999);
+
+    return "/tmp/test_image_" + std::to_string(distrib(gen)) + ".jpg";
 }

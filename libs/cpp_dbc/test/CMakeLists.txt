@@ -106,4 +106,9 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/test_db_connections.yml
     ${CMAKE_CURRENT_BINARY_DIR}/test_db_connections.yml
     COPYONLY)
 
+# Copy the test.jpg file directly to the directory where the executable is
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/test.jpg
+    ${CMAKE_CURRENT_BINARY_DIR}/test.jpg
+    COPYONLY)
+
 # We'll set environment variables in the run script instead
