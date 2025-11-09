@@ -1,5 +1,9 @@
 // CPPDBC_MySQL.hpp
 // MySQL implementation for cpp_dbc
+//
+// This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
+// See the LICENSE.md file in the project root for more information.
+//
 
 #ifndef CPP_DBC_DRIVER_MYSQL_HPP
 #define CPP_DBC_DRIVER_MYSQL_HPP

@@ -1,3 +1,10 @@
+// yaml_config_loader.cpp
+// Implementation of YAML configuration loader for cpp_dbc
+//
+// This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
+// See the LICENSE.md file in the project root for more information.
+//
+
 // This file should only be compiled if USE_CPP_YAML is defined
 #ifdef USE_CPP_YAML
 

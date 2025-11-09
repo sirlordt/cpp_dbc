@@ -1,3 +1,10 @@
+// database_config.hpp
+// Database configuration classes for cpp_dbc
+//
+// This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
+// See the LICENSE.md file in the project root for more information.
+//
+
 #ifndef CPP_DBC_DATABASE_CONFIG_HPP
 #define CPP_DBC_DATABASE_CONFIG_HPP
 

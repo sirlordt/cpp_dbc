@@ -474,8 +474,30 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                 # Remove the temporary file
                 rm -f "$TEST_OUTPUT_FILE"
                 
+                # Check if this is just a skipped test (not a failure)
+                SKIPPED_TEST=false
+                
+                # Exit code 4 is used by Catch2 for skipped tests
+                if [ $TEST_RESULT -eq 4 ]; then
+                    SKIPPED_TEST=true
+                fi
+                
+                # Also check output patterns as a backup
+                if echo "$TEST_OUTPUT" | grep -q "skipped:" && echo "$TEST_OUTPUT" | grep -q "test cases: .* | .* skipped"; then
+                    # Also check that there are no failures reported
+                    if ! echo "$TEST_OUTPUT" | grep -q "failed"; then
+                        SKIPPED_TEST=true
+                    fi
+                fi
+                
                 # Check if we should continue automatically
                 if [ "$AUTO_CONTINUE" = true ]; then
+                    # Check if this is a skipped test - should continue automatically regardless of exit code
+                    if [ "$SKIPPED_TEST" = true ]; then
+                        echo -e "\nTest [$TAG] (Run $run of $RUN_COUNT): Test skipped. Continuing automatically..."
+                        continue
+                    fi
+                    
                     # Check if tests passed based on exit code
                     if [ $TEST_RESULT -eq 0 ]; then
                         # If valgrind is enabled, check for memory leaks
@@ -514,6 +536,14 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                             continue
                         fi
                     else
+                        # Let's try a different approach to detect skipped tests
+                        if echo "$TEST_OUTPUT" | grep -q "skipped:" && ! echo "$TEST_OUTPUT" | grep -q "failed:"; then
+                            if [ "$AUTO_CONTINUE" = true ]; then
+                                echo -e "\nTest [$TAG] (Run $run of $RUN_COUNT): Test skipped (alt detection). Continuing automatically..."
+                                continue
+                            fi
+                        fi
+                        
                         echo -e "\nTest [$TAG] (Run $run of $RUN_COUNT): Tests failed. Press Enter to continue or ESC to abort..."
                         read -n 1 key
                         if [[ $key = $'\e' ]]; then

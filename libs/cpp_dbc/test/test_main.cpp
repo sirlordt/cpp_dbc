@@ -1,3 +1,10 @@
+// test_main.cpp
+// Main test file for the cpp_dbc project
+//
+// This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
+// See the LICENSE.md file in the project root for more information.
+//
+
 // This file is automatically included by Catch2WithMain
 // No need to define CATCH_CONFIG_MAIN as we're using the pre-compiled main
 #include <string>

@@ -53,12 +53,12 @@ show_usage() {
   echo "Commands:"
   echo "  --run-build              Build via ./build.sh, logs to build/run-build-<timestamp>.log"
   echo "  --run-build=OPTIONS      Build with comma-separated options"
-  echo "                           Available options: clean,release,postgres,mysql,sqlite,yaml,test,examples,"
+  echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,yaml,test,examples,"
   echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all"
   echo "                           Example: --run-build=clean,sqlite,yaml,test,debug-pool"
   echo "  --run-build-dist         Build via ./build.dist.sh, logs to build/run-build-dist-<timestamp>.log"
   echo "  --run-build-dist=OPTIONS Build dist with comma-separated options"
-  echo "                           Available options: clean,release,postgres,mysql,sqlite,yaml,test,examples,"
+  echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,yaml,test,examples,"
   echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all"
   echo "                           Example: --run-build-dist=clean,sqlite,yaml,test,debug-sqlite"
   echo "  --run-ctr [name]         Run container"
@@ -68,7 +68,7 @@ show_usage() {
   echo "  --clean-conan-cache      Clear Conan local cache"
   echo "  --run-test               Build (if needed) and run the tests"
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
-  echo "                           Available options: clean,release,rebuild,sqlite,mysql,postgres,valgrind,"
+  echo "                           Available options: clean,release,rebuild,sqlite,mysql,mysql-off,postgres,valgrind,"
   echo "                                              yaml,auto,asan,ctest,check,run=N,test=Tag1+Tag2+Tag3,"
   echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all"
   echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3,test=integration+mysql_real_right_join"
@@ -624,9 +624,6 @@ while [ $i -lt ${#args[@]} ]; do
       ;;
     --run-build-bin)
       cmd_run_bin || exit_code=$?
-      ;;
-    --yaml|--examples|--test|--postgres|--sqlite|--mysql-off|--valgrind|--asan|--ctest)
-      cmd_run_build
       ;;
     --mc-combo-01)
       # Equivalent to --run-build=clean,postgres,mysql,sqlite,yaml,test,examples

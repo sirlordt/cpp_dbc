@@ -1,3 +1,10 @@
+// test_connection_pool_real.cpp
+// Tests for connection pool with real database connections
+//
+// This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
+// See the LICENSE.md file in the project root for more information.
+//
+
 #include <catch2/catch_test_macros.hpp>
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/connection_pool.hpp>

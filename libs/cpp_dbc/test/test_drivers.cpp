@@ -1,3 +1,10 @@
+// test_drivers.cpp
+// Tests for the database drivers in the cpp_dbc library
+//
+// This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
+// See the LICENSE.md file in the project root for more information.
+//
+
 #include <catch2/catch_test_macros.hpp>
 #include <cpp_dbc/cpp_dbc.hpp>
 #include "test_mocks.hpp"
