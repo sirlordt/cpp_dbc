@@ -12,6 +12,8 @@ The CPP_DBC library appears to be in a functional state with the following compo
 6. **Transaction Manager**: Fully implemented with transaction tracking, timeout, and improved resource management
 7. **Connection Options**: Support for database-specific connection options in all drivers
 8. **BLOB Support**: Complete implementation of Binary Large Object (BLOB) support for all database drivers
+9. **Logging System**: Structured logging system with dedicated log directories and automatic rotation
+10. **VSCode Integration**: Complete VSCode configuration with build tasks and extension management
 
 The project includes example code demonstrating:
 - Basic database operations
@@ -29,6 +31,7 @@ The project includes example code demonstrating:
 - Result set processing
 - Error handling through exceptions
 - Binary Large Object (BLOB) handling
+- Structured logging with automatic log rotation
 
 ### MySQL Support
 - Connection to MySQL databases
@@ -151,7 +154,27 @@ Based on the current state of the project, potential areas for enhancement inclu
 
 ### Recent Improvements
 
-1. **License Header Updates**:
+1. **Logging System Improvements**:
+   - Added structured logging system with dedicated log directories:
+     - Created logs/build directory for build output logs
+     - Created logs/test directory for test output logs
+     - Added automatic log rotation keeping 4 most recent logs
+     - Added timestamp to log filenames for better tracking
+   - Modified helper.sh to support the new logging structure:
+     - Added color support in terminal while keeping clean logs
+     - Added unbuffer usage to preserve colors in terminal output
+     - Added sed command to strip ANSI color codes from log files
+     - Updated command output to show log file location
+
+2. **VSCode Integration**:
+   - Added VSCode configuration files:
+     - Added .vscode/c_cpp_properties.json with proper include paths
+     - Added .vscode/tasks.json with build tasks
+     - Added .vscode/build_with_props.sh script to extract defines from c_cpp_properties.json
+     - Added support for building with MySQL and PostgreSQL from VSCode
+     - Added automatic extension installation task
+
+3. **License Header Updates**:
    - Added standardized license headers to all .cpp and .hpp files
    - Created update_headers.sh script to automate header updates
    - Headers include copyright information, license terms, and file descriptions
@@ -200,6 +223,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Added `--debug-all` option to enable all debug output
    - Updated build scripts to pass debug options to CMake
    - Added debug output parameters to helper.sh script
+   - Added logging to files for build and test output
 
 3. **Test Script Enhancements**:
    - Enhanced test script functionality
@@ -207,6 +231,8 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Added support for multiple test tags using + separator (e.g., "tag1+tag2+tag3")
    - Added debug options to run_test.sh script
    - Improved test command construction with better parameter handling
+   - Changed default AUTO_MODE to false in run_test.sh
+   - Added logging to files for test output with automatic log rotation
 
 4. **Valgrind Suppressions Removal**:
    - Removed valgrind-suppressions.txt file as it's no longer needed with improved PostgreSQL driver
@@ -314,6 +340,9 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Configured proper include paths for IntelliSense
      - Added CMake-based debugging configuration with direct path to executable
      - Fixed tasks.json to support CMake builds
+   - Added .vscode/build_with_props.sh script to extract defines from c_cpp_properties.json
+   - Added support for building with MySQL and PostgreSQL from VSCode
+   - Added automatic extension installation task
    - Identified and documented IntelliSense issue with preprocessor definitions:
      - IntelliSense may show `USE_POSTGRESQL` as 0 even after compilation has activated it
      - Solution: After compilation, use CTRL+SHIFT+P and select "Developer: Reload Window"
@@ -350,6 +379,11 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Added `--show-env-ctr` option to show container environment variables
    - Improved error handling and reporting
    - Added support for getting executable name from `.dist_build`
+   - Added structured logging system with dedicated log directories
+   - Added automatic log rotation keeping 4 most recent logs
+   - Added color support in terminal while keeping clean logs
+   - Added unbuffer usage to preserve colors in terminal output
+   - Added sed command to strip ANSI color codes from log files
 
 7. **Improved Docker Container Build**:
    - Enhanced `build.dist.sh` to accept the same parameters as `build.sh`

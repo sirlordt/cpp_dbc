@@ -35,7 +35,6 @@ cmake_install.cmake
 Makefile
 
 # IDE specific files
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -43,3 +42,7 @@ Makefile
 # OS specific files
 .DS_Store
 Thumbs.db
+
+*.log
+logs/
+logs/**

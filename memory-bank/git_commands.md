@@ -118,3 +118,23 @@ Note that Git integration in VSCode is disabled in the container environment to 
 ```
 
 For Git operations, use the command line interface directly.
+
+## VSCode Configuration Files
+
+The project now includes VSCode configuration files in the `.vscode` directory:
+
+- `c_cpp_properties.json`: Configures C/C++ IntelliSense with proper include paths and preprocessor definitions
+- `tasks.json`: Defines build tasks for the project
+- `build_with_props.sh`: Script to extract preprocessor definitions from `c_cpp_properties.json` and pass them to build.sh
+
+These files help ensure consistent development environment across different machines and provide convenient build tasks directly from VSCode.
+
+### Using VSCode Tasks
+
+To build the project using VSCode tasks:
+
+1. Press `Ctrl+Shift+B` to run the default build task
+2. Select "CMake: build" to build using the default configuration
+3. Select "Build with C++ Properties" to build using the preprocessor definitions from `c_cpp_properties.json`
+
+The "Auto install extensions" task runs automatically when opening the folder and installs recommended extensions.

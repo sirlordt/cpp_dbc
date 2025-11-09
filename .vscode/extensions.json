@@ -1,0 +1,11 @@
+{
+    "recommendations": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "josetr.cmake-language-support-vscode",
+        "disroop.conan",
+        "ms-vscode.cpptools-extension-pack",
+        "ms-azuretools.vscode-docker",
+        "saoudrizwan.claude-dev"
+    ]
+}

@@ -331,6 +331,22 @@ The project includes a helper script (`helper.sh`) that provides various utiliti
 ./helper.sh --clean-build --clean-conan-cache --build
 ```
 
+### VSCode Integration
+
+The project includes VSCode configuration files in the `.vscode` directory:
+
+- `c_cpp_properties.json`: Configures C/C++ IntelliSense with proper include paths and preprocessor definitions
+- `tasks.json`: Defines build tasks for the project
+- `build_with_props.sh`: Script to extract preprocessor definitions from `c_cpp_properties.json` and pass them to build.sh
+
+To build the project using VSCode tasks:
+
+1. Press `Ctrl+Shift+B` to run the default build task
+2. Select "CMake: build" to build using the default configuration
+3. Select "Build with C++ Properties" to build using the preprocessor definitions from `c_cpp_properties.json`
+
+The "Auto install extensions" task runs automatically when opening the folder and installs recommended extensions.
+
 ### Manual CMake configuration
 
 You can also configure the build manually with CMake:

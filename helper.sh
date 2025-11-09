@@ -54,12 +54,12 @@ show_usage() {
   echo "  --run-build              Build via ./build.sh, logs to build/run-build-<timestamp>.log"
   echo "  --run-build=OPTIONS      Build with comma-separated options"
   echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,yaml,test,examples,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all"
   echo "                           Example: --run-build=clean,sqlite,yaml,test,debug-pool"
   echo "  --run-build-dist         Build via ./build.dist.sh, logs to build/run-build-dist-<timestamp>.log"
   echo "  --run-build-dist=OPTIONS Build dist with comma-separated options"
   echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,yaml,test,examples,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all"
   echo "                           Example: --run-build-dist=clean,sqlite,yaml,test,debug-sqlite"
   echo "  --run-ctr [name]         Run container"
   echo "  --show-labels-ctr [name] Show labels with Image ID"
@@ -91,19 +91,54 @@ show_usage() {
 }
 
 cleanup_old_logs() {
-  local logs=($(ls -1t build/*.log 2>/dev/null))
-  if (( ${#logs[@]} > 4 )); then
-    printf '%s\n' "${logs[@]:4}" | xargs rm -f --
+  local log_path="$1"
+  local max_logs="$2"
+  
+  # Default values if not provided
+  if [ -z "$log_path" ]; then
+    echo "Error: Log path not provided to cleanup_old_logs"
+    return 1
+  fi
+  
+  if [ -z "$max_logs" ]; then
+    max_logs=4
+  fi
+  
+  # Ensure the log directory exists
+  mkdir -p "$(dirname "$log_path")"
+  
+  # Get all log files in the directory, sorted by modification time (newest first)
+  local logs=($(ls -1t "${log_path}"/*.log 2>/dev/null))
+  
+  # If we have more logs than the maximum allowed, remove the oldest ones
+  if (( ${#logs[@]} > max_logs )); then
+    echo "Cleaning up old logs in ${log_path}, keeping ${max_logs} most recent logs..."
+    printf '%s\n' "${logs[@]:$max_logs}" | xargs rm -f --
+  fi
+}
+
+# Function to check if terminal supports colors
+check_color_support() {
+  if [ -t 1 ] && [ -n "$TERM" ] && [ "$TERM" != "dumb" ]; then
+    return 0  # Terminal supports colors
+  else
+    return 1  # Terminal doesn't support colors
   fi
 }
 
 cmd_run_build() {
+
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
-  local log="build/run-build-${ts}.log"
-  echo "Building project. Output logging to $log."
-  mkdir -p build
-  cleanup_old_logs
-  
+  # Get current directory
+  local current_dir=$(pwd)
+  # Ensure the build directory exists
+  mkdir -p "${current_dir}/logs/build"
+  local log_file="${current_dir}/logs/build/output-${ts}.log"
+  echo "Building project. Output logging to $log_file."
+
+  # Clean up old logs in the build directory, keeping the 4 most recent
+  cleanup_old_logs "${current_dir}/logs/build" 4
+
   # Build command with options
   local build_cmd="./build.sh"
   
@@ -170,11 +205,34 @@ cmd_run_build() {
   done
 
   echo "Running: $build_cmd"
-  $build_cmd 2>&1 | tee "$log"
+  
+  # Check if terminal supports colors
+  if check_color_support; then
+    # Run with colors in terminal but without colors in log file
+    # Use unbuffer to preserve colors in terminal output and sed to strip ANSI color codes from log file
+    unbuffer $build_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+  else
+    # Terminal doesn't support colors, just run normally and strip any color codes that might be present
+    $build_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+  fi
+
+  echo ""
+  echo "Command runned: $build_cmd"
+  echo "Log file: $log_file."
+
 }
 
 cmd_run_test() {
-  echo "Running tests..."
+  local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
+  # Get current directory
+  local current_dir=$(pwd)
+  # Ensure the test log directory exists
+  mkdir -p "${current_dir}/logs/test"
+  local log_file="${current_dir}/logs/test/output-${ts}.log"
+  echo "Running tests. Output logging to $log_file."
+  
+  # Clean up old logs in the test directory, keeping the 4 most recent
+  cleanup_old_logs "${current_dir}/logs/test" 4
   
   # Build command with options
   local run_test_cmd="./run_test.sh"
@@ -297,7 +355,21 @@ cmd_run_test() {
   fi
   
   echo "Running: $run_test_cmd"
-  $run_test_cmd
+  
+  # Check if terminal supports colors
+  if check_color_support; then
+    # Run with colors in terminal but without colors in log file
+    # Use unbuffer to preserve colors in terminal output and sed to strip ANSI color codes from log file
+    unbuffer $run_test_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+  else
+    # Terminal doesn't support colors, just run normally and strip any color codes that might be present
+    $run_test_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+  fi
+  
+  echo ""
+  echo "Command runned: $run_test_cmd"
+  echo "Log file: $log_file."
+  
 }
 
 get_bin_name() {
@@ -336,12 +408,18 @@ cmd_run_bin() {
 }
 
 cmd_run_build_dist() {
+
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
-  local log="build/run-build-dist-${ts}.log"
-  echo "Building Docker image. Output logging to $log."
-  mkdir -p build
-  cleanup_old_logs
-  
+  # Get current directory
+  local current_dir=$(pwd)
+  # Ensure the build directory exists
+  mkdir -p "${current_dir}/logs/build_dist"
+  local log_file="${current_dir}/logs/build_dist/dist_output-${ts}.log"
+  echo "Building Docker image. Output logging to $log_file."
+
+  # Clean up old logs in the build_dist directory, keeping the 4 most recent
+  cleanup_old_logs "${current_dir}/logs/build_dist" 4
+
   # Build command with options
   local build_cmd="./build.dist.sh"
   
@@ -408,7 +486,21 @@ cmd_run_build_dist() {
   done
 
   echo "Running: $build_cmd"
-  $build_cmd 2>&1 | tee "$log"
+  
+  # Check if terminal supports colors
+  if check_color_support; then
+    # Run with colors in terminal but without colors in log file
+    # Use unbuffer to preserve colors in terminal output and sed to strip ANSI color codes from log file
+    unbuffer $build_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+  else
+    # Terminal doesn't support colors, just run normally and strip any color codes that might be present
+    $build_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+  fi
+
+  echo ""
+  echo "Command runned: $build_cmd"
+  echo "Log file: $log_file."
+
 }
 
 cmd_run() {

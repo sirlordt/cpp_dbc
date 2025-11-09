@@ -2,8 +2,6 @@
 
 ## Pending Tasks
 
-- BUG: When no pass the --auto the script is not stop before continue
-- NEW FEATURE: Capture the output when the run test to .log file
 - NEW FEATURE: Add specific testing of json field types.
 - NEW FEATURE: Add more examples.
 - NEW FEATURE: Create a generic function fo capture the callstack java like
@@ -24,3 +22,5 @@
 ## Completed Tasks
 
 - Finish to add the license header to .cpp files
+- BUG: When no pass the --auto the script is not stop before continue
+- NEW FEATURE: Capture the output when the run test to .log file

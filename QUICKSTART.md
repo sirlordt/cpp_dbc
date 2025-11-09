@@ -72,6 +72,8 @@ This will display the full usage information with all available options.
 ./helper.sh --run-build=clean,mysql,postgres,sqlite,yaml,test,examples
 ```
 
+All build output is now automatically logged to files in the `logs/build/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
+
 ### Test Operations
 
 ```bash
@@ -123,6 +125,8 @@ This will display the full usage information with all available options.
 # Combine options: Run specific tests with debug output
 ./helper.sh --run-test=test=sqlite_real_inner_join,debug-sqlite,debug-pool
 ```
+
+All test output is now automatically logged to files in the `logs/test/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
 
 ### Container Operations
 
@@ -209,4 +213,17 @@ This will display the full usage information with all available options.
 # Build a container for deployment
 ./helper.sh --kfc-combo-01
 ```
+
+### VSCode Integration
+
+The project now includes VSCode configuration files in the `.vscode` directory:
+
+```bash
+# Build using VSCode tasks (Ctrl+Shift+B)
+# Options:
+# - "CMake: build" - Default build task
+# - "Build with C++ Properties" - Build using preprocessor definitions from c_cpp_properties.json
+```
+
+The "Auto install extensions" task runs automatically when opening the folder and installs recommended extensions.
 

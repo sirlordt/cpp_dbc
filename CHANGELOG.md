@@ -1,6 +1,32 @@
 # Changelog
 
-## 2025-11-09 12:22:00 AM -0800 [Current]
+## 2025-11-09 03:20:00 PM -0800 [Current]
+
+### Logging System Improvements
+* Added structured logging system with dedicated log directories:
+  * Created logs/build directory for build output logs
+  * Created logs/test directory for test output logs
+  * Added automatic log rotation keeping 4 most recent logs
+  * Added timestamp to log filenames for better tracking
+  * Modified helper.sh to support the new logging structure
+  * Added color support in terminal while keeping clean logs
+  * Added unbuffer usage to preserve colors in terminal output
+  * Added sed command to strip ANSI color codes from log files
+  * Updated command output to show log file location
+
+### VSCode Integration
+* Added VSCode configuration files:
+  * Added .vscode/c_cpp_properties.json with proper include paths
+  * Added .vscode/tasks.json with build tasks
+  * Added .vscode/build_with_props.sh script to extract defines from c_cpp_properties.json
+  * Added support for building with MySQL and PostgreSQL from VSCode
+  * Added automatic extension installation task
+
+### Build System Improvements
+* Modified .gitignore to exclude log files and directories
+* Changed default AUTO_MODE to false in run_test.sh
+* Updated helper.sh with better log handling and color support
+* Improved error handling in build scripts
 
 ### BLOB Support for Image Files
 * Added support for storing and retrieving image files as BLOBs:
