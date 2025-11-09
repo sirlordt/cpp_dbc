@@ -17,7 +17,7 @@ If you're in a hurry and want to get started quickly, check out the [Quick Start
 
 ---
 
-This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, and SQLite databases. The library includes connection pooling, transaction management, and support for different transaction isolation levels.
+This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, and SQLite databases. The library includes connection pooling, transaction management, support for different transaction isolation levels, and comprehensive BLOB handling with image file support.
 
 ## Features
 
@@ -29,6 +29,7 @@ This project provides a C++ Database Connectivity library inspired by JDBC, with
 - **Conditional Compilation**: Build with only the database drivers you need
 - **Modern C++ Design**: Uses C++23 features and RAII principles
 - **YAML Configuration**: Optional support for loading database configurations from YAML files
+- **BLOB Support**: Complete implementation of Binary Large Object (BLOB) support for all database drivers, including image file storage and retrieval
 
 ## Database Support
 
@@ -232,6 +233,26 @@ The project includes scripts for building and running tests:
 ./run_test.sh --debug-sqlite  # Enable debug output for SQLite driver
 ./run_test.sh --debug-all  # Enable all debug output
 ```
+
+### BLOB Support
+
+The library provides comprehensive support for Binary Large Object (BLOB) operations:
+
+1. **Core BLOB Classes**:
+   - Base classes for BLOB handling with consistent interfaces
+   - Memory-based and file-based implementations
+   - Support for reading and writing binary data
+
+2. **Database-Specific Implementations**:
+   - MySQL: Support for BLOB data types with MySQLBlob implementation
+   - PostgreSQL: Support for BYTEA data type with PostgreSQLBlob implementation
+   - SQLite: Support for BLOB data type with SQLiteBlob implementation
+
+3. **Image File Support**:
+   - Helper functions for reading and writing binary files
+   - Support for storing and retrieving image files
+   - Integrity verification for binary data
+   - Comprehensive test cases with test.jpg file
 
 ### Memory Leak Prevention
 

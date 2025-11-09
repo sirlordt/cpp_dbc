@@ -1,6 +1,24 @@
 # Changelog
 
-## 2025-11-08 05:49:00 AM -0800 [Current]
+## 2025-11-09 12:22:00 AM -0800 [Current]
+
+### BLOB Support for Image Files
+* Added support for storing and retrieving image files as BLOBs:
+  * Added helper functions in test_main.cpp for binary file operations:
+    * `readBinaryFile()` to read binary data from files
+    * `writeBinaryFile()` to write binary data to files
+    * `getTestImagePath()` to get the path to the test image
+    * `generateRandomTempFilename()` to create temporary filenames
+  * Added test.jpg file for BLOB testing
+  * Updated CMakeLists.txt to copy test.jpg to the build directory
+  * Added comprehensive test cases for image file BLOB operations in:
+    * `test_mysql_real_blob.cpp`
+    * `test_postgresql_real_blob.cpp`
+    * `test_sqlite_real_blob.cpp`
+  * Added tests for storing, retrieving, and verifying image data integrity
+  * Added tests for writing retrieved image data to temporary files
+
+## 2025-11-08 05:49:00 AM -0800
 
 ### SQLite JOIN Operations Testing
 * Added comprehensive test cases for SQLite JOIN operations:

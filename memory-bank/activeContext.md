@@ -31,7 +31,22 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **BLOB Support Implementation**:
+1. **BLOB Support for Image Files**:
+   - Added support for storing and retrieving image files as BLOBs
+   - Added helper functions in test_main.cpp for binary file operations:
+     * `readBinaryFile()` to read binary data from files
+     * `writeBinaryFile()` to write binary data to files
+     * `getTestImagePath()` to get the path to the test image
+     * `generateRandomTempFilename()` to create temporary filenames
+   - Updated CMakeLists.txt to copy test.jpg to the build directory
+   - Added comprehensive test cases for image file BLOB operations in:
+     * `test_mysql_real_blob.cpp`
+     * `test_postgresql_real_blob.cpp`
+     * `test_sqlite_real_blob.cpp`
+   - Added tests for storing, retrieving, and verifying image data integrity
+   - Added tests for writing retrieved image data to temporary files
+
+2. **BLOB Support Implementation**:
    - Added comprehensive BLOB (Binary Large Object) support for all database drivers
    - Added `<cstdint>` include to several header files for fixed-width integer types
    - Implemented base classes: `Blob`, `InputStream`, `OutputStream`
