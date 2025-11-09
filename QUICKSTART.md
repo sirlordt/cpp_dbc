@@ -47,6 +47,9 @@ This will display the full usage information with all available options.
 ### Build Operations
 
 ```bash
+# Run tests with rebuild, valgrind, SQLite, PostgreSQL, MySQL, YAML, auto mode, run once
+./helper.sh --run-test=rebuild,valgrind,sqlite,postgres,mysql,yaml,auto,run=1
+
 # Build with MySQL support only (default in Debug mode)
 ./helper.sh --run-build
 

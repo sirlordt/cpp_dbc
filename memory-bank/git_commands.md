@@ -101,6 +101,8 @@ This command is particularly helpful when:
 - Updating memory-bank files with new features or improvements
 - Ensuring documentation accurately reflects code changes
 - Documenting new features like BLOB support across multiple files
+- Tracking license header additions to source files
+- Verifying format changes in documentation files
 
 ## Git Integration with VSCode
 

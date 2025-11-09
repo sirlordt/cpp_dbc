@@ -150,6 +150,13 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 
 ### Recent Improvements
+
+1. **License Header Updates**:
+   - Added standardized license headers to all .cpp and .hpp files
+   - Created update_headers.sh script to automate header updates
+   - Headers include copyright information, license terms, and file descriptions
+   - All example files and test files now have proper headers
+
 1. **BLOB Support for Image Files**:
    - Added support for storing and retrieving image files as BLOBs
    - Added helper functions in test_main.cpp for binary file operations:
