@@ -418,7 +418,7 @@ for ((run=1; run<=RUN_COUNT; run++)); do
         # Run tests directly
         echo -e "Running tests directly (Run $run of $RUN_COUNT)...\n"
         
-        # First list all available tests (only on first run)
+        # First list all available tests (only on first run) 
         if [ "$run" -eq 1 ]; then
             echo -e "Available tests:\n"
             run_test --list-tests

@@ -372,6 +372,86 @@ cmd_run_test() {
   echo "Command runned: $run_test_cmd"
   echo "Log file: $log_file."
   
+  # Automatically check the test log after running tests
+  # Ejecutar check-test-log como un comando separado para asegurar la misma salida
+  echo ""
+  echo "========== Checking Test Log for Issues =========="
+  # Usar bash -c para ejecutar el comando en un nuevo shell
+  bash -c "./helper.sh --check-test-log=\"$log_file\""
+  echo "========== End of Test Log Check =========="
+}
+
+# Helper function to extract available test cases from log file
+extract_available_tests() {
+  local log_file="$1"
+  local in_test_section=0
+  local test_description=""
+  local test_tag=""
+  
+  # Create a temporary file to store the test cases
+  local temp_file=$(mktemp)
+  
+  # Read the log file line by line
+  while IFS= read -r line; do
+    # Start capturing after "All available test cases:"
+    if [[ "$line" == *"All available test cases:"* ]]; then
+      in_test_section=1
+      continue
+    fi
+    
+    # Stop capturing when we reach the test case count line
+    if [[ $in_test_section -eq 1 && "$line" =~ [0-9]+[[:space:]]test[[:space:]]cases ]]; then
+      break
+    fi
+    
+    # Process lines in the test section
+    if [[ $in_test_section -eq 1 ]]; then
+      # Skip empty lines or lines with valgrind output
+      if [[ -z "$line" || "$line" =~ ^--[0-9]+ || "$line" =~ REDIR ]]; then
+        continue
+      fi
+      
+      # Test description lines start with two spaces and don't have brackets
+      if [[ "$line" =~ ^[[:space:]][[:space:]][^[:space:]\[] ]]; then
+        test_description=$(echo "$line" | sed -e 's/^[[:space:]]*//')
+      # Tag lines start with spaces and contain tags in brackets
+      elif [[ "$line" =~ ^[[:space:]]+\[([^\]]+)\] ]]; then
+        test_tag="${BASH_REMATCH[1]}"
+        # Output the test description and tag to the temp file
+        if [ -n "$test_description" ]; then
+          echo "$test_description|$test_tag" >> "$temp_file"
+        fi
+      fi
+    fi
+  done < "$log_file"
+  
+  # Output the contents of the temp file
+  cat "$temp_file"
+  
+  # Clean up
+  rm -f "$temp_file"
+}
+
+# Helper function to extract executed test cases from log file
+extract_executed_tests() {
+  local log_file="$1"
+  
+  # Create a temporary file to store the executed tags
+  local temp_file=$(mktemp)
+  
+  # Extract all filter tags from the log file
+  grep -o "Filters: \[[^]]*\]" "$log_file" | sed 's/Filters: \[\([^]]*\)\]/\1/' > "$temp_file"
+  
+  # For each tag, check if there are any passed or failed tests
+  while IFS= read -r tag; do
+    # Look for lines with passed/failed after the Filters line for this tag
+    if grep -A 100 "Filters: \[$tag\]" "$log_file" | grep -q "\.cpp:[0-9]\+: passed:\|\.cpp:[0-9]\+: failed:"; then
+      echo "$tag"
+    fi
+  done < "$temp_file"
+  
+  # Clean up
+  rm -f "$temp_file"
 }
 
 # Helper function to check for test failures in log file
@@ -477,6 +557,87 @@ check_valgrind_errors() {
   return $found_issues
 }
 
+# Helper function to display test execution table
+display_test_execution_table() {
+  local log_file="$1"
+  
+  echo "All available test cases:"
+  
+  # Get available tests
+  local available_tests=$(extract_available_tests "$log_file")
+  
+  # Get executed tests
+  local executed_tests=$(extract_executed_tests "$log_file")
+  
+  # If no available tests were found, show a message
+  if [ -z "$available_tests" ]; then
+    echo "  No test cases found in the log file."
+    return
+  fi
+  
+  # First pass: find the longest tag and description
+  local max_tag_len=0
+  local max_desc_len=0
+  
+  while IFS= read -r test_line; do
+    # Skip empty lines
+    if [ -z "$test_line" ]; then
+      continue
+    fi
+    
+    # Split the line by the pipe character
+    IFS='|' read -r test_name tag <<< "$test_line"
+    
+    # Calculate lengths
+    local tag_len=${#tag}
+    local desc_len=${#test_name}
+    
+    # Update max lengths if needed
+    if [ $tag_len -gt $max_tag_len ]; then
+      max_tag_len=$tag_len
+    fi
+    
+    if [ $desc_len -gt $max_desc_len ]; then
+      max_desc_len=$desc_len
+    fi
+  done <<< "$available_tests"
+  
+  # Add padding to the lengths
+  # For tag column: tag length + 3 (2 for brackets and 1 for space after)
+  tag_col_width=$((max_tag_len + 3))
+  
+  # For description column: description length + 1 (1 space after)
+  desc_col_width=$((max_desc_len + 1))
+  
+  # Calculate total width of first two columns
+  total_width=$((tag_col_width + desc_col_width))
+  
+  # Process each available test for display
+  while IFS= read -r test_line; do
+    # Skip empty lines
+    if [ -z "$test_line" ]; then
+      continue
+    fi
+    
+    # Split the line by the pipe character
+    IFS='|' read -r test_name tag <<< "$test_line"
+    
+    # Default to not executed
+    local executed="[Not Executed]"
+    
+    # Check if this tag was executed
+    while IFS= read -r executed_tag; do
+      if [ "$tag" = "$executed_tag" ]; then
+        executed="[Executed]"
+        break
+      fi
+    done <<< "$executed_tests"
+    
+    # Format the output to match the example in the task description
+    printf "  [%-${max_tag_len}s] %-${desc_col_width}s %s\n" "$tag" "$test_name" "$executed"
+  done <<< "$available_tests"
+}
+
 # Main function to check test logs for specific patterns
 cmd_check_test_log() {
   local log_file="$1"
@@ -513,6 +674,10 @@ cmd_check_test_log() {
   local check_result=0
   
   echo "Checking test log file: $log_file"
+  echo "----------------------------------------"
+  
+  # Display test execution table
+  display_test_execution_table "$log_file"
   echo "----------------------------------------"
   
   # Check for test failures
