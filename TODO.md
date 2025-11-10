@@ -23,4 +23,5 @@
 
 - Finish to add the license header to .cpp files
 - BUG: When no pass the --auto the script is not stop before continue
-- NEW FEATURE: Capture the output when the run test to .log file
+- NEW FEATURE: Capture the output when the run test to .log file in the helper.sh
+- NEW FEATURE: Capture the param --check-test-log in the helper.sh

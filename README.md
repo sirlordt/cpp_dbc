@@ -234,6 +234,18 @@ The project includes scripts for building and running tests:
 ./run_test.sh --debug-all  # Enable all debug output
 ```
 
+All test output is automatically logged to files in the `logs/test/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
+
+You can analyze test logs for failures and memory issues:
+
+```bash
+# Check the most recent test log file for failures and memory issues
+./helper.sh --check-test-log
+
+# Check a specific test log file
+./helper.sh --check-test-log=logs/test/output-20251109-152030.log
+```
+
 ### BLOB Support
 
 The library provides comprehensive support for Binary Large Object (BLOB) operations:

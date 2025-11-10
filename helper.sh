@@ -61,6 +61,8 @@ show_usage() {
   echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,yaml,test,examples,"
   echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all"
   echo "                           Example: --run-build-dist=clean,sqlite,yaml,test,debug-sqlite"
+  echo "  --check-test-log         Check the most recent test log file in logs/test/ for failures and memory issues"
+  echo "  --check-test-log=PATH    Check the specified test log file for failures and memory issues"
   echo "  --run-ctr [name]         Run container"
   echo "  --show-labels-ctr [name] Show labels with Image ID"
   echo "  --show-tags-ctr [name]   Show tags with Image ID"
@@ -370,6 +372,178 @@ cmd_run_test() {
   echo "Command runned: $run_test_cmd"
   echo "Log file: $log_file."
   
+}
+
+# Helper function to check for test failures in log file
+check_test_failures() {
+  local log_file="$1"
+  local found_issues=0
+  
+  echo "Checking for test failures..."
+  # Pattern to match actual test failures in Catch2 output
+  # We're looking for lines that match the Catch2 test failure pattern
+  # Typically these start with a file path and line number followed by "failed:"
+  failed_lines=$(grep -n "\.cpp:[0-9]\+: failed:" "$log_file")
+  
+  if [ -n "$failed_lines" ]; then
+    # Show the log file path and line number for each failure
+    while IFS= read -r line; do
+      line_num=$(echo "$line" | cut -d':' -f1)
+      echo "[failed:] => $log_file:$line_num"
+    done <<< "$failed_lines"
+    
+    found_issues=1
+  else
+    echo "No test failures found."
+  fi
+  
+  return $found_issues
+}
+
+# Helper function to check for memory leaks in log file
+check_memory_leaks() {
+  local log_file="$1"
+  local found_issues=0
+  
+  echo "Checking for memory leaks..."
+  # Look for LEAK SUMMARY lines from Valgrind
+  leak_lines=$(grep -n "LEAK SUMMARY:" "$log_file")
+  
+  if [ -n "$leak_lines" ]; then
+    leak_found=0
+    # For each LEAK SUMMARY line, check if it indicates actual leaks
+    while IFS= read -r line; do
+      line_num=$(echo "$line" | cut -d':' -f1)
+      # Get the next few lines after the LEAK SUMMARY to check for actual leak details
+      leak_context=$(tail -n +$line_num "$log_file" | head -n 5)
+      
+      # Check if there are any definite, possible, or indirect leaks
+      if echo "$leak_context" | grep -q "definitely lost\|indirectly lost\|possibly lost" && \
+         ! echo "$leak_context" | grep -q "definitely lost: 0 bytes\|indirectly lost: 0 bytes\|possibly lost: 0 bytes"; then
+        # Find the source file and line number from nearby context if possible
+        # For simplicity, we'll just use the log file and line number
+        echo "[LEAK SUMMARY:] => $log_file:$line_num"
+        found_issues=1
+        leak_found=1
+      fi
+    done <<< "$leak_lines"
+    
+    if [ $leak_found -eq 0 ]; then
+      echo "LEAK SUMMARY found but no actual memory leaks detected."
+    fi
+  else
+    echo "No memory leak summaries found."
+  fi
+  
+  return $found_issues
+}
+
+# Helper function to check for valgrind errors in log file
+check_valgrind_errors() {
+  local log_file="$1"
+  local found_issues=0
+  
+  echo "Checking for valgrind errors..."
+  # Extract error counts from ERROR SUMMARY lines
+  error_lines=$(grep -n "ERROR SUMMARY:" "$log_file")
+  
+  if [ -n "$error_lines" ]; then
+    found_error=0
+    while IFS= read -r line; do
+      line_num=$(echo "$line" | cut -d':' -f1)
+      error_text=$(echo "$line" | cut -d':' -f2-)
+      
+      # Extract error and context counts
+      if [[ "$error_text" =~ ([0-9]+)[[:space:]]+errors[[:space:]]+from[[:space:]]+([0-9]+)[[:space:]]+contexts ]]; then
+        errors="${BASH_REMATCH[1]}"
+        contexts="${BASH_REMATCH[2]}"
+        
+        # Only report if errors or contexts are greater than 0
+        if [ "$errors" -gt 0 ] || [ "$contexts" -gt 0 ]; then
+          echo "[ERROR SUMMARY: $errors errors from $contexts contexts] => $log_file:$line_num"
+          found_issues=1
+          found_error=1
+        fi
+      fi
+    done <<< "$error_lines"
+    
+    if [ $found_error -eq 0 ]; then
+      echo "ERROR SUMMARY found but no errors reported."
+    fi
+  else
+    echo "No valgrind error summaries found."
+  fi
+  
+  return $found_issues
+}
+
+# Main function to check test logs for specific patterns
+cmd_check_test_log() {
+  local log_file="$1"
+  local current_dir=$(pwd)
+  
+  # If no log file is specified, find the most recent one in logs/test/
+  if [ -z "$log_file" ]; then
+    # Ensure the test log directory exists
+    if [ ! -d "${current_dir}/logs/test" ]; then
+      echo "Error: Test log directory ${current_dir}/logs/test does not exist."
+      return 1
+    fi
+    
+    # Find the most recent log file by name (which includes timestamp)
+    # Sort by filename in reverse order to get the most recent timestamp first
+    log_file=$(find "${current_dir}/logs/test" -name "output-*.log" | sort -r | head -n1)
+    
+    if [ -z "$log_file" ]; then
+      echo "Error: No test log files found in ${current_dir}/logs/test/"
+      return 1
+    fi
+    
+    echo "Using most recent test log file: $log_file"
+  else
+    # Check if the specified log file exists
+    if [ ! -f "$log_file" ]; then
+      echo "Error: Specified log file '$log_file' does not exist."
+      return 1
+    fi
+  fi
+  
+  # Set found_issues flag to track if any issues were found
+  local found_issues=0
+  local check_result=0
+  
+  echo "Checking test log file: $log_file"
+  echo "----------------------------------------"
+  
+  # Check for test failures
+  check_test_failures "$log_file"
+  check_result=$?
+  if [ $check_result -eq 1 ]; then
+    found_issues=1
+  fi
+  echo "----------------------------------------"
+  
+  # Check for memory leaks
+  check_memory_leaks "$log_file"
+  check_result=$?
+  if [ $check_result -eq 1 ]; then
+    found_issues=1
+  fi
+  echo "----------------------------------------"
+  
+  # Check for valgrind errors
+  check_valgrind_errors "$log_file"
+  check_result=$?
+  if [ $check_result -eq 1 ]; then
+    found_issues=1
+  fi
+  
+  echo "----------------------------------------"
+  echo "Log check completed."
+  
+  # Return success regardless of whether issues were found
+  # The found_issues flag can be used in the future if needed
+  return 0
 }
 
 get_bin_name() {
@@ -776,6 +950,13 @@ while [ $i -lt ${#args[@]} ]; do
       # Equivalent to --run-test=sqlite,postgres,mysql,yaml,auto,run=1
       TEST_OPTIONS="sqlite,postgres,mysql,yaml,auto,run=1"
       cmd_run_test
+      ;;
+    --check-test-log=*)
+      log_file="${args[$i]#*=}"
+      cmd_check_test_log "$log_file" || exit_code=$?
+      ;;
+    --check-test-log)
+      cmd_check_test_log "" || exit_code=$?
       ;;
     *)
       echo "Unknown option: ${args[$i]}"

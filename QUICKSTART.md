@@ -128,6 +128,21 @@ All build output is now automatically logged to files in the `logs/build/` direc
 
 All test output is now automatically logged to files in the `logs/test/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
 
+### Test Log Analysis
+
+```bash
+# Check the most recent test log file for failures and memory issues
+./helper.sh --check-test-log
+
+# Check a specific test log file
+./helper.sh --check-test-log=logs/test/output-20251109-152030.log
+```
+
+The test log analysis feature checks for:
+- Test failures from Catch2 output
+- Memory leaks from Valgrind output
+- Valgrind errors from ERROR SUMMARY
+
 ### Container Operations
 
 ```bash

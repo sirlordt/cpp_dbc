@@ -116,6 +116,8 @@ Recent changes to the codebase include:
    - Improved test command construction with better parameter handling
    - Changed default AUTO_MODE to false in run_test.sh
    - Added logging to files for test output with automatic log rotation
+   - Added test log analysis functionality with `--check-test-log` option
+   - Implemented detection of test failures, memory leaks, and Valgrind errors
 
 4. **Valgrind Suppressions Removal**:
    - Removed valgrind-suppressions.txt file as it's no longer needed with improved PostgreSQL driver
@@ -242,6 +244,11 @@ Recent changes to the codebase include:
    - Added color support in terminal while keeping clean logs
    - Added unbuffer usage to preserve colors in terminal output
    - Added sed command to strip ANSI color codes from log files
+   - Added `--check-test-log` option to analyze test log files for failures and issues
+   - Added `--check-test-log=PATH` option to analyze a specific log file
+   - Implemented detection of test failures from Catch2 output
+   - Implemented detection of memory leaks from Valgrind output
+   - Implemented detection of Valgrind errors from ERROR SUMMARY
 
 3. **Enhanced Docker Container Build**:
    - Modified `build.dist.sh` to accept the same parameters as `build.sh`
