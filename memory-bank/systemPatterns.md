@@ -8,8 +8,9 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
 2. **Driver Layer**: Database-specific implementations of the interfaces in the `src/drivers/` directory
 3. **Connection Management Layer**: Connection pooling and transaction management in the `src/` directory
 4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/` directory and database-specific implementations in the `drivers/` directory
-5. **Configuration Layer**: Database configuration management in the `include/cpp_dbc/config/` and `src/config/` directories
-6. **Client Application Layer**: User code that interacts with the library
+5. **JSON Layer**: JSON data type support in database-specific implementations in the `drivers/` directory
+6. **Configuration Layer**: Database configuration management in the `include/cpp_dbc/config/` and `src/config/` directories
+7. **Client Application Layer**: User code that interacts with the library
 
 The architecture follows this flow:
 ```
@@ -17,6 +18,7 @@ Client Application → DriverManager → Driver → Connection → PreparedState
                    → ConnectionPool → PooledConnection → Connection
                    → TransactionManager → Connection
                    → Blob → InputStream/OutputStream
+                   → JSON Operations → Database-specific JSON functions
                    → DatabaseConfigManager → DatabaseConfig → Connection
 ```
 
@@ -101,6 +103,15 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 - Database-specific BLOB implementations for each supported database
 - Streaming support for efficient handling of large binary data
 
+### JSON Management
+- Database-specific JSON implementations for MySQL and PostgreSQL
+- Support for JSON data types in both databases
+- Comprehensive query capabilities for JSON data:
+  - MySQL: JSON_EXTRACT, JSON_SEARCH, JSON_CONTAINS, JSON_ARRAYAGG
+  - PostgreSQL: JSON operators (@>, <@, ?, ?|, ?&), jsonb_set, jsonb_insert
+- Support for indexing JSON fields for performance optimization
+- JSON validation functions for data integrity
+
 ## Component Relationships
 
 ### Driver Components
@@ -142,7 +153,7 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 2. Client creates a `PreparedStatement` with SQL
 3. Client sets parameters on the `PreparedStatement` (including BLOB data if needed)
 4. Client executes the `PreparedStatement` and gets a `ResultSet`
-5. Client processes the `ResultSet` (including retrieving BLOB data if needed)
+5. Client processes the `ResultSet` (including retrieving BLOB or JSON data if needed)
 6. Resources are cleaned up (automatically with smart pointers)
 
 ### Connection Pooling Flow
@@ -168,6 +179,14 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 3. Client can create a new BLOB using `MemoryBlob` or database-specific BLOB implementations
 4. Client sets the BLOB on a `PreparedStatement` using `setBlob()`, `setBinaryStream()`, or `setBytes()`
 5. Client executes the `PreparedStatement` to store the BLOB in the database
+
+### JSON Operation Flow
+1. Client creates a JSON string using standard JSON formatting
+2. Client sets the JSON string on a `PreparedStatement` using `setString()`
+3. Client executes the `PreparedStatement` to store the JSON in the database
+4. Client retrieves JSON data from a `ResultSet` using `getString()`
+5. Client can use database-specific JSON functions and operators in SQL queries
+6. Client processes the JSON data using standard JSON parsing techniques
 
 ### Configuration Flow
 1. Client loads configuration from a YAML file using `YamlConfigLoader`

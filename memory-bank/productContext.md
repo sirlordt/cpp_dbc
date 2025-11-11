@@ -20,6 +20,7 @@ CPP_DBC solves these problems by providing:
 4. **Transaction Management**: Simplified transaction handling across threads with JDBC-compatible isolation levels
 5. **Prepared Statements**: Support for parameterized queries to prevent SQL injection
 6. **BLOB Support**: Comprehensive handling of Binary Large Objects across all database drivers
+7. **JSON Support**: Native handling of JSON data types in MySQL and PostgreSQL
 
 ## Target Users
 
@@ -36,6 +37,7 @@ CPP_DBC solves these problems by providing:
 4. **Concurrent Data Access**: Applications requiring fine-grained control over transaction isolation levels
 5. **Security-Critical Applications**: Systems that need protection against SQL injection through prepared statements
 6. **Media-Rich Applications**: Systems that need to store and retrieve binary data like images, documents, or other files
+7. **Data-Intensive Applications**: Systems that work with complex, hierarchical data structures using JSON
 
 ## Comparison with Alternatives
 
@@ -45,7 +47,8 @@ Unlike other C++ database libraries, CPP_DBC:
 2. **Provides Built-in Connection Pooling**: Many libraries require separate connection pool implementations
 3. **Includes Transaction Management**: Simplifies complex transaction scenarios
 4. **Offers Comprehensive BLOB Support**: Unified API for binary data across all database systems
-5. **Maintains Lightweight Design**: Minimal dependencies beyond the database client libraries
+5. **Provides Native JSON Support**: Unified interface for working with JSON data types
+6. **Maintains Lightweight Design**: Minimal dependencies beyond the database client libraries
 
 ## Design Philosophy
 

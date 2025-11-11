@@ -79,7 +79,7 @@ The project is configured to work with the CMakeTools extension, but does not re
 ## Technical Constraints
 
 ### Database Support
-- Currently limited to MySQL and PostgreSQL
+- Currently supports MySQL, PostgreSQL, and SQLite
 - Adding support for other databases requires implementing new driver classes
 
 ### Thread Safety
@@ -150,6 +150,7 @@ The project is configured to work with the CMakeTools extension, but does not re
 - Direct query execution should be limited to simple, non-parameterized queries
 - Result sets should be processed in a timely manner to avoid resource leaks
 - BLOB data should be handled using the provided BLOB interfaces for consistency
+- JSON data should be handled using the database-specific JSON functions and operators
 
 ### BLOB Handling
 - Use the Blob interface for working with binary data
@@ -157,6 +158,15 @@ The project is configured to work with the CMakeTools extension, but does not re
 - Use getBlob(), getBinaryStream(), and getBytes() methods for retrieving BLOB data
 - Use setBlob(), setBinaryStream(), and setBytes() methods for storing BLOB data
 - Consider memory usage when working with large BLOBs
+
+### JSON Handling
+- Use the appropriate JSON functions and operators for each database:
+  - MySQL: JSON_EXTRACT, JSON_SEARCH, JSON_CONTAINS, JSON_ARRAYAGG
+  - PostgreSQL: JSON operators (@>, <@, ?, ?|, ?&), jsonb_set, jsonb_insert
+- Use prepared statements with JSON parameters for safe JSON data manipulation
+- Consider indexing JSON fields for performance in query-intensive applications
+- Be aware of database-specific JSON syntax differences
+- Use JSON validation functions to ensure data integrity
 
 ### Error Handling
 - SQLException should be caught and handled appropriately

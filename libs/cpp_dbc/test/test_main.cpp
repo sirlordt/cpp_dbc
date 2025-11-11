@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -29,6 +29,105 @@
 #include <fstream>
 #include <random>
 #include <cstring>
+#include <sstream>
+#include <iomanip>
+
+// Helper function to generate random JSON data
+std::string generateRandomJson(int depth = 3, int maxItems = 5)
+{
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_int_distribution<> itemDist(1, maxItems);
+    static std::uniform_int_distribution<> typeDist(0, 5);
+    static std::uniform_int_distribution<> intDist(-1000, 1000);
+    static std::uniform_real_distribution<> floatDist(-1000.0, 1000.0);
+    static const std::string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    static std::uniform_int_distribution<> charDist(0, chars.size() - 1);
+
+    if (depth <= 0)
+    {
+        // Generate a leaf value
+        int type = typeDist(gen);
+        switch (type)
+        {
+        case 0:
+            return "null";
+        case 1:
+            return std::to_string(intDist(gen));
+        case 2:
+        {
+            std::stringstream ss;
+            ss << std::fixed << std::setprecision(2) << floatDist(gen);
+            return ss.str();
+        }
+        case 3:
+            return "true";
+        case 4:
+            return "false";
+        default:
+        {
+            // Generate a random string
+            int length = itemDist(gen) + 2;
+            std::string s = "\"";
+            for (int i = 0; i < length; i++)
+            {
+                s += chars[charDist(gen)];
+            }
+            s += "\"";
+            return s;
+        }
+        }
+    }
+
+    // Decide between object and array
+    bool isObject = (typeDist(gen) % 2 == 0);
+
+    std::stringstream json;
+    if (isObject)
+    {
+        json << "{";
+        int items = itemDist(gen);
+        for (int i = 0; i < items; i++)
+        {
+            if (i > 0)
+                json << ",";
+            // Generate a key
+            json << "\"key" << i << "\":";
+            // Generate a value or nested structure
+            if (typeDist(gen) % 3 == 0 && depth > 1)
+            {
+                json << generateRandomJson(depth - 1, maxItems);
+            }
+            else
+            {
+                json << generateRandomJson(0, maxItems);
+            }
+        }
+        json << "}";
+    }
+    else
+    {
+        json << "[";
+        int items = itemDist(gen);
+        for (int i = 0; i < items; i++)
+        {
+            if (i > 0)
+                json << ",";
+            // Generate a value or nested structure
+            if (typeDist(gen) % 3 == 0 && depth > 1)
+            {
+                json << generateRandomJson(depth - 1, maxItems);
+            }
+            else
+            {
+                json << generateRandomJson(0, maxItems);
+            }
+        }
+        json << "]";
+    }
+
+    return json.str();
+}
 
 std::string getExecutablePathAndName()
 {

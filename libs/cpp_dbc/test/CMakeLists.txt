@@ -58,6 +58,8 @@ add_executable(cpp_dbc_tests
     test_postgresql_real_right_join.cpp
     test_postgresql_real_full_join.cpp
     test_postgresql_real_blob.cpp
+    test_postgresql_real_json.cpp
+    test_mysql_real_json.cpp
     test_sqlite_real.cpp
     test_sqlite_real_inner_join.cpp
     test_sqlite_real_left_join.cpp

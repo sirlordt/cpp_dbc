@@ -2,7 +2,6 @@
 
 ## Pending Tasks
 
-- NEW FEATURE: Add specific testing of json field types.
 - NEW FEATURE: Add more examples.
 - NEW FEATURE: Create a generic function fo capture the callstack java like
 - NEW FEATURE: Extend DBException to make more robust add Tag and not concatenated to message
@@ -25,3 +24,4 @@
 - BUG: When no pass the --auto the script is not stop before continue
 - NEW FEATURE: Capture the output when the run test to .log file in the helper.sh
 - NEW FEATURE: Capture the param --check-test-log in the helper.sh
+- NEW FEATURE: Add specific testing of json field types.

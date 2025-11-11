@@ -1,6 +1,29 @@
 # Changelog
 
-## 2025-11-10 00:03:00 AM -0800 [Current]
+## 2025-11-11 03:45:00 PM -0800 [Current]
+
+### JSON Data Type Support
+* Added comprehensive support for JSON data types in MySQL and PostgreSQL:
+  * Added test files for JSON operations:
+    * `test_mysql_real_json.cpp` for MySQL JSON testing
+    * `test_postgresql_real_json.cpp` for PostgreSQL JSON and JSONB testing
+  * Added helper function `generateRandomJson()` in test_main.cpp for generating test JSON data
+  * Implemented tests for various JSON operations:
+    * Basic JSON storage and retrieval
+    * JSON path expressions and operators
+    * JSON search and filtering
+    * JSON modification and transformation
+    * JSON validation and error handling
+    * JSON indexing and performance testing
+    * JSON aggregation functions
+  * Added support for database-specific JSON features:
+    * MySQL: JSON_EXTRACT, JSON_SEARCH, JSON_CONTAINS, JSON_ARRAYAGG
+    * PostgreSQL: JSON operators (@>, <@, ?, ?|, ?&), jsonb_set, jsonb_insert, GIN indexing
+  * Made `close()` method virtual in PostgreSQLResultSet for better inheritance support
+  * Updated CMakeLists.txt to include the new JSON test files
+  * Updated TODO.md to move "Add specific testing of json field types" to Completed Tasks
+
+## 2025-11-10 00:03:00 AM -0800
 
 ### Test Log Analysis Feature
 * Added test log analysis functionality to helper.sh:

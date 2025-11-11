@@ -110,6 +110,9 @@ All build output is now automatically logged to files in the `logs/build/` direc
 # Run multiple specific tests by tag
 ./helper.sh --run-test=test=sqlite_real_inner_join+sqlite_real_left_join
 
+# Run JSON-specific tests
+./helper.sh --run-test=test=mysql_real_json+postgresql_real_json
+
 # Run tests with debug output for ConnectionPool
 ./helper.sh --run-test=debug-pool
 
@@ -213,6 +216,9 @@ The test log analysis feature checks for:
 ```bash
 # Debug SQLite JOIN operations with debug output
 ./helper.sh --run-test=rebuild,mysql,sqlite,postgres,test=sqlite_real_inner_join+sqlite_real_left_join,debug-sqlite
+
+# Test JSON functionality in MySQL and PostgreSQL
+./helper.sh --run-test=rebuild,mysql,postgres,test=mysql_real_json+postgresql_real_json
 ```
 
 ### Production Build

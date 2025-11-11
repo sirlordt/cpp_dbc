@@ -75,7 +75,7 @@ namespace cpp_dbc
 
             std::vector<std::string> getColumnNames() override;
             int getColumnCount() override;
-            void close() override;
+            virtual void close() override;
 
             // BLOB support methods
             std::shared_ptr<Blob> getBlob(int columnIndex) override;

@@ -14,6 +14,7 @@ The CPP_DBC library appears to be in a functional state with the following compo
 8. **BLOB Support**: Complete implementation of Binary Large Object (BLOB) support for all database drivers
 9. **Logging System**: Structured logging system with dedicated log directories and automatic rotation
 10. **VSCode Integration**: Complete VSCode configuration with build tasks and extension management
+11. **JSON Support**: Complete implementation of JSON data type support for MySQL and PostgreSQL
 
 The project includes example code demonstrating:
 - Basic database operations
@@ -40,6 +41,7 @@ The project includes example code demonstrating:
 - Transaction management
 - Connection options for database-specific settings
 - BLOB data handling with MySQLBlob implementation
+- JSON data type support with comprehensive query capabilities
 
 ### PostgreSQL Support
 - Connection to PostgreSQL databases
@@ -48,6 +50,7 @@ The project includes example code demonstrating:
 - Transaction management
 - Configurable connection options (gssencmode, client_encoding, etc.)
 - BLOB data handling with PostgreSQLBlob implementation
+- JSON and JSONB data type support with comprehensive query capabilities
 
 ### Connection Pooling
 - Dynamic connection creation and management
@@ -151,8 +154,28 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Enhance debug output options for other components
 
 ## Known Issues
-
 ### Recent Improvements
+
+1. **JSON Data Type Support**:
+   - Added comprehensive support for JSON data types in MySQL and PostgreSQL
+   - Added test files for JSON operations:
+     - `test_mysql_real_json.cpp` for MySQL JSON testing
+     - `test_postgresql_real_json.cpp` for PostgreSQL JSON and JSONB testing
+   - Added helper function `generateRandomJson()` in test_main.cpp for generating test JSON data
+   - Implemented tests for various JSON operations:
+     - Basic JSON storage and retrieval
+     - JSON path expressions and operators
+     - JSON search and filtering
+     - JSON modification and transformation
+     - JSON validation and error handling
+     - JSON indexing and performance testing
+     - JSON aggregation functions
+   - Added support for database-specific JSON features:
+     - MySQL: JSON_EXTRACT, JSON_SEARCH, JSON_CONTAINS, JSON_ARRAYAGG
+     - PostgreSQL: JSON operators (@>, <@, ?, ?|, ?&), jsonb_set, jsonb_insert, GIN indexing
+   - Made `close()` method virtual in PostgreSQLResultSet for better inheritance support
+   - Updated CMakeLists.txt to include the new JSON test files
+
 
 1. **Logging System Improvements**:
    - Added structured logging system with dedicated log directories:

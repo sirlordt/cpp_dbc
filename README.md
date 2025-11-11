@@ -30,6 +30,7 @@ This project provides a C++ Database Connectivity library inspired by JDBC, with
 - **Modern C++ Design**: Uses C++23 features and RAII principles
 - **YAML Configuration**: Optional support for loading database configurations from YAML files
 - **BLOB Support**: Complete implementation of Binary Large Object (BLOB) support for all database drivers, including image file storage and retrieval
+- **JSON Support**: Native handling of JSON data types in MySQL and PostgreSQL with comprehensive query capabilities
 
 ## Database Support
 
@@ -265,6 +266,28 @@ The library provides comprehensive support for Binary Large Object (BLOB) operat
    - Support for storing and retrieving image files
    - Integrity verification for binary data
    - Comprehensive test cases with test.jpg file
+
+### JSON Support
+
+The library provides comprehensive support for JSON data types:
+
+1. **MySQL JSON Support**:
+   - Support for the JSON data type
+   - JSON functions: JSON_EXTRACT, JSON_SEARCH, JSON_CONTAINS, JSON_ARRAYAGG
+   - JSON indexing for performance optimization
+   - JSON validation and error handling
+
+2. **PostgreSQL JSON Support**:
+   - Support for both JSON and JSONB data types
+   - JSON operators: @>, <@, ?, ?|, ?&
+   - JSON modification functions: jsonb_set, jsonb_insert
+   - GIN indexing for JSONB fields
+   - JSON path expressions and transformations
+
+3. **Testing**:
+   - Comprehensive test cases in test_mysql_real_json.cpp and test_postgresql_real_json.cpp
+   - Random JSON data generation for performance testing
+   - Tests for various JSON operations, validation, and error handling
 
 ### Memory Leak Prevention
 
