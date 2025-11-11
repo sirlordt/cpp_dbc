@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -43,7 +43,7 @@ namespace cpp_dbc
         std::chrono::steady_clock::time_point creationTime;
         std::chrono::steady_clock::time_point lastAccessTime;
         std::string transactionId;
-        bool active;
+        bool active{false};
 
         TransactionContext(std::shared_ptr<Connection> conn, std::string id)
             : connection(conn),
@@ -63,7 +63,7 @@ namespace cpp_dbc
         std::map<std::string, std::shared_ptr<TransactionContext>> activeTransactions;
         std::mutex transactionMutex;
         std::thread cleanupThread;
-        std::atomic<bool> running;
+        std::atomic<bool> running{true};
         std::condition_variable cleanupCondition;
         std::mutex cleanupMutex;
 
@@ -73,7 +73,7 @@ namespace cpp_dbc
 
         // Helper methods
         void cleanupTask();
-        std::string generateUUID();
+        std::string generateUUID() const;
 
     public:
         TransactionManager(ConnectionPool &connectionPool);

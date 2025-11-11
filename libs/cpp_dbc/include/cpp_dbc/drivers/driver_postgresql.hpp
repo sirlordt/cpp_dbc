@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -39,10 +39,10 @@ namespace cpp_dbc
         class PostgreSQLResultSet : public ResultSet
         {
         private:
-            PGresult *result;
-            int rowPosition;
-            int rowCount;
-            int fieldCount;
+            PGresult *result{nullptr};
+            int rowPosition{0};
+            int rowCount{0};
+            int fieldCount{0};
             std::vector<std::string> columnNames;
             std::map<std::string, int> columnMap;
 
@@ -110,7 +110,7 @@ namespace cpp_dbc
             void notifyConnClosing();
 
             // Helper method to process SQL and count parameters
-            int processSQL(std::string &sqlQuery);
+            int processSQL(std::string &sqlQuery) const;
 
         public:
             PostgreSQLPreparedStatement(PGconn *conn, const std::string &sql, const std::string &stmt_name);

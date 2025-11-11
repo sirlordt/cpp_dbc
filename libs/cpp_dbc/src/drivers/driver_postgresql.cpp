@@ -1,5 +1,5 @@
 /*
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -28,13 +28,18 @@
 #include <cctype>
 #include <iomanip>
 
+#if defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
+#include <format>
+#define USE_STD_FORMAT
+#endif
+
 namespace cpp_dbc
 {
     namespace PostgreSQL
     {
 
         // PostgreSQLResultSet implementation
-        PostgreSQLResultSet::PostgreSQLResultSet(PGresult *res) : result(res), rowPosition(0)
+        PostgreSQLResultSet::PostgreSQLResultSet(PGresult *res) : result(res)
         {
             if (result)
             {
@@ -293,7 +298,7 @@ namespace cpp_dbc
 
         // PostgreSQLPreparedStatement implementation
         // Helper method to process SQL and count parameters
-        int PostgreSQLPreparedStatement::processSQL(std::string &sqlQuery)
+        int PostgreSQLPreparedStatement::processSQL(std::string &sqlQuery) const
         {
             // Count parameters (using $1, $2, etc. or ? placeholders)
             int paramCount = 0;
@@ -339,7 +344,11 @@ namespace cpp_dbc
                     while ((pos = sqlQuery.find("?", lastPos)) != std::string::npos)
                     {
                         newSql.append(sqlQuery, lastPos, pos - lastPos);
+#ifdef USE_STD_FORMAT
+                        newSql.append(std::format("${}", paramIdx++)); // C++20 required
+#else
                         newSql.append("$" + std::to_string(paramIdx++));
+#endif
                         lastPos = pos + 1;
                     }
 

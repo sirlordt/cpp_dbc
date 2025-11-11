@@ -1,5 +1,5 @@
 /*
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -34,7 +34,7 @@ namespace cpp_dbc
 {
 
     TransactionManager::TransactionManager(ConnectionPool &connectionPool)
-        : pool(connectionPool), running(true)
+        : pool(connectionPool) //, running(true)
     {
 
         // Start the cleanup thread
@@ -46,7 +46,15 @@ namespace cpp_dbc
         TM_DEBUG("TransactionManager::~TransactionManager - Starting destructor at "
                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
-        close();
+        try
+        {
+            close();
+        }
+        catch (const std::exception &e)
+        {
+            TM_DEBUG(e.what() << " at "
+                              << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+        }
 
         TM_DEBUG("TransactionManager::~TransactionManager - Destructor completed at "
                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
@@ -133,9 +141,10 @@ namespace cpp_dbc
                     transContext->connection->returnToPool();
                 }
             }
-            catch (...)
+            catch (const std::exception &e)
             {
-                // Ignore errors during cleanup
+                TM_DEBUG(e.what() << " at "
+                                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
             }
             throw; // Re-throw the original exception
         }
@@ -183,9 +192,10 @@ namespace cpp_dbc
                     transContext->connection->returnToPool();
                 }
             }
-            catch (...)
+            catch (std::exception &e)
             {
-                // Ignore errors during cleanup
+                TM_DEBUG(e.what() << " at "
+                                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
             }
             throw; // Re-throw the original exception
         }
@@ -225,9 +235,10 @@ namespace cpp_dbc
             {
                 rollbackTransaction(expiredTransactionId);
             }
-            catch (...)
+            catch (const std::exception &e)
             {
-                // Ignore errors during cleanup
+                TM_DEBUG(e.what() << " at "
+                                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
             }
             return false;
         }
@@ -289,15 +300,16 @@ namespace cpp_dbc
                 {
                     rollbackTransaction(transId);
                 }
-                catch (...)
+                catch (const std::exception &e)
                 {
-                    // Log or handle the error, but continue with other transactions
+                    TM_DEBUG(e.what() << " at "
+                                      << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
                 }
             }
         }
     }
 
-    std::string TransactionManager::generateUUID()
+    std::string TransactionManager::generateUUID() const
     {
         // Simple UUID generation using random numbers
         // In a production environment, consider using a proper UUID library
