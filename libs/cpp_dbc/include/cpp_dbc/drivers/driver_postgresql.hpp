@@ -100,8 +100,8 @@ namespace cpp_dbc
             std::vector<int> paramLengths;
             std::vector<int> paramFormats;
             std::vector<Oid> paramTypes;
-            bool prepared;
-            int statementCounter;
+            bool prepared{false};
+            int statementCounter{0};
             std::vector<std::vector<uint8_t>> blobValues;            // To keep blob values alive
             std::vector<std::shared_ptr<Blob>> blobObjects;          // To keep blob objects alive
             std::vector<std::shared_ptr<InputStream>> streamObjects; // To keep stream objects alive

@@ -63,7 +63,7 @@ namespace cpp_dbc
 
         PostgreSQLResultSet::~PostgreSQLResultSet()
         {
-            close();
+            this->close();
         }
 
         bool PostgreSQLResultSet::next()
@@ -367,7 +367,7 @@ namespace cpp_dbc
         }
 
         PostgreSQLPreparedStatement::PostgreSQLPreparedStatement(PGconn *conn_handle, const std::string &sql_stmt, const std::string &stmt_name)
-            : conn(conn_handle), sql(sql_stmt), prepared(false), statementCounter(0), stmtName(stmt_name)
+            : conn(conn_handle), sql(sql_stmt), stmtName(stmt_name)
         {
             if (!conn)
             {
