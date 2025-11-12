@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -91,14 +91,15 @@ int main(int argc, char *argv[])
     }
 
     std::cout << "\n=== Example 1: Creating a connection directly from DatabaseConfig ===" << std::endl;
-    const auto *dbConfig = configManager.getDatabaseByName("dev_mysql");
-    if (dbConfig)
+    auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+    if (dbConfigOpt)
     {
         try
         {
             // Method 1: Create a connection directly from DatabaseConfig
             std::cout << "Creating connection using DatabaseConfig::createConnection()" << std::endl;
-            auto conn = dbConfig->createConnection();
+            const auto &dbConfig = dbConfigOpt->get();
+            auto conn = dbConfig.createConnection();
             std::cout << "Connection created successfully" << std::endl;
 
             // Use the connection
@@ -117,13 +118,14 @@ int main(int argc, char *argv[])
     }
 
     std::cout << "\n=== Example 2: Creating a connection from DriverManager with DatabaseConfig ===" << std::endl;
-    if (dbConfig)
+    if (dbConfigOpt)
     {
         try
         {
             // Method 2: Create a connection from DriverManager with DatabaseConfig
             std::cout << "Creating connection using DriverManager::getConnection(dbConfig)" << std::endl;
-            auto conn = cpp_dbc::DriverManager::getConnection(*dbConfig);
+            const auto &dbConfig = dbConfigOpt->get();
+            auto conn = cpp_dbc::DriverManager::getConnection(dbConfig);
             std::cout << "Connection created successfully" << std::endl;
 
             // Close the connection

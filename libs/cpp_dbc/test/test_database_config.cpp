@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -310,18 +310,20 @@ TEST_CASE("DatabaseConfigManager tests", "[database_config]")
         REQUIRE(nonExistentDatabases.empty());
 
         // Check getDatabaseByName
-        auto mysqlDbPtr = manager.getDatabaseByName("mysql_db");
-        REQUIRE(mysqlDbPtr != nullptr);
-        REQUIRE(mysqlDbPtr->getName() == "mysql_db");
-        REQUIRE(mysqlDbPtr->getType() == "mysql");
+        auto mysqlDbOpt = manager.getDatabaseByName("mysql_db");
+        REQUIRE(mysqlDbOpt.has_value());
+        const auto &mysqlDb = mysqlDbOpt->get();
+        REQUIRE(mysqlDb.getName() == "mysql_db");
+        REQUIRE(mysqlDb.getType() == "mysql");
 
-        auto pgDbPtr = manager.getDatabaseByName("pg_db");
-        REQUIRE(pgDbPtr != nullptr);
-        REQUIRE(pgDbPtr->getName() == "pg_db");
-        REQUIRE(pgDbPtr->getType() == "postgresql");
+        auto pgDbOpt = manager.getDatabaseByName("pg_db");
+        REQUIRE(pgDbOpt.has_value());
+        const auto &pgDb = pgDbOpt->get();
+        REQUIRE(pgDb.getName() == "pg_db");
+        REQUIRE(pgDb.getType() == "postgresql");
 
-        auto nonExistentDbPtr = manager.getDatabaseByName("non_existent");
-        REQUIRE(nonExistentDbPtr == nullptr);
+        auto nonExistentDbOpt = manager.getDatabaseByName("non_existent");
+        REQUIRE_FALSE(nonExistentDbOpt.has_value());
     }
 
     SECTION("Add and retrieve connection pool configurations")
@@ -329,40 +331,43 @@ TEST_CASE("DatabaseConfigManager tests", "[database_config]")
         cpp_dbc::config::DatabaseConfigManager manager;
 
         // Create some connection pool configurations
-        cpp_dbc::config::ConnectionPoolConfig defaultPool;
-        defaultPool.setName("default");
-        defaultPool.setInitialSize(5);
-        defaultPool.setMaxSize(10);
+        cpp_dbc::config::ConnectionPoolConfig defaultPoolConfig;
+        defaultPoolConfig.setName("default");
+        defaultPoolConfig.setInitialSize(5);
+        defaultPoolConfig.setMaxSize(10);
 
-        cpp_dbc::config::ConnectionPoolConfig highPerfPool;
-        highPerfPool.setName("high_performance");
-        highPerfPool.setInitialSize(10);
-        highPerfPool.setMaxSize(50);
+        cpp_dbc::config::ConnectionPoolConfig highPerfPoolConfig;
+        highPerfPoolConfig.setName("high_performance");
+        highPerfPoolConfig.setInitialSize(10);
+        highPerfPoolConfig.setMaxSize(50);
 
         // Add the configurations to the manager
-        manager.addConnectionPoolConfig(defaultPool);
-        manager.addConnectionPoolConfig(highPerfPool);
+        manager.addConnectionPoolConfig(defaultPoolConfig);
+        manager.addConnectionPoolConfig(highPerfPoolConfig);
 
         // Check getConnectionPoolConfig
-        auto defaultPoolPtr = manager.getConnectionPoolConfig("default");
-        REQUIRE(defaultPoolPtr != nullptr);
-        REQUIRE(defaultPoolPtr->getName() == "default");
-        REQUIRE(defaultPoolPtr->getInitialSize() == 5);
-        REQUIRE(defaultPoolPtr->getMaxSize() == 10);
+        auto defaultPoolOpt = manager.getConnectionPoolConfig("default");
+        REQUIRE(defaultPoolOpt.has_value());
+        const auto &defaultPool = defaultPoolOpt->get();
+        REQUIRE(defaultPool.getName() == "default");
+        REQUIRE(defaultPool.getInitialSize() == 5);
+        REQUIRE(defaultPool.getMaxSize() == 10);
 
-        auto highPerfPoolPtr = manager.getConnectionPoolConfig("high_performance");
-        REQUIRE(highPerfPoolPtr != nullptr);
-        REQUIRE(highPerfPoolPtr->getName() == "high_performance");
-        REQUIRE(highPerfPoolPtr->getInitialSize() == 10);
-        REQUIRE(highPerfPoolPtr->getMaxSize() == 50);
+        auto highPerfPoolOpt = manager.getConnectionPoolConfig("high_performance");
+        REQUIRE(highPerfPoolOpt.has_value());
+        const auto &highPerfPool = highPerfPoolOpt->get();
+        REQUIRE(highPerfPool.getName() == "high_performance");
+        REQUIRE(highPerfPool.getInitialSize() == 10);
+        REQUIRE(highPerfPool.getMaxSize() == 50);
 
-        auto nonExistentPoolPtr = manager.getConnectionPoolConfig("non_existent");
-        REQUIRE(nonExistentPoolPtr == nullptr);
+        auto nonExistentPoolOpt = manager.getConnectionPoolConfig("non_existent");
+        REQUIRE_FALSE(nonExistentPoolOpt.has_value());
 
         // Check default parameter
-        auto defaultPoolPtr2 = manager.getConnectionPoolConfig();
-        REQUIRE(defaultPoolPtr2 != nullptr);
-        REQUIRE(defaultPoolPtr2->getName() == "default");
+        auto defaultPoolOpt2 = manager.getConnectionPoolConfig();
+        REQUIRE(defaultPoolOpt2.has_value());
+        const auto &defaultPool2 = defaultPoolOpt2->get();
+        REQUIRE(defaultPool2.getName() == "default");
     }
 
     SECTION("Set and get test queries")

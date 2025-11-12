@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -125,15 +125,16 @@ void printConnectionPoolConfigs(const cpp_dbc::config::DatabaseConfigManager &co
     std::cout << "Connection Pool Configurations:" << std::endl;
     std::cout << "==============================" << std::endl;
 
-    const auto *poolConfig = configManager.getConnectionPoolConfig("default");
-    if (poolConfig)
+    auto poolConfigOpt = configManager.getConnectionPoolConfig("default");
+    if (poolConfigOpt)
     {
-        std::cout << "Name: " << poolConfig->getName() << std::endl;
-        std::cout << "Initial Size: " << poolConfig->getInitialSize() << std::endl;
-        std::cout << "Max Size: " << poolConfig->getMaxSize() << std::endl;
-        std::cout << "Connection Timeout: " << poolConfig->getConnectionTimeout() << " ms" << std::endl;
-        std::cout << "Idle Timeout: " << poolConfig->getIdleTimeout() << " ms" << std::endl;
-        std::cout << "Validation Interval: " << poolConfig->getValidationInterval() << " ms" << std::endl;
+        const auto &poolConfig = poolConfigOpt->get();
+        std::cout << "Name: " << poolConfig.getName() << std::endl;
+        std::cout << "Initial Size: " << poolConfig.getInitialSize() << std::endl;
+        std::cout << "Max Size: " << poolConfig.getMaxSize() << std::endl;
+        std::cout << "Connection Timeout: " << poolConfig.getConnectionTimeout() << " ms" << std::endl;
+        std::cout << "Idle Timeout: " << poolConfig.getIdleTimeout() << " ms" << std::endl;
+        std::cout << "Validation Interval: " << poolConfig.getValidationInterval() << " ms" << std::endl;
         std::cout << std::endl;
     }
 }
@@ -207,20 +208,21 @@ int main(int argc, char *argv[])
     std::cout << "Example of using the configuration to create a connection:" << std::endl;
     std::cout << "=======================================================" << std::endl;
 
-    const auto *dbConfig = configManager.getDatabaseByName("dev_mysql");
-    if (dbConfig)
+    auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+    if (dbConfigOpt)
     {
+        const auto &dbConfig = dbConfigOpt->get();
         std::cout << "Creating connection to MySQL database:" << std::endl;
-        std::cout << "Connection String: " << dbConfig->createConnectionString() << std::endl;
-        std::cout << "Username: " << dbConfig->getUsername() << std::endl;
-        std::cout << "Password: " << dbConfig->getPassword() << std::endl;
+        std::cout << "Connection String: " << dbConfig.createConnectionString() << std::endl;
+        std::cout << "Username: " << dbConfig.getUsername() << std::endl;
+        std::cout << "Password: " << dbConfig.getPassword() << std::endl;
 
         // In a real application, you would use the connection string to create a connection
         // For example:
         // auto conn = cpp_dbc::DriverManager::getConnection(
-        //     dbConfig->createConnectionString(),
-        //     dbConfig->getUsername(),
-        //     dbConfig->getPassword()
+        //     dbConfig.createConnectionString(),
+        //     dbConfig.getUsername(),
+        //     dbConfig.getPassword()
         // );
     }
 

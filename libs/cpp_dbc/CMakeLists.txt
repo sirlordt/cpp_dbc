@@ -205,4 +205,32 @@ if(CPP_DBC_BUILD_EXAMPLES)
     # Configuration integration example
     add_executable(config_integration_example examples/config_integration_example.cpp)
     target_link_libraries(config_integration_example PRIVATE cpp_dbc)
+
+    # JSON operations example
+    add_executable(json_operations_example examples/json_operations_example.cpp)
+    target_link_libraries(json_operations_example PRIVATE cpp_dbc)
+
+    # BLOB operations example
+    add_executable(blob_operations_example examples/blob_operations_example.cpp)
+    target_link_libraries(blob_operations_example PRIVATE cpp_dbc)
+
+    # JOIN operations example
+    add_executable(join_operations_example examples/join_operations_example.cpp)
+    target_link_libraries(join_operations_example PRIVATE cpp_dbc)
+
+    # Batch operations example
+    add_executable(batch_operations_example examples/batch_operations_example.cpp)
+    target_link_libraries(batch_operations_example PRIVATE cpp_dbc)
+
+    # Error handling example
+    add_executable(error_handling_example examples/error_handling_example.cpp)
+    target_link_libraries(error_handling_example PRIVATE cpp_dbc)
+
+    # Copy necessary files for examples
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/examples/example_config.yml
+        ${CMAKE_CURRENT_BINARY_DIR}/example_config.yml COPYONLY)
+
+    # Copy test.jpg for BLOB example
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/test/test.jpg
+        ${CMAKE_CURRENT_BINARY_DIR}/test.jpg COPYONLY)
 endif()

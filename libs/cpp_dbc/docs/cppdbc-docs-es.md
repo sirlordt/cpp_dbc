@@ -580,10 +580,10 @@ Gestiona configuraciones de bases de datos.
 
 **Métodos:**
 - `addDatabaseConfig(DatabaseConfig)`: Agrega una configuración de base de datos.
-- `getDatabaseByName(string)`: Obtiene una configuración de base de datos por nombre.
+- `getDatabaseByName(string)`: Obtiene una referencia opcional a una configuración de base de datos por nombre.
 - `getDatabases()`: Obtiene todas las configuraciones de bases de datos.
 - `addConnectionPoolConfig(ConnectionPoolConfig)`: Agrega una configuración de pool de conexiones.
-- `getConnectionPoolByName(string)`: Obtiene una configuración de pool de conexiones por nombre.
+- `getConnectionPoolConfig(string)`: Obtiene una referencia opcional a una configuración de pool de conexiones por nombre.
 - `getConnectionPools()`: Obtiene todas las configuraciones de pools de conexiones.
 - `setTestQueries(TestQueries)`: Establece las consultas de prueba.
 - `getTestQueries()`: Obtiene las consultas de prueba.
@@ -804,12 +804,13 @@ cpp_dbc::config::DatabaseConfigManager configManager =
     cpp_dbc::config::YamlConfigLoader::loadFromFile("config.yml");
 
 // Obtener una configuración específica de base de datos
-const auto* dbConfig = configManager.getDatabaseByName("dev_mysql");
-if (dbConfig) {
+auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+if (dbConfigOpt) {
     // Usar la configuración para crear una conexión
-    std::string connStr = dbConfig->createConnectionString();
+    const auto& dbConfig = dbConfigOpt->get();
+    std::string connStr = dbConfig.createConnectionString();
     auto conn = cpp_dbc::DriverManager::getConnection(
-        connStr, dbConfig->getUsername(), dbConfig->getPassword()
+        connStr, dbConfig.getUsername(), dbConfig.getPassword()
     );
     
     // Usar la conexión...

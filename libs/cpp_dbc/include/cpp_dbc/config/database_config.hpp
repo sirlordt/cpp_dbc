@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -26,6 +26,7 @@
 #include <map>
 #include <vector>
 #include <memory>
+#include <optional>
 
 // Forward declarations
 namespace cpp_dbc
@@ -105,7 +106,7 @@ namespace cpp_dbc
             std::string name;
             std::string type;
             std::string host;
-            int port;
+            unsigned int port{0};
             std::string database;
             std::string username;
             std::string password;
@@ -186,7 +187,15 @@ namespace cpp_dbc
              */
             std::string createConnectionString() const
             {
-                return "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+                // SQLite connection strings are different - they don't have host/port
+                if (host.empty() || port == 0)
+                {
+                    return "cpp_dbc:" + type + "://" + database;
+                }
+                else
+                {
+                    return "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+                }
             }
 
             /**
@@ -475,18 +484,18 @@ namespace cpp_dbc
             /**
              * @brief Get a database configuration by name
              * @param name Database configuration name
-             * @return Pointer to database configuration or nullptr if not found
+             * @return Optional reference to database configuration, empty if not found
              */
-            const DatabaseConfig *getDatabaseByName(const std::string &name) const
+            std::optional<std::reference_wrapper<const DatabaseConfig>> getDatabaseByName(const std::string &name) const
             {
                 for (const auto &db : databases)
                 {
                     if (db.getName() == name)
                     {
-                        return &db;
+                        return std::cref(db);
                     }
                 }
-                return nullptr;
+                return std::nullopt;
             }
 
             /**
@@ -501,16 +510,16 @@ namespace cpp_dbc
             /**
              * @brief Get a connection pool configuration by name
              * @param name Connection pool configuration name
-             * @return Pointer to connection pool configuration or nullptr if not found
+             * @return Optional reference to connection pool configuration, empty if not found
              */
-            const ConnectionPoolConfig *getConnectionPoolConfig(const std::string &name = "default") const
+            std::optional<std::reference_wrapper<const ConnectionPoolConfig>> getConnectionPoolConfig(const std::string &name = "default") const
             {
                 auto it = connectionPools.find(name);
                 if (it != connectionPools.end())
                 {
-                    return &it->second;
+                    return std::cref(it->second);
                 }
-                return nullptr;
+                return std::nullopt;
             }
 
             /**

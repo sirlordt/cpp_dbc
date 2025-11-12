@@ -578,13 +578,14 @@ int main(int argc, char* argv[]) {
             cpp_dbc::config::YamlConfigLoader::loadFromFile(argv[1]);
         
         // Get a specific database configuration
-        const auto* dbConfig = configManager.getDatabaseByName("dev_mysql");
-        if (dbConfig) {
+        auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+        if (dbConfigOpt) {
             // Use the configuration to create a connection
-            std::string connStr = dbConfig->createConnectionString();
+            const auto& dbConfig = dbConfigOpt->get();
+            std::string connStr = dbConfig.createConnectionString();
             std::cout << "Connection String: " << connStr << std::endl;
-            std::cout << "Username: " << dbConfig->getUsername() << std::endl;
-            std::cout << "Password: " << dbConfig->getPassword() << std::endl;
+            std::cout << "Username: " << dbConfig.getUsername() << std::endl;
+            std::cout << "Password: " << dbConfig.getPassword() << std::endl;
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

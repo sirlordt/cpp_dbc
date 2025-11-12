@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -21,6 +21,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <yaml-cpp/yaml.h>
 #include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/config/database_config.hpp>
+#include <cpp_dbc/config/yaml_config_loader.hpp>
+#include <cpp_dbc/config/database_config.hpp>
 #include <string>
 #include <fstream>
 #include <iostream>
@@ -58,6 +61,10 @@ std::string createConnectionString(const YAML::Node &dbConfig)
 }
 
 // Helper class to manage database configurations
+// NOTE: This implementation has been commented out because we should use the one from cpp_dbc/config/database_config.hpp
+// The implementation in cpp_dbc has a bug in the sqlite library handling where it always says host is an invalid node,
+// but we need to use it consistently across the codebase including tests.
+/*
 class DatabaseConfigManager
 {
 private:
@@ -131,6 +138,7 @@ public:
         return config["test_queries"][type];
     }
 };
+*/
 
 // Test case to verify that the database configuration file can be loaded
 TEST_CASE("Database configuration loading", "[db_config]")
@@ -164,11 +172,12 @@ TEST_CASE("Database configuration loading", "[db_config]")
 // Test case to verify database configurations
 TEST_CASE("Database configurations", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
 
     SECTION("Verify all databases")
     {
-        auto allDatabases = configManager.getAllDatabases();
+        const auto &allDatabases = configManager.getAllDatabases();
 
         // Check that we have the expected number of databases
         REQUIRE(allDatabases.size() == 9); // 3 MySQL + 3 PostgreSQL + 3 SQLite
@@ -176,21 +185,20 @@ TEST_CASE("Database configurations", "[db_config]")
         // Check that each database has the required fields
         for (const auto &db : allDatabases)
         {
-            std::string type = db["type"].as<std::string>();
+            std::string type = db.getType();
 
             // Common fields for all database types
-            REQUIRE(db["name"]);
-            REQUIRE(db["type"]);
-            REQUIRE(db["database"]);
-            REQUIRE(db["options"]);
+            REQUIRE(!db.getName().empty());
+            REQUIRE(!db.getType().empty());
+            REQUIRE(!db.getDatabase().empty());
 
             // Host and port are only required for MySQL and PostgreSQL
             if (type == "mysql" || type == "postgresql")
             {
-                REQUIRE(db["host"]);
-                REQUIRE(db["port"]);
-                REQUIRE(db["username"]);
-                REQUIRE(db["password"]);
+                REQUIRE(!db.getHost().empty());
+                REQUIRE(db.getPort() > 0);
+                REQUIRE(!db.getUsername().empty());
+                REQUIRE(!db.getPassword().empty());
             }
         }
     }
@@ -205,14 +213,14 @@ TEST_CASE("Database configurations", "[db_config]")
         // Check that all databases have the correct type
         for (const auto &db : mysqlDatabases)
         {
-            REQUIRE(db["type"].as<std::string>() == "mysql");
+            REQUIRE(db.getType() == "mysql");
         }
 
         // Check that we have the expected database names
         std::vector<std::string> dbNames;
         for (const auto &db : mysqlDatabases)
         {
-            dbNames.push_back(db["name"].as<std::string>());
+            dbNames.push_back(db.getName());
         }
 
         REQUIRE(std::find(dbNames.begin(), dbNames.end(), "dev_mysql") != dbNames.end());
@@ -230,14 +238,14 @@ TEST_CASE("Database configurations", "[db_config]")
         // Check that all databases have the correct type
         for (const auto &db : postgresqlDatabases)
         {
-            REQUIRE(db["type"].as<std::string>() == "postgresql");
+            REQUIRE(db.getType() == "postgresql");
         }
 
         // Check that we have the expected database names
         std::vector<std::string> dbNames;
         for (const auto &db : postgresqlDatabases)
         {
-            dbNames.push_back(db["name"].as<std::string>());
+            dbNames.push_back(db.getName());
         }
 
         REQUIRE(std::find(dbNames.begin(), dbNames.end(), "dev_postgresql") != dbNames.end());
@@ -255,14 +263,14 @@ TEST_CASE("Database configurations", "[db_config]")
         // Check that all databases have the correct type
         for (const auto &db : sqliteDatabases)
         {
-            REQUIRE(db["type"].as<std::string>() == "sqlite");
+            REQUIRE(db.getType() == "sqlite");
         }
 
         // Check that we have the expected database names
         std::vector<std::string> dbNames;
         for (const auto &db : sqliteDatabases)
         {
-            dbNames.push_back(db["name"].as<std::string>());
+            dbNames.push_back(db.getName());
         }
 
         REQUIRE(std::find(dbNames.begin(), dbNames.end(), "dev_sqlite") != dbNames.end());
@@ -274,226 +282,249 @@ TEST_CASE("Database configurations", "[db_config]")
 // Test case to verify specific database configurations
 TEST_CASE("Specific database configurations", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
 
     SECTION("Verify dev_mysql configuration")
     {
-        YAML::Node devMySQL = configManager.getDatabaseByName("dev_mysql");
+        auto devMySQLOpt = configManager.getDatabaseByName("dev_mysql");
 
         // Check that the database was found
-        REQUIRE(devMySQL.IsDefined());
+        REQUIRE(devMySQLOpt.has_value());
+
+        // Get the reference to the database config
+        const auto &devMySQL = devMySQLOpt->get();
 
         // Check connection parameters
-        REQUIRE(devMySQL["type"].as<std::string>() == "mysql");
-        REQUIRE(devMySQL["host"].as<std::string>() == "localhost");
-        REQUIRE(devMySQL["port"].as<int>() == 3306);
-        REQUIRE(devMySQL["database"].as<std::string>() == "Test01DB");
-        REQUIRE(devMySQL["username"].as<std::string>() == "root");
-        REQUIRE(devMySQL["password"].as<std::string>() == "dsystems");
+        REQUIRE(devMySQL.getType() == "mysql");
+        REQUIRE(devMySQL.getHost() == "localhost");
+        REQUIRE(devMySQL.getPort() == 3306);
+        REQUIRE(devMySQL.getDatabase() == "Test01DB");
+        REQUIRE(devMySQL.getUsername() == "root");
+        REQUIRE(devMySQL.getPassword() == "dsystems");
 
         // Check options
-        YAML::Node options = devMySQL["options"];
-        REQUIRE(options["connect_timeout"].as<int>() == 5);
-        REQUIRE(options["read_timeout"].as<int>() == 10);
-        REQUIRE(options["write_timeout"].as<int>() == 10);
-        REQUIRE(options["charset"].as<std::string>() == "utf8mb4");
-        REQUIRE(options["auto_reconnect"].as<bool>() == true);
+        REQUIRE(devMySQL.getOption("connect_timeout") == "5");
+        REQUIRE(devMySQL.getOption("read_timeout") == "10");
+        REQUIRE(devMySQL.getOption("write_timeout") == "10");
+        REQUIRE(devMySQL.getOption("charset") == "utf8mb4");
+        REQUIRE(devMySQL.getOption("auto_reconnect") == "true");
     }
 
     SECTION("Verify dev_postgresql configuration")
     {
-        YAML::Node prodPostgreSQL = configManager.getDatabaseByName("prod_postgresql");
+        auto prodPostgreSQLOpt = configManager.getDatabaseByName("prod_postgresql");
 
         // Check that the database was found
-        REQUIRE(prodPostgreSQL.IsDefined());
+        REQUIRE(prodPostgreSQLOpt.has_value());
+
+        // Get the reference to the database config
+        const auto &prodPostgreSQL = prodPostgreSQLOpt->get();
 
         // Check connection parameters
-        REQUIRE(prodPostgreSQL["type"].as<std::string>() == "postgresql");
-        REQUIRE(prodPostgreSQL["host"].as<std::string>() == "db.example.com");
-        REQUIRE(prodPostgreSQL["port"].as<int>() == 5432);
-        REQUIRE(prodPostgreSQL["database"].as<std::string>() == "Test01DB");
-        REQUIRE(prodPostgreSQL["username"].as<std::string>() == "root");
-        REQUIRE(prodPostgreSQL["password"].as<std::string>() == "dsystems");
+        REQUIRE(prodPostgreSQL.getType() == "postgresql");
+        REQUIRE(prodPostgreSQL.getHost() == "db.example.com");
+        REQUIRE(prodPostgreSQL.getPort() == 5432);
+        REQUIRE(prodPostgreSQL.getDatabase() == "Test01DB");
+        REQUIRE(prodPostgreSQL.getUsername() == "root");
+        REQUIRE(prodPostgreSQL.getPassword() == "dsystems");
 
         // Check options
-        YAML::Node options = prodPostgreSQL["options"];
-        REQUIRE(options["connect_timeout"].as<int>() == 10);
-        REQUIRE(options["application_name"].as<std::string>() == "cpp_dbc_prod");
-        REQUIRE(options["client_encoding"].as<std::string>() == "UTF8");
-        REQUIRE(options["sslmode"].as<std::string>() == "require");
+        REQUIRE(prodPostgreSQL.getOption("connect_timeout") == "10");
+        REQUIRE(prodPostgreSQL.getOption("application_name") == "cpp_dbc_prod");
+        REQUIRE(prodPostgreSQL.getOption("client_encoding") == "UTF8");
+        REQUIRE(prodPostgreSQL.getOption("sslmode") == "require");
     }
 
     SECTION("Verify non-existent database")
     {
-        YAML::Node nonExistentDB = configManager.getDatabaseByName("non_existent_db");
+        auto nonExistentDBOpt = configManager.getDatabaseByName("non_existent_db");
 
-        // Check that the database does not have a name field
-        // This is a more reliable way to check if the database exists
-        REQUIRE_FALSE(nonExistentDB["name"].IsDefined());
+        // Check that the database was not found
+        REQUIRE(!nonExistentDBOpt.has_value());
     }
 }
 
 // Test case to verify specific SQLite database configurations
 TEST_CASE("Specific SQLite database configurations", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
 
     SECTION("Verify dev_sqlite configuration")
     {
-        YAML::Node devSQLite = configManager.getDatabaseByName("dev_sqlite");
+        auto devSQLiteOpt = configManager.getDatabaseByName("dev_sqlite");
 
         // Check that the database was found
-        REQUIRE(devSQLite.IsDefined());
+        REQUIRE(devSQLiteOpt.has_value());
+
+        // Get the reference to the database config
+        const auto &devSQLite = devSQLiteOpt->get();
 
         // Check connection parameters
-        REQUIRE(devSQLite["type"].as<std::string>() == "sqlite");
-        REQUIRE(devSQLite["database"].as<std::string>() == ":memory:");
+        REQUIRE(devSQLite.getType() == "sqlite");
+        REQUIRE(devSQLite.getDatabase() == ":memory:");
 
         // Check options
-        YAML::Node options = devSQLite["options"];
-        REQUIRE(options["foreign_keys"].as<bool>() == true);
-        REQUIRE(options["journal_mode"].as<std::string>() == "WAL");
+        REQUIRE(devSQLite.getOption("foreign_keys") == "true");
+        REQUIRE(devSQLite.getOption("journal_mode") == "WAL");
     }
 
     SECTION("Verify test_sqlite configuration")
     {
-        YAML::Node testSQLite = configManager.getDatabaseByName("test_sqlite");
+        auto testSQLiteOpt = configManager.getDatabaseByName("test_sqlite");
 
         // Check that the database was found
-        REQUIRE(testSQLite.IsDefined());
+        REQUIRE(testSQLiteOpt.has_value());
+
+        // Get the reference to the database config
+        const auto &testSQLite = testSQLiteOpt->get();
 
         // Check connection parameters
-        REQUIRE(testSQLite["type"].as<std::string>() == "sqlite");
-        REQUIRE(testSQLite["database"].as<std::string>() == "test_sqlite.db");
+        REQUIRE(testSQLite.getType() == "sqlite");
+        REQUIRE(testSQLite.getDatabase() == "test_sqlite.db");
 
         // Check options
-        YAML::Node options = testSQLite["options"];
-        REQUIRE(options["foreign_keys"].as<bool>() == true);
-        REQUIRE(options["journal_mode"].as<std::string>() == "WAL");
+        REQUIRE(testSQLite.getOption("foreign_keys") == "true");
+        REQUIRE(testSQLite.getOption("journal_mode") == "WAL");
     }
 
     SECTION("Verify prod_sqlite configuration")
     {
-        YAML::Node prodSQLite = configManager.getDatabaseByName("prod_sqlite");
+        auto prodSQLiteOpt = configManager.getDatabaseByName("prod_sqlite");
 
         // Check that the database was found
-        REQUIRE(prodSQLite.IsDefined());
+        REQUIRE(prodSQLiteOpt.has_value());
+
+        // Get the reference to the database config
+        const auto &prodSQLite = prodSQLiteOpt->get();
 
         // Check connection parameters
-        REQUIRE(prodSQLite["type"].as<std::string>() == "sqlite");
-        REQUIRE(prodSQLite["database"].as<std::string>() == "/path/to/production.db");
+        REQUIRE(prodSQLite.getType() == "sqlite");
+        REQUIRE(prodSQLite.getDatabase() == "/path/to/production.db");
 
         // Check options
-        YAML::Node options = prodSQLite["options"];
-        REQUIRE(options["foreign_keys"].as<bool>() == true);
-        REQUIRE(options["journal_mode"].as<std::string>() == "WAL");
-        REQUIRE(options["synchronous"].as<std::string>() == "FULL");
+        REQUIRE(prodSQLite.getOption("foreign_keys") == "true");
+        REQUIRE(prodSQLite.getOption("journal_mode") == "WAL");
+        REQUIRE(prodSQLite.getOption("synchronous") == "FULL");
     }
 }
 
 // Test case to verify connection pool configurations
 TEST_CASE("Connection pool configurations", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
 
     SECTION("Verify default pool configuration")
     {
-        YAML::Node defaultPool = configManager.getConnectionPoolConfig("default");
+        auto defaultPoolOpt = configManager.getConnectionPoolConfig("default");
 
         // Check that the pool was found
-        REQUIRE(defaultPool.IsDefined());
+        REQUIRE(defaultPoolOpt.has_value());
+
+        // Get the reference to the pool config
+        const auto &defaultPool = defaultPoolOpt->get();
 
         // Check pool parameters
-        REQUIRE(defaultPool["initial_size"].as<int>() == 5);
-        REQUIRE(defaultPool["max_size"].as<int>() == 10);
-        REQUIRE(defaultPool["connection_timeout"].as<int>() == 5000);
-        REQUIRE(defaultPool["idle_timeout"].as<int>() == 60000);
-        REQUIRE(defaultPool["validation_interval"].as<int>() == 30000);
+        REQUIRE(defaultPool.getInitialSize() == 5);
+        REQUIRE(defaultPool.getMaxSize() == 10);
+        REQUIRE(defaultPool.getConnectionTimeout() == 5000);
+        REQUIRE(defaultPool.getIdleTimeout() == 60000);
+        REQUIRE(defaultPool.getValidationInterval() == 30000);
     }
 
     SECTION("Verify high_performance pool configuration")
     {
-        YAML::Node highPerfPool = configManager.getConnectionPoolConfig("high_performance");
+        auto highPerfPoolOpt = configManager.getConnectionPoolConfig("high_performance");
 
         // Check that the pool was found
-        REQUIRE(highPerfPool.IsDefined());
+        REQUIRE(highPerfPoolOpt.has_value());
+
+        // Get the reference to the pool config
+        const auto &highPerfPool = highPerfPoolOpt->get();
 
         // Check pool parameters
-        REQUIRE(highPerfPool["initial_size"].as<int>() == 10);
-        REQUIRE(highPerfPool["max_size"].as<int>() == 50);
-        REQUIRE(highPerfPool["connection_timeout"].as<int>() == 3000);
-        REQUIRE(highPerfPool["idle_timeout"].as<int>() == 30000);
-        REQUIRE(highPerfPool["validation_interval"].as<int>() == 15000);
+        REQUIRE(highPerfPool.getInitialSize() == 10);
+        REQUIRE(highPerfPool.getMaxSize() == 50);
+        REQUIRE(highPerfPool.getConnectionTimeout() == 3000);
+        REQUIRE(highPerfPool.getIdleTimeout() == 30000);
+        REQUIRE(highPerfPool.getValidationInterval() == 15000);
     }
 }
 
 // Test case to verify test queries
 TEST_CASE("Test queries", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
 
     SECTION("Verify common test query")
     {
-        YAML::Node testQueries = configManager.getTestQueries();
+        const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
 
         // Check that the connection test query exists
-        REQUIRE(testQueries["connection_test"].as<std::string>() == "SELECT 1");
+        REQUIRE(testQueries.getConnectionTest() == "SELECT 1");
     }
 
     SECTION("Verify MySQL test queries")
     {
-        YAML::Node mysqlQueries = configManager.getTestQueriesForType("mysql");
+        const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
+        auto mysqlQueries = testQueries.getQueriesForType("mysql");
 
         // Check that all expected queries exist
-        REQUIRE(mysqlQueries["create_table"].as<std::string>().find("CREATE TABLE") != std::string::npos);
-        REQUIRE(mysqlQueries["insert_data"].as<std::string>().find("INSERT INTO") != std::string::npos);
-        REQUIRE(mysqlQueries["select_data"].as<std::string>().find("SELECT") != std::string::npos);
-        REQUIRE(mysqlQueries["drop_table"].as<std::string>().find("DROP TABLE") != std::string::npos);
+        REQUIRE(mysqlQueries["create_table"].find("CREATE TABLE") != std::string::npos);
+        REQUIRE(mysqlQueries["insert_data"].find("INSERT INTO") != std::string::npos);
+        REQUIRE(mysqlQueries["select_data"].find("SELECT") != std::string::npos);
+        REQUIRE(mysqlQueries["drop_table"].find("DROP TABLE") != std::string::npos);
 
         // Check MySQL parameter style (? placeholders)
-        REQUIRE(mysqlQueries["insert_data"].as<std::string>().find("?") != std::string::npos);
-        REQUIRE(mysqlQueries["select_data"].as<std::string>().find("?") != std::string::npos);
+        REQUIRE(mysqlQueries["insert_data"].find("?") != std::string::npos);
+        REQUIRE(mysqlQueries["select_data"].find("?") != std::string::npos);
     }
 
     SECTION("Verify PostgreSQL test queries")
     {
-        YAML::Node pgQueries = configManager.getTestQueriesForType("postgresql");
+        const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
+        auto pgQueries = testQueries.getQueriesForType("postgresql");
 
         // Check that all expected queries exist
-        REQUIRE(pgQueries["create_table"].as<std::string>().find("CREATE TABLE") != std::string::npos);
-        REQUIRE(pgQueries["insert_data"].as<std::string>().find("INSERT INTO") != std::string::npos);
-        REQUIRE(pgQueries["select_data"].as<std::string>().find("SELECT") != std::string::npos);
-        REQUIRE(pgQueries["drop_table"].as<std::string>().find("DROP TABLE") != std::string::npos);
+        REQUIRE(pgQueries["create_table"].find("CREATE TABLE") != std::string::npos);
+        REQUIRE(pgQueries["insert_data"].find("INSERT INTO") != std::string::npos);
+        REQUIRE(pgQueries["select_data"].find("SELECT") != std::string::npos);
+        REQUIRE(pgQueries["drop_table"].find("DROP TABLE") != std::string::npos);
 
         // Check PostgreSQL parameter style ($n placeholders)
-        REQUIRE(pgQueries["insert_data"].as<std::string>().find("$1") != std::string::npos);
-        REQUIRE(pgQueries["select_data"].as<std::string>().find("$1") != std::string::npos);
+        REQUIRE(pgQueries["insert_data"].find("$1") != std::string::npos);
+        REQUIRE(pgQueries["select_data"].find("$1") != std::string::npos);
     }
 
     SECTION("Verify SQLite test queries")
     {
-        YAML::Node sqliteQueries = configManager.getTestQueriesForType("sqlite");
+        const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
+        auto sqliteQueries = testQueries.getQueriesForType("sqlite");
 
         // Check that all expected queries exist
-        REQUIRE(sqliteQueries["create_table"].as<std::string>().find("CREATE TABLE") != std::string::npos);
-        REQUIRE(sqliteQueries["insert_data"].as<std::string>().find("INSERT INTO") != std::string::npos);
-        REQUIRE(sqliteQueries["select_data"].as<std::string>().find("SELECT") != std::string::npos);
-        REQUIRE(sqliteQueries["drop_table"].as<std::string>().find("DROP TABLE") != std::string::npos);
+        REQUIRE(sqliteQueries["create_table"].find("CREATE TABLE") != std::string::npos);
+        REQUIRE(sqliteQueries["insert_data"].find("INSERT INTO") != std::string::npos);
+        REQUIRE(sqliteQueries["select_data"].find("SELECT") != std::string::npos);
+        REQUIRE(sqliteQueries["drop_table"].find("DROP TABLE") != std::string::npos);
 
         // Check SQLite parameter style (? placeholders)
-        REQUIRE(sqliteQueries["insert_data"].as<std::string>().find("?") != std::string::npos);
-        REQUIRE(sqliteQueries["select_data"].as<std::string>().find("?") != std::string::npos);
+        REQUIRE(sqliteQueries["insert_data"].find("?") != std::string::npos);
+        REQUIRE(sqliteQueries["select_data"].find("?") != std::string::npos);
     }
 }
 
 // Example of how to use the configuration to create connection strings
 TEST_CASE("Create connection strings from configuration", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
 
     SECTION("Create connection strings for all databases")
     {
-        auto allDatabases = configManager.getAllDatabases();
+        const auto &allDatabases = configManager.getAllDatabases();
 
         // Create a map to store connection strings for each database
         std::map<std::string, std::string> connectionStrings;
@@ -501,10 +532,10 @@ TEST_CASE("Create connection strings from configuration", "[db_config]")
         // Iterate through all database configurations
         for (const auto &db : allDatabases)
         {
-            std::string dbName = db["name"].as<std::string>();
+            std::string dbName = db.getName();
 
-            // Create connection string
-            connectionStrings[dbName] = createConnectionString(db);
+            // Create connection string using the db's createConnectionString method
+            connectionStrings[dbName] = db.createConnectionString();
         }
 
         // Verify connection strings for MySQL databases
@@ -539,25 +570,29 @@ TEST_CASE("Create connection strings from configuration", "[db_config]")
 // Test database configurations for different environments and types
 TEST_CASE("Select MySQL database for dev environment", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "dev_mysql";
-    YAML::Node dbConfig = configManager.getDatabaseByName(dbName);
+    auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
     // Check that the database was found
-    REQUIRE(dbConfig.IsDefined());
+    REQUIRE(dbConfigOpt.has_value());
+
+    // Get the reference to the database config
+    const auto &dbConfig = dbConfigOpt->get();
 
     // Check that the database has the correct type
-    REQUIRE(dbConfig["type"].as<std::string>() == "mysql");
+    REQUIRE(dbConfig.getType() == "mysql");
 
     // Create connection string
-    std::string connStr = createConnectionString(dbConfig);
+    std::string connStr = dbConfig.createConnectionString();
 
     // Verify the connection string format
     REQUIRE(connStr.find("cpp_dbc:mysql://") == 0);
 
     // Verify that we can access the credentials
-    std::string username = dbConfig["username"].as<std::string>();
-    std::string password = dbConfig["password"].as<std::string>();
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
 
     REQUIRE(username == "root");
     REQUIRE(password == "dsystems");
@@ -565,120 +600,160 @@ TEST_CASE("Select MySQL database for dev environment", "[db_config]")
 
 TEST_CASE("Select MySQL database for test environment", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "test_mysql";
-    YAML::Node dbConfig = configManager.getDatabaseByName(dbName);
+    auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
     // Check that the database was found
-    REQUIRE(dbConfig.IsDefined());
-    REQUIRE(dbConfig["type"].as<std::string>() == "mysql");
+    REQUIRE(dbConfigOpt.has_value());
+
+    // Get the reference to the database config
+    const auto &dbConfig = dbConfigOpt->get();
+
+    REQUIRE(dbConfig.getType() == "mysql");
 
     // Create connection string
-    std::string connStr = createConnectionString(dbConfig);
+    std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr.find("cpp_dbc:mysql://") == 0);
 }
 
 TEST_CASE("Select MySQL database for prod environment", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "prod_mysql";
-    YAML::Node dbConfig = configManager.getDatabaseByName(dbName);
+    auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
     // Check that the database was found
-    REQUIRE(dbConfig.IsDefined());
-    REQUIRE(dbConfig["type"].as<std::string>() == "mysql");
+    REQUIRE(dbConfigOpt.has_value());
+
+    // Get the reference to the database config
+    const auto &dbConfig = dbConfigOpt->get();
+
+    REQUIRE(dbConfig.getType() == "mysql");
 
     // Create connection string
-    std::string connStr = createConnectionString(dbConfig);
+    std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr.find("cpp_dbc:mysql://") == 0);
 }
 
 TEST_CASE("Select PostgreSQL database for dev environment", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "dev_postgresql";
-    YAML::Node dbConfig = configManager.getDatabaseByName(dbName);
+    auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
     // Check that the database was found
-    REQUIRE(dbConfig.IsDefined());
-    REQUIRE(dbConfig["type"].as<std::string>() == "postgresql");
+    REQUIRE(dbConfigOpt.has_value());
+
+    // Get the reference to the database config
+    const auto &dbConfig = dbConfigOpt->get();
+
+    REQUIRE(dbConfig.getType() == "postgresql");
 
     // Create connection string
-    std::string connStr = createConnectionString(dbConfig);
+    std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr.find("cpp_dbc:postgresql://") == 0);
 }
 
 TEST_CASE("Select PostgreSQL database for test environment", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "test_postgresql";
-    YAML::Node dbConfig = configManager.getDatabaseByName(dbName);
+    auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
     // Check that the database was found
-    REQUIRE(dbConfig.IsDefined());
-    REQUIRE(dbConfig["type"].as<std::string>() == "postgresql");
+    REQUIRE(dbConfigOpt.has_value());
+
+    // Get the reference to the database config
+    const auto &dbConfig = dbConfigOpt->get();
+
+    REQUIRE(dbConfig.getType() == "postgresql");
 
     // Create connection string
-    std::string connStr = createConnectionString(dbConfig);
+    std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr.find("cpp_dbc:postgresql://") == 0);
 }
 
 TEST_CASE("Select PostgreSQL database for prod environment", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "prod_postgresql";
-    YAML::Node dbConfig = configManager.getDatabaseByName(dbName);
+    auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
     // Check that the database was found
-    REQUIRE(dbConfig.IsDefined());
-    REQUIRE(dbConfig["type"].as<std::string>() == "postgresql");
+    REQUIRE(dbConfigOpt.has_value());
+
+    // Get the reference to the database config
+    const auto &dbConfig = dbConfigOpt->get();
+
+    REQUIRE(dbConfig.getType() == "postgresql");
 
     // Create connection string
-    std::string connStr = createConnectionString(dbConfig);
+    std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr.find("cpp_dbc:postgresql://") == 0);
 }
 
 TEST_CASE("Select SQLite database for dev environment", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "dev_sqlite";
-    YAML::Node dbConfig = configManager.getDatabaseByName(dbName);
+    auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
     // Check that the database was found
-    REQUIRE(dbConfig.IsDefined());
-    REQUIRE(dbConfig["type"].as<std::string>() == "sqlite");
+    REQUIRE(dbConfigOpt.has_value());
+
+    // Get the reference to the database config
+    const auto &dbConfig = dbConfigOpt->get();
+
+    REQUIRE(dbConfig.getType() == "sqlite");
 
     // Create connection string
-    std::string connStr = createConnectionString(dbConfig);
+    std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr == "cpp_dbc:sqlite://:memory:");
 }
 
 TEST_CASE("Select SQLite database for test environment", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "test_sqlite";
-    YAML::Node dbConfig = configManager.getDatabaseByName(dbName);
+    auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
     // Check that the database was found
-    REQUIRE(dbConfig.IsDefined());
-    REQUIRE(dbConfig["type"].as<std::string>() == "sqlite");
+    REQUIRE(dbConfigOpt.has_value());
+
+    // Get the reference to the database config
+    const auto &dbConfig = dbConfigOpt->get();
+
+    REQUIRE(dbConfig.getType() == "sqlite");
 
     // Create connection string
-    std::string connStr = createConnectionString(dbConfig);
+    std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr == "cpp_dbc:sqlite://test_sqlite.db");
 }
 
 TEST_CASE("Select SQLite database for prod environment", "[db_config]")
 {
-    DatabaseConfigManager configManager(getConfigFilePath());
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "prod_sqlite";
-    YAML::Node dbConfig = configManager.getDatabaseByName(dbName);
+    auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
     // Check that the database was found
-    REQUIRE(dbConfig.IsDefined());
-    REQUIRE(dbConfig["type"].as<std::string>() == "sqlite");
+    REQUIRE(dbConfigOpt.has_value());
+
+    // Get the reference to the database config
+    const auto &dbConfig = dbConfigOpt->get();
+
+    REQUIRE(dbConfig.getType() == "sqlite");
 
     // Create connection string
-    std::string connStr = createConnectionString(dbConfig);
+    std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr == "cpp_dbc:sqlite:///path/to/production.db");
 }

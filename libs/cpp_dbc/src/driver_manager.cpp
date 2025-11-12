@@ -96,17 +96,18 @@ namespace cpp_dbc
     std::shared_ptr<Connection> DriverManager::getConnection(const config::DatabaseConfigManager &configManager,
                                                              const std::string &configName)
     {
-        const auto *dbConfig = configManager.getDatabaseByName(configName);
-        if (!dbConfig)
+        auto dbConfigOpt = configManager.getDatabaseByName(configName);
+        if (!dbConfigOpt)
         {
             throw DBException("9K0L1M2N3O4P", "Database configuration not found: " + configName, system_utils::captureCallStack());
         }
 
+        const auto &dbConfig = dbConfigOpt->get();
         return getConnection(
-            dbConfig->createConnectionString(),
-            dbConfig->getUsername(),
-            dbConfig->getPassword(),
-            dbConfig->getOptions());
+            dbConfig.createConnectionString(),
+            dbConfig.getUsername(),
+            dbConfig.getPassword(),
+            dbConfig.getOptions());
     }
 
     std::vector<std::string> DriverManager::getRegisteredDrivers()

@@ -1,135 +1,172 @@
-# Example database configuration file for cpp_dbc
+# Database connection configurations for testing
+# This file contains connection parameters for different database systems
 
-# Database configurations
+# Database connections array
 databases:
   # MySQL development database
   - name: dev_mysql
     type: mysql
     host: localhost
     port: 3306
-    database: TestDB
+    database: Test01DB
     username: root
-    password: password
+    password: dsystems
     options:
       connect_timeout: 5
       read_timeout: 10
+      write_timeout: 10
       charset: utf8mb4
-      autocommit: true
-      reconnect: true
+      auto_reconnect: true
   
-  # MySQL test database
+  # MySQL testing database
   - name: test_mysql
     type: mysql
     host: localhost
     port: 3306
-    database: TestDB_Test
-    username: test_user
-    password: test_password
+    database: Test01DB
+    username: root
+    password: dsystems
     options:
       connect_timeout: 3
       read_timeout: 5
+      write_timeout: 5
       charset: utf8mb4
-      autocommit: false
+      auto_reconnect: true
   
-  # MySQL production database
+  # MySQL production database (example)
   - name: prod_mysql
     type: mysql
     host: db.example.com
     port: 3306
-    database: ProdDB
-    username: prod_user
-    password: prod_password
+    database: Test01DB
+    username: root
+    password: dsystems
     options:
       connect_timeout: 10
-      read_timeout: 30
+      read_timeout: 15
+      write_timeout: 15
       charset: utf8mb4
-      autocommit: false
-      max_allowed_packet: 16777216
-      ssl_mode: REQUIRED
-  
+      auto_reconnect: true
+
   # PostgreSQL development database
   - name: dev_postgresql
     type: postgresql
     host: localhost
     port: 5432
-    database: TestDB
-    username: postgres
-    password: password
+    database: Test01DB
+    username: root
+    password: dsystems
     options:
       connect_timeout: 5
-      application_name: cpp_dbc_dev
+      application_name: cpp_dbc_tests
       client_encoding: UTF8
+      sslmode: prefer
+      gssencmode: disable #avoid memory leak in gss api reported by valgrind.
   
-  # PostgreSQL test database
+  # PostgreSQL testing database
   - name: test_postgresql
     type: postgresql
     host: localhost
     port: 5432
-    database: TestDB_Test
-    username: test_user
-    password: test_password
+    database: Test01DB
+    username: root
+    password: dsystems
     options:
       connect_timeout: 3
-      application_name: cpp_dbc_test
+      application_name: cpp_dbc_tests
       client_encoding: UTF8
+      sslmode: prefer
+      gssencmode: disable #avoid memory leak in gss api reported by valgrind.
   
-  # PostgreSQL production database
+  # PostgreSQL production database (example)
   - name: prod_postgresql
     type: postgresql
     host: db.example.com
     port: 5432
-    database: ProdDB
-    username: prod_user
-    password: prod_password
+    database: Test01DB
+    username: root
+    password: dsystems
     options:
       connect_timeout: 10
       application_name: cpp_dbc_prod
       client_encoding: UTF8
       sslmode: require
+      gssencmode: disable #avoid memory leak in gss api reported by valgrind.
+      
+  # SQLite development database
+  - name: dev_sqlite
+    type: sqlite
+    database: ":memory:"
+    options:
+      foreign_keys: true
+      journal_mode: WAL
+      
+  # SQLite testing database
+  - name: test_sqlite
+    type: sqlite
+    database: "test_sqlite.db"
+    options:
+      foreign_keys: true
+      journal_mode: WAL
+      
+  # SQLite production database (example)
+  - name: prod_sqlite
+    type: sqlite
+    database: "/path/to/production.db"
+    options:
+      foreign_keys: true
+      journal_mode: WAL
+      synchronous: FULL
 
-# Connection pool configurations
+# Connection pool configuration for tests
 connection_pool:
-  # Default connection pool
   default:
     initial_size: 5
-    max_size: 20
-    connection_timeout: 5000
-    idle_timeout: 60000
-    validation_interval: 30000
+    max_size: 10
+    connection_timeout: 5000  # milliseconds
+    idle_timeout: 60000       # milliseconds
+    validation_interval: 30000 # milliseconds
+    transaction_isolation: read_committed
   
-  # High-performance connection pool
   high_performance:
     initial_size: 10
     max_size: 50
-    connection_timeout: 3000
-    idle_timeout: 30000
-    validation_interval: 15000
-  
-  # Low-resource connection pool
-  low_resource:
-    initial_size: 2
+    connection_timeout: 3000  # milliseconds
+    idle_timeout: 30000       # milliseconds
+    validation_interval: 15000 # milliseconds
+    transaction_isolation: serializable
+    
+  sqlite_pool:
+    initial_size: 5
     max_size: 10
-    connection_timeout: 10000
-    idle_timeout: 120000
-    validation_interval: 60000
+    connection_timeout: 5000  # milliseconds
+    idle_timeout: 60000       # milliseconds
+    validation_interval: 30000 # milliseconds
+    transaction_isolation: serializable
 
 # Test queries
 test_queries:
-  # Generic connection test query
-  connection_test: SELECT 1
+  # Simple query to check if connection is working
+  connection_test: "SELECT 1"
   
-  # MySQL-specific test queries
+  # MySQL specific test queries
   mysql:
-    get_users: SELECT * FROM users
-    get_user_by_id: SELECT * FROM users WHERE id = ?
-    create_user: INSERT INTO users (name, email) VALUES (?, ?)
-    update_user: UPDATE users SET name = ?, email = ? WHERE id = ?
-    delete_user: DELETE FROM users WHERE id = ?
+    create_database: "CREATE DATABASE IF NOT EXISTS Test01DB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100))"
+    insert_data: "INSERT INTO test_table (id, name) VALUES (?, ?)"
+    select_data: "SELECT * FROM test_table WHERE id = ?"
+    drop_table: "DROP TABLE IF EXISTS test_table"
   
-  # PostgreSQL-specific test queries
+  # PostgreSQL specific test queries
   postgresql:
-    get_users: SELECT * FROM users
-    get_user_by_id: SELECT * FROM users WHERE id = $1
-    create_user: INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id
-    update_user: UPDATE users SET name = $1, email = $2 WHERE id = $3
-    delete_user: DELETE FROM users WHERE id = $1
+    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100))"
+    insert_data: "INSERT INTO test_table (id, name) VALUES ($1, $2)"
+    select_data: "SELECT * FROM test_table WHERE id = $1"
+    drop_table: "DROP TABLE IF EXISTS test_table"
+    
+  # SQLite specific test queries
+  sqlite:
+    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)"
+    insert_data: "INSERT INTO test_table (id, name) VALUES (?, ?)"
+    select_data: "SELECT * FROM test_table WHERE id = ?"
+    drop_table: "DROP TABLE IF EXISTS test_table"

@@ -1,5 +1,5 @@
 /*
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -49,14 +49,52 @@ namespace cpp_dbc
                     {
                         DatabaseConfig dbConfig;
 
-                        // Load basic properties
+                        // Check and load required properties
+                        if (!dbNode["name"] || !dbNode["name"].IsDefined())
+                        {
+                            throw cpp_dbc::DBException("E625EF2DF318", "Missing required field 'name' in database configuration",
+                                                       cpp_dbc::system_utils::captureCallStack());
+                        }
                         dbConfig.setName(dbNode["name"].as<std::string>());
+
+                        if (!dbNode["type"] || !dbNode["type"].IsDefined())
+                        {
+                            throw cpp_dbc::DBException("4A7390BC7EF7", "Missing required field 'type' in database configuration",
+                                                       cpp_dbc::system_utils::captureCallStack());
+                        }
                         dbConfig.setType(dbNode["type"].as<std::string>());
-                        dbConfig.setHost(dbNode["host"].as<std::string>());
-                        dbConfig.setPort(dbNode["port"].as<int>());
+
+                        if (!dbNode["database"] || !dbNode["database"].IsDefined())
+                        {
+                            throw cpp_dbc::DBException("77398F244B5D", "Missing required field 'database' in database configuration",
+                                                       cpp_dbc::system_utils::captureCallStack());
+                        }
                         dbConfig.setDatabase(dbNode["database"].as<std::string>());
-                        dbConfig.setUsername(dbNode["username"].as<std::string>());
-                        dbConfig.setPassword(dbNode["password"].as<std::string>());
+
+                        // optional fields host, port, username, password
+                        // Check host
+                        if (dbNode["host"].IsDefined())
+                        {
+                            dbConfig.setHost(dbNode["host"].as<std::string>());
+                        }
+
+                        // Check port
+                        if (dbNode["port"].IsDefined())
+                        {
+                            dbConfig.setPort(dbNode["port"].as<int>());
+                        }
+
+                        // Check username
+                        if (dbNode["username"].IsDefined())
+                        {
+                            dbConfig.setUsername(dbNode["username"].as<std::string>());
+                        }
+
+                        // Check password
+                        if (dbNode["password"].IsDefined())
+                        {
+                            dbConfig.setPassword(dbNode["password"].as<std::string>());
+                        }
 
                         // Load options
                         if (dbNode["options"])
@@ -168,7 +206,7 @@ namespace cpp_dbc
                             }
                             else
                             {
-                                throw cpp_dbc::DBException("1W2X3Y4Z5A6B: Transaction isolation unknown: " + isolationStr);
+                                throw cpp_dbc::DBException("1W2X3Y4Z5A6B", " Transaction isolation unknown: " + isolationStr, cpp_dbc::system_utils::captureCallStack());
                             }
                         }
 

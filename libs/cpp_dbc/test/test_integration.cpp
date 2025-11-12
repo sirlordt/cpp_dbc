@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -388,20 +388,22 @@ TEST_CASE("Integration test with mock database", "[integration]")
         manager.addDatabaseConfig(dbConfig);
 
         // Get the database configuration by name
-        auto dbConfigPtr = manager.getDatabaseByName("mock_db");
-        REQUIRE(dbConfigPtr != nullptr);
-        REQUIRE(dbConfigPtr->getName() == "mock_db");
-        REQUIRE(dbConfigPtr->getType() == "mock");
+        auto dbConfigOpt = manager.getDatabaseByName("mock_db");
+        REQUIRE(dbConfigOpt.has_value());
+        const auto &retrievedDbConfig = dbConfigOpt->get();
+        REQUIRE(retrievedDbConfig.getName() == "mock_db");
+        REQUIRE(retrievedDbConfig.getType() == "mock");
 
         // Add the connection pool configuration
         manager.addConnectionPoolConfig(poolConfig);
 
         // Get the connection pool configuration by name
-        auto poolConfigPtr = manager.getConnectionPoolConfig("test_pool");
-        REQUIRE(poolConfigPtr != nullptr);
-        REQUIRE(poolConfigPtr->getName() == "test_pool");
-        REQUIRE(poolConfigPtr->getInitialSize() == 3);
-        REQUIRE(poolConfigPtr->getMaxSize() == 10);
+        auto poolConfigOpt = manager.getConnectionPoolConfig("test_pool");
+        REQUIRE(poolConfigOpt.has_value());
+        const auto &retrievedPoolConfig = poolConfigOpt->get();
+        REQUIRE(retrievedPoolConfig.getName() == "test_pool");
+        REQUIRE(retrievedPoolConfig.getInitialSize() == 3);
+        REQUIRE(retrievedPoolConfig.getMaxSize() == 10);
     }
 }
 
