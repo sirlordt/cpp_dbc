@@ -1,5 +1,5 @@
 /*
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -334,7 +334,7 @@ namespace cpp_dbc
         if (!running.load())
         {
             // std::cout << "ConnectionPool::getConnection - Pool is closed" << std::endl;
-            throw DBException("5Q6R7S8T9U0V: Connection pool is closed");
+            throw DBException("5Q6R7S8T9U0V", "Connection pool is closed", system_utils::captureCallStack());
         }
 
         /*
@@ -455,7 +455,7 @@ namespace cpp_dbc
 
                 if (waitedMs >= maxWaitMillis)
                 {
-                    throw DBException("88D90026A76A: Timeout waiting for connection from the pool");
+                    throw DBException("88D90026A76A", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
                 }
 
                 // if (waitStatus == std::cv_status::timeout)
@@ -464,12 +464,12 @@ namespace cpp_dbc
                 //     //              << activeConnections << ", Idle: " << idleConnections.size()
                 //     //              << ", Total: " << allConnections.size() << ", Max: " << maxSize << std::endl;
 
-                //     throw DBException("DE04466AD05E: Timeout waiting for connection from the pool");
+                //     throw DBException("DE04466AD05E", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
                 // }
 
                 if (!running.load())
                 {
-                    throw DBException("58566A84D1A1: Connection pool is closed");
+                    throw DBException("58566A84D1A1", "Connection pool is closed", system_utils::captureCallStack());
                 }
 
                 // Check if we've waited too long
@@ -482,7 +482,7 @@ namespace cpp_dbc
 
                 // if (result == nullptr && waitedMs >= maxWaitMillis)
                 // {
-                //     throw DBException("723F1992C1C7: Timeout waiting for connection from the pool");
+                //     throw DBException("723F1992C1C7", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
                 // }
             } while (result == nullptr);
         }
@@ -827,7 +827,7 @@ namespace cpp_dbc
     {
         if (closed)
         {
-            throw DBException("95097A0AE22B: Connection is closed");
+            throw DBException("95097A0AE22B", "Connection is closed", system_utils::captureCallStack());
         }
         lastUsedTime = std::chrono::steady_clock::now();
         return conn->prepareStatement(sql);
@@ -837,7 +837,7 @@ namespace cpp_dbc
     {
         if (closed)
         {
-            throw DBException("F9E32F56CFF4: Connection is closed");
+            throw DBException("F9E32F56CFF4", "Connection is closed", system_utils::captureCallStack());
         }
         lastUsedTime = std::chrono::steady_clock::now();
         return conn->executeQuery(sql);
@@ -847,7 +847,7 @@ namespace cpp_dbc
     {
         if (closed)
         {
-            throw DBException("3D5C6173E4D1: Connection is closed");
+            throw DBException("3D5C6173E4D1", "Connection is closed", system_utils::captureCallStack());
         }
         lastUsedTime = std::chrono::steady_clock::now();
         return conn->executeUpdate(sql);
@@ -857,7 +857,7 @@ namespace cpp_dbc
     {
         if (closed)
         {
-            throw DBException("5742170C69B4: Connection is closed");
+            throw DBException("5742170C69B4", "Connection is closed", system_utils::captureCallStack());
         }
         lastUsedTime = std::chrono::steady_clock::now();
         conn->setAutoCommit(autoCommit);
@@ -867,7 +867,7 @@ namespace cpp_dbc
     {
         if (closed)
         {
-            throw DBException("E3DEAB8A5E6D: Connection is closed");
+            throw DBException("E3DEAB8A5E6D", "Connection is closed", system_utils::captureCallStack());
         }
         lastUsedTime = std::chrono::steady_clock::now();
         return conn->getAutoCommit();
@@ -877,7 +877,7 @@ namespace cpp_dbc
     {
         if (closed)
         {
-            throw DBException("E32DBBC7316E: Connection is closed");
+            throw DBException("E32DBBC7316E", "Connection is closed", system_utils::captureCallStack());
         }
         lastUsedTime = std::chrono::steady_clock::now();
         conn->commit();
@@ -887,7 +887,7 @@ namespace cpp_dbc
     {
         if (closed)
         {
-            throw DBException("094612AE91B6: Connection is closed");
+            throw DBException("094612AE91B6", "Connection is closed", system_utils::captureCallStack());
         }
         lastUsedTime = std::chrono::steady_clock::now();
         conn->rollback();
@@ -897,7 +897,7 @@ namespace cpp_dbc
     {
         if (closed)
         {
-            throw DBException("F7A2B9C3D1E5: Connection is closed");
+            throw DBException("F7A2B9C3D1E5", "Connection is closed", system_utils::captureCallStack());
         }
         lastUsedTime = std::chrono::steady_clock::now();
         conn->setTransactionIsolation(level);
@@ -907,7 +907,7 @@ namespace cpp_dbc
     {
         if (closed)
         {
-            throw DBException("A4B5C6D7E8F9: Connection is closed");
+            throw DBException("A4B5C6D7E8F9", "Connection is closed", system_utils::captureCallStack());
         }
         lastUsedTime = std::chrono::steady_clock::now();
         return conn->getTransactionIsolation();

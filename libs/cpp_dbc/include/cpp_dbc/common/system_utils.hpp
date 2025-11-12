@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -28,6 +28,7 @@
 #include <ctime>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace cpp_dbc
 {
@@ -37,6 +38,13 @@ namespace cpp_dbc
 
         // Declare the mutex as external
         extern std::mutex global_cout_mutex;
+
+        struct StackFrame
+        {
+            std::string file;
+            int line;
+            std::string function;
+        };
 
         // Thread-safe print function
         inline void safePrint(const std::string &mark, const std::string &message)
@@ -66,6 +74,10 @@ namespace cpp_dbc
 
             return oss.str();
         }
+
+        // bool shouldSkipFrame(const std::string &filename, const std::string &function);
+        std::vector<StackFrame> captureCallStack(bool captureAll = false, int skip = 1);
+        void printCallStack(const std::vector<StackFrame> &frames);
     }
 
 }

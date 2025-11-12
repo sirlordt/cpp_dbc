@@ -1,6 +1,27 @@
 # Changelog
 
-## 2025-11-11 03:45:00 PM -0800 [Current]
+## 2025-11-12 01:59:00 AM -0800 [Current]
+
+### Exception Handling and Stack Trace Improvements
+* Added comprehensive stack trace capture and error tracking:
+  * Added `backward.hpp` library for stack trace capture and analysis
+  * Created `system_utils::StackFrame` structure to store stack frame information
+  * Implemented `system_utils::captureCallStack()` function to capture the current call stack
+  * Implemented `system_utils::printCallStack()` function to print stack traces
+  * Enhanced `DBException` class with improved error tracking:
+    * Added mark field to uniquely identify error locations
+    * Added call stack capture to store the stack trace at exception creation
+    * Updated constructor to accept mark, message, and call stack
+    * Added `getMark()` method to retrieve the error mark
+    * Added `getCallStack()` and `printCallStack()` methods
+  * Updated all exception throws in SQLite driver to include:
+    * Unique error marks for better error identification
+    * Separated error marks from error messages
+    * Call stack capture for better debugging
+  * Updated transaction manager to use the new exception format
+  * Added comprehensive tests for the new exception features in test_drivers.cpp
+
+## 2025-11-11 03:45:00 PM -0800
 
 ### JSON Data Type Support
 * Added comprehensive support for JSON data types in MySQL and PostgreSQL:

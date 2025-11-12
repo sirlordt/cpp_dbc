@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -106,7 +106,7 @@ namespace cpp_dbc
                 {
                     std::string error = PQresultErrorMessage(res);
                     PQclear(res);
-                    throw DBException("Failed to start transaction for BLOB loading: " + error);
+                    throw DBException("P1G2S3Q4L5B", "Failed to start transaction for BLOB loading: " + error, system_utils::captureCallStack());
                 }
                 PQclear(res);
 
@@ -115,7 +115,7 @@ namespace cpp_dbc
                 if (fd < 0)
                 {
                     PQexec(conn, "ROLLBACK");
-                    throw DBException("Failed to open large object: " + std::to_string(lobOid));
+                    throw DBException("L6O7B8O9P0E", "Failed to open large object: " + std::to_string(lobOid), system_utils::captureCallStack());
                 }
 
                 // Get the size of the large object
@@ -131,7 +131,7 @@ namespace cpp_dbc
                     {
                         lo_close(conn, fd);
                         PQexec(conn, "ROLLBACK");
-                        throw DBException("Failed to read large object data");
+                        throw DBException("N1R2E3A4D5L", "Failed to read large object data", system_utils::captureCallStack());
                     }
                 }
                 else
@@ -148,7 +148,7 @@ namespace cpp_dbc
                 {
                     std::string error = PQresultErrorMessage(res);
                     PQclear(res);
-                    throw DBException("Failed to commit transaction for BLOB loading: " + error);
+                    throw DBException("O6B7C8O9M0M", "Failed to commit transaction for BLOB loading: " + error, system_utils::captureCallStack());
                 }
                 PQclear(res);
 
@@ -207,7 +207,7 @@ namespace cpp_dbc
                 {
                     std::string error = PQresultErrorMessage(res);
                     PQclear(res);
-                    throw DBException("Failed to start transaction for BLOB saving: " + error);
+                    throw DBException("I1T2S3A4V5E", "Failed to start transaction for BLOB saving: " + error, system_utils::captureCallStack());
                 }
                 PQclear(res);
 
@@ -218,7 +218,7 @@ namespace cpp_dbc
                     if (lobOid == 0)
                     {
                         PQexec(conn, "ROLLBACK");
-                        throw DBException("Failed to create large object");
+                        throw DBException("C6R7E8A9T0E", "Failed to create large object", system_utils::captureCallStack());
                     }
                 }
 
@@ -227,7 +227,7 @@ namespace cpp_dbc
                 if (fd < 0)
                 {
                     PQexec(conn, "ROLLBACK");
-                    throw DBException("Failed to open large object for writing");
+                    throw DBException("O1P2E3N4W5R", "Failed to open large object for writing", system_utils::captureCallStack());
                 }
 
                 // Truncate the large object
@@ -241,7 +241,7 @@ namespace cpp_dbc
                     {
                         lo_close(conn, fd);
                         PQexec(conn, "ROLLBACK");
-                        throw DBException("Failed to write large object data");
+                        throw DBException("W6R7I8T9E0D", "Failed to write large object data", system_utils::captureCallStack());
                     }
                 }
 
@@ -254,7 +254,7 @@ namespace cpp_dbc
                 {
                     std::string error = PQresultErrorMessage(res);
                     PQclear(res);
-                    throw DBException("Failed to commit transaction for BLOB saving: " + error);
+                    throw DBException("A1T2A3C4O5M", "Failed to commit transaction for BLOB saving: " + error, system_utils::captureCallStack());
                 }
                 PQclear(res);
 

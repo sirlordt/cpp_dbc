@@ -94,7 +94,12 @@ The project is configured to work with the CMakeTools extension, but does not re
 
 ### Error Handling
 - Uses exceptions for error propagation
-- Client code should handle SQLException appropriately
+- Enhanced DBException class with:
+  - Unique error marks for better error identification
+  - Call stack capture for detailed debugging information
+  - Methods to retrieve and print stack traces
+- Client code should handle DBException appropriately
+- Stack traces provide detailed information about error origins
 
 ## Dependencies
 
@@ -114,6 +119,13 @@ The project is configured to work with the CMakeTools extension, but does not re
   - Managed via Conan package manager
   - Only required when building with `--yaml` option
   - Header: `yaml-cpp/yaml.h`
+
+- **backward-cpp Library**:
+  - Included directly in the project as `backward.hpp`
+  - Provides stack trace capture and analysis
+  - Used for enhanced error reporting and debugging
+  - Automatically detects and uses available unwinding methods
+  - Header: `cpp_dbc/backward.hpp`
 
 ### Standard Library Dependencies
 - `<string>`: For string handling
@@ -169,9 +181,22 @@ The project is configured to work with the CMakeTools extension, but does not re
 - Use JSON validation functions to ensure data integrity
 
 ### Error Handling
-- SQLException should be caught and handled appropriately
+- DBException should be caught and handled appropriately
 - Connection errors should be handled with retry logic when appropriate
 - Transaction errors should trigger rollback
+- When catching exceptions, use the enhanced features for better debugging:
+  ```cpp
+  try {
+      // Database operations
+  } catch (const cpp_dbc::DBException& e) {
+      std::cerr << "Error: " << e.what() << std::endl;
+      std::cerr << "Error Mark: " << e.getMark() << std::endl;
+      e.printCallStack();  // Print the stack trace for debugging
+  }
+  ```
+- Error marks can be used to identify specific error locations in the code
+- Stack traces provide detailed information about the call chain leading to the error
+- Consider logging both the error message and stack trace for production debugging
 
 ### Configuration Management
 - YAML configuration files should be used for managing database settings

@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -40,6 +40,8 @@
 #include <map>
 #include <stdexcept>
 #include <cstdint>
+#include "cpp_dbc/backward.hpp"
+#include "cpp_dbc/common/system_utils.hpp"
 
 // Forward declaration of configuration classes
 namespace cpp_dbc
@@ -67,8 +69,43 @@ namespace cpp_dbc
     // Custom exceptions
     class DBException : public std::runtime_error
     {
+    private:
+        std::string m_mark;
+        mutable std::string m_full_message;
+        std::vector<system_utils::StackFrame> m_callstack;
+
     public:
-        explicit DBException(const std::string &message) : std::runtime_error(message) {}
+        explicit DBException(const std::string &mark, const std::string &message,
+                             const std::vector<system_utils::StackFrame> &callstack = {})
+            : std::runtime_error(message),
+              m_mark(mark),
+              m_callstack(callstack) {}
+
+        const char *what() const noexcept override
+        {
+            if (m_mark.empty())
+            {
+                return std::runtime_error::what();
+            }
+
+            m_full_message = m_mark + ": " + std::runtime_error::what();
+            return m_full_message.c_str();
+        }
+
+        const std::string &getMark() const
+        {
+            return m_mark;
+        }
+
+        void printCallStack() const
+        {
+            system_utils::printCallStack(m_callstack);
+        }
+
+        const std::vector<system_utils::StackFrame> &getCallStack() const
+        {
+            return m_callstack;
+        }
     };
 
     // Represents a SQL parameter type

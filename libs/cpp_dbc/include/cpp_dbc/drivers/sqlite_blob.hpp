@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -103,8 +103,7 @@ namespace cpp_dbc
                 int result = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("Failed to prepare statement for BLOB loading: " +
-                                      std::string(sqlite3_errmsg(db)));
+                    throw DBException("4AE05442DB70", "Failed to prepare statement for BLOB loading: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Execute the statement
@@ -129,8 +128,7 @@ namespace cpp_dbc
                 else
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("Failed to fetch BLOB data: " +
-                                      std::string(sqlite3_errmsg(db)));
+                    throw DBException("D281D99D6FAC", "Failed to fetch BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Finalize the statement
@@ -195,8 +193,7 @@ namespace cpp_dbc
                 int result = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("Failed to prepare statement for BLOB saving: " +
-                                      std::string(sqlite3_errmsg(db)));
+                    throw DBException("78BBDB81BED9", "Failed to prepare statement for BLOB saving: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Bind the BLOB data
@@ -204,8 +201,7 @@ namespace cpp_dbc
                 if (result != SQLITE_OK)
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("Failed to bind BLOB data: " +
-                                      std::string(sqlite3_errmsg(db)));
+                    throw DBException("6C9619BE36A2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Execute the statement
@@ -213,8 +209,7 @@ namespace cpp_dbc
                 if (result != SQLITE_DONE)
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("Failed to save BLOB data: " +
-                                      std::string(sqlite3_errmsg(db)));
+                    throw DBException("8DB1A784821C", "Failed to save BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Finalize the statement

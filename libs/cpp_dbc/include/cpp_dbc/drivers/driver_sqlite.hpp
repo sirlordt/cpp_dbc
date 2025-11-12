@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -224,7 +224,7 @@ namespace cpp_dbc
         public:
             SQLiteDriver()
             {
-                throw DBException("C27AD46A860B: SQLite support is not enabled in this build");
+                throw DBException("C27AD46A860B", "SQLite support is not enabled in this build", system_utils::captureCallStack());
             }
             ~SQLiteDriver() override = default;
 
@@ -233,7 +233,7 @@ namespace cpp_dbc
                                                 const std::string &password,
                                                 const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
             {
-                throw DBException("269CC140F035: SQLite support is not enabled in this build");
+                throw DBException("269CC140F035", "SQLite support is not enabled in this build", system_utils::captureCallStack());
             }
 
             bool acceptsURL(const std::string &url) override

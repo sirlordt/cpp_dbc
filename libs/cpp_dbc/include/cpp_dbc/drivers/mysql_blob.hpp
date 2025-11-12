@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -103,16 +103,14 @@ namespace cpp_dbc
                 // Execute the query
                 if (mysql_query(mysql, query.c_str()) != 0)
                 {
-                    throw DBException("Failed to fetch BLOB data: " +
-                                      std::string(mysql_error(mysql)));
+                    throw DBException("M1Y2S3Q4L5B", "Failed to fetch BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
                 }
 
                 // Get the result
                 MYSQL_RES *result = mysql_store_result(mysql);
                 if (!result)
                 {
-                    throw DBException("Failed to get result set for BLOB data: " +
-                                      std::string(mysql_error(mysql)));
+                    throw DBException("L6O7B8R9E0S", "Failed to get result set for BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
                 }
 
                 // Get the row
@@ -120,7 +118,7 @@ namespace cpp_dbc
                 if (!row)
                 {
                     mysql_free_result(result);
-                    throw DBException("No data found for BLOB");
+                    throw DBException("U1L2T3N4O5D", "No data found for BLOB", system_utils::captureCallStack());
                 }
 
                 // Get the BLOB data
@@ -128,7 +126,7 @@ namespace cpp_dbc
                 if (!lengths)
                 {
                     mysql_free_result(result);
-                    throw DBException("Failed to get BLOB data length");
+                    throw DBException("A6T7A8L9E0N", "Failed to get BLOB data length", system_utils::captureCallStack());
                 }
 
                 // Copy the BLOB data
@@ -202,15 +200,14 @@ namespace cpp_dbc
                 MYSQL_STMT *stmt = mysql_stmt_init(mysql);
                 if (!stmt)
                 {
-                    throw DBException("Failed to initialize statement for BLOB update: " +
-                                      std::string(mysql_error(mysql)));
+                    throw DBException("G1T2H3I4N5I", "Failed to initialize statement for BLOB update: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
                 }
 
                 if (mysql_stmt_prepare(stmt, query.c_str(), query.length()) != 0)
                 {
                     std::string error = mysql_stmt_error(stmt);
                     mysql_stmt_close(stmt);
-                    throw DBException("Failed to prepare statement for BLOB update: " + error);
+                    throw DBException("T6S7T8M9T0P", "Failed to prepare statement for BLOB update: " + error, system_utils::captureCallStack());
                 }
 
                 // Bind the BLOB data
@@ -225,7 +222,7 @@ namespace cpp_dbc
                 {
                     std::string error = mysql_stmt_error(stmt);
                     mysql_stmt_close(stmt);
-                    throw DBException("Failed to bind BLOB data: " + error);
+                    throw DBException("R1E2P3A4R5E", "Failed to bind BLOB data: " + error, system_utils::captureCallStack());
                 }
 
                 // Execute the statement
@@ -233,7 +230,7 @@ namespace cpp_dbc
                 {
                     std::string error = mysql_stmt_error(stmt);
                     mysql_stmt_close(stmt);
-                    throw DBException("Failed to update BLOB data: " + error);
+                    throw DBException("B6L7O8B9U0P", "Failed to update BLOB data: " + error, system_utils::captureCallStack());
                 }
 
                 // Clean up

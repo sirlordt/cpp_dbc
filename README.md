@@ -317,6 +317,39 @@ To run memory leak checks:
 
 For more details about memory leak issues and their solutions, see the [Valgrind PostgreSQL Memory Leak documentation](memory-bank/valgrind_postgresql_memory_leak.md) and [AddressSanitizer Issues documentation](memory-bank/asan_issues.md).
 
+### Exception Handling and Stack Trace Capture
+
+The library includes a robust exception handling system with stack trace capture capabilities:
+
+1. **Enhanced DBException Class**:
+   - Unique error marks for better error identification
+   - Separated error marks from error messages
+   - Call stack capture for better debugging
+   - Methods to retrieve and print stack traces
+
+2. **Stack Trace Capture**:
+   - Integration with backward-cpp library for stack trace capture
+   - Automatic capture of call stack when exceptions are thrown
+   - Filtering of irrelevant stack frames
+   - Human-readable stack trace output
+
+3. **Error Identification**:
+   - Unique alphanumeric error marks for each error location
+   - Consistent error format across all database drivers
+   - Improved error messages with context information
+   - Better debugging capabilities with file and line information
+
+4. **Usage Example**:
+   ```cpp
+   try {
+       // Database operations
+   } catch (const cpp_dbc::DBException& e) {
+       std::cerr << "Error: " << e.what() << std::endl;
+       std::cerr << "Error Mark: " << e.getMark() << std::endl;
+       e.printCallStack();
+   }
+   ```
+
 The `run_test.sh` script will automatically build the project and tests if they haven't been built yet.
 
 #### Running the YAML Configuration Example

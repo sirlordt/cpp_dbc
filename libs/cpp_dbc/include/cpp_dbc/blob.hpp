@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -105,7 +105,7 @@ namespace cpp_dbc
             : file(filename, std::ios::binary)
         {
             if (!file)
-                throw DBException("Failed to open file for reading: " + filename);
+                throw DBException("FE66975AE75B", "Failed to open file for reading: " + filename, system_utils::captureCallStack());
         }
 
         int read(uint8_t *buffer, size_t length) override
@@ -139,14 +139,14 @@ namespace cpp_dbc
             : file(filename, append ? (std::ios::binary | std::ios::app) : (std::ios::binary | std::ios::trunc))
         {
             if (!file)
-                throw DBException("Failed to open file for writing: " + filename);
+                throw DBException("DFD87502D621", "Failed to open file for writing: " + filename, system_utils::captureCallStack());
         }
 
         void write(const uint8_t *buffer, size_t length) override
         {
             file.write(reinterpret_cast<const char *>(buffer), length);
             if (!file)
-                throw DBException("Failed to write to file");
+                throw DBException("A5060D0FEA5A", "Failed to write to file", system_utils::captureCallStack());
         }
 
         void flush() override
