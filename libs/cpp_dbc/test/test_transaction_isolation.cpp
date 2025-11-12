@@ -225,7 +225,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         catch (const cpp_dbc::DBException &e)
         {
             // If we can't connect to a real database, skip the test
-            SKIP("Could not connect to MySQL database: " + std::string(e.what()));
+            SKIP("Could not connect to MySQL database: " + std::string(e.what_s()));
         }
     }
 
@@ -289,7 +289,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         }
         catch (const cpp_dbc::DBException &e)
         {
-            SKIP("Could not run MySQL READ_UNCOMMITTED test: " + std::string(e.what()));
+            SKIP("Could not run MySQL READ_UNCOMMITTED test: " + std::string(e.what_s()));
         }
     }
 
@@ -360,7 +360,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         }
         catch (const cpp_dbc::DBException &e)
         {
-            SKIP("Could not run MySQL READ_COMMITTED test: " + std::string(e.what()));
+            SKIP("Could not run MySQL READ_COMMITTED test: " + std::string(e.what_s()));
         }
     }
 
@@ -424,7 +424,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         }
         catch (const cpp_dbc::DBException &e)
         {
-            SKIP("Could not run MySQL REPEATABLE_READ test: " + std::string(e.what()));
+            SKIP("Could not run MySQL REPEATABLE_READ test: " + std::string(e.what_s()));
         }
     }
 
@@ -505,7 +505,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         }
         catch (const cpp_dbc::DBException &e)
         {
-            SKIP("Could not run MySQL SERIALIZABLE test: " + std::string(e.what()));
+            SKIP("Could not run MySQL SERIALIZABLE test: " + std::string(e.what_s()));
         }
     }
 }
@@ -580,7 +580,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         catch (const cpp_dbc::DBException &e)
         {
             // If we can't connect to a real database, skip the test
-            SKIP("Could not connect to PostgreSQL database: " + std::string(e.what()));
+            SKIP("Could not connect to PostgreSQL database: " + std::string(e.what_s()));
         }
     }
 
@@ -665,7 +665,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         }
         catch (const cpp_dbc::DBException &e)
         {
-            SKIP("Could not run PostgreSQL READ_COMMITTED test: " + std::string(e.what()));
+            SKIP("Could not run PostgreSQL READ_COMMITTED test: " + std::string(e.what_s()));
         }
     }
 
@@ -743,7 +743,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         }
         catch (const cpp_dbc::DBException &e)
         {
-            SKIP("Could not run PostgreSQL REPEATABLE_READ test: " + std::string(e.what()));
+            SKIP("Could not run PostgreSQL REPEATABLE_READ test: " + std::string(e.what_s()));
         }
     }
 
@@ -882,7 +882,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
                 }
                 catch (const cpp_dbc::DBException &e)
                 {
-                    std::string error = e.what();
+                    std::string error = e.what_s();
                     INFO("Got expected error: " << error);
 
                     // Verify it's a serialization error (40001)
@@ -958,7 +958,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
                 catch (const cpp_dbc::DBException &e)
                 {
                     txn2Failed = true;
-                    std::string error = e.what();
+                    std::string error = e.what_s();
                     INFO("txn2 failed with: " << error);
 
                     REQUIRE((error.find("serialize") != std::string::npos ||
@@ -1033,7 +1033,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         catch (const cpp_dbc::DBException &e)
         {
 
-            auto what = std::string(e.what());
+            auto what = std::string(e.what_s());
             // Remove possible newline characters at the end
             if (!what.empty() && what.back() == '\n')
             {
@@ -1164,7 +1164,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
                 catch (const cpp_dbc::DBException &e)
                 {
                     txn2CommitSucceeded = false;
-                    std::string errorMsg = e.what();
+                    std::string errorMsg = e.what_s();
                     INFO("Transaction 2 commit failed with error: " + errorMsg);
                     // Check if it's a serialization error (PostgreSQL error code 40001)
                     bool isSerializationError = errorMsg.find("40001") != std::string::npos ||
@@ -1215,7 +1215,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             catch (const cpp_dbc::DBException &e)
             {
                 // This is expected in strict SERIALIZABLE mode
-                std::string error = e.what();
+                std::string error = e.what_s();
                 INFO("Got expected serialization error: " + error);
             }
 
@@ -1233,7 +1233,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         }
         catch (const cpp_dbc::DBException &e)
         {
-            SKIP("Could not run PostgreSQL SERIALIZABLE test: " + std::string(e.what()));
+            SKIP("Could not run PostgreSQL SERIALIZABLE test: " + std::string(e.what_s()));
         }
     }
     */

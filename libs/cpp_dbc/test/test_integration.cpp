@@ -560,7 +560,7 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
                 {
                     // std::cout << "Connection to " << name << " failed: " << e.what() << std::endl;
                     // We'll just warn instead of failing the test, since the database might not be available
-                    WARN("Connection to " << name << " failed: " << e.what());
+                    WARN("Connection to " << name << " failed: " << e.what_s());
                 }
             }
         }

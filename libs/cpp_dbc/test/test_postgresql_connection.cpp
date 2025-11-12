@@ -97,12 +97,12 @@ TEST_CASE("PostgreSQL connection test", "[postgresql_connection]")
         catch (const cpp_dbc::DBException &e)
         {
             // If we get here, the connection failed
-            std::string errorMsg = e.what();
-            std::cout << "PostgreSQL connection error: " << errorMsg << std::endl;
+            // std::string errorMsg = e.what_s();
+            std::cout << "PostgreSQL connection error: " << e.what_s() << std::endl;
 
             // Since we're just testing connectivity, we'll mark this as a success
             // with a message indicating that the connection failed
-            WARN("PostgreSQL connection failed: " + std::string(e.what()));
+            WARN("PostgreSQL connection failed: " + e.what_s());
             WARN("This is expected if PostgreSQL is not installed or the database doesn't exist");
             WARN("The test is still considered successful for CI purposes");
         }

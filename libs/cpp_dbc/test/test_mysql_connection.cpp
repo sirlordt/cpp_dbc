@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -97,7 +97,7 @@ TEST_CASE("MySQL connection test", "[mysql_connection]")
         catch (const cpp_dbc::DBException &e)
         {
             // We expect an exception since Test01DB doesn't exist
-            std::string errorMsg = e.what();
+            std::string errorMsg = e.what_s();
             std::cout << "MySQL connection error: " << errorMsg << std::endl;
 
             // Since we're just testing connectivity and driver registration,
@@ -114,7 +114,7 @@ TEST_CASE("MySQL connection test", "[mysql_connection]")
                 errorMsg.find("No suitable driver") != std::string::npos;
 
             // We'll warn instead of requiring, to make the test more robust
-            WARN("MySQL connection failed as expected: " + std::string(e.what()));
+            WARN("MySQL connection failed as expected: " + std::string(e.what_s()));
             WARN("This is expected if the database doesn't exist");
             WARN("The test is still considered successful for CI purposes");
         }

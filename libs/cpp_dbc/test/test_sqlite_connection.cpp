@@ -142,9 +142,9 @@ TEST_CASE("SQLite connection test", "[sqlite_connection]")
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::string errorMsg = e.what();
+            std::string errorMsg = e.what_s();
             std::cout << "SQLite connection error: " << errorMsg << std::endl;
-            FAIL("SQLite connection failed: " + std::string(e.what()));
+            FAIL("SQLite connection failed: " + std::string(e.what_s()));
         }
     }
 #else
@@ -201,9 +201,9 @@ TEST_CASE("SQLite in-memory database test", "[sqlite_memory]")
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::string errorMsg = e.what();
+            std::string errorMsg = e.what_s();
             std::cout << "SQLite in-memory database error: " << errorMsg << std::endl;
-            FAIL("SQLite in-memory database test failed: " + std::string(e.what()));
+            FAIL("SQLite in-memory database test failed: " + std::string(e.what_s()));
         }
     }
 #else

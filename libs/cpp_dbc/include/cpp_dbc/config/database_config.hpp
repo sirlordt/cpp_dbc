@@ -139,7 +139,7 @@ namespace cpp_dbc
             const std::string &getName() const { return name; }
             const std::string &getType() const { return type; }
             const std::string &getHost() const { return host; }
-            int getPort() const { return port; }
+            unsigned int getPort() const { return port; }
             const std::string &getDatabase() const { return database; }
             const std::string &getUsername() const { return username; }
             const std::string &getPassword() const { return password; }
@@ -155,7 +155,7 @@ namespace cpp_dbc
             void setName(const std::string &value) { name = value; }
             void setType(const std::string &value) { type = value; }
             void setHost(const std::string &value) { host = value; }
-            void setPort(int value) { port = value; }
+            void setPort(unsigned int value) { port = value; }
             void setDatabase(const std::string &value) { database = value; }
             void setUsername(const std::string &value) { username = value; }
             void setPassword(const std::string &value) { password = value; }
@@ -216,13 +216,13 @@ namespace cpp_dbc
             std::string username;
             std::string password;
             std::map<std::string, std::string> options;
-            int initialSize;
-            int maxSize;
-            int minIdle;
-            long connectionTimeout;
-            long idleTimeout;
-            long validationInterval;
-            long maxLifetimeMillis;
+            unsigned int initialSize;
+            unsigned int maxSize;
+            unsigned int minIdle;
+            unsigned long connectionTimeout;
+            unsigned long idleTimeout;
+            unsigned long validationInterval;
+            unsigned long maxLifetimeMillis;
             bool testOnBorrow;
             bool testOnReturn;
             std::string validationQuery;
@@ -252,22 +252,22 @@ namespace cpp_dbc
              */
             ConnectionPoolConfig(
                 const std::string &name,
-                int initialSize,
-                int maxSize,
-                long connectionTimeout,
-                long idleTimeout,
-                long validationInterval) : name(name),
-                                           initialSize(initialSize),
-                                           maxSize(maxSize),
-                                           minIdle(3),
-                                           connectionTimeout(connectionTimeout),
-                                           idleTimeout(idleTimeout),
-                                           validationInterval(validationInterval),
-                                           maxLifetimeMillis(1800000),
-                                           testOnBorrow(true),
-                                           testOnReturn(false),
-                                           validationQuery("SELECT 1"),
-                                           transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) {}
+                unsigned int initialSize,
+                unsigned int maxSize,
+                unsigned long connectionTimeout,
+                unsigned long idleTimeout,
+                unsigned long validationInterval) : name(name),
+                                                    initialSize(initialSize),
+                                                    maxSize(maxSize),
+                                                    minIdle(3),
+                                                    connectionTimeout(connectionTimeout),
+                                                    idleTimeout(idleTimeout),
+                                                    validationInterval(validationInterval),
+                                                    maxLifetimeMillis(1800000),
+                                                    testOnBorrow(true),
+                                                    testOnReturn(false),
+                                                    validationQuery("SELECT 1"),
+                                                    transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) {}
 
             /**
              * @brief Full constructor with all parameters
@@ -277,13 +277,13 @@ namespace cpp_dbc
                 const std::string &url,
                 const std::string &username,
                 const std::string &password,
-                int initialSize,
-                int maxSize,
-                int minIdle,
-                long connectionTimeout,
-                long idleTimeout,
-                long validationInterval,
-                long maxLifetimeMillis,
+                unsigned int initialSize,
+                unsigned int maxSize,
+                unsigned int minIdle,
+                unsigned long connectionTimeout,
+                unsigned long idleTimeout,
+                unsigned long validationInterval,
+                unsigned long maxLifetimeMillis,
                 bool testOnBorrow,
                 bool testOnReturn,
                 const std::string &validationQuery,
@@ -308,13 +308,13 @@ namespace cpp_dbc
             const std::string &getUrl() const { return url; }
             const std::string &getUsername() const { return username; }
             const std::string &getPassword() const { return password; }
-            int getInitialSize() const { return initialSize; }
-            int getMaxSize() const { return maxSize; }
-            int getMinIdle() const { return minIdle; }
-            long getConnectionTimeout() const { return connectionTimeout; }
-            long getIdleTimeout() const { return idleTimeout; }
-            long getValidationInterval() const { return validationInterval; }
-            long getMaxLifetimeMillis() const { return maxLifetimeMillis; }
+            unsigned int getInitialSize() const { return initialSize; }
+            unsigned int getMaxSize() const { return maxSize; }
+            unsigned int getMinIdle() const { return minIdle; }
+            unsigned long getConnectionTimeout() const { return connectionTimeout; }
+            unsigned long getIdleTimeout() const { return idleTimeout; }
+            unsigned long getValidationInterval() const { return validationInterval; }
+            unsigned long getMaxLifetimeMillis() const { return maxLifetimeMillis; }
             bool getTestOnBorrow() const { return testOnBorrow; }
             bool getTestOnReturn() const { return testOnReturn; }
             const std::string &getValidationQuery() const { return validationQuery; }
@@ -326,13 +326,13 @@ namespace cpp_dbc
             void setUrl(const std::string &value) { url = value; }
             void setUsername(const std::string &value) { username = value; }
             void setPassword(const std::string &value) { password = value; }
-            void setInitialSize(int value) { initialSize = value; }
-            void setMaxSize(int value) { maxSize = value; }
-            void setMinIdle(int value) { minIdle = value; }
-            void setConnectionTimeout(long value) { connectionTimeout = value; }
-            void setIdleTimeout(long value) { idleTimeout = value; }
-            void setValidationInterval(long value) { validationInterval = value; }
-            void setMaxLifetimeMillis(long value) { maxLifetimeMillis = value; }
+            void setInitialSize(unsigned int value) { initialSize = value; }
+            void setMaxSize(unsigned int value) { maxSize = value; }
+            void setMinIdle(unsigned int value) { minIdle = value; }
+            void setConnectionTimeout(unsigned long value) { connectionTimeout = value; }
+            void setIdleTimeout(unsigned long value) { idleTimeout = value; }
+            void setValidationInterval(unsigned long value) { validationInterval = value; }
+            void setMaxLifetimeMillis(unsigned long value) { maxLifetimeMillis = value; }
             void setTestOnBorrow(bool value) { testOnBorrow = value; }
             void setTestOnReturn(bool value) { testOnReturn = value; }
             void setValidationQuery(const std::string &value) { validationQuery = value; }

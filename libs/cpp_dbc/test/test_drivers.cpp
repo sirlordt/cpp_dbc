@@ -140,7 +140,7 @@ TEST_CASE("DBException tests", "[exception]")
         cpp_dbc::DBException ex("", "Test error message");
 
         // Check the error message
-        REQUIRE(std::string(ex.what()) == "Test error message");
+        REQUIRE(std::string(ex.what_s()) == "Test error message");
 
         // Check the mark is empty
         REQUIRE(ex.getMark().empty());
@@ -162,7 +162,7 @@ TEST_CASE("DBException tests", "[exception]")
         cpp_dbc::DBException ex("9S0T1U2V3W4X", "Test error message");
 
         // Check the error message includes the mark
-        REQUIRE(std::string(ex.what()) == "9S0T1U2V3W4X: Test error message");
+        REQUIRE(std::string(ex.what_s()) == "9S0T1U2V3W4X: Test error message");
 
         // Check the mark is correctly stored
         REQUIRE(ex.getMark() == "9S0T1U2V3W4X");
@@ -180,7 +180,7 @@ TEST_CASE("DBException tests", "[exception]")
         catch (const cpp_dbc::DBException &e)
         {
             REQUIRE(e.getMark() == "1M2N3O4P5Q6R");
-            REQUIRE(std::string(e.what()) == "1M2N3O4P5Q6R: Error message");
+            REQUIRE(std::string(e.what_s()) == "1M2N3O4P5Q6R: Error message");
         }
     }
 
@@ -198,7 +198,7 @@ TEST_CASE("DBException tests", "[exception]")
         cpp_dbc::DBException ex("CALLSTACK", "Test error with callstack", test_callstack);
 
         // Check the error message includes the mark
-        REQUIRE(std::string(ex.what()) == "CALLSTACK: Test error with callstack");
+        REQUIRE(std::string(ex.what_s()) == "CALLSTACK: Test error with callstack");
 
         // Check the mark is correctly stored
         REQUIRE(ex.getMark() == "CALLSTACK");
@@ -219,7 +219,7 @@ TEST_CASE("DBException tests", "[exception]")
         cpp_dbc::DBException ex("CALLSTACK", "Test error with real callstack", cpp_dbc::system_utils::captureCallStack(true));
 
         // Check the error message includes the mark
-        REQUIRE(std::string(ex.what()) == "CALLSTACK: Test error with real callstack");
+        REQUIRE(std::string(ex.what_s()) == "CALLSTACK: Test error with real callstack");
 
         // Check the mark is correctly stored
         REQUIRE(ex.getMark() == "CALLSTACK");

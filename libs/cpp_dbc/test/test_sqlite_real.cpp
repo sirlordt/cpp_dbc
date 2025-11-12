@@ -192,9 +192,9 @@ TEST_CASE("SQLite real database operations", "[sqlite_real]")
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::string errorMsg = e.what();
+            std::string errorMsg = e.what_s();
             std::cout << "SQLite real database error: " << errorMsg << std::endl;
-            FAIL("SQLite real database test failed: " + std::string(e.what()));
+            FAIL("SQLite real database test failed: " + std::string(e.what_s()));
         }
     }
 #else

@@ -221,7 +221,7 @@ TEST_CASE("MySQL JSON data type", "[mysql_real_json]")
         catch (const cpp_dbc::DBException &e)
         {
             // JSON_MERGE_PATCH might not be available in older MySQL versions
-            std::cout << "JSON_MERGE_PATCH test skipped: " << e.what() << std::endl;
+            std::cout << "JSON_MERGE_PATCH test skipped: " << e.what_s() << std::endl;
         }
 
         // Test JSON_REMOVE function
@@ -405,7 +405,7 @@ TEST_CASE("MySQL JSON data type", "[mysql_real_json]")
         catch (const cpp_dbc::DBException &e)
         {
             // JSON_ARRAYAGG might not be available in older MySQL versions
-            std::cout << "JSON_ARRAYAGG test skipped: " << e.what() << std::endl;
+            std::cout << "JSON_ARRAYAGG test skipped: " << e.what_s() << std::endl;
         }
 
         // Test JSON_OBJECT function
@@ -440,7 +440,7 @@ TEST_CASE("MySQL JSON data type", "[mysql_real_json]")
         catch (const cpp_dbc::DBException &e)
         {
             // JSON_TABLE might not be available in older MySQL versions
-            std::cout << "JSON_TABLE test skipped: " << e.what() << std::endl;
+            std::cout << "JSON_TABLE test skipped: " << e.what_s() << std::endl;
         }
 
         // Clean up

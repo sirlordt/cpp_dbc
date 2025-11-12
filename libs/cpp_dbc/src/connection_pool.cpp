@@ -239,7 +239,7 @@ namespace cpp_dbc
         catch (...)
         // catch (const cpp_dbc::DBException &e)
         {
-            // std::cerr << "SQL Error: " << e.what() << std::endl;
+            // std::cerr << "SQL Error: " << e.what_s() << std::endl;
         }
 
         // Mark as inactive and update last used time
