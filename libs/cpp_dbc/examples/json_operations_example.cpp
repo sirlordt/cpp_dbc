@@ -185,7 +185,7 @@ void demonstrateMySQLJson(std::shared_ptr<cpp_dbc::Connection> conn)
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "MySQL JSON operation error: " << e.what() << std::endl;
+        std::cerr << "MySQL JSON operation error: " << e.what_s() << std::endl;
     }
 }
 
@@ -331,7 +331,7 @@ void demonstratePostgreSQLJson(std::shared_ptr<cpp_dbc::Connection> conn)
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "PostgreSQL JSON operation error: " << e.what() << std::endl;
+        std::cerr << "PostgreSQL JSON operation error: " << e.what_s() << std::endl;
     }
 }
 
@@ -380,7 +380,7 @@ int main()
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
         return 1;
     }
     catch (const std::exception &e)

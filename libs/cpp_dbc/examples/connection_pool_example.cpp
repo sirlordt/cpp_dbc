@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -84,7 +84,7 @@ void performDatabaseOperation(cpp_dbc::ConnectionPool &pool, int threadId)
     catch (const cpp_dbc::DBException &e)
     {
         std::lock_guard<std::mutex> lock(consoleMutex);
-        std::cerr << "Thread " << threadId << " encountered error: " << e.what() << std::endl;
+        std::cerr << "Thread " << threadId << " encountered error: " << e.what_s() << std::endl;
     }
 }
 
@@ -183,7 +183,7 @@ int main()
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << e.what() << std::endl;
+        std::cerr << e.what_s() << std::endl;
         return 1;
     }
     catch (const std::exception &e)

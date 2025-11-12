@@ -1294,20 +1294,20 @@ namespace cpp_dbc
         // SQLiteDriver implementation
         SQLiteDriver::SQLiteDriver()
         {
-            // Initialize SQLite
-            int initResult = sqlite3_initialize();
-            if (initResult != SQLITE_OK)
-            {
-                std::cerr << "Warning: Error initializing SQLite: "
-                          << sqlite3_errstr(initResult) << std::endl;
-            }
-
             // Configure SQLite for thread safety
             int configResult = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
             if (configResult != SQLITE_OK)
             {
                 std::cerr << "Warning: Error configuring SQLite for thread safety: "
                           << sqlite3_errstr(configResult) << std::endl;
+            }
+
+            // Initialize SQLite
+            int initResult = sqlite3_initialize();
+            if (initResult != SQLITE_OK)
+            {
+                std::cerr << "Warning: Error initializing SQLite: "
+                          << sqlite3_errstr(initResult) << std::endl;
             }
 
             // Set up memory management

@@ -206,7 +206,7 @@ void demonstrateBasicBatchInsert(std::shared_ptr<cpp_dbc::Connection> conn)
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
     }
 }
 
@@ -298,13 +298,13 @@ void demonstrateBatchWithTransaction(std::shared_ptr<cpp_dbc::Connection> conn)
         }
         catch (const cpp_dbc::DBException &rollbackError)
         {
-            std::cerr << "Rollback error: " << rollbackError.what() << std::endl;
+            std::cerr << "Rollback error: " << rollbackError.what_s() << std::endl;
         }
 
         // Restore auto-commit mode
         conn->setAutoCommit(true);
 
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
     }
 }
 
@@ -372,7 +372,7 @@ void demonstrateBatchUpdate(std::shared_ptr<cpp_dbc::Connection> conn)
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
     }
 }
 
@@ -432,7 +432,7 @@ void demonstrateBatchDelete(std::shared_ptr<cpp_dbc::Connection> conn)
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
     }
 }
 
@@ -615,7 +615,7 @@ void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::Connection> 
         // Restore auto-commit mode
         conn->setAutoCommit(true);
 
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
     }
 }
 
@@ -682,7 +682,7 @@ int main()
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
         return 1;
     }
     catch (const std::exception &e)

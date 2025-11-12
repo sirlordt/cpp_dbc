@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::cerr << e.what() << std::endl;
+            std::cerr << e.what_s() << std::endl;
         }
     }
 
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::cerr << e.what() << std::endl;
+            std::cerr << e.what_s() << std::endl;
         }
     }
 
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << e.what() << std::endl;
+        std::cerr << e.what_s() << std::endl;
     }
 
     std::cout << "\n=== Example 4: Creating a connection from DatabaseConfigManager ===" << std::endl;
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << e.what() << std::endl;
+        std::cerr << e.what_s() << std::endl;
     }
 
     std::cout << "\n=== Example 5: Creating a connection pool ===" << std::endl;
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << e.what() << std::endl;
+        std::cerr << e.what_s() << std::endl;
     }
 
     return 0;

@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << e.what() << std::endl;
+        std::cerr << e.what_s() << std::endl;
     }
     catch (const std::exception &e)
     {

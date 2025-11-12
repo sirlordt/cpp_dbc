@@ -94,7 +94,7 @@ void performDatabaseOperations(std::shared_ptr<cpp_dbc::Connection> conn)
         {
             // Rollback in case of error
             conn->rollback();
-            std::cout << "Transaction rolled back: " << e.what() << std::endl;
+            std::cout << "Transaction rolled back: " << e.what_s() << std::endl;
         }
 
         // Restore auto-commit mode
@@ -102,7 +102,7 @@ void performDatabaseOperations(std::shared_ptr<cpp_dbc::Connection> conn)
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << e.what() << std::endl;
+        std::cerr << e.what_s() << std::endl;
     }
 }
 
@@ -142,7 +142,7 @@ int main()
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << e.what() << std::endl;
+        std::cerr << e.what_s() << std::endl;
         return 1;
     }
     catch (const std::exception &e)

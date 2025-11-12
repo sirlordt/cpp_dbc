@@ -62,7 +62,8 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database error in " << operationName << ": " << e.what() << std::endl;
+        std::cerr << "Database error in " << operationName << ": " << e.what_s() << std::endl;
+        e.printCallStack();
     }
     catch (const AppException &e)
     {
@@ -328,7 +329,8 @@ void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::Connection> conn)
             conn->commit();
         }
         catch (const cpp_dbc::DBException& e) {
-            std::cerr << "Error in transaction: " << e.what() << std::endl;
+            std::cerr << "Error in transaction: " << e.what_s() << std::endl;
+            e.getCallStack();
             std::cerr << "Rolling back transaction..." << std::endl;
             conn->rollback();
             
@@ -455,7 +457,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::Connection> conn)
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Expected error occurred: " << e.what() << std::endl;
+        std::cerr << "Expected error occurred: " << e.what_s() << std::endl;
 
         // Recover by performing a valid operation
         std::cout << "Recovering by performing a valid operation..." << std::endl;
@@ -489,7 +491,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::Connection> conn)
         }
         catch (const cpp_dbc::DBException &recoverError)
         {
-            std::cerr << "Recovery failed: " << recoverError.what() << std::endl;
+            std::cerr << "Recovery failed: " << recoverError.what_s() << std::endl;
         }
     }
 }
@@ -520,7 +522,7 @@ void demonstrateCustomErrorHandling(std::shared_ptr<cpp_dbc::Connection> conn)
             logError(operation, e);
 
             // Analyze error message to categorize the error
-            std::string errorMsg = e.what();
+            std::string errorMsg = e.what_s();
             if (errorMsg.find("constraint") != std::string::npos ||
                 errorMsg.find("CONSTRAINT") != std::string::npos ||
                 errorMsg.find("duplicate") != std::string::npos ||
@@ -712,7 +714,7 @@ int main()
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::cerr << e.what() << std::endl;
+            std::cerr << e.what_s() << std::endl;
             e.printCallStack();
         }
 #else
@@ -777,7 +779,7 @@ int main()
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::cerr << e.what() << std::endl;
+            std::cerr << e.what_s() << std::endl;
             e.printCallStack();
         }
 #else

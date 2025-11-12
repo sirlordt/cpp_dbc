@@ -81,6 +81,7 @@ namespace cpp_dbc
               m_mark(mark),
               m_callstack(callstack) {}
 
+        [[deprecated("Use what_s() instead. It avoids the unsafe const char* pointer.")]]
         const char *what() const noexcept override
         {
             if (m_mark.empty())
@@ -90,6 +91,18 @@ namespace cpp_dbc
 
             m_full_message = m_mark + ": " + std::runtime_error::what();
             return m_full_message.c_str();
+        }
+
+        virtual const std::string &what_s() const noexcept
+        {
+            if (m_mark.empty())
+            {
+                m_full_message = std::runtime_error::what();
+                return m_full_message;
+            }
+
+            m_full_message = m_mark + ": " + std::runtime_error::what();
+            return m_full_message;
         }
 
         const std::string &getMark() const
