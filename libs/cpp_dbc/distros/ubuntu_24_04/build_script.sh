@@ -92,6 +92,8 @@ Architecture: amd64
 Depends: \${shlibs:Depends}, \${misc:Depends}__MYSQL_CONTROL_DEP____POSTGRESQL_CONTROL_DEP____SQLITE_CONTROL_DEP____LIBDW_CONTROL_DEP__
 Description: C++ Database Connectivity Library
  A C++ library for database connectivity inspired by JDBC.
+ This package was built with:
+   __BUILD_FLAGS__
 EOL
 
 # Create rules file
@@ -111,19 +113,28 @@ override_dh_auto_install:
 	# Copy the built library files to the package directory
 	mkdir -p \${CURDIR}/debian/cpp-dbc/usr/lib
 	mkdir -p \${CURDIR}/debian/cpp-dbc/usr/include
+	mkdir -p \${CURDIR}/debian/cpp-dbc/usr/share/doc/cpp-dbc
 	
 	# Copy the library files directly from where CMake installed them
 	cp -v /app/build/libs/cpp_dbc/lib/libcpp_dbc.a \${CURDIR}/debian/cpp-dbc/usr/lib/
 	cp -rv /app/build/libs/cpp_dbc/include/* \${CURDIR}/debian/cpp-dbc/usr/include/
+	
+	# Copy documentation files
+	cp -rv /app/libs/cpp_dbc/docs/* \${CURDIR}/debian/cpp-dbc/usr/share/doc/cpp-dbc/
+	
+	# Copy CHANGELOG.md from the root of the project
+	cp -v /app/CHANGELOG.md \${CURDIR}/debian/cpp-dbc/usr/share/doc/cpp-dbc/changelog
 EOL
 
 chmod +x debian/rules
 
 # Create changelog
+# Use the timestamp for the version
+TIMESTAMP="__TIMESTAMP__"
 cat > debian/changelog << EOL
-cpp-dbc (1.0.0-1) noble; urgency=medium
+cpp-dbc (${TIMESTAMP}-1) noble; urgency=medium
 
-  * Initial release
+  * Initial release 
 
  -- Tomas R Moreno P <tomasr.morenop@gmail.com>  $(date -R)
 EOL
@@ -143,8 +154,11 @@ EOL
 debuild -us -uc -b
 
 # Find and move the package with timestamp
-TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
-PACKAGE_NAME="cpp_dbc_amd64_${TIMESTAMP}.deb"
+# Use the timestamp and distro information passed from the main script
+TIMESTAMP="__TIMESTAMP__"
+DISTRO_NAME="__DISTRO_NAME__"
+DISTRO_VERSION="__DISTRO_VERSION__"
+PACKAGE_NAME="cpp_dbc_V${TIMESTAMP}_${DISTRO_NAME}_${DISTRO_VERSION}_amd64.deb"
 
 # Find the generated .deb file
 DEB_FILE=$(find .. -name "*.deb" -type f -print -quit)

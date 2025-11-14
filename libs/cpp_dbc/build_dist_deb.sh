@@ -71,14 +71,14 @@ case $DISTRO in
         ;;
     ubuntu:22.04)
         DISTRO_DIR="ubuntu_22_04"
-        MYSQL_DEV_PKG="libmysqlclient-dev"
+        MYSQL_DEV_PKG="default-libmysqlclient-dev"
         POSTGRESQL_DEV_PKG="libpq-dev"
         SQLITE_DEV_PKG="libsqlite3-dev"
         LIBDW_DEV_PKG="libdw-dev"
         ;;
     ubuntu:24.04)
         DISTRO_DIR="ubuntu_24_04"
-        MYSQL_DEV_PKG="libmysqlclient-dev"
+        MYSQL_DEV_PKG="default-libmysqlclient-dev"
         POSTGRESQL_DEV_PKG="libpq-dev"
         SQLITE_DEV_PKG="libsqlite3-dev"
         LIBDW_DEV_PKG="libdw-dev"
@@ -110,6 +110,8 @@ USE_CPP_YAML="OFF"
 USE_DW="OFF"
 BUILD_TYPE="Debug"
 BUILD_EXAMPLES="OFF"
+# Create a variable to store the build flags for the Debian package
+BUILD_FLAGS=""
 
 IFS=',' read -ra OPTIONS <<< "$BUILD_OPTIONS"
 for option in "${OPTIONS[@]}"; do
@@ -118,34 +120,41 @@ for option in "${OPTIONS[@]}"; do
             CMAKE_YAML_OPTION="-DCPP_DBC_WITH_YAML=ON"
             DEB_DEPENDENCIES="$DEB_DEPENDENCIES, libyaml-cpp-dev"
             USE_CPP_YAML="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --yaml"
             ;;
         mysql)
             CMAKE_MYSQL_OPTION="-DCPP_DBC_WITH_MYSQL=ON"
             DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $MYSQL_DEV_PKG"
             MYSQL_CONTROL_DEP=", $MYSQL_DEV_PKG"
             USE_MYSQL="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --mysql"
             ;;
         postgres)
             CMAKE_POSTGRESQL_OPTION="-DCPP_DBC_WITH_POSTGRESQL=ON"
             DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $POSTGRESQL_DEV_PKG"
             POSTGRESQL_CONTROL_DEP=", $POSTGRESQL_DEV_PKG"
             USE_POSTGRESQL="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --postgres"
             ;;
         sqlite)
             CMAKE_SQLITE_OPTION="-DCPP_DBC_WITH_SQLITE=ON"
             DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SQLITE_DEV_PKG"
             SQLITE_CONTROL_DEP=", $SQLITE_DEV_PKG"
             USE_SQLITE="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --sqlite"
             ;;
         debug)
             BUILD_TYPE="Debug"
+            BUILD_FLAGS="$BUILD_FLAGS --debug"
             ;;
         dw)
             USE_DW="ON"
             CMAKE_DW_OPTION="-DBACKWARD_HAS_DW=ON"
+            BUILD_FLAGS="$BUILD_FLAGS --dw"
             ;;
         examples)
             BUILD_EXAMPLES="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --examples"
             ;;
         *)
             echo "Unknown build option: $option"
@@ -195,7 +204,16 @@ sed -i "s/__USE_CPP_YAML__/$USE_CPP_YAML/g" "$TEMP_BUILD_DIR/build_script.sh"
 sed -i "s/__USE_DW__/$USE_DW/g" "$TEMP_BUILD_DIR/build_script.sh"
 sed -i "s/__BUILD_TYPE__/$BUILD_TYPE/g" "$TEMP_BUILD_DIR/build_script.sh"
 sed -i "s/__BUILD_EXAMPLES__/$BUILD_EXAMPLES/g" "$TEMP_BUILD_DIR/build_script.sh"
-sed -i "s/__TIMESTAMP__/$(date +"%Y-%m-%d-%H-%M-%S")/g" "$TEMP_BUILD_DIR/build_script.sh"
+# Pass the build flags to the build script
+sed -i "s/__BUILD_FLAGS__/$BUILD_FLAGS/g" "$TEMP_BUILD_DIR/build_script.sh"
+# Extract distro name and version for the filename
+DISTRO_NAME=$(echo "$DISTRO" | cut -d':' -f1)
+DISTRO_VERSION=$(echo "$DISTRO" | cut -d':' -f2 | tr '.' '-')
+
+# Replace placeholders in build script
+sed -i "s/__TIMESTAMP__/$(date +"%Y-%m-%d-%H-%M")/g" "$TEMP_BUILD_DIR/build_script.sh"
+sed -i "s/__DISTRO_NAME__/$DISTRO_NAME/g" "$TEMP_BUILD_DIR/build_script.sh"
+sed -i "s/__DISTRO_VERSION__/$DISTRO_VERSION/g" "$TEMP_BUILD_DIR/build_script.sh"
 
 # Create a directory for the build script in the Docker container
 mkdir -p "$TEMP_BUILD_DIR/build"
@@ -204,6 +222,9 @@ cp "$TEMP_BUILD_DIR/build_script.sh" "$TEMP_BUILD_DIR/build/"
 # Copy the cpp_dbc directory to the temporary build directory
 mkdir -p "$TEMP_BUILD_DIR/libs"
 cp -r "$(dirname "$0")" "$TEMP_BUILD_DIR/libs/"
+
+# Copy the CHANGELOG.md from the root directory
+cp -v "$(pwd)/CHANGELOG.md" "$TEMP_BUILD_DIR/"
 
 # Create a directory for output
 mkdir -p "$(pwd)/build"
