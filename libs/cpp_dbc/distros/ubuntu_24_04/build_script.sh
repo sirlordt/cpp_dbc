@@ -10,9 +10,63 @@ mkdir -p /output
 echo "Creating Conan profile..."
 /opt/venv/bin/conan profile detect --force
 
-# Run the build_cpp_dbc.sh script with MySQL-only parameters
-echo "Building cpp_dbc library with MySQL support only..."
-./libs/cpp_dbc/build_cpp_dbc.sh --mysql --postgres-off --sqlite-off --yaml-off --debug --dw-off
+# Run the build_cpp_dbc.sh script with parameters based on build options
+echo "Building cpp_dbc library with specified options..."
+
+# Set default parameters
+MYSQL_PARAM="--mysql-off"
+POSTGRES_PARAM="--postgres-off"
+SQLITE_PARAM="--sqlite-off"
+YAML_PARAM="--yaml-off"
+DEBUG_PARAM="--debug"
+DW_PARAM="--dw-off"
+EXAMPLES_PARAM=""
+
+# Check environment variables set by build_dist_deb.sh
+if [ "__USE_MYSQL__" = "ON" ]; then
+    MYSQL_PARAM="--mysql"
+else
+    MYSQL_PARAM="--mysql-off"
+fi
+
+if [ "__USE_POSTGRESQL__" = "ON" ]; then
+    POSTGRES_PARAM="--postgres"
+else
+    POSTGRES_PARAM="--postgres-off"
+fi
+
+if [ "__USE_SQLITE__" = "ON" ]; then
+    SQLITE_PARAM="--sqlite"
+else
+    SQLITE_PARAM="--sqlite-off"
+fi
+
+if [ "__USE_CPP_YAML__" = "ON" ]; then
+    YAML_PARAM="--yaml"
+else
+    YAML_PARAM="--yaml-off"
+fi
+
+if [ "__USE_DW__" = "ON" ]; then
+    DW_PARAM="--dw"
+else
+    DW_PARAM="--dw-off"
+fi
+
+# Set debug parameter based on BUILD_TYPE
+if [ "__BUILD_TYPE__" = "Debug" ]; then
+    DEBUG_PARAM="--debug"
+else
+    DEBUG_PARAM="--release"
+fi
+
+# Set examples parameter if needed
+if [ "__BUILD_EXAMPLES__" = "ON" ]; then
+    EXAMPLES_PARAM="--examples"
+fi
+
+echo "Using parameters: $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM"
+./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM
 
 # Now create the debian package
 
@@ -29,16 +83,15 @@ Source: cpp-dbc
 Section: libs
 Priority: optional
 Maintainer: Tomas R Moreno P <tomasr.morenop@gmail.com>
-Build-Depends: debhelper (>= 10), cmake, g++, default-libmysqlclient-dev
+Build-Depends: debhelper (>= 10), cmake, g++__MYSQL_CONTROL_DEP____POSTGRESQL_CONTROL_DEP____SQLITE_CONTROL_DEP____LIBDW_CONTROL_DEP__
 Standards-Version: 4.5.0
 Homepage: https://github.com/sirlordt/cpp_dbc
 
 Package: cpp-dbc
 Architecture: amd64
-Depends: \${shlibs:Depends}, \${misc:Depends}, default-libmysqlclient-dev
+Depends: \${shlibs:Depends}, \${misc:Depends}__MYSQL_CONTROL_DEP____POSTGRESQL_CONTROL_DEP____SQLITE_CONTROL_DEP____LIBDW_CONTROL_DEP__
 Description: C++ Database Connectivity Library
  A C++ library for database connectivity inspired by JDBC.
- MySQL-only version.
 EOL
 
 # Create rules file
@@ -70,8 +123,7 @@ chmod +x debian/rules
 cat > debian/changelog << EOL
 cpp-dbc (1.0.0-1) noble; urgency=medium
 
-  * Initial release with MySQL-only support
-  * Closes: #12345 (fictitious bug number for package compliance)
+  * Initial release
 
  -- Tomas R Moreno P <tomasr.morenop@gmail.com>  $(date -R)
 EOL

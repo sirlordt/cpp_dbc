@@ -2,9 +2,8 @@
 set -e
 
 # Default values
-DISTRO="debian:12"
+DISTRO="ubuntu:24.04"
 BUILD_OPTIONS=""
-DW_OPTION="ON"
 
 # Function to display usage information
 function show_usage {
@@ -16,13 +15,12 @@ function show_usage {
     echo "                      Supported values: debian:12, debian:13, ubuntu:22.04, ubuntu:24.04"
     echo "                      Default: debian:12"
     echo "  --build=OPTIONS     Comma-separated build options."
-    echo "                      Supported values: rebuild, clean, yaml, mysql, postgres, sqlite"
-    echo "                      Default: yaml,mysql,postgres,sqlite"
-    echo "  --dw-off            Disable libdw support for stack traces"
+    echo "                      Supported values: yaml, mysql, postgres, sqlite, debug, dw, examples"
+    echo "                      Default: yaml,mysql,postgres,sqlite,debug,dw"
     echo "  --help              Display this help message and exit"
     echo ""
     echo "Example:"
-    echo "  $0 --distro=ubuntu:24.04 --build=rebuild,clean,yaml,mysql,postgres,sqlite"
+    echo "  $0 --distro=ubuntu:24.04 --build=yaml,mysql,postgres,sqlite,debug,dw,examples"
     exit 1
 }
 
@@ -34,9 +32,6 @@ for arg in "$@"; do
             ;;
         --build=*)
             BUILD_OPTIONS="${arg#*=}"
-            ;;
-        --dw-off)
-            DW_OPTION="OFF"
             ;;
         --help)
             show_usage
@@ -50,7 +45,12 @@ done
 
 # Set default build options if not provided
 if [ -z "$BUILD_OPTIONS" ]; then
-    BUILD_OPTIONS="yaml,mysql,postgres,sqlite"
+    BUILD_OPTIONS="yaml,mysql,postgres,sqlite,dw,debug"
+fi
+
+# Set default build options if not provided
+if [ -z "$DISTRO" ]; then
+    DiSTRO="ubuntu_24_04"
 fi
 
 # Convert distro format to directory name
@@ -94,7 +94,7 @@ CMAKE_YAML_OPTION="-DCPP_DBC_WITH_YAML=OFF"
 CMAKE_MYSQL_OPTION="-DCPP_DBC_WITH_MYSQL=OFF"
 CMAKE_POSTGRESQL_OPTION="-DCPP_DBC_WITH_POSTGRESQL=OFF"
 CMAKE_SQLITE_OPTION="-DCPP_DBC_WITH_SQLITE=OFF"
-CMAKE_DW_OPTION="-DBACKWARD_HAS_DW=$DW_OPTION"
+CMAKE_DW_OPTION="-DBACKWARD_HAS_DW=OFF"
 
 DEB_DEPENDENCIES="libc6"
 
@@ -107,18 +107,13 @@ USE_MYSQL="OFF"
 USE_POSTGRESQL="OFF"
 USE_SQLITE="OFF"
 USE_CPP_YAML="OFF"
-BACKWARD_HAS_DW="$DW_OPTION"
-BUILD_TYPE="Release"
+USE_DW="OFF"
+BUILD_TYPE="Debug"
+BUILD_EXAMPLES="OFF"
 
 IFS=',' read -ra OPTIONS <<< "$BUILD_OPTIONS"
 for option in "${OPTIONS[@]}"; do
     case $option in
-        rebuild)
-            # Nothing to do here, just a flag for the Docker build
-            ;;
-        clean)
-            # Nothing to do here, just a flag for the Docker build
-            ;;
         yaml)
             CMAKE_YAML_OPTION="-DCPP_DBC_WITH_YAML=ON"
             DEB_DEPENDENCIES="$DEB_DEPENDENCIES, libyaml-cpp-dev"
@@ -142,6 +137,16 @@ for option in "${OPTIONS[@]}"; do
             SQLITE_CONTROL_DEP=", $SQLITE_DEV_PKG"
             USE_SQLITE="ON"
             ;;
+        debug)
+            BUILD_TYPE="Debug"
+            ;;
+        dw)
+            USE_DW="ON"
+            CMAKE_DW_OPTION="-DBACKWARD_HAS_DW=ON"
+            ;;
+        examples)
+            BUILD_EXAMPLES="ON"
+            ;;
         *)
             echo "Unknown build option: $option"
             show_usage
@@ -150,7 +155,7 @@ for option in "${OPTIONS[@]}"; do
 done
 
 # Add libdw to dependencies if enabled
-if [ "$DW_OPTION" = "ON" ]; then
+if [ "$USE_DW" = "ON" ]; then
     DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $LIBDW_DEV_PKG"
     LIBDW_CONTROL_DEP=", $LIBDW_DEV_PKG"
 fi
@@ -187,8 +192,9 @@ sed -i "s/__USE_MYSQL__/$USE_MYSQL/g" "$TEMP_BUILD_DIR/build_script.sh"
 sed -i "s/__USE_POSTGRESQL__/$USE_POSTGRESQL/g" "$TEMP_BUILD_DIR/build_script.sh"
 sed -i "s/__USE_SQLITE__/$USE_SQLITE/g" "$TEMP_BUILD_DIR/build_script.sh"
 sed -i "s/__USE_CPP_YAML__/$USE_CPP_YAML/g" "$TEMP_BUILD_DIR/build_script.sh"
-sed -i "s/__BACKWARD_HAS_DW__/$BACKWARD_HAS_DW/g" "$TEMP_BUILD_DIR/build_script.sh"
+sed -i "s/__USE_DW__/$USE_DW/g" "$TEMP_BUILD_DIR/build_script.sh"
 sed -i "s/__BUILD_TYPE__/$BUILD_TYPE/g" "$TEMP_BUILD_DIR/build_script.sh"
+sed -i "s/__BUILD_EXAMPLES__/$BUILD_EXAMPLES/g" "$TEMP_BUILD_DIR/build_script.sh"
 sed -i "s/__TIMESTAMP__/$(date +"%Y-%m-%d-%H-%M-%S")/g" "$TEMP_BUILD_DIR/build_script.sh"
 
 # Create a directory for the build script in the Docker container
