@@ -98,6 +98,8 @@ The project is configured to work with the CMakeTools extension, but does not re
   - Unique error marks for better error identification
   - Call stack capture for detailed debugging information
   - Methods to retrieve and print stack traces
+  - Método `what_s()` que devuelve un `std::string&` para evitar problemas de seguridad con punteros `const char*`
+  - Destructor virtual para una correcta jerarquía de herencia
 - Client code should handle DBException appropriately
 - Stack traces provide detailed information about error origins
 
@@ -189,7 +191,7 @@ The project is configured to work with the CMakeTools extension, but does not re
   try {
       // Database operations
   } catch (const cpp_dbc::DBException& e) {
-      std::cerr << "Error: " << e.what() << std::endl;
+      std::cerr << "Error: " << e.what_s() << std::endl;
       std::cerr << "Error Mark: " << e.getMark() << std::endl;
       e.printCallStack();  // Print the stack trace for debugging
   }

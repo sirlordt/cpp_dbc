@@ -326,6 +326,8 @@ The library includes a robust exception handling system with stack trace capture
    - Separated error marks from error messages
    - Call stack capture for better debugging
    - Methods to retrieve and print stack traces
+   - Método `what_s()` que devuelve un `std::string&` para evitar problemas de seguridad con punteros `const char*`
+   - Destructor virtual para una correcta jerarquía de herencia
 
 2. **Stack Trace Capture**:
    - Integration with backward-cpp library for stack trace capture
@@ -344,7 +346,7 @@ The library includes a robust exception handling system with stack trace capture
    try {
        // Database operations
    } catch (const cpp_dbc::DBException& e) {
-       std::cerr << "Error: " << e.what() << std::endl;
+       std::cerr << "Error: " << e.what_s() << std::endl;
        std::cerr << "Error Mark: " << e.getMark() << std::endl;
        e.printCallStack();
    }

@@ -31,7 +31,21 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Exception Handling and Stack Trace Improvements**:
+1. **Mejoras de Seguridad y Tipos de Datos**:
+   - Mejoras en el manejo de excepciones:
+     - Reemplazado `what()` por `what_s()` en toda la base de código para evitar el uso de punteros `const char*` inseguros
+     - Añadido un destructor virtual a `DBException`
+     - Marcado el método `what()` como obsoleto con [[deprecated]]
+   - Mejoras en tipos de datos:
+     - Cambio de tipos `int` y `long` a `unsigned int` y `unsigned long` para parámetros que no deberían ser negativos en `ConnectionPoolConfig` y `DatabaseConfig`
+     - Inicialización de variables en la declaración en `ConnectionPoolConfig`
+   - Optimización en SQLite:
+     - Reordenamiento de la inicialización de SQLite (primero configuración, luego inicialización)
+   - Actualización de TODO.md con nuevas tareas:
+     - "Add library dw to linker en CPP_SBC"
+     - "Add script for build inside a docker the creation of .deb (ubuntu 22.04) .rpm (fedora) and make simple build for another distro version"
+
+2. **Exception Handling and Stack Trace Improvements**:
    - Added comprehensive stack trace capture and error tracking:
      - Added `backward.hpp` library for stack trace capture and analysis
      - Created `system_utils::StackFrame` structure to store stack frame information

@@ -81,6 +81,8 @@ namespace cpp_dbc
               m_mark(mark),
               m_callstack(callstack) {}
 
+        virtual ~DBException() = default;
+
         [[deprecated("Use what_s() instead. It avoids the unsafe const char* pointer.")]]
         const char *what() const noexcept override
         {

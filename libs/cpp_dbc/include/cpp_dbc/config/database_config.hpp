@@ -216,20 +216,20 @@ namespace cpp_dbc
             std::string username;
             std::string password;
             std::map<std::string, std::string> options;
-            unsigned int initialSize;
-            unsigned int maxSize;
-            unsigned int minIdle;
-            unsigned long connectionTimeout;
-            unsigned long idleTimeout;
-            unsigned long validationInterval;
-            unsigned long maxLifetimeMillis;
-            bool testOnBorrow;
-            bool testOnReturn;
+            unsigned int initialSize{5};
+            unsigned int maxSize{20};
+            unsigned int minIdle{3};
+            unsigned long connectionTimeout{30000};
+            unsigned long idleTimeout{300000};
+            unsigned long validationInterval{5000};
+            unsigned long maxLifetimeMillis{1800000};
+            bool testOnBorrow{true};
+            bool testOnReturn{false};
             std::string validationQuery;
             TransactionIsolationLevel transactionIsolation;
 
         public:
-            ConnectionPoolConfig() : initialSize(5),
+            ConnectionPoolConfig() : /*initialSize(5),
                                      maxSize(20),
                                      minIdle(3),
                                      connectionTimeout(30000),
@@ -237,9 +237,11 @@ namespace cpp_dbc
                                      validationInterval(5000),
                                      maxLifetimeMillis(1800000),
                                      testOnBorrow(true),
-                                     testOnReturn(false),
+                                     testOnReturn(false),*/
                                      validationQuery("SELECT 1"),
-                                     transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) {}
+                                     transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
+            {
+            }
 
             /**
              * @brief Constructor with basic parameters
@@ -259,15 +261,17 @@ namespace cpp_dbc
                 unsigned long validationInterval) : name(name),
                                                     initialSize(initialSize),
                                                     maxSize(maxSize),
-                                                    minIdle(3),
+                                                    // minIdle(3),
                                                     connectionTimeout(connectionTimeout),
                                                     idleTimeout(idleTimeout),
                                                     validationInterval(validationInterval),
-                                                    maxLifetimeMillis(1800000),
-                                                    testOnBorrow(true),
-                                                    testOnReturn(false),
+                                                    // maxLifetimeMillis(1800000),
+                                                    // testOnBorrow(true),
+                                                    // testOnReturn(false),
                                                     validationQuery("SELECT 1"),
-                                                    transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) {}
+                                                    transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
+            {
+            }
 
             /**
              * @brief Full constructor with all parameters

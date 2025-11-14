@@ -2,6 +2,8 @@
 
 ## Pending Tasks
 
+- Add library dw to linker en CPP_SBC
+- Add script for build inside a docker the creation of .deb (ubuntu 22.04) .rpm (fedora) and make simple build for another distro version
 - NEW FEATURE: Add more examples.
 - NEW FEATURE: Add more debug messages?
 - PLANNED: Start to using in real proyect and test how ease is integrate in third party project. Maybe write a INTERGRATION.md to explain how full integrate in a real project.
