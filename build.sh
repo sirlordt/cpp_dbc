@@ -21,6 +21,7 @@ BUILD_EXAMPLES=OFF
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+BACKWARD_HAS_DW=ON
 
 for arg in "$@"
 do
@@ -75,6 +76,9 @@ do
         DEBUG_TRANSACTION_MANAGER=ON
         DEBUG_SQLITE=ON
         ;;
+        --dw-off)
+        BACKWARD_HAS_DW=OFF
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -93,6 +97,7 @@ do
         echo "  --debug-txmgr          Enable debug output for TransactionManager"
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
         echo "  --debug-all            Enable all debug output"
+        echo "  --dw-off               Disable libdw support for stack traces"
         echo "  --help                 Show this help message"
         exit 0
         ;;
@@ -110,6 +115,7 @@ export BUILD_EXAMPLES
 export DEBUG_CONNECTION_POOL
 export DEBUG_TRANSACTION_MANAGER
 export DEBUG_SQLITE
+export BACKWARD_HAS_DW
 
 # Call the cpp_dbc build script with explicit parameters
 if [ "$USE_MYSQL" = "ON" ]; then
@@ -170,6 +176,11 @@ fi
 
 if [ "$DEBUG_SQLITE" = "ON" ]; then
     DEBUG_PARAMS="$DEBUG_PARAMS --debug-sqlite"
+fi
+
+# Pass the libdw option to the cpp_dbc build script
+if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
+    DEBUG_PARAMS="$DEBUG_PARAMS --dw-off"
 fi
 
 # Build the cpp_dbc library
@@ -235,3 +246,4 @@ echo "  Build examples: $BUILD_EXAMPLES"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  libdw support: $BACKWARD_HAS_DW"

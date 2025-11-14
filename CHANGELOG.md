@@ -1,6 +1,24 @@
 # Changelog
 
-## 2025-11-13 05:18:00 PM -0800 [Current]
+## 2025-11-14 06:41:00 PM -0800 [Current]
+
+### Stack Trace Improvements with libdw Support
+* Added libdw support for enhanced stack traces:
+  * Added `BACKWARD_HAS_DW` option to CMakeLists.txt to enable/disable libdw support
+  * Added `--dw-off` flag to build scripts to disable libdw support when needed
+  * Added automatic detection and installation of libdw development libraries
+  * Added libdw dependency to package map in build.dist.sh
+  * Updated main.cpp with stack trace testing functionality
+  * Fixed function name references in system_utils.cpp for stack frame filtering
+* Updated error handling in examples:
+  * Changed `e.what()` to `e.what_s()` in blob_operations_example.cpp and join_operations_example.cpp
+* Updated TODO.md:
+  * Marked "Add library dw to linker en CPP_SBC" as completed
+  * Changed "Add script for build inside a docker..." to more specific tasks:
+    * "Add --run-build-lib-dist-deb using docker"
+    * "Add --run-build-lib-dist-rpm using docker"
+
+## 2025-11-13 05:18:00 PM -0800
 
 ### Mejoras de Seguridad y Tipos de Datos
 * Mejoras en el manejo de excepciones:

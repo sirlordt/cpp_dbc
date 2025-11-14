@@ -30,6 +30,7 @@ NO_REBUILD_DEPS=false
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+BACKWARD_HAS_DW=ON
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -96,6 +97,10 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             shift
             ;;
+        --dw-off)
+            BACKWARD_HAS_DW=OFF
+            shift
+            ;;
         --test)
             # Option accepted for compatibility, but not needed since this script always builds tests
             shift
@@ -118,13 +123,14 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-all            Enable all debug output"
+            echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --help                 Show this help message"
             exit 0
             ;;
         *)
             # Unknown option
             echo "Unknown option: $1"
-            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--sqlite|--sqlite-on|--sqlite-off] [--release] [--asan] [--help]"
+            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--sqlite|--sqlite-on|--sqlite-off] [--release] [--asan] [--dw-off] [--help]"
             exit 1
             ;;
     esac
@@ -200,6 +206,7 @@ echo "  Address Sanitizer: $ENABLE_ASAN"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  libdw support: $BACKWARD_HAS_DW"
 
 # Create build directory for tests
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -251,6 +258,7 @@ cmake "${CPP_DBC_DIR}" \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
+      -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -Wno-dev
 
 # Print status message about ASAN

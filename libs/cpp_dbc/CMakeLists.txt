@@ -6,6 +6,7 @@ option(USE_MYSQL "Enable MySQL support" ON)
 option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
 option(USE_SQLITE "Enable SQLite support" OFF)
 option(USE_CPP_YAML "Enable YAML configuration support" OFF)
+option(BACKWARD_HAS_DW "Enable libdw support for stack traces" ON)
 
 # Debug options
 option(DEBUG_CONNECTION_POOL "Enable debug output for ConnectionPool" OFF)
@@ -56,6 +57,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<BOOL:${DEBUG_CONNECTION_POOL}>:DEBUG_CONNECTION_POOL=1>
     $<$<BOOL:${DEBUG_TRANSACTION_MANAGER}>:DEBUG_TRANSACTION_MANAGER=1>
     $<$<BOOL:${DEBUG_SQLITE}>:DEBUG_SQLITE=1>
+    $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
+    $<$<NOT:$<BOOL:${BACKWARD_HAS_DW}>>:BACKWARD_HAS_DW=0>
 )
 
 # Include directories
@@ -117,6 +120,23 @@ if(USE_CPP_YAML)
 
     find_package(yaml-cpp REQUIRED)
     target_link_libraries(cpp_dbc PUBLIC yaml-cpp::yaml-cpp)
+endif()
+
+# Add libdw support for stack traces if enabled
+if(BACKWARD_HAS_DW)
+    # Find libdw (part of elfutils)
+    find_library(LIBDW_LIBRARY NAMES dw)
+
+    if(LIBDW_LIBRARY)
+        message(STATUS "Found libdw: ${LIBDW_LIBRARY}")
+        target_link_libraries(cpp_dbc PUBLIC ${LIBDW_LIBRARY})
+    else()
+        message(WARNING "libdw not found. Stack traces may not show detailed information.")
+        set(BACKWARD_HAS_DW OFF)
+
+        # Update the compile definition
+        target_compile_definitions(cpp_dbc PUBLIC BACKWARD_HAS_DW=0)
+    endif()
 endif()
 
 # Generate and install export targets

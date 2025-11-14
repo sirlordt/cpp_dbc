@@ -16,6 +16,7 @@ BUILD_EXAMPLES=OFF
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+BACKWARD_HAS_DW=ON
 
 # Parse command line arguments
 for arg in "$@"
@@ -87,6 +88,10 @@ do
         DEBUG_SQLITE=ON
         shift
         ;;
+        --dw-off)
+        BACKWARD_HAS_DW=OFF
+        shift
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -105,6 +110,7 @@ do
         echo "  --debug-txmgr          Enable debug output for TransactionManager"
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
         echo "  --debug-all            Enable all debug output"
+        echo "  --dw-off               Disable libdw support for stack traces"
         echo "  --help                 Show this help message"
         exit 1
         ;;
@@ -123,6 +129,7 @@ echo "  Build examples: $BUILD_EXAMPLES"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  libdw support: $BACKWARD_HAS_DW"
 
 # Check for MySQL dependencies
 if [ "$USE_MYSQL" = "ON" ]; then
@@ -229,6 +236,41 @@ if [ "$USE_SQLITE" = "ON" ]; then
     fi
 fi
 
+# Check for libdw dependencies if enabled
+if [ "$BACKWARD_HAS_DW" = "ON" ]; then
+    echo "Checking for libdw development libraries..."
+    
+    # Detect package manager
+    if command -v apt-get &> /dev/null; then
+        # Debian/Ubuntu
+        if ! dpkg -l | grep -q libdw-dev; then
+            echo "libdw development libraries not found. Installing..."
+            sudo apt-get update
+            sudo apt-get install -y libdw-dev
+        else
+            echo "libdw development libraries already installed."
+        fi
+    elif command -v dnf &> /dev/null; then
+        # Fedora/RHEL/CentOS
+        if ! rpm -q elfutils-devel &> /dev/null; then
+            echo "libdw development libraries not found. Installing..."
+            sudo dnf install -y elfutils-devel
+        else
+            echo "libdw development libraries already installed."
+        fi
+    elif command -v yum &> /dev/null; then
+        # Older RHEL/CentOS
+        if ! rpm -q elfutils-devel &> /dev/null; then
+            echo "libdw development libraries not found. Installing..."
+            sudo yum install -y elfutils-devel
+        else
+            echo "libdw development libraries already installed."
+        fi
+    else
+        echo "Warning: Could not detect package manager. Please install libdw development libraries manually."
+    fi
+fi
+
 # Create build directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_ROOT="$( cd "${SCRIPT_DIR}/../.." &> /dev/null && pwd )"
@@ -277,6 +319,7 @@ cmake "${SCRIPT_DIR}" \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
+      -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
       -Wno-dev
 
@@ -353,3 +396,4 @@ echo "  Build examples: $BUILD_EXAMPLES"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  libdw support: $BACKWARD_HAS_DW"

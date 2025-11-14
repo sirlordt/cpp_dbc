@@ -490,7 +490,7 @@ int main()
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
         return 1;
     }
     catch (const std::exception &e)

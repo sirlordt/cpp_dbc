@@ -20,6 +20,27 @@ using json = nlohmann::json;
 #include <cpp_dbc/drivers/driver_sqlite.hpp>
 #endif
 
+// Include backward.hpp to check if libdw is enabled
+#include <cpp_dbc/backward.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
+
+void function3()
+{
+    std::cout << "Capturing call stack from function3..." << std::endl;
+    auto frames = cpp_dbc::system_utils::captureCallStack(false);
+    cpp_dbc::system_utils::printCallStack(frames);
+}
+
+void function2()
+{
+    function3();
+}
+
+void function1()
+{
+    function2();
+}
+
 int main(int argc, char *argv[])
 {
     std::cout << "CPP_DBC Demo Application" << std::endl;
@@ -45,6 +66,17 @@ int main(int argc, char *argv[])
 #else
     std::cout << "- SQLITE (disabled)" << std::endl;
 #endif
+
+    // Display libdw support status
+#if BACKWARD_HAS_DW
+    std::cout << "- libdw support: ENABLED" << std::endl;
+#else
+    std::cout << "- libdw support: DISABLED" << std::endl;
+#endif
+
+    // Test stack trace functionality
+    std::cout << "\nTesting stack trace functionality:" << std::endl;
+    function1();
 
     try
     {
@@ -171,6 +203,11 @@ int main(int argc, char *argv[])
     // Print the modified YAML
     std::cout << "\nModified database configuration:" << std::endl;
     std::cout << yaml_config << std::endl;
+
+    // Test stack trace functionality
+    std::cout << "\nTesting stack trace functionality:" << std::endl;
+    auto frames = cpp_dbc::system_utils::captureCallStack(true);
+    cpp_dbc::system_utils::printCallStack(frames);
 
     return 0;
 }

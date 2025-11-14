@@ -31,7 +31,23 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Mejoras de Seguridad y Tipos de Datos**:
+1. **Stack Trace Improvements with libdw Support**:
+   - Added libdw support for enhanced stack traces:
+     - Added `BACKWARD_HAS_DW` option to CMakeLists.txt to enable/disable libdw support
+     - Added `--dw-off` flag to build scripts to disable libdw support when needed
+     - Added automatic detection and installation of libdw development libraries
+     - Added libdw dependency to package map in build.dist.sh
+     - Updated main.cpp with stack trace testing functionality
+     - Fixed function name references in system_utils.cpp for stack frame filtering
+   - Updated error handling in examples:
+     - Changed `e.what()` to `e.what_s()` in blob_operations_example.cpp and join_operations_example.cpp
+   - Updated TODO.md:
+     - Marked "Add library dw to linker en CPP_SBC" as completed
+     - Changed "Add script for build inside a docker..." to more specific tasks:
+       - "Add --run-build-lib-dist-deb using docker"
+       - "Add --run-build-lib-dist-rpm using docker"
+
+2. **Mejoras de Seguridad y Tipos de Datos**:
    - Mejoras en el manejo de excepciones:
      - Reemplazado `what()` por `what_s()` en toda la base de código para evitar el uso de punteros `const char*` inseguros
      - Añadido un destructor virtual a `DBException`
@@ -42,8 +58,8 @@ Recent changes to the codebase include:
    - Optimización en SQLite:
      - Reordenamiento de la inicialización de SQLite (primero configuración, luego inicialización)
    - Actualización de TODO.md con nuevas tareas:
-     - "Add library dw to linker en CPP_SBC"
-     - "Add script for build inside a docker the creation of .deb (ubuntu 22.04) .rpm (fedora) and make simple build for another distro version"
+     - "Add library dw to linker en CPP_SBC" (completada)
+     - "Add script for build inside a docker the creation of .deb (ubuntu 22.04) .rpm (fedora) and make simple build for another distro version" (reemplazada por tareas más específicas)
 
 2. **Exception Handling and Stack Trace Improvements**:
    - Added comprehensive stack trace capture and error tracking:

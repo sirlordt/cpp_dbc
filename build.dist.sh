@@ -153,6 +153,7 @@ BUILD_EXAMPLES=OFF
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+BACKWARD_HAS_DW=ON
 
 for arg in "$@"
 do
@@ -207,6 +208,9 @@ do
         DEBUG_TRANSACTION_MANAGER=ON
         DEBUG_SQLITE=ON
         ;;
+        --dw-off)
+        BACKWARD_HAS_DW=OFF
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -225,6 +229,7 @@ do
         echo "  --debug-txmgr          Enable debug output for TransactionManager"
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
         echo "  --debug-all            Enable all debug output"
+        echo "  --dw-off               Disable libdw support for stack traces"
         echo "  --help                 Show this help message"
         exit 0
         ;;
@@ -277,6 +282,10 @@ if [ "$DEBUG_SQLITE" = "ON" ]; then
     BUILD_CMD="$BUILD_CMD --debug-sqlite"
 fi
 
+if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
+    BUILD_CMD="$BUILD_CMD --dw-off"
+fi
+
 # 9. Build locally with Conan + CMake
 echo "Building project with Conan and CMake..."
 echo "Running: $BUILD_CMD"
@@ -316,6 +325,12 @@ LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libkrb5support.so.0"]="libkrb5support0"
 LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libgssapi_krb5.so.2"]="libgssapi-krb5-2"
 LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/liblber-2.5.so.0"]="libldap-2.5-0"
 LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libldap-2.5.so.0"]="libldap-2.5-0"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libsqlite3.so.0"]="libsqlite3-0"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libdw.so.1"]="libdw1"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libelf.so.1"]="libelf1"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libz.so.1"]="zlib1g"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/liblzma.so.5"]="liblzma5"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libbz2.so.1.0"]="libbz2-1.0"
 
 # Function to add a package to our list
 add_package() {
@@ -499,6 +514,7 @@ echo "  Build examples: $BUILD_EXAMPLES"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  libdw support: $BACKWARD_HAS_DW"
 
 # Debug information
 echo ""

@@ -23,6 +23,11 @@ Una clase de excepción personalizada para errores relacionados con la base de d
 
 **Métodos:**
 - `DBException(const std::string& message)`: Constructor que toma un mensaje de error.
+- `DBException(const std::string& mark, const std::string& message, const std::vector<system_utils::StackFrame>& callStack)`: Constructor que toma una marca de error, mensaje y pila de llamadas.
+- `what_s()`: Devuelve el mensaje de error como un std::string (más seguro que what()).
+- `getMark()`: Devuelve la marca única de error.
+- `getCallStack()`: Devuelve la pila de llamadas capturada cuando se creó la excepción.
+- `printCallStack()`: Imprime la pila de llamadas en la salida de error estándar.
 
 ### Enum Types
 Representa tipos de parámetros SQL.
@@ -605,6 +610,7 @@ Carga configuraciones de bases de datos desde archivos YAML.
 - Bibliotecas de desarrollo de PostgreSQL (para soporte PostgreSQL, opcional)
 - Bibliotecas de desarrollo de SQLite (para soporte SQLite, opcional)
 - Biblioteca yaml-cpp (para soporte de configuración YAML, opcional)
+- Biblioteca libdw (parte de elfutils, para trazas de pila mejoradas, opcional)
 - CMake 3.15 o posterior
 - Conan para gestión de dependencias
 
@@ -643,6 +649,9 @@ La biblioteca proporciona scripts de compilación para simplificar el proceso:
 # Habilitar YAML y compilar ejemplos
 ./build.sh --yaml --examples
 
+# Deshabilitar soporte libdw para trazas de pila
+./build.sh --dw-off
+
 # Compilar contenedor Docker
 ./build.dist.sh
 
@@ -654,6 +663,9 @@ La biblioteca proporciona scripts de compilación para simplificar el proceso:
 
 # Compilar contenedor Docker con todos los controladores de bases de datos
 ./build.dist.sh --postgres --sqlite --yaml
+
+# Compilar contenedor Docker sin soporte libdw
+./build.dist.sh --dw-off
 ```
 
 El script de compilación:
@@ -684,6 +696,9 @@ El proyecto incluye un script de ayuda (`helper.sh`) que proporciona varias util
 
 # Compilar con soporte YAML
 ./helper.sh --build --yaml
+
+# Compilar sin soporte libdw
+./helper.sh --build --dw-off
 
 # Compilar y ejecutar pruebas
 ./helper.sh --test --run-test
@@ -724,14 +739,17 @@ También puedes compilar la biblioteca manualmente con CMake:
 mkdir -p libs/cpp_dbc/build
 cd libs/cpp_dbc/build
 
-# Configurar con CMake (MySQL habilitado, PostgreSQL deshabilitado, SQLite deshabilitado, YAML deshabilitado)
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+# Configurar con CMake (MySQL habilitado, PostgreSQL deshabilitado, SQLite deshabilitado, YAML deshabilitado, libdw habilitado)
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Configurar con soporte YAML
 # cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Configurar con soporte SQLite
-# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=ON -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=ON -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+
+# Configurar sin soporte libdw
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Compilar e instalar
 cmake --build . --target install
@@ -776,8 +794,12 @@ target_compile_definitions(tu_app PRIVATE
     $<$<NOT:$<BOOL:${USE_MYSQL}>>:USE_MYSQL=0>
     $<$<BOOL:${USE_POSTGRESQL}>:USE_POSTGRESQL=1>
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
+    $<$<BOOL:${USE_SQLITE}>:USE_SQLITE=1>
+    $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
+    $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
+    $<$<NOT:$<BOOL:${BACKWARD_HAS_DW}>>:BACKWARD_HAS_DW=0>
 )
 ```
 

@@ -156,7 +156,23 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **Mejoras de Seguridad y Tipos de Datos**:
+1. **Stack Trace Improvements with libdw Support**:
+   - Added libdw support for enhanced stack traces:
+     - Added `BACKWARD_HAS_DW` option to CMakeLists.txt to enable/disable libdw support
+     - Added `--dw-off` flag to build scripts to disable libdw support when needed
+     - Added automatic detection and installation of libdw development libraries
+     - Added libdw dependency to package map in build.dist.sh
+     - Updated main.cpp with stack trace testing functionality
+     - Fixed function name references in system_utils.cpp for stack frame filtering
+   - Updated error handling in examples:
+     - Changed `e.what()` to `e.what_s()` in blob_operations_example.cpp and join_operations_example.cpp
+   - Updated TODO.md:
+     - Marked "Add library dw to linker en CPP_SBC" as completed
+     - Changed "Add script for build inside a docker..." to more specific tasks:
+       - "Add --run-build-lib-dist-deb using docker"
+       - "Add --run-build-lib-dist-rpm using docker"
+
+2. **Mejoras de Seguridad y Tipos de Datos**:
    - Mejoras en el manejo de excepciones:
      - Reemplazado `what()` por `what_s()` en toda la base de código para evitar el uso de punteros `const char*` inseguros
      - Añadido un destructor virtual a `DBException`
@@ -167,8 +183,8 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Optimización en SQLite:
      - Reordenamiento de la inicialización de SQLite (primero configuración, luego inicialización)
    - Actualización de TODO.md con nuevas tareas:
-     - "Add library dw to linker en CPP_SBC"
-     - "Add script for build inside a docker the creation of .deb (ubuntu 22.04) .rpm (fedora) and make simple build for another distro version"
+     - "Add library dw to linker en CPP_SBC" (completada)
+     - "Add script for build inside a docker the creation of .deb (ubuntu 22.04) .rpm (fedora) and make simple build for another distro version" (reemplazada por tareas más específicas)
 
 2. **Exception Handling and Stack Trace Improvements**:
    - Added comprehensive stack trace capture and error tracking:
@@ -176,6 +192,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Created `system_utils::StackFrame` structure to store stack frame information
      - Implemented `system_utils::captureCallStack()` function to capture the current call stack
      - Implemented `system_utils::printCallStack()` function to print stack traces
+     - Added libdw support for enhanced stack trace information with detailed function names and line numbers
    - Enhanced `DBException` class with improved error tracking:
      - Added mark field to uniquely identify error locations
      - Added call stack capture to store the stack trace at exception creation
@@ -188,6 +205,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Call stack capture for better debugging
    - Updated transaction manager to use the new exception format
    - Added comprehensive tests for the new exception features in test_drivers.cpp
+   - Added stack trace testing functionality to main.cpp
 
 2. **JSON Data Type Support**:
    - Added comprehensive support for JSON data types in MySQL and PostgreSQL

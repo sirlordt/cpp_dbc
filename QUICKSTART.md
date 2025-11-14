@@ -125,6 +125,9 @@ All build output is now automatically logged to files in the `logs/build/` direc
 # Run tests with all debug output enabled
 ./helper.sh --run-test=debug-all
 
+# Disable libdw support for stack traces
+./helper.sh --run-test=dw-off
+
 # Combine options: Run specific tests with debug output
 ./helper.sh --run-test=test=sqlite_real_inner_join,debug-sqlite,debug-pool
 ```
@@ -226,6 +229,9 @@ The test log analysis feature checks for:
 ```bash
 # Create a production-ready build
 ./helper.sh --run-build=clean,release,mysql,postgres,sqlite,yaml
+
+# Create a production-ready build without libdw support
+./helper.sh --run-build=clean,release,mysql,postgres,sqlite,yaml,dw-off
 ```
 
 ### Container Deployment

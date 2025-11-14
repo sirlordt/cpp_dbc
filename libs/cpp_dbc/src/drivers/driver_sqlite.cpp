@@ -929,7 +929,7 @@ namespace cpp_dbc
             }
             catch (const DBException &e)
             {
-                std::cerr << "SQLiteConnection::SQLiteConnection - DBException: " << e.what() << std::endl;
+                std::cerr << "SQLiteConnection::SQLiteConnection - DBException: " << e.what_s() << std::endl;
                 throw;
             }
             catch (const std::exception &e)

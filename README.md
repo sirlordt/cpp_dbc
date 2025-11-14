@@ -89,6 +89,7 @@ The library supports conditional compilation of database drivers and features:
 - `DEBUG_CONNECTION_POOL`: Enable debug output for ConnectionPool (OFF by default)
 - `DEBUG_TRANSACTION_MANAGER`: Enable debug output for TransactionManager (OFF by default)
 - `DEBUG_SQLITE`: Enable debug output for SQLite driver (OFF by default)
+- `BACKWARD_HAS_DW`: Enable libdw support for enhanced stack traces (ON by default)
 
 ### Using the build scripts
 
@@ -135,6 +136,9 @@ The `libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the c
 
 # Enable all debug output
 ./libs/cpp_dbc/build_cpp_dbc.sh --debug-all
+
+# Disable libdw support for stack traces
+./libs/cpp_dbc/build_cpp_dbc.sh --dw-off
 
 # Enable YAML and build examples
 ./libs/cpp_dbc/build_cpp_dbc.sh --yaml --examples
@@ -197,6 +201,9 @@ The `build.sh` script builds the main application, passing all parameters to the
 
 # Enable all debug output
 ./build.sh --debug-all
+
+# Disable libdw support for stack traces
+./build.sh --dw-off
 
 # Show help
 ./build.sh --help
@@ -328,6 +335,13 @@ The library includes a robust exception handling system with stack trace capture
    - Methods to retrieve and print stack traces
    - Método `what_s()` que devuelve un `std::string&` para evitar problemas de seguridad con punteros `const char*`
    - Destructor virtual para una correcta jerarquía de herencia
+
+2. **Stack Trace Capture with libdw Support**:
+   - Integration with backward-cpp library for stack trace capture
+   - Support for libdw (part of elfutils) for enhanced stack trace information
+   - Configurable with `--dw-off` option to disable libdw when needed
+   - Automatic detection and installation of libdw development libraries
+   - Improved function name and source file information in stack traces
 
 2. **Stack Trace Capture**:
    - Integration with backward-cpp library for stack trace capture

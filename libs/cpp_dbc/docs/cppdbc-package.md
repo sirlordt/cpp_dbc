@@ -1,6 +1,6 @@
 # CPPDBC - C++ Database Connectivity Library
 
-This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, and SQLite databases using a unified interface. The library includes connection pooling, transaction management with different isolation levels, and support for YAML configuration.
+This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, and SQLite databases using a unified interface. The library includes connection pooling, transaction management with different isolation levels, support for YAML configuration, and enhanced stack trace capabilities with libdw.
 
 ## File Structure
 
@@ -11,6 +11,8 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `include/cpp_dbc/drivers/driver_sqlite.hpp` - SQLite-specific definitions
 - `include/cpp_dbc/connection_pool.hpp` - Connection pool with thread-safety support
 - `include/cpp_dbc/transaction_manager.hpp` - Transaction manager for cross-thread transactions
+- `include/cpp_dbc/backward.hpp` - Stack trace capture and analysis
+- `include/cpp_dbc/common/system_utils.hpp` - System utilities including stack trace functions
 - `include/cpp_dbc/config/database_config.hpp` - Database configuration classes
 - `include/cpp_dbc/config/yaml_config_loader.hpp` - YAML configuration loader
 
@@ -21,6 +23,7 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `src/connection_pool.cpp` - Connection pool implementation
 - `src/transaction_manager.cpp` - Transaction manager implementation
 - `src/driver_manager.cpp` - Driver manager implementation
+- `src/common/system_utils.cpp` - System utilities implementation including stack trace functions
 - `src/config/yaml_config_loader.cpp` - YAML configuration loader implementation
 
 ### Examples
@@ -39,9 +42,10 @@ To build the library and examples, you'll need:
 2. MySQL development libraries (libmysqlclient-dev)
 3. PostgreSQL development libraries (libpq-dev) (optional)
 4. SQLite development libraries (libsqlite3-dev) (optional)
-4. yaml-cpp development libraries (optional)
-5. CMake 3.15 or later
-6. Conan for dependency management
+5. yaml-cpp development libraries (optional)
+6. libdw development libraries (part of elfutils, optional)
+7. CMake 3.15 or later
+8. Conan for dependency management
 
 ### Using the Build Scripts
 
@@ -73,6 +77,9 @@ To build the library and examples, you'll need:
 # Build in Release mode
 ./build.sh --release
 
+# Disable libdw support for stack traces
+./build.sh --dw-off
+
 # Build Docker image
 ./build.dist.sh
 
@@ -84,6 +91,9 @@ To build the library and examples, you'll need:
 
 # Build Docker image with all database drivers
 ./build.dist.sh --mysql --postgres --sqlite --yaml
+
+# Build Docker image without libdw support
+./build.dist.sh --dw-off
 ```
 
 The build script:
@@ -105,8 +115,11 @@ The `build.dist.sh` script:
 mkdir -p libs/cpp_dbc/build
 cd libs/cpp_dbc/build
 
-# Configure with CMake (MySQL enabled, PostgreSQL and SQLite disabled)
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+# Configure with CMake (MySQL enabled, PostgreSQL and SQLite disabled, libdw enabled)
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+
+# Configure without libdw support
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Build and install
 cmake --build . --target install
@@ -133,8 +146,9 @@ cmake --build .
 4. Thread-safe connection pool
 5. Cross-thread transaction manager with UUIDs
 6. Transaction isolation levels (JDBC-compatible: READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE)
-7. YAML configuration support
-8. Docker container generation with automatic dependency detection
+7. Enhanced stack trace capture and analysis with libdw support
+8. YAML configuration support
+9. Docker container generation with automatic dependency detection
 
 ## Dependencies
 
@@ -142,6 +156,7 @@ cmake --build .
 - libpq for PostgreSQL connections (optional)
 - libsqlite3 for SQLite connections (optional)
 - yaml-cpp for YAML configuration support (optional)
+- libdw (part of elfutils) for enhanced stack traces (optional)
 - C++23 standard library for threads, mutexes, and condition variables
 - CMake for build system
 - Conan for dependency management

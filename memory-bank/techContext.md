@@ -127,7 +127,16 @@ The project is configured to work with the CMakeTools extension, but does not re
   - Provides stack trace capture and analysis
   - Used for enhanced error reporting and debugging
   - Automatically detects and uses available unwinding methods
+  - Support for libdw (part of elfutils) for enhanced stack trace information
+  - Configurable with `BACKWARD_HAS_DW` option and `--dw-off` build flag
   - Header: `cpp_dbc/backward.hpp`
+
+- **libdw Library (part of elfutils)**:
+  - Optional dependency for enhanced stack trace information
+  - Provides detailed function names, file paths, and line numbers in stack traces
+  - Automatically detected and installed by build scripts when needed
+  - Can be disabled with `--dw-off` option in build scripts
+  - Only required when building with stack trace support enabled
 
 ### Standard Library Dependencies
 - `<string>`: For string handling
@@ -199,6 +208,13 @@ The project is configured to work with the CMakeTools extension, but does not re
 - Error marks can be used to identify specific error locations in the code
 - Stack traces provide detailed information about the call chain leading to the error
 - Consider logging both the error message and stack trace for production debugging
+- Use the `what_s()` method instead of `what()` to avoid issues with unsafe `const char*` pointers
+- Stack traces are enhanced when libdw support is enabled (default)
+- For manual stack trace capture and printing, use:
+  ```cpp
+  auto frames = cpp_dbc::system_utils::captureCallStack(true);  // true to skip irrelevant frames
+  cpp_dbc::system_utils::printCallStack(frames);
+  ```
 
 ### Configuration Management
 - YAML configuration files should be used for managing database settings

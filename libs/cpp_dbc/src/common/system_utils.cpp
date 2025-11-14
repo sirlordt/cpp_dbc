@@ -33,6 +33,7 @@ namespace cpp_dbc
 
         bool shouldSkipFrame(const std::string &filename, const std::string &function)
         {
+
             // Skip backward-cpp internals
             if (filename.find("backward.hpp") != std::string::npos)
             {
@@ -62,8 +63,8 @@ namespace cpp_dbc
             }
 
             // Skip our own tracing infrastructure
-            if (function.find("captureTrace") != std::string::npos ||
-                function.find("printTrace") != std::string::npos)
+            if (function.find("captureCallStack") != std::string::npos ||
+                function.find("printCallStack") != std::string::npos)
             {
                 return true;
             }

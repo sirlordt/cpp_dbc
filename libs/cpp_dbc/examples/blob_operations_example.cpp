@@ -229,7 +229,7 @@ void demonstrateBasicBlobOperations(std::shared_ptr<cpp_dbc::Connection> conn)
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
     }
 }
 
@@ -331,7 +331,7 @@ void demonstrateBlobStreaming(std::shared_ptr<cpp_dbc::Connection> conn)
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
     }
     catch (const std::exception &e)
     {
@@ -420,7 +420,7 @@ void demonstrateBlobObjects(std::shared_ptr<cpp_dbc::Connection> conn)
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
     }
 }
 
@@ -490,7 +490,7 @@ void demonstrateImageBlob(std::shared_ptr<cpp_dbc::Connection> conn)
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
     }
     catch (const std::exception &e)
     {
@@ -586,7 +586,7 @@ int main()
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::cerr << "Database error: " << e.what() << std::endl;
+        std::cerr << "Database error: " << e.what_s() << std::endl;
         return 1;
     }
     catch (const std::exception &e)

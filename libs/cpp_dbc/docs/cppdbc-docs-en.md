@@ -22,6 +22,11 @@ A custom exception class for database-related errors.
 
 **Methods:**
 - `DBException(const std::string& message)`: Constructor that takes an error message.
+- `DBException(const std::string& mark, const std::string& message, const std::vector<system_utils::StackFrame>& callStack)`: Constructor that takes an error mark, message, and call stack.
+- `what_s()`: Returns the error message as a std::string (safer than what()).
+- `getMark()`: Returns the unique error mark.
+- `getCallStack()`: Returns the call stack captured when the exception was created.
+- `printCallStack()`: Prints the call stack to standard error.
 
 ### Types Enum
 Represents SQL parameter types.
@@ -412,6 +417,7 @@ Loads database configurations from YAML files.
 - PostgreSQL development libraries (for PostgreSQL support, optional)
 - SQLite development libraries (for SQLite support, optional)
 - yaml-cpp library (for YAML configuration support, optional)
+- libdw library (part of elfutils, for enhanced stack traces, optional)
 - CMake 3.15 or later
 - Conan for dependency management
 
@@ -450,6 +456,9 @@ The library provides build scripts to simplify the build process:
 # Enable YAML and build examples
 ./build.sh --yaml --examples
 
+# Disable libdw support for stack traces
+./build.sh --dw-off
+
 # Build Docker container
 ./build.dist.sh
 
@@ -461,6 +470,9 @@ The library provides build scripts to simplify the build process:
 
 # Build Docker container with all database drivers
 ./build.dist.sh --postgres --sqlite --yaml
+
+# Build Docker container without libdw support
+./build.dist.sh --dw-off
 ```
 
 The build script:
@@ -491,6 +503,9 @@ The project includes a helper script (`helper.sh`) that provides various utiliti
 
 # Build with YAML support
 ./helper.sh --build --yaml
+
+# Build without libdw support
+./helper.sh --build --dw-off
 
 # Build and run tests
 ./helper.sh --test --run-test
@@ -531,14 +546,17 @@ You can also build the library manually with CMake:
 mkdir -p libs/cpp_dbc/build
 cd libs/cpp_dbc/build
 
-# Configure with CMake (MySQL enabled, PostgreSQL disabled, SQLite disabled, YAML disabled)
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+# Configure with CMake (MySQL enabled, PostgreSQL disabled, SQLite disabled, YAML disabled, libdw enabled)
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Configure with YAML support
 # cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Configure with SQLite support
-# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=ON -DUSE_CPP_YAML=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=ON -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+
+# Configure without libdw support
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Build and install
 cmake --build . --target install
@@ -583,8 +601,12 @@ target_compile_definitions(your_app PRIVATE
     $<$<NOT:$<BOOL:${USE_MYSQL}>>:USE_MYSQL=0>
     $<$<BOOL:${USE_POSTGRESQL}>:USE_POSTGRESQL=1>
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
+    $<$<BOOL:${USE_SQLITE}>:USE_SQLITE=1>
+    $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
+    $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
+    $<$<NOT:$<BOOL:${BACKWARD_HAS_DW}>>:BACKWARD_HAS_DW=0>
 )
 ```
 
