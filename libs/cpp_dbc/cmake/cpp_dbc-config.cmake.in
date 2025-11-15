@@ -1,24 +1,109 @@
 @PACKAGE_INIT@
 
-include(${CMAKE_CURRENT_LIST_DIR}/cpp_dbc-targets.cmake)
+# Compute the installation prefix relative to this file
+get_filename_component(_IMPORT_PREFIX "${CMAKE_CURRENT_LIST_FILE}" PATH)
+get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
+get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
+get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
+if(_IMPORT_PREFIX STREQUAL "/")
+  set(_IMPORT_PREFIX "")
+endif()
 
-# Check if MySQL support is enabled
+# Create imported target cpp_dbc::cpp_dbc
+add_library(cpp_dbc::cpp_dbc STATIC IMPORTED)
+
+# Set target properties
+set_target_properties(cpp_dbc::cpp_dbc PROPERTIES
+  INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"
+  IMPORTED_LOCATION "${_IMPORT_PREFIX}/lib/libcpp_dbc.a"
+)
+
+# Set compile definitions based on build options
 set(CPP_DBC_USE_MYSQL @USE_MYSQL@)
-
-# Check if PostgreSQL support is enabled
 set(CPP_DBC_USE_POSTGRESQL @USE_POSTGRESQL@)
+set(CPP_DBC_USE_SQLITE @USE_SQLITE@)
+set(CPP_DBC_USE_YAML @USE_CPP_YAML@)
+set(CPP_DBC_HAS_DW @BACKWARD_HAS_DW@)
 
-# Check for required dependencies
+# Add compile definitions to the target
 if(CPP_DBC_USE_MYSQL)
-    # Include our custom FindMySQL module
-    include(${CMAKE_CURRENT_LIST_DIR}/FindMySQL.cmake)
-    # The FindMySQL.cmake module will define MySQL_FOUND, MySQL_INCLUDE_DIRS, and MySQL_LIBRARIES
+  target_compile_definitions(cpp_dbc::cpp_dbc INTERFACE USE_MYSQL=1)
+else()
+  target_compile_definitions(cpp_dbc::cpp_dbc INTERFACE USE_MYSQL=0)
 endif()
 
 if(CPP_DBC_USE_POSTGRESQL)
-    # Include our custom FindPostgreSQL module
-    include(${CMAKE_CURRENT_LIST_DIR}/FindPostgreSQL.cmake)
-    # The FindPostgreSQL.cmake module will define PostgreSQL_FOUND, PostgreSQL_INCLUDE_DIRS, and PostgreSQL_LIBRARIES
+  target_compile_definitions(cpp_dbc::cpp_dbc INTERFACE USE_POSTGRESQL=1)
+else()
+  target_compile_definitions(cpp_dbc::cpp_dbc INTERFACE USE_POSTGRESQL=0)
+endif()
+
+if(CPP_DBC_USE_SQLITE)
+  target_compile_definitions(cpp_dbc::cpp_dbc INTERFACE USE_SQLITE=1)
+else()
+  target_compile_definitions(cpp_dbc::cpp_dbc INTERFACE USE_SQLITE=0)
+endif()
+
+if(CPP_DBC_USE_YAML)
+  target_compile_definitions(cpp_dbc::cpp_dbc INTERFACE USE_CPP_YAML=1)
+else()
+  target_compile_definitions(cpp_dbc::cpp_dbc INTERFACE USE_CPP_YAML=0)
+endif()
+
+if(CPP_DBC_HAS_DW)
+  target_compile_definitions(cpp_dbc::cpp_dbc INTERFACE BACKWARD_HAS_DW=1)
+else()
+  target_compile_definitions(cpp_dbc::cpp_dbc INTERFACE BACKWARD_HAS_DW=0)
+endif()
+
+# Find dependencies based on build options
+if(CPP_DBC_USE_MYSQL)
+  # Include our custom FindMySQL module
+  include("${CMAKE_CURRENT_LIST_DIR}/FindMySQL.cmake")
+  if(NOT MySQL_FOUND)
+    message(FATAL_ERROR "MySQL library not found. Please install MySQL development libraries.")
+  endif()
+  target_include_directories(cpp_dbc::cpp_dbc INTERFACE ${MYSQL_INCLUDE_DIR})
+  target_link_libraries(cpp_dbc::cpp_dbc INTERFACE ${MYSQL_LIBRARIES})
+endif()
+
+if(CPP_DBC_USE_POSTGRESQL)
+  # Include our custom FindPostgreSQL module
+  include("${CMAKE_CURRENT_LIST_DIR}/FindPostgreSQL.cmake")
+  if(NOT PostgreSQL_FOUND)
+    message(FATAL_ERROR "PostgreSQL library not found. Please install PostgreSQL development libraries.")
+  endif()
+  target_include_directories(cpp_dbc::cpp_dbc INTERFACE ${PostgreSQL_INCLUDE_DIRS})
+  target_link_libraries(cpp_dbc::cpp_dbc INTERFACE ${PostgreSQL_LIBRARIES})
+endif()
+
+if(CPP_DBC_USE_SQLITE)
+  # Include our custom FindSQLite3 module
+  include("${CMAKE_CURRENT_LIST_DIR}/FindSQLite3.cmake")
+  if(NOT SQLite3_FOUND)
+    message(FATAL_ERROR "SQLite3 library not found. Please install SQLite3 development libraries.")
+  endif()
+  target_include_directories(cpp_dbc::cpp_dbc INTERFACE ${SQLite3_INCLUDE_DIRS})
+  target_link_libraries(cpp_dbc::cpp_dbc INTERFACE ${SQLite3_LIBRARIES})
+endif()
+
+if(CPP_DBC_USE_YAML)
+  # Try to find yaml-cpp
+  find_package(yaml-cpp QUIET)
+  if(NOT yaml-cpp_FOUND)
+    message(FATAL_ERROR "yaml-cpp library not found. Please install yaml-cpp development libraries.")
+  endif()
+  target_link_libraries(cpp_dbc::cpp_dbc INTERFACE yaml-cpp::yaml-cpp)
+endif()
+
+if(CPP_DBC_HAS_DW)
+  # Find libdw (part of elfutils)
+  find_library(LIBDW_LIBRARY NAMES dw)
+  if(NOT LIBDW_LIBRARY)
+    message(WARNING "libdw not found. Stack traces may not show detailed information.")
+  else()
+    target_link_libraries(cpp_dbc::cpp_dbc INTERFACE ${LIBDW_LIBRARY})
+  endif()
 endif()
 
 check_required_components(cpp_dbc)

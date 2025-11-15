@@ -79,7 +79,7 @@ echo "10" > debian/compat
 
 # Create control file
 cat > debian/control << EOL
-Source: cpp-dbc
+Source: cpp-dbc-dev
 Section: libs
 Priority: optional
 Maintainer: Tomas R Moreno P <tomasr.morenop@gmail.com>
@@ -87,11 +87,15 @@ Build-Depends: debhelper (>= 10), cmake, g++__MYSQL_CONTROL_DEP____POSTGRESQL_CO
 Standards-Version: 4.5.0
 Homepage: https://github.com/sirlordt/cpp_dbc
 
-Package: cpp-dbc
+Package: cpp-dbc-dev
 Architecture: amd64
 Depends: \${shlibs:Depends}, \${misc:Depends}__MYSQL_CONTROL_DEP____POSTGRESQL_CONTROL_DEP____SQLITE_CONTROL_DEP____LIBDW_CONTROL_DEP__
-Description: C++ Database Connectivity Library
+Description: C++ Database Connectivity Library - Development files
  A C++ library for database connectivity inspired by JDBC.
+ .
+ This package contains the development files (headers and static libraries)
+ needed to build applications that use cpp_dbc.
+ .
  This package was built with:
    __BUILD_FLAGS__
 EOL
@@ -111,23 +115,39 @@ override_dh_auto_build:
 
 override_dh_auto_install:
 	# Copy the built library files to the package directory
-	mkdir -p \${CURDIR}/debian/cpp-dbc/usr/lib
-	mkdir -p \${CURDIR}/debian/cpp-dbc/usr/include
-	mkdir -p \${CURDIR}/debian/cpp-dbc/usr/share/doc/cpp-dbc
+	mkdir -p \${CURDIR}/debian/cpp-dbc-dev/usr/lib
+	mkdir -p \${CURDIR}/debian/cpp-dbc-dev/usr/include
+	mkdir -p \${CURDIR}/debian/cpp-dbc-dev/usr/share/doc/cpp-dbc-dev
+	mkdir -p \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc
 	
 	# Copy the library files directly from where CMake installed them
-	cp -v /app/build/libs/cpp_dbc/lib/libcpp_dbc.a \${CURDIR}/debian/cpp-dbc/usr/lib/
-	cp -rv /app/build/libs/cpp_dbc/include/* \${CURDIR}/debian/cpp-dbc/usr/include/
+	cp -v /app/build/libs/cpp_dbc/lib/libcpp_dbc.a \${CURDIR}/debian/cpp-dbc-dev/usr/lib/
+	cp -rv /app/build/libs/cpp_dbc/include/* \${CURDIR}/debian/cpp-dbc-dev/usr/include/
 	
 	# Copy documentation files
-	cp -rv /app/libs/cpp_dbc/docs/* \${CURDIR}/debian/cpp-dbc/usr/share/doc/cpp-dbc/
+	cp -rv /app/libs/cpp_dbc/docs/* \${CURDIR}/debian/cpp-dbc-dev/usr/share/doc/cpp-dbc-dev/
 	
 	# Copy example files
-	mkdir -p \${CURDIR}/debian/cpp-dbc/usr/share/doc/cpp-dbc/examples
-	cp -rv /app/libs/cpp_dbc/examples/* \${CURDIR}/debian/cpp-dbc/usr/share/doc/cpp-dbc/examples/
+	mkdir -p \${CURDIR}/debian/cpp-dbc-dev/usr/share/doc/cpp-dbc-dev/examples
+	cp -rv /app/libs/cpp_dbc/examples/* \${CURDIR}/debian/cpp-dbc-dev/usr/share/doc/cpp-dbc-dev/examples/
 	
 	# Copy CHANGELOG.md from the root of the project
-	cp -v /app/CHANGELOG.md \${CURDIR}/debian/cpp-dbc/usr/share/doc/cpp-dbc/changelog
+	cp -v /app/CHANGELOG.md \${CURDIR}/debian/cpp-dbc-dev/usr/share/doc/cpp-dbc-dev/changelog
+	
+	# Copy CMake files for find_package support
+	cp -v /app/libs/cpp_dbc/cmake/FindMySQL.cmake \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/
+	cp -v /app/libs/cpp_dbc/cmake/FindPostgreSQL.cmake \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/
+	cp -v /app/libs/cpp_dbc/cmake/FindSQLite3.cmake \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/
+	cp -v /app/libs/cpp_dbc/cmake/FindCPPDBC.cmake \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/
+	cp -v /app/libs/cpp_dbc/cmake/cpp_dbc-config.cmake \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/
+	cp -v /app/libs/cpp_dbc/cmake/cpp_dbc-config-version.cmake \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/
+	
+	# Replace placeholders in the config file with actual values
+	sed -i "s/@USE_MYSQL@/__USE_MYSQL__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
+	sed -i "s/@USE_POSTGRESQL@/__USE_POSTGRESQL__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
+	sed -i "s/@USE_SQLITE@/__USE_SQLITE__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
+	sed -i "s/@USE_CPP_YAML@/__USE_CPP_YAML__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
+	sed -i "s/@BACKWARD_HAS_DW@/__USE_DW__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
 EOL
 
 chmod +x debian/rules
@@ -136,7 +156,7 @@ chmod +x debian/rules
 # Use the timestamp for the version
 TIMESTAMP="__TIMESTAMP__"
 cat > debian/changelog << EOL
-cpp-dbc (${TIMESTAMP}-1) jammy; urgency=medium
+cpp-dbc-dev (${TIMESTAMP}-1) jammy; urgency=medium
 
   * Initial release 
 
@@ -146,7 +166,7 @@ EOL
 # Create copyright
 cat > debian/copyright << EOL
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: cpp-dbc
+Upstream-Name: cpp-dbc-dev
 Source: https://github.com/sirlordt/cpp_dbc
 
 Files: *
@@ -162,7 +182,7 @@ debuild -us -uc -b
 TIMESTAMP="__TIMESTAMP__"
 DISTRO_NAME="__DISTRO_NAME__"
 DISTRO_VERSION="__DISTRO_VERSION__"
-PACKAGE_NAME="cpp_dbc_V${TIMESTAMP}_${DISTRO_NAME}_${DISTRO_VERSION}_amd64.deb"
+PACKAGE_NAME="cpp-dbc-dev_V${TIMESTAMP}_${DISTRO_NAME}-${DISTRO_VERSION}_amd64.deb"
 
 # Find the generated .deb file
 DEB_FILE=$(find .. -name "*.deb" -type f -print -quit)
