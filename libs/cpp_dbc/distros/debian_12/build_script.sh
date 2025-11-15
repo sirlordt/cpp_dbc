@@ -6,6 +6,11 @@ set -e
 # Create output directory for the .deb package
 mkdir -p /output
 
+# Apply MySQL fix patch for Debian 12
+echo "Applying MySQL fix patch for Debian 12..."
+cd /app
+patch -p1 < /app/libs/cpp_dbc/distros/debian_12/mysql_fix.patch
+
 # Create Conan profile first
 echo "Creating Conan profile..."
 /opt/venv/bin/conan profile detect --force
@@ -136,7 +141,7 @@ chmod +x debian/rules
 # Use the timestamp for the version
 TIMESTAMP="__TIMESTAMP__"
 cat > debian/changelog << EOL
-cpp-dbc (${TIMESTAMP}-1) noble; urgency=medium
+cpp-dbc (${TIMESTAMP}-1) bookworm; urgency=medium
 
   * Initial release 
 

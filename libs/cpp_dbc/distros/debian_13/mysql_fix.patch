@@ -1,0 +1,49 @@
+diff --git a/libs/cpp_dbc/src/drivers/driver_mysql.cpp b/libs/cpp_dbc/src/drivers/driver_mysql.cpp
+index 1234567..abcdef0 100644
+--- a/libs/cpp_dbc/src/drivers/driver_mysql.cpp
++++ b/libs/cpp_dbc/src/drivers/driver_mysql.cpp
+@@ -516,7 +516,7 @@ namespace cpp_dbc
+                 // Set to NULL
+                 nullFlags[idx] = 1;
+                 binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+-                binds[idx].is_null = reinterpret_cast<bool *>(&nullFlags[idx]);
++                binds[idx].is_null = &nullFlags[idx];
+                 binds[idx].buffer = nullptr;
+                 binds[idx].buffer_length = 0;
+                 binds[idx].length = nullptr;
+@@ -556,7 +556,7 @@ namespace cpp_dbc
+                 // Set to NULL
+                 nullFlags[idx] = 1;
+                 binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+-                binds[idx].is_null = reinterpret_cast<bool *>(&nullFlags[idx]);
++                binds[idx].is_null = &nullFlags[idx];
+                 binds[idx].buffer = nullptr;
+                 binds[idx].buffer_length = 0;
+                 binds[idx].length = nullptr;
+@@ -602,7 +602,7 @@ namespace cpp_dbc
+                 // Set to NULL
+                 nullFlags[idx] = 1;
+                 binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+-                binds[idx].is_null = reinterpret_cast<bool *>(&nullFlags[idx]);
++                binds[idx].is_null = &nullFlags[idx];
+                 binds[idx].buffer = nullptr;
+                 binds[idx].buffer_length = 0;
+                 binds[idx].length = nullptr;
+@@ -670,7 +670,7 @@ namespace cpp_dbc
+                 // Set to NULL
+                 nullFlags[idx] = 1;
+                 binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+-                binds[idx].is_null = reinterpret_cast<bool *>(&nullFlags[idx]);
++                binds[idx].is_null = &nullFlags[idx];
+                 binds[idx].buffer = nullptr;
+                 binds[idx].buffer_length = 0;
+                 binds[idx].length = nullptr;
+@@ -808,7 +808,7 @@ namespace cpp_dbc
+             nullFlags[idx] = 1;
+ 
+             binds[idx].buffer_type = mysqlType;
+-            binds[idx].is_null = reinterpret_cast<bool *>(&nullFlags[idx]);
++            binds[idx].is_null = &nullFlags[idx];
+             binds[idx].buffer = nullptr;
+             binds[idx].buffer_length = 0;
+             binds[idx].length = nullptr;

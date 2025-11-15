@@ -136,7 +136,7 @@ chmod +x debian/rules
 # Use the timestamp for the version
 TIMESTAMP="__TIMESTAMP__"
 cat > debian/changelog << EOL
-cpp-dbc (${TIMESTAMP}-1) noble; urgency=medium
+cpp-dbc (${TIMESTAMP}-1) jammy; urgency=medium
 
   * Initial release 
 
