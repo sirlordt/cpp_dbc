@@ -658,6 +658,8 @@ connection_pool:
 
 ## Distribution
 
+### Docker Image
+
 The `build.dist.sh` script generates a Dockerfile for the application and builds the Docker image:
 
 ```bash
@@ -701,3 +703,41 @@ You can use the `--ldd` option in the helper script to check the shared library 
 ```
 
 This will run the `ldd` command inside the Docker container on the executable, showing all shared libraries that the executable depends on within the container environment.
+
+### Debian Packages
+
+The `libs/cpp_dbc/build_dist_pkg.sh` script builds Debian packages (.deb) for the cpp_dbc library for multiple distributions:
+
+```bash
+# Build .deb package for Ubuntu 24.04 with default options
+./libs/cpp_dbc/build_dist_pkg.sh
+
+# Build for multiple distributions
+./libs/cpp_dbc/build_dist_pkg.sh --distro=ubuntu:24.04+ubuntu:22.04+debian:12+debian:13
+
+# Specify build options
+./libs/cpp_dbc/build_dist_pkg.sh --build=yaml,mysql,postgres,sqlite,debug,dw,examples
+
+# Specify a version instead of using a timestamp
+./libs/cpp_dbc/build_dist_pkg.sh --version=1.0.1
+
+# Show help
+./libs/cpp_dbc/build_dist_pkg.sh --help
+```
+
+The script performs the following steps for each specified distribution:
+
+1. Creates a Docker container based on the target distribution
+2. Builds the cpp_dbc library with the specified options
+3. Creates a Debian package with proper dependencies
+4. Copies the package to the build directory
+
+The resulting .deb packages include:
+- The static library file (libcpp_dbc.a)
+- Header files
+- CMake configuration files for easy integration with other projects
+- Documentation and examples
+
+After installing the package, you can use the library in your CMake projects as described in the [Using as a Library in Other CMake Projects](#using-as-a-library-in-other-cmake-projects) section.
+
+For more details on using the library with CMake, see the [cmake_usage.md](libs/cpp_dbc/docs/cmake_usage.md) documentation.

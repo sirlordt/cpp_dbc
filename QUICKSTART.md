@@ -241,6 +241,27 @@ The test log analysis feature checks for:
 ./helper.sh --kfc-combo-01
 ```
 
+### Debian Package Creation
+
+```bash
+# Build .deb package for Ubuntu 24.04 with default options
+./libs/cpp_dbc/build_dist_pkg.sh
+
+# Build for multiple distributions
+./libs/cpp_dbc/build_dist_pkg.sh --distro=ubuntu:24.04+ubuntu:22.04+debian:12+debian:13
+
+# Specify build options
+./libs/cpp_dbc/build_dist_pkg.sh --build=yaml,mysql,postgres,sqlite,debug,dw,examples
+
+# Specify a version instead of using a timestamp
+./libs/cpp_dbc/build_dist_pkg.sh --version=1.0.1
+
+# Build for multiple distributions with specific options and version
+./libs/cpp_dbc/build_dist_pkg.sh --distro=ubuntu:24.04+debian:12 --build=mysql,postgres,sqlite,yaml --version=1.0.1
+```
+
+The resulting .deb packages will be placed in the `build` directory with names that include the version, distribution, and architecture information.
+
 ### VSCode Integration
 
 The project now includes VSCode configuration files in the `.vscode` directory:

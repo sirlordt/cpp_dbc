@@ -156,7 +156,31 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **Stack Trace Improvements with libdw Support**:
+1. **Debian Package Build System**:
+   - Added comprehensive Debian package (.deb) build system:
+     - Created `build_dist_pkg.sh` script to replace `build_dist_deb.sh` with improved functionality
+     - Added support for building packages for multiple distributions in a single command
+     - Added support for Debian 12, Debian 13, Ubuntu 22.04, and Ubuntu 24.04
+     - Added Docker-based build environment for each distribution
+     - Added MySQL fix patch for Debian distributions
+     - Added CMake integration files for better package usage
+     - Added version specification option with `--version` parameter
+     - Improved package naming with distribution and version information
+     - Added documentation and examples for CMake integration
+   - Added CMake integration improvements:
+     - Enhanced `cpp_dbc-config.cmake.in` for better CMake integration
+     - Added `FindSQLite3.cmake` for SQLite dependency handling
+     - Added example CMake project in `docs/example_cmake_project/`
+     - Added comprehensive CMake usage documentation in `docs/cmake_usage.md`
+   - Updated package naming and structure:
+     - Changed package name from `cpp-dbc` to `cpp-dbc-dev` to better reflect its purpose
+     - Improved package description with build options information
+     - Added CMake files to the package for better integration
+     - Added documentation and examples to the package
+   - Updated TODO.md:
+     - Marked "Add --run-build-lib-dist-deb using docker" as completed
+
+2. **Stack Trace Improvements with libdw Support**:
    - Added libdw support for enhanced stack traces:
      - Added `BACKWARD_HAS_DW` option to CMakeLists.txt to enable/disable libdw support
      - Added `--dw-off` flag to build scripts to disable libdw support when needed
