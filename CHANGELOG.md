@@ -1,6 +1,19 @@
 # Changelog
 
-## 2025-11-15 06:45:00 PM -0800 [Current]
+## 2025-11-15 12:19:56 PM -0800 [Current]
+
+### RPM Package Support
+* Added RPM package (.rpm) build support to the distribution package system:
+  * Added support for Fedora 42 and Fedora 43 distributions
+  * Created Dockerfiles and build scripts for Fedora distributions
+  * Added RPM spec file generation with proper dependencies
+  * Updated `build_dist_pkg.sh` to handle both .deb and .rpm package formats
+  * Updated documentation to reflect RPM package support
+  * Improved package naming with distribution and version information
+* Updated TODO.md:
+  * Marked "Add --run-build-lib-dist-rpm using docker" as completed
+
+## 2025-11-15 01:20:10 AM -0800
 
 ### Debian Package Build System
 * Added comprehensive Debian package (.deb) build system:

@@ -94,6 +94,18 @@ To build the library and examples, you'll need:
 
 # Build Docker image without libdw support
 ./build.dist.sh --dw-off
+
+# Build distribution packages (.deb and .rpm)
+./libs/cpp_dbc/build_dist_pkg.sh
+
+# Build packages for multiple distributions
+./libs/cpp_dbc/build_dist_pkg.sh --distro=ubuntu:24.04+ubuntu:22.04+debian:12+debian:13+fedora:42+fedora:43
+
+# Build packages with specific options
+./libs/cpp_dbc/build_dist_pkg.sh --build=yaml,mysql,postgres,sqlite,debug,dw,examples
+
+# Build packages with specific version
+./libs/cpp_dbc/build_dist_pkg.sh --version=1.0.1
 ```
 
 The build script:
@@ -107,6 +119,12 @@ The `build.dist.sh` script:
 2. Automatically detects shared library dependencies
 3. Generates a Dockerfile with only the necessary dependencies
 4. Builds and tags the Docker image
+
+The `build_dist_pkg.sh` script:
+1. Creates Docker containers based on target distributions
+2. Builds the cpp_dbc library with specified options
+3. Creates distribution packages (.deb for Debian/Ubuntu, .rpm for Fedora)
+4. Copies the packages to the build directory
 
 ### Manual Build with CMake
 

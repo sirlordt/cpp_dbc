@@ -31,11 +31,12 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Debian Package Build System**:
-   - Added comprehensive Debian package (.deb) build system:
+1. **Distribution Package Build System (DEB and RPM)**:
+   - Added comprehensive distribution package build system:
      - Created `build_dist_pkg.sh` script to replace `build_dist_deb.sh` with improved functionality
      - Added support for building packages for multiple distributions in a single command
-     - Added support for Debian 12, Debian 13, Ubuntu 22.04, and Ubuntu 24.04
+     - Added support for Debian 12, Debian 13, Ubuntu 22.04, and Ubuntu 24.04 (.deb packages)
+     - Added support for Fedora 42 and Fedora 43 (.rpm packages)
      - Added Docker-based build environment for each distribution
      - Added MySQL fix patch for Debian distributions
      - Added CMake integration files for better package usage
@@ -54,6 +55,7 @@ Recent changes to the codebase include:
      - Added documentation and examples to the package
    - Updated TODO.md:
      - Marked "Add --run-build-lib-dist-deb using docker" as completed
+     - Marked "Add --run-build-lib-dist-rpm using docker" as completed
 
 2. **Stack Trace Improvements with libdw Support**:
    - Added libdw support for enhanced stack traces:

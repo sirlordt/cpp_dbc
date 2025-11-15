@@ -666,6 +666,18 @@ La biblioteca proporciona scripts de compilación para simplificar el proceso:
 
 # Compilar contenedor Docker sin soporte libdw
 ./build.dist.sh --dw-off
+
+# Compilar paquetes de distribución (.deb y .rpm)
+./libs/cpp_dbc/build_dist_pkg.sh
+
+# Compilar paquetes para múltiples distribuciones
+./libs/cpp_dbc/build_dist_pkg.sh --distro=ubuntu:24.04+ubuntu:22.04+debian:12+debian:13+fedora:42+fedora:43
+
+# Compilar paquetes con opciones específicas
+./libs/cpp_dbc/build_dist_pkg.sh --build=yaml,mysql,postgres,sqlite,debug,dw,examples
+
+# Compilar paquetes con versión específica
+./libs/cpp_dbc/build_dist_pkg.sh --version=1.0.1
 ```
 
 El script de compilación:
@@ -679,6 +691,12 @@ El script `build.dist.sh`:
 2. Detecta automáticamente las dependencias de bibliotecas compartidas
 3. Genera un Dockerfile con solo las dependencias necesarias
 4. Compila y etiqueta la imagen Docker
+
+El script `build_dist_pkg.sh`:
+1. Crea contenedores Docker basados en las distribuciones objetivo
+2. Compila la biblioteca cpp_dbc con las opciones especificadas
+3. Crea paquetes de distribución (.deb para Debian/Ubuntu, .rpm para Fedora)
+4. Copia los paquetes al directorio build
 
 ### Script de Ayuda
 

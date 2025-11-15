@@ -2,7 +2,6 @@
 
 ## Pending Tasks
 
-- Add --run-build-lib-dist-rpm using docker
 - Analize the use of raw pointer in diferent class
   They are really safe? 
   We need wrap in unique_ptr/shared_ptr with custom destruction functions?
@@ -21,6 +20,7 @@
 
 ## Completed Tasks
 
+- Add rpm support using docker fedora 42 and 43
 - Add --run-build-lib-dist-deb using docker (implemented as build_dist_pkg.sh)
 - Add library dw to linker en CPP_SBC
 - Finish to add the license header to .cpp files

@@ -9,13 +9,14 @@ VERSION=""
 # Function to display usage information
 function show_usage {
     echo "Usage: $0 [OPTIONS]"
-    echo "Build .deb packages for cpp_dbc library in Docker containers."
+    echo "Build .deb/.rpm packages for cpp_dbc library in Docker containers."
     echo ""
     echo "Options:"
     echo "  --distro=DISTROS    Specify the distributions to build for, separated by '+' symbol."
-    echo "                      Supported values: debian:12, debian:13, ubuntu:22.04, ubuntu:24.04"
+    echo "                      Supported values: debian:12, debian:13, ubuntu:22.04, ubuntu:24.04,"
+    echo "                                        fedora:42, fedora:43"
     echo "                      Default: ubuntu:24.04"
-    echo "                      Example: --distro=ubuntu:24.04+ubuntu:22.04+debian:12+debian:13"
+    echo "                      Example: --distro=ubuntu:24.04+fedora:42+debian:12"
     echo "  --build=OPTIONS     Comma-separated build options."
     echo "                      Supported values: yaml, mysql, postgres, sqlite, debug, dw, examples"
     echo "                      Default: yaml,mysql,postgres,sqlite,debug,dw"
@@ -79,6 +80,12 @@ function get_distro_packages() {
             SQLITE_DEV_PKG="libsqlite3-dev"
             LIBDW_DEV_PKG="libdw-dev"
             ;;
+        fedora:42|fedora:43)
+            MYSQL_DEV_PKG="mysql-devel"
+            POSTGRESQL_DEV_PKG="libpq-devel"
+            SQLITE_DEV_PKG="sqlite-devel"
+            LIBDW_DEV_PKG="elfutils-devel"
+            ;;
         *)
             echo "Unsupported distribution: $distro"
             show_usage
@@ -102,6 +109,12 @@ function get_distro_dir() {
             ;;
         ubuntu:24.04)
             echo "ubuntu_24_04"
+            ;;
+        fedora:42)
+            echo "fedora_42"
+            ;;
+        fedora:43)
+            echo "fedora_43"
             ;;
         *)
             echo "Unsupported distribution: $distro"
@@ -266,8 +279,12 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     echo "Building Docker image for $DISTRO..."
     DOCKER_BUILDKIT=1 docker build -t cpp_dbc_build:$DISTRO_DIR "$TEMP_BUILD_DIR"
     
-    # Run the Docker container to build the .deb package
-    echo "Building .deb package for cpp_dbc on $DISTRO..."
+    # Run the Docker container to build the package
+    if [[ "$DISTRO" == fedora:* ]]; then
+        echo "Building .rpm package for cpp_dbc on $DISTRO..."
+    else
+        echo "Building .deb package for cpp_dbc on $DISTRO..."
+    fi
     docker run --rm -v "$(pwd)/build:/output:Z" cpp_dbc_build:$DISTRO_DIR
     
     # Clean up temporary directory
@@ -277,4 +294,4 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
 done
 
 echo "All builds completed successfully!"
-echo "The .deb packages can be found in the build directory."
+echo "The packages can be found in the build directory."

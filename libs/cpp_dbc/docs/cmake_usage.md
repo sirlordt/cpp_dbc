@@ -10,7 +10,7 @@ This document explains how to use the cpp_dbc library in your CMake project.
 
 ## Basic Usage with find_package
 
-After installing the cpp_dbc library via the .deb package, you can use it in your CMake project as follows:
+After installing the cpp_dbc library via the .deb package (Debian/Ubuntu) or .rpm package (Fedora), you can use it in your CMake project as follows:
 
 ```cmake
 cmake_minimum_required(VERSION 3.15)

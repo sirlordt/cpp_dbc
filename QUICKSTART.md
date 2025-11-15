@@ -241,14 +241,17 @@ The test log analysis feature checks for:
 ./helper.sh --kfc-combo-01
 ```
 
-### Debian Package Creation
+### Distribution Package Creation (DEB and RPM)
 
 ```bash
-# Build .deb package for Ubuntu 24.04 with default options
+# Build package for Ubuntu 24.04 with default options
 ./libs/cpp_dbc/build_dist_pkg.sh
 
-# Build for multiple distributions
-./libs/cpp_dbc/build_dist_pkg.sh --distro=ubuntu:24.04+ubuntu:22.04+debian:12+debian:13
+# Build for multiple distributions (Debian, Ubuntu, and Fedora)
+./libs/cpp_dbc/build_dist_pkg.sh --distro=ubuntu:24.04+ubuntu:22.04+debian:12+debian:13+fedora:42+fedora:43
+
+# Build only for Fedora distributions
+./libs/cpp_dbc/build_dist_pkg.sh --distro=fedora:42+fedora:43
 
 # Specify build options
 ./libs/cpp_dbc/build_dist_pkg.sh --build=yaml,mysql,postgres,sqlite,debug,dw,examples
@@ -257,10 +260,12 @@ The test log analysis feature checks for:
 ./libs/cpp_dbc/build_dist_pkg.sh --version=1.0.1
 
 # Build for multiple distributions with specific options and version
-./libs/cpp_dbc/build_dist_pkg.sh --distro=ubuntu:24.04+debian:12 --build=mysql,postgres,sqlite,yaml --version=1.0.1
+./libs/cpp_dbc/build_dist_pkg.sh --distro=ubuntu:24.04+debian:12+fedora:42 --build=mysql,postgres,sqlite,yaml --version=1.0.1
 ```
 
-The resulting .deb packages will be placed in the `build` directory with names that include the version, distribution, and architecture information.
+The resulting packages will be placed in the `build` directory with names that include the version, distribution, and architecture information:
+- `.deb` packages for Debian and Ubuntu distributions
+- `.rpm` packages for Fedora distributions
 
 ### VSCode Integration
 
