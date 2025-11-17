@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cctype>
 #include <iomanip>
+#include <charconv>
 
 #if defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
 #include <format>
@@ -39,25 +40,25 @@ namespace cpp_dbc
     {
 
         // PostgreSQLResultSet implementation
-        PostgreSQLResultSet::PostgreSQLResultSet(PGresult *res) : result(res)
+        PostgreSQLResultSet::PostgreSQLResultSet(PGresult *res) : m_result(res)
         {
-            if (result)
+            if (m_result)
             {
-                rowCount = PQntuples(result);
-                fieldCount = PQnfields(result);
+                m_rowCount = PQntuples(m_result);
+                m_fieldCount = PQnfields(m_result);
 
                 // Store column names and create column name to index mapping
-                for (int i = 0; i < fieldCount; i++)
+                for (int i = 0; i < m_fieldCount; i++)
                 {
-                    std::string name = PQfname(result, i);
-                    columnNames.push_back(name);
-                    columnMap[name] = i;
+                    std::string name = PQfname(m_result, i);
+                    m_columnNames.push_back(name);
+                    m_columnMap[name] = i;
                 }
             }
             else
             {
-                rowCount = 0;
-                fieldCount = 0;
+                m_rowCount = 0;
+                m_fieldCount = 0;
             }
         }
 
@@ -68,47 +69,47 @@ namespace cpp_dbc
 
         bool PostgreSQLResultSet::next()
         {
-            if (!result || rowPosition >= rowCount)
+            if (!m_result || m_rowPosition >= m_rowCount)
             {
                 return false;
             }
 
-            rowPosition++;
+            m_rowPosition++;
             return true;
         }
 
         bool PostgreSQLResultSet::isBeforeFirst()
         {
-            return rowPosition == 0;
+            return m_rowPosition == 0;
         }
 
         bool PostgreSQLResultSet::isAfterLast()
         {
-            return result && rowPosition > rowCount;
+            return m_result && m_rowPosition > m_rowCount;
         }
 
-        int PostgreSQLResultSet::getRow()
+        uint64_t PostgreSQLResultSet::getRow()
         {
-            return rowPosition;
+            return m_rowPosition;
         }
 
         int PostgreSQLResultSet::getInt(int columnIndex)
         {
-            if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("1S2T3U4V5W6X", "Invalid column index or row position", system_utils::captureCallStack());
             }
 
             // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
             int idx = columnIndex - 1;
-            int row = rowPosition - 1;
+            int row = m_rowPosition - 1;
 
-            if (PQgetisnull(result, row, idx))
+            if (PQgetisnull(m_result, row, idx))
             {
                 return 0; // Return 0 for NULL values (similar to JDBC)
             }
 
-            const char *value = PQgetvalue(result, row, idx);
+            const char *value = PQgetvalue(m_result, row, idx);
             try
             {
                 return std::stoi(value);
@@ -121,8 +122,8 @@ namespace cpp_dbc
 
         int PostgreSQLResultSet::getInt(const std::string &columnName)
         {
-            auto it = columnMap.find(columnName);
-            if (it == columnMap.end())
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
             {
                 throw DBException("3E4F5G6H7I8J", "Column not found: " + columnName, system_utils::captureCallStack());
             }
@@ -132,20 +133,20 @@ namespace cpp_dbc
 
         long PostgreSQLResultSet::getLong(int columnIndex)
         {
-            if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("9K0L1M2N3O4P", "Invalid column index or row position", system_utils::captureCallStack());
             }
 
             int idx = columnIndex - 1;
-            int row = rowPosition - 1;
+            int row = m_rowPosition - 1;
 
-            if (PQgetisnull(result, row, idx))
+            if (PQgetisnull(m_result, row, idx))
             {
                 return 0;
             }
 
-            const char *value = PQgetvalue(result, row, idx);
+            const char *value = PQgetvalue(m_result, row, idx);
             try
             {
                 return std::stol(value);
@@ -158,8 +159,8 @@ namespace cpp_dbc
 
         long PostgreSQLResultSet::getLong(const std::string &columnName)
         {
-            auto it = columnMap.find(columnName);
-            if (it == columnMap.end())
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
             {
                 throw DBException("7C8D9E0F1G2H", "Column not found: " + columnName, system_utils::captureCallStack());
             }
@@ -169,20 +170,20 @@ namespace cpp_dbc
 
         double PostgreSQLResultSet::getDouble(int columnIndex)
         {
-            if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("3I4J5K6L7M8N", "Invalid column index or row position", system_utils::captureCallStack());
             }
 
             int idx = columnIndex - 1;
-            int row = rowPosition - 1;
+            int row = m_rowPosition - 1;
 
-            if (PQgetisnull(result, row, idx))
+            if (PQgetisnull(m_result, row, idx))
             {
                 return 0.0;
             }
 
-            const char *value = PQgetvalue(result, row, idx);
+            const char *value = PQgetvalue(m_result, row, idx);
             try
             {
                 return std::stod(value);
@@ -195,8 +196,8 @@ namespace cpp_dbc
 
         double PostgreSQLResultSet::getDouble(const std::string &columnName)
         {
-            auto it = columnMap.find(columnName);
-            if (it == columnMap.end())
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
             {
                 throw DBException("5U6V7W8X9Y0Z", "Column not found: " + columnName, system_utils::captureCallStack());
             }
@@ -206,26 +207,26 @@ namespace cpp_dbc
 
         std::string PostgreSQLResultSet::getString(int columnIndex)
         {
-            if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("1A2B3C4D5E6F", "Invalid column index or row position", system_utils::captureCallStack());
             }
 
             int idx = columnIndex - 1;
-            int row = rowPosition - 1;
+            int row = m_rowPosition - 1;
 
-            if (PQgetisnull(result, row, idx))
+            if (PQgetisnull(m_result, row, idx))
             {
                 return "";
             }
 
-            return std::string(PQgetvalue(result, row, idx));
+            return std::string(PQgetvalue(m_result, row, idx));
         }
 
         std::string PostgreSQLResultSet::getString(const std::string &columnName)
         {
-            auto it = columnMap.find(columnName);
-            if (it == columnMap.end())
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
             {
                 throw DBException("32DF0933F6D5", "Column not found: " + columnName, system_utils::captureCallStack());
             }
@@ -241,8 +242,8 @@ namespace cpp_dbc
 
         bool PostgreSQLResultSet::getBoolean(const std::string &columnName)
         {
-            auto it = columnMap.find(columnName);
-            if (it == columnMap.end())
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
             {
                 throw DBException("7G8H9I0J1K2L", "Column not found: " + columnName, system_utils::captureCallStack());
             }
@@ -252,21 +253,21 @@ namespace cpp_dbc
 
         bool PostgreSQLResultSet::isNull(int columnIndex)
         {
-            if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("3M4N5O6P7Q8R", "Invalid column index or row position", system_utils::captureCallStack());
             }
 
             int idx = columnIndex - 1;
-            int row = rowPosition - 1;
+            int row = m_rowPosition - 1;
 
-            return PQgetisnull(result, row, idx);
+            return PQgetisnull(m_result, row, idx);
         }
 
         bool PostgreSQLResultSet::isNull(const std::string &columnName)
         {
-            auto it = columnMap.find(columnName);
-            if (it == columnMap.end())
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
             {
                 throw DBException("9S0T1U2V3W4X", "Column not found: " + columnName, system_utils::captureCallStack());
             }
@@ -276,23 +277,23 @@ namespace cpp_dbc
 
         std::vector<std::string> PostgreSQLResultSet::getColumnNames()
         {
-            return columnNames;
+            return m_columnNames;
         }
 
         int PostgreSQLResultSet::getColumnCount()
         {
-            return fieldCount;
+            return m_fieldCount;
         }
 
         void PostgreSQLResultSet::close()
         {
-            if (result)
+            if (m_result)
             {
-                PQclear(result);
-                result = nullptr;
-                rowPosition = 0;
-                rowCount = 0;
-                fieldCount = 0;
+                PQclear(m_result);
+                m_result = nullptr;
+                m_rowPosition = 0;
+                m_rowCount = 0;
+                m_fieldCount = 0;
             }
         }
 
@@ -367,34 +368,34 @@ namespace cpp_dbc
         }
 
         PostgreSQLPreparedStatement::PostgreSQLPreparedStatement(PGconn *conn_handle, const std::string &sql_stmt, const std::string &stmt_name)
-            : conn(conn_handle), sql(sql_stmt), stmtName(stmt_name)
+            : m_conn(conn_handle), m_sql(sql_stmt), m_stmtName(stmt_name)
         {
-            if (!conn)
+            if (!m_conn)
             {
                 throw DBException("5Q6R7S8T9U0V", "Invalid PostgreSQL connection", system_utils::captureCallStack());
             }
 
             // Process SQL and count parameters
-            int paramCount = processSQL(sql);
+            int paramCount = processSQL(m_sql);
 
             // Initialize parameter arrays
-            paramValues.resize(paramCount);
-            paramLengths.resize(paramCount);
-            paramFormats.resize(paramCount);
-            paramTypes.resize(paramCount);
+            m_paramValues.resize(paramCount);
+            m_paramLengths.resize(paramCount);
+            m_paramFormats.resize(paramCount);
+            m_paramTypes.resize(paramCount);
 
             // Initialize BLOB-related vectors
-            blobValues.resize(paramCount);
-            blobObjects.resize(paramCount);
-            streamObjects.resize(paramCount);
+            m_blobValues.resize(paramCount);
+            m_blobObjects.resize(paramCount);
+            m_streamObjects.resize(paramCount);
 
             // Default to text format for all parameters
             for (int i = 0; i < paramCount; i++)
             {
-                paramValues[i] = "";
-                paramLengths[i] = 0;
-                paramFormats[i] = 0; // 0 = text, 1 = binary
-                paramTypes[i] = 0;   // 0 = let server guess
+                m_paramValues[i] = "";
+                m_paramLengths[i] = 0;
+                m_paramFormats[i] = 0; // 0 = text, 1 = binary
+                m_paramTypes[i] = 0;   // 0 = let server guess
             }
         }
 
@@ -405,16 +406,16 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::close()
         {
-            if (prepared)
+            if (m_prepared)
             {
                 // Deallocate the prepared statement
-                std::string deallocateSQL = "DEALLOCATE " + stmtName;
-                PGresult *res = PQexec(conn, deallocateSQL.c_str());
+                std::string deallocateSQL = "DEALLOCATE " + m_stmtName;
+                PGresult *res = PQexec(m_conn, deallocateSQL.c_str());
                 if (res)
                 {
                     PQclear(res);
                 }
-                prepared = false;
+                m_prepared = false;
             }
         }
 
@@ -427,77 +428,77 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setInt(int parameterIndex, int value)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("5Y6Z7A8B9C0D", "Invalid parameter index", system_utils::captureCallStack());
             }
 
             int idx = parameterIndex - 1;
-            paramValues[idx] = std::to_string(value);
-            paramLengths[idx] = paramValues[idx].length();
-            paramFormats[idx] = 0; // Text format
-            paramTypes[idx] = 23;  // INT4OID
+            m_paramValues[idx] = std::to_string(value);
+            m_paramLengths[idx] = m_paramValues[idx].length();
+            m_paramFormats[idx] = 0; // Text format
+            m_paramTypes[idx] = 23;  // INT4OID
         }
 
         void PostgreSQLPreparedStatement::setLong(int parameterIndex, long value)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("1E2F3G4H5I6J", "Invalid parameter index", system_utils::captureCallStack());
             }
 
             int idx = parameterIndex - 1;
-            paramValues[idx] = std::to_string(value);
-            paramLengths[idx] = paramValues[idx].length();
-            paramFormats[idx] = 0; // Text format
-            paramTypes[idx] = 20;  // INT8OID
+            m_paramValues[idx] = std::to_string(value);
+            m_paramLengths[idx] = m_paramValues[idx].length();
+            m_paramFormats[idx] = 0; // Text format
+            m_paramTypes[idx] = 20;  // INT8OID
         }
 
         void PostgreSQLPreparedStatement::setDouble(int parameterIndex, double value)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("7K8L9M0N1O2P", "Invalid parameter index", system_utils::captureCallStack());
             }
 
             int idx = parameterIndex - 1;
-            paramValues[idx] = std::to_string(value);
-            paramLengths[idx] = paramValues[idx].length();
-            paramFormats[idx] = 0; // Text format
-            paramTypes[idx] = 701; // FLOAT8OID
+            m_paramValues[idx] = std::to_string(value);
+            m_paramLengths[idx] = m_paramValues[idx].length();
+            m_paramFormats[idx] = 0; // Text format
+            m_paramTypes[idx] = 701; // FLOAT8OID
         }
 
         void PostgreSQLPreparedStatement::setString(int parameterIndex, const std::string &value)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("3Q4R5S6T7U8V", "Invalid parameter index", system_utils::captureCallStack());
             }
 
             int idx = parameterIndex - 1;
-            paramValues[idx] = value;
-            paramLengths[idx] = paramValues[idx].length();
-            paramFormats[idx] = 0; // Text format
-            paramTypes[idx] = 25;  // TEXTOID
+            m_paramValues[idx] = value;
+            m_paramLengths[idx] = m_paramValues[idx].length();
+            m_paramFormats[idx] = 0; // Text format
+            m_paramTypes[idx] = 25;  // TEXTOID
         }
 
         void PostgreSQLPreparedStatement::setBoolean(int parameterIndex, bool value)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("9W0X1Y2Z3A4B", "Invalid parameter index", system_utils::captureCallStack());
             }
 
             int idx = parameterIndex - 1;
-            paramValues[idx] = value ? "t" : "f"; // PostgreSQL uses 't' and 'f' for boolean values
-            paramLengths[idx] = 1;
-            paramFormats[idx] = 0; // Text format
-            paramTypes[idx] = 16;  // BOOLOID
+            m_paramValues[idx] = value ? "t" : "f"; // PostgreSQL uses 't' and 'f' for boolean values
+            m_paramLengths[idx] = 1;
+            m_paramFormats[idx] = 0; // Text format
+            m_paramTypes[idx] = 16;  // BOOLOID
         }
 
         void PostgreSQLPreparedStatement::setNull(int parameterIndex, Types type)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("4A049129B485", "Invalid parameter index", system_utils::captureCallStack());
             }
@@ -505,7 +506,7 @@ namespace cpp_dbc
             int idx = parameterIndex - 1;
 
             // Set the value to NULL
-            paramValues[idx] = "";
+            m_paramValues[idx] = "";
 
             // Set the OID type based on our Types enum
             Oid pgType;
@@ -539,50 +540,50 @@ namespace cpp_dbc
                 pgType = 0; // Let the server guess
             }
 
-            paramTypes[idx] = pgType;
-            paramLengths[idx] = 0;
-            paramFormats[idx] = 0; // Text format
+            m_paramTypes[idx] = pgType;
+            m_paramLengths[idx] = 0;
+            m_paramFormats[idx] = 0; // Text format
         }
 
         void PostgreSQLPreparedStatement::setDate(int parameterIndex, const std::string &value)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("5C6D7E8F9G0H", "Invalid parameter index", system_utils::captureCallStack());
             }
 
             int idx = parameterIndex - 1;
-            paramValues[idx] = value;
-            paramLengths[idx] = paramValues[idx].length();
-            paramFormats[idx] = 0;  // Text format
-            paramTypes[idx] = 1082; // DATEOID
+            m_paramValues[idx] = value;
+            m_paramLengths[idx] = m_paramValues[idx].length();
+            m_paramFormats[idx] = 0;  // Text format
+            m_paramTypes[idx] = 1082; // DATEOID
         }
 
         void PostgreSQLPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("1I2J3K4L5M6N", "Invalid parameter index", system_utils::captureCallStack());
             }
 
             int idx = parameterIndex - 1;
-            paramValues[idx] = value;
-            paramLengths[idx] = paramValues[idx].length();
-            paramFormats[idx] = 0;  // Text format
-            paramTypes[idx] = 1114; // TIMESTAMPOID
+            m_paramValues[idx] = value;
+            m_paramLengths[idx] = m_paramValues[idx].length();
+            m_paramFormats[idx] = 0;  // Text format
+            m_paramTypes[idx] = 1114; // TIMESTAMPOID
         }
 
         std::shared_ptr<ResultSet> PostgreSQLPreparedStatement::executeQuery()
         {
-            if (!conn)
+            if (!m_conn)
             {
                 throw DBException("7O8P9Q0R1S2T", "Connection is invalid", system_utils::captureCallStack());
             }
 
             // Prepare the statement if not already prepared
-            if (!prepared)
+            if (!m_prepared)
             {
-                PGresult *prepareResult = PQprepare(conn, stmtName.c_str(), sql.c_str(), paramValues.size(), paramTypes.data());
+                PGresult *prepareResult = PQprepare(m_conn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
                 if (PQresultStatus(prepareResult) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
@@ -590,24 +591,27 @@ namespace cpp_dbc
                     throw DBException("3U4V5W6X7Y8Z", "Failed to prepare statement: " + error, system_utils::captureCallStack());
                 }
                 PQclear(prepareResult);
-                prepared = true;
+                m_prepared = true;
             }
 
             // Convert parameter values to C-style array of char pointers
-            std::vector<const char *> paramValuePtrs(paramValues.size());
-            for (size_t i = 0; i < paramValues.size(); i++)
+            std::vector<const char *> paramValuePtrs(m_paramValues.size());
+            for (size_t i = 0; i < m_paramValues.size(); i++)
             {
-                paramValuePtrs[i] = paramValues[i].empty() ? nullptr : paramValues[i].c_str();
+                paramValuePtrs[i] = m_paramValues[i].empty() ? nullptr : m_paramValues[i].c_str();
             }
 
             // Execute the prepared statement
+            // Create temporary vector of ints for parameter lengths
+            std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
+
             PGresult *result = PQexecPrepared(
-                conn,
-                stmtName.c_str(),
-                paramValues.size(),
+                m_conn,
+                m_stmtName.c_str(),
+                static_cast<int>(m_paramValues.size()),
                 paramValuePtrs.data(),
-                paramLengths.data(),
-                paramFormats.data(),
+                paramLengthsInt.data(),
+                m_paramFormats.data(),
                 0 // Result format (0 = text)
             );
 
@@ -627,17 +631,17 @@ namespace cpp_dbc
             return resultSet;
         }
 
-        int PostgreSQLPreparedStatement::executeUpdate()
+        uint64_t PostgreSQLPreparedStatement::executeUpdate()
         {
-            if (!conn)
+            if (!m_conn)
             {
                 throw DBException("5G6H7I8J9K0L", "Connection is invalid", system_utils::captureCallStack());
             }
 
             // Prepare the statement if not already prepared
-            if (!prepared)
+            if (!m_prepared)
             {
-                PGresult *prepareResult = PQprepare(conn, stmtName.c_str(), sql.c_str(), paramValues.size(), paramTypes.data());
+                PGresult *prepareResult = PQprepare(m_conn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
                 if (PQresultStatus(prepareResult) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
@@ -645,24 +649,27 @@ namespace cpp_dbc
                     throw DBException("1M2N3O4P5Q6R", "Failed to prepare statement: " + error, system_utils::captureCallStack());
                 }
                 PQclear(prepareResult);
-                prepared = true;
+                m_prepared = true;
             }
 
             // Convert parameter values to C-style array of char pointers
-            std::vector<const char *> paramValuePtrs(paramValues.size());
-            for (size_t i = 0; i < paramValues.size(); i++)
+            std::vector<const char *> paramValuePtrs(m_paramValues.size());
+            for (size_t i = 0; i < m_paramValues.size(); i++)
             {
-                paramValuePtrs[i] = paramValues[i].empty() ? nullptr : paramValues[i].c_str();
+                paramValuePtrs[i] = m_paramValues[i].empty() ? nullptr : m_paramValues[i].c_str();
             }
 
             // Execute the prepared statement
+            // Create temporary vector of ints for parameter lengths
+            std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
+
             PGresult *result = PQexecPrepared(
-                conn,
-                stmtName.c_str(),
-                paramValues.size(),
+                m_conn,
+                m_stmtName.c_str(),
+                static_cast<int>(m_paramValues.size()),
                 paramValuePtrs.data(),
-                paramLengths.data(),
-                paramFormats.data(),
+                paramLengthsInt.data(),
+                m_paramFormats.data(),
                 0 // Result format (0 = text)
             );
 
@@ -675,10 +682,10 @@ namespace cpp_dbc
 
             // Get the number of affected rows
             char *affectedRows = PQcmdTuples(result);
-            int rowCount = 0;
+            uint64_t rowCount = 0;
             if (affectedRows && affectedRows[0] != '\0')
             {
-                rowCount = std::stoi(affectedRows);
+                std::from_chars(affectedRows, affectedRows + strlen(affectedRows), rowCount);
             }
 
             PQclear(result);
@@ -691,15 +698,15 @@ namespace cpp_dbc
 
         bool PostgreSQLPreparedStatement::execute()
         {
-            if (!conn)
+            if (!m_conn)
             {
                 throw DBException("3Y4Z5A6B7C8D", "Connection is invalid", system_utils::captureCallStack());
             }
 
             // Prepare the statement if not already prepared
-            if (!prepared)
+            if (!m_prepared)
             {
-                PGresult *prepareResult = PQprepare(conn, stmtName.c_str(), sql.c_str(), paramValues.size(), paramTypes.data());
+                PGresult *prepareResult = PQprepare(m_conn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
                 if (PQresultStatus(prepareResult) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
@@ -707,24 +714,27 @@ namespace cpp_dbc
                     throw DBException("9E0F1G2H3I4J", "Failed to prepare statement: " + error, system_utils::captureCallStack());
                 }
                 PQclear(prepareResult);
-                prepared = true;
+                m_prepared = true;
             }
 
             // Convert parameter values to C-style array of char pointers
-            std::vector<const char *> paramValuePtrs(paramValues.size());
-            for (size_t i = 0; i < paramValues.size(); i++)
+            std::vector<const char *> paramValuePtrs(m_paramValues.size());
+            for (size_t i = 0; i < m_paramValues.size(); i++)
             {
-                paramValuePtrs[i] = paramValues[i].empty() ? nullptr : paramValues[i].c_str();
+                paramValuePtrs[i] = m_paramValues[i].empty() ? nullptr : m_paramValues[i].c_str();
             }
 
             // Execute the prepared statement
+            // Create temporary vector of ints for parameter lengths
+            std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
+
             PGresult *result = PQexecPrepared(
-                conn,
-                stmtName.c_str(),
-                paramValues.size(),
+                m_conn,
+                m_stmtName.c_str(),
+                static_cast<int>(m_paramValues.size()),
                 paramValuePtrs.data(),
-                paramLengths.data(),
-                paramFormats.data(),
+                paramLengthsInt.data(),
+                m_paramFormats.data(),
                 0 // Result format (0 = text)
             );
 
@@ -746,30 +756,30 @@ namespace cpp_dbc
         // BLOB support methods for PostgreSQLResultSet
         std::shared_ptr<Blob> PostgreSQLResultSet::getBlob(int columnIndex)
         {
-            if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("5K6L7M8N9O0P", "Invalid column index or row position for getBlob", system_utils::captureCallStack());
             }
 
             // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
             int idx = columnIndex - 1;
-            int row = rowPosition - 1;
+            int row = m_rowPosition - 1;
 
-            if (PQgetisnull(result, row, idx))
+            if (PQgetisnull(m_result, row, idx))
             {
                 return std::make_shared<PostgreSQLBlob>(nullptr);
             }
 
             // Check if the column is a bytea type
-            Oid type = PQftype(result, idx);
+            Oid type = PQftype(m_result, idx);
             if (type != 17) // BYTEAOID
             {
                 throw DBException("EA04B0D9155C", "Column is not a BLOB/bytea type", system_utils::captureCallStack());
             }
 
             // Get the binary data
-            const char *value = PQgetvalue(result, row, idx);
-            int length = PQgetlength(result, row, idx);
+            // const char *value = PQgetvalue(m_result, row, idx);
+            // int length = PQgetlength(m_result, row, idx);
 
             // Create a vector with the data using our getBytes method
             // This will properly handle the hex format
@@ -781,8 +791,8 @@ namespace cpp_dbc
 
         std::shared_ptr<Blob> PostgreSQLResultSet::getBlob(const std::string &columnName)
         {
-            auto it = columnMap.find(columnName);
-            if (it == columnMap.end())
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
             {
                 throw DBException("392BEAA07684", "Column not found: " + columnName, system_utils::captureCallStack());
             }
@@ -792,16 +802,16 @@ namespace cpp_dbc
 
         std::shared_ptr<InputStream> PostgreSQLResultSet::getBinaryStream(int columnIndex)
         {
-            if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("FC94875EDF73", "Invalid column index or row position for getBinaryStream", system_utils::captureCallStack());
             }
 
             // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
             int idx = columnIndex - 1;
-            int row = rowPosition - 1;
+            int row = m_rowPosition - 1;
 
-            if (PQgetisnull(result, row, idx))
+            if (PQgetisnull(m_result, row, idx))
             {
                 // Return an empty stream
                 return std::make_shared<PostgreSQLInputStream>("", 0);
@@ -826,8 +836,8 @@ namespace cpp_dbc
 
         std::shared_ptr<InputStream> PostgreSQLResultSet::getBinaryStream(const std::string &columnName)
         {
-            auto it = columnMap.find(columnName);
-            if (it == columnMap.end())
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
             {
                 throw DBException("27EF08AD722D", "Column not found: " + columnName, system_utils::captureCallStack());
             }
@@ -837,26 +847,26 @@ namespace cpp_dbc
 
         std::vector<uint8_t> PostgreSQLResultSet::getBytes(int columnIndex)
         {
-            if (!result || columnIndex < 1 || columnIndex > fieldCount || rowPosition < 1 || rowPosition > rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("D5E8D5D3A7A4", "Invalid column index or row position for getBytes", system_utils::captureCallStack());
             }
 
             // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
             int idx = columnIndex - 1;
-            int row = rowPosition - 1;
+            int row = m_rowPosition - 1;
 
-            if (PQgetisnull(result, row, idx))
+            if (PQgetisnull(m_result, row, idx))
             {
                 return {};
             }
 
             // Get the binary data
-            const char *value = PQgetvalue(result, row, idx);
-            int length = PQgetlength(result, row, idx);
+            const char *value = PQgetvalue(m_result, row, idx);
+            int length = PQgetlength(m_result, row, idx);
 
             // Check if the column is a bytea type
-            Oid type = PQftype(result, idx);
+            Oid type = PQftype(m_result, idx);
 
             // Create a vector with the data
             std::vector<uint8_t> data;
@@ -914,8 +924,8 @@ namespace cpp_dbc
 
         std::vector<uint8_t> PostgreSQLResultSet::getBytes(const std::string &columnName)
         {
-            auto it = columnMap.find(columnName);
-            if (it == columnMap.end())
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
             {
                 throw DBException("599349A7DAA4", "Column not found: " + columnName, system_utils::captureCallStack());
             }
@@ -926,7 +936,7 @@ namespace cpp_dbc
         // BLOB support methods for PostgreSQLPreparedStatement
         void PostgreSQLPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("3C2333857671", "Invalid parameter index for setBlob", system_utils::captureCallStack());
             }
@@ -934,15 +944,15 @@ namespace cpp_dbc
             int idx = parameterIndex - 1;
 
             // Store the blob object to keep it alive
-            blobObjects[idx] = x;
+            m_blobObjects[idx] = x;
 
             if (!x)
             {
                 // Set to NULL
-                paramValues[idx] = "";
-                paramLengths[idx] = 0;
-                paramFormats[idx] = 0; // Text format
-                paramTypes[idx] = 17;  // BYTEAOID
+                m_paramValues[idx] = "";
+                m_paramLengths[idx] = 0;
+                m_paramFormats[idx] = 0; // Text format
+                m_paramTypes[idx] = 17;  // BYTEAOID
                 return;
             }
 
@@ -950,20 +960,20 @@ namespace cpp_dbc
             std::vector<uint8_t> data = x->getBytes(0, x->length());
 
             // Store the data in our vector to keep it alive
-            blobValues[idx] = std::move(data);
+            m_blobValues[idx] = std::move(data);
 
             // Use binary format for BYTEA data
-            paramValues[idx].resize(blobValues[idx].size());
-            std::memcpy(&paramValues[idx][0], blobValues[idx].data(), blobValues[idx].size());
+            m_paramValues[idx].resize(m_blobValues[idx].size());
+            std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
 
-            paramLengths[idx] = blobValues[idx].size();
-            paramFormats[idx] = 1; // Binary format
-            paramTypes[idx] = 17;  // BYTEAOID
+            m_paramLengths[idx] = m_blobValues[idx].size();
+            m_paramFormats[idx] = 1; // Binary format
+            m_paramTypes[idx] = 17;  // BYTEAOID
         }
 
         void PostgreSQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("D182B9C3A9CC", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack());
             }
@@ -971,15 +981,15 @@ namespace cpp_dbc
             int idx = parameterIndex - 1;
 
             // Store the stream object to keep it alive
-            streamObjects[idx] = x;
+            m_streamObjects[idx] = x;
 
             if (!x)
             {
                 // Set to NULL
-                paramValues[idx] = "";
-                paramLengths[idx] = 0;
-                paramFormats[idx] = 0; // Text format
-                paramTypes[idx] = 17;  // BYTEAOID
+                m_paramValues[idx] = "";
+                m_paramLengths[idx] = 0;
+                m_paramFormats[idx] = 0; // Text format
+                m_paramTypes[idx] = 17;  // BYTEAOID
                 return;
             }
 
@@ -993,20 +1003,20 @@ namespace cpp_dbc
             }
 
             // Store the data in our vector to keep it alive
-            blobValues[idx] = std::move(data);
+            m_blobValues[idx] = std::move(data);
 
             // Use binary format for BYTEA data
-            paramValues[idx].resize(blobValues[idx].size());
-            std::memcpy(&paramValues[idx][0], blobValues[idx].data(), blobValues[idx].size());
+            m_paramValues[idx].resize(m_blobValues[idx].size());
+            std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
 
-            paramLengths[idx] = blobValues[idx].size();
-            paramFormats[idx] = 1; // Binary format
-            paramTypes[idx] = 17;  // BYTEAOID
+            m_paramLengths[idx] = m_blobValues[idx].size();
+            m_paramFormats[idx] = 1; // Binary format
+            m_paramTypes[idx] = 17;  // BYTEAOID
         }
 
         void PostgreSQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("13B0690421E5", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack());
             }
@@ -1014,15 +1024,15 @@ namespace cpp_dbc
             int idx = parameterIndex - 1;
 
             // Store the stream object to keep it alive
-            streamObjects[idx] = x;
+            m_streamObjects[idx] = x;
 
             if (!x)
             {
                 // Set to NULL
-                paramValues[idx] = "";
-                paramLengths[idx] = 0;
-                paramFormats[idx] = 0; // Text format
-                paramTypes[idx] = 17;  // BYTEAOID
+                m_paramValues[idx] = "";
+                m_paramLengths[idx] = 0;
+                m_paramFormats[idx] = 0; // Text format
+                m_paramTypes[idx] = 17;  // BYTEAOID
                 return;
             }
 
@@ -1039,20 +1049,20 @@ namespace cpp_dbc
             }
 
             // Store the data in our vector to keep it alive
-            blobValues[idx] = std::move(data);
+            m_blobValues[idx] = std::move(data);
 
             // Use binary format for BYTEA data
-            paramValues[idx].resize(blobValues[idx].size());
-            std::memcpy(&paramValues[idx][0], blobValues[idx].data(), blobValues[idx].size());
+            m_paramValues[idx].resize(m_blobValues[idx].size());
+            std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
 
-            paramLengths[idx] = blobValues[idx].size();
-            paramFormats[idx] = 1; // Binary format
-            paramTypes[idx] = 17;  // BYTEAOID
+            m_paramLengths[idx] = m_blobValues[idx].size();
+            m_paramFormats[idx] = 1; // Binary format
+            m_paramTypes[idx] = 17;  // BYTEAOID
         }
 
         void PostgreSQLPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("D6EC2CC8C12C", "Invalid parameter index for setBytes", system_utils::captureCallStack());
             }
@@ -1060,20 +1070,20 @@ namespace cpp_dbc
             int idx = parameterIndex - 1;
 
             // Store the data in our vector to keep it alive
-            blobValues[idx] = x;
+            m_blobValues[idx] = x;
 
             // Use binary format for BYTEA data
-            paramValues[idx].resize(blobValues[idx].size());
-            std::memcpy(&paramValues[idx][0], blobValues[idx].data(), blobValues[idx].size());
+            m_paramValues[idx].resize(m_blobValues[idx].size());
+            std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
 
-            paramLengths[idx] = blobValues[idx].size();
-            paramFormats[idx] = 1; // Binary format
-            paramTypes[idx] = 17;  // BYTEAOID
+            m_paramLengths[idx] = m_blobValues[idx].size();
+            m_paramFormats[idx] = 1; // Binary format
+            m_paramTypes[idx] = 17;  // BYTEAOID
         }
 
         void PostgreSQLPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
         {
-            if (parameterIndex < 1 || parameterIndex > static_cast<int>(paramValues.size()))
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("D8D28AD75097", "Invalid parameter index for setBytes", system_utils::captureCallStack());
             }
@@ -1083,24 +1093,24 @@ namespace cpp_dbc
             if (!x)
             {
                 // Set to NULL
-                paramValues[idx] = "";
-                paramLengths[idx] = 0;
-                paramFormats[idx] = 0; // Text format
-                paramTypes[idx] = 17;  // BYTEAOID
+                m_paramValues[idx] = "";
+                m_paramLengths[idx] = 0;
+                m_paramFormats[idx] = 0; // Text format
+                m_paramTypes[idx] = 17;  // BYTEAOID
                 return;
             }
 
             // Store the data in our vector to keep it alive
-            blobValues[idx].resize(length);
-            std::memcpy(blobValues[idx].data(), x, length);
+            m_blobValues[idx].resize(length);
+            std::memcpy(m_blobValues[idx].data(), x, length);
 
             // Use binary format for BYTEA data
-            paramValues[idx].resize(blobValues[idx].size());
-            std::memcpy(&paramValues[idx][0], blobValues[idx].data(), blobValues[idx].size());
+            m_paramValues[idx].resize(m_blobValues[idx].size());
+            std::memcpy(&m_paramValues[idx][0], m_blobValues[idx].data(), m_blobValues[idx].size());
 
-            paramLengths[idx] = blobValues[idx].size();
-            paramFormats[idx] = 1; // Binary format
-            paramTypes[idx] = 17;  // BYTEAOID
+            m_paramLengths[idx] = m_blobValues[idx].size();
+            m_paramFormats[idx] = 1; // Binary format
+            m_paramTypes[idx] = 17;  // BYTEAOID
         }
 
         // PostgreSQLConnection implementation
@@ -1110,8 +1120,8 @@ namespace cpp_dbc
                                                    const std::string &user,
                                                    const std::string &password,
                                                    const std::map<std::string, std::string> &options)
-            : conn(nullptr), closed(false), autoCommit(true), statementCounter(0),
-              isolationLevel(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) // PostgreSQL default
+            : m_conn(nullptr), m_closed(false), m_autoCommit(true), m_statementCounter(0),
+              m_isolationLevel(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) // PostgreSQL default
         {
             // Build connection string
             std::stringstream conninfo;
@@ -1134,17 +1144,17 @@ namespace cpp_dbc
             }
 
             // Connect to the database
-            conn = PQconnectdb(conninfo.str().c_str());
-            if (PQstatus(conn) != CONNECTION_OK)
+            m_conn = PQconnectdb(conninfo.str().c_str());
+            if (PQstatus(m_conn) != CONNECTION_OK)
             {
-                std::string error = PQerrorMessage(conn);
-                PQfinish(conn);
-                conn = nullptr;
+                std::string error = PQerrorMessage(m_conn);
+                PQfinish(m_conn);
+                m_conn = nullptr;
                 throw DBException("1Q2R3S4T5U6V", "Failed to connect to PostgreSQL: " + error, system_utils::captureCallStack());
             }
 
             // Set up a notice processor to suppress NOTICE messages
-            PQsetNoticeProcessor(conn, [](void *, const char *)
+            PQsetNoticeProcessor(m_conn, [](void *, const char *)
                                  {
                                      // Do nothing with the notice message
                                  },
@@ -1161,13 +1171,13 @@ namespace cpp_dbc
 
         void PostgreSQLConnection::close()
         {
-            if (!closed && conn)
+            if (!m_closed && m_conn)
             {
 
                 // Notify all active statements that connection is closing
                 {
-                    std::lock_guard<std::mutex> lock(statementsMutex);
-                    for (auto &stmt : activeStatements)
+                    std::lock_guard<std::mutex> lock(m_statementsMutex);
+                    for (auto &stmt : m_activeStatements)
                     {
                         // if (auto stmt = weakStmt.lock())
                         if (stmt)
@@ -1175,12 +1185,12 @@ namespace cpp_dbc
                             stmt->notifyConnClosing();
                         }
                     }
-                    activeStatements.clear();
+                    m_activeStatements.clear();
                 }
 
-                PQfinish(conn);
-                conn = nullptr;
-                closed = true;
+                PQfinish(m_conn);
+                m_conn = nullptr;
+                m_closed = true;
 
                 // Sleep for 5ms to avoid problems with concurrency and memory stability
                 std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -1189,7 +1199,7 @@ namespace cpp_dbc
 
         bool PostgreSQLConnection::isClosed()
         {
-            return closed;
+            return m_closed;
         }
 
         void PostgreSQLConnection::returnToPool()
@@ -1201,12 +1211,12 @@ namespace cpp_dbc
             try
             {
                 // Make sure autocommit is enabled for the next time the connection is used
-                if (!autoCommit)
+                if (!m_autoCommit)
                 {
                     setAutoCommit(true);
                 }
 
-                // We don't set closed = true because we want to keep the connection open
+                // We don't set m_closed = true because we want to keep the connection open
                 // Just mark it as available for reuse
             }
             catch (...)
@@ -1222,14 +1232,14 @@ namespace cpp_dbc
 
         std::shared_ptr<PreparedStatement> PostgreSQLConnection::prepareStatement(const std::string &sql)
         {
-            if (closed || !conn)
+            if (m_closed || !m_conn)
             {
                 throw DBException("7W8X9Y0Z1A2B", "Connection is closed", system_utils::captureCallStack());
             }
 
             // Generate a unique statement name and pass it to the prepared statement
             std::string stmtName = generateStatementName();
-            auto stmt = std::make_shared<PostgreSQLPreparedStatement>(conn, sql, stmtName);
+            auto stmt = std::make_shared<PostgreSQLPreparedStatement>(m_conn, sql, stmtName);
 
             registerStatement(stmt);
 
@@ -1238,12 +1248,12 @@ namespace cpp_dbc
 
         std::shared_ptr<ResultSet> PostgreSQLConnection::executeQuery(const std::string &sql)
         {
-            if (closed || !conn)
+            if (m_closed || !m_conn)
             {
                 throw DBException("3C4D5E6F7G8H", "Connection is closed", system_utils::captureCallStack());
             }
 
-            PGresult *result = PQexec(conn, sql.c_str());
+            PGresult *result = PQexec(m_conn, sql.c_str());
             if (PQresultStatus(result) != PGRES_TUPLES_OK)
             {
                 std::string error = PQresultErrorMessage(result);
@@ -1254,14 +1264,14 @@ namespace cpp_dbc
             return std::make_shared<PostgreSQLResultSet>(result);
         }
 
-        int PostgreSQLConnection::executeUpdate(const std::string &sql)
+        uint64_t PostgreSQLConnection::executeUpdate(const std::string &sql)
         {
-            if (closed || !conn)
+            if (m_closed || !m_conn)
             {
                 throw DBException("5O6P7Q8R9S0T", "Connection is closed", system_utils::captureCallStack());
             }
 
-            PGresult *result = PQexec(conn, sql.c_str());
+            PGresult *result = PQexec(m_conn, sql.c_str());
             if (PQresultStatus(result) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(result);
@@ -1271,19 +1281,19 @@ namespace cpp_dbc
 
             // Get the number of affected rows
             char *affectedRows = PQcmdTuples(result);
-            int rowCount = 0;
+            uint64_t rowCount = 0;
             if (affectedRows && affectedRows[0] != '\0')
             {
-                rowCount = std::stoi(affectedRows);
+                std::from_chars(affectedRows, affectedRows + strlen(affectedRows), rowCount);
             }
 
             PQclear(result);
             return rowCount;
         }
 
-        void PostgreSQLConnection::setAutoCommit(bool autoCommit)
+        void PostgreSQLConnection::setAutoCommit(bool autoCommitFlag)
         {
-            if (closed || !conn)
+            if (m_closed || !m_conn)
             {
                 throw DBException("7A8B9C0D1E2F", "Connection is closed", system_utils::captureCallStack());
             }
@@ -1291,19 +1301,19 @@ namespace cpp_dbc
             // PostgreSQL: BEGIN starts a transaction, COMMIT ends it
             // If autoCommit is true, we don't need to do anything special
             // If autoCommit is false, we need to start a transaction if we're not already in one
-            if (this->autoCommit && !autoCommit)
+            if (this->m_autoCommit && !autoCommitFlag)
             {
                 // Start a transaction
                 std::string beginCmd = "BEGIN";
 
                 // For SERIALIZABLE isolation, we need to ensure the snapshot is acquired immediately
                 // by using a READ ONLY DEFERRABLE transaction when possible
-                if (isolationLevel == TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
+                if (m_isolationLevel == TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
                 {
                     beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
 
                     // Execute a dummy SELECT to force snapshot acquisition immediately
-                    PGresult *dummyResult = PQexec(conn, beginCmd.c_str());
+                    PGresult *dummyResult = PQexec(m_conn, beginCmd.c_str());
                     if (PQresultStatus(dummyResult) != PGRES_COMMAND_OK)
                     {
                         std::string error = PQresultErrorMessage(dummyResult);
@@ -1313,7 +1323,7 @@ namespace cpp_dbc
                     PQclear(dummyResult);
 
                     // Force snapshot acquisition with a dummy query
-                    PGresult *snapshotResult = PQexec(conn, "SELECT 1");
+                    PGresult *snapshotResult = PQexec(m_conn, "SELECT 1");
                     if (PQresultStatus(snapshotResult) != PGRES_TUPLES_OK)
                     {
                         std::string error = PQresultErrorMessage(snapshotResult);
@@ -1326,7 +1336,7 @@ namespace cpp_dbc
                 else
                 {
                     // Standard BEGIN for other isolation levels
-                    PGresult *result = PQexec(conn, beginCmd.c_str());
+                    PGresult *result = PQexec(m_conn, beginCmd.c_str());
                     if (PQresultStatus(result) != PGRES_COMMAND_OK)
                     {
                         std::string error = PQresultErrorMessage(result);
@@ -1336,10 +1346,10 @@ namespace cpp_dbc
                     PQclear(result);
                 }
             }
-            else if (!this->autoCommit && autoCommit)
+            else if (!this->m_autoCommit && autoCommitFlag)
             {
                 // Commit the current transaction
-                PGresult *result = PQexec(conn, "COMMIT");
+                PGresult *result = PQexec(m_conn, "COMMIT");
                 if (PQresultStatus(result) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(result);
@@ -1349,22 +1359,22 @@ namespace cpp_dbc
                 PQclear(result);
             }
 
-            this->autoCommit = autoCommit;
+            this->m_autoCommit = autoCommitFlag;
         }
 
         bool PostgreSQLConnection::getAutoCommit()
         {
-            return autoCommit;
+            return m_autoCommit;
         }
 
         void PostgreSQLConnection::commit()
         {
-            if (closed || !conn)
+            if (m_closed || !m_conn)
             {
                 throw DBException("7E8F9G0H1I2J", "Connection is closed", system_utils::captureCallStack());
             }
 
-            PGresult *result = PQexec(conn, "COMMIT");
+            PGresult *result = PQexec(m_conn, "COMMIT");
             if (PQresultStatus(result) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(result);
@@ -1374,9 +1384,9 @@ namespace cpp_dbc
             PQclear(result);
 
             // Start a new transaction if auto-commit is disabled
-            if (!autoCommit)
+            if (!m_autoCommit)
             {
-                result = PQexec(conn, "BEGIN");
+                result = PQexec(m_conn, "BEGIN");
                 if (PQresultStatus(result) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(result);
@@ -1389,12 +1399,12 @@ namespace cpp_dbc
 
         void PostgreSQLConnection::rollback()
         {
-            if (closed || !conn)
+            if (m_closed || !m_conn)
             {
                 throw DBException("5W6X7Y8Z9A0B", "Connection is closed", system_utils::captureCallStack());
             }
 
-            PGresult *result = PQexec(conn, "ROLLBACK");
+            PGresult *result = PQexec(m_conn, "ROLLBACK");
             if (PQresultStatus(result) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(result);
@@ -1404,9 +1414,9 @@ namespace cpp_dbc
             PQclear(result);
 
             // Start a new transaction if auto-commit is disabled
-            if (!autoCommit)
+            if (!m_autoCommit)
             {
-                result = PQexec(conn, "BEGIN");
+                result = PQexec(m_conn, "BEGIN");
                 if (PQresultStatus(result) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(result);
@@ -1419,7 +1429,7 @@ namespace cpp_dbc
 
         void PostgreSQLConnection::setTransactionIsolation(TransactionIsolationLevel level)
         {
-            if (closed || !conn)
+            if (m_closed || !m_conn)
             {
                 throw DBException("3O4P5Q6R7S8T", "Connection is closed", system_utils::captureCallStack());
             }
@@ -1444,7 +1454,7 @@ namespace cpp_dbc
                 throw DBException("9U0V1W2X3Y4Z", "Unsupported transaction isolation level", system_utils::captureCallStack());
             }
 
-            PGresult *result = PQexec(conn, query.c_str());
+            PGresult *result = PQexec(m_conn, query.c_str());
             if (PQresultStatus(result) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(result);
@@ -1453,13 +1463,13 @@ namespace cpp_dbc
             }
             PQclear(result);
 
-            this->isolationLevel = level;
+            this->m_isolationLevel = level;
 
             // If we're in a transaction (autoCommit = false), we need to restart it
             // for the new isolation level to take effect
-            if (!autoCommit)
+            if (!m_autoCommit)
             {
-                result = PQexec(conn, "COMMIT");
+                result = PQexec(m_conn, "COMMIT");
                 if (PQresultStatus(result) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(result);
@@ -1469,10 +1479,10 @@ namespace cpp_dbc
                 PQclear(result);
 
                 // For SERIALIZABLE isolation, we need special handling
-                if (isolationLevel == TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
+                if (m_isolationLevel == TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
                 {
                     std::string beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
-                    result = PQexec(conn, beginCmd.c_str());
+                    result = PQexec(m_conn, beginCmd.c_str());
                     if (PQresultStatus(result) != PGRES_COMMAND_OK)
                     {
                         std::string error = PQresultErrorMessage(result);
@@ -1482,7 +1492,7 @@ namespace cpp_dbc
                     PQclear(result);
 
                     // Force snapshot acquisition with a dummy query
-                    PGresult *snapshotResult = PQexec(conn, "SELECT 1");
+                    PGresult *snapshotResult = PQexec(m_conn, "SELECT 1");
                     if (PQresultStatus(snapshotResult) != PGRES_TUPLES_OK)
                     {
                         std::string error = PQresultErrorMessage(snapshotResult);
@@ -1494,7 +1504,7 @@ namespace cpp_dbc
                 else
                 {
                     // Standard BEGIN for other isolation levels
-                    result = PQexec(conn, "BEGIN");
+                    result = PQexec(m_conn, "BEGIN");
                     if (PQresultStatus(result) != PGRES_COMMAND_OK)
                     {
                         std::string error = PQresultErrorMessage(result);
@@ -1508,13 +1518,13 @@ namespace cpp_dbc
 
         TransactionIsolationLevel PostgreSQLConnection::getTransactionIsolation()
         {
-            if (closed || !conn)
+            if (m_closed || !m_conn)
             {
                 throw DBException("5E6F7G8H9I0J", "Connection is closed", system_utils::captureCallStack());
             }
 
             // Query the current isolation level
-            PGresult *result = PQexec(conn, "SHOW transaction_isolation");
+            PGresult *result = PQexec(m_conn, "SHOW transaction_isolation");
             if (PQresultStatus(result) != PGRES_TUPLES_OK)
             {
                 std::string error = PQresultErrorMessage(result);
@@ -1553,22 +1563,22 @@ namespace cpp_dbc
         std::string PostgreSQLConnection::generateStatementName()
         {
             std::stringstream ss;
-            ss << "stmt_" << statementCounter++;
+            ss << "stmt_" << m_statementCounter++;
             return ss.str();
         }
 
         void PostgreSQLConnection::registerStatement(std::shared_ptr<PostgreSQLPreparedStatement> stmt)
         {
-            std::lock_guard<std::mutex> lock(statementsMutex);
-            // activeStatements.insert(std::weak_ptr<MySQLPreparedStatement>(stmt));
-            activeStatements.insert(stmt);
+            std::lock_guard<std::mutex> lock(m_statementsMutex);
+            // m_activeStatements.insert(std::weak_ptr<MySQLPreparedStatement>(stmt));
+            m_activeStatements.insert(stmt);
         }
 
         void PostgreSQLConnection::unregisterStatement(std::shared_ptr<PostgreSQLPreparedStatement> stmt)
         {
-            std::lock_guard<std::mutex> lock(statementsMutex);
-            // activeStatements.erase(std::weak_ptr<MySQLPreparedStatement>(stmt));
-            activeStatements.erase(stmt);
+            std::lock_guard<std::mutex> lock(m_statementsMutex);
+            // m_activeStatements.erase(std::weak_ptr<MySQLPreparedStatement>(stmt));
+            m_activeStatements.erase(stmt);
         }
 
         // PostgreSQLDriver implementation

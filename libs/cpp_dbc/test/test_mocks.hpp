@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -35,7 +35,8 @@
 namespace cpp_dbc_test
 {
     // Flag to control behavior for different test contexts
-    static bool g_interfaceTestMode;
+    // Commented out unused variable
+    // static bool g_interfaceTestMode;
 
     // Simple mock implementation of Blob for testing
     class MockBlob : public cpp_dbc::Blob
@@ -51,7 +52,7 @@ namespace cpp_dbc_test
             return data.size();
         }
 
-        std::vector<uint8_t> getBytes(size_t pos, size_t length) const override
+        std::vector<uint8_t> getBytes(size_t /*pos*/, size_t /*length*/) const override
         {
             return std::vector<uint8_t>();
         }
@@ -61,20 +62,20 @@ namespace cpp_dbc_test
             return nullptr;
         }
 
-        std::shared_ptr<cpp_dbc::OutputStream> setBinaryStream(size_t pos) override
+        std::shared_ptr<cpp_dbc::OutputStream> setBinaryStream(size_t /*pos*/) override
         {
             return nullptr;
         }
 
-        void setBytes(size_t pos, const std::vector<uint8_t> &bytes) override
+        void setBytes(size_t /*pos*/, const std::vector<uint8_t> & /*bytes*/) override
         {
         }
 
-        void setBytes(size_t pos, const uint8_t *bytes, size_t length) override
+        void setBytes(size_t /*pos*/, const uint8_t * /*bytes*/, size_t /*length*/) override
         {
         }
 
-        void truncate(size_t len) override
+        void truncate(size_t /*len*/) override
         {
         }
 
@@ -88,12 +89,12 @@ namespace cpp_dbc_test
     class MockInputStream : public cpp_dbc::InputStream
     {
     public:
-        int read(uint8_t *buffer, size_t length) override
+        int read(uint8_t * /*buffer*/, size_t /*length*/) override
         {
             return -1; // End of stream
         }
 
-        void skip(size_t n) override
+        void skip(size_t /*n*/) override
         {
         }
 
@@ -229,7 +230,7 @@ namespace cpp_dbc_test
             return rowPosition > static_cast<int>(rows.size());
         }
 
-        int getRow() override
+        uint64_t getRow() override
         {
             return rowPosition;
         }
@@ -310,37 +311,37 @@ namespace cpp_dbc_test
         }
 
         // BLOB support methods
-        std::shared_ptr<cpp_dbc::Blob> getBlob(int columnIndex) override
+        std::shared_ptr<cpp_dbc::Blob> getBlob(int /*columnIndex*/) override
         {
             // Return an empty mock blob
             return std::make_shared<MockBlob>();
         }
 
-        std::shared_ptr<cpp_dbc::Blob> getBlob(const std::string &columnName) override
+        std::shared_ptr<cpp_dbc::Blob> getBlob(const std::string & /*columnName*/) override
         {
             // Return an empty mock blob
             return std::make_shared<MockBlob>();
         }
 
-        std::shared_ptr<cpp_dbc::InputStream> getBinaryStream(int columnIndex) override
+        std::shared_ptr<cpp_dbc::InputStream> getBinaryStream(int /*columnIndex*/) override
         {
             // Return a mock input stream
             return std::make_shared<MockInputStream>();
         }
 
-        std::shared_ptr<cpp_dbc::InputStream> getBinaryStream(const std::string &columnName) override
+        std::shared_ptr<cpp_dbc::InputStream> getBinaryStream(const std::string & /*columnName*/) override
         {
             // Return a mock input stream
             return std::make_shared<MockInputStream>();
         }
 
-        std::vector<uint8_t> getBytes(int columnIndex) override
+        std::vector<uint8_t> getBytes(int /*columnIndex*/) override
         {
             // Return an empty vector
             return std::vector<uint8_t>();
         }
 
-        std::vector<uint8_t> getBytes(const std::string &columnName) override
+        std::vector<uint8_t> getBytes(const std::string & /*columnName*/) override
         {
             // Return an empty vector
             return std::vector<uint8_t>();
@@ -381,7 +382,7 @@ namespace cpp_dbc_test
             parameters[parameterIndex] = value ? "true" : "false";
         }
 
-        void setNull(int parameterIndex, cpp_dbc::Types type) override
+        void setNull(int parameterIndex, cpp_dbc::Types /*type*/) override
         {
             parameters[parameterIndex] = "";
         }
@@ -421,24 +422,24 @@ namespace cpp_dbc_test
             return rs;
         }
 
-        int executeUpdate() override { return 1; }
+        uint64_t executeUpdate() override { return 1; }
         bool execute() override { return true; }
         void close() override { /* Mock implementation - do nothing */ }
 
         // BLOB support methods
-        void setBlob(int parameterIndex, std::shared_ptr<cpp_dbc::Blob> x) override
+        void setBlob(int parameterIndex, std::shared_ptr<cpp_dbc::Blob> /*x*/) override
         {
             // Store a placeholder in parameters
             parameters[parameterIndex] = "[BLOB]";
         }
 
-        void setBinaryStream(int parameterIndex, std::shared_ptr<cpp_dbc::InputStream> x) override
+        void setBinaryStream(int parameterIndex, std::shared_ptr<cpp_dbc::InputStream> /*x*/) override
         {
             // Store a placeholder in parameters
             parameters[parameterIndex] = "[BINARY_STREAM]";
         }
 
-        void setBinaryStream(int parameterIndex, std::shared_ptr<cpp_dbc::InputStream> x, size_t length) override
+        void setBinaryStream(int parameterIndex, std::shared_ptr<cpp_dbc::InputStream> /*x*/, size_t length) override
         {
             // Store a placeholder in parameters
             parameters[parameterIndex] = "[BINARY_STREAM:" + std::to_string(length) + "]";
@@ -450,7 +451,7 @@ namespace cpp_dbc_test
             parameters[parameterIndex] = "[BYTES:" + std::to_string(x.size()) + "]";
         }
 
-        void setBytes(int parameterIndex, const uint8_t *x, size_t length) override
+        void setBytes(int parameterIndex, const uint8_t * /*x*/, size_t length) override
         {
             // Store a placeholder in parameters
             parameters[parameterIndex] = "[BYTES:" + std::to_string(length) + "]";
@@ -536,7 +537,7 @@ namespace cpp_dbc_test
             return rs;
         }
 
-        int executeUpdate(const std::string &sql) override
+        uint64_t executeUpdate(const std::string &sql) override
         {
             if (sql.find("UPDATE") != std::string::npos)
             {
@@ -700,7 +701,7 @@ namespace cpp_dbc_test
             {
                 return underlying->executeQuery(sql);
             }
-            int executeUpdate(const std::string &sql) override
+            uint64_t executeUpdate(const std::string &sql) override
             {
                 return underlying->executeUpdate(sql);
             }

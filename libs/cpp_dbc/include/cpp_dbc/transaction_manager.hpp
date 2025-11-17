@@ -95,7 +95,7 @@ namespace cpp_dbc
         bool isTransactionActive(const std::string &transactionId);
 
         // Get the total number of active transactions
-        int getActiveTransactionCount();
+        size_t getActiveTransactionCount();
 
         // Set transaction timeout
         void setTransactionTimeout(long timeoutMillis);

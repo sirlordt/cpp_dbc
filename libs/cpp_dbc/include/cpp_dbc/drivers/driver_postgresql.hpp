@@ -39,12 +39,12 @@ namespace cpp_dbc
         class PostgreSQLResultSet : public ResultSet
         {
         private:
-            PGresult *result{nullptr};
-            int rowPosition{0};
-            int rowCount{0};
-            int fieldCount{0};
-            std::vector<std::string> columnNames;
-            std::map<std::string, int> columnMap;
+            PGresult *m_result{nullptr};
+            int m_rowPosition{0};
+            int m_rowCount{0};
+            int m_fieldCount{0};
+            std::vector<std::string> m_columnNames;
+            std::map<std::string, int> m_columnMap;
 
         public:
             PostgreSQLResultSet(PGresult *res);
@@ -53,7 +53,7 @@ namespace cpp_dbc
             bool next() override;
             bool isBeforeFirst() override;
             bool isAfterLast() override;
-            int getRow() override;
+            uint64_t getRow() override;
 
             int getInt(int columnIndex) override;
             int getInt(const std::string &columnName) override;
@@ -93,18 +93,18 @@ namespace cpp_dbc
             friend class PostgreSQLConnection;
 
         private:
-            PGconn *conn;
-            std::string sql;
-            std::string stmtName;
-            std::vector<std::string> paramValues;
-            std::vector<int> paramLengths;
-            std::vector<int> paramFormats;
-            std::vector<Oid> paramTypes;
-            bool prepared{false};
-            int statementCounter{0};
-            std::vector<std::vector<uint8_t>> blobValues;            // To keep blob values alive
-            std::vector<std::shared_ptr<Blob>> blobObjects;          // To keep blob objects alive
-            std::vector<std::shared_ptr<InputStream>> streamObjects; // To keep stream objects alive
+            PGconn *m_conn;
+            std::string m_sql;
+            std::string m_stmtName;
+            std::vector<std::string> m_paramValues;
+            std::vector<size_t> m_paramLengths;
+            std::vector<int> m_paramFormats;
+            std::vector<Oid> m_paramTypes;
+            bool m_prepared{false};
+            int m_statementCounter{0};
+            std::vector<std::vector<uint8_t>> m_blobValues;            // To keep blob values alive
+            std::vector<std::shared_ptr<Blob>> m_blobObjects;          // To keep blob objects alive
+            std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
 
             // Internal method called by connection when closing
             void notifyConnClosing();
@@ -133,7 +133,7 @@ namespace cpp_dbc
             void setBytes(int parameterIndex, const uint8_t *x, size_t length) override;
 
             std::shared_ptr<ResultSet> executeQuery() override;
-            int executeUpdate() override;
+            uint64_t executeUpdate() override;
             bool execute() override;
             void close() override;
         };
@@ -141,14 +141,14 @@ namespace cpp_dbc
         class PostgreSQLConnection : public Connection
         {
         private:
-            PGconn *conn;
-            bool closed;
-            bool autoCommit;
-            int statementCounter;
-            TransactionIsolationLevel isolationLevel;
+            PGconn *m_conn;
+            bool m_closed;
+            bool m_autoCommit;
+            int m_statementCounter;
+            TransactionIsolationLevel m_isolationLevel;
 
-            std::set<std::shared_ptr<PostgreSQLPreparedStatement>> activeStatements;
-            std::mutex statementsMutex;
+            std::set<std::shared_ptr<PostgreSQLPreparedStatement>> m_activeStatements;
+            std::mutex m_statementsMutex;
 
             // Internal methods for statement registry
             void registerStatement(std::shared_ptr<PostgreSQLPreparedStatement> stmt);
@@ -170,7 +170,7 @@ namespace cpp_dbc
 
             std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
             std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;
-            int executeUpdate(const std::string &sql) override;
+            uint64_t executeUpdate(const std::string &sql) override;
 
             void setAutoCommit(bool autoCommit) override;
             bool getAutoCommit() override;

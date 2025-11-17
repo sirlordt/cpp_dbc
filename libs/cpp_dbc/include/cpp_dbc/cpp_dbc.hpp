@@ -219,7 +219,7 @@ namespace cpp_dbc
         virtual bool next() = 0;
         virtual bool isBeforeFirst() = 0;
         virtual bool isAfterLast() = 0;
-        virtual int getRow() = 0;
+        virtual uint64_t getRow() = 0;
 
         virtual int getInt(int columnIndex) = 0;
         virtual int getInt(const std::string &columnName) = 0;
@@ -279,7 +279,7 @@ namespace cpp_dbc
         virtual void setBytes(int parameterIndex, const uint8_t *x, size_t length) = 0;
 
         virtual std::shared_ptr<ResultSet> executeQuery() = 0;
-        virtual int executeUpdate() = 0;
+        virtual uint64_t executeUpdate() = 0;
         virtual bool execute() = 0;
 
         // Close the prepared statement and release resources
@@ -299,7 +299,7 @@ namespace cpp_dbc
 
         virtual std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) = 0;
         virtual std::shared_ptr<ResultSet> executeQuery(const std::string &sql) = 0;
-        virtual int executeUpdate(const std::string &sql) = 0;
+        virtual uint64_t executeUpdate(const std::string &sql) = 0;
 
         virtual void setAutoCommit(bool autoCommit) = 0;
         virtual bool getAutoCommit() = 0;

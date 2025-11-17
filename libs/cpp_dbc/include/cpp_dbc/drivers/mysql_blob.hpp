@@ -35,27 +35,27 @@ namespace cpp_dbc
         class MySQLInputStream : public InputStream
         {
         private:
-            const std::vector<uint8_t> data;
-            size_t position;
+            const std::vector<uint8_t> m_data;
+            size_t m_position;
 
         public:
             MySQLInputStream(const char *buffer, size_t length)
-                : data(buffer, buffer + length), position(0) {}
+                : m_data(buffer, buffer + length), m_position(0) {}
 
             int read(uint8_t *buffer, size_t length) override
             {
-                if (position >= data.size())
+                if (m_position >= m_data.size())
                     return -1; // End of stream
 
-                size_t bytesToRead = std::min(length, data.size() - position);
-                std::memcpy(buffer, data.data() + position, bytesToRead);
-                position += bytesToRead;
+                size_t bytesToRead = std::min(length, m_data.size() - m_position);
+                std::memcpy(buffer, m_data.data() + m_position, bytesToRead);
+                m_position += bytesToRead;
                 return static_cast<int>(bytesToRead);
             }
 
             void skip(size_t n) override
             {
-                position = std::min(position + n, data.size());
+                m_position = std::min(m_position + n, m_data.size());
             }
 
             void close() override
@@ -68,49 +68,49 @@ namespace cpp_dbc
         class MySQLBlob : public MemoryBlob
         {
         private:
-            MYSQL *mysql;
-            std::string tableName;
-            std::string columnName;
-            std::string whereClause;
-            bool loaded;
+            MYSQL *m_mysql;
+            std::string m_tableName;
+            std::string m_columnName;
+            std::string m_whereClause;
+            bool m_loaded;
 
         public:
             // Constructor for creating a new BLOB
             MySQLBlob(MYSQL *mysql)
-                : mysql(mysql), loaded(true) {}
+                : m_mysql(mysql), m_loaded(true) {}
 
             // Constructor for loading an existing BLOB
             MySQLBlob(MYSQL *mysql, const std::string &tableName,
                       const std::string &columnName, const std::string &whereClause)
-                : mysql(mysql), tableName(tableName), columnName(columnName),
-                  whereClause(whereClause), loaded(false) {}
+                : m_mysql(mysql), m_tableName(tableName), m_columnName(columnName),
+                  m_whereClause(whereClause), m_loaded(false) {}
 
             // Constructor for creating a BLOB from existing data
             MySQLBlob(MYSQL *mysql, const std::vector<uint8_t> &initialData)
-                : MemoryBlob(initialData), mysql(mysql), loaded(true) {}
+                : MemoryBlob(initialData), m_mysql(mysql), m_loaded(true) {}
 
             // Load the BLOB data from the database if not already loaded
             void ensureLoaded()
             {
-                if (loaded)
+                if (m_loaded)
                     return;
 
                 // Construct a query to fetch the BLOB data
-                std::string query = "SELECT " + columnName + " FROM " + tableName;
-                if (!whereClause.empty())
-                    query += " WHERE " + whereClause;
+                std::string query = "SELECT " + m_columnName + " FROM " + m_tableName;
+                if (!m_whereClause.empty())
+                    query += " WHERE " + m_whereClause;
 
                 // Execute the query
-                if (mysql_query(mysql, query.c_str()) != 0)
+                if (mysql_query(m_mysql, query.c_str()) != 0)
                 {
-                    throw DBException("M1Y2S3Q4L5B", "Failed to fetch BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
+                    throw DBException("M1Y2S3Q4L5B", "Failed to fetch BLOB data: " + std::string(mysql_error(m_mysql)), system_utils::captureCallStack());
                 }
 
                 // Get the result
-                MYSQL_RES *result = mysql_store_result(mysql);
+                MYSQL_RES *result = mysql_store_result(m_mysql);
                 if (!result)
                 {
-                    throw DBException("L6O7B8R9E0S", "Failed to get result set for BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
+                    throw DBException("L6O7B8R9E0S", "Failed to get result set for BLOB data: " + std::string(mysql_error(m_mysql)), system_utils::captureCallStack());
                 }
 
                 // Get the row
@@ -132,17 +132,17 @@ namespace cpp_dbc
                 // Copy the BLOB data
                 if (row[0] && lengths[0] > 0)
                 {
-                    data.resize(lengths[0]);
-                    std::memcpy(data.data(), row[0], lengths[0]);
+                    m_data.resize(lengths[0]);
+                    std::memcpy(m_data.data(), row[0], lengths[0]);
                 }
                 else
                 {
-                    data.clear();
+                    m_data.clear();
                 }
 
                 // Free the result
                 mysql_free_result(result);
-                loaded = true;
+                m_loaded = true;
             }
 
             // Override methods that need to ensure the BLOB is loaded
@@ -191,16 +191,16 @@ namespace cpp_dbc
             // Save the BLOB data back to the database
             void save()
             {
-                if (tableName.empty() || columnName.empty() || whereClause.empty())
+                if (m_tableName.empty() || m_columnName.empty() || m_whereClause.empty())
                     return; // Nothing to save
 
                 // Prepare a statement to update the BLOB data
-                std::string query = "UPDATE " + tableName + " SET " + columnName + " = ? WHERE " + whereClause;
+                std::string query = "UPDATE " + m_tableName + " SET " + m_columnName + " = ? WHERE " + m_whereClause;
 
-                MYSQL_STMT *stmt = mysql_stmt_init(mysql);
+                MYSQL_STMT *stmt = mysql_stmt_init(m_mysql);
                 if (!stmt)
                 {
-                    throw DBException("G1T2H3I4N5I", "Failed to initialize statement for BLOB update: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
+                    throw DBException("G1T2H3I4N5I", "Failed to initialize statement for BLOB update: " + std::string(mysql_error(m_mysql)), system_utils::captureCallStack());
                 }
 
                 if (mysql_stmt_prepare(stmt, query.c_str(), query.length()) != 0)
@@ -214,9 +214,9 @@ namespace cpp_dbc
                 MYSQL_BIND bind;
                 memset(&bind, 0, sizeof(bind));
                 bind.buffer_type = MYSQL_TYPE_BLOB;
-                bind.buffer = data.data();
-                bind.buffer_length = data.size();
-                bind.length_value = data.size();
+                bind.buffer = m_data.data();
+                bind.buffer_length = m_data.size();
+                bind.length_value = m_data.size();
 
                 if (mysql_stmt_bind_param(stmt, &bind) != 0)
                 {
@@ -240,7 +240,7 @@ namespace cpp_dbc
             void free() override
             {
                 MemoryBlob::free();
-                loaded = false;
+                m_loaded = false;
             }
         };
 

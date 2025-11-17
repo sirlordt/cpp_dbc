@@ -45,16 +45,16 @@ namespace cpp_dbc
         class SQLiteResultSet : public ResultSet
         {
         private:
-            sqlite3_stmt *stmt;
-            bool ownStatement;
-            int rowPosition;
-            int rowCount;
-            int fieldCount;
-            std::vector<std::string> columnNames;
-            std::map<std::string, int> columnMap;
-            bool hasData;
-            bool closed;
-            std::weak_ptr<SQLiteConnection> connection; // Referencia débil a la conexión
+            sqlite3_stmt *m_stmt;
+            bool m_ownStatement;
+            int m_rowPosition;
+            int m_rowCount;
+            int m_fieldCount;
+            std::vector<std::string> m_columnNames;
+            std::map<std::string, int> m_columnMap;
+            bool m_hasData;
+            bool m_closed;
+            std::weak_ptr<SQLiteConnection> m_connection; // Referencia débil a la conexión
 
         public:
             SQLiteResultSet(sqlite3_stmt *stmt, bool ownStatement = true, std::shared_ptr<SQLiteConnection> conn = nullptr);
@@ -63,7 +63,7 @@ namespace cpp_dbc
             bool next() override;
             bool isBeforeFirst() override;
             bool isAfterLast() override;
-            int getRow() override;
+            uint64_t getRow() override;
 
             int getInt(int columnIndex) override;
             int getInt(const std::string &columnName) override;
@@ -106,13 +106,13 @@ namespace cpp_dbc
             friend class SQLiteConnection;
 
         private:
-            sqlite3 *db;
-            std::string sql;
-            sqlite3_stmt *stmt;
-            bool closed;
-            std::vector<std::vector<uint8_t>> blobValues;            // To keep blob values alive
-            std::vector<std::shared_ptr<Blob>> blobObjects;          // To keep blob objects alive
-            std::vector<std::shared_ptr<InputStream>> streamObjects; // To keep stream objects alive
+            sqlite3 *m_db;
+            std::string m_sql;
+            sqlite3_stmt *m_stmt;
+            bool m_closed;
+            std::vector<std::vector<uint8_t>> m_blobValues;            // To keep blob values alive
+            std::vector<std::shared_ptr<Blob>> m_blobObjects;          // To keep blob objects alive
+            std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
 
             // Internal method called by connection when closing
             void notifyConnClosing();
@@ -138,7 +138,7 @@ namespace cpp_dbc
             void setBytes(int parameterIndex, const uint8_t *x, size_t length) override;
 
             std::shared_ptr<ResultSet> executeQuery() override;
-            int executeUpdate() override;
+            uint64_t executeUpdate() override;
             bool execute() override;
             void close() override;
         };
@@ -149,14 +149,14 @@ namespace cpp_dbc
             friend class SQLiteResultSet;
 
         private:
-            sqlite3 *db;
-            bool closed;
-            bool autoCommit;
-            TransactionIsolationLevel isolationLevel;
+            sqlite3 *m_db;
+            bool m_closed;
+            bool m_autoCommit;
+            TransactionIsolationLevel m_isolationLevel;
 
             // Registry of active prepared statements
-            std::set<std::shared_ptr<SQLitePreparedStatement>> activeStatements;
-            std::mutex statementsMutex;
+            std::set<std::shared_ptr<SQLitePreparedStatement>> m_activeStatements;
+            std::mutex m_statementsMutex;
 
             // Internal methods for statement registry
             void registerStatement(std::shared_ptr<SQLitePreparedStatement> stmt);
@@ -178,7 +178,7 @@ namespace cpp_dbc
 
             std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
             std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;
-            int executeUpdate(const std::string &sql) override;
+            uint64_t executeUpdate(const std::string &sql) override;
 
             void setAutoCommit(bool autoCommit) override;
             bool getAutoCommit() override;

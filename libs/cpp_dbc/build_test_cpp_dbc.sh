@@ -259,6 +259,7 @@ cmake "${CPP_DBC_DIR}" \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
+      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align" \
       -Wno-dev
 
 # Print status message about ASAN

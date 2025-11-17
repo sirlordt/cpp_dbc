@@ -72,6 +72,24 @@ target_include_directories(cpp_dbc PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+# Exclude backward.hpp from warnings
+set_source_files_properties(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/cpp_dbc/backward.hpp
+    PROPERTIES
+    COMPILE_FLAGS "-Wno-undef -Wno-unused-parameter -Wno-shadow -Wno-conversion"
+)
+
+# Define macros for backward.hpp to silence -Wundef warnings
+target_compile_definitions(cpp_dbc PRIVATE
+    BACKWARD_HAS_UNWIND=0
+    BACKWARD_HAS_LIBUNWIND=0
+    BACKWARD_HAS_BACKTRACE=0
+    BACKWARD_HAS_BFD=0
+    BACKWARD_HAS_DWARF=0
+    BACKWARD_HAS_BACKTRACE_SYMBOL=0
+    BACKWARD_HAS_PDB_SYMBOL=0
+)
+
 # Conditionally add MySQL driver files and dependencies
 if(USE_MYSQL)
     target_sources(cpp_dbc PRIVATE

@@ -44,27 +44,27 @@ namespace cpp_dbc
         class PostgreSQLInputStream : public InputStream
         {
         private:
-            const std::vector<uint8_t> data;
-            size_t position;
+            const std::vector<uint8_t> m_data;
+            size_t m_position;
 
         public:
             PostgreSQLInputStream(const char *buffer, size_t length)
-                : data(buffer, buffer + length), position(0) {}
+                : m_data(buffer, buffer + length), m_position(0) {}
 
             int read(uint8_t *buffer, size_t length) override
             {
-                if (position >= data.size())
+                if (m_position >= m_data.size())
                     return -1; // End of stream
 
-                size_t bytesToRead = std::min(length, data.size() - position);
-                std::memcpy(buffer, data.data() + position, bytesToRead);
-                position += bytesToRead;
+                size_t bytesToRead = std::min(length, m_data.size() - m_position);
+                std::memcpy(buffer, m_data.data() + m_position, bytesToRead);
+                m_position += bytesToRead;
                 return static_cast<int>(bytesToRead);
             }
 
             void skip(size_t n) override
             {
-                position = std::min(position + n, data.size());
+                m_position = std::min(m_position + n, m_data.size());
             }
 
             void close() override
@@ -77,31 +77,31 @@ namespace cpp_dbc
         class PostgreSQLBlob : public MemoryBlob
         {
         private:
-            PGconn *conn;
-            Oid lobOid;
-            bool loaded;
+            PGconn *m_conn;
+            Oid m_lobOid;
+            bool m_loaded;
 
         public:
             // Constructor for creating a new BLOB
             PostgreSQLBlob(PGconn *conn)
-                : conn(conn), lobOid(0), loaded(true) {}
+                : m_conn(conn), m_lobOid(0), m_loaded(true) {}
 
             // Constructor for loading an existing BLOB by OID
             PostgreSQLBlob(PGconn *conn, Oid oid)
-                : conn(conn), lobOid(oid), loaded(false) {}
+                : m_conn(conn), m_lobOid(oid), m_loaded(false) {}
 
             // Constructor for creating a BLOB from existing data
             PostgreSQLBlob(PGconn *conn, const std::vector<uint8_t> &initialData)
-                : MemoryBlob(initialData), conn(conn), lobOid(0), loaded(true) {}
+                : MemoryBlob(initialData), m_conn(conn), m_lobOid(0), m_loaded(true) {}
 
             // Load the BLOB data from the database if not already loaded
             void ensureLoaded()
             {
-                if (loaded || lobOid == 0)
+                if (m_loaded || m_lobOid == 0)
                     return;
 
                 // Start a transaction if not already in one
-                PGresult *res = PQexec(conn, "BEGIN");
+                PGresult *res = PQexec(m_conn, "BEGIN");
                 if (PQresultStatus(res) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(res);
@@ -111,39 +111,39 @@ namespace cpp_dbc
                 PQclear(res);
 
                 // Open the large object
-                int fd = lo_open(conn, lobOid, INV_READ);
+                int fd = lo_open(m_conn, m_lobOid, INV_READ);
                 if (fd < 0)
                 {
-                    PQexec(conn, "ROLLBACK");
-                    throw DBException("L6O7B8O9P0E", "Failed to open large object: " + std::to_string(lobOid), system_utils::captureCallStack());
+                    PQexec(m_conn, "ROLLBACK");
+                    throw DBException("L6O7B8O9P0E", "Failed to open large object: " + std::to_string(m_lobOid), system_utils::captureCallStack());
                 }
 
                 // Get the size of the large object
-                int loSize = lo_lseek(conn, fd, 0, SEEK_END);
-                lo_lseek(conn, fd, 0, SEEK_SET);
+                int loSize = lo_lseek(m_conn, fd, 0, SEEK_END);
+                lo_lseek(m_conn, fd, 0, SEEK_SET);
 
                 if (loSize > 0)
                 {
                     // Read the data
-                    data.resize(loSize);
-                    int bytesRead = lo_read(conn, fd, reinterpret_cast<char *>(data.data()), loSize);
+                    m_data.resize(loSize);
+                    int bytesRead = lo_read(m_conn, fd, reinterpret_cast<char *>(m_data.data()), loSize);
                     if (bytesRead != loSize)
                     {
-                        lo_close(conn, fd);
-                        PQexec(conn, "ROLLBACK");
+                        lo_close(m_conn, fd);
+                        PQexec(m_conn, "ROLLBACK");
                         throw DBException("N1R2E3A4D5L", "Failed to read large object data", system_utils::captureCallStack());
                     }
                 }
                 else
                 {
-                    data.clear();
+                    m_data.clear();
                 }
 
                 // Close the large object
-                lo_close(conn, fd);
+                lo_close(m_conn, fd);
 
                 // Commit the transaction
-                res = PQexec(conn, "COMMIT");
+                res = PQexec(m_conn, "COMMIT");
                 if (PQresultStatus(res) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(res);
@@ -152,7 +152,7 @@ namespace cpp_dbc
                 }
                 PQclear(res);
 
-                loaded = true;
+                m_loaded = true;
             }
 
             // Override methods that need to ensure the BLOB is loaded
@@ -202,7 +202,7 @@ namespace cpp_dbc
             Oid save()
             {
                 // Start a transaction if not already in one
-                PGresult *res = PQexec(conn, "BEGIN");
+                PGresult *res = PQexec(m_conn, "BEGIN");
                 if (PQresultStatus(res) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(res);
@@ -212,44 +212,44 @@ namespace cpp_dbc
                 PQclear(res);
 
                 // Create a new large object if needed
-                if (lobOid == 0)
+                if (m_lobOid == 0)
                 {
-                    lobOid = lo_creat(conn, INV_WRITE);
-                    if (lobOid == 0)
+                    m_lobOid = lo_creat(m_conn, INV_WRITE);
+                    if (m_lobOid == 0)
                     {
-                        PQexec(conn, "ROLLBACK");
+                        PQexec(m_conn, "ROLLBACK");
                         throw DBException("C6R7E8A9T0E", "Failed to create large object", system_utils::captureCallStack());
                     }
                 }
 
                 // Open the large object
-                int fd = lo_open(conn, lobOid, INV_WRITE);
+                int fd = lo_open(m_conn, m_lobOid, INV_WRITE);
                 if (fd < 0)
                 {
-                    PQexec(conn, "ROLLBACK");
+                    PQexec(m_conn, "ROLLBACK");
                     throw DBException("O1P2E3N4W5R", "Failed to open large object for writing", system_utils::captureCallStack());
                 }
 
                 // Truncate the large object
-                lo_truncate(conn, fd, 0);
+                lo_truncate(m_conn, fd, 0);
 
                 // Write the data
-                if (!data.empty())
+                if (!m_data.empty())
                 {
-                    int bytesWritten = lo_write(conn, fd, reinterpret_cast<const char *>(data.data()), data.size());
-                    if (bytesWritten != static_cast<int>(data.size()))
+                    int bytesWritten = lo_write(m_conn, fd, reinterpret_cast<const char *>(m_data.data()), m_data.size());
+                    if (bytesWritten != static_cast<int>(m_data.size()))
                     {
-                        lo_close(conn, fd);
-                        PQexec(conn, "ROLLBACK");
+                        lo_close(m_conn, fd);
+                        PQexec(m_conn, "ROLLBACK");
                         throw DBException("W6R7I8T9E0D", "Failed to write large object data", system_utils::captureCallStack());
                     }
                 }
 
                 // Close the large object
-                lo_close(conn, fd);
+                lo_close(m_conn, fd);
 
                 // Commit the transaction
-                res = PQexec(conn, "COMMIT");
+                res = PQexec(m_conn, "COMMIT");
                 if (PQresultStatus(res) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(res);
@@ -258,30 +258,30 @@ namespace cpp_dbc
                 }
                 PQclear(res);
 
-                return lobOid;
+                return m_lobOid;
             }
 
             // Get the OID of the large object
             Oid getOid() const
             {
-                return lobOid;
+                return m_lobOid;
             }
 
             void free() override
             {
-                if (lobOid != 0)
+                if (m_lobOid != 0)
                 {
                     // Start a transaction if not already in one
-                    PGresult *res = PQexec(conn, "BEGIN");
+                    PGresult *res = PQexec(m_conn, "BEGIN");
                     if (PQresultStatus(res) == PGRES_COMMAND_OK)
                     {
                         PQclear(res);
 
                         // Delete the large object
-                        lo_unlink(conn, lobOid);
+                        lo_unlink(m_conn, m_lobOid);
 
                         // Commit the transaction
-                        res = PQexec(conn, "COMMIT");
+                        res = PQexec(m_conn, "COMMIT");
                         PQclear(res);
                     }
                     else
@@ -289,11 +289,11 @@ namespace cpp_dbc
                         PQclear(res);
                     }
 
-                    lobOid = 0;
+                    m_lobOid = 0;
                 }
 
                 MemoryBlob::free();
-                loaded = false;
+                m_loaded = false;
             }
         };
 

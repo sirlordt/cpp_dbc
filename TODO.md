@@ -2,6 +2,7 @@
 
 ## Pending Tasks
 
+- Activate ALL possible warnings and compile time checks 
 - Analize the use of raw pointer in diferent class
   They are really safe? 
   We need wrap in unique_ptr/shared_ptr with custom destruction functions?

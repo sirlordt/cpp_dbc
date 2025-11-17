@@ -35,27 +35,27 @@ namespace cpp_dbc
         class SQLiteInputStream : public InputStream
         {
         private:
-            const std::vector<uint8_t> data;
-            size_t position;
+            const std::vector<uint8_t> m_data;
+            size_t m_position;
 
         public:
             SQLiteInputStream(const void *buffer, size_t length)
-                : data(static_cast<const uint8_t *>(buffer), static_cast<const uint8_t *>(buffer) + length), position(0) {}
+                : m_data(static_cast<const uint8_t *>(buffer), static_cast<const uint8_t *>(buffer) + length), m_position(0) {}
 
             int read(uint8_t *buffer, size_t length) override
             {
-                if (position >= data.size())
+                if (m_position >= m_data.size())
                     return -1; // End of stream
 
-                size_t bytesToRead = std::min(length, data.size() - position);
-                std::memcpy(buffer, data.data() + position, bytesToRead);
-                position += bytesToRead;
+                size_t bytesToRead = std::min(length, m_data.size() - m_position);
+                std::memcpy(buffer, m_data.data() + m_position, bytesToRead);
+                m_position += bytesToRead;
                 return static_cast<int>(bytesToRead);
             }
 
             void skip(size_t n) override
             {
-                position = std::min(position + n, data.size());
+                m_position = std::min(m_position + n, m_data.size());
             }
 
             void close() override
@@ -68,42 +68,42 @@ namespace cpp_dbc
         class SQLiteBlob : public MemoryBlob
         {
         private:
-            sqlite3 *db;
-            std::string tableName;
-            std::string columnName;
-            std::string rowId;
-            bool loaded;
+            sqlite3 *m_db;
+            std::string m_tableName;
+            std::string m_columnName;
+            std::string m_rowId;
+            bool m_loaded;
 
         public:
             // Constructor for creating a new BLOB
             SQLiteBlob(sqlite3 *db)
-                : db(db), loaded(true) {}
+                : m_db(db), m_loaded(true) {}
 
             // Constructor for loading an existing BLOB
             SQLiteBlob(sqlite3 *db, const std::string &tableName,
                        const std::string &columnName, const std::string &rowId)
-                : db(db), tableName(tableName), columnName(columnName),
-                  rowId(rowId), loaded(false) {}
+                : m_db(db), m_tableName(tableName), m_columnName(columnName),
+                  m_rowId(rowId), m_loaded(false) {}
 
             // Constructor for creating a BLOB from existing data
             SQLiteBlob(sqlite3 *db, const std::vector<uint8_t> &initialData)
-                : MemoryBlob(initialData), db(db), loaded(true) {}
+                : MemoryBlob(initialData), m_db(db), m_loaded(true) {}
 
             // Load the BLOB data from the database if not already loaded
             void ensureLoaded()
             {
-                if (loaded || tableName.empty() || columnName.empty() || rowId.empty())
+                if (m_loaded || m_tableName.empty() || m_columnName.empty() || m_rowId.empty())
                     return;
 
                 // Construct a query to fetch the BLOB data
-                std::string query = "SELECT " + columnName + " FROM " + tableName + " WHERE rowid = " + rowId;
+                std::string query = "SELECT " + m_columnName + " FROM " + m_tableName + " WHERE rowid = " + m_rowId;
 
                 // Prepare the statement
                 sqlite3_stmt *stmt = nullptr;
-                int result = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
+                int result = sqlite3_prepare_v2(m_db, query.c_str(), -1, &stmt, nullptr);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("4AE05442DB70", "Failed to prepare statement for BLOB loading: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    throw DBException("4AE05442DB70", "Failed to prepare statement for BLOB loading: " + std::string(sqlite3_errmsg(m_db)), system_utils::captureCallStack());
                 }
 
                 // Execute the statement
@@ -117,23 +117,23 @@ namespace cpp_dbc
                     // Copy the BLOB data
                     if (blobData && blobSize > 0)
                     {
-                        data.resize(blobSize);
-                        std::memcpy(data.data(), blobData, blobSize);
+                        m_data.resize(blobSize);
+                        std::memcpy(m_data.data(), blobData, blobSize);
                     }
                     else
                     {
-                        data.clear();
+                        m_data.clear();
                     }
                 }
                 else
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("D281D99D6FAC", "Failed to fetch BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    throw DBException("D281D99D6FAC", "Failed to fetch BLOB data: " + std::string(sqlite3_errmsg(m_db)), system_utils::captureCallStack());
                 }
 
                 // Finalize the statement
                 sqlite3_finalize(stmt);
-                loaded = true;
+                m_loaded = true;
             }
 
             // Override methods that need to ensure the BLOB is loaded
@@ -182,26 +182,26 @@ namespace cpp_dbc
             // Save the BLOB data to the database
             void save()
             {
-                if (tableName.empty() || columnName.empty() || rowId.empty())
+                if (m_tableName.empty() || m_columnName.empty() || m_rowId.empty())
                     return; // Nothing to save
 
                 // Construct a query to update the BLOB data
-                std::string query = "UPDATE " + tableName + " SET " + columnName + " = ? WHERE rowid = " + rowId;
+                std::string query = "UPDATE " + m_tableName + " SET " + m_columnName + " = ? WHERE rowid = " + m_rowId;
 
                 // Prepare the statement
                 sqlite3_stmt *stmt = nullptr;
-                int result = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
+                int result = sqlite3_prepare_v2(m_db, query.c_str(), -1, &stmt, nullptr);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("78BBDB81BED9", "Failed to prepare statement for BLOB saving: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    throw DBException("78BBDB81BED9", "Failed to prepare statement for BLOB saving: " + std::string(sqlite3_errmsg(m_db)), system_utils::captureCallStack());
                 }
 
                 // Bind the BLOB data
-                result = sqlite3_bind_blob(stmt, 1, data.data(), data.size(), SQLITE_STATIC);
+                result = sqlite3_bind_blob(stmt, 1, m_data.data(), static_cast<int>(m_data.size()), SQLITE_STATIC);
                 if (result != SQLITE_OK)
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("6C9619BE36A2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    throw DBException("6C9619BE36A2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(m_db)), system_utils::captureCallStack());
                 }
 
                 // Execute the statement
@@ -209,7 +209,7 @@ namespace cpp_dbc
                 if (result != SQLITE_DONE)
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("8DB1A784821C", "Failed to save BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    throw DBException("8DB1A784821C", "Failed to save BLOB data: " + std::string(sqlite3_errmsg(m_db)), system_utils::captureCallStack());
                 }
 
                 // Finalize the statement
@@ -219,7 +219,7 @@ namespace cpp_dbc
             void free() override
             {
                 MemoryBlob::free();
-                loaded = false;
+                m_loaded = false;
             }
         };
 

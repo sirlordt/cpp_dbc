@@ -50,10 +50,10 @@ namespace cpp_dbc
         {
             close();
         }
-        catch (const std::exception &e)
+        catch (const std::exception &e1)
         {
-            TM_DEBUG(e.what() << " at "
-                              << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+            TM_DEBUG(e1.what() << " at "
+                               << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
         }
 
         TM_DEBUG("TransactionManager::~TransactionManager - Destructor completed at "
@@ -76,7 +76,7 @@ namespace cpp_dbc
 
         // Lock and store in the active transactions map
         {
-            std::lock_guard<std::mutex> lock(transactionMutex);
+            std::lock_guard<std::mutex> lockTrans(transactionMutex);
             activeTransactions[transactionId] = transContext;
         }
 
@@ -85,7 +85,7 @@ namespace cpp_dbc
 
     std::shared_ptr<Connection> TransactionManager::getTransactionConnection(const std::string &transactionId)
     {
-        std::lock_guard<std::mutex> lock(transactionMutex);
+        std::lock_guard<std::mutex> lockTrans(transactionMutex);
 
         auto it = activeTransactions.find(transactionId);
         if (it == activeTransactions.end())
@@ -105,7 +105,7 @@ namespace cpp_dbc
 
         // Find and remove the transaction from the active map
         {
-            std::lock_guard<std::mutex> lock(transactionMutex);
+            std::lock_guard<std::mutex> lockTrans(transactionMutex);
 
             auto it = activeTransactions.find(transactionId);
             if (it == activeTransactions.end())
@@ -128,7 +128,7 @@ namespace cpp_dbc
             // No need to call close() first, as returnToPool() will handle the connection properly
             transContext->connection->returnToPool();
         }
-        catch (const DBException &e)
+        catch (const DBException &e1)
         {
             // Make sure to reset auto-commit even on error
             try
@@ -141,10 +141,10 @@ namespace cpp_dbc
                     transContext->connection->returnToPool();
                 }
             }
-            catch (const std::exception &e)
+            catch (const std::exception &e2)
             {
-                TM_DEBUG(e.what() << " at "
-                                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+                TM_DEBUG(e2.what() << " at "
+                                   << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
             }
             throw; // Re-throw the original exception
         }
@@ -156,7 +156,7 @@ namespace cpp_dbc
 
         // Find and remove the transaction from the active map
         {
-            std::lock_guard<std::mutex> lock(transactionMutex);
+            std::lock_guard<std::mutex> lockTrans(transactionMutex);
 
             auto it = activeTransactions.find(transactionId);
             if (it == activeTransactions.end())
@@ -179,7 +179,7 @@ namespace cpp_dbc
             // No need to call close() first, as returnToPool() will handle the connection properly
             transContext->connection->returnToPool();
         }
-        catch (const DBException &e)
+        catch (const DBException &e1)
         {
             // Make sure to reset auto-commit even on error
             try
@@ -192,10 +192,10 @@ namespace cpp_dbc
                     transContext->connection->returnToPool();
                 }
             }
-            catch (std::exception &e)
+            catch (std::exception &e2)
             {
-                TM_DEBUG(e.what() << " at "
-                                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+                TM_DEBUG(e2.what() << " at "
+                                   << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
             }
             throw; // Re-throw the original exception
         }
@@ -207,7 +207,7 @@ namespace cpp_dbc
 
         // First, check if the transaction exists and if it has timed out
         {
-            std::lock_guard<std::mutex> lock(transactionMutex);
+            std::lock_guard<std::mutex> lockTrans(transactionMutex);
 
             auto it = activeTransactions.find(transactionId);
             if (it == activeTransactions.end())
@@ -235,10 +235,10 @@ namespace cpp_dbc
             {
                 rollbackTransaction(expiredTransactionId);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &e1)
             {
-                TM_DEBUG(e.what() << " at "
-                                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+                TM_DEBUG(e1.what() << " at "
+                                   << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
             }
             return false;
         }
@@ -246,9 +246,9 @@ namespace cpp_dbc
         return true;
     }
 
-    int TransactionManager::getActiveTransactionCount()
+    size_t TransactionManager::getActiveTransactionCount()
     {
-        std::lock_guard<std::mutex> lock(transactionMutex);
+        std::lock_guard<std::mutex> lockTrans(transactionMutex);
         return activeTransactions.size();
     }
 
@@ -262,8 +262,8 @@ namespace cpp_dbc
         while (running)
         {
             // Wait for the cleanup interval or until notified to stop
-            std::unique_lock<std::mutex> lock(cleanupMutex);
-            cleanupCondition.wait_for(lock, std::chrono::milliseconds(cleanupIntervalMillis));
+            std::unique_lock<std::mutex> lockCleanup(cleanupMutex);
+            cleanupCondition.wait_for(lockCleanup, std::chrono::milliseconds(cleanupIntervalMillis));
 
             if (!running)
             {
@@ -274,7 +274,7 @@ namespace cpp_dbc
 
             // Find expired transactions
             {
-                std::lock_guard<std::mutex> lock(transactionMutex);
+                std::lock_guard<std::mutex> lockTrans(transactionMutex);
 
                 auto now = std::chrono::steady_clock::now();
 
@@ -300,10 +300,10 @@ namespace cpp_dbc
                 {
                     rollbackTransaction(transId);
                 }
-                catch (const std::exception &e)
+                catch (const std::exception &e1)
                 {
-                    TM_DEBUG(e.what() << " at "
-                                      << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+                    TM_DEBUG(e1.what() << " at "
+                                       << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
                 }
             }
         }
@@ -357,7 +357,7 @@ namespace cpp_dbc
 
     void TransactionManager::close()
     {
-        time_t start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        // time_t start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         TM_DEBUG("TransactionManager::close - Starting close operation at " << start_time);
 
         if (!running.exchange(false))
@@ -391,17 +391,16 @@ namespace cpp_dbc
 
         // Rollback all active transactions
         std::vector<std::string> transactionIds;
-        int activeTransactionCount = 0;
 
         {
             TM_DEBUG("TransactionManager::close - Acquiring transaction mutex at "
                      << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
-            std::lock_guard<std::mutex> lock(transactionMutex);
+            std::lock_guard<std::mutex> lockTrans(transactionMutex);
             TM_DEBUG("TransactionManager::close - Acquired transaction mutex at "
                      << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
-            activeTransactionCount = activeTransactions.size();
-            TM_DEBUG("TransactionManager::close - Found " << activeTransactionCount << " active transactions at "
+            // size_t transactionCount = activeTransactions.size();
+            TM_DEBUG("TransactionManager::close - Found " << transactionCount << " active transactions at "
                                                           << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
             for (const auto &entry : activeTransactions)
@@ -424,10 +423,10 @@ namespace cpp_dbc
                 TM_DEBUG("TransactionManager::close - Successfully rolled back transaction " << transId << " at "
                                                                                              << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &e1)
             {
                 TM_DEBUG("TransactionManager::close - Exception rolling back transaction " << transId
-                                                                                           << ": " << e.what() << " at "
+                                                                                           << ": " << e1.what() << " at "
                                                                                            << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
             }
             catch (...)
@@ -443,7 +442,7 @@ namespace cpp_dbc
         {
             TM_DEBUG("TransactionManager::close - Acquiring transaction mutex to clear map at "
                      << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
-            std::lock_guard<std::mutex> lock(transactionMutex);
+            std::lock_guard<std::mutex> lockTrans(transactionMutex);
             TM_DEBUG("TransactionManager::close - Acquired transaction mutex at "
                      << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
@@ -452,7 +451,7 @@ namespace cpp_dbc
                      << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
         }
 
-        time_t end_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        // time_t end_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         TM_DEBUG("TransactionManager::close - Close operation completed at " << end_time
                                                                              << " (total time: " << (end_time - start_time) << " seconds)");
     }

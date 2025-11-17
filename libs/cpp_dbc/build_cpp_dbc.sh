@@ -321,6 +321,7 @@ cmake "${SCRIPT_DIR}" \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
+      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align" \
       -Wno-dev
 
 # Build and install the library

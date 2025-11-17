@@ -88,9 +88,27 @@ target_compile_definitions(cpp_dbc_tests PUBLIC
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
 )
 
+# Define macros for backward.hpp to silence -Wundef warnings
+target_compile_definitions(cpp_dbc_tests PRIVATE
+    BACKWARD_HAS_UNWIND=0
+    BACKWARD_HAS_LIBUNWIND=0
+    BACKWARD_HAS_BACKTRACE=0
+    BACKWARD_HAS_BFD=0
+    BACKWARD_HAS_DWARF=0
+    BACKWARD_HAS_BACKTRACE_SYMBOL=0
+    BACKWARD_HAS_PDB_SYMBOL=0
+)
+
 # Add include directories
 target_include_directories(cpp_dbc_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+# Exclude backward.hpp from warnings
+set_source_files_properties(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/cpp_dbc/backward.hpp
+    PROPERTIES
+    COMPILE_FLAGS "-Wno-undef -Wno-unused-parameter -Wno-shadow -Wno-conversion"
 )
 
 # Define CATCH_CONFIG_NO_POSIX_SIGNALS as an extra safety measure

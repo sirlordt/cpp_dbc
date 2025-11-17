@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -41,8 +41,8 @@ namespace cpp_dbc
         private:
             MYSQL_RES *result;
             MYSQL_ROW currentRow;
-            int rowPosition;
-            int rowCount;
+            uint64_t rowPosition;
+            uint64_t rowCount;
             int fieldCount;
             std::vector<std::string> columnNames;
             std::map<std::string, int> columnMap;
@@ -54,7 +54,7 @@ namespace cpp_dbc
             bool next() override;
             bool isBeforeFirst() override;
             bool isAfterLast() override;
-            int getRow() override;
+            uint64_t getRow() override;
 
             int getInt(int columnIndex) override;
             int getInt(const std::string &columnName) override;
@@ -132,7 +132,7 @@ namespace cpp_dbc
             void setBytes(int parameterIndex, const uint8_t *x, size_t length) override;
 
             std::shared_ptr<ResultSet> executeQuery() override;
-            int executeUpdate() override;
+            uint64_t executeUpdate() override;
             bool execute() override;
             void close() override;
         };
@@ -170,7 +170,7 @@ namespace cpp_dbc
 
             std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
             std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;
-            int executeUpdate(const std::string &sql) override;
+            uint64_t executeUpdate(const std::string &sql) override;
 
             void setAutoCommit(bool autoCommit) override;
             bool getAutoCommit() override;

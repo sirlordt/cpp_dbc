@@ -88,7 +88,7 @@ namespace cpp_dbc
             return result && rowPosition > rowCount;
         }
 
-        int MySQLResultSet::getRow()
+        uint64_t MySQLResultSet::getRow()
         {
             return rowPosition;
         }
@@ -725,7 +725,8 @@ namespace cpp_dbc
             stringValues[idx] = value;
 
             binds[idx].buffer_type = MYSQL_TYPE_STRING;
-            binds[idx].buffer = (void *)stringValues[idx].c_str();
+            // WARNING_CHECK: Check more carefully
+            binds[idx].buffer = const_cast<char *>(stringValues[idx].c_str());
             binds[idx].buffer_length = stringValues[idx].length();
             binds[idx].is_null = nullptr;
             binds[idx].length = nullptr;
@@ -827,7 +828,8 @@ namespace cpp_dbc
             stringValues[idx] = value;
 
             binds[idx].buffer_type = MYSQL_TYPE_DATE;
-            binds[idx].buffer = (void *)stringValues[idx].c_str();
+            // WARNING_CHECK: Check more carefully
+            binds[idx].buffer = const_cast<char *>(stringValues[idx].c_str());
             binds[idx].buffer_length = stringValues[idx].length();
             binds[idx].is_null = nullptr;
             binds[idx].length = nullptr;
@@ -846,7 +848,8 @@ namespace cpp_dbc
             stringValues[idx] = value;
 
             binds[idx].buffer_type = MYSQL_TYPE_TIMESTAMP;
-            binds[idx].buffer = (void *)stringValues[idx].c_str();
+            // WARNING_CHECK: Check more carefully
+            binds[idx].buffer = const_cast<char *>(stringValues[idx].c_str());
             binds[idx].buffer_length = stringValues[idx].length();
             binds[idx].is_null = nullptr;
             binds[idx].length = nullptr;
@@ -893,7 +896,7 @@ namespace cpp_dbc
             return resultSet;
         }
 
-        int MySQLPreparedStatement::executeUpdate()
+        uint64_t MySQLPreparedStatement::executeUpdate()
         {
             if (!stmt)
             {
@@ -1122,7 +1125,7 @@ namespace cpp_dbc
             return std::make_shared<MySQLResultSet>(result);
         }
 
-        int MySQLConnection::executeUpdate(const std::string &sql)
+        uint64_t MySQLConnection::executeUpdate(const std::string &sql)
         {
             if (closed || !mysql)
             {
@@ -1137,7 +1140,7 @@ namespace cpp_dbc
             return mysql_affected_rows(mysql);
         }
 
-        void MySQLConnection::setAutoCommit(bool autoCommit)
+        void MySQLConnection::setAutoCommit(bool autoCommitFlag)
         {
             if (closed || !mysql)
             {
@@ -1145,13 +1148,13 @@ namespace cpp_dbc
             }
 
             // MySQL: autocommit=0 disables auto-commit, autocommit=1 enables it
-            std::string query = "SET autocommit=" + std::to_string(autoCommit ? 1 : 0);
+            std::string query = "SET autocommit=" + std::to_string(autoCommitFlag ? 1 : 0);
             if (mysql_query(mysql, query.c_str()) != 0)
             {
                 throw DBException("N3O4P5Q6R7S8", std::string("Failed to set autocommit mode: ") + mysql_error(mysql), system_utils::captureCallStack());
             }
 
-            this->autoCommit = autoCommit;
+            this->autoCommit = autoCommitFlag;
         }
 
         bool MySQLConnection::getAutoCommit()

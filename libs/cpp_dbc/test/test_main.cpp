@@ -42,7 +42,7 @@ std::string generateRandomJson(int depth = 3, int maxItems = 5)
     static std::uniform_int_distribution<> intDist(-1000, 1000);
     static std::uniform_real_distribution<> floatDist(-1000.0, 1000.0);
     static const std::string chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    static std::uniform_int_distribution<> charDist(0, chars.size() - 1);
+    static std::uniform_int_distribution<> charDist(0, static_cast<int>(chars.size() - 1));
 
     if (depth <= 0)
     {

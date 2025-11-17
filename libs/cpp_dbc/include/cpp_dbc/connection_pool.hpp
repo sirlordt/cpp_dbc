@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -61,34 +61,34 @@ namespace cpp_dbc
         friend class PooledConnection;
 
         // Connection parameters
-        std::string url;
-        std::string username;
-        std::string password;
-        std::map<std::string, std::string> options;     // Connection options
-        int initialSize;                                // Initial number of connections
-        int maxSize;                                    // Maximum number of connections
-        int minIdle;                                    // Minimum number of idle connections
-        long maxWaitMillis;                             // Maximum wait time for a connection in milliseconds
-        long validationTimeoutMillis;                   // Timeout for connection validation
-        long idleTimeoutMillis;                         // Maximum time a connection can be idle before being closed
-        long maxLifetimeMillis;                         // Maximum lifetime of a connection
-        bool testOnBorrow;                              // Test connection before borrowing
-        bool testOnReturn;                              // Test connection when returning to pool
-        std::string validationQuery;                    // Query used to validate connections
-        TransactionIsolationLevel transactionIsolation; // Transaction isolation level for connections
-        std::vector<std::shared_ptr<PooledConnection>> allConnections;
-        std::queue<std::shared_ptr<PooledConnection>> idleConnections;
-        // std::unordered_set<std::shared_ptr<PooledConnection>> idleConnectionsSet; // Track what's in the queue
-        mutable std::mutex mutexGetConnection;
-        mutable std::mutex mutexReturnConnection;
-        mutable std::mutex mutexAllConnections;
-        mutable std::mutex mutexIdleConnections;
-        mutable std::mutex mutexMaintenance;
-        // std::condition_variable condition;
-        std::condition_variable maintenanceCondition;
-        std::atomic<bool> running;
-        std::atomic<int> activeConnections;
-        std::thread maintenanceThread;
+        std::string m_url;
+        std::string m_username;
+        std::string m_password;
+        std::map<std::string, std::string> m_options;     // Connection options
+        int m_initialSize;                                // Initial number of connections
+        size_t m_maxSize;                                 // Maximum number of connections
+        size_t m_minIdle;                                 // Minimum number of idle connections
+        long m_maxWaitMillis;                             // Maximum wait time for a connection in milliseconds
+        long m_validationTimeoutMillis;                   // Timeout for connection validation
+        long m_idleTimeoutMillis;                         // Maximum time a connection can be idle before being closed
+        long m_maxLifetimeMillis;                         // Maximum lifetime of a connection
+        bool m_testOnBorrow;                              // Test connection before borrowing
+        bool m_testOnReturn;                              // Test connection when returning to pool
+        std::string m_validationQuery;                    // Query used to validate connections
+        TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
+        std::vector<std::shared_ptr<PooledConnection>> m_allConnections;
+        std::queue<std::shared_ptr<PooledConnection>> m_idleConnections;
+        // std::unordered_set<std::shared_ptr<PooledConnection>> m_idleConnectionsSet; // Track what's in the queue
+        mutable std::mutex m_mutexGetConnection;
+        mutable std::mutex m_mutexReturnConnection;
+        mutable std::mutex m_mutexAllConnections;
+        mutable std::mutex m_mutexIdleConnections;
+        mutable std::mutex m_mutexMaintenance;
+        // std::condition_variable m_condition;
+        std::condition_variable m_maintenanceCondition;
+        std::atomic<bool> m_running;
+        std::atomic<int> m_activeConnections;
+        std::thread m_maintenanceThread;
 
         // Creates a new physical connection
         std::shared_ptr<Connection> createConnection();
@@ -111,7 +111,7 @@ namespace cpp_dbc
         // Sets the transaction isolation level for the pool
         void setPoolTransactionIsolation(TransactionIsolationLevel level)
         {
-            transactionIsolation = level;
+            m_transactionIsolation = level;
         }
 
     public:
@@ -145,8 +145,8 @@ namespace cpp_dbc
 
         // Gets current pool statistics
         int getActiveConnectionCount() const;
-        int getIdleConnectionCount() const;
-        int getTotalConnectionCount() const;
+        size_t getIdleConnectionCount() const;
+        size_t getTotalConnectionCount() const;
 
         // Closes the pool and all connections
         void close();
@@ -159,12 +159,12 @@ namespace cpp_dbc
     class PooledConnection : public Connection, public std::enable_shared_from_this<PooledConnection>
     {
     private:
-        std::shared_ptr<Connection> conn;
-        ConnectionPool *pool;
-        std::chrono::time_point<std::chrono::steady_clock> creationTime;
-        std::chrono::time_point<std::chrono::steady_clock> lastUsedTime;
-        std::atomic<bool> active;
-        std::atomic<bool> closed;
+        std::shared_ptr<Connection> m_conn;
+        ConnectionPool *m_pool;
+        std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
+        std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
+        std::atomic<bool> m_active;
+        std::atomic<bool> m_closed;
 
         friend class ConnectionPool;
 
@@ -180,7 +180,7 @@ namespace cpp_dbc
 
         std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
         std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;
-        int executeUpdate(const std::string &sql) override;
+        uint64_t executeUpdate(const std::string &sql) override;
 
         void setAutoCommit(bool autoCommit) override;
         bool getAutoCommit() override;

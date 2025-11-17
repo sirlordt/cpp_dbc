@@ -103,17 +103,17 @@ namespace cpp_dbc
         class DatabaseConfig
         {
         private:
-            std::string name;
-            std::string type;
-            std::string host;
-            unsigned int port{0};
-            std::string database;
-            std::string username;
-            std::string password;
-            ConnectionOptions options;
+            std::string m_name;
+            std::string m_type;
+            std::string m_host;
+            unsigned int m_port{0};
+            std::string m_database;
+            std::string m_username;
+            std::string m_password;
+            ConnectionOptions m_options;
 
         public:
-            DatabaseConfig() : port(0) {}
+            DatabaseConfig() : m_port(0) {}
 
             /**
              * @brief Constructor with parameters
@@ -132,33 +132,33 @@ namespace cpp_dbc
                 int port,
                 const std::string &database,
                 const std::string &username,
-                const std::string &password) : name(name), type(type), host(host), port(port),
-                                               database(database), username(username), password(password) {}
+                const std::string &password) : m_name(name), m_type(type), m_host(host), m_port(port),
+                                               m_database(database), m_username(username), m_password(password) {}
 
             // Getters
-            const std::string &getName() const { return name; }
-            const std::string &getType() const { return type; }
-            const std::string &getHost() const { return host; }
-            unsigned int getPort() const { return port; }
-            const std::string &getDatabase() const { return database; }
-            const std::string &getUsername() const { return username; }
-            const std::string &getPassword() const { return password; }
-            const ConnectionOptions &getOptionsObj() const { return options; }
+            const std::string &getName() const { return m_name; }
+            const std::string &getType() const { return m_type; }
+            const std::string &getHost() const { return m_host; }
+            unsigned int getPort() const { return m_port; }
+            const std::string &getDatabase() const { return m_database; }
+            const std::string &getUsername() const { return m_username; }
+            const std::string &getPassword() const { return m_password; }
+            const ConnectionOptions &getOptionsObj() const { return m_options; }
 
             /**
              * @brief Get all connection options as a map
              * @return Map of option names to option values
              */
-            const std::map<std::string, std::string> &getOptions() const { return options.getAllOptions(); }
+            const std::map<std::string, std::string> &getOptions() const { return m_options.getAllOptions(); }
 
             // Setters
-            void setName(const std::string &value) { name = value; }
-            void setType(const std::string &value) { type = value; }
-            void setHost(const std::string &value) { host = value; }
-            void setPort(unsigned int value) { port = value; }
-            void setDatabase(const std::string &value) { database = value; }
-            void setUsername(const std::string &value) { username = value; }
-            void setPassword(const std::string &value) { password = value; }
+            void setName(const std::string &value) { m_name = value; }
+            void setType(const std::string &value) { m_type = value; }
+            void setHost(const std::string &value) { m_host = value; }
+            void setPort(unsigned int value) { m_port = value; }
+            void setDatabase(const std::string &value) { m_database = value; }
+            void setUsername(const std::string &value) { m_username = value; }
+            void setPassword(const std::string &value) { m_password = value; }
 
             /**
              * @brief Set a connection option
@@ -167,7 +167,7 @@ namespace cpp_dbc
              */
             void setOption(const std::string &key, const std::string &value)
             {
-                options.setOption(key, value);
+                m_options.setOption(key, value);
             }
 
             /**
@@ -178,7 +178,7 @@ namespace cpp_dbc
              */
             std::string getOption(const std::string &key, const std::string &defaultValue = "") const
             {
-                return options.getOption(key, defaultValue);
+                return m_options.getOption(key, defaultValue);
             }
 
             /**
@@ -188,13 +188,13 @@ namespace cpp_dbc
             std::string createConnectionString() const
             {
                 // SQLite connection strings are different - they don't have host/port
-                if (host.empty() || port == 0)
+                if (m_host.empty() || m_port == 0)
                 {
-                    return "cpp_dbc:" + type + "://" + database;
+                    return "cpp_dbc:" + m_type + "://" + m_database;
                 }
                 else
                 {
-                    return "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+                    return "cpp_dbc:" + m_type + "://" + m_host + ":" + std::to_string(m_port) + "/" + m_database;
                 }
             }
 
@@ -211,22 +211,22 @@ namespace cpp_dbc
         class ConnectionPoolConfig
         {
         private:
-            std::string name;
-            std::string url;
-            std::string username;
-            std::string password;
-            std::map<std::string, std::string> options;
-            unsigned int initialSize{5};
-            unsigned int maxSize{20};
-            unsigned int minIdle{3};
-            unsigned long connectionTimeout{30000};
-            unsigned long idleTimeout{300000};
-            unsigned long validationInterval{5000};
-            unsigned long maxLifetimeMillis{1800000};
-            bool testOnBorrow{true};
-            bool testOnReturn{false};
-            std::string validationQuery;
-            TransactionIsolationLevel transactionIsolation;
+            std::string m_name;
+            std::string m_url;
+            std::string m_username;
+            std::string m_password;
+            std::map<std::string, std::string> m_options;
+            unsigned int m_initialSize{5};
+            unsigned int m_maxSize{20};
+            unsigned int m_minIdle{3};
+            unsigned long m_connectionTimeout{30000};
+            unsigned long m_idleTimeout{300000};
+            unsigned long m_validationInterval{5000};
+            unsigned long m_maxLifetimeMillis{1800000};
+            bool m_testOnBorrow{true};
+            bool m_testOnReturn{false};
+            std::string m_validationQuery;
+            TransactionIsolationLevel m_transactionIsolation;
 
         public:
             ConnectionPoolConfig() : /*initialSize(5),
@@ -238,8 +238,8 @@ namespace cpp_dbc
                                      maxLifetimeMillis(1800000),
                                      testOnBorrow(true),
                                      testOnReturn(false),*/
-                                     validationQuery("SELECT 1"),
-                                     transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
+                                     m_validationQuery("SELECT 1"),
+                                     m_transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
             {
             }
 
@@ -258,18 +258,18 @@ namespace cpp_dbc
                 unsigned int maxSize,
                 unsigned long connectionTimeout,
                 unsigned long idleTimeout,
-                unsigned long validationInterval) : name(name),
-                                                    initialSize(initialSize),
-                                                    maxSize(maxSize),
-                                                    // minIdle(3),
-                                                    connectionTimeout(connectionTimeout),
-                                                    idleTimeout(idleTimeout),
-                                                    validationInterval(validationInterval),
-                                                    // maxLifetimeMillis(1800000),
-                                                    // testOnBorrow(true),
-                                                    // testOnReturn(false),
-                                                    validationQuery("SELECT 1"),
-                                                    transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
+                unsigned long validationInterval) : m_name(name),
+                                                    m_initialSize(initialSize),
+                                                    m_maxSize(maxSize),
+                                                    // m_minIdle(3),
+                                                    m_connectionTimeout(connectionTimeout),
+                                                    m_idleTimeout(idleTimeout),
+                                                    m_validationInterval(validationInterval),
+                                                    // m_maxLifetimeMillis(1800000),
+                                                    // m_testOnBorrow(true),
+                                                    // m_testOnReturn(false),
+                                                    m_validationQuery("SELECT 1"),
+                                                    m_transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
             {
             }
 
@@ -291,57 +291,57 @@ namespace cpp_dbc
                 bool testOnBorrow,
                 bool testOnReturn,
                 const std::string &validationQuery,
-                TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) : name(name),
-                                                                                                                          url(url),
-                                                                                                                          username(username),
-                                                                                                                          password(password),
-                                                                                                                          initialSize(initialSize),
-                                                                                                                          maxSize(maxSize),
-                                                                                                                          minIdle(minIdle),
-                                                                                                                          connectionTimeout(connectionTimeout),
-                                                                                                                          idleTimeout(idleTimeout),
-                                                                                                                          validationInterval(validationInterval),
-                                                                                                                          maxLifetimeMillis(maxLifetimeMillis),
-                                                                                                                          testOnBorrow(testOnBorrow),
-                                                                                                                          testOnReturn(testOnReturn),
-                                                                                                                          validationQuery(validationQuery),
-                                                                                                                          transactionIsolation(transactionIsolation) {}
+                TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) : m_name(name),
+                                                                                                                          m_url(url),
+                                                                                                                          m_username(username),
+                                                                                                                          m_password(password),
+                                                                                                                          m_initialSize(initialSize),
+                                                                                                                          m_maxSize(maxSize),
+                                                                                                                          m_minIdle(minIdle),
+                                                                                                                          m_connectionTimeout(connectionTimeout),
+                                                                                                                          m_idleTimeout(idleTimeout),
+                                                                                                                          m_validationInterval(validationInterval),
+                                                                                                                          m_maxLifetimeMillis(maxLifetimeMillis),
+                                                                                                                          m_testOnBorrow(testOnBorrow),
+                                                                                                                          m_testOnReturn(testOnReturn),
+                                                                                                                          m_validationQuery(validationQuery),
+                                                                                                                          m_transactionIsolation(transactionIsolation) {}
 
             // Getters
-            const std::string &getName() const { return name; }
-            const std::string &getUrl() const { return url; }
-            const std::string &getUsername() const { return username; }
-            const std::string &getPassword() const { return password; }
-            unsigned int getInitialSize() const { return initialSize; }
-            unsigned int getMaxSize() const { return maxSize; }
-            unsigned int getMinIdle() const { return minIdle; }
-            unsigned long getConnectionTimeout() const { return connectionTimeout; }
-            unsigned long getIdleTimeout() const { return idleTimeout; }
-            unsigned long getValidationInterval() const { return validationInterval; }
-            unsigned long getMaxLifetimeMillis() const { return maxLifetimeMillis; }
-            bool getTestOnBorrow() const { return testOnBorrow; }
-            bool getTestOnReturn() const { return testOnReturn; }
-            const std::string &getValidationQuery() const { return validationQuery; }
-            TransactionIsolationLevel getTransactionIsolation() const { return transactionIsolation; }
-            const std::map<std::string, std::string> &getOptions() const { return options; }
+            const std::string &getName() const { return m_name; }
+            const std::string &getUrl() const { return m_url; }
+            const std::string &getUsername() const { return m_username; }
+            const std::string &getPassword() const { return m_password; }
+            unsigned int getInitialSize() const { return m_initialSize; }
+            unsigned int getMaxSize() const { return m_maxSize; }
+            unsigned int getMinIdle() const { return m_minIdle; }
+            unsigned long getConnectionTimeout() const { return m_connectionTimeout; }
+            unsigned long getIdleTimeout() const { return m_idleTimeout; }
+            unsigned long getValidationInterval() const { return m_validationInterval; }
+            unsigned long getMaxLifetimeMillis() const { return m_maxLifetimeMillis; }
+            bool getTestOnBorrow() const { return m_testOnBorrow; }
+            bool getTestOnReturn() const { return m_testOnReturn; }
+            const std::string &getValidationQuery() const { return m_validationQuery; }
+            TransactionIsolationLevel getTransactionIsolation() const { return m_transactionIsolation; }
+            const std::map<std::string, std::string> &getOptions() const { return m_options; }
 
             // Setters
-            void setName(const std::string &value) { name = value; }
-            void setUrl(const std::string &value) { url = value; }
-            void setUsername(const std::string &value) { username = value; }
-            void setPassword(const std::string &value) { password = value; }
-            void setInitialSize(unsigned int value) { initialSize = value; }
-            void setMaxSize(unsigned int value) { maxSize = value; }
-            void setMinIdle(unsigned int value) { minIdle = value; }
-            void setConnectionTimeout(unsigned long value) { connectionTimeout = value; }
-            void setIdleTimeout(unsigned long value) { idleTimeout = value; }
-            void setValidationInterval(unsigned long value) { validationInterval = value; }
-            void setMaxLifetimeMillis(unsigned long value) { maxLifetimeMillis = value; }
-            void setTestOnBorrow(bool value) { testOnBorrow = value; }
-            void setTestOnReturn(bool value) { testOnReturn = value; }
-            void setValidationQuery(const std::string &value) { validationQuery = value; }
-            void setTransactionIsolation(TransactionIsolationLevel value) { transactionIsolation = value; }
-            void setOptions(const std::map<std::string, std::string> &value) { options = value; }
+            void setName(const std::string &value) { m_name = value; }
+            void setUrl(const std::string &value) { m_url = value; }
+            void setUsername(const std::string &value) { m_username = value; }
+            void setPassword(const std::string &value) { m_password = value; }
+            void setInitialSize(unsigned int value) { m_initialSize = value; }
+            void setMaxSize(unsigned int value) { m_maxSize = value; }
+            void setMinIdle(unsigned int value) { m_minIdle = value; }
+            void setConnectionTimeout(unsigned long value) { m_connectionTimeout = value; }
+            void setIdleTimeout(unsigned long value) { m_idleTimeout = value; }
+            void setValidationInterval(unsigned long value) { m_validationInterval = value; }
+            void setMaxLifetimeMillis(unsigned long value) { m_maxLifetimeMillis = value; }
+            void setTestOnBorrow(bool value) { m_testOnBorrow = value; }
+            void setTestOnReturn(bool value) { m_testOnReturn = value; }
+            void setValidationQuery(const std::string &value) { m_validationQuery = value; }
+            void setTransactionIsolation(TransactionIsolationLevel value) { m_transactionIsolation = value; }
+            void setOptions(const std::map<std::string, std::string> &value) { m_options = value; }
 
             /**
              * @brief Configure this pool with database connection details
@@ -350,10 +350,10 @@ namespace cpp_dbc
              */
             ConnectionPoolConfig &withDatabaseConfig(const DatabaseConfig &dbConfig)
             {
-                url = dbConfig.createConnectionString();
-                username = dbConfig.getUsername();
-                password = dbConfig.getPassword();
-                options = dbConfig.getOptions();
+                m_url = dbConfig.createConnectionString();
+                m_username = dbConfig.getUsername();
+                m_password = dbConfig.getPassword();
+                m_options = dbConfig.getOptions();
                 return *this;
             }
         };
@@ -364,8 +364,8 @@ namespace cpp_dbc
         class TestQueries
         {
         private:
-            std::string connectionTest;
-            std::map<std::string, std::map<std::string, std::string>> databaseQueries;
+            std::string m_connectionTest;
+            std::map<std::string, std::map<std::string, std::string>> m_databaseQueries;
 
         public:
             TestQueries() = default;
@@ -376,7 +376,7 @@ namespace cpp_dbc
              */
             void setConnectionTest(const std::string &query)
             {
-                connectionTest = query;
+                m_connectionTest = query;
             }
 
             /**
@@ -385,7 +385,7 @@ namespace cpp_dbc
              */
             const std::string &getConnectionTest() const
             {
-                return connectionTest;
+                return m_connectionTest;
             }
 
             /**
@@ -396,7 +396,7 @@ namespace cpp_dbc
              */
             void setQuery(const std::string &dbType, const std::string &queryName, const std::string &query)
             {
-                databaseQueries[dbType][queryName] = query;
+                m_databaseQueries[dbType][queryName] = query;
             }
 
             /**
@@ -408,8 +408,8 @@ namespace cpp_dbc
              */
             std::string getQuery(const std::string &dbType, const std::string &queryName, const std::string &defaultValue = "") const
             {
-                auto dbIt = databaseQueries.find(dbType);
-                if (dbIt != databaseQueries.end())
+                auto dbIt = m_databaseQueries.find(dbType);
+                if (dbIt != m_databaseQueries.end())
                 {
                     auto queryIt = dbIt->second.find(queryName);
                     if (queryIt != dbIt->second.end())
@@ -427,8 +427,8 @@ namespace cpp_dbc
              */
             std::map<std::string, std::string> getQueriesForType(const std::string &dbType) const
             {
-                auto it = databaseQueries.find(dbType);
-                if (it != databaseQueries.end())
+                auto it = m_databaseQueries.find(dbType);
+                if (it != m_databaseQueries.end())
                 {
                     return it->second;
                 }
@@ -442,9 +442,9 @@ namespace cpp_dbc
         class DatabaseConfigManager
         {
         private:
-            std::vector<DatabaseConfig> databases;
-            std::map<std::string, ConnectionPoolConfig> connectionPools;
-            TestQueries testQueries;
+            std::vector<DatabaseConfig> m_databases;
+            std::map<std::string, ConnectionPoolConfig> m_connectionPools;
+            TestQueries m_testQueries;
 
         public:
             DatabaseConfigManager() = default;
@@ -455,7 +455,7 @@ namespace cpp_dbc
              */
             void addDatabaseConfig(const DatabaseConfig &config)
             {
-                databases.push_back(config);
+                m_databases.push_back(config);
             }
 
             /**
@@ -464,7 +464,7 @@ namespace cpp_dbc
              */
             const std::vector<DatabaseConfig> &getAllDatabases() const
             {
-                return databases;
+                return m_databases;
             }
 
             /**
@@ -475,7 +475,7 @@ namespace cpp_dbc
             std::vector<DatabaseConfig> getDatabasesByType(const std::string &type) const
             {
                 std::vector<DatabaseConfig> result;
-                for (const auto &db : databases)
+                for (const auto &db : m_databases)
                 {
                     if (db.getType() == type)
                     {
@@ -492,7 +492,7 @@ namespace cpp_dbc
              */
             std::optional<std::reference_wrapper<const DatabaseConfig>> getDatabaseByName(const std::string &name) const
             {
-                for (const auto &db : databases)
+                for (const auto &db : m_databases)
                 {
                     if (db.getName() == name)
                     {
@@ -508,7 +508,7 @@ namespace cpp_dbc
              */
             void addConnectionPoolConfig(const ConnectionPoolConfig &config)
             {
-                connectionPools[config.getName()] = config;
+                m_connectionPools[config.getName()] = config;
             }
 
             /**
@@ -518,8 +518,8 @@ namespace cpp_dbc
              */
             std::optional<std::reference_wrapper<const ConnectionPoolConfig>> getConnectionPoolConfig(const std::string &name = "default") const
             {
-                auto it = connectionPools.find(name);
-                if (it != connectionPools.end())
+                auto it = m_connectionPools.find(name);
+                if (it != m_connectionPools.end())
                 {
                     return std::cref(it->second);
                 }
@@ -532,7 +532,7 @@ namespace cpp_dbc
              */
             void setTestQueries(const TestQueries &queries)
             {
-                testQueries = queries;
+                m_testQueries = queries;
             }
 
             /**
@@ -541,7 +541,7 @@ namespace cpp_dbc
              */
             const TestQueries &getTestQueries() const
             {
-                return testQueries;
+                return m_testQueries;
             }
 
             /**

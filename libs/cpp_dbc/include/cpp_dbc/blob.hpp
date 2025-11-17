@@ -32,27 +32,27 @@ namespace cpp_dbc
     class MemoryInputStream : public InputStream
     {
     private:
-        const std::vector<uint8_t> &data;
-        size_t position;
+        const std::vector<uint8_t> &m_data;
+        size_t m_position;
 
     public:
         explicit MemoryInputStream(const std::vector<uint8_t> &data)
-            : data(data), position(0) {}
+            : m_data(data), m_position(0) {}
 
         int read(uint8_t *buffer, size_t length) override
         {
-            if (position >= data.size())
+            if (m_position >= m_data.size())
                 return -1; // End of stream
 
-            size_t bytesToRead = std::min(length, data.size() - position);
-            std::memcpy(buffer, data.data() + position, bytesToRead);
-            position += bytesToRead;
+            size_t bytesToRead = std::min(length, m_data.size() - m_position);
+            std::memcpy(buffer, m_data.data() + m_position, bytesToRead);
+            m_position += bytesToRead;
             return static_cast<int>(bytesToRead);
         }
 
         void skip(size_t n) override
         {
-            position = std::min(position + n, data.size());
+            m_position = std::min(m_position + n, m_data.size());
         }
 
         void close() override
@@ -65,22 +65,22 @@ namespace cpp_dbc
     class MemoryOutputStream : public OutputStream
     {
     private:
-        std::vector<uint8_t> &data;
-        size_t position;
+        std::vector<uint8_t> &m_data;
+        size_t m_position;
 
     public:
         MemoryOutputStream(std::vector<uint8_t> &data, size_t position)
-            : data(data), position(position) {}
+            : m_data(data), m_position(position) {}
 
         void write(const uint8_t *buffer, size_t length) override
         {
             // Ensure the vector is large enough
-            if (position + length > data.size())
-                data.resize(position + length);
+            if (m_position + length > m_data.size())
+                m_data.resize(m_position + length);
 
             // Copy the data
-            std::memcpy(data.data() + position, buffer, length);
-            position += length;
+            std::memcpy(m_data.data() + m_position, buffer, length);
+            m_position += length;
         }
 
         void flush() override
@@ -164,39 +164,39 @@ namespace cpp_dbc
     class MemoryBlob : public Blob
     {
     protected:
-        std::vector<uint8_t> data;
+        std::vector<uint8_t> m_data;
 
     public:
         MemoryBlob() = default;
 
         explicit MemoryBlob(const std::vector<uint8_t> &initialData)
-            : data(initialData) {}
+            : m_data(initialData) {}
 
         explicit MemoryBlob(std::vector<uint8_t> &&initialData)
-            : data(std::move(initialData)) {}
+            : m_data(std::move(initialData)) {}
 
         size_t length() const override
         {
-            return data.size();
+            return m_data.size();
         }
 
         std::vector<uint8_t> getBytes(size_t pos, size_t length) const override
         {
-            if (pos >= data.size())
+            if (pos >= m_data.size())
                 return {};
 
-            size_t bytesToRead = std::min(length, data.size() - pos);
-            return std::vector<uint8_t>(data.begin() + pos, data.begin() + pos + bytesToRead);
+            size_t bytesToRead = std::min(length, m_data.size() - pos);
+            return std::vector<uint8_t>(m_data.begin() + pos, m_data.begin() + pos + bytesToRead);
         }
 
         std::shared_ptr<InputStream> getBinaryStream() const override
         {
-            return std::make_shared<MemoryInputStream>(data);
+            return std::make_shared<MemoryInputStream>(m_data);
         }
 
         std::shared_ptr<OutputStream> setBinaryStream(size_t pos) override
         {
-            return std::make_shared<MemoryOutputStream>(data, pos);
+            return std::make_shared<MemoryOutputStream>(m_data, pos);
         }
 
         void setBytes(size_t pos, const std::vector<uint8_t> &bytes) override
@@ -206,22 +206,22 @@ namespace cpp_dbc
 
         void setBytes(size_t pos, const uint8_t *bytes, size_t length) override
         {
-            if (pos + length > data.size())
-                data.resize(pos + length);
+            if (pos + length > m_data.size())
+                m_data.resize(pos + length);
 
-            std::memcpy(data.data() + pos, bytes, length);
+            std::memcpy(m_data.data() + pos, bytes, length);
         }
 
         void truncate(size_t len) override
         {
-            if (len < data.size())
-                data.resize(len);
+            if (len < m_data.size())
+                m_data.resize(len);
         }
 
         void free() override
         {
-            data.clear();
-            data.shrink_to_fit();
+            m_data.clear();
+            m_data.shrink_to_fit();
         }
     };
 
