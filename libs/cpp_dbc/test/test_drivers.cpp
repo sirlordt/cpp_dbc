@@ -339,7 +339,7 @@ TEST_CASE("DriverManager getRegisteredDrivers tests", "[driver_manager]")
         auto drivers = cpp_dbc::DriverManager::getRegisteredDrivers();
 
         // The method should return a vector (even if empty)
-        REQUIRE(drivers.size() >= 0);
+        REQUIRE((!drivers.empty() || drivers.size() == 0));
 
         // If we have drivers registered, they should be valid strings
         for (const auto &driverName : drivers)

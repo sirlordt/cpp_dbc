@@ -111,7 +111,7 @@ TEST_CASE("SQLite BLOB operations", "[sqlite_real_blob]")
         stmt->setString(2, "Test BLOB");
         stmt->setBytes(3, smallData);
 
-        int rowsAffected = stmt->executeUpdate();
+        auto rowsAffected = stmt->executeUpdate();
         REQUIRE(rowsAffected == 1);
 
         // Insert large data
@@ -166,7 +166,7 @@ TEST_CASE("SQLite BLOB operations", "[sqlite_real_blob]")
         auto inputStream = std::make_shared<cpp_dbc::MemoryInputStream>(largeData);
         stmt->setBinaryStream(3, inputStream, largeData.size());
 
-        int rowsAffected = stmt->executeUpdate();
+        auto rowsAffected = stmt->executeUpdate();
         REQUIRE(rowsAffected == 1);
 
         // Retrieve data using ResultSet with streaming
@@ -208,7 +208,7 @@ TEST_CASE("SQLite BLOB operations", "[sqlite_real_blob]")
         auto blob = std::make_shared<cpp_dbc::MemoryBlob>(blobData);
         stmt->setBlob(3, blob);
 
-        int rowsAffected = stmt->executeUpdate();
+        auto rowsAffected = stmt->executeUpdate();
         REQUIRE(rowsAffected == 1);
 
         // Retrieve data using ResultSet with BLOB object
@@ -253,7 +253,7 @@ TEST_CASE("SQLite BLOB operations", "[sqlite_real_blob]")
         stmt->setString(2, "Test Image");
         stmt->setBytes(3, imageData);
 
-        int rowsAffected = stmt->executeUpdate();
+        auto rowsAffected = stmt->executeUpdate();
         REQUIRE(rowsAffected == 1);
 
         // Retrieve the image data from the database

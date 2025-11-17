@@ -39,13 +39,13 @@ namespace cpp_dbc
         class MySQLResultSet : public ResultSet
         {
         private:
-            MYSQL_RES *result;
-            MYSQL_ROW currentRow;
-            uint64_t rowPosition;
-            uint64_t rowCount;
-            int fieldCount;
-            std::vector<std::string> columnNames;
-            std::map<std::string, int> columnMap;
+            MYSQL_RES *m_result;
+            MYSQL_ROW m_currentRow;
+            uint64_t m_rowPosition;
+            uint64_t m_rowCount;
+            int m_fieldCount;
+            std::vector<std::string> m_columnNames;
+            std::map<std::string, int> m_columnMap;
 
         public:
             MySQLResultSet(MYSQL_RES *res);
@@ -75,7 +75,7 @@ namespace cpp_dbc
             bool isNull(const std::string &columnName) override;
 
             std::vector<std::string> getColumnNames() override;
-            int getColumnCount() override;
+            size_t getColumnCount() override;
             void close() override;
 
             // BLOB support methods
@@ -94,19 +94,19 @@ namespace cpp_dbc
             friend class MySQLConnection;
 
         private:
-            MYSQL *mysql;
-            std::string sql;
-            MYSQL_STMT *stmt;
-            std::vector<MYSQL_BIND> binds;
-            std::vector<std::string> stringValues;                   // To keep string values alive
-            std::vector<std::string> parameterValues;                // To store parameter values for query reconstruction
-            std::vector<int> intValues;                              // To keep int values alive
-            std::vector<long> longValues;                            // To keep long values alive
-            std::vector<double> doubleValues;                        // To keep double values alive
-            std::vector<char> nullFlags;                             // To keep null flags alive (char instead of bool for pointer access)
-            std::vector<std::vector<uint8_t>> blobValues;            // To keep blob values alive
-            std::vector<std::shared_ptr<Blob>> blobObjects;          // To keep blob objects alive
-            std::vector<std::shared_ptr<InputStream>> streamObjects; // To keep stream objects alive
+            MYSQL *m_mysql;
+            std::string m_sql;
+            MYSQL_STMT *m_stmt;
+            std::vector<MYSQL_BIND> m_binds;
+            std::vector<std::string> m_stringValues;                   // To keep string values alive
+            std::vector<std::string> m_parameterValues;                // To store parameter values for query reconstruction
+            std::vector<int> m_intValues;                              // To keep int values alive
+            std::vector<long> m_longValues;                            // To keep long values alive
+            std::vector<double> m_doubleValues;                        // To keep double values alive
+            std::vector<char> m_nullFlags;                             // To keep null flags alive (char instead of bool for pointer access)
+            std::vector<std::vector<uint8_t>> m_blobValues;            // To keep blob values alive
+            std::vector<std::shared_ptr<Blob>> m_blobObjects;          // To keep blob objects alive
+            std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
 
             // Internal method called by connection when closing
             void notifyConnClosing();
@@ -140,15 +140,15 @@ namespace cpp_dbc
         class MySQLConnection : public Connection
         {
         private:
-            MYSQL *mysql;
-            bool closed;
-            bool autoCommit;
-            TransactionIsolationLevel isolationLevel;
+            MYSQL *m_mysql;
+            bool m_closed;
+            bool m_autoCommit;
+            TransactionIsolationLevel m_isolationLevel;
 
             // Registry of active prepared statements
-            // std::set<std::weak_ptr<MySQLPreparedStatement>, std::owner_less<std::weak_ptr<MySQLPreparedStatement>>> activeStatements;
-            std::set<std::shared_ptr<MySQLPreparedStatement>> activeStatements;
-            std::mutex statementsMutex;
+            // std::set<std::weak_ptr<MySQLPreparedStatement>, std::owner_less<std::weak_ptr<MySQLPreparedStatement>>> m_activeStatements;
+            std::set<std::shared_ptr<MySQLPreparedStatement>> m_activeStatements;
+            std::mutex m_statementsMutex;
 
             // Internal methods for statement registry
             void registerStatement(std::shared_ptr<MySQLPreparedStatement> stmt);

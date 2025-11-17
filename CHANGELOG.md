@@ -1,6 +1,26 @@
 # Changelog
 
-## 2025-11-15 12:19:56 PM -0800 [Current]
+## 2025-11-16 06:49:00 PM -0800 [Current]
+
+### Code Quality Improvements
+* Added comprehensive warning flags and compile-time checks:
+  * Added `-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align` flags to build scripts
+  * Added compile definitions for backward.hpp to silence -Wundef warnings
+  * Refactored code to use m_ prefix for member variables to avoid -Wshadow warnings
+  * Fixed implicit conversions to avoid -Wconversion warnings
+  * Improved exception handling to avoid variable shadowing
+  * Changed int return types to uint64_t for executeUpdate() methods
+  * Added static_cast<> for numeric conversions
+  * Fixed comparison between signed and unsigned integers
+* Updated CMakeLists.txt:
+  * Added special compile flags for backward.hpp
+  * Added compile definitions to silence -Wundef warnings
+  * Updated both main and test CMakeLists.txt files
+* Updated TODO.md:
+  * Moved "Activate ALL possible warnings and compile time checks" to Completed Tasks
+  * Added details about the implementation
+
+## 2025-11-15 12:19:56 PM -0800
 
 ### RPM Package Support
 * Added RPM package (.rpm) build support to the distribution package system:

@@ -200,7 +200,7 @@ void demonstrateBasicBlobOperations(std::shared_ptr<cpp_dbc::Connection> conn)
         pstmt->setBytes(4, smallData);
         pstmt->setBytes(5, largeData);
 
-        int rowsAffected = pstmt->executeUpdate();
+        auto rowsAffected = pstmt->executeUpdate(); // auto will infer uint64_t
         std::cout << rowsAffected << " row(s) inserted." << std::endl;
 
         // Retrieve the data
@@ -267,14 +267,14 @@ void demonstrateBlobStreaming(std::shared_ptr<cpp_dbc::Connection> conn)
 
         // Get file size
         fileStream.seekg(0, std::ios::end);
-        std::streamsize fileSize = fileStream.tellg();
+        // std::streamsize fileSize = fileStream.tellg();
         fileStream.seekg(0, std::ios::beg);
 
         // Create a memory input stream from the file data
         auto inputStream = std::make_shared<cpp_dbc::MemoryInputStream>(fileData);
         pstmt->setBinaryStream(4, inputStream, fileData.size());
 
-        int rowsAffected = pstmt->executeUpdate();
+        auto rowsAffected = pstmt->executeUpdate();
         std::cout << rowsAffected << " row(s) inserted using streaming." << std::endl;
 
         // Retrieve the data using streaming
@@ -363,7 +363,7 @@ void demonstrateBlobObjects(std::shared_ptr<cpp_dbc::Connection> conn)
         auto blob = std::make_shared<cpp_dbc::MemoryBlob>(blobData);
         pstmt->setBlob(4, blob);
 
-        int rowsAffected = pstmt->executeUpdate();
+        auto rowsAffected = pstmt->executeUpdate();
         std::cout << rowsAffected << " row(s) inserted using BLOB object." << std::endl;
 
         // Retrieve the data as a BLOB object
@@ -459,7 +459,7 @@ void demonstrateImageBlob(std::shared_ptr<cpp_dbc::Connection> conn)
         pstmt->setString(3, "This BLOB contains an image file");
         pstmt->setBytes(4, imageData);
 
-        int rowsAffected = pstmt->executeUpdate();
+        auto rowsAffected = pstmt->executeUpdate();
         std::cout << rowsAffected << " row(s) inserted with image data." << std::endl;
 
         // Retrieve the image

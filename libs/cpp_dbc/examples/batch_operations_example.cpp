@@ -103,8 +103,8 @@ std::vector<std::tuple<int, int, int, std::string, int, double>> generateOrderDa
     // Random generators
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_int_distribution<> customerDistrib(0, customerIds.size() - 1);
-    std::uniform_int_distribution<> productDistrib(0, products.size() - 1);
+    std::uniform_int_distribution<> customerDistrib(0, static_cast<int>(customerIds.size()) - 1);
+    std::uniform_int_distribution<> productDistrib(0, static_cast<int>(products.size()) - 1);
     std::uniform_int_distribution<> quantityDistrib(1, 5);
 
     // Date range for orders (last 365 days)
@@ -179,7 +179,7 @@ void demonstrateBasicBatchInsert(std::shared_ptr<cpp_dbc::Connection> conn)
         auto startTime = std::chrono::high_resolution_clock::now();
 
         // Execute multiple statements in a loop (simulating batch processing)
-        int totalRowsAffected = 0;
+        uint64_t totalRowsAffected = 0;
         for (const auto &product : products)
         {
             pstmt->setInt(1, std::get<0>(product));
@@ -255,7 +255,7 @@ void demonstrateBatchWithTransaction(std::shared_ptr<cpp_dbc::Connection> conn)
         auto startTime = std::chrono::high_resolution_clock::now();
 
         // Execute multiple statements in a loop (simulating batch processing)
-        int totalRowsAffected = 0;
+        uint64_t totalRowsAffected = 0;
         for (const auto &order : orders)
         {
             pstmt->setInt(1, std::get<0>(order));
@@ -347,7 +347,7 @@ void demonstrateBatchUpdate(std::shared_ptr<cpp_dbc::Connection> conn)
         auto startTime = std::chrono::high_resolution_clock::now();
 
         // Execute multiple statements in a loop (simulating batch processing)
-        int totalRowsAffected = 0;
+        uint64_t totalRowsAffected = 0;
         for (int productId : productIds)
         {
             int newStock = stockDistrib(gen);
@@ -409,7 +409,7 @@ void demonstrateBatchDelete(std::shared_ptr<cpp_dbc::Connection> conn)
         auto startTime = std::chrono::high_resolution_clock::now();
 
         // Execute multiple statements in a loop (simulating batch processing)
-        int totalRowsAffected = 0;
+        uint64_t totalRowsAffected = 0;
         for (int orderId : orderIds)
         {
             pstmt->setInt(1, orderId);
@@ -477,7 +477,7 @@ void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::Connection> 
             "INSERT INTO performance_test (id, name, value, created_at) "
             "VALUES (?, ?, ?, CURRENT_TIMESTAMP)");
 
-        int rowsAffected1 = 0;
+        uint64_t rowsAffected1 = 0;
         for (const auto &data : testData)
         {
             pstmt1->setInt(1, std::get<0>(data));
@@ -504,7 +504,7 @@ void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::Connection> 
             "INSERT INTO performance_test (id, name, value, created_at) "
             "VALUES (?, ?, ?, CURRENT_TIMESTAMP)");
 
-        int rowsAffected2 = 0;
+        uint64_t rowsAffected2 = 0;
         for (const auto &data : testData)
         {
             pstmt2->setInt(1, std::get<0>(data));
@@ -533,7 +533,7 @@ void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::Connection> 
             "INSERT INTO performance_test (id, name, value, created_at) "
             "VALUES (?, ?, ?, CURRENT_TIMESTAMP)");
 
-        int rowsAffected3 = 0;
+        uint64_t rowsAffected3 = 0;
         for (const auto &data : testData)
         {
             pstmt3->setInt(1, std::get<0>(data));
@@ -565,7 +565,7 @@ void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::Connection> 
             "INSERT INTO performance_test (id, name, value, created_at) "
             "VALUES (?, ?, ?, CURRENT_TIMESTAMP)");
 
-        int rowsAffected4 = 0;
+        uint64_t rowsAffected4 = 0;
         for (const auto &data : testData)
         {
             pstmt4->setInt(1, std::get<0>(data));
@@ -591,9 +591,9 @@ void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::Connection> 
         std::cout << "Method 4 (Transaction with simulated batch insert): " << duration4 << " ms" << std::endl;
 
         // Calculate speedup
-        double speedup1to2 = static_cast<double>(duration1) / duration2;
-        double speedup1to3 = static_cast<double>(duration1) / duration3;
-        double speedup1to4 = static_cast<double>(duration1) / duration4;
+        double speedup1to2 = static_cast<double>(duration1) / static_cast<double>(duration2);
+        double speedup1to3 = static_cast<double>(duration1) / static_cast<double>(duration3);
+        double speedup1to4 = static_cast<double>(duration1) / static_cast<double>(duration4);
 
         std::cout << "\nSpeedup Factors:" << std::endl;
         std::cout << "Simulated Batch vs Individual: " << std::fixed << std::setprecision(2) << speedup1to2 << "x" << std::endl;

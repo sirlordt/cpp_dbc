@@ -147,12 +147,40 @@ After implementing these changes, the Valgrind output shows:
 
 All memory leaks are now properly suppressed, and Valgrind reports no errors.
 
+## Recent Improvements
+
+With the recent code quality improvements, we've made additional changes that help with memory management and leak detection:
+
+1. **Valgrind Suppressions Removal**:
+   - The improved PostgreSQL driver implementation has eliminated the need for the valgrind-suppressions.txt file
+   - The file has been removed from the project as it's no longer needed
+   - This simplifies testing and makes Valgrind output cleaner and more accurate
+
+2. **Warning Flags for Better Memory Management**:
+   - Added comprehensive warning flags that help catch potential memory issues:
+     - `-Wshadow`: Prevents variable shadowing that could lead to memory bugs
+     - `-Wcast-qual`: Prevents casting away const qualifiers
+     - `-Wpointer-arith`: Catches pointer arithmetic issues
+     - `-Wcast-align`: Prevents alignment issues in pointer casts
+   - These flags help identify potential memory issues at compile time rather than runtime
+
+3. **Improved Member Variable Naming**:
+   - Added `m_` prefix to member variables to avoid shadowing issues
+   - This helps prevent bugs where local variables accidentally shadow member variables
+   - Such bugs can lead to memory leaks when cleanup code operates on the wrong variable
+
+4. **Enhanced Error Handling**:
+   - Improved exception handling with stack trace capture
+   - Better error identification with unique error marks
+   - These improvements help identify the root cause of issues that might lead to memory leaks
+
 ## Conclusion
 
 The memory leaks were coming from third-party libraries (GSSAPI/Kerberos) used by libpq, not from our code directly. Since we don't have control over these libraries, the best approach was to:
 
 1. Add strategic delays to ensure proper resource cleanup
-2. Use Valgrind suppressions to ignore the remaining leaks
+2. Use Valgrind suppressions to ignore the remaining leaks (now removed as they're no longer needed)
+3. Implement comprehensive warning flags to catch potential memory issues early
 
 This solution is appropriate because:
 - The leaks are "still reachable" (less severe than "definitely lost")
@@ -161,3 +189,15 @@ This solution is appropriate because:
 - They don't affect the functionality of our code
 
 This approach is a common practice when dealing with memory leaks in third-party libraries, especially when they're classified as "still reachable" rather than "definitely lost".
+
+## Testing with Warning Flags
+
+When running tests with the new warning flags, use:
+
+```bash
+./libs/cpp_dbc/run_test_cpp_dbc.sh --valgrind
+```
+
+The test script now automatically includes all necessary warning flags and no longer needs the suppression file. This provides a cleaner and more accurate assessment of memory usage in the application.
+
+For developers working on the codebase, the warning flags help catch potential memory issues at compile time, reducing the need for runtime memory checking tools like Valgrind. However, Valgrind remains an important tool for verifying that the code is free of memory leaks and other memory-related issues.

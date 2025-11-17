@@ -89,7 +89,7 @@ TEST_CASE("SQLite connection test", "[sqlite_connection]")
             auto stmt = conn->prepareStatement("INSERT INTO test_table (id, name) VALUES (?, ?)");
             stmt->setInt(1, 1);
             stmt->setString(2, "Test Name");
-            int rowsAffected = stmt->executeUpdate();
+            auto rowsAffected = stmt->executeUpdate();
             REQUIRE(rowsAffected == 1);
 
             // Test querying the inserted data

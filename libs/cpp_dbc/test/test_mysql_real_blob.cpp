@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -124,7 +124,7 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
         stmt->setBytes(5, mediumData);
         stmt->setBytes(6, largeData);
 
-        int rowsAffected = stmt->executeUpdate();
+        auto rowsAffected = stmt->executeUpdate();
         REQUIRE(rowsAffected == 1);
 
         // Retrieve data using ResultSet
@@ -165,7 +165,7 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
         auto inputStream = std::make_shared<cpp_dbc::MemoryInputStream>(largeData);
         stmt->setBinaryStream(3, inputStream, largeData.size());
 
-        int rowsAffected = stmt->executeUpdate();
+        auto rowsAffected = stmt->executeUpdate();
         REQUIRE(rowsAffected == 1);
 
         // Retrieve data using ResultSet with streaming
@@ -207,7 +207,7 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
         auto blob = std::make_shared<cpp_dbc::MemoryBlob>(blobData);
         stmt->setBlob(3, blob);
 
-        int rowsAffected = stmt->executeUpdate();
+        auto rowsAffected = stmt->executeUpdate();
         REQUIRE(rowsAffected == 1);
 
         // Retrieve data using ResultSet with BLOB object
@@ -260,7 +260,7 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
         stmt->setString(2, "Test Image");
         stmt->setBytes(3, imageData);
 
-        int rowsAffected = stmt->executeUpdate();
+        auto rowsAffected = stmt->executeUpdate();
         REQUIRE(rowsAffected == 1);
 
         // Retrieve the image data from the database

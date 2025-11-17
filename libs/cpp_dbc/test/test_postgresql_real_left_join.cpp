@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -252,7 +252,7 @@ TEST_CASE("PostgreSQL LEFT JOIN operations", "[postgresql_real_left_join]")
             {6, "Eva Wilson", std::nullopt, std::nullopt},
             {7, "Frank Miller", std::nullopt, std::nullopt}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -303,7 +303,7 @@ TEST_CASE("PostgreSQL LEFT JOIN operations", "[postgresql_real_left_join]")
             {"John Doe", "Laptop", 1, 999.99},
             {"John Doe", "Tablet", 2, 599.98}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -350,7 +350,7 @@ TEST_CASE("PostgreSQL LEFT JOIN operations", "[postgresql_real_left_join]")
             {"Eva Wilson", std::nullopt, std::nullopt, std::nullopt},
             {"Frank Miller", std::nullopt, std::nullopt, std::nullopt}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -394,7 +394,7 @@ TEST_CASE("PostgreSQL LEFT JOIN operations", "[postgresql_real_left_join]")
             {6, "Eva Wilson"},
             {7, "Frank Miller"}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -431,7 +431,7 @@ TEST_CASE("PostgreSQL LEFT JOIN operations", "[postgresql_real_left_join]")
         // This should execute but return only NULL values for the right side
         auto rs = conn->executeQuery(query);
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE_FALSE(rs->isNull("customer_id"));

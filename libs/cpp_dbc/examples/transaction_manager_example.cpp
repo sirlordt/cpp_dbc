@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -97,7 +97,7 @@ public:
 };
 
 // Worker thread function
-void workerThread(cpp_dbc::TransactionManager &txnManager, TaskQueue &taskQueue, int workerId)
+void workerThread(cpp_dbc::TransactionManager & /*txnManager*/, TaskQueue &taskQueue, int workerId)
 {
     try
     {
@@ -209,7 +209,7 @@ int main()
         }
 
         // Add final tasks to commit or rollback transactions
-        for (int i = 0; i < transactionIds.size(); i++)
+        for (size_t i = 0; i < transactionIds.size(); i++)
         {
             const std::string &txnId = transactionIds[i];
 

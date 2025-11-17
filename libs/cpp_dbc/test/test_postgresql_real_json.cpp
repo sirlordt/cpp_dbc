@@ -493,12 +493,12 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[postgresql_real_json]")
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("id") == 1);
         REQUIRE(rs->getString("name") == "Laptop");
-        REQUIRE(rs->getDouble("price") == 1200);
+        REQUIRE(std::abs(rs->getDouble("price") - 1200.0) < 0.001);
 
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("id") == 2);
         REQUIRE(rs->getString("name") == "Smartphone");
-        REQUIRE(rs->getDouble("price") == 800);
+        REQUIRE(std::abs(rs->getDouble("price") - 800.0) < 0.001);
 
         // Test JSON array to rows conversion
         rs = conn->executeQuery(

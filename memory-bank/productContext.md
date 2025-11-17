@@ -21,6 +21,7 @@ CPP_DBC solves these problems by providing:
 5. **Prepared Statements**: Support for parameterized queries to prevent SQL injection
 6. **BLOB Support**: Comprehensive handling of Binary Large Objects across all database drivers
 7. **JSON Support**: Native handling of JSON data types in MySQL and PostgreSQL
+8. **Code Quality**: Strict warning flags and compile-time checks to ensure robust, reliable code
 
 ## Target Users
 
@@ -49,6 +50,7 @@ Unlike other C++ database libraries, CPP_DBC:
 4. **Offers Comprehensive BLOB Support**: Unified API for binary data across all database systems
 5. **Provides Native JSON Support**: Unified interface for working with JSON data types
 6. **Maintains Lightweight Design**: Minimal dependencies beyond the database client libraries
+7. **Enforces High Code Quality**: Comprehensive warning flags and compile-time checks
 
 ## Design Philosophy
 
@@ -59,3 +61,5 @@ CPP_DBC follows these key principles:
 3. **Thread Safety**: Support for concurrent database operations
 4. **Configurability**: Flexible configuration options for connection pools and transactions
 5. **Simplicity**: Straightforward API that follows familiar patterns
+6. **Code Quality**: Strict adherence to C++ best practices with comprehensive warning flags
+7. **Type Safety**: Careful handling of numeric conversions and variable shadowing

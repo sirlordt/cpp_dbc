@@ -165,7 +165,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
 
         // Create a test table
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
-        int result = conn->executeUpdate(createTableQuery);
+        auto result = conn->executeUpdate(createTableQuery);
         REQUIRE(result == 0); // CREATE TABLE should return 0 affected rows
 
         // Insert data using a prepared statement
@@ -177,7 +177,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         {
             pstmt->setInt(1, i);
             pstmt->setString(2, "Test Name " + std::to_string(i));
-            int insertResult = pstmt->executeUpdate();
+            auto insertResult = pstmt->executeUpdate();
             REQUIRE(insertResult == 1); // Each insert should affect 1 row
         }
 
@@ -211,7 +211,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         REQUIRE(count == 10);
 
         // Update data
-        int updateResult = conn->executeUpdate("UPDATE test_table SET name = 'Updated Name' WHERE id = 3");
+        auto updateResult = conn->executeUpdate("UPDATE test_table SET name = 'Updated Name' WHERE id = 3");
         REQUIRE(updateResult == 1); // Should affect 1 row
 
         // Verify the update
@@ -220,7 +220,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         REQUIRE(rs->getString("name") == "Updated Name");
 
         // Delete data
-        int deleteResult = conn->executeUpdate("DELETE FROM test_table WHERE id > 5");
+        auto deleteResult = conn->executeUpdate("DELETE FROM test_table WHERE id > 5");
         REQUIRE(deleteResult == 5); // Should delete 5 rows (6-10)
 
         // Verify the delete
@@ -277,17 +277,17 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn = pool.getConnection();
+                        auto conn_thread = pool.getConnection();
 
                         // Insert a row
-                        auto pstmt = conn->prepareStatement(insertDataQuery);
+                        auto pstmt = conn_thread->prepareStatement(insertDataQuery);
                         int id = i * 100 + j;
                         pstmt->setInt(1, id);
                         pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
                         pstmt->executeUpdate();
 
                         // Return the connection to the pool
-                        conn->close();
+                        conn_thread->close();
 
                         // Increment success counter
                         successCount++;
@@ -365,7 +365,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
             auto pstmt = conn->prepareStatement(insertDataQuery);
             pstmt->setInt(1, 1);
             pstmt->setString(2, "Transaction Test");
-            int result = pstmt->executeUpdate();
+            auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
 
             // Commit the transaction
@@ -391,7 +391,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
             auto pstmt = conn->prepareStatement(insertDataQuery);
             pstmt->setInt(1, 2);
             pstmt->setString(2, "Rollback Test");
-            int result = pstmt->executeUpdate();
+            auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
 
             // Rollback the transaction
@@ -533,17 +533,17 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn = pool.getConnection();
+                        auto conn_thread = pool.getConnection();
 
                         // Insert a row
-                        auto pstmt = conn->prepareStatement(insertDataQuery);
+                        auto pstmt = conn_thread->prepareStatement(insertDataQuery);
                         int id = i * 1000 + j;
                         pstmt->setInt(1, id);
                         pstmt->setString(2, "Stress Test " + std::to_string(id));
                         pstmt->executeUpdate();
 
                         // Select the row back
-                        auto selectStmt = conn->prepareStatement(selectDataQuery);
+                        auto selectStmt = conn_thread->prepareStatement(selectDataQuery);
                         selectStmt->setInt(1, id);
                         auto rs = selectStmt->executeQuery();
 
@@ -553,7 +553,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
                         }
 
                         // Return the connection to the pool
-                        conn->close();
+                        conn_thread->close();
                     }
                     catch (const std::exception& e) {
                         std::cerr << "Thread operation failed: " << e.what() << std::endl;
@@ -571,7 +571,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
         std::cout << "PostgreSQL stress test completed in " << duration << " ms" << std::endl;
-        std::cout << "Operations per second: " << (numThreads * opsPerThread * 1000.0 / duration) << std::endl;
+        std::cout << "Operations per second: " << (numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)) << std::endl;
 
         // Verify that all operations were successful
         REQUIRE(successCount == numThreads * opsPerThread);

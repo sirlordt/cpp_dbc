@@ -61,8 +61,8 @@ TEST_CASE("Integration test with mock database", "[integration]")
 
     std::vector<std::string> userColumns = {"id", "name", "email"};
 
-    // Create result set provider function
-    auto createUserResultSet = [&userData, &userColumns](const std::string &sql) -> std::shared_ptr<cpp_dbc::ResultSet>
+    // Create result set provider function (usado en el código comentado)
+    [[maybe_unused]] auto createUserResultSet = [&userData, &userColumns](const std::string &sql) -> std::shared_ptr<cpp_dbc::ResultSet>
     {
         // Simple SQL parsing to determine what to return
         if (sql.find("SELECT") != std::string::npos && sql.find("users") != std::string::npos)
@@ -78,8 +78,8 @@ TEST_CASE("Integration test with mock database", "[integration]")
         return std::make_shared<cpp_dbc_test::MockResultSet>();
     };
 
-    // Create update result provider function
-    auto createUpdateResult = [](const std::string &sql) -> int
+    // Create update result provider function (usado en el código comentado)
+    [[maybe_unused]] auto createUpdateResult = [](const std::string &sql) -> int
     {
         if (sql.find("INSERT") != std::string::npos)
         {
@@ -97,8 +97,8 @@ TEST_CASE("Integration test with mock database", "[integration]")
         return 0; // Default: no rows affected
     };
 
-    // Create prepared statement provider function
-    auto createPreparedStatement = [&userData, &userColumns](const std::string &sql) -> std::shared_ptr<cpp_dbc::PreparedStatement>
+    // Create prepared statement provider function (usado en el código comentado)
+    [[maybe_unused]] auto createPreparedStatement = [&userData, &userColumns](const std::string &sql) -> std::shared_ptr<cpp_dbc::PreparedStatement>
     {
         auto queryProvider = [&userData, &userColumns, sql]() -> std::shared_ptr<cpp_dbc::ResultSet>
         {
@@ -136,12 +136,12 @@ TEST_CASE("Integration test with mock database", "[integration]")
         return std::make_shared<cpp_dbc_test::MockPreparedStatement>();
     };
 
-    // Create connection provider function
-    auto createConnection = [&createUserResultSet, &createUpdateResult, &createPreparedStatement](
-                                const std::string &url, const std::string &user, const std::string &password) -> std::shared_ptr<cpp_dbc::Connection>
-    {
-        return std::make_shared<cpp_dbc_test::MockConnection>();
-    };
+    // No necesitamos esta función, ya que usamos directamente el DriverManager
+    // auto createConnection = [&createUserResultSet, &createUpdateResult, &createPreparedStatement](
+    //                             const std::string & /*url*/, const std::string & /*user*/, const std::string & /*password*/) -> std::shared_ptr<cpp_dbc::Connection>
+    // {
+    //     return std::make_shared<cpp_dbc_test::MockConnection>();
+    // };
 
     // Register the mock driver
     cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<cpp_dbc_test::MockDriver>());
@@ -208,7 +208,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
         REQUIRE(rs->getString("name") == "John");
 
         // Test update
-        int updateCount = conn->executeUpdate("UPDATE users SET name = 'Updated' WHERE id = 1");
+        auto updateCount = conn->executeUpdate("UPDATE users SET name = 'Updated' WHERE id = 1");
         REQUIRE(updateCount == 2);
 
         // Close the connection
@@ -320,7 +320,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
         REQUIRE(count == 3);
 
         // Execute an update within the transaction
-        int updateCount = conn->executeUpdate("UPDATE users SET name = 'Updated' WHERE id = 1");
+        auto updateCount = conn->executeUpdate("UPDATE users SET name = 'Updated' WHERE id = 1");
         REQUIRE(updateCount == 2);
 
         // Commit the transaction

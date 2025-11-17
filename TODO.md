@@ -2,9 +2,8 @@
 
 ## Pending Tasks
 
-- Activate ALL possible warnings and compile time checks 
 - Analize the use of raw pointer in diferent class
-  They are really safe? 
+  They are really safe?
   We need wrap in unique_ptr/shared_ptr with custom destruction functions?
 - NEW FEATURE: Add benchmarks to 10 100 1000 10000 and 100000 rows. In insert/Delete/Update/Select Operations
 - NEW FEATURE: Add more examples.
@@ -21,6 +20,12 @@
 
 ## Completed Tasks
 
+- Activate ALL possible warnings and compile time checks
+  - Implemented in build_cpp_dbc.sh and build_test_cpp_dbc.sh with flags -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align
+  - Added definitions for backward.hpp to silence -Wundef warnings
+  - Refactored code to use m_ prefix for member variables to avoid -Wshadow
+  - Fixed implicit conversions to avoid -Wconversion
+  - Improved exception handling to avoid variable shadowing
 - Add rpm support using docker fedora 42 and 43
 - Add --run-build-lib-dist-deb using docker (implemented as build_dist_pkg.sh)
 - Add library dw to linker en CPP_SBC

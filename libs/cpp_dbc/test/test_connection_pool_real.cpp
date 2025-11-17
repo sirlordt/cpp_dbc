@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -187,9 +187,9 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
         SECTION("Get and return connections")
         {
             // Get initial pool statistics
-            int initialIdleCount = pool.getIdleConnectionCount();
-            int initialActiveCount = pool.getActiveConnectionCount();
-            int initialTotalCount = pool.getTotalConnectionCount();
+            auto initialIdleCount = pool.getIdleConnectionCount();
+            auto initialActiveCount = pool.getActiveConnectionCount();
+            auto initialTotalCount = pool.getTotalConnectionCount();
 
             REQUIRE(initialActiveCount == 0);
             REQUIRE(initialIdleCount >= 3);  // minIdle
@@ -304,9 +304,9 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
         SECTION("Get and return connections")
         {
             // Get initial pool statistics
-            int initialIdleCount = pool.getIdleConnectionCount();
-            int initialActiveCount = pool.getActiveConnectionCount();
-            int initialTotalCount = pool.getTotalConnectionCount();
+            auto initialIdleCount = pool.getIdleConnectionCount();
+            auto initialActiveCount = pool.getActiveConnectionCount();
+            auto initialTotalCount = pool.getTotalConnectionCount();
 
             REQUIRE(initialActiveCount == 0);
             REQUIRE(initialIdleCount >= 3);  // minIdle
@@ -491,9 +491,9 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
         SECTION("Get and return connections")
         {
             // Get initial pool statistics
-            int initialIdleCount = pool.getIdleConnectionCount();
-            int initialActiveCount = pool.getActiveConnectionCount();
-            int initialTotalCount = pool.getTotalConnectionCount();
+            auto initialIdleCount = pool.getIdleConnectionCount();
+            auto initialActiveCount = pool.getActiveConnectionCount();
+            auto initialTotalCount = pool.getTotalConnectionCount();
 
             REQUIRE(initialActiveCount == 0);
             REQUIRE(initialIdleCount >= 3);  // minIdle

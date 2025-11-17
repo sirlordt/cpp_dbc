@@ -428,11 +428,12 @@ void demonstrateResultSetErrors(std::shared_ptr<cpp_dbc::Connection> conn)
     // Type conversion error in result set
     executeWithErrorHandling("Result Set Type Conversion Error", [&conn]()
                              {
-        auto rs = conn->executeQuery("SELECT name FROM error_test_customers");
-        rs->next();
-        
-        // Try to get a string column as an integer
-        int value = rs->getInt("name"); });
+                                 auto rs = conn->executeQuery("SELECT name FROM error_test_customers");
+                                 rs->next();
+
+                                 // Try to get a string column as an integer
+                                 // int value = 
+                                 rs->getInt("name"); });
 
     // Accessing result set after it's closed
     executeWithErrorHandling("Closed Result Set Access", [&conn]()

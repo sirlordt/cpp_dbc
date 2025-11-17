@@ -53,6 +53,13 @@ The project uses:
   - `--yaml`: Enable YAML configuration support
   - `--examples`: Build example applications
   - `--test`: Build unit tests
+  - `--release`: Build in Release mode instead of Debug mode
+  - `--dw-off`: Disable libdw support for stack traces
+  - `--debug-pool`: Enable debug output for ConnectionPool
+  - `--debug-txmgr`: Enable debug output for TransactionManager
+  - `--debug-sqlite`: Enable debug output for SQLite driver
+  - `--debug-all`: Enable all debug output
+  - `--asan`: Enable AddressSanitizer (with known issues, see asan_issues.md)
 
 ### Development Environment
 The code is structured to be developed in any C++ IDE or text editor, with common options being:
@@ -91,6 +98,11 @@ The project is configured to work with the CMakeTools extension, but does not re
 - Uses smart pointers for automatic resource management
 - Relies on RAII for proper cleanup
 - No explicit memory management required from client code
+- Comprehensive warning flags to catch memory-related issues:
+  - `-Wshadow`: Prevents variable shadowing that could lead to memory bugs
+  - `-Wcast-qual`: Prevents casting away const qualifiers
+  - `-Wpointer-arith`: Catches pointer arithmetic issues
+  - `-Wcast-align`: Prevents alignment issues in pointer casts
 
 ### Error Handling
 - Uses exceptions for error propagation
@@ -130,6 +142,7 @@ The project is configured to work with the CMakeTools extension, but does not re
   - Support for libdw (part of elfutils) for enhanced stack trace information
   - Configurable with `BACKWARD_HAS_DW` option and `--dw-off` build flag
   - Header: `cpp_dbc/backward.hpp`
+  - Special handling to silence -Wundef warnings
 
 - **libdw Library (part of elfutils)**:
   - Optional dependency for enhanced stack trace information
@@ -153,6 +166,33 @@ The project is configured to work with the CMakeTools extension, but does not re
 - `<random>`: For random number generation (used in UUID generation)
 - `<cstdint>`: For fixed-width integer types (used in BLOB handling)
 - `<fstream>`: For file I/O (used in file-based BLOB implementations)
+
+### Code Quality Tools
+- **Comprehensive Warning Flags**:
+  - `-Wall -Wextra -Wpedantic`: Basic warning sets for common issues
+  - `-Wconversion`: Catches implicit type conversions that might lose data
+  - `-Wshadow`: Prevents variable shadowing bugs
+  - `-Wcast-qual`: Prevents casting away const qualifiers
+  - `-Wformat=2`: Strict checking of printf/scanf format strings
+  - `-Wunused`: Catches unused variables and functions
+  - `-Werror=return-type`: Treats missing return statements as errors
+  - `-Werror=switch`: Treats missing switch cases as errors
+  - `-Wdouble-promotion`: Prevents implicit float to double promotions
+  - `-Wfloat-equal`: Warns about floating-point equality comparisons
+  - `-Wundef`: Catches undefined preprocessor identifiers
+  - `-Wpointer-arith`: Prevents pointer arithmetic issues
+  - `-Wcast-align`: Prevents alignment issues in pointer casts
+
+- **Naming Conventions**:
+  - Member variables prefixed with `m_` to avoid shadowing issues
+  - Consistent method naming following JDBC conventions
+  - Clear class hierarchies with proper inheritance
+
+- **Type Safety Practices**:
+  - Using static_cast<> for numeric conversions
+  - Appropriate integer types for different purposes (uint64_t for row counts)
+  - Avoiding implicit type conversions that might lose data
+  - Proper initialization of variables at declaration
 
 ## Tool Usage Patterns
 
@@ -222,3 +262,30 @@ The project is configured to work with the CMakeTools extension, but does not re
 - Database configurations can be retrieved by name
 - Connection pool configurations can be customized in the YAML file
 - Test queries can be defined in the YAML file for different database types
+
+### Code Quality Best Practices
+- Use the provided warning flags to catch potential issues early:
+  ```bash
+  # Build with all warning flags enabled
+  ./build_cpp_dbc.sh
+  ```
+- Follow the established naming conventions:
+  - Prefix member variables with `m_` to avoid shadowing
+  - Use clear, descriptive names for functions and variables
+- Use explicit type conversions with static_cast<> when converting between numeric types
+- Initialize all variables at declaration
+- Use appropriate integer types for different purposes:
+  - uint64_t for row counts and sizes
+  - size_t for container sizes and indices
+- Catch and handle exceptions properly, using the enhanced features:
+  ```cpp
+  try {
+      // Database operations
+  } catch (const cpp_dbc::DBException& e) {
+      std::cerr << "Error: " << e.what_s() << std::endl;
+      std::cerr << "Error Mark: " << e.getMark() << std::endl;
+      e.printCallStack();
+  }
+  ```
+- Use the `what_s()` method instead of the deprecated `what()` method
+- Add unique error marks when throwing exceptions to identify error locations

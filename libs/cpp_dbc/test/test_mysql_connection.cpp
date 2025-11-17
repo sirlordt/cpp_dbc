@@ -105,7 +105,8 @@ TEST_CASE("MySQL connection test", "[mysql_connection]")
             // the driver was found but the database doesn't exist
 
             // This is a bit of a loose check, but it's the best we can do without knowing the exact error message
-            bool isExpectedError =
+            // Check if this is an expected error (unused in this test but kept for documentation)
+            [[maybe_unused]] bool isExpectedError =
                 errorMsg.find("database") != std::string::npos ||
                 errorMsg.find("Database") != std::string::npos ||
                 errorMsg.find("schema") != std::string::npos ||

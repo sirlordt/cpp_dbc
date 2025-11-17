@@ -89,7 +89,7 @@ target_compile_definitions(cpp_dbc_tests PUBLIC
 )
 
 # Define macros for backward.hpp to silence -Wundef warnings
-target_compile_definitions(cpp_dbc_tests PRIVATE
+target_compile_definitions(cpp_dbc_tests PUBLIC
     BACKWARD_HAS_UNWIND=0
     BACKWARD_HAS_LIBUNWIND=0
     BACKWARD_HAS_BACKTRACE=0

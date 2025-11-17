@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -241,7 +241,7 @@ TEST_CASE("MySQL INNER JOIN operations", "[mysql_real_inner_join]")
             {4, "Alice Brown", 1007, 499.99},
             {5, "Charlie Davis", 1008, 299.99}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -280,7 +280,7 @@ TEST_CASE("MySQL INNER JOIN operations", "[mysql_real_inner_join]")
             {"John Doe", "Laptop", 1, 999.99},
             {"John Doe", "Tablet", 2, 599.98}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -318,7 +318,7 @@ TEST_CASE("MySQL INNER JOIN operations", "[mysql_real_inner_join]")
             {"Bob Johnson", "Laptop", 1, 999.99},
             {"Alice Brown", "Smartphone", 1, 499.99}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());

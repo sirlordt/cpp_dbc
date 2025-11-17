@@ -95,7 +95,7 @@ TEST_CASE("SQLite real database operations", "[sqlite_real]")
                 insertStmt->setString(2, "Name " + std::to_string(i));
                 insertStmt->setDouble(3, i * 1.5);
                 insertStmt->setBoolean(4, i % 2 == 0);
-                int rowsAffected = insertStmt->executeUpdate();
+                auto rowsAffected = insertStmt->executeUpdate();
                 REQUIRE(rowsAffected == 1);
             }
 
@@ -130,7 +130,7 @@ TEST_CASE("SQLite real database operations", "[sqlite_real]")
             // Delete half the rows
             auto deleteStmt = conn->prepareStatement("DELETE FROM test_table WHERE id <= ?");
             deleteStmt->setInt(1, 50);
-            int deletedRows = deleteStmt->executeUpdate();
+            auto deletedRows = deleteStmt->executeUpdate();
             REQUIRE(deletedRows == 50);
 
             // Verify rows are deleted in this transaction

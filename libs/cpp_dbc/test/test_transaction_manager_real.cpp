@@ -202,7 +202,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
             auto pstmt = txConn->prepareStatement(insertDataQuery);
             pstmt->setInt(1, 1);
             pstmt->setString(2, "Transaction Test");
-            int result = pstmt->executeUpdate();
+            auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
 
             // Commit the transaction
@@ -233,7 +233,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
             auto pstmt = txConn->prepareStatement(insertDataQuery);
             pstmt->setInt(1, 2);
             pstmt->setString(2, "Rollback Test");
-            int result = pstmt->executeUpdate();
+            auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
 
             // Rollback the transaction
@@ -479,7 +479,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
             auto pstmt = txConn->prepareStatement(insertDataQuery);
             pstmt->setInt(1, 1);
             pstmt->setString(2, "Transaction Test");
-            int result = pstmt->executeUpdate();
+            auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
 
             // Commit the transaction
@@ -510,7 +510,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
             auto pstmt = txConn->prepareStatement(insertDataQuery);
             pstmt->setInt(1, 2);
             pstmt->setString(2, "Rollback Test");
-            int result = pstmt->executeUpdate();
+            auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
 
             // Rollback the transaction

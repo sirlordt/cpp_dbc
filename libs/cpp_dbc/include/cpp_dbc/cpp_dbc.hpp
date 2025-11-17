@@ -240,7 +240,7 @@ namespace cpp_dbc
         virtual bool isNull(const std::string &columnName) = 0;
 
         virtual std::vector<std::string> getColumnNames() = 0;
-        virtual int getColumnCount() = 0;
+        virtual size_t getColumnCount() = 0;
 
         // BLOB support methods
         virtual std::shared_ptr<Blob> getBlob(int columnIndex) = 0;

@@ -52,7 +52,7 @@ void performDatabaseOperations(std::shared_ptr<cpp_dbc::Connection> conn)
         prepStmt->setString(2, "John Doe");
         prepStmt->setDouble(3, 75000.50);
         prepStmt->setString(4, "2023-05-15"); // Date as string
-        int rowsAffected = prepStmt->executeUpdate();
+        auto rowsAffected = prepStmt->executeUpdate();
 
         std::cout << rowsAffected << " row(s) inserted." << std::endl;
 

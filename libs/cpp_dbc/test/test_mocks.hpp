@@ -109,7 +109,7 @@ namespace cpp_dbc_test
     private:
         // Column definitions
         std::vector<std::string> columnNames;
-        std::map<std::string, int> columnMap;
+        std::map<std::string, size_t> columnMap;
 
         // Data storage - vector of rows, each row is a map of column name to value
         std::vector<std::map<std::string, std::string>> rows;
@@ -300,7 +300,7 @@ namespace cpp_dbc_test
             return columnNames;
         }
 
-        int getColumnCount() override
+        size_t getColumnCount() override
         {
             return columnNames.size();
         }

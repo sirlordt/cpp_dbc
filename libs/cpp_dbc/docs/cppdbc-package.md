@@ -167,6 +167,40 @@ cmake --build .
 7. Enhanced stack trace capture and analysis with libdw support
 8. YAML configuration support
 9. Docker container generation with automatic dependency detection
+10. Comprehensive warning flags and compile-time checks for code quality
+
+### Code Quality Features
+
+The library is built with comprehensive warning flags and compile-time checks:
+
+```cmake
+# Warning flags used by the library
+-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused
+-Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef
+-Wpointer-arith -Wcast-align
+```
+
+These warning flags help catch potential issues:
+
+- `-Wall -Wextra -Wpedantic`: Standard warning flags
+- `-Wconversion`: Warns about implicit conversions that may change a value
+- `-Wshadow`: Warns when a variable declaration shadows another variable
+- `-Wcast-qual`: Warns about casts that remove type qualifiers
+- `-Wformat=2`: Enables additional format string checks
+- `-Wunused`: Warns about unused variables and functions
+- `-Werror=return-type`: Treats missing return statements as errors
+- `-Werror=switch`: Treats switch statement issues as errors
+- `-Wdouble-promotion`: Warns about implicit float to double promotions
+- `-Wfloat-equal`: Warns about floating-point equality comparisons
+- `-Wundef`: Warns about undefined identifiers in preprocessor expressions
+- `-Wpointer-arith`: Warns about suspicious pointer arithmetic
+- `-Wcast-align`: Warns about pointer casts that increase alignment requirements
+
+Code quality improvements include:
+- Using m_ prefix for member variables to avoid -Wshadow warnings
+- Adding static_cast<> for numeric conversions to avoid -Wconversion warnings
+- Changing int return types to uint64_t for executeUpdate() methods
+- Improving exception handling to avoid variable shadowing
 
 ## Dependencies
 

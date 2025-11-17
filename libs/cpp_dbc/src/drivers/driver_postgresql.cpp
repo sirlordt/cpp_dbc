@@ -280,7 +280,7 @@ namespace cpp_dbc
             return m_columnNames;
         }
 
-        int PostgreSQLResultSet::getColumnCount()
+        size_t PostgreSQLResultSet::getColumnCount()
         {
             return m_fieldCount;
         }

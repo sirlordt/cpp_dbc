@@ -47,7 +47,7 @@ void printResults(std::shared_ptr<cpp_dbc::ResultSet> rs)
     // Print header
     for (size_t i = 0; i < columnNames.size(); ++i)
     {
-        std::cout << std::setw(columnWidths[i]) << std::left << columnNames[i] << " | ";
+        std::cout << std::setw(static_cast<int>(columnWidths[i])) << std::left << columnNames[i] << " | ";
     }
     std::cout << std::endl;
 
@@ -73,7 +73,7 @@ void printResults(std::shared_ptr<cpp_dbc::ResultSet> rs)
             {
                 value = rs->getString(column);
             }
-            std::cout << std::setw(columnWidths[columnNames.size() - 1]) << std::left << value << " | ";
+            std::cout << std::setw(static_cast<int>(columnWidths[columnNames.size() - 1])) << std::left << value << " | ";
         }
         std::cout << std::endl;
         rowCount++;

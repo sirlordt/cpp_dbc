@@ -13,6 +13,7 @@ CPP_DBC is a C++ Database Connectivity library inspired by Java's JDBC (Java Dat
 5. Provide comprehensive BLOB (Binary Large Object) support for all database systems
 6. Support JSON data types in MySQL and PostgreSQL
 7. Maintain a clean, object-oriented design with proper abstraction layers
+8. Ensure high code quality through comprehensive warning flags and compile-time checks
 
 ## Key Features
 
@@ -23,6 +24,7 @@ CPP_DBC is a C++ Database Connectivity library inspired by Java's JDBC (Java Dat
 - Comprehensive BLOB support with streaming capabilities
 - Native JSON data type support for MySQL and PostgreSQL
 - Support for MySQL, PostgreSQL, and SQLite databases
+- Strict warning flags and compile-time checks for robust code
 
 ## Technical Requirements
 
@@ -31,6 +33,7 @@ CPP_DBC is a C++ Database Connectivity library inspired by Java's JDBC (Java Dat
 - PostgreSQL client library (for PostgreSQL support)
 - SQLite library (for SQLite support)
 - Thread-safe implementation for connection pooling and transaction management
+- Comprehensive warning flags: -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align
 
 ## Project Structure
 

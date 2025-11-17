@@ -308,7 +308,7 @@ namespace cpp_dbc
             return m_columnNames;
         }
 
-        int SQLiteResultSet::getColumnCount()
+        size_t SQLiteResultSet::getColumnCount()
         {
             return m_fieldCount;
         }

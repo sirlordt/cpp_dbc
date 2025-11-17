@@ -39,6 +39,21 @@ These options:
 - Print stack traces for errors
 - Continue execution after errors (don't halt immediately)
 
+## Warning Flags and ASAN Compatibility
+
+The project now uses comprehensive warning flags to improve code quality:
+```
+-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align
+```
+
+When using ASAN with these warning flags, be aware of the following:
+
+1. **Potential Conflicts:** Some warning flags may conflict with ASAN instrumentation, particularly `-Wunused` and `-Wshadow`.
+
+2. **Special Handling for backward.hpp:** The project includes special handling for backward.hpp to silence `-Wundef` warnings, which is important when using ASAN as backward.hpp is used for stack trace capture.
+
+3. **Code Refactoring:** The codebase has been refactored to use `m_` prefix for member variables to avoid `-Wshadow` warnings, which can help reduce false positives in ASAN reports.
+
 ## Usage Recommendations
 
 1. **For Regular Testing:** Use the standard test execution without ASAN
@@ -56,3 +71,9 @@ These options:
    ./libs/cpp_dbc/run_test_cpp_dbc.sh --asan
    ```
    If compilation fails, simply try again or use Valgrind instead.
+
+4. **For Code Quality Checks:** Use the warning flags without ASAN
+   ```
+   ./libs/cpp_dbc/build_test_cpp_dbc.sh
+   ```
+   This will compile with all warning flags but without ASAN instrumentation.

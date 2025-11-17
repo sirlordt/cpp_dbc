@@ -80,7 +80,7 @@ set_source_files_properties(
 )
 
 # Define macros for backward.hpp to silence -Wundef warnings
-target_compile_definitions(cpp_dbc PRIVATE
+target_compile_definitions(cpp_dbc PUBLIC
     BACKWARD_HAS_UNWIND=0
     BACKWARD_HAS_LIBUNWIND=0
     BACKWARD_HAS_BACKTRACE=0

@@ -431,11 +431,11 @@ TEST_CASE("MySQL JSON data type", "[mysql_real_json]")
 
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Laptop");
-            REQUIRE(rs->getDouble("price") == 1200);
+            REQUIRE(std::abs(rs->getDouble("price") - 1200.0) < 0.001);
 
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Smartphone");
-            REQUIRE(rs->getDouble("price") == 800);
+            REQUIRE(std::abs(rs->getDouble("price") - 800.0) < 0.001);
         }
         catch (const cpp_dbc::DBException &e)
         {

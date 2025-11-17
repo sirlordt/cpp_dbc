@@ -74,7 +74,7 @@ namespace cpp_dbc
             bool isNull(const std::string &columnName) override;
 
             std::vector<std::string> getColumnNames() override;
-            int getColumnCount() override;
+            size_t getColumnCount() override;
             virtual void close() override;
 
             // BLOB support methods

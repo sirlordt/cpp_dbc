@@ -88,6 +88,18 @@ git diff -- path/to/file
 git diff commit1..commit2
 ```
 
+### Viewing Changes in Recent Commits
+
+```bash
+git --no-pager diff HEAD~1 HEAD
+```
+
+This command shows the changes between the current commit (HEAD) and the previous commit (HEAD~1). This is particularly useful for:
+- Reviewing recent code quality improvements
+- Verifying warning flag implementations
+- Checking refactoring changes like adding `m_` prefix to member variables
+- Confirming changes to build scripts and CMake files
+
 ### Viewing Changes for Documentation Updates
 
 When updating documentation based on code changes, it's useful to see all staged changes at once:
@@ -103,6 +115,26 @@ This command is particularly helpful when:
 - Documenting new features like BLOB support across multiple files
 - Tracking license header additions to source files
 - Verifying format changes in documentation files
+- Documenting code quality improvements and warning flags
+
+### Analyzing Code Quality Changes
+
+To specifically analyze changes related to code quality improvements:
+
+```bash
+git --no-pager diff HEAD~1 HEAD | grep -E "(-W|-Werror|static_cast|m_[A-Za-z])"
+```
+
+This command filters the diff output to focus on:
+- Warning flag additions (`-W` and `-Werror`)
+- Type conversion improvements (`static_cast`)
+- Member variable renaming with `m_` prefix
+
+This is useful when documenting code quality improvements in:
+- CHANGELOG.md
+- README.md
+- Technical documentation
+- Memory bank files
 
 ## Git Integration with VSCode
 

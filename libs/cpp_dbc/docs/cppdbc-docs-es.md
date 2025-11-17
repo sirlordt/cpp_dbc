@@ -614,6 +614,54 @@ Carga configuraciones de bases de datos desde archivos YAML.
 - CMake 3.15 o posterior
 - Conan para gestión de dependencias
 
+### Advertencias del Compilador y Calidad del Código
+
+La biblioteca cpp_dbc se compila con banderas de advertencia completas y comprobaciones en tiempo de compilación para garantizar una alta calidad del código:
+
+```cmake
+# Banderas de advertencia utilizadas por la biblioteca
+-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused
+-Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef
+-Wpointer-arith -Wcast-align
+```
+
+Estas banderas de advertencia ayudan a detectar posibles problemas:
+
+- `-Wall -Wextra -Wpedantic`: Banderas de advertencia estándar
+- `-Wconversion`: Advierte sobre conversiones implícitas que pueden cambiar un valor
+- `-Wshadow`: Advierte cuando una declaración de variable oculta otra variable
+- `-Wcast-qual`: Advierte sobre conversiones que eliminan calificadores de tipo
+- `-Wformat=2`: Habilita comprobaciones adicionales de cadenas de formato
+- `-Wunused`: Advierte sobre variables y funciones no utilizadas
+- `-Werror=return-type`: Trata las declaraciones de retorno faltantes como errores
+- `-Werror=switch`: Trata los problemas de declaraciones switch como errores
+- `-Wdouble-promotion`: Advierte sobre promociones implícitas de float a double
+- `-Wfloat-equal`: Advierte sobre comparaciones de igualdad de punto flotante
+- `-Wundef`: Advierte sobre identificadores no definidos en expresiones del preprocesador
+- `-Wpointer-arith`: Advierte sobre aritmética de punteros sospechosa
+- `-Wcast-align`: Advierte sobre conversiones de punteros que aumentan los requisitos de alineación
+
+La biblioteca también incluye un manejo especial para backward.hpp para silenciar las advertencias -Wundef:
+
+```cmake
+# Definir macros para backward.hpp para silenciar advertencias -Wundef
+target_compile_definitions(cpp_dbc PUBLIC
+    BACKWARD_HAS_UNWIND=0
+    BACKWARD_HAS_LIBUNWIND=0
+    BACKWARD_HAS_BACKTRACE=0
+    BACKWARD_HAS_BFD=0
+    BACKWARD_HAS_DWARF=0
+    BACKWARD_HAS_BACKTRACE_SYMBOL=0
+    BACKWARD_HAS_PDB_SYMBOL=0
+)
+```
+
+Las mejoras de calidad del código incluyen:
+- Uso del prefijo m_ para variables miembro para evitar advertencias -Wshadow
+- Adición de static_cast<> para conversiones numéricas para evitar advertencias -Wconversion
+- Cambio de tipos de retorno int a uint64_t para métodos executeUpdate()
+- Mejora del manejo de excepciones para evitar el sombreado de variables
+
 ### Compilación con Scripts
 
 La biblioteca proporciona scripts de compilación para simplificar el proceso:

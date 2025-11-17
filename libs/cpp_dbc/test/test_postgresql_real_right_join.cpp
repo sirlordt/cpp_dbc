@@ -250,7 +250,7 @@ TEST_CASE("PostgreSQL RIGHT JOIN operations", "[postgresql_real_right_join]")
             {106, "Keyboard", std::nullopt, std::nullopt},
             {107, "Mouse", std::nullopt, std::nullopt}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -301,7 +301,7 @@ TEST_CASE("PostgreSQL RIGHT JOIN operations", "[postgresql_real_right_join]")
             {"Charlie Davis", "Tablet", 1, 299.99},
             {"John Doe", "Tablet", 2, 599.98}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -348,7 +348,7 @@ TEST_CASE("PostgreSQL RIGHT JOIN operations", "[postgresql_real_right_join]")
             {std::nullopt, "Keyboard", std::nullopt, std::nullopt},
             {std::nullopt, "Mouse", std::nullopt, std::nullopt}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             // Just count the rows and verify basic properties
@@ -399,7 +399,7 @@ TEST_CASE("PostgreSQL RIGHT JOIN operations", "[postgresql_real_right_join]")
             {106, "Keyboard"},
             {107, "Mouse"}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());

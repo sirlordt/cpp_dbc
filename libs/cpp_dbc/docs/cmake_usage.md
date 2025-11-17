@@ -81,6 +81,37 @@ The cpp_dbc library may have been compiled with different options. Depending on 
 
 The CMake configuration file will automatically handle these dependencies.
 
+## Compiler Warnings and Code Quality
+
+The cpp_dbc library is built with comprehensive warning flags and compile-time checks to ensure high code quality:
+
+```cmake
+# Example of adding the same warning flags to your project
+target_compile_options(my_application PRIVATE
+    -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual
+    -Wformat=2 -Wunused -Werror=return-type -Werror=switch
+    -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align
+)
+```
+
+These warning flags help catch potential issues:
+
+- `-Wall -Wextra -Wpedantic`: Standard warning flags
+- `-Wconversion`: Warns about implicit conversions that may change a value
+- `-Wshadow`: Warns when a variable declaration shadows another variable
+- `-Wcast-qual`: Warns about casts that remove type qualifiers
+- `-Wformat=2`: Enables additional format string checks
+- `-Wunused`: Warns about unused variables and functions
+- `-Werror=return-type`: Treats missing return statements as errors
+- `-Werror=switch`: Treats switch statement issues as errors
+- `-Wdouble-promotion`: Warns about implicit float to double promotions
+- `-Wfloat-equal`: Warns about floating-point equality comparisons
+- `-Wundef`: Warns about undefined identifiers in preprocessor expressions
+- `-Wpointer-arith`: Warns about suspicious pointer arithmetic
+- `-Wcast-align`: Warns about pointer casts that increase alignment requirements
+
+When using the cpp_dbc library in your project, it's recommended to enable similar warning flags to maintain code quality and compatibility.
+
 ## Troubleshooting
 
 If you encounter any issues with finding the cpp_dbc library, make sure that:

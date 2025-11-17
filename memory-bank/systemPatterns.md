@@ -10,7 +10,8 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
 4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/` directory and database-specific implementations in the `drivers/` directory
 5. **JSON Layer**: JSON data type support in database-specific implementations in the `drivers/` directory
 6. **Configuration Layer**: Database configuration management in the `include/cpp_dbc/config/` and `src/config/` directories
-7. **Client Application Layer**: User code that interacts with the library
+7. **Code Quality Layer**: Comprehensive warning flags and compile-time checks across all components
+8. **Client Application Layer**: User code that interacts with the library
 
 The architecture follows this flow:
 ```
@@ -20,6 +21,7 @@ Client Application → DriverManager → Driver → Connection → PreparedState
                    → Blob → InputStream/OutputStream
                    → JSON Operations → Database-specific JSON functions
                    → DatabaseConfigManager → DatabaseConfig → Connection
+                   → Code Quality Checks → All Components
 ```
 
 ## Design Patterns
@@ -76,6 +78,8 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 ### Error Handling
 - Custom `SQLException` class for consistent error reporting
 - Exceptions are used for error propagation throughout the library
+- Enhanced `DBException` with stack trace capture and unique error marks
+- Member variables prefixed with `m_` to avoid shadowing issues in exception handling
 
 ### Connection Pooling
 - Configurable connection pool with parameters for initial size, max size, validation, etc.
@@ -111,6 +115,29 @@ Client Application → DriverManager → Driver → Connection → PreparedState
   - PostgreSQL: JSON operators (@>, <@, ?, ?|, ?&), jsonb_set, jsonb_insert
 - Support for indexing JSON fields for performance optimization
 - JSON validation functions for data integrity
+
+### Code Quality Management
+- Comprehensive warning flags for strict compile-time checks:
+  - `-Wall -Wextra -Wpedantic`: Basic warning sets
+  - `-Wconversion`: Warns about implicit type conversions
+  - `-Wshadow`: Warns about variable shadowing
+  - `-Wcast-qual`: Warns about cast that removes type qualifiers
+  - `-Wformat=2`: Warns about printf/scanf format string issues
+  - `-Wunused`: Warns about unused variables and functions
+  - `-Werror=return-type`: Treats missing return statements as errors
+  - `-Werror=switch`: Treats missing switch cases as errors
+  - `-Wdouble-promotion`: Warns about float to double promotions
+  - `-Wfloat-equal`: Warns about floating-point equality comparisons
+  - `-Wundef`: Warns about undefined identifiers in preprocessor
+  - `-Wpointer-arith`: Warns about pointer arithmetic issues
+  - `-Wcast-align`: Warns about pointer cast that increases alignment
+- Special handling for third-party headers:
+  - Custom handling for backward.hpp to silence -Wundef warnings
+- Consistent naming conventions:
+  - Member variables prefixed with `m_` to avoid shadowing issues
+- Type safety improvements:
+  - Using static_cast<> for numeric conversions
+  - Changing int return types to uint64_t for executeUpdate() methods
 
 ## Component Relationships
 
@@ -155,6 +182,7 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 4. Client executes the `PreparedStatement` and gets a `ResultSet`
 5. Client processes the `ResultSet` (including retrieving BLOB or JSON data if needed)
 6. Resources are cleaned up (automatically with smart pointers)
+7. Code quality checks ensure type safety and prevent common C++ issues
 
 ### Connection Pooling Flow
 1. Client requests a connection from the `ConnectionPool`

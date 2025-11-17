@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -246,7 +246,7 @@ TEST_CASE("MySQL RIGHT JOIN operations", "[mysql_real_right_join]")
             {106, "Keyboard", std::nullopt, std::nullopt},
             {107, "Mouse", std::nullopt, std::nullopt}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -298,7 +298,7 @@ TEST_CASE("MySQL RIGHT JOIN operations", "[mysql_real_right_join]")
             {"Charlie Davis", "Tablet", 1, 299.99},
             {"John Doe", "Tablet", 2, 599.98}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -349,7 +349,7 @@ TEST_CASE("MySQL RIGHT JOIN operations", "[mysql_real_right_join]")
             {std::nullopt, "Mouse", std::nullopt, std::nullopt},
             {"Charlie Davis", "Tablet", 1, 299.99},
             {"John Doe", "Tablet", 2, 599.98}};
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             // Verify each row matches the expected results
@@ -397,7 +397,7 @@ TEST_CASE("MySQL RIGHT JOIN operations", "[mysql_real_right_join]")
             {106, "Keyboard"},
             {107, "Mouse"}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -434,7 +434,7 @@ TEST_CASE("MySQL RIGHT JOIN operations", "[mysql_real_right_join]")
         // This should execute but return only NULL values for the left side
         auto rs = conn->executeQuery(query);
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE_FALSE(rs->isNull("product_id"));

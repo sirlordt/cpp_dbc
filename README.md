@@ -28,6 +28,7 @@ This project provides a C++ Database Connectivity library inspired by JDBC, with
 - **Prepared Statements**: Protection against SQL injection
 - **Conditional Compilation**: Build with only the database drivers you need
 - **Modern C++ Design**: Uses C++23 features and RAII principles
+- **Code Quality**: Comprehensive warning flags and compile-time checks for safer, more reliable code
 - **YAML Configuration**: Optional support for loading database configurations from YAML files
 - **BLOB Support**: Complete implementation of Binary Large Object (BLOB) support for all database drivers, including image file storage and retrieval
 - **JSON Support**: Native handling of JSON data types in MySQL and PostgreSQL with comprehensive query capabilities
@@ -90,6 +91,22 @@ The library supports conditional compilation of database drivers and features:
 - `DEBUG_TRANSACTION_MANAGER`: Enable debug output for TransactionManager (OFF by default)
 - `DEBUG_SQLITE`: Enable debug output for SQLite driver (OFF by default)
 - `BACKWARD_HAS_DW`: Enable libdw support for enhanced stack traces (ON by default)
+
+The library also includes comprehensive warning flags and compile-time checks:
+
+- `-Wall -Wextra -Wpedantic`: Standard warning flags
+- `-Wconversion`: Warns about implicit conversions that may change a value
+- `-Wshadow`: Warns when a variable declaration shadows another variable
+- `-Wcast-qual`: Warns about casts that remove type qualifiers
+- `-Wformat=2`: Enables additional format string checks
+- `-Wunused`: Warns about unused variables and functions
+- `-Werror=return-type`: Treats missing return statements as errors
+- `-Werror=switch`: Treats switch statement issues as errors
+- `-Wdouble-promotion`: Warns about implicit float to double promotions
+- `-Wfloat-equal`: Warns about floating-point equality comparisons
+- `-Wundef`: Warns about undefined identifiers in preprocessor expressions
+- `-Wpointer-arith`: Warns about suspicious pointer arithmetic
+- `-Wcast-align`: Warns about pointer casts that increase alignment requirements
 
 ### Using the build scripts
 

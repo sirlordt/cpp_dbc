@@ -421,6 +421,54 @@ Loads database configurations from YAML files.
 - CMake 3.15 or later
 - Conan for dependency management
 
+### Compiler Warnings and Code Quality
+
+The cpp_dbc library is built with comprehensive warning flags and compile-time checks to ensure high code quality:
+
+```cmake
+# Warning flags used by the library
+-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused
+-Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef
+-Wpointer-arith -Wcast-align
+```
+
+These warning flags help catch potential issues:
+
+- `-Wall -Wextra -Wpedantic`: Standard warning flags
+- `-Wconversion`: Warns about implicit conversions that may change a value
+- `-Wshadow`: Warns when a variable declaration shadows another variable
+- `-Wcast-qual`: Warns about casts that remove type qualifiers
+- `-Wformat=2`: Enables additional format string checks
+- `-Wunused`: Warns about unused variables and functions
+- `-Werror=return-type`: Treats missing return statements as errors
+- `-Werror=switch`: Treats switch statement issues as errors
+- `-Wdouble-promotion`: Warns about implicit float to double promotions
+- `-Wfloat-equal`: Warns about floating-point equality comparisons
+- `-Wundef`: Warns about undefined identifiers in preprocessor expressions
+- `-Wpointer-arith`: Warns about suspicious pointer arithmetic
+- `-Wcast-align`: Warns about pointer casts that increase alignment requirements
+
+The library also includes special handling for backward.hpp to silence -Wundef warnings:
+
+```cmake
+# Define macros for backward.hpp to silence -Wundef warnings
+target_compile_definitions(cpp_dbc PUBLIC
+    BACKWARD_HAS_UNWIND=0
+    BACKWARD_HAS_LIBUNWIND=0
+    BACKWARD_HAS_BACKTRACE=0
+    BACKWARD_HAS_BFD=0
+    BACKWARD_HAS_DWARF=0
+    BACKWARD_HAS_BACKTRACE_SYMBOL=0
+    BACKWARD_HAS_PDB_SYMBOL=0
+)
+```
+
+Code quality improvements include:
+- Using m_ prefix for member variables to avoid -Wshadow warnings
+- Adding static_cast<> for numeric conversions to avoid -Wconversion warnings
+- Changing int return types to uint64_t for executeUpdate() methods
+- Improving exception handling to avoid variable shadowing
+
 ### Building with Scripts
 
 The library provides build scripts to simplify the build process:

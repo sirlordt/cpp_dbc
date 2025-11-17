@@ -252,7 +252,7 @@ TEST_CASE("PostgreSQL FULL JOIN operations", "[postgresql_real_full_join]")
             {6, "Eva Wilson", std::nullopt, std::nullopt},
             {7, "Frank Miller", std::nullopt, std::nullopt}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -311,7 +311,7 @@ TEST_CASE("PostgreSQL FULL JOIN operations", "[postgresql_real_full_join]")
             {106, "Keyboard", std::nullopt, std::nullopt},
             {107, "Mouse", std::nullopt, std::nullopt}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -373,7 +373,7 @@ TEST_CASE("PostgreSQL FULL JOIN operations", "[postgresql_real_full_join]")
             {"John Doe", "Laptop", 1, 999.99},
             {"John Doe", "Tablet", 2, 599.98}};
 
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             REQUIRE(rowCount < expectedResults.size());
@@ -446,7 +446,7 @@ TEST_CASE("PostgreSQL FULL JOIN operations", "[postgresql_real_full_join]")
             {"Frank Miller", std::nullopt, std::nullopt, std::nullopt}};
 
         // Count the rows and verify basic properties
-        int rowCount = 0;
+        size_t rowCount = 0;
         while (rs->next())
         {
             // Verify that customer_name is not null when it should have a value
