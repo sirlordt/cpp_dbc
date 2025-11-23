@@ -35,92 +35,40 @@
 #include <chrono>
 #include <iostream>
 #include <fstream>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 #include <yaml-cpp/yaml.h>
+#endif
+#include "test_postgresql_common.hpp"
 
 // Helper function to get the path to the test_db_connections.yml file
 std::string getConfigFilePath();
-
-// Helper function to check if we can connect to PostgreSQL
-static bool canConnectToPostgreSQL()
-{
-#if USE_POSTGRESQL
-    try
-    {
-        // Load the YAML configuration
-        std::string config_path = getConfigFilePath();
-        YAML::Node config = YAML::LoadFile(config_path);
-
-        // Find the dev_postgresql configuration
-        YAML::Node dbConfig;
-        for (size_t i = 0; i < config["databases"].size(); i++)
-        {
-            YAML::Node db = config["databases"][i];
-            if (db["name"].as<std::string>() == "dev_postgresql")
-            {
-                dbConfig = YAML::Node(db);
-                break;
-            }
-        }
-
-        if (!dbConfig.IsDefined())
-        {
-            std::cerr << "PostgreSQL configuration not found in test_db_connections.yml" << std::endl;
-            return false;
-        }
-
-        // Create connection string
-        std::string type = dbConfig["type"].as<std::string>();
-        std::string host = dbConfig["host"].as<std::string>();
-        int port = dbConfig["port"].as<int>();
-        std::string database = dbConfig["database"].as<std::string>();
-        std::string username = dbConfig["username"].as<std::string>();
-        std::string password = dbConfig["password"].as<std::string>();
-
-        std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
-
-        // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
-
-        // Attempt to connect to PostgreSQL
-        std::cout << "Attempting to connect to PostgreSQL with connection string: " << connStr << std::endl;
-        std::cout << "Username: " << username << ", Password: " << password << std::endl;
-
-        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
-
-        // If we get here, the connection was successful
-        std::cout << "PostgreSQL connection successful!" << std::endl;
-
-        // Execute a simple query to verify the connection
-        auto resultSet = conn->executeQuery("SELECT 1 as test_value");
-        bool success = resultSet->next() && resultSet->getInt("test_value") == 1;
-
-        // Close the connection
-        conn->close();
-
-        return success;
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "PostgreSQL connection error: " << e.what() << std::endl;
-        return false;
-    }
-#else
-    std::cerr << "PostgreSQL support is not enabled" << std::endl;
-    return false;
-#endif
-}
 
 #if USE_POSTGRESQL
 // Test case for real PostgreSQL connection
 TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
 {
     // Skip these tests if we can't connect to PostgreSQL
-    if (!canConnectToPostgreSQL())
+    if (!postgresql_test_helpers::canConnectToPostgreSQL())
     {
         SKIP("Cannot connect to PostgreSQL database");
         return;
     }
 
+    // Create connection parameters
+    std::string type = "postgresql";
+    std::string host = "localhost";
+    int port = 5432;
+    std::string database = "postgres";
+    std::string username = "postgres";
+    std::string password = "postgres";
+
+    // Default test queries
+    std::string createTableQuery = "CREATE TABLE test_table (id INT PRIMARY KEY, name VARCHAR(100))";
+    std::string insertDataQuery = "INSERT INTO test_table (id, name) VALUES ($1, $2)";
+    std::string selectDataQuery = "SELECT * FROM test_table WHERE id = $1";
+    std::string dropTableQuery = "DROP TABLE IF EXISTS test_table";
+
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the YAML configuration
     std::string config_path = getConfigFilePath();
     YAML::Node config = YAML::LoadFile(config_path);
@@ -137,22 +85,23 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         }
     }
 
-    // Create connection parameters
-    std::string type = dbConfig["type"].as<std::string>();
-    std::string host = dbConfig["host"].as<std::string>();
-    int port = dbConfig["port"].as<int>();
-    std::string database = dbConfig["database"].as<std::string>();
-    std::string username = dbConfig["username"].as<std::string>();
-    std::string password = dbConfig["password"].as<std::string>();
+    // Create connection parameters from YAML
+    type = dbConfig["type"].as<std::string>();
+    host = dbConfig["host"].as<std::string>();
+    port = dbConfig["port"].as<int>();
+    database = dbConfig["database"].as<std::string>();
+    username = dbConfig["username"].as<std::string>();
+    password = dbConfig["password"].as<std::string>();
+
+    // Get test queries from YAML
+    YAML::Node testQueries = config["test_queries"]["postgresql"];
+    createTableQuery = testQueries["create_table"].as<std::string>();
+    insertDataQuery = testQueries["insert_data"].as<std::string>();
+    selectDataQuery = testQueries["select_data"].as<std::string>();
+    dropTableQuery = testQueries["drop_table"].as<std::string>();
+#endif
 
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
-
-    // Get test queries
-    YAML::Node testQueries = config["test_queries"]["postgresql"];
-    std::string createTableQuery = testQueries["create_table"].as<std::string>();
-    std::string insertDataQuery = testQueries["insert_data"].as<std::string>();
-    std::string selectDataQuery = testQueries["select_data"].as<std::string>();
-    std::string dropTableQuery = testQueries["drop_table"].as<std::string>();
 
     SECTION("Basic PostgreSQL operations")
     {

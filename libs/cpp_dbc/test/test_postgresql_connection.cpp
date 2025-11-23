@@ -19,7 +19,9 @@
 */
 
 #include <catch2/catch_test_macros.hpp>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 #include <yaml-cpp/yaml.h>
+#endif
 #include <cpp_dbc/cpp_dbc.hpp>
 #if USE_POSTGRESQL
 #include <cpp_dbc/drivers/driver_postgresql.hpp>
@@ -38,6 +40,7 @@ TEST_CASE("PostgreSQL connection test", "[postgresql_connection]")
     // Skip this test if PostgreSQL support is not enabled
     SECTION("Test PostgreSQL connection")
     {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
         // Load the YAML configuration
         std::string config_path = getConfigFilePath();
         YAML::Node config = YAML::LoadFile(config_path);
@@ -67,6 +70,15 @@ TEST_CASE("PostgreSQL connection test", "[postgresql_connection]")
         std::string database = dbConfig["database"].as<std::string>();
         std::string username = dbConfig["username"].as<std::string>();
         std::string password = dbConfig["password"].as<std::string>();
+#else
+        // Hardcoded values when YAML is not available
+        std::string type = "postgresql";
+        std::string host = "localhost";
+        int port = 5432;
+        std::string database = "Test01DB";
+        std::string username = "root";
+        std::string password = "dsystems";
+#endif
 
         std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 

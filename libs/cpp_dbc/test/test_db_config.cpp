@@ -19,10 +19,7 @@
 */
 
 #include <catch2/catch_test_macros.hpp>
-#include <yaml-cpp/yaml.h>
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/config/database_config.hpp>
-#include <cpp_dbc/config/yaml_config_loader.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 #include <string>
 #include <fstream>
@@ -33,116 +30,19 @@
 #include <filesystem>
 #include <unistd.h>
 
-#include <unistd.h>
-#include <iostream>
-#include <string>
-#include <vector>
-
+// Forward declaration
 std::string getConfigFilePath();
 
-// Helper function to create a connection string based on database type
-std::string createConnectionString(const YAML::Node &dbConfig)
-{
-    std::string type = dbConfig["type"].as<std::string>();
-    std::string database = dbConfig["database"].as<std::string>();
-
-    // SQLite connection strings are different - they don't have host/port
-    if (type == "sqlite")
-    {
-        return "cpp_dbc:" + type + "://" + database;
-    }
-    else
-    {
-        // MySQL and PostgreSQL connection strings
-        std::string host = dbConfig["host"].as<std::string>();
-        int port = dbConfig["port"].as<int>();
-        return "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
-    }
-}
-
-// Helper class to manage database configurations
-// NOTE: This implementation has been commented out because we should use the one from cpp_dbc/config/database_config.hpp
-// The implementation in cpp_dbc has a bug in the sqlite library handling where it always says host is an invalid node,
-// but we need to use it consistently across the codebase including tests.
-/*
-class DatabaseConfigManager
-{
-private:
-    YAML::Node config;
-
-public:
-    DatabaseConfigManager(const std::string &configPath)
-    {
-        config = YAML::LoadFile(configPath);
-    }
-
-    // Get all database configurations
-    std::vector<YAML::Node> getAllDatabases() const
-    {
-        std::vector<YAML::Node> result;
-        for (size_t i = 0; i < config["databases"].size(); i++)
-        {
-            YAML::Node db = config["databases"][i];
-            result.push_back(YAML::Node(db));
-        }
-        return result;
-    }
-
-    // Get databases of a specific type
-    std::vector<YAML::Node> getDatabasesByType(const std::string &type) const
-    {
-        std::vector<YAML::Node> result;
-        for (size_t i = 0; i < config["databases"].size(); i++)
-        {
-            YAML::Node db = config["databases"][i];
-            if (db["type"].as<std::string>() == type)
-            {
-                result.push_back(YAML::Node(db));
-            }
-        }
-        return result;
-    }
-
-    // Get a database by name
-    YAML::Node getDatabaseByName(const std::string &name) const
-    {
-        for (size_t i = 0; i < config["databases"].size(); i++)
-        {
-            YAML::Node db = config["databases"][i];
-            if (db["name"].as<std::string>() == name)
-            {
-                return YAML::Node(db);
-            }
-        }
-        // Return an undefined node if not found
-        // Using a temporary variable to ensure it's properly undefined
-        YAML::Node undefinedNode;
-        return undefinedNode;
-    }
-
-    // Get connection pool configuration
-    YAML::Node getConnectionPoolConfig(const std::string &name = "default") const
-    {
-        return config["connection_pool"][name];
-    }
-
-    // Get test queries
-    YAML::Node getTestQueries() const
-    {
-        return config["test_queries"];
-    }
-
-    // Get test queries for a specific database type
-    YAML::Node getTestQueriesForType(const std::string &type) const
-    {
-        return config["test_queries"][type];
-    }
-};
-*/
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+#include <cpp_dbc/config/yaml_config_loader.hpp>
+#endif
 
 // Test case to verify that the database configuration file can be loaded
 TEST_CASE("Database configuration loading", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     SECTION("Load database configuration file")
     {
         // Get the path to the configuration file
@@ -153,25 +53,26 @@ TEST_CASE("Database configuration loading", "[db_config]")
         REQUIRE(file.good());
         file.close();
 
-        // Load the YAML file
-        YAML::Node config = YAML::LoadFile(config_path);
+        // Load the YAML file using YamlConfigLoader
+        cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
         // Verify that the configuration contains the expected sections
-        REQUIRE(config["databases"]);
-        REQUIRE(config["connection_pool"]);
-        REQUIRE(config["test_queries"]);
-
-        // Verify that databases is a sequence
-        REQUIRE(config["databases"].IsSequence());
+        REQUIRE(configManager.getAllDatabases().size() > 0);
+        REQUIRE(configManager.getConnectionPoolConfig("default").has_value());
+        REQUIRE(!configManager.getTestQueries().getQueriesForType("mysql").empty());
 
         // Verify that we have at least one database configuration
-        REQUIRE(config["databases"].size() > 0);
+        REQUIRE(configManager.getAllDatabases().size() > 0);
     }
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 // Test case to verify database configurations
 TEST_CASE("Database configurations", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
 
@@ -277,11 +178,15 @@ TEST_CASE("Database configurations", "[db_config]")
         REQUIRE(std::find(dbNames.begin(), dbNames.end(), "test_sqlite") != dbNames.end());
         REQUIRE(std::find(dbNames.begin(), dbNames.end(), "prod_sqlite") != dbNames.end());
     }
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 // Test case to verify specific database configurations
 TEST_CASE("Specific database configurations", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
 
@@ -343,11 +248,15 @@ TEST_CASE("Specific database configurations", "[db_config]")
         // Check that the database was not found
         REQUIRE(!nonExistentDBOpt.has_value());
     }
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 // Test case to verify specific SQLite database configurations
 TEST_CASE("Specific SQLite database configurations", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
 
@@ -408,11 +317,15 @@ TEST_CASE("Specific SQLite database configurations", "[db_config]")
         REQUIRE(prodSQLite.getOption("journal_mode") == "WAL");
         REQUIRE(prodSQLite.getOption("synchronous") == "FULL");
     }
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 // Test case to verify connection pool configurations
 TEST_CASE("Connection pool configurations", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
 
@@ -451,11 +364,15 @@ TEST_CASE("Connection pool configurations", "[db_config]")
         REQUIRE(highPerfPool.getIdleTimeout() == 30000);
         REQUIRE(highPerfPool.getValidationInterval() == 15000);
     }
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 // Test case to verify test queries
 TEST_CASE("Test queries", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
 
@@ -514,11 +431,15 @@ TEST_CASE("Test queries", "[db_config]")
         REQUIRE(sqliteQueries["insert_data"].find("?") != std::string::npos);
         REQUIRE(sqliteQueries["select_data"].find("?") != std::string::npos);
     }
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 // Example of how to use the configuration to create connection strings
 TEST_CASE("Create connection strings from configuration", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
 
@@ -556,20 +477,27 @@ TEST_CASE("Create connection strings from configuration", "[db_config]")
 
         // In a real application, you would use these connection strings with DriverManager:
         // for (const auto& [dbName, connStr] : connectionStrings) {
-        //     YAML::Node db = configManager.getDatabaseByName(dbName);
-        //     auto conn = cpp_dbc::DriverManager::getConnection(
-        //         connStr,
-        //         db["username"].as<std::string>(),
-        //         db["password"].as<std::string>()
-        //     );
-        //     // Use the connection...
+        //     auto dbConfigOpt = configManager.getDatabaseByName(dbName);
+        //     if (dbConfigOpt.has_value()) {
+        //         const auto& dbConfig = dbConfigOpt->get();
+        //         auto conn = cpp_dbc::DriverManager::getConnection(
+        //             connStr,
+        //             dbConfig.getUsername(),
+        //             dbConfig.getPassword()
+        //         );
+        //         // Use the connection...
+        //     }
         // }
     }
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 // Test database configurations for different environments and types
 TEST_CASE("Select MySQL database for dev environment", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "dev_mysql";
@@ -596,10 +524,14 @@ TEST_CASE("Select MySQL database for dev environment", "[db_config]")
 
     REQUIRE(username == "root");
     REQUIRE(password == "dsystems");
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 TEST_CASE("Select MySQL database for test environment", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "test_mysql";
@@ -616,10 +548,14 @@ TEST_CASE("Select MySQL database for test environment", "[db_config]")
     // Create connection string
     std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr.find("cpp_dbc:mysql://") == 0);
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 TEST_CASE("Select MySQL database for prod environment", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "prod_mysql";
@@ -636,10 +572,14 @@ TEST_CASE("Select MySQL database for prod environment", "[db_config]")
     // Create connection string
     std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr.find("cpp_dbc:mysql://") == 0);
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 TEST_CASE("Select PostgreSQL database for dev environment", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "dev_postgresql";
@@ -656,10 +596,14 @@ TEST_CASE("Select PostgreSQL database for dev environment", "[db_config]")
     // Create connection string
     std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr.find("cpp_dbc:postgresql://") == 0);
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 TEST_CASE("Select PostgreSQL database for test environment", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "test_postgresql";
@@ -676,10 +620,14 @@ TEST_CASE("Select PostgreSQL database for test environment", "[db_config]")
     // Create connection string
     std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr.find("cpp_dbc:postgresql://") == 0);
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 TEST_CASE("Select PostgreSQL database for prod environment", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "prod_postgresql";
@@ -696,10 +644,14 @@ TEST_CASE("Select PostgreSQL database for prod environment", "[db_config]")
     // Create connection string
     std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr.find("cpp_dbc:postgresql://") == 0);
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 TEST_CASE("Select SQLite database for dev environment", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "dev_sqlite";
@@ -716,10 +668,14 @@ TEST_CASE("Select SQLite database for dev environment", "[db_config]")
     // Create connection string
     std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr == "cpp_dbc:sqlite://:memory:");
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 TEST_CASE("Select SQLite database for test environment", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "test_sqlite";
@@ -736,10 +692,14 @@ TEST_CASE("Select SQLite database for test environment", "[db_config]")
     // Create connection string
     std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr == "cpp_dbc:sqlite://test_sqlite.db");
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 TEST_CASE("Select SQLite database for prod environment", "[db_config]")
 {
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
     std::string dbName = "prod_sqlite";
@@ -756,4 +716,5 @@ TEST_CASE("Select SQLite database for prod environment", "[db_config]")
     // Create connection string
     std::string connStr = dbConfig.createConnectionString();
     REQUIRE(connStr == "cpp_dbc:sqlite:///path/to/production.db");
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }

@@ -18,6 +18,7 @@ USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
 BUILD_EXAMPLES=OFF
+BUILD_BENCHMARKS=OFF
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
@@ -56,6 +57,9 @@ do
         --examples)
         BUILD_EXAMPLES=ON
         ;;
+        --benchmarks)
+        BUILD_BENCHMARKS=ON
+        ;;
         --clean)
         # Clean build directories before building
         echo "Cleaning build directories..."
@@ -93,6 +97,7 @@ do
         echo "  --release              Build in Release mode (default: Debug)"
         echo "  --test                 Build cpp_dbc tests"
         echo "  --examples             Build cpp_dbc examples"
+        echo "  --benchmarks           Build cpp_dbc benchmarks"
         echo "  --debug-pool           Enable debug output for ConnectionPool"
         echo "  --debug-txmgr          Enable debug output for TransactionManager"
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
@@ -112,6 +117,7 @@ export USE_CPP_YAML
 export BUILD_TYPE
 export BUILD_TESTS
 export BUILD_EXAMPLES
+export BUILD_BENCHMARKS
 export DEBUG_CONNECTION_POOL
 export DEBUG_TRANSACTION_MANAGER
 export DEBUG_SQLITE
@@ -157,6 +163,13 @@ else
     BUILD_EXAMPLES_PARAM=""
 fi
 
+# Pass the build benchmarks option to the cpp_dbc build script
+if [ "$BUILD_BENCHMARKS" = "ON" ]; then
+    BUILD_BENCHMARKS_PARAM="--benchmarks"
+else
+    BUILD_BENCHMARKS_PARAM=""
+fi
+
 # Pass the YAML support option to the cpp_dbc build script
 if [ "$USE_CPP_YAML" = "ON" ]; then
     YAML_PARAM="--yaml"
@@ -183,8 +196,9 @@ if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
     DEBUG_PARAMS="$DEBUG_PARAMS --dw-off"
 fi
 
+echo "$0 >= Running ./libs/cpp_dbc/build_cpp_dbc.sh "
 # Build the cpp_dbc library
-./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM $DEBUG_PARAMS
+./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM $BUILD_BENCHMARKS_PARAM $DEBUG_PARAMS
 
 # If the cpp_dbc build script fails, stop the build process
 if [ $? -ne 0 ]; then
@@ -218,6 +232,7 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
          -DUSE_MYSQL=$USE_MYSQL \
          -DUSE_POSTGRESQL=$USE_POSTGRESQL \
          -DUSE_SQLITE=$USE_SQLITE \
+         -DUSE_CPP_YAML=$USE_CPP_YAML \
          -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc \
          -Wno-dev
 
@@ -243,6 +258,7 @@ echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
 echo "  Build examples: $BUILD_EXAMPLES"
+echo "  Build benchmarks: $BUILD_BENCHMARKS"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"

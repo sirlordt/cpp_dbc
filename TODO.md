@@ -5,7 +5,6 @@
 - Analize the use of raw pointer in diferent class
   They are really safe?
   We need wrap in unique_ptr/shared_ptr with custom destruction functions?
-- NEW FEATURE: Add benchmarks to 10 100 1000 10000 and 100000 rows. In insert/Delete/Update/Select Operations
 - NEW FEATURE: Add more examples.
 - NEW FEATURE: Add more debug messages?
 - PLANNED: Start to using in real proyect and test how ease is integrate in third party project. Maybe write a INTERGRATION.md to explain how full integrate in a real project.
@@ -20,6 +19,12 @@
 
 ## Completed Tasks
 
+- NEW FEATURE: Add benchmarks to 10 100 1000 10000 rows in Insert/Delete/Update/Select Operations
+  - Implemented in benchmark directory with files for all database drivers
+  - Added benchmark_main.cpp with common benchmark setup
+  - Added benchmark files for MySQL, PostgreSQL, and SQLite operations
+  - Added support for different data sizes (10, 100, 1000, and 10000 rows)
+  - Added `--benchmarks` option to build.sh and `--run-benchmarks` option to helper.sh
 - Activate ALL possible warnings and compile time checks
   - Implemented in build_cpp_dbc.sh and build_test_cpp_dbc.sh with flags -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align
   - Added definitions for backward.hpp to silence -Wundef warnings

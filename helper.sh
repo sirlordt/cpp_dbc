@@ -54,12 +54,12 @@ show_usage() {
   echo "  --run-build              Build via ./build.sh, logs to build/run-build-<timestamp>.log"
   echo "  --run-build=OPTIONS      Build with comma-separated options"
   echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off,benchmarks"
   echo "                           Example: --run-build=clean,sqlite,yaml,test,debug-pool"
   echo "  --run-build-dist         Build via ./build.dist.sh, logs to build/run-build-dist-<timestamp>.log"
   echo "  --run-build-dist=OPTIONS Build dist with comma-separated options"
   echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off,benchmarks"
   echo "                           Example: --run-build-dist=clean,sqlite,yaml,test,debug-sqlite"
   echo "  --check-test-log         Check the most recent test log file in logs/test/ for failures and memory issues"
   echo "  --check-test-log=PATH    Check the specified test log file for failures and memory issues"
@@ -76,6 +76,14 @@ show_usage() {
   echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3,test=integration+mysql_real_right_join"
   echo "                           Example: --run-test=rebuild,sqlite,debug-pool,debug-sqlite,test=integration"
   echo "                           Note: Multiple test tags can be specified using + as separator after test="
+  echo "  --run-benchmarks         Run the benchmarks"
+  echo "  --run-benchmarks=OPTIONS Run benchmarks with comma-separated options"
+  echo "                           Available options: clean,release,rebuild,sqlite,mysql,mysql-off,postgres,"
+  echo "                                              yaml,benchmark=Tag1+Tag2+Tag3"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off"
+  echo "                           Example: --run-benchmarks=mysql,postgresql"
+  echo "                           Example: --run-benchmarks=benchmark=update+postgresql"
+  echo "                           Note: Multiple benchmark tags can be specified using + as separator after benchmark="
   echo "  --ldd-bin-ctr [name]     Run ldd on the executable inside the container"
   echo "  --ldd-build-bin          Run ldd on the final local build/ executable"
   echo "  --run-build-bin          Run the final local build/ executable"
@@ -175,6 +183,10 @@ cmd_run_build() {
       test)
         build_cmd="$build_cmd --test"
         echo "Building tests"
+        ;;
+      benchmarks)
+        build_cmd="$build_cmd --benchmarks"
+        echo "Building benchmarks"
         ;;
       examples)
         build_cmd="$build_cmd --examples"
@@ -314,6 +326,9 @@ cmd_run_test() {
         yaml)
           run_test_cmd="$run_test_cmd --yaml"
           ;;
+        yaml-off)
+          run_test_cmd="$run_test_cmd --yaml-off"
+          ;;
         auto)
           run_test_cmd="$run_test_cmd --auto"
           ;;
@@ -342,6 +357,10 @@ cmd_run_test() {
           run_test_cmd="$run_test_cmd --debug-all"
           echo "Enabling all debug output"
           ;;
+        dw-off)
+          run_test_cmd="$run_test_cmd --dw-off"
+          echo "Disabling libdw support for stack traces"
+          ;;
         release)
           run_test_cmd="$run_test_cmd --release"
           echo "Building in release mode"
@@ -360,7 +379,7 @@ cmd_run_test() {
     echo "Setting test tags to: $test_tags"
   fi
   
-  echo "Running: $run_test_cmd"
+  echo "$0 => running: $run_test_cmd"
   
   # Check if terminal supports colors
   if check_color_support; then
@@ -713,6 +732,143 @@ cmd_check_test_log() {
   # Return success regardless of whether issues were found
   # The found_issues flag can be used in the future if needed
   return 0
+}
+
+# Function to run benchmarks
+cmd_run_benchmarks() {
+  local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
+  # Get current directory
+  local current_dir=$(pwd)
+  # Ensure the benchmark log directory exists
+  mkdir -p "${current_dir}/logs/benchmark"
+  local log_file="${current_dir}/logs/benchmark/output-${ts}.log"
+  echo "Running benchmarks. Output logging to $log_file."
+  
+  # Clean up old logs in the benchmark directory, keeping the 4 most recent
+  cleanup_old_logs "${current_dir}/logs/benchmark" 4
+  
+  # Build command with options
+  local run_benchmark_cmd="./libs/cpp_dbc/run_benchmarks_cpp_dbc.sh"
+  
+  # First, extract all benchmark tags from the options string
+  local benchmark_tags=""
+  if [[ "$BENCHMARK_OPTIONS" =~ benchmark= ]]; then
+    # Extract everything after benchmark= up to the next option with =
+    local benchmark_part=$(echo "$BENCHMARK_OPTIONS" | grep -o "benchmark=[^=]*" | sed 's/,.*//')
+    
+    # If there are plus signs after benchmark=, we need to handle them specially
+    if [[ "$BENCHMARK_OPTIONS" =~ benchmark=([^,]+) ]]; then
+      # Get everything after benchmark= up to the next option with =
+      local full_benchmark_part=$(echo "$BENCHMARK_OPTIONS" | grep -o "benchmark=[^=]*" | sed 's/,run=.*//')
+      # Remove the "benchmark=" prefix
+      benchmark_tags="${full_benchmark_part#benchmark=}"
+    else
+      # Simple case - just one tag
+      benchmark_tags="${benchmark_part#benchmark=}"
+    fi
+    
+    # Remove benchmark tags and any following benchmark tags from the options string
+    BENCHMARK_OPTIONS=$(echo "$BENCHMARK_OPTIONS" | sed -E "s/benchmark=[^,]+//g")
+    # Clean up any double commas that might have been created
+    BENCHMARK_OPTIONS=$(echo "$BENCHMARK_OPTIONS" | sed -E "s/,,/,/g")
+    # Remove trailing comma if present
+    BENCHMARK_OPTIONS=$(echo "$BENCHMARK_OPTIONS" | sed -E "s/,$//g")
+    
+    echo "Debug: Extracted benchmark tags: '$benchmark_tags'"
+    echo "Debug: Remaining options: '$BENCHMARK_OPTIONS'"
+  fi
+  
+  # Process remaining comma-separated options
+  if [ -n "$BENCHMARK_OPTIONS" ]; then
+    # Split by comma
+    IFS=',' read -ra OPTIONS <<< "$BENCHMARK_OPTIONS"
+    
+    # Check for specific database options
+    for opt in "${OPTIONS[@]}"; do
+      # Skip empty options
+      if [[ -z "$opt" ]]; then
+        continue
+      fi
+      
+      case "$opt" in
+        mysql)
+          run_benchmark_cmd="$run_benchmark_cmd --mysql"
+          echo "Running MySQL benchmarks only"
+          ;;
+        postgres)
+          run_benchmark_cmd="$run_benchmark_cmd --postgresql"
+          echo "Running PostgreSQL benchmarks only"
+          ;;
+        sqlite)
+          run_benchmark_cmd="$run_benchmark_cmd --sqlite"
+          echo "Running SQLite benchmarks only"
+          ;;
+        clean)
+          run_benchmark_cmd="$run_benchmark_cmd --clean"
+          echo "Cleaning build directories"
+          ;;
+        rebuild)
+          run_benchmark_cmd="$run_benchmark_cmd --rebuild"
+          ;;
+        release)
+          run_benchmark_cmd="$run_benchmark_cmd --release"
+          echo "Building in release mode"
+          ;;
+        yaml)
+          run_benchmark_cmd="$run_benchmark_cmd --yaml"
+          echo "Enabling YAML support"
+          ;;
+        debug-pool)
+          run_benchmark_cmd="$run_benchmark_cmd --debug-pool"
+          echo "Enabling debug output for ConnectionPool"
+          ;;
+        debug-txmgr)
+          run_benchmark_cmd="$run_benchmark_cmd --debug-txmgr"
+          echo "Enabling debug output for TransactionManager"
+          ;;
+        debug-sqlite)
+          run_benchmark_cmd="$run_benchmark_cmd --debug-sqlite"
+          echo "Enabling debug output for SQLite driver"
+          ;;
+        debug-all)
+          run_benchmark_cmd="$run_benchmark_cmd --debug-all"
+          echo "Enabling all debug output"
+          ;;
+        dw-off)
+          run_benchmark_cmd="$run_benchmark_cmd --dw-off"
+          echo "Disabling libdw support for stack traces"
+          ;;
+        *)
+          echo "Warning: Unknown benchmark option: $opt"
+          ;;
+      esac
+    done
+  else
+    echo "Running all benchmarks"
+  fi
+  
+  # Add the benchmark tags if they exist
+  if [ -n "$benchmark_tags" ]; then
+    echo "Debug: Final benchmark tags: '$benchmark_tags'"
+    run_benchmark_cmd="$run_benchmark_cmd --run-benchmark=$benchmark_tags"
+    echo "Setting benchmark tags to: $benchmark_tags"
+  fi
+  
+  echo "Running: $run_benchmark_cmd"
+  
+  # Check if terminal supports colors
+  if check_color_support; then
+    # Run with colors in terminal but without colors in log file
+    # Use unbuffer to preserve colors in terminal output and sed to strip ANSI color codes from log file
+    unbuffer $run_benchmark_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+  else
+    # Terminal doesn't support colors, just run normally and strip any color codes that might be present
+    $run_benchmark_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+  fi
+  
+  echo ""
+  echo "Command runned: $run_benchmark_cmd"
+  echo "Log file: $log_file."
 }
 
 get_bin_name() {
@@ -1130,6 +1286,13 @@ while [ $i -lt ${#args[@]} ]; do
       ;;
     --check-test-log)
       cmd_check_test_log "" || exit_code=$?
+      ;;
+    --run-benchmarks=*)
+      BENCHMARK_OPTIONS="${args[$i]#*=}"
+      cmd_run_benchmarks
+      ;;
+    --run-benchmarks)
+      cmd_run_benchmarks
       ;;
     *)
       echo "Unknown option: ${args[$i]}"

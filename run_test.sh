@@ -26,12 +26,14 @@ set -e  # Exit on error
 #   --debug-txmgr          Enable debug output for TransactionManager
 #   --debug-sqlite         Enable debug output for SQLite driver
 #   --debug-all            Enable all debug output
+#   --dw-off               Disable libdw support for stack traces
 #   --help                 Show this help message
 
 # Default values for options
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
+USE_YAML=ON
 BUILD_TYPE=Debug
 ASAN_OPTIONS=""
 ENABLE_ASAN=false
@@ -45,6 +47,7 @@ RUN_SPECIFIC_TEST=""
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DW_OFF=false
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -149,6 +152,10 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             shift
             ;;
+        --dw-off)
+            DW_OFF=true
+            shift
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
@@ -174,6 +181,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-all            Enable all debug output"
+            echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --help                 Show this help message"
             exit 0
             ;;
@@ -204,6 +212,8 @@ if [ ! -f "$MAIN_EXECUTABLE" ]; then
     # Pass the same database options to build.sh
     if [ "$USE_MYSQL" = "OFF" ]; then
         BUILD_CMD="$BUILD_CMD --mysql-off"
+    else
+        BUILD_CMD="$BUILD_CMD --mysql"
     fi
     
     if [ "$USE_POSTGRESQL" = "ON" ]; then
@@ -216,6 +226,8 @@ if [ ! -f "$MAIN_EXECUTABLE" ]; then
     
     if [ "$USE_YAML" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --yaml"
+    else 
+        BUILD_CMD="$BUILD_CMD --yaml-off"
     fi
     
     if [ "$BUILD_TYPE" = "Release" ]; then
@@ -225,7 +237,7 @@ if [ ! -f "$MAIN_EXECUTABLE" ]; then
     # Always include --test to ensure tests are built
     BUILD_CMD="$BUILD_CMD --test"
     
-    echo "Running build command: $BUILD_CMD"
+    echo "$0 => Running build command: $BUILD_CMD"
     $BUILD_CMD
     
     # Check if build was successful
@@ -276,6 +288,8 @@ fi
 
 if [ "$USE_YAML" = "ON" ]; then
     CMD="$CMD --yaml-on"
+else
+    CMD="$CMD --yaml-off"
 fi
 
 if [ "$AUTO_MODE" = true ]; then
@@ -329,6 +343,11 @@ fi
 
 if [ "$DEBUG_SQLITE" = "ON" ]; then
     CMD="$CMD --debug-sqlite"
+fi
+
+# Add dw-off option if specified
+if [ "$DW_OFF" = true ]; then
+    CMD="$CMD --dw-off"
 fi
 
 # Execute the command

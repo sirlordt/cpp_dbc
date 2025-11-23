@@ -19,7 +19,9 @@
 */
 
 #include <catch2/catch_test_macros.hpp>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 #include <yaml-cpp/yaml.h>
+#endif
 #include <cpp_dbc/cpp_dbc.hpp>
 #include "test_mocks.hpp"
 #if USE_MYSQL
@@ -35,6 +37,7 @@
 // Helper function to get the path to the test_db_connections.yml file
 std::string getConfigFilePath();
 
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 // Helper function to get database configuration from YAML
 YAML::Node getDbConfig(const std::string &dbName)
 {
@@ -71,6 +74,25 @@ std::string getConnectionString(const YAML::Node &dbConfig)
 
     return "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 }
+#else
+// Helper function to get database configuration when YAML is disabled
+std::string getConnectionString(const std::string &dbType)
+{
+    if (dbType == "mysql")
+    {
+        return "cpp_dbc:mysql://localhost:3306/Test01DB";
+    }
+    else if (dbType == "postgresql")
+    {
+        return "cpp_dbc:postgresql://localhost:5432/postgres";
+    }
+    else if (dbType == "sqlite")
+    {
+        return "cpp_dbc:sqlite://:memory:";
+    }
+    return "";
+}
+#endif
 
 // Test case for TransactionIsolationLevel enum
 TEST_CASE("TransactionIsolationLevel enum tests", "[transaction][isolation]")
@@ -185,6 +207,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         // This test is marked as !mayfail because it requires a real MySQL connection
         try
         {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Get MySQL configuration
             YAML::Node dbConfig = getDbConfig("dev_mysql");
             if (!dbConfig.IsDefined())
@@ -197,6 +220,12 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
             std::string connStr = getConnectionString(dbConfig);
             std::string username = dbConfig["username"].as<std::string>();
             std::string password = dbConfig["password"].as<std::string>();
+#else
+            // Default connection parameters when YAML is disabled
+            std::string connStr = getConnectionString("mysql");
+            std::string username = "root";
+            std::string password = "dsystems";
+#endif
 
             // Try to connect to a local MySQL server
             auto conn = driver.connect(connStr, username, password);
@@ -236,6 +265,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
 
         try
         {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Get MySQL configuration
             YAML::Node dbConfig = getDbConfig("dev_mysql");
             if (!dbConfig.IsDefined())
@@ -248,6 +278,12 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
             std::string connStr = getConnectionString(dbConfig);
             std::string username = dbConfig["username"].as<std::string>();
             std::string password = dbConfig["password"].as<std::string>();
+#else
+            // Default connection parameters when YAML is disabled
+            std::string connStr = getConnectionString("mysql");
+            std::string username = "root";
+            std::string password = "dsystems";
+#endif
 
             // Create a test table
             auto setupConn = driver.connect(connStr, username, password);
@@ -300,6 +336,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
 
         try
         {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Get MySQL configuration
             YAML::Node dbConfig = getDbConfig("dev_mysql");
             if (!dbConfig.IsDefined())
@@ -312,6 +349,12 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
             std::string connStr = getConnectionString(dbConfig);
             std::string username = dbConfig["username"].as<std::string>();
             std::string password = dbConfig["password"].as<std::string>();
+#else
+            // Default connection parameters when YAML is disabled
+            std::string connStr = getConnectionString("mysql");
+            std::string username = "root";
+            std::string password = "dsystems";
+#endif
 
             // Create a test table
             auto setupConn = driver.connect(connStr, username, password);
@@ -371,6 +414,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
 
         try
         {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Get MySQL configuration
             YAML::Node dbConfig = getDbConfig("dev_mysql");
             if (!dbConfig.IsDefined())
@@ -383,6 +427,12 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
             std::string connStr = getConnectionString(dbConfig);
             std::string username = dbConfig["username"].as<std::string>();
             std::string password = dbConfig["password"].as<std::string>();
+#else
+            // Default connection parameters when YAML is disabled
+            std::string connStr = getConnectionString("mysql");
+            std::string username = "root";
+            std::string password = "dsystems";
+#endif
 
             // Create a test table
             auto setupConn = driver.connect(connStr, username, password);
@@ -435,6 +485,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
 
         try
         {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Get MySQL configuration
             YAML::Node dbConfig = getDbConfig("dev_mysql");
             if (!dbConfig.IsDefined())
@@ -447,6 +498,12 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
             std::string connStr = getConnectionString(dbConfig);
             std::string username = dbConfig["username"].as<std::string>();
             std::string password = dbConfig["password"].as<std::string>();
+#else
+            // Default connection parameters when YAML is disabled
+            std::string connStr = getConnectionString("mysql");
+            std::string username = "root";
+            std::string password = "dsystems";
+#endif
 
             // Create a test table
             auto setupConn = driver.connect(connStr, username, password);
@@ -525,6 +582,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         // This test is marked as !mayfail because it requires a real PostgreSQL connection
         try
         {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Get PostgreSQL configuration
             YAML::Node dbConfig = getDbConfig("dev_postgresql");
             if (!dbConfig.IsDefined())
@@ -537,6 +595,12 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             std::string connStr = getConnectionString(dbConfig);
             std::string username = dbConfig["username"].as<std::string>();
             std::string password = dbConfig["password"].as<std::string>();
+#else
+            // Default connection parameters when YAML is disabled
+            std::string connStr = getConnectionString("postgresql");
+            std::string username = "postgres";
+            std::string password = "postgres";
+#endif
 
             // Try to connect to a local PostgreSQL server
             auto conn = driver.connect(connStr, username, password);
@@ -591,6 +655,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
 
         try
         {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the YAML configuration
             std::string config_path = getConfigFilePath();
             YAML::Node config = YAML::LoadFile(config_path);
@@ -617,6 +682,12 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             std::string connStr = getConnectionString(dbConfig);
             std::string username = dbConfig["username"].as<std::string>();
             std::string password = dbConfig["password"].as<std::string>();
+#else
+            // Default connection parameters when YAML is disabled
+            std::string connStr = getConnectionString("postgresql");
+            std::string username = "postgres";
+            std::string password = "postgres";
+#endif
 
             // Create a test table
             auto setupConn = driver.connect(connStr, username, password);
@@ -676,6 +747,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
 
         try
         {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the YAML configuration
             std::string config_path = getConfigFilePath();
             YAML::Node config = YAML::LoadFile(config_path);
@@ -702,6 +774,12 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             std::string connStr = getConnectionString(dbConfig);
             std::string username = dbConfig["username"].as<std::string>();
             std::string password = dbConfig["password"].as<std::string>();
+#else
+            // Default connection parameters when YAML is disabled
+            std::string connStr = getConnectionString("postgresql");
+            std::string username = "postgres";
+            std::string password = "postgres";
+#endif
 
             // Create a test table
             auto setupConn = driver.connect(connStr, username, password);
@@ -754,6 +832,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
 
         try
         {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Setup
             YAML::Node dbConfig = getDbConfig("dev_postgresql");
             if (!dbConfig.IsDefined())
@@ -765,6 +844,12 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             std::string connStr = getConnectionString(dbConfig);
             std::string username = dbConfig["username"].as<std::string>();
             std::string password = dbConfig["password"].as<std::string>();
+#else
+            // Default connection parameters when YAML is disabled
+            std::string connStr = getConnectionString("postgresql");
+            std::string username = "postgres";
+            std::string password = "postgres";
+#endif
 
             // Create test table
             auto setupConn = driver.connect(connStr, username, password);

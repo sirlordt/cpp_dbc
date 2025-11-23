@@ -19,7 +19,7 @@
 */
 
 // This file should only be compiled if USE_CPP_YAML is defined
-#ifdef USE_CPP_YAML
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 
 #include <cpp_dbc/config/yaml_config_loader.hpp>
 #include <yaml-cpp/yaml.h>
@@ -266,4 +266,4 @@ namespace cpp_dbc
     } // namespace config
 } // namespace cpp_dbc
 
-#endif // USE_CPP_YAML
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1

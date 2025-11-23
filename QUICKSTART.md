@@ -149,6 +149,36 @@ The test log analysis feature checks for:
 - Memory leaks from Valgrind output
 - Valgrind errors from ERROR SUMMARY
 
+### Benchmark Operations
+
+```bash
+# Build with benchmarks enabled
+./helper.sh --run-build=benchmarks
+
+# Run all benchmarks
+./helper.sh --run-benchmarks
+
+# Run only MySQL benchmarks
+./helper.sh --run-benchmarks=mysql
+
+# Run only PostgreSQL benchmarks
+./helper.sh --run-benchmarks=postgresql
+
+# Run only SQLite benchmarks
+./helper.sh --run-benchmarks=sqlite
+
+# Run MySQL and PostgreSQL benchmarks
+./helper.sh --run-benchmarks=mysql+postgresql
+
+# Run specific benchmark tags
+./helper.sh --run-benchmarks=benchmark=update+postgresql
+
+# Run benchmarks with rebuild
+./helper.sh --run-benchmarks=rebuild,mysql,postgresql
+```
+
+All benchmark output is automatically logged to files in the `logs/benchmark/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
+
 ### Container Operations
 
 ```bash

@@ -19,8 +19,11 @@
 */
 
 #include <catch2/catch_test_macros.hpp>
-#include <yaml-cpp/yaml.h>
 #include <string>
+
+// Only include yaml-cpp if USE_CPP_YAML is defined
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+#include <yaml-cpp/yaml.h>
 
 // Test case to verify that yaml-cpp can be used
 TEST_CASE("Basic YAML operations", "[yaml]")
@@ -65,3 +68,10 @@ TEST_CASE("Basic YAML operations", "[yaml]")
         REQUIRE(parsed["credentials"]["password"].as<std::string>() == "pass");
     }
 }
+#else
+// Test case to verify that yaml-cpp can be used
+TEST_CASE("Basic YAML operations", "[yaml]")
+{
+    SKIP("YAML support is disabled");
+}
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1

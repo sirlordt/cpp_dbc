@@ -13,6 +13,7 @@ USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
 BUILD_EXAMPLES=OFF
+BUILD_BENCHMARKS=OFF
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
@@ -50,6 +51,10 @@ do
         USE_CPP_YAML=ON
         shift
         ;;
+        --yaml-off)
+        USE_CPP_YAML=OFF
+        shift
+        ;;
         --debug)
         BUILD_TYPE=Debug
         shift
@@ -66,8 +71,8 @@ do
         BUILD_EXAMPLES=ON
         shift
         ;;
-        --examples)
-        BUILD_EXAMPLES=ON
+        --benchmarks)
+        BUILD_BENCHMARKS=ON
         shift
         ;;
         --debug-pool)
@@ -106,6 +111,7 @@ do
         echo "  --release              Build in Release mode"
         echo "  --test                 Build cpp_dbc tests"
         echo "  --examples             Build cpp_dbc examples"
+        echo "  --benchmarks           Build cpp_dbc benchmarks"
         echo "  --debug-pool           Enable debug output for ConnectionPool"
         echo "  --debug-txmgr          Enable debug output for TransactionManager"
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
@@ -126,6 +132,7 @@ echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
 echo "  Build examples: $BUILD_EXAMPLES"
+echo "  Build benchmarks: $BUILD_BENCHMARKS"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
@@ -316,6 +323,7 @@ cmake "${SCRIPT_DIR}" \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DCPP_DBC_BUILD_TESTS=$BUILD_TESTS \
       -DCPP_DBC_BUILD_EXAMPLES=$BUILD_EXAMPLES \
+      -DCPP_DBC_BUILD_BENCHMARKS=$BUILD_BENCHMARKS \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
@@ -394,6 +402,7 @@ echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
 echo "  Build examples: $BUILD_EXAMPLES"
+echo "  Build benchmarks: $BUILD_BENCHMARKS"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"

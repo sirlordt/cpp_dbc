@@ -27,7 +27,9 @@
 #include <string>
 #include <memory>
 #include <iostream>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 #include <yaml-cpp/yaml.h>
+#endif
 #include <optional>
 
 // Helper function to get the path to the test_db_connections.yml file
@@ -42,6 +44,7 @@ namespace postgresql_test_helpers
     {
         try
         {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the YAML configuration
             std::string config_path = getConfigFilePath();
             YAML::Node config = YAML::LoadFile(config_path);
@@ -71,6 +74,19 @@ namespace postgresql_test_helpers
             std::string username = dbConfig["username"].as<std::string>();
             std::string password = dbConfig["password"].as<std::string>();
 
+            // Get the create database query
+            YAML::Node testQueries = config["test_queries"]["postgresql"];
+            std::string createDatabaseQuery = testQueries["create_database"].as<std::string>();
+#else
+            // Hardcoded values when YAML is not available
+            std::string type = "postgresql";
+            std::string host = "localhost";
+            int port = 5432;
+            std::string username = "root";
+            std::string password = "dsystems";
+            std::string createDatabaseQuery = "CREATE DATABASE IF NOT EXISTS Test01DB";
+#endif
+
             // Create connection string without database name to connect to PostgreSQL server
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/postgres";
 
@@ -80,10 +96,6 @@ namespace postgresql_test_helpers
             // Attempt to connect to PostgreSQL server
             std::cout << "Attempting to connect to PostgreSQL server to create database..." << std::endl;
             auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
-
-            // Get the create database query
-            YAML::Node testQueries = config["test_queries"]["postgresql"];
-            std::string createDatabaseQuery = testQueries["create_database"].as<std::string>();
 
             // Execute the create database query
             std::cout << "Executing: " << createDatabaseQuery << std::endl;
@@ -113,6 +125,7 @@ namespace postgresql_test_helpers
                 std::cerr << "Failed to create database, but continuing with connection test..." << std::endl;
             }
 
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the YAML configuration
             std::string config_path = getConfigFilePath();
             YAML::Node config = YAML::LoadFile(config_path);
@@ -142,6 +155,15 @@ namespace postgresql_test_helpers
             std::string database = dbConfig["database"].as<std::string>();
             std::string username = dbConfig["username"].as<std::string>();
             std::string password = dbConfig["password"].as<std::string>();
+#else
+            // Hardcoded values when YAML is not available
+            std::string type = "postgresql";
+            std::string host = "localhost";
+            int port = 5432;
+            std::string database = "Test01DB";
+            std::string username = "root";
+            std::string password = "dsystems";
+#endif
 
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 
@@ -173,18 +195,6 @@ namespace postgresql_test_helpers
         }
     }
 
-#else
-    static bool tryCreateDatabase()
-    {
-        std::cerr << "PostgreSQL support is not enabled" << std::endl;
-        return false;
-    }
-
-    static bool canConnectToPostgreSQL()
-    {
-        std::cerr << "PostgreSQL support is not enabled" << std::endl;
-        return false;
-    }
 #endif
 
 } // namespace postgresql_test_helpers

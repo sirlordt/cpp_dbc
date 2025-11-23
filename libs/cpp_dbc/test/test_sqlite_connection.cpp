@@ -19,7 +19,9 @@
 */
 
 #include <catch2/catch_test_macros.hpp>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 #include <yaml-cpp/yaml.h>
+#endif
 #include <cpp_dbc/cpp_dbc.hpp>
 #if USE_SQLITE
 #include <cpp_dbc/drivers/driver_sqlite.hpp>
@@ -38,6 +40,7 @@ TEST_CASE("SQLite connection test", "[sqlite_connection]")
     // Skip this test if SQLite support is not enabled
     SECTION("Test SQLite connection")
     {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
         // Load the YAML configuration
         std::string config_path = getConfigFilePath();
         YAML::Node config = YAML::LoadFile(config_path);
@@ -63,6 +66,11 @@ TEST_CASE("SQLite connection test", "[sqlite_connection]")
         // Create connection string
         std::string type = dbConfig["type"].as<std::string>();
         std::string database = dbConfig["database"].as<std::string>();
+#else
+        // Hardcoded values when YAML is not available
+        std::string type = "sqlite";
+        std::string database = ":memory:";
+#endif
 
         // Test connection
         std::string connStr = "cpp_dbc:" + type + "://" + database;

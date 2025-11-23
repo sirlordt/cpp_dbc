@@ -16,6 +16,7 @@ The CPP_DBC library appears to be in a functional state with the following compo
 10. **VSCode Integration**: Complete VSCode configuration with build tasks and extension management
 11. **JSON Support**: Complete implementation of JSON data type support for MySQL and PostgreSQL
 12. **Code Quality**: Comprehensive warning flags and compile-time checks with improved variable naming
+13. **Benchmark System**: Comprehensive benchmark system for database operations with different data sizes
 
 The project includes example code demonstrating:
 - Basic database operations
@@ -143,7 +144,6 @@ Based on the current state of the project, potential areas for enhancement inclu
 4. **Documentation and Examples**:
    - More comprehensive documentation
    - Additional example applications
-   - Performance benchmarks
    - More configuration examples with different database systems
    - Examples of using configuration with connection pooling and transaction management
 
@@ -158,7 +158,32 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **Code Quality Improvements with Comprehensive Warning Flags**:
+1. **Benchmark System Implementation**:
+   - Added comprehensive benchmark system for database operations:
+     - Added benchmark directory with benchmark files for all database drivers
+     - Added benchmark_main.cpp with common benchmark setup
+     - Added benchmark files for MySQL, PostgreSQL, and SQLite operations
+     - Implemented benchmarks for SELECT, INSERT, UPDATE, and DELETE operations
+     - Added support for different data sizes (10, 100, 1000, and 10000 rows)
+     - Added `--benchmarks` option to build.sh to enable building benchmarks
+     - Added `--run-benchmarks` option to helper.sh to run benchmarks
+     - Added support for running specific database benchmarks (mysql, postgresql, sqlite)
+     - Added automatic benchmark log rotation in logs/benchmark/ directory
+   - Updated build system:
+     - Added `CPP_DBC_BUILD_BENCHMARKS` option to CMakeLists.txt
+     - Added `--benchmarks` parameter to build scripts
+     - Updated helper.sh with benchmark support
+   - Improved test files:
+     - Added conditional compilation for YAML support in test files
+     - Added default connection parameters when YAML is disabled
+     - Fixed PostgreSQL test files to work without YAML configuration
+     - Improved SQLite test files to work with in-memory databases
+   - Updated documentation:
+     - Added benchmark information to README.md
+     - Updated build script documentation with benchmark options
+     - Updated TODO.md to mark benchmark task as completed
+
+2. **Code Quality Improvements with Comprehensive Warning Flags**:
    - Added comprehensive warning flags and compile-time checks:
      - Added `-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align` to all build scripts
      - Added special handling for backward.hpp to silence -Wundef warnings

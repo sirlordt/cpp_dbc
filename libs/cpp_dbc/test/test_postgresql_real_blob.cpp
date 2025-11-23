@@ -34,7 +34,9 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 #include <yaml-cpp/yaml.h>
+#endif
 #include <filesystem>
 #include "test_postgresql_common.hpp"
 #include "test_blob_common.hpp"
@@ -59,6 +61,7 @@ TEST_CASE("PostgreSQL BLOB operations", "[postgresql_real_blob]")
         return;
     }
 
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the YAML configuration
     std::string config_path = getConfigFilePath();
     YAML::Node config = YAML::LoadFile(config_path);
@@ -82,6 +85,15 @@ TEST_CASE("PostgreSQL BLOB operations", "[postgresql_real_blob]")
     std::string database = dbConfig["database"].as<std::string>();
     std::string username = dbConfig["username"].as<std::string>();
     std::string password = dbConfig["password"].as<std::string>();
+#else
+    // Create connection parameters with default values when YAML is disabled
+    std::string type = "postgresql";
+    std::string host = "localhost";
+    int port = 5432;
+    std::string database = "postgres";
+    std::string username = "postgres";
+    std::string password = "postgres";
+#endif
 
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 

@@ -31,7 +31,6 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
-#include <yaml-cpp/yaml.h>
 #include <random>
 #include <sstream>
 #include "test_mysql_common.hpp"
@@ -53,29 +52,41 @@ TEST_CASE("MySQL JSON data type", "[mysql_real_json]")
         return;
     }
 
-    // Load the YAML configuration
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+    // Load the configuration using DatabaseConfigManager
     std::string config_path = getConfigFilePath();
-    YAML::Node config = YAML::LoadFile(config_path);
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the dev_mysql configuration
-    YAML::Node dbConfig;
-    for (size_t i = 0; i < config["databases"].size(); i++)
-    {
-        YAML::Node db = config["databases"][i];
-        if (db["name"].as<std::string>() == "dev_mysql")
-        {
-            dbConfig = YAML::Node(db);
-            break;
-        }
-    }
+    std::string type = "mysql";
+    std::string host = "localhost";
+    int port = 3306;
+    std::string database = "test";
+    std::string username = "root";
+    std::string password = "root";
 
-    // Create connection parameters
-    std::string type = dbConfig["type"].as<std::string>();
-    std::string host = dbConfig["host"].as<std::string>();
-    int port = dbConfig["port"].as<int>();
-    std::string database = dbConfig["database"].as<std::string>();
-    std::string username = dbConfig["username"].as<std::string>();
-    std::string password = dbConfig["password"].as<std::string>();
+    auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+    if (dbConfigOpt.has_value())
+    {
+        const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+
+        // Create connection parameters from DatabaseConfig
+        type = dbConfig.getType();
+        host = dbConfig.getHost();
+        port = dbConfig.getPort();
+        database = dbConfig.getDatabase();
+        username = dbConfig.getUsername();
+        password = dbConfig.getPassword();
+    }
+#else
+    // Create connection parameters with default values when YAML is disabled
+    std::string type = "mysql";
+    std::string host = "localhost";
+    int port = 3306;
+    std::string database = "test";
+    std::string username = "root";
+    std::string password = "password";
+#endif
 
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 

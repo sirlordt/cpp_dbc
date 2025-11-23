@@ -220,6 +220,13 @@ if(CPP_DBC_BUILD_TESTS)
     add_subdirectory(test)
 endif()
 
+# Add benchmarks subdirectory if benchmarking is enabled
+option(CPP_DBC_BUILD_BENCHMARKS "Build cpp_dbc benchmarks" OFF)
+
+if(CPP_DBC_BUILD_BENCHMARKS)
+    add_subdirectory(benchmark)
+endif()
+
 # Add examples
 option(CPP_DBC_BUILD_EXAMPLES "Build cpp_dbc examples" OFF)
 

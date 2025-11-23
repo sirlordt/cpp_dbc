@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -27,7 +27,9 @@
 #include <string>
 #include <memory>
 #include <iostream>
-#include <yaml-cpp/yaml.h>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+#include <cpp_dbc/config/yaml_config_loader.hpp>
+#endif
 
 // Helper function to get the path to the test_db_connections.yml file
 std::string getConfigFilePath();
@@ -41,34 +43,39 @@ namespace mysql_test_helpers
     {
         try
         {
-            // Load the YAML configuration
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+            // Load the configuration using DatabaseConfigManager
             std::string config_path = getConfigFilePath();
-            YAML::Node config = YAML::LoadFile(config_path);
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_mysql configuration
-            YAML::Node dbConfig;
-            for (size_t i = 0; i < config["databases"].size(); i++)
-            {
-                YAML::Node db = config["databases"][i];
-                if (db["name"].as<std::string>() == "dev_mysql")
-                {
-                    dbConfig = YAML::Node(db);
-                    break;
-                }
-            }
-
-            if (!dbConfig.IsDefined())
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+            if (!dbConfigOpt.has_value())
             {
                 std::cerr << "MySQL configuration not found in test_db_connections.yml" << std::endl;
                 return false;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
             // Create connection parameters
-            std::string type = dbConfig["type"].as<std::string>();
-            std::string host = dbConfig["host"].as<std::string>();
-            int port = dbConfig["port"].as<int>();
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            int port = dbConfig.getPort();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            // Get the create database query
+            const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
+            std::string createDatabaseQuery = testQueries.getQuery("mysql", "create_database");
+#else
+            // Hardcoded values when YAML is not available
+            std::string type = "mysql";
+            std::string host = "localhost";
+            int port = 3306;
+            std::string username = "root";
+            std::string password = "dsystems";
+            std::string createDatabaseQuery = "CREATE DATABASE IF NOT EXISTS Test01DB";
+#endif
 
             // Create connection string without database name to connect to MySQL server
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/mysql";
@@ -79,10 +86,6 @@ namespace mysql_test_helpers
             // Attempt to connect to MySQL server
             std::cout << "Attempting to connect to MySQL server to create database..." << std::endl;
             auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
-
-            // Get the create database query
-            YAML::Node testQueries = config["test_queries"]["mysql"];
-            std::string createDatabaseQuery = testQueries["create_database"].as<std::string>();
 
             // Execute the create database query
             std::cout << "Executing: " << createDatabaseQuery << std::endl;
@@ -112,35 +115,36 @@ namespace mysql_test_helpers
                 std::cerr << "Failed to create database, but continuing with connection test..." << std::endl;
             }
 
-            // Load the YAML configuration
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+            // Load the configuration using DatabaseConfigManager
             std::string config_path = getConfigFilePath();
-            YAML::Node config = YAML::LoadFile(config_path);
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_mysql configuration
-            YAML::Node dbConfig;
-            for (size_t i = 0; i < config["databases"].size(); i++)
-            {
-                YAML::Node db = config["databases"][i];
-                if (db["name"].as<std::string>() == "dev_mysql")
-                {
-                    dbConfig = YAML::Node(db);
-                    break;
-                }
-            }
-
-            if (!dbConfig.IsDefined())
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+            if (!dbConfigOpt.has_value())
             {
                 std::cerr << "MySQL configuration not found in test_db_connections.yml" << std::endl;
                 return false;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
             // Create connection string
-            std::string type = dbConfig["type"].as<std::string>();
-            std::string host = dbConfig["host"].as<std::string>();
-            int port = dbConfig["port"].as<int>();
-            std::string database = dbConfig["database"].as<std::string>();
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            int port = dbConfig.getPort();
+            std::string database = dbConfig.getDatabase();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+#else
+            // Hardcoded values when YAML is not available
+            std::string type = "mysql";
+            std::string host = "localhost";
+            int port = 3306;
+            std::string database = "Test01DB";
+            std::string username = "root";
+            std::string password = "dsystems";
+#endif
 
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 
@@ -172,18 +176,6 @@ namespace mysql_test_helpers
         }
     }
 
-#else
-    static bool tryCreateDatabase()
-    {
-        std::cerr << "MySQL support is not enabled" << std::endl;
-        return false;
-    }
-
-    static bool canConnectToMySQL()
-    {
-        std::cerr << "MySQL support is not enabled" << std::endl;
-        return false;
-    }
 #endif
 
 } // namespace mysql_test_helpers

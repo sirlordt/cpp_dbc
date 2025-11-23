@@ -24,6 +24,7 @@ The current focus appears to be on maintaining and potentially extending the CPP
 6. YAML configuration for database connections and pools
 7. Comprehensive testing for JOIN operations and BLOB handling
 8. Debug output options for troubleshooting
+9. Benchmark system for database operations performance testing
 
 The code is organized in a modular fashion with clear separation between interfaces and implementations, following object-oriented design principles.
 
@@ -31,7 +32,31 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Code Quality Improvements with Comprehensive Warning Flags**:
+1. **Benchmark System Implementation**:
+   - Added comprehensive benchmark system for database operations:
+     - Added benchmark directory with benchmark files for all database drivers
+     - Added benchmark_main.cpp with common benchmark setup
+     - Added benchmark files for MySQL, PostgreSQL, and SQLite operations
+     - Implemented benchmarks for SELECT, INSERT, UPDATE, and DELETE operations
+     - Added support for different data sizes (10, 100, 1000, and 10000 rows)
+     - Added `--benchmarks` option to build.sh to enable building benchmarks
+     - Added `--run-benchmarks` option to helper.sh to run benchmarks
+     - Added support for running specific database benchmarks (mysql, postgresql, sqlite)
+     - Added automatic benchmark log rotation in logs/benchmark/ directory
+   - Updated build system:
+     - Added `CPP_DBC_BUILD_BENCHMARKS` option to CMakeLists.txt
+     - Added `--benchmarks` parameter to build scripts
+     - Updated helper.sh with benchmark support
+   - Improved test files:
+     - Added conditional compilation for YAML support in test files
+     - Added default connection parameters when YAML is disabled
+     - Fixed PostgreSQL test files to work without YAML configuration
+     - Improved SQLite test files to work with in-memory databases
+   - Updated documentation:
+     - Added benchmark information to README.md
+     - Updated build script documentation with benchmark options
+
+2. **Code Quality Improvements with Comprehensive Warning Flags**:
    - Added comprehensive warning flags and compile-time checks:
      - Added `-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align` to all build scripts
      - Added special handling for backward.hpp to silence -Wundef warnings

@@ -28,6 +28,7 @@ set -e  # Exit on error
 #   --debug-txmgr          Enable debug output for TransactionManager
 #   --debug-sqlite         Enable debug output for SQLite driver
 #   --debug-all            Enable all debug output
+#   --dw-off               Disable libdw support for stack traces
 #   --help                 Show this help message
 
 # Default values for options
@@ -50,6 +51,7 @@ DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 RUN_COUNT=1
+BACKWARD_HAS_DW=ON
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -154,6 +156,10 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             shift
             ;;
+        --dw-off)
+            BACKWARD_HAS_DW=OFF
+            shift
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
@@ -178,6 +184,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-all            Enable all debug output"
+            echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --help                 Show this help message"
             exit 0
             ;;
@@ -329,6 +336,11 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
 
     if [ "$DEBUG_SQLITE" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --debug-sqlite"
+    fi
+    
+    # Add dw-off option if specified
+    if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
+        BUILD_CMD="$BUILD_CMD --dw-off"
     fi
 
     # Execute the build command

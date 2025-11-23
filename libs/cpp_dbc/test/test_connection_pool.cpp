@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -19,7 +19,9 @@
 */
 
 #include <catch2/catch_test_macros.hpp>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 #include <yaml-cpp/yaml.h>
+#endif
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
@@ -158,20 +160,36 @@ TEST_CASE("ConnectionPool basic tests", "[connection_pool]")
     SECTION("Create ConnectionPool with configuration")
     {
         INFO("Create ConnectionPool with configuration");
-        // Load the YAML configuration
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+        // Load the configuration using DatabaseConfigManager
         std::string config_path = getConfigFilePath();
-        YAML::Node config = YAML::LoadFile(config_path);
+        cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
         // Get the default connection pool configuration
-        YAML::Node poolConfig = config["connection_pool"]["default"];
+        auto poolConfigOpt = configManager.getConnectionPoolConfig("default");
+        if (!poolConfigOpt.has_value())
+        {
+            FAIL("Default connection pool configuration not found in config file");
+            return;
+        }
+        const cpp_dbc::config::ConnectionPoolConfig &poolCfg = poolConfigOpt.value().get();
 
         // Create a ConnectionPoolConfig object
         cpp_dbc::config::ConnectionPoolConfig cpConfig;
-        cpConfig.setInitialSize(poolConfig["initial_size"].as<int>());
-        cpConfig.setMaxSize(poolConfig["max_size"].as<int>());
-        cpConfig.setConnectionTimeout(poolConfig["connection_timeout"].as<long>());
-        cpConfig.setIdleTimeout(poolConfig["idle_timeout"].as<long>());
-        cpConfig.setValidationInterval(poolConfig["validation_interval"].as<long>());
+        cpConfig.setInitialSize(poolCfg.getInitialSize());
+        cpConfig.setMaxSize(poolCfg.getMaxSize());
+        cpConfig.setConnectionTimeout(poolCfg.getConnectionTimeout());
+        cpConfig.setIdleTimeout(poolCfg.getIdleTimeout());
+        cpConfig.setValidationInterval(poolCfg.getValidationInterval());
+#else
+        // Create a ConnectionPoolConfig object with hardcoded values
+        cpp_dbc::config::ConnectionPoolConfig cpConfig;
+        cpConfig.setInitialSize(5);
+        cpConfig.setMaxSize(10);
+        cpConfig.setConnectionTimeout(5000);
+        cpConfig.setIdleTimeout(60000);
+        cpConfig.setValidationInterval(30000);
+#endif
 
         // We can't actually create a real connection pool without a database,
         // but we can verify that the factory method doesn't throw

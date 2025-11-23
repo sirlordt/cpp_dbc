@@ -87,6 +87,7 @@ The library supports conditional compilation of database drivers and features:
 - `USE_SQLITE`: Enable/disable SQLite support (OFF by default)
 - `USE_CPP_YAML`: Enable/disable YAML configuration support (OFF by default)
 - `CPP_DBC_BUILD_EXAMPLES`: Enable/disable building examples (OFF by default)
+- `CPP_DBC_BUILD_BENCHMARKS`: Enable/disable building benchmarks (OFF by default)
 - `DEBUG_CONNECTION_POOL`: Enable debug output for ConnectionPool (OFF by default)
 - `DEBUG_TRANSACTION_MANAGER`: Enable debug output for TransactionManager (OFF by default)
 - `DEBUG_SQLITE`: Enable debug output for SQLite driver (OFF by default)
@@ -260,6 +261,32 @@ The project includes scripts for building and running tests:
 ```
 
 All test output is automatically logged to files in the `logs/test/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
+
+### Running Benchmarks
+
+The project includes benchmarks for database operations using Google Catch2:
+
+```bash
+# Build with benchmarks enabled
+./build.sh --benchmarks
+
+# Run the benchmarks
+./helper.sh --run-benchmarks
+
+# Run only MySQL benchmarks
+./helper.sh --run-benchmarks=mysql
+
+# Run only PostgreSQL benchmarks
+./helper.sh --run-benchmarks=postgresql
+
+# Run only SQLite benchmarks
+./helper.sh --run-benchmarks=sqlite
+
+# Run MySQL and PostgreSQL benchmarks
+./helper.sh --run-benchmarks=mysql+postgresql
+```
+
+The benchmarks measure the performance of SELECT, INSERT, UPDATE, and DELETE operations for different database systems with varying data sizes (10, 100, 1000, and 10000 rows). All benchmark output is automatically logged to files in the `logs/benchmark/` directory with timestamps in the filenames.
 
 You can analyze test logs for failures and memory issues:
 

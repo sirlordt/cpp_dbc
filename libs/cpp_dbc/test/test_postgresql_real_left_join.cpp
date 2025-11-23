@@ -32,28 +32,28 @@
 #include <memory>
 #include <vector>
 #include <iostream>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 #include <yaml-cpp/yaml.h>
+#endif
 #include "test_postgresql_common.hpp"
 #include <optional>
 
 // Helper function to get the path to the test_db_connections.yml file
 extern std::string getConfigFilePath();
 
-// Helper function to check if we can connect to PostgreSQL
-// Use the canConnectToPostgreSQL function from the common header
-using postgresql_test_helpers::canConnectToPostgreSQL;
-
 #if USE_POSTGRESQL
+
 // Test case for PostgreSQL LEFT JOIN operations
 TEST_CASE("PostgreSQL LEFT JOIN operations", "[postgresql_real_left_join]")
 {
     // Skip these tests if we can't connect to PostgreSQL
-    if (!canConnectToPostgreSQL())
+    if (!postgresql_test_helpers::canConnectToPostgreSQL())
     {
         SKIP("Cannot connect to PostgreSQL database");
         return;
     }
 
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the YAML configuration
     std::string config_path = getConfigFilePath();
     YAML::Node config = YAML::LoadFile(config_path);
@@ -77,6 +77,15 @@ TEST_CASE("PostgreSQL LEFT JOIN operations", "[postgresql_real_left_join]")
     std::string database = dbConfig["database"].as<std::string>();
     std::string username = dbConfig["username"].as<std::string>();
     std::string password = dbConfig["password"].as<std::string>();
+#else
+    // Create connection parameters with default values when YAML is disabled
+    std::string type = "postgresql";
+    std::string host = "localhost";
+    int port = 5432;
+    std::string database = "postgres";
+    std::string username = "postgres";
+    std::string password = "postgres";
+#endif
 
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 

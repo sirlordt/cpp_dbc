@@ -28,9 +28,11 @@ endif()
 set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/${CMAKE_BUILD_TYPE}/generators")
 find_package(Catch2 REQUIRED)
 
-# Find yaml-cpp from the main project
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/${CMAKE_BUILD_TYPE}/generators")
-find_package(yaml-cpp REQUIRED)
+# Find yaml-cpp from the main project only if YAML support is enabled
+if(USE_CPP_YAML)
+    set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/${CMAKE_BUILD_TYPE}/generators")
+    find_package(yaml-cpp REQUIRED)
+endif()
 
 # Define test executable
 add_executable(cpp_dbc_tests
@@ -69,12 +71,18 @@ add_executable(cpp_dbc_tests
     test_transaction_isolation.cpp
 )
 
-# Link against Catch2, cpp_dbc and yaml-cpp
+# Link against Catch2 and cpp_dbc
 target_link_libraries(cpp_dbc_tests PRIVATE
     Catch2::Catch2WithMain
     cpp_dbc::cpp_dbc
-    yaml-cpp::yaml-cpp
 )
+
+# Conditionally link against yaml-cpp
+if(USE_CPP_YAML)
+    target_link_libraries(cpp_dbc_tests PRIVATE
+        yaml-cpp::yaml-cpp
+    )
+endif()
 
 # Add compile definitions based on options
 target_compile_definitions(cpp_dbc_tests PUBLIC

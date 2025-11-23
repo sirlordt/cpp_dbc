@@ -1,5 +1,5 @@
 /**
- 
+
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -21,7 +21,7 @@
 #ifndef CPP_DBC_YAML_CONFIG_LOADER_HPP
 #define CPP_DBC_YAML_CONFIG_LOADER_HPP
 
-#ifdef USE_CPP_YAML
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 
 #include <cpp_dbc/config/database_config.hpp>
 #include <string>
@@ -49,6 +49,6 @@ namespace cpp_dbc
     } // namespace config
 } // namespace cpp_dbc
 
-#endif // USE_CPP_YAML
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 
 #endif // CPP_DBC_YAML_CONFIG_LOADER_HPP

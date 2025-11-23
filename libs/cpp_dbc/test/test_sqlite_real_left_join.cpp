@@ -20,7 +20,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 #include <yaml-cpp/yaml.h>
+#endif
 #include <optional>
 #include <cpp_dbc/cpp_dbc.hpp>
 #if USE_SQLITE
@@ -38,6 +40,7 @@ extern std::string getConfigFilePath();
 // Test case for SQLite LEFT JOIN operations
 TEST_CASE("SQLite LEFT JOIN operations", "[sqlite_real_left_join]")
 {
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the YAML configuration
     std::string config_path = getConfigFilePath();
     YAML::Node config = YAML::LoadFile(config_path);
@@ -63,6 +66,11 @@ TEST_CASE("SQLite LEFT JOIN operations", "[sqlite_real_left_join]")
     // Create connection string
     std::string type = dbConfig["type"].as<std::string>();
     std::string database = dbConfig["database"].as<std::string>();
+#else
+    // Create connection string with default values when YAML is disabled
+    std::string type = "sqlite";
+    std::string database = ":memory:";
+#endif
 
     // Test connection
     std::string connStr = "cpp_dbc:" + type + "://" + database;

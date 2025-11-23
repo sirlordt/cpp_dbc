@@ -19,7 +19,9 @@
 */
 
 #include <catch2/catch_test_macros.hpp>
-#include <yaml-cpp/yaml.h>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+#include <cpp_dbc/config/yaml_config_loader.hpp>
+#endif
 #include <cpp_dbc/cpp_dbc.hpp>
 #if USE_MYSQL
 #include <cpp_dbc/drivers/driver_mysql.hpp>
@@ -38,35 +40,34 @@ TEST_CASE("MySQL connection test", "[mysql_connection]")
     // Skip this test if MySQL support is not enabled
     SECTION("Test MySQL connection")
     {
-        // Load the YAML configuration
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+        // Load the configuration using DatabaseConfigManager
         std::string config_path = getConfigFilePath();
-        YAML::Node config = YAML::LoadFile(config_path);
+        cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
         // Find the dev_mysql configuration
-        YAML::Node dbConfig;
-        if (config["databases"].IsSequence())
-        {
-            for (std::size_t i = 0; i < config["databases"].size(); ++i)
-            {
-                YAML::Node db = config["databases"][i];
-                if (db["name"].as<std::string>() == "dev_mysql")
-                {
-                    dbConfig = db;
-                    break;
-                }
-            }
-        }
+        auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
 
         // Check that the database configuration was found
-        REQUIRE(dbConfig.IsDefined());
+        REQUIRE(dbConfigOpt.has_value());
+        const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
         // Create connection string
-        std::string type = dbConfig["type"].as<std::string>();
-        std::string host = dbConfig["host"].as<std::string>();
-        int port = dbConfig["port"].as<int>();
+        std::string type = dbConfig.getType();
+        std::string host = dbConfig.getHost();
+        int port = dbConfig.getPort();
         std::string database = ""; // Empty database
-        std::string username = dbConfig["username"].as<std::string>();
-        std::string password = dbConfig["password"].as<std::string>();
+        std::string username = dbConfig.getUsername();
+        std::string password = dbConfig.getPassword();
+#else
+        // Hardcoded values when YAML is not available
+        std::string type = "mysql";
+        std::string host = "localhost";
+        int port = 3306;
+        std::string database = ""; // Empty database
+        std::string username = "root";
+        std::string password = "dsystems";
+#endif
 
         // Test connection without specifying a database
         std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port);
