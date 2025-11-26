@@ -46,8 +46,9 @@
 #include <chrono>
 #include <iostream>
 #include <random>
+
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <yaml-cpp/yaml.h>
+#include <cpp_dbc/config/yaml_config_loader.hpp>
 #endif
 
 // Import helper functions from test directory

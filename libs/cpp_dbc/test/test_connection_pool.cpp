@@ -20,7 +20,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <yaml-cpp/yaml.h>
+#include <cpp_dbc/config/yaml_config_loader.hpp>
 #endif
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/connection_pool.hpp>

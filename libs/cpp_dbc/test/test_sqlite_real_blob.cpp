@@ -34,11 +34,11 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <yaml-cpp/yaml.h>
-#endif
 #include <filesystem>
 #include "test_blob_common.hpp"
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+#include <cpp_dbc/config/yaml_config_loader.hpp>
+#endif
 
 // External helper functions from test_main.cpp
 extern std::vector<uint8_t> readBinaryFile(const std::string &filePath);
@@ -55,30 +55,22 @@ TEST_CASE("SQLite BLOB operations", "[sqlite_real_blob]")
 {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the YAML configuration
+    // Load the configuration using DatabaseConfigManager
     std::string config_path = getConfigFilePath();
-    YAML::Node config = YAML::LoadFile(config_path);
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the test_sqlite configuration
-    YAML::Node dbConfig;
-    if (config["databases"].IsSequence())
+    auto dbConfigOpt = configManager.getDatabaseByName("test_sqlite");
+    if (!dbConfigOpt.has_value())
     {
-        for (std::size_t i = 0; i < config["databases"].size(); ++i)
-        {
-            YAML::Node db = config["databases"][i];
-            if (db["name"].as<std::string>() == "test_sqlite")
-            {
-                dbConfig = db;
-                break;
-            }
-        }
+        SKIP("SQLite configuration 'test_sqlite' not found in config file");
+        return;
     }
-
-    // Check that the database configuration was found
-    REQUIRE(dbConfig.IsDefined());
+    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
     // Create connection string
-    std::string type = dbConfig["type"].as<std::string>();
-    std::string database = dbConfig["database"].as<std::string>();
+    std::string type = dbConfig.getType();
+    std::string database = dbConfig.getDatabase();
 #else
     // Create connection string with default values when YAML is disabled
     std::string type = "sqlite";

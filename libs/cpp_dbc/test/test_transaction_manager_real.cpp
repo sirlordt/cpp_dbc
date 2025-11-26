@@ -39,7 +39,7 @@
 #include <iostream>
 #include <fstream>
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <yaml-cpp/yaml.h>
+#include <cpp_dbc/config/yaml_config_loader.hpp>
 #endif
 #include "test_mysql_common.hpp"
 #include "test_postgresql_common.hpp"
@@ -60,35 +60,35 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
 
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the YAML configuration
+    // Load the configuration using DatabaseConfigManager
     std::string config_path = getConfigFilePath();
-    YAML::Node config = YAML::LoadFile(config_path);
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the dev_mysql configuration
-    YAML::Node dbConfig;
-    for (size_t i = 0; i < config["databases"].size(); i++)
+    auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+    if (!dbConfigOpt.has_value())
     {
-        YAML::Node db = config["databases"][i];
-        if (db["name"].as<std::string>() == "dev_mysql")
-        {
-            dbConfig = YAML::Node(db);
-            break;
-        }
+        SKIP("MySQL configuration 'dev_mysql' not found in config file");
+        return;
     }
+    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
     // Create connection parameters
-    std::string type = dbConfig["type"].as<std::string>();
-    std::string host = dbConfig["host"].as<std::string>();
-    int port = dbConfig["port"].as<int>();
-    std::string database = dbConfig["database"].as<std::string>();
-    std::string username = dbConfig["username"].as<std::string>();
-    std::string password = dbConfig["password"].as<std::string>();
+    std::string type = dbConfig.getType();
+    std::string host = dbConfig.getHost();
+    // int port = dbConfig.getPort();
+    std::string database = dbConfig.getDatabase();
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+
+    std::string connStr = dbConfig.createConnectionString();
 
     // Get test queries
-    YAML::Node testQueries = config["test_queries"]["mysql"];
-    std::string createTableQuery = testQueries["create_table"].as<std::string>();
-    std::string insertDataQuery = testQueries["insert_data"].as<std::string>();
-    std::string selectDataQuery = testQueries["select_data"].as<std::string>();
-    std::string dropTableQuery = testQueries["drop_table"].as<std::string>();
+    const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
+    std::string createTableQuery = testQueries.getQuery("mysql", "create_table");
+    std::string insertDataQuery = testQueries.getQuery("mysql", "insert_data");
+    std::string selectDataQuery = testQueries.getQuery("mysql", "select_data");
+    std::string dropTableQuery = testQueries.getQuery("mysql", "drop_table");
 #else
     // Default values when YAML is disabled
     std::string type = "mysql";
@@ -98,14 +98,14 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
     std::string username = "root";
     std::string password = "dsystems";
 
+    std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+
     // Default test queries
     std::string createTableQuery = "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE)";
     std::string insertDataQuery = "INSERT INTO test_table (id, name, value) VALUES (?, ?, 1.5)";
     std::string selectDataQuery = "SELECT * FROM test_table";
     std::string dropTableQuery = "DROP TABLE IF EXISTS test_table";
 #endif
-
-    std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 
     SECTION("Basic transaction operations")
     {
@@ -353,43 +353,45 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
 
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the YAML configuration
+    // Load the configuration using DatabaseConfigManager
     std::string config_path = getConfigFilePath();
-    YAML::Node config = YAML::LoadFile(config_path);
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the dev_postgresql configuration
-    YAML::Node dbConfig;
-    for (size_t i = 0; i < config["databases"].size(); i++)
+    auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
+    if (!dbConfigOpt.has_value())
     {
-        YAML::Node db = config["databases"][i];
-        if (db["name"].as<std::string>() == "dev_postgresql")
-        {
-            dbConfig = YAML::Node(db);
-            break;
-        }
+        SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
+        return;
     }
+    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
     // Create connection parameters
-    std::string type = dbConfig["type"].as<std::string>();
-    std::string host = dbConfig["host"].as<std::string>();
-    int port = dbConfig["port"].as<int>();
-    std::string database = dbConfig["database"].as<std::string>();
-    std::string username = dbConfig["username"].as<std::string>();
-    std::string password = dbConfig["password"].as<std::string>();
+    std::string type = dbConfig.getType();
+    std::string host = dbConfig.getHost();
+    // int port = dbConfig.getPort();
+    std::string database = dbConfig.getDatabase();
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+
+    std::string connStr = dbConfig.createConnectionString();
 
     // Get test queries
-    YAML::Node testQueries = config["test_queries"]["postgresql"];
-    std::string createTableQuery = testQueries["create_table"].as<std::string>();
-    std::string insertDataQuery = testQueries["insert_data"].as<std::string>();
-    std::string selectDataQuery = testQueries["select_data"].as<std::string>();
-    std::string dropTableQuery = testQueries["drop_table"].as<std::string>();
+    const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
+    std::string createTableQuery = testQueries.getQuery("postgresql", "create_table");
+    std::string insertDataQuery = testQueries.getQuery("postgresql", "insert_data");
+    std::string selectDataQuery = testQueries.getQuery("postgresql", "select_data");
+    std::string dropTableQuery = testQueries.getQuery("postgresql", "drop_table");
 #else
     // Default values when YAML is disabled
     std::string type = "postgresql";
     std::string host = "localhost";
     int port = 5432;
-    std::string database = "postgres";
+    std::string database = "Test01DB";
     std::string username = "postgres";
-    std::string password = "postgres";
+    std::string password = "dsystems";
+
+    std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 
     // Default test queries
     std::string createTableQuery = "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE PRECISION)";
@@ -397,8 +399,6 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
     std::string selectDataQuery = "SELECT * FROM test_table";
     std::string dropTableQuery = "DROP TABLE IF EXISTS test_table";
 #endif
-
-    std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 
     SECTION("Basic transaction operations")
     {

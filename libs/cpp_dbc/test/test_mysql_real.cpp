@@ -35,70 +35,12 @@
 #include <chrono>
 #include <iostream>
 #include <fstream>
-#include <yaml-cpp/yaml.h>
 #include "test_mysql_common.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 #include "test_mocks.hpp"
 
 // Helper function to get the path to the test_db_connections.yml file
 std::string getConfigFilePath();
-
-/*
-// Helper class for safe pool management in tests
-class SafePoolManager
-{
-private:
-    std::vector<std::shared_ptr<cpp_dbc::MySQL::MySQLConnectionPool>> pools;
-
-public:
-    std::shared_ptr<cpp_dbc::MySQL::MySQLConnectionPool> createPool(const cpp_dbc::config::ConnectionPoolConfig &config)
-    {
-        auto pool = std::make_shared<cpp_dbc::MySQL::MySQLConnectionPool>(config);
-        pools.push_back(pool);
-        return pool;
-    }
-
-    ~SafePoolManager()
-    {
-        std::cout << "SafePoolManager::~SafePoolManager - Starting destructor with " << pools.size() << " pools" << std::endl;
-
-        // Explicitly close all pools
-        for (size_t i = 0; i < pools.size(); ++i)
-        {
-            try
-            {
-                auto &pool = pools[i];
-                if (pool)
-                {
-                    std::cout << "SafePoolManager::~SafePoolManager - Closing pool " << (i + 1) << "/" << pools.size() << std::endl;
-                    pool->close();
-                    std::cout << "SafePoolManager::~SafePoolManager - Pool " << (i + 1) << " closed successfully" << std::endl;
-                }
-                else
-                {
-                    std::cout << "SafePoolManager::~SafePoolManager - Pool " << (i + 1) << " is null, skipping" << std::endl;
-                }
-            }
-            catch (const std::exception &e)
-            {
-                std::cout << "SafePoolManager::~SafePoolManager - Exception closing pool " << (i + 1) << ": " << e.what() << std::endl;
-            }
-            catch (...)
-            {
-                std::cout << "SafePoolManager::~SafePoolManager - Unknown exception closing pool " << (i + 1) << std::endl;
-            }
-        }
-
-        std::cout << "SafePoolManager::~SafePoolManager - Clearing pools vector" << std::endl;
-        pools.clear();
-
-        // Longer delay to allow complete cleanup
-        std::cout << "SafePoolManager::~SafePoolManager - Waiting for complete cleanup" << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        std::cout << "SafePoolManager::~SafePoolManager - Destructor completed" << std::endl;
-    }
-};
-*/
 
 #if USE_MYSQL
 // Test case for real MySQL connection
@@ -112,37 +54,53 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
     }
 
     // Load the YAML configuration
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+    // Load the configuration using DatabaseConfigManager
     std::string config_path = getConfigFilePath();
-    YAML::Node config = YAML::LoadFile(config_path);
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the dev_mysql configuration
-    YAML::Node dbConfig;
-    for (size_t i = 0; i < config["databases"].size(); i++)
+    auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+    if (!dbConfigOpt.has_value())
     {
-        YAML::Node db = config["databases"][i];
-        if (db["name"].as<std::string>() == "dev_mysql")
-        {
-            dbConfig = YAML::Node(db);
-            break;
-        }
+        SKIP("MySQL configuration 'dev_mysql' not found in config file");
+        return;
     }
+    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
     // Create connection parameters
-    std::string type = dbConfig["type"].as<std::string>();
-    std::string host = dbConfig["host"].as<std::string>();
-    int port = dbConfig["port"].as<int>();
-    std::string database = dbConfig["database"].as<std::string>();
-    std::string username = dbConfig["username"].as<std::string>();
-    std::string password = dbConfig["password"].as<std::string>();
+    std::string type = dbConfig.getType();
+    std::string host = dbConfig.getHost();
+    // int port = dbConfig.getPort();
+    std::string database = dbConfig.getDatabase();
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+
+    std::string connStr = dbConfig.createConnectionString();
+
+    // Get test queries
+    const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
+    std::string createTableQuery = testQueries.getQuery("mysql", "create_table");
+    std::string insertDataQuery = testQueries.getQuery("mysql", "insert_data");
+    std::string selectDataQuery = testQueries.getQuery("mysql", "select_data");
+    std::string dropTableQuery = testQueries.getQuery("mysql", "drop_table");
+#else
+    // Create connection parameters with default values when YAML is disabled
+    std::string type = "mysql";
+    std::string host = "localhost";
+    int port = 3306;
+    std::string database = "Test01DB";
+    std::string username = "root";
+    std::string password = "dsystems";
 
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 
-    // Get test queries
-    YAML::Node testQueries = config["test_queries"]["mysql"];
-    std::string createTableQuery = testQueries["create_table"].as<std::string>();
-    std::string insertDataQuery = testQueries["insert_data"].as<std::string>();
-    std::string selectDataQuery = testQueries["select_data"].as<std::string>();
-    std::string dropTableQuery = testQueries["drop_table"].as<std::string>();
+    // Default test queries
+    std::string createTableQuery = "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE)";
+    std::string insertDataQuery = "INSERT INTO test_table (id, name, value) VALUES (?, ?, ?)";
+    std::string selectDataQuery = "SELECT * FROM test_table WHERE id = ?";
+    std::string dropTableQuery = "DROP TABLE IF EXISTS test_table";
+#endif
 
     SECTION("Basic MySQL operations")
     {

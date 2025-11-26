@@ -88,9 +88,9 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
     std::string type = "mysql";
     std::string host = "localhost";
     int port = 3306;
-    std::string database = "test";
+    std::string database = "Test01DB";
     std::string username = "root";
-    std::string password = "password";
+    std::string password = "dsystems";
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 
     // Default test queries
@@ -220,9 +220,9 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
     std::string type = "postgresql";
     std::string host = "localhost";
     int port = 5432;
-    std::string database = "postgres";
+    std::string database = "Test01DB";
     std::string username = "postgres";
-    std::string password = "postgres";
+    std::string password = "dsystems";
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 
     // Default test queries

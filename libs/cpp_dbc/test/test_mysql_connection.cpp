@@ -19,9 +19,6 @@
 */
 
 #include <catch2/catch_test_macros.hpp>
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#endif
 #include <cpp_dbc/cpp_dbc.hpp>
 #if USE_MYSQL
 #include <cpp_dbc/drivers/driver_mysql.hpp>
@@ -29,6 +26,9 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+#include <cpp_dbc/config/yaml_config_loader.hpp>
+#endif
 
 // Helper function to get the path to the test_db_connections.yml file
 std::string getConfigFilePath();

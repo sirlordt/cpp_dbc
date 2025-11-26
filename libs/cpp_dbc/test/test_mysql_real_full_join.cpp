@@ -32,8 +32,8 @@
 #include <memory>
 #include <vector>
 #include <iostream>
-#include "test_mysql_common.hpp"
 #include <optional>
+#include "test_mysql_common.hpp"
 
 // Helper function to get the path to the test_db_connections.yml file
 extern std::string getConfigFilePath();
@@ -53,9 +53,9 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[mysql_real_full_join]")
     std::string type = "mysql";
     std::string host = "localhost";
     int port = 3306;
-    std::string database = "test";
+    std::string database = "Test01DB";
     std::string username = "root";
-    std::string password = "root";
+    std::string password = "dsystems";
 
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the configuration using DatabaseConfigManager

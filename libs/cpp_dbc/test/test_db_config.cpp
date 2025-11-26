@@ -30,12 +30,12 @@
 #include <filesystem>
 #include <unistd.h>
 
-// Forward declaration
-std::string getConfigFilePath();
-
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 #include <cpp_dbc/config/yaml_config_loader.hpp>
 #endif
+
+// Forward declaration
+std::string getConfigFilePath();
 
 // Test case to verify that the database configuration file can be loaded
 TEST_CASE("Database configuration loading", "[db_config]")

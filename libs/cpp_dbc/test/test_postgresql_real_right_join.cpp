@@ -32,11 +32,8 @@
 #include <memory>
 #include <vector>
 #include <iostream>
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <yaml-cpp/yaml.h>
-#endif
-#include "test_postgresql_common.hpp"
 #include <optional>
+#include "test_postgresql_common.hpp"
 
 // Helper function to get the path to the test_db_connections.yml file
 extern std::string getConfigFilePath();
@@ -52,41 +49,41 @@ TEST_CASE("PostgreSQL RIGHT JOIN operations", "[postgresql_real_right_join]")
         return;
     }
 
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+    // Load the YAML configuration
+    // Load the configuration using DatabaseConfigManager
+    std::string config_path = getConfigFilePath();
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+    // Find the dev_postgresql configuration
+    auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
+    if (!dbConfigOpt.has_value())
+    {
+        SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
+        return;
+    }
+    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+
     // Create connection parameters
+    std::string type = dbConfig.getType();
+    std::string host = dbConfig.getHost();
+    // int port = dbConfig.getPort();
+    std::string database = dbConfig.getDatabase();
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+
+    std::string connStr = dbConfig.createConnectionString();
+#else
+    // Create connection parameters with default values when YAML is disabled
     std::string type = "postgresql";
     std::string host = "localhost";
     int port = 5432;
-    std::string database = "postgres";
+    std::string database = "Test01DB";
     std::string username = "postgres";
-    std::string password = "postgres";
-
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-    // Load the YAML configuration
-    std::string config_path = getConfigFilePath();
-    YAML::Node config = YAML::LoadFile(config_path);
-
-    // Find the dev_postgresql configuration
-    YAML::Node dbConfig;
-    for (size_t i = 0; i < config["databases"].size(); i++)
-    {
-        YAML::Node db = config["databases"][i];
-        if (db["name"].as<std::string>() == "dev_postgresql")
-        {
-            dbConfig = YAML::Node(db);
-            break;
-        }
-    }
-
-    // Create connection parameters from YAML
-    type = dbConfig["type"].as<std::string>();
-    host = dbConfig["host"].as<std::string>();
-    port = dbConfig["port"].as<int>();
-    database = dbConfig["database"].as<std::string>();
-    username = dbConfig["username"].as<std::string>();
-    password = dbConfig["password"].as<std::string>();
-#endif
+    std::string password = "dsystems";
 
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+#endif
 
     // Register the PostgreSQL driver
     cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());

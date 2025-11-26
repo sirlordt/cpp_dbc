@@ -20,7 +20,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <yaml-cpp/yaml.h>
+#include <cpp_dbc/config/yaml_config_loader.hpp>
 #endif
 #include <cpp_dbc/cpp_dbc.hpp>
 #include "test_mocks.hpp"
@@ -37,6 +37,7 @@
 // Helper function to get the path to the test_db_connections.yml file
 std::string getConfigFilePath();
 
+/*
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 // Helper function to get database configuration from YAML
 YAML::Node getDbConfig(const std::string &dbName)
@@ -93,6 +94,7 @@ std::string getConnectionString(const std::string &dbType)
     return "";
 }
 #endif
+*/
 
 // Test case for TransactionIsolationLevel enum
 TEST_CASE("TransactionIsolationLevel enum tests", "[transaction][isolation]")
@@ -208,18 +210,28 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         try
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Get MySQL configuration
-            YAML::Node dbConfig = getDbConfig("dev_mysql");
-            if (!dbConfig.IsDefined())
+            // Load the configuration using DatabaseConfigManager
+            std::string config_path = getConfigFilePath();
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+            // Find the dev_mysql configuration
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+            if (!dbConfigOpt.has_value())
             {
-                SKIP("MySQL configuration not found in test_db_connections.yml");
+                SKIP("MySQL configuration 'dev_mysql' not found in config file");
                 return;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
-            // Get connection parameters
-            std::string connStr = getConnectionString(dbConfig);
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            // Create connection parameters
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            // int port = dbConfig.getPort();
+            std::string database = dbConfig.getDatabase();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            std::string connStr = dbConfig.createConnectionString();
 #else
             // Default connection parameters when YAML is disabled
             std::string connStr = getConnectionString("mysql");
@@ -266,18 +278,28 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         try
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Get MySQL configuration
-            YAML::Node dbConfig = getDbConfig("dev_mysql");
-            if (!dbConfig.IsDefined())
+            // Load the configuration using DatabaseConfigManager
+            std::string config_path = getConfigFilePath();
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+            // Find the dev_mysql configuration
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+            if (!dbConfigOpt.has_value())
             {
-                SKIP("MySQL configuration not found in test_db_connections.yml");
+                SKIP("MySQL configuration 'dev_mysql' not found in config file");
                 return;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
-            // Get connection parameters
-            std::string connStr = getConnectionString(dbConfig);
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            // Create connection parameters
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            // int port = dbConfig.getPort();
+            std::string database = dbConfig.getDatabase();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            std::string connStr = dbConfig.createConnectionString();
 #else
             // Default connection parameters when YAML is disabled
             std::string connStr = getConnectionString("mysql");
@@ -337,18 +359,28 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         try
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Get MySQL configuration
-            YAML::Node dbConfig = getDbConfig("dev_mysql");
-            if (!dbConfig.IsDefined())
+            // Load the configuration using DatabaseConfigManager
+            std::string config_path = getConfigFilePath();
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+            // Find the dev_mysql configuration
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+            if (!dbConfigOpt.has_value())
             {
-                SKIP("MySQL configuration not found in test_db_connections.yml");
+                SKIP("MySQL configuration 'dev_mysql' not found in config file");
                 return;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
-            // Get connection parameters
-            std::string connStr = getConnectionString(dbConfig);
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            // Create connection parameters
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            // int port = dbConfig.getPort();
+            std::string database = dbConfig.getDatabase();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            std::string connStr = dbConfig.createConnectionString();
 #else
             // Default connection parameters when YAML is disabled
             std::string connStr = getConnectionString("mysql");
@@ -415,18 +447,28 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         try
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Get MySQL configuration
-            YAML::Node dbConfig = getDbConfig("dev_mysql");
-            if (!dbConfig.IsDefined())
+            // Load the configuration using DatabaseConfigManager
+            std::string config_path = getConfigFilePath();
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+            // Find the dev_mysql configuration
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+            if (!dbConfigOpt.has_value())
             {
-                SKIP("MySQL configuration not found in test_db_connections.yml");
+                SKIP("MySQL configuration 'dev_mysql' not found in config file");
                 return;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
-            // Get connection parameters
-            std::string connStr = getConnectionString(dbConfig);
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            // Create connection parameters
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            // int port = dbConfig.getPort();
+            std::string database = dbConfig.getDatabase();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            std::string connStr = dbConfig.createConnectionString();
 #else
             // Default connection parameters when YAML is disabled
             std::string connStr = getConnectionString("mysql");
@@ -486,18 +528,28 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         try
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Get MySQL configuration
-            YAML::Node dbConfig = getDbConfig("dev_mysql");
-            if (!dbConfig.IsDefined())
+            // Load the configuration using DatabaseConfigManager
+            std::string config_path = getConfigFilePath();
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+            // Find the dev_mysql configuration
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+            if (!dbConfigOpt.has_value())
             {
-                SKIP("MySQL configuration not found in test_db_connections.yml");
+                SKIP("MySQL configuration 'dev_mysql' not found in config file");
                 return;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
-            // Get connection parameters
-            std::string connStr = getConnectionString(dbConfig);
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            // Create connection parameters
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            // int port = dbConfig.getPort();
+            std::string database = dbConfig.getDatabase();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            std::string connStr = dbConfig.createConnectionString();
 #else
             // Default connection parameters when YAML is disabled
             std::string connStr = getConnectionString("mysql");
@@ -583,18 +635,28 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         try
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Get PostgreSQL configuration
-            YAML::Node dbConfig = getDbConfig("dev_postgresql");
-            if (!dbConfig.IsDefined())
+            // Load the configuration using DatabaseConfigManager
+            std::string config_path = getConfigFilePath();
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+            // Find the dev_postgresql configuration
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
+            if (!dbConfigOpt.has_value())
             {
-                SKIP("PostgreSQL configuration not found in test_db_connections.yml");
+                SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
                 return;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
-            // Get connection parameters
-            std::string connStr = getConnectionString(dbConfig);
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            // Create connection parameters
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            // int port = dbConfig.getPort();
+            std::string database = dbConfig.getDatabase();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            std::string connStr = dbConfig.createConnectionString();
 #else
             // Default connection parameters when YAML is disabled
             std::string connStr = getConnectionString("postgresql");
@@ -656,32 +718,28 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         try
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the YAML configuration
+            // Load the configuration using DatabaseConfigManager
             std::string config_path = getConfigFilePath();
-            YAML::Node config = YAML::LoadFile(config_path);
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_postgresql configuration
-            YAML::Node dbConfig;
-            for (size_t i = 0; i < config["databases"].size(); i++)
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
+            if (!dbConfigOpt.has_value())
             {
-                YAML::Node db = config["databases"][i];
-                if (db["name"].as<std::string>() == "dev_postgresql")
-                {
-                    dbConfig = db;
-                    break;
-                }
-            }
-
-            if (!dbConfig.IsDefined())
-            {
-                SKIP("PostgreSQL configuration not found in test_db_connections.yml");
+                SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
                 return;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
-            // Get connection parameters
-            std::string connStr = getConnectionString(dbConfig);
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            // Create connection parameters
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            // int port = dbConfig.getPort();
+            std::string database = dbConfig.getDatabase();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            std::string connStr = dbConfig.createConnectionString();
 #else
             // Default connection parameters when YAML is disabled
             std::string connStr = getConnectionString("postgresql");
@@ -748,32 +806,28 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         try
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the YAML configuration
+            // Load the configuration using DatabaseConfigManager
             std::string config_path = getConfigFilePath();
-            YAML::Node config = YAML::LoadFile(config_path);
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_postgresql configuration
-            YAML::Node dbConfig;
-            for (size_t i = 0; i < config["databases"].size(); i++)
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
+            if (!dbConfigOpt.has_value())
             {
-                YAML::Node db = config["databases"][i];
-                if (db["name"].as<std::string>() == "dev_postgresql")
-                {
-                    dbConfig = db;
-                    break;
-                }
-            }
-
-            if (!dbConfig.IsDefined())
-            {
-                SKIP("PostgreSQL configuration not found in test_db_connections.yml");
+                SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
                 return;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
-            // Get connection parameters
-            std::string connStr = getConnectionString(dbConfig);
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            // Create connection parameters
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            // int port = dbConfig.getPort();
+            std::string database = dbConfig.getDatabase();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            std::string connStr = dbConfig.createConnectionString();
 #else
             // Default connection parameters when YAML is disabled
             std::string connStr = getConnectionString("postgresql");
@@ -833,17 +887,28 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         try
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Setup
-            YAML::Node dbConfig = getDbConfig("dev_postgresql");
-            if (!dbConfig.IsDefined())
+            // Load the configuration using DatabaseConfigManager
+            std::string config_path = getConfigFilePath();
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+            // Find the dev_postgresql configuration
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
+            if (!dbConfigOpt.has_value())
             {
-                SKIP("PostgreSQL configuration not found");
+                SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
                 return;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
-            std::string connStr = getConnectionString(dbConfig);
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            // Create connection parameters
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            // int port = dbConfig.getPort();
+            std::string database = dbConfig.getDatabase();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            std::string connStr = dbConfig.createConnectionString();
 #else
             // Default connection parameters when YAML is disabled
             std::string connStr = getConnectionString("postgresql");

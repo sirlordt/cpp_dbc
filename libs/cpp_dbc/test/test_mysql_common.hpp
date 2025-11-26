@@ -38,6 +38,7 @@ namespace mysql_test_helpers
 {
 
 #if USE_MYSQL
+
     // Helper function to try to create the database if it doesn't exist
     static bool tryCreateDatabase()
     {
@@ -110,7 +111,7 @@ namespace mysql_test_helpers
         try
         {
             // First, try to create the database if it doesn't exist
-            if (!tryCreateDatabase())
+            if (!mysql_test_helpers::tryCreateDatabase())
             {
                 std::cerr << "Failed to create database, but continuing with connection test..." << std::endl;
             }

@@ -27,10 +27,10 @@
 #include <string>
 #include <memory>
 #include <iostream>
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <yaml-cpp/yaml.h>
-#endif
 #include <optional>
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+#include <cpp_dbc/config/yaml_config_loader.hpp>
+#endif
 
 // Helper function to get the path to the test_db_connections.yml file
 std::string getConfigFilePath();
@@ -39,44 +39,36 @@ namespace postgresql_test_helpers
 {
 
 #if USE_POSTGRESQL
+
     // Helper function to try to create the database if it doesn't exist
     static bool tryCreateDatabase()
     {
         try
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the YAML configuration
+            // Load the configuration using DatabaseConfigManager
             std::string config_path = getConfigFilePath();
-            YAML::Node config = YAML::LoadFile(config_path);
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_postgresql configuration
-            YAML::Node dbConfig;
-            for (size_t i = 0; i < config["databases"].size(); i++)
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
+            if (!dbConfigOpt.has_value())
             {
-                YAML::Node db = config["databases"][i];
-                if (db["name"].as<std::string>() == "dev_postgresql")
-                {
-                    dbConfig = YAML::Node(db);
-                    break;
-                }
-            }
-
-            if (!dbConfig.IsDefined())
-            {
-                std::cerr << "PostgreSQL configuration not found in test_db_connections.yml" << std::endl;
+                std::cerr << "PostgreSQL configuration 'dev_postgresql' not found in config file" << std::endl;
                 return false;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
             // Create connection parameters
-            std::string type = dbConfig["type"].as<std::string>();
-            std::string host = dbConfig["host"].as<std::string>();
-            int port = dbConfig["port"].as<int>();
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            int port = dbConfig.getPort();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
 
             // Get the create database query
-            YAML::Node testQueries = config["test_queries"]["postgresql"];
-            std::string createDatabaseQuery = testQueries["create_database"].as<std::string>();
+            const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
+            std::string createDatabaseQuery = testQueries.getQuery("postgresql", "create_database");
 #else
             // Hardcoded values when YAML is not available
             std::string type = "postgresql";
@@ -120,41 +112,32 @@ namespace postgresql_test_helpers
         try
         {
             // First, try to create the database if it doesn't exist
-            if (!tryCreateDatabase())
+            if (!postgresql_test_helpers::tryCreateDatabase())
             {
                 std::cerr << "Failed to create database, but continuing with connection test..." << std::endl;
             }
 
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the YAML configuration
+            // Load the configuration using DatabaseConfigManager
             std::string config_path = getConfigFilePath();
-            YAML::Node config = YAML::LoadFile(config_path);
+            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_postgresql configuration
-            YAML::Node dbConfig;
-            for (size_t i = 0; i < config["databases"].size(); i++)
+            auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
+            if (!dbConfigOpt.has_value())
             {
-                YAML::Node db = config["databases"][i];
-                if (db["name"].as<std::string>() == "dev_postgresql")
-                {
-                    dbConfig = YAML::Node(db);
-                    break;
-                }
-            }
-
-            if (!dbConfig.IsDefined())
-            {
-                std::cerr << "PostgreSQL configuration not found in test_db_connections.yml" << std::endl;
+                std::cerr << "PostgreSQL configuration 'dev_postgresql' not found in config file" << std::endl;
                 return false;
             }
+            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
 
-            // Create connection string
-            std::string type = dbConfig["type"].as<std::string>();
-            std::string host = dbConfig["host"].as<std::string>();
-            int port = dbConfig["port"].as<int>();
-            std::string database = dbConfig["database"].as<std::string>();
-            std::string username = dbConfig["username"].as<std::string>();
-            std::string password = dbConfig["password"].as<std::string>();
+            // Create connection parameters
+            std::string type = dbConfig.getType();
+            std::string host = dbConfig.getHost();
+            int port = dbConfig.getPort();
+            std::string database = dbConfig.getDatabase();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
 #else
             // Hardcoded values when YAML is not available
             std::string type = "postgresql";

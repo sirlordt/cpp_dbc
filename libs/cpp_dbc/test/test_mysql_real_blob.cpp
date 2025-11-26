@@ -62,9 +62,9 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
     std::string type = "mysql";
     std::string host = "localhost";
     int port = 3306;
-    std::string database = "test";
+    std::string database = "Test01DB";
     std::string username = "root";
-    std::string password = "root";
+    std::string password = "dsystems";
 
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the configuration using DatabaseConfigManager

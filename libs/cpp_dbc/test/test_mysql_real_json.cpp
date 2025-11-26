@@ -61,9 +61,9 @@ TEST_CASE("MySQL JSON data type", "[mysql_real_json]")
     std::string type = "mysql";
     std::string host = "localhost";
     int port = 3306;
-    std::string database = "test";
+    std::string database = "Test01DB";
     std::string username = "root";
-    std::string password = "root";
+    std::string password = "dsystems";
 
     auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
     if (dbConfigOpt.has_value())
@@ -83,9 +83,9 @@ TEST_CASE("MySQL JSON data type", "[mysql_real_json]")
     std::string type = "mysql";
     std::string host = "localhost";
     int port = 3306;
-    std::string database = "test";
+    std::string database = "Test01DB";
     std::string username = "root";
-    std::string password = "password";
+    std::string password = "dsystems";
 #endif
 
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
