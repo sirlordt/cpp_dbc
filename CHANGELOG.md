@@ -1,6 +1,27 @@
 # Changelog
 
-## 2025-11-22 09:04:39 PM PST [Current]
+## 2025-11-26 09:04:53 PM PST [Current]
+
+### Test Code Refactoring
+* Refactored test code to improve organization and reusability:
+  * Added test_sqlite_common.hpp with SQLite-specific helper functions
+  * Added test_sqlite_common.cpp with helper function implementations
+  * Moved utility functions to database-specific namespaces
+  * Replaced repetitive configuration loading with helper functions
+  * Improved consistency in helper usage across all test files
+* Enhanced database connection configuration:
+  * Added support for database-specific connection options
+  * Implemented option filtering in driver_postgresql.cpp to ignore options starting with "query__"
+  * Replaced configuration search code with simplified helper calls
+  * Removed redundant test_blob_common.hpp file
+  * Refactored helpers to use common_test_helpers namespace instead of global functions
+* Optimized file structure and organization:
+  * Moved global helper functions to common namespace for better encapsulation
+  * Reordered header inclusion for consistency
+  * Updated CMakeLists.txt to include new test files
+  * Removed update_headers.sh script, replaced with more precise manual management
+
+## 2025-11-22 09:04:39 PM PST
 
 ### Benchmark System Implementation
 * Added comprehensive benchmark system for database operations:

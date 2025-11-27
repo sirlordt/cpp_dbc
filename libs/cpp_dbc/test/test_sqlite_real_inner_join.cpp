@@ -37,32 +37,11 @@
 // Test case for SQLite INNER JOIN operations
 TEST_CASE("SQLite INNER JOIN operations", "[sqlite_real_inner_join]")
 {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-    // Load the YAML configuration
-    // Load the configuration using DatabaseConfigManager
-    std::string config_path = common_test_helpers::getConfigFilePath();
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+    // Get SQLite configuration using the helper function
+    auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite");
 
-    // Find the test_sqlite configuration
-    auto dbConfigOpt = configManager.getDatabaseByName("test_sqlite");
-    if (!dbConfigOpt.has_value())
-    {
-        SKIP("SQLite configuration 'test_sqlite' not found in config file");
-        return;
-    }
-    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
-
-    // Create connection string
-    std::string type = dbConfig.getType();
-    std::string database = dbConfig.getDatabase();
-#else
-    // Create connection string with default values when YAML is disabled
-    std::string type = "sqlite";
-    std::string database = ":memory:";
-#endif
-
-    // Test connection
-    std::string connStr = "cpp_dbc:" + type + "://" + database;
+    // Get connection string directly from the database config
+    std::string connStr = dbConfig.createConnectionString();
 
     // Register the SQLite driver
     cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());

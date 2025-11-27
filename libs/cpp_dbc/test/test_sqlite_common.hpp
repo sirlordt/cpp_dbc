@@ -23,8 +23,10 @@
 #include <string>
 #include <memory>
 #include <iostream>
+#include <tuple>
 
 #include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/config/database_config.hpp>
 
 #include "test_main.hpp"
 
@@ -36,6 +38,27 @@
 namespace sqlite_test_helpers
 {
 
-    // Empty namespace
+#if USE_SQLITE
+
+    /**
+     * @brief Get SQLite database configuration with test queries
+     *
+     * Gets a DatabaseConfig object with SQLite connection parameters either from:
+     * - YAML config file (when USE_CPP_YAML is defined)
+     * - Hardcoded default values (when USE_CPP_YAML is not defined)
+     *
+     * @param databaseName The name to use for the configuration
+     * @param useInMemory If true, returns configuration with in-memory database
+     * @return cpp_dbc::config::DatabaseConfig with SQLite connection parameters
+     */
+    cpp_dbc::config::DatabaseConfig getSQLiteConfig(const std::string &databaseName = "dev_sqlite",
+                                                    bool useInMemory = false);
+
+    /**
+     * @brief Helper function to check if we can connect to SQLite
+     */
+    bool canConnectToSQLite();
+
+#endif
 
 } // namespace sqlite_test_helpers

@@ -40,31 +40,11 @@ TEST_CASE("SQLite real database operations", "[sqlite_real]")
     // Skip this test if SQLite support is not enabled
     SECTION("Test SQLite real database operations")
     {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-        // Load the YAML configuration
-        // Load the configuration using DatabaseConfigManager
-        std::string config_path = common_test_helpers::getConfigFilePath();
-        cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+        // Get SQLite configuration using the helper function
+        auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite");
 
-        // Find the test_sqlite configuration
-        auto dbConfigOpt = configManager.getDatabaseByName("test_sqlite");
-        if (!dbConfigOpt.has_value())
-        {
-            SKIP("SQLite configuration 'test_sqlite' not found in config file");
-            return;
-        }
-        const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
-
-        // Create connection string
-        std::string type = dbConfig.getType();
-        std::string database = dbConfig.getDatabase();
+        // Get connection string from the database config
         std::string connStr = dbConfig.createConnectionString();
-#else
-        // Create connection string with default values when YAML is disabled
-        std::string type = "sqlite";
-        std::string database = ":memory:";
-        std::string connStr = "cpp_dbc:" + type + "://" + database;
-#endif
 
         // Test connection
 

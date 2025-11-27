@@ -50,54 +50,23 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         return;
     }
 
-    // Create connection parameters
-    std::string type = "postgresql";
-    std::string host = "localhost";
-    int port = 5432;
-    std::string database = "Test01DB";
-    std::string username = "postgres";
-    std::string password = "dsystems";
+    // Get PostgreSQL configuration
+    auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
 
-    std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
-
-    // Default test queries
-    std::string createTableQuery = "CREATE TABLE test_table (id INT PRIMARY KEY, name VARCHAR(100))";
-    std::string insertDataQuery = "INSERT INTO test_table (id, name) VALUES ($1, $2)";
-    std::string selectDataQuery = "SELECT * FROM test_table WHERE id = $1";
-    std::string dropTableQuery = "DROP TABLE IF EXISTS test_table";
-
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-    // Load the YAML configuration
-    // Load the configuration using DatabaseConfigManager
-    std::string config_path = common_test_helpers::getConfigFilePath();
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-    // Find the dev_postgresql configuration
-    auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
-    if (!dbConfigOpt.has_value())
-    {
-        SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
-        return;
-    }
-    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
-
-    // Create connection parameters
-    type = dbConfig.getType();
-    host = dbConfig.getHost();
-    port = dbConfig.getPort();
-    database = dbConfig.getDatabase();
-    username = dbConfig.getUsername();
-    password = dbConfig.getPassword();
-
-    connStr = dbConfig.createConnectionString();
+    // Get connection parameters
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+    std::string connStr = dbConfig.createConnectionString();
 
     // Get test queries
-    const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
-    createTableQuery = testQueries.getQuery("postgresql", "create_table");
-    insertDataQuery = testQueries.getQuery("postgresql", "insert_data");
-    selectDataQuery = testQueries.getQuery("postgresql", "select_data");
-    dropTableQuery = testQueries.getQuery("postgresql", "drop_table");
-#endif
+    std::string createTableQuery = dbConfig.getOption("query__create_table",
+                                                      "CREATE TABLE test_table (id INT PRIMARY KEY, name VARCHAR(100))");
+    std::string insertDataQuery = dbConfig.getOption("query__insert_data",
+                                                     "INSERT INTO test_table (id, name) VALUES ($1, $2)");
+    std::string selectDataQuery = dbConfig.getOption("query__select_data",
+                                                     "SELECT * FROM test_table WHERE id = $1");
+    std::string dropTableQuery = dbConfig.getOption("query__drop_table",
+                                                    "DROP TABLE IF EXISTS test_table");
 
     SECTION("Basic PostgreSQL operations")
     {

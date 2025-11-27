@@ -1131,13 +1131,14 @@ namespace cpp_dbc
             conninfo << "user=" << user << " ";
             conninfo << "password=" << password << " ";
 
-            // Añadir opciones del mapa de configuración
             for (const auto &option : options)
             {
-                conninfo << option.first << "=" << option.second << " ";
+                if (option.first.starts_with("query__") == false)
+                {
+                    conninfo << option.first << "=" << option.second << " ";
+                }
             }
 
-            // Si no se especificó gssencmode en las opciones, usar el valor por defecto
             if (options.find("gssencmode") == options.end())
             {
                 conninfo << "gssencmode=disable";

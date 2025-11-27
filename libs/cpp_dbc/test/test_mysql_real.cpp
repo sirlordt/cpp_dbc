@@ -52,54 +52,23 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         return;
     }
 
-    // Load the YAML configuration
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-    // Load the configuration using DatabaseConfigManager
-    std::string config_path = common_test_helpers::getConfigFilePath();
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+    // Get MySQL configuration using the centralized function
+    auto dbConfig = mysql_test_helpers::getMySQLConfig("dev_mysql");
 
-    // Find the dev_mysql configuration
-    auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
-    if (!dbConfigOpt.has_value())
-    {
-        SKIP("MySQL configuration 'dev_mysql' not found in config file");
-        return;
-    }
-    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
-
-    // Create connection parameters
-    std::string type = dbConfig.getType();
-    std::string host = dbConfig.getHost();
-    // int port = dbConfig.getPort();
-    std::string database = dbConfig.getDatabase();
+    // Extract connection parameters
     std::string username = dbConfig.getUsername();
     std::string password = dbConfig.getPassword();
-
     std::string connStr = dbConfig.createConnectionString();
 
-    // Get test queries
-    const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
-    std::string createTableQuery = testQueries.getQuery("mysql", "create_table");
-    std::string insertDataQuery = testQueries.getQuery("mysql", "insert_data");
-    std::string selectDataQuery = testQueries.getQuery("mysql", "select_data");
-    std::string dropTableQuery = testQueries.getQuery("mysql", "drop_table");
-#else
-    // Create connection parameters with default values when YAML is disabled
-    std::string type = "mysql";
-    std::string host = "localhost";
-    int port = 3306;
-    std::string database = "Test01DB";
-    std::string username = "root";
-    std::string password = "dsystems";
-
-    std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
-
-    // Default test queries
-    std::string createTableQuery = "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE)";
-    std::string insertDataQuery = "INSERT INTO test_table (id, name, value) VALUES (?, ?, ?)";
-    std::string selectDataQuery = "SELECT * FROM test_table WHERE id = ?";
-    std::string dropTableQuery = "DROP TABLE IF EXISTS test_table";
-#endif
+    // Get test queries from the config options
+    std::string createTableQuery = dbConfig.getOption("query__create_table",
+                                                      "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE)");
+    std::string insertDataQuery = dbConfig.getOption("query__insert_data",
+                                                     "INSERT INTO test_table (id, name, value) VALUES (?, ?, ?)");
+    std::string selectDataQuery = dbConfig.getOption("query__select_data",
+                                                     "SELECT * FROM test_table WHERE id = ?");
+    std::string dropTableQuery = dbConfig.getOption("query__drop_table",
+                                                    "DROP TABLE IF EXISTS test_table");
 
     SECTION("Basic MySQL operations")
     {

@@ -35,6 +35,7 @@
 
 #include "test_mysql_common.hpp"
 #include "test_postgresql_common.hpp"
+#include "test_sqlite_common.hpp"
 
 #if USE_MYSQL
 // Test case for real MySQL connection pool
@@ -47,52 +48,27 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
         return;
     }
 
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-    // Load the configuration using DatabaseConfigManager
-    std::string config_path = common_test_helpers::getConfigFilePath();
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-    // Find the dev_mysql configuration
-    auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
-    if (!dbConfigOpt.has_value())
-    {
-        SKIP("MySQL configuration 'dev_mysql' not found in config file");
-        return;
-    }
-    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+    // Get MySQL configuration using the helper function
+    auto dbConfig = mysql_test_helpers::getMySQLConfig("dev_mysql");
 
     // Create connection parameters
     std::string type = dbConfig.getType();
     std::string host = dbConfig.getHost();
-    // int port = dbConfig.getPort();
     std::string database = dbConfig.getDatabase();
     std::string username = dbConfig.getUsername();
     std::string password = dbConfig.getPassword();
 
     std::string connStr = dbConfig.createConnectionString();
 
-    // Get test queries
-    const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
-    std::string createTableQuery = testQueries.getQuery("mysql", "create_table");
-    std::string insertDataQuery = testQueries.getQuery("mysql", "insert_data");
-    std::string selectDataQuery = testQueries.getQuery("mysql", "select_data");
-    std::string dropTableQuery = testQueries.getQuery("mysql", "drop_table");
-#else
-    // Create connection parameters with default values when YAML is disabled
-    std::string type = "mysql";
-    std::string host = "localhost";
-    int port = 3306;
-    std::string database = "Test01DB";
-    std::string username = "root";
-    std::string password = "dsystems";
-    std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
-
-    // Default test queries
-    std::string createTableQuery = "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE)";
-    std::string insertDataQuery = "INSERT INTO test_table (id, name, value) VALUES (1, 'Test', 1.5)";
-    std::string selectDataQuery = "SELECT * FROM test_table";
-    std::string dropTableQuery = "DROP TABLE IF EXISTS test_table";
-#endif
+    // Get test queries from config
+    std::string createTableQuery = dbConfig.getOption("query__create_table",
+                                                      "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE)");
+    std::string insertDataQuery = dbConfig.getOption("query__insert_data",
+                                                     "INSERT INTO test_table (id, name, value) VALUES (1, 'Test', 1.5)");
+    std::string selectDataQuery = dbConfig.getOption("query__select_data",
+                                                     "SELECT * FROM test_table");
+    std::string dropTableQuery = dbConfig.getOption("query__drop_table",
+                                                    "DROP TABLE IF EXISTS test_table");
 
     SECTION("Basic connection pool operations")
     {
@@ -179,52 +155,27 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
         return;
     }
 
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-    // Load the configuration using DatabaseConfigManager
-    std::string config_path = common_test_helpers::getConfigFilePath();
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-    // Find the dev_postgresql configuration
-    auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
-    if (!dbConfigOpt.has_value())
-    {
-        SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
-        return;
-    }
-    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+    // Get PostgreSQL configuration using the helper function
+    auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
 
     // Create connection parameters
     std::string type = dbConfig.getType();
     std::string host = dbConfig.getHost();
-    // int port = dbConfig.getPort();
     std::string database = dbConfig.getDatabase();
     std::string username = dbConfig.getUsername();
     std::string password = dbConfig.getPassword();
 
     std::string connStr = dbConfig.createConnectionString();
 
-    // Get test queries
-    const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
-    std::string createTableQuery = testQueries.getQuery("postgresql", "create_table");
-    std::string insertDataQuery = testQueries.getQuery("postgresql", "insert_data");
-    std::string selectDataQuery = testQueries.getQuery("postgresql", "select_data");
-    std::string dropTableQuery = testQueries.getQuery("postgresql", "drop_table");
-#else
-    // Create connection parameters with default values when YAML is disabled
-    std::string type = "postgresql";
-    std::string host = "localhost";
-    int port = 5432;
-    std::string database = "Test01DB";
-    std::string username = "postgres";
-    std::string password = "dsystems";
-    std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
-
-    // Default test queries
-    std::string createTableQuery = "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE PRECISION)";
-    std::string insertDataQuery = "INSERT INTO test_table (id, name, value) VALUES (1, 'Test', 1.5)";
-    std::string selectDataQuery = "SELECT * FROM test_table";
-    std::string dropTableQuery = "DROP TABLE IF EXISTS test_table";
-#endif
+    // Get test queries from config
+    std::string createTableQuery = dbConfig.getOption("query__create_table",
+                                                      "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE PRECISION)");
+    std::string insertDataQuery = dbConfig.getOption("query__insert_data",
+                                                     "INSERT INTO test_table (id, name, value) VALUES (1, 'Test', 1.5)");
+    std::string selectDataQuery = dbConfig.getOption("query__select_data",
+                                                     "SELECT * FROM test_table");
+    std::string dropTableQuery = dbConfig.getOption("query__drop_table",
+                                                    "DROP TABLE IF EXISTS test_table");
 
     SECTION("Basic connection pool operations")
     {
@@ -302,90 +253,18 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
 #if USE_SQLITE
 #include <cpp_dbc/drivers/driver_sqlite.hpp>
 
-// Helper function to check if we can connect to SQLite
-static bool canConnectToSQLite()
-{
-    try
-    {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-        // Load the configuration using DatabaseConfigManager
-        std::string config_path = common_test_helpers::getConfigFilePath();
-        cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-        // Find the dev_sqlite configuration
-        auto dbConfigOpt = configManager.getDatabaseByName("dev_sqlite");
-        if (!dbConfigOpt.has_value())
-        {
-            std::cerr << "SQLite configuration not found in test_db_connections.yml" << std::endl;
-            return false;
-        }
-        const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
-
-        // Create connection string
-        std::string type = dbConfig.getType();
-        std::string database = dbConfig.getDatabase();
-        std::string username = ""; // SQLite doesn't use username
-        std::string password = ""; // SQLite doesn't use password
-#else
-        // Create connection string with default values when YAML is disabled
-        std::string type = "sqlite";
-        std::string database = ":memory:";
-        std::string username = ""; // SQLite doesn't use username
-        std::string password = ""; // SQLite doesn't use password
-#endif
-
-        std::string connStr = "cpp_dbc:" + type + "://" + database;
-
-        // Register the SQLite driver
-        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
-
-        // Attempt to connect to SQLite
-        std::cout << "Attempting to connect to SQLite with connection string: " << connStr << std::endl;
-
-        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
-
-        // If we get here, the connection was successful
-        std::cout << "SQLite connection successful!" << std::endl;
-
-        // Execute a simple query to verify the connection
-        auto resultSet = conn->executeQuery("SELECT 1 as test_value");
-        bool success = resultSet->next() && resultSet->getInt("test_value") == 1;
-
-        // Close the connection
-        conn->close();
-
-        return success;
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "SQLite connection error: " << e.what() << std::endl;
-        return false;
-    }
-}
-
 // Test case for real SQLite connection pool
 TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
 {
     // Skip these tests if we can't connect to SQLite
-    if (!canConnectToSQLite())
+    if (!sqlite_test_helpers::canConnectToSQLite())
     {
         SKIP("Cannot connect to SQLite database");
         return;
     }
 
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-    // Load the configuration using DatabaseConfigManager
-    std::string config_path = common_test_helpers::getConfigFilePath();
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-    // Find the dev_sqlite configuration
-    auto dbConfigOpt = configManager.getDatabaseByName("dev_sqlite");
-    if (!dbConfigOpt.has_value())
-    {
-        SKIP("SQLite configuration 'dev_sqlite' not found in config file");
-        return;
-    }
-    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+    // Get SQLite configuration using the helper function
+    auto dbConfig = sqlite_test_helpers::getSQLiteConfig("dev_sqlite");
 
     // Create connection parameters
     std::string type = dbConfig.getType();
@@ -395,27 +274,15 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
 
     std::string connStr = dbConfig.createConnectionString();
 
-    // Get test queries
-    const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
-    std::string createTableQuery = testQueries.getQuery("sqlite", "create_table");
-    std::string insertDataQuery = testQueries.getQuery("sqlite", "insert_data");
-    std::string selectDataQuery = testQueries.getQuery("sqlite", "select_data");
-    std::string dropTableQuery = testQueries.getQuery("sqlite", "drop_table");
-#else
-    // Create connection parameters with default values when YAML is disabled
-    std::string type = "sqlite";
-    std::string database = ":memory:";
-    std::string username = ""; // SQLite doesn't use username
-    std::string password = ""; // SQLite doesn't use password
-
-    std::string connStr = "cpp_dbc:" + type + "://" + database;
-
-    // Default test queries
-    std::string createTableQuery = "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT, value REAL)";
-    std::string insertDataQuery = "INSERT INTO test_table (id, name, value) VALUES (1, 'Test', 1.5)";
-    std::string selectDataQuery = "SELECT * FROM test_table";
-    std::string dropTableQuery = "DROP TABLE IF EXISTS test_table";
-#endif
+    // Get test queries from config
+    std::string createTableQuery = dbConfig.getOption("query__create_table",
+                                                      "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
+    std::string insertDataQuery = dbConfig.getOption("query__insert_data",
+                                                     "INSERT INTO test_table (id, name, value) VALUES (1, 'Test', 1.5)");
+    std::string selectDataQuery = dbConfig.getOption("query__select_data",
+                                                     "SELECT * FROM test_table");
+    std::string dropTableQuery = dbConfig.getOption("query__drop_table",
+                                                    "DROP TABLE IF EXISTS test_table");
 
     // Create a connection pool configuration
     cpp_dbc::config::ConnectionPoolConfig poolConfig;
@@ -424,6 +291,10 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
     poolConfig.setPassword(password);
 
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+    // Load the configuration using DatabaseConfigManager
+    std::string config_path = common_test_helpers::getConfigFilePath();
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
     // Load the SQLite pool configuration from DatabaseConfigManager
     auto poolConfigOpt = configManager.getConnectionPoolConfig("sqlite_pool");
     if (poolConfigOpt.has_value())

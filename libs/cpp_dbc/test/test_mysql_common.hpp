@@ -23,8 +23,10 @@
 #include <string>
 #include <memory>
 #include <iostream>
+#include <tuple>
 
 #include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/config/database_config.hpp>
 
 #include "test_main.hpp"
 
@@ -38,10 +40,34 @@ namespace mysql_test_helpers
 
 #if USE_MYSQL
 
-    // Helper function to try to create the database if it doesn't exist
+    /**
+     * @brief Get MySQL database configuration with test queries
+     *
+     * Gets a DatabaseConfig object with MySQL connection parameters either from:
+     * - YAML config file (when USE_CPP_YAML is defined)
+     * - Hardcoded default values (when USE_CPP_YAML is not defined)
+     *
+     * The returned DatabaseConfig object also includes SQL queries stored as options:
+     * - "query__create_table" - CREATE TABLE query
+     * - "query__insert_data" - INSERT query
+     * - "query__select_data" - SELECT query
+     * - "query__drop_table" - DROP TABLE query
+     *
+     * @param databaseName The name to use for the configuration
+     * @param useEmptyDatabase If true, returns configuration with empty database name
+     * @return cpp_dbc::config::DatabaseConfig with MySQL connection parameters and test queries
+     */
+    cpp_dbc::config::DatabaseConfig getMySQLConfig(const std::string &databaseName = "dev_mysql",
+                                                   bool useEmptyDatabase = false);
+
+    /**
+     * @brief Helper function to try to create the database if it doesn't exist
+     */
     bool tryCreateDatabase();
 
-    // Helper function to check if we can connect to MySQL
+    /**
+     * @brief Helper function to check if we can connect to MySQL
+     */
     bool canConnectToMySQL();
 
 #endif

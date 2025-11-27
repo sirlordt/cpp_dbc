@@ -35,36 +35,17 @@ TEST_CASE("MySQL connection test", "[mysql_connection]")
     // Skip this test if MySQL support is not enabled
     SECTION("Test MySQL connection")
     {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-        // Load the configuration using DatabaseConfigManager
-        std::string config_path = common_test_helpers::getConfigFilePath();
-        cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+        // Get MySQL configuration with empty database name
+        auto dbConfig = mysql_test_helpers::getMySQLConfig("dev_mysql", true);
 
-        // Find the dev_mysql configuration
-        auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+        // Extract connection parameters
+        std::string username = dbConfig.getUsername();
+        std::string password = dbConfig.getPassword();
 
-        // Check that the database configuration was found
-        REQUIRE(dbConfigOpt.has_value());
-        const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
-
-        // Create connection string
+        // Create connection string without database name
         std::string type = dbConfig.getType();
         std::string host = dbConfig.getHost();
         int port = dbConfig.getPort();
-        std::string database = ""; // Empty database
-        std::string username = dbConfig.getUsername();
-        std::string password = dbConfig.getPassword();
-#else
-        // Hardcoded values when YAML is not available
-        std::string type = "mysql";
-        std::string host = "localhost";
-        int port = 3306;
-        std::string database = ""; // Empty database
-        std::string username = "root";
-        std::string password = "dsystems";
-#endif
-
-        // Test connection without specifying a database
         std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port);
 
         // Register the MySQL driver

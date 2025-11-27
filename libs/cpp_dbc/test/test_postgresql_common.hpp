@@ -39,6 +39,26 @@ namespace postgresql_test_helpers
 
 #if USE_POSTGRESQL
 
+    /**
+     * @brief Get PostgreSQL database configuration with test queries
+     *
+     * Gets a DatabaseConfig object with PostgreSQL connection parameters either from:
+     * - YAML config file (when USE_CPP_YAML is defined)
+     * - Hardcoded default values (when USE_CPP_YAML is not defined)
+     *
+     * The returned DatabaseConfig object also includes SQL queries stored as options:
+     * - "query__create_table" - CREATE TABLE query
+     * - "query__insert_data" - INSERT query
+     * - "query__select_data" - SELECT query
+     * - "query__drop_table" - DROP TABLE query
+     *
+     * @param databaseName The name to use for the configuration
+     * @param useEmptyDatabase If true, returns configuration with empty database name
+     * @return cpp_dbc::config::DatabaseConfig with PostgreSQL connection parameters and test queries
+     */
+    cpp_dbc::config::DatabaseConfig getPostgreSQLConfig(const std::string &databaseName = "dev_postgresql",
+                                                        bool useEmptyDatabase = false);
+
     // Helper function to try to create the database if it doesn't exist
     bool tryCreateDatabase();
 

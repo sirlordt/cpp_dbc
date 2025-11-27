@@ -34,12 +34,6 @@
 
 #include "test_postgresql_common.hpp"
 
-// Helper function to get the path to the test_db_connections.yml file
-// Using common_test_helpers namespace for helper functions
-
-// Helper function to generate random JSON data
-extern std::string common_test_helpers::generateRandomJson(int depth, int maxItems);
-
 #if USE_POSTGRESQL
 // Test case for PostgreSQL JSON and JSONB data types
 TEST_CASE("PostgreSQL JSON and JSONB data types", "[postgresql_real_json]")
@@ -51,39 +45,13 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[postgresql_real_json]")
         return;
     }
 
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-    // Load the YAML configuration
-    // Load the configuration using DatabaseConfigManager
-    std::string config_path = common_test_helpers::getConfigFilePath();
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+    // Get PostgreSQL configuration
+    auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
 
-    // Find the dev_postgresql configuration
-    auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
-    if (!dbConfigOpt.has_value())
-    {
-        SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
-        return;
-    }
-    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
-
-    // Create connection parameters
-    std::string type = dbConfig.getType();
-    std::string host = dbConfig.getHost();
-    // int port = dbConfig.getPort();
-    std::string database = dbConfig.getDatabase();
+    // Get connection parameters
     std::string username = dbConfig.getUsername();
     std::string password = dbConfig.getPassword();
     std::string connStr = dbConfig.createConnectionString();
-#else
-    // Create connection parameters with default values when YAML is disabled
-    std::string type = "postgresql";
-    std::string host = "localhost";
-    int port = 5432;
-    std::string database = "Test01DB";
-    std::string username = "postgres";
-    std::string password = "dsystems";
-    std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
-#endif
 
     SECTION("Basic JSON operations")
     {

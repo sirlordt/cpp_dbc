@@ -27,6 +27,7 @@
 
 #include "test_mysql_common.hpp"
 #include "test_postgresql_common.hpp"
+#include "test_sqlite_common.hpp"
 
 /*
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
@@ -201,35 +202,13 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         // This test is marked as !mayfail because it requires a real MySQL connection
         try
         {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the configuration using DatabaseConfigManager
-            std::string config_path = common_test_helpers::getConfigFilePath();
-            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-            // Find the dev_mysql configuration
-            auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
-            if (!dbConfigOpt.has_value())
-            {
-                SKIP("MySQL configuration 'dev_mysql' not found in config file");
-                return;
-            }
-            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+            // Get MySQL configuration using the helper function
+            auto dbConfig = mysql_test_helpers::getMySQLConfig("dev_mysql");
 
             // Create connection parameters
-            std::string type = dbConfig.getType();
-            std::string host = dbConfig.getHost();
-            // int port = dbConfig.getPort();
-            std::string database = dbConfig.getDatabase();
+            std::string connStr = dbConfig.createConnectionString();
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
-
-            std::string connStr = dbConfig.createConnectionString();
-#else
-            // Default connection parameters when YAML is disabled
-            std::string connStr = getConnectionString("mysql");
-            std::string username = "root";
-            std::string password = "dsystems";
-#endif
 
             // Try to connect to a local MySQL server
             auto conn = driver.connect(connStr, username, password);
@@ -269,35 +248,13 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
 
         try
         {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the configuration using DatabaseConfigManager
-            std::string config_path = common_test_helpers::getConfigFilePath();
-            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-            // Find the dev_mysql configuration
-            auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
-            if (!dbConfigOpt.has_value())
-            {
-                SKIP("MySQL configuration 'dev_mysql' not found in config file");
-                return;
-            }
-            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+            // Get MySQL configuration using the helper function
+            auto dbConfig = mysql_test_helpers::getMySQLConfig("dev_mysql");
 
             // Create connection parameters
-            std::string type = dbConfig.getType();
-            std::string host = dbConfig.getHost();
-            // int port = dbConfig.getPort();
-            std::string database = dbConfig.getDatabase();
+            std::string connStr = dbConfig.createConnectionString();
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
-
-            std::string connStr = dbConfig.createConnectionString();
-#else
-            // Default connection parameters when YAML is disabled
-            std::string connStr = getConnectionString("mysql");
-            std::string username = "root";
-            std::string password = "dsystems";
-#endif
 
             // Create a test table
             auto setupConn = driver.connect(connStr, username, password);
@@ -350,35 +307,13 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
 
         try
         {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the configuration using DatabaseConfigManager
-            std::string config_path = common_test_helpers::getConfigFilePath();
-            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-            // Find the dev_mysql configuration
-            auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
-            if (!dbConfigOpt.has_value())
-            {
-                SKIP("MySQL configuration 'dev_mysql' not found in config file");
-                return;
-            }
-            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+            // Get MySQL configuration using the helper function
+            auto dbConfig = mysql_test_helpers::getMySQLConfig("dev_mysql");
 
             // Create connection parameters
-            std::string type = dbConfig.getType();
-            std::string host = dbConfig.getHost();
-            // int port = dbConfig.getPort();
-            std::string database = dbConfig.getDatabase();
+            std::string connStr = dbConfig.createConnectionString();
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
-
-            std::string connStr = dbConfig.createConnectionString();
-#else
-            // Default connection parameters when YAML is disabled
-            std::string connStr = getConnectionString("mysql");
-            std::string username = "root";
-            std::string password = "dsystems";
-#endif
 
             // Create a test table
             auto setupConn = driver.connect(connStr, username, password);
@@ -438,35 +373,13 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
 
         try
         {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the configuration using DatabaseConfigManager
-            std::string config_path = common_test_helpers::getConfigFilePath();
-            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-            // Find the dev_mysql configuration
-            auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
-            if (!dbConfigOpt.has_value())
-            {
-                SKIP("MySQL configuration 'dev_mysql' not found in config file");
-                return;
-            }
-            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+            // Get MySQL configuration using the helper function
+            auto dbConfig = mysql_test_helpers::getMySQLConfig("dev_mysql");
 
             // Create connection parameters
-            std::string type = dbConfig.getType();
-            std::string host = dbConfig.getHost();
-            // int port = dbConfig.getPort();
-            std::string database = dbConfig.getDatabase();
+            std::string connStr = dbConfig.createConnectionString();
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
-
-            std::string connStr = dbConfig.createConnectionString();
-#else
-            // Default connection parameters when YAML is disabled
-            std::string connStr = getConnectionString("mysql");
-            std::string username = "root";
-            std::string password = "dsystems";
-#endif
 
             // Create a test table
             auto setupConn = driver.connect(connStr, username, password);
@@ -519,35 +432,13 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
 
         try
         {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the configuration using DatabaseConfigManager
-            std::string config_path = common_test_helpers::getConfigFilePath();
-            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-            // Find the dev_mysql configuration
-            auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
-            if (!dbConfigOpt.has_value())
-            {
-                SKIP("MySQL configuration 'dev_mysql' not found in config file");
-                return;
-            }
-            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+            // Get MySQL configuration using the helper function
+            auto dbConfig = mysql_test_helpers::getMySQLConfig("dev_mysql");
 
             // Create connection parameters
-            std::string type = dbConfig.getType();
-            std::string host = dbConfig.getHost();
-            // int port = dbConfig.getPort();
-            std::string database = dbConfig.getDatabase();
+            std::string connStr = dbConfig.createConnectionString();
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
-
-            std::string connStr = dbConfig.createConnectionString();
-#else
-            // Default connection parameters when YAML is disabled
-            std::string connStr = getConnectionString("mysql");
-            std::string username = "root";
-            std::string password = "dsystems";
-#endif
 
             // Create a test table
             auto setupConn = driver.connect(connStr, username, password);
@@ -626,35 +517,13 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         // This test is marked as !mayfail because it requires a real PostgreSQL connection
         try
         {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the configuration using DatabaseConfigManager
-            std::string config_path = common_test_helpers::getConfigFilePath();
-            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-            // Find the dev_postgresql configuration
-            auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
-            if (!dbConfigOpt.has_value())
-            {
-                SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
-                return;
-            }
-            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+            // Get PostgreSQL configuration using the helper function
+            auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
 
             // Create connection parameters
-            std::string type = dbConfig.getType();
-            std::string host = dbConfig.getHost();
-            // int port = dbConfig.getPort();
-            std::string database = dbConfig.getDatabase();
+            std::string connStr = dbConfig.createConnectionString();
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
-
-            std::string connStr = dbConfig.createConnectionString();
-#else
-            // Default connection parameters when YAML is disabled
-            std::string connStr = getConnectionString("postgresql");
-            std::string username = "postgres";
-            std::string password = "postgres";
-#endif
 
             // Try to connect to a local PostgreSQL server
             auto conn = driver.connect(connStr, username, password);
@@ -709,35 +578,13 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
 
         try
         {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the configuration using DatabaseConfigManager
-            std::string config_path = common_test_helpers::getConfigFilePath();
-            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-            // Find the dev_postgresql configuration
-            auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
-            if (!dbConfigOpt.has_value())
-            {
-                SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
-                return;
-            }
-            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+            // Get PostgreSQL configuration using the helper function
+            auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
 
             // Create connection parameters
-            std::string type = dbConfig.getType();
-            std::string host = dbConfig.getHost();
-            // int port = dbConfig.getPort();
-            std::string database = dbConfig.getDatabase();
+            std::string connStr = dbConfig.createConnectionString();
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
-
-            std::string connStr = dbConfig.createConnectionString();
-#else
-            // Default connection parameters when YAML is disabled
-            std::string connStr = getConnectionString("postgresql");
-            std::string username = "postgres";
-            std::string password = "postgres";
-#endif
 
             // Create a test table
             auto setupConn = driver.connect(connStr, username, password);
@@ -797,35 +644,13 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
 
         try
         {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the configuration using DatabaseConfigManager
-            std::string config_path = common_test_helpers::getConfigFilePath();
-            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-            // Find the dev_postgresql configuration
-            auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
-            if (!dbConfigOpt.has_value())
-            {
-                SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
-                return;
-            }
-            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+            // Get PostgreSQL configuration using the helper function
+            auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
 
             // Create connection parameters
-            std::string type = dbConfig.getType();
-            std::string host = dbConfig.getHost();
-            // int port = dbConfig.getPort();
-            std::string database = dbConfig.getDatabase();
+            std::string connStr = dbConfig.createConnectionString();
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
-
-            std::string connStr = dbConfig.createConnectionString();
-#else
-            // Default connection parameters when YAML is disabled
-            std::string connStr = getConnectionString("postgresql");
-            std::string username = "postgres";
-            std::string password = "postgres";
-#endif
 
             // Create a test table
             auto setupConn = driver.connect(connStr, username, password);
@@ -878,35 +703,13 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
 
         try
         {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the configuration using DatabaseConfigManager
-            std::string config_path = common_test_helpers::getConfigFilePath();
-            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-            // Find the dev_postgresql configuration
-            auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
-            if (!dbConfigOpt.has_value())
-            {
-                SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
-                return;
-            }
-            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+            // Get PostgreSQL configuration using the helper function
+            auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
 
             // Create connection parameters
-            std::string type = dbConfig.getType();
-            std::string host = dbConfig.getHost();
-            // int port = dbConfig.getPort();
-            std::string database = dbConfig.getDatabase();
+            std::string connStr = dbConfig.createConnectionString();
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
-
-            std::string connStr = dbConfig.createConnectionString();
-#else
-            // Default connection parameters when YAML is disabled
-            std::string connStr = getConnectionString("postgresql");
-            std::string username = "postgres";
-            std::string password = "postgres";
-#endif
 
             // Create test table
             auto setupConn = driver.connect(connStr, username, password);

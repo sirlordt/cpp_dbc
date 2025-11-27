@@ -35,39 +35,13 @@ TEST_CASE("PostgreSQL connection test", "[postgresql_connection]")
     // Skip this test if PostgreSQL support is not enabled
     SECTION("Test PostgreSQL connection")
     {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-        // Load the YAML configuration
-        // Load the configuration using DatabaseConfigManager
-        std::string config_path = common_test_helpers::getConfigFilePath();
-        cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+        // Get PostgreSQL configuration
+        auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
 
-        // Find the dev_postgresql configuration
-        auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
-        if (!dbConfigOpt.has_value())
-        {
-            SKIP("PostgreSQL configuration 'dev_postgresql' not found in config file");
-            return;
-        }
-        const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
-
-        // Create connection string
-        std::string type = dbConfig.getType();
-        std::string host = dbConfig.getHost();
-        // int port = dbConfig.getPort();
-        std::string database = dbConfig.getDatabase();
+        // Get connection parameters
         std::string username = dbConfig.getUsername();
         std::string password = dbConfig.getPassword();
         std::string connStr = dbConfig.createConnectionString();
-#else
-        // Hardcoded values when YAML is not available
-        std::string type = "postgresql";
-        std::string host = "localhost";
-        int port = 5432;
-        std::string database = "Test01DB";
-        std::string username = "root";
-        std::string password = "dsystems";
-        std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
-#endif
         // Register the PostgreSQL driver
         cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
 

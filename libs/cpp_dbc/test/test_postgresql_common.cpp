@@ -25,43 +25,114 @@ namespace postgresql_test_helpers
 
 #if USE_POSTGRESQL
 
+    cpp_dbc::config::DatabaseConfig getPostgreSQLConfig(const std::string &databaseName, bool useEmptyDatabase)
+    {
+        cpp_dbc::config::DatabaseConfig dbConfig;
+
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+        // Load the configuration using DatabaseConfigManager
+        std::string config_path = common_test_helpers::getConfigFilePath();
+        cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+        // Find the requested database configuration
+        auto dbConfigOpt = configManager.getDatabaseByName(databaseName);
+
+        if (dbConfigOpt.has_value())
+        {
+            // Use the configuration from the YAML file
+            dbConfig = dbConfigOpt.value().get();
+
+            // If useEmptyDatabase is true, set the database name to empty
+            if (useEmptyDatabase)
+            {
+                dbConfig.setDatabase("");
+            }
+
+            // Get test queries from YAML config
+            const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
+
+            // Add queries as options to DatabaseConfig
+            dbConfig.setOption("query__create_table",
+                               testQueries.getQuery("postgresql", "create_table",
+                                                    "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE PRECISION)"));
+
+            dbConfig.setOption("query__insert_data",
+                               testQueries.getQuery("postgresql", "insert_data",
+                                                    "INSERT INTO test_table (id, name, value) VALUES ($1, $2, $3)"));
+
+            dbConfig.setOption("query__select_data",
+                               testQueries.getQuery("postgresql", "select_data",
+                                                    "SELECT * FROM test_table WHERE id = $1"));
+
+            dbConfig.setOption("query__drop_table",
+                               testQueries.getQuery("postgresql", "drop_table",
+                                                    "DROP TABLE IF EXISTS test_table"));
+        }
+        else
+        {
+            // Fallback to default values if configuration not found
+            dbConfig.setName(databaseName);
+            dbConfig.setType("postgresql");
+            dbConfig.setHost("localhost");
+            dbConfig.setPort(5432);
+            dbConfig.setDatabase(useEmptyDatabase ? "" : "Test01DB");
+            dbConfig.setUsername("postgres");
+            dbConfig.setPassword("dsystems");
+
+            // Add default queries as options
+            dbConfig.setOption("query__create_table",
+                               "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE PRECISION)");
+            dbConfig.setOption("query__insert_data",
+                               "INSERT INTO test_table (id, name, value) VALUES ($1, $2, $3)");
+            dbConfig.setOption("query__select_data",
+                               "SELECT * FROM test_table WHERE id = $1");
+            dbConfig.setOption("query__drop_table",
+                               "DROP TABLE IF EXISTS test_table");
+        }
+#else
+        // Hardcoded values when YAML is not available
+        dbConfig.setName(databaseName);
+        dbConfig.setType("postgresql");
+        dbConfig.setHost("localhost");
+        dbConfig.setPort(5432);
+        dbConfig.setDatabase(useEmptyDatabase ? "" : "Test01DB");
+        dbConfig.setUsername("postgres");
+        dbConfig.setPassword("dsystems");
+
+        // Add default queries as options
+        dbConfig.setOption("query__create_table",
+                           "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE PRECISION)");
+        dbConfig.setOption("query__insert_data",
+                           "INSERT INTO test_table (id, name, value) VALUES ($1, $2, $3)");
+        dbConfig.setOption("query__select_data",
+                           "SELECT * FROM test_table WHERE id = $1");
+        dbConfig.setOption("query__drop_table",
+                           "DROP TABLE IF EXISTS test_table");
+#endif
+
+        return dbConfig;
+    }
+
     bool tryCreateDatabase()
     {
         try
         {
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the configuration using DatabaseConfigManager
-            std::string config_path = common_test_helpers::getConfigFilePath();
-            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+            // Get configuration with empty database name (we'll connect to postgres)
+            auto dbConfig = getPostgreSQLConfig("dev_postgresql", true);
 
-            // Find the dev_postgresql configuration
-            auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
-            if (!dbConfigOpt.has_value())
-            {
-                std::cerr << "PostgreSQL configuration 'dev_postgresql' not found in config file" << std::endl;
-                return false;
-            }
-            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
-
-            // Create connection parameters
+            // Get connection parameters
             std::string type = dbConfig.getType();
             std::string host = dbConfig.getHost();
             int port = dbConfig.getPort();
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
 
-            // Get the create database query
-            const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
-            std::string createDatabaseQuery = testQueries.getQuery("postgresql", "create_database");
-#else
-            // Hardcoded values when YAML is not available
-            std::string type = "postgresql";
-            std::string host = "localhost";
-            int port = 5432;
-            std::string username = "root";
-            std::string password = "dsystems";
-            std::string createDatabaseQuery = "CREATE DATABASE IF NOT EXISTS Test01DB";
-#endif
+            // Get database name to create (default: Test01DB)
+            std::string dbName = dbConfig.getOption("database_name", "Test01DB");
+
+            // Get or create the CREATE DATABASE query
+            std::string createDatabaseQuery = dbConfig.getOption("query__create_database",
+                                                                 "CREATE DATABASE IF NOT EXISTS " + dbName);
 
             // Create connection string without database name to connect to PostgreSQL server
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/postgres";
@@ -100,38 +171,13 @@ namespace postgresql_test_helpers
                 std::cerr << "Failed to create database, but continuing with connection test..." << std::endl;
             }
 
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-            // Load the configuration using DatabaseConfigManager
-            std::string config_path = common_test_helpers::getConfigFilePath();
-            cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+            // Get database configuration
+            auto dbConfig = getPostgreSQLConfig("dev_postgresql");
 
-            // Find the dev_postgresql configuration
-            auto dbConfigOpt = configManager.getDatabaseByName("dev_postgresql");
-            if (!dbConfigOpt.has_value())
-            {
-                std::cerr << "PostgreSQL configuration 'dev_postgresql' not found in config file" << std::endl;
-                return false;
-            }
-            const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
-
-            // Create connection parameters
-            std::string type = dbConfig.getType();
-            std::string host = dbConfig.getHost();
-            int port = dbConfig.getPort();
-            std::string database = dbConfig.getDatabase();
+            // Get connection parameters
+            std::string connStr = dbConfig.createConnectionString();
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
-#else
-            // Hardcoded values when YAML is not available
-            std::string type = "postgresql";
-            std::string host = "localhost";
-            int port = 5432;
-            std::string database = "Test01DB";
-            std::string username = "root";
-            std::string password = "dsystems";
-#endif
-
-            std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 
             // Register the PostgreSQL driver
             cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
