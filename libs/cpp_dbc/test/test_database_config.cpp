@@ -21,7 +21,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/config/database_config.hpp>
-#include <cpp_dbc/config/yaml_config_loader.hpp>
 #include <string>
 #include <map>
 #include <vector>

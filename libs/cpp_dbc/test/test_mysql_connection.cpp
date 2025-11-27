@@ -18,20 +18,15 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
-#include <cpp_dbc/cpp_dbc.hpp>
-#if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
-#endif
 #include <string>
 #include <fstream>
 #include <iostream>
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#endif
 
-// Helper function to get the path to the test_db_connections.yml file
-std::string getConfigFilePath();
+#include <catch2/catch_test_macros.hpp>
+
+#include <cpp_dbc/cpp_dbc.hpp>
+
+#include "test_mysql_common.hpp"
 
 // Test case to verify MySQL connection
 TEST_CASE("MySQL connection test", "[mysql_connection]")
@@ -42,7 +37,7 @@ TEST_CASE("MySQL connection test", "[mysql_connection]")
     {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
         // Load the configuration using DatabaseConfigManager
-        std::string config_path = getConfigFilePath();
+        std::string config_path = common_test_helpers::getConfigFilePath();
         cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
         // Find the dev_mysql configuration

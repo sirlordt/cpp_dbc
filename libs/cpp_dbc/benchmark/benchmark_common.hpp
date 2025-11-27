@@ -26,7 +26,6 @@
 #include <cpp_dbc/connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
-#include <cpp_dbc/config/yaml_config_loader.hpp>
 
 #if USE_MYSQL
 #include <cpp_dbc/drivers/driver_mysql.hpp>

@@ -18,14 +18,6 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
-#include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
-#include <cpp_dbc/config/database_config.hpp>
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
-#endif
 #include <string>
 #include <memory>
 #include <vector>
@@ -33,13 +25,16 @@
 #include <fstream>
 #include <random>
 #include <sstream>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/config/database_config.hpp>
+
 #include "test_mysql_common.hpp"
 
-// Helper function to get the path to the test_db_connections.yml file
-extern std::string getConfigFilePath();
-
-// Helper function to generate random JSON data
-extern std::string generateRandomJson(int depth, int maxItems);
+// Using common_test_helpers namespace for helper functions
 
 #if USE_MYSQL
 // Test case for MySQL JSON data type
@@ -54,41 +49,38 @@ TEST_CASE("MySQL JSON data type", "[mysql_real_json]")
 
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the configuration using DatabaseConfigManager
-    std::string config_path = getConfigFilePath();
+    std::string config_path = common_test_helpers::getConfigFilePath();
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the dev_mysql configuration
-    std::string type = "mysql";
-    std::string host = "localhost";
-    int port = 3306;
-    std::string database = "Test01DB";
-    std::string username = "root";
-    std::string password = "dsystems";
-
     auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
-    if (dbConfigOpt.has_value())
+    if (!dbConfigOpt.has_value())
     {
-        const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
-
-        // Create connection parameters from DatabaseConfig
-        type = dbConfig.getType();
-        host = dbConfig.getHost();
-        port = dbConfig.getPort();
-        database = dbConfig.getDatabase();
-        username = dbConfig.getUsername();
-        password = dbConfig.getPassword();
+        SKIP("MySQL configuration 'dev_mysql' not found in config file");
+        return;
     }
+    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+
+    // Create connection parameters from DatabaseConfig
+    std::string type = dbConfig.getType();
+    std::string host = dbConfig.getHost();
+    // int port = dbConfig.getPort();
+    std::string database = dbConfig.getDatabase();
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+
+    std::string connStr = dbConfig.createConnectionString();
 #else
-    // Create connection parameters with default values when YAML is disabled
+    // Create connection parameters
     std::string type = "mysql";
     std::string host = "localhost";
     int port = 3306;
     std::string database = "Test01DB";
     std::string username = "root";
     std::string password = "dsystems";
-#endif
 
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+#endif
 
     SECTION("Basic JSON operations")
     {
@@ -544,13 +536,13 @@ TEST_CASE("MySQL JSON data type", "[mysql_real_json]")
             if (i % 10 == 0)
             {
                 std::string jsonData = "{\"name\": \"Product" + std::to_string(i) + "\", \"price\": " + std::to_string(i * 10) +
-                                       ", \"data\": " + generateRandomJson(2, 3) + "}";
+                                       ", \"data\": " + common_test_helpers::generateRandomJson(2, 3) + "}";
                 pstmt->setString(2, jsonData);
             }
             else
             {
                 std::string jsonData = "{\"name\": \"Product" + std::to_string(i) + "\", \"price\": " + std::to_string(i * 5) +
-                                       ", \"data\": " + generateRandomJson(2, 3) + "}";
+                                       ", \"data\": " + common_test_helpers::generateRandomJson(2, 3) + "}";
                 pstmt->setString(2, jsonData);
             }
 

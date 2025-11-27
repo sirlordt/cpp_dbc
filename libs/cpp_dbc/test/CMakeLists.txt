@@ -48,6 +48,9 @@ add_executable(cpp_dbc_tests
     test_database_config.cpp
     test_drivers.cpp
     test_integration.cpp
+    test_mysql_common.cpp
+    test_postgresql_common.cpp
+    test_sqlite_common.cpp
     test_mysql_real.cpp
     test_mysql_real_inner_join.cpp
     test_mysql_real_left_join.cpp

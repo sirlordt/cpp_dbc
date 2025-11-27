@@ -18,19 +18,18 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
-#include <cpp_dbc/cpp_dbc.hpp>
-#include "test_mocks.hpp"
-#if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
-#endif
-#if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
-#endif
-#include "test_mocks.hpp"
 #include <string>
 #include <memory>
 #include <iostream>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <cpp_dbc/cpp_dbc.hpp>
+
+#include "test_mysql_common.hpp"
+#include "test_postgresql_common.hpp"
+
+#include "test_mocks.hpp"
 
 // Test case for DriverManager
 TEST_CASE("DriverManager tests", "[driver][manager]")

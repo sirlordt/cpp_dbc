@@ -18,9 +18,6 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
-#include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/config/database_config.hpp>
 #include <string>
 #include <fstream>
 #include <iostream>
@@ -30,12 +27,12 @@
 #include <filesystem>
 #include <unistd.h>
 
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#endif
+#include <catch2/catch_test_macros.hpp>
 
-// Forward declaration
-std::string getConfigFilePath();
+#include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/config/database_config.hpp>
+
+#include "test_main.hpp"
 
 // Test case to verify that the database configuration file can be loaded
 TEST_CASE("Database configuration loading", "[db_config]")
@@ -46,7 +43,7 @@ TEST_CASE("Database configuration loading", "[db_config]")
     SECTION("Load database configuration file")
     {
         // Get the path to the configuration file
-        std::string config_path = getConfigFilePath();
+        std::string config_path = common_test_helpers::getConfigFilePath();
 
         // Check if the file exists
         std::ifstream file(config_path);
@@ -74,7 +71,7 @@ TEST_CASE("Database configurations", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
 
     SECTION("Verify all databases")
     {
@@ -188,7 +185,7 @@ TEST_CASE("Specific database configurations", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
 
     SECTION("Verify dev_mysql configuration")
     {
@@ -258,7 +255,7 @@ TEST_CASE("Specific SQLite database configurations", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
 
     SECTION("Verify dev_sqlite configuration")
     {
@@ -327,7 +324,7 @@ TEST_CASE("Connection pool configurations", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
 
     SECTION("Verify default pool configuration")
     {
@@ -374,7 +371,7 @@ TEST_CASE("Test queries", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
 
     SECTION("Verify common test query")
     {
@@ -441,7 +438,7 @@ TEST_CASE("Create connection strings from configuration", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
 
     SECTION("Create connection strings for all databases")
     {
@@ -499,7 +496,7 @@ TEST_CASE("Select MySQL database for dev environment", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
     std::string dbName = "dev_mysql";
     auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
@@ -533,7 +530,7 @@ TEST_CASE("Select MySQL database for test environment", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
     std::string dbName = "test_mysql";
     auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
@@ -557,7 +554,7 @@ TEST_CASE("Select MySQL database for prod environment", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
     std::string dbName = "prod_mysql";
     auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
@@ -581,7 +578,7 @@ TEST_CASE("Select PostgreSQL database for dev environment", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
     std::string dbName = "dev_postgresql";
     auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
@@ -605,7 +602,7 @@ TEST_CASE("Select PostgreSQL database for test environment", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
     std::string dbName = "test_postgresql";
     auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
@@ -629,7 +626,7 @@ TEST_CASE("Select PostgreSQL database for prod environment", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
     std::string dbName = "prod_postgresql";
     auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
@@ -653,7 +650,7 @@ TEST_CASE("Select SQLite database for dev environment", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
     std::string dbName = "dev_sqlite";
     auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
@@ -677,7 +674,7 @@ TEST_CASE("Select SQLite database for test environment", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
     std::string dbName = "test_sqlite";
     auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
@@ -701,7 +698,7 @@ TEST_CASE("Select SQLite database for prod environment", "[db_config]")
     SKIP("YAML support is disabled");
 #else
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(getConfigFilePath());
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
     std::string dbName = "prod_sqlite";
     auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 

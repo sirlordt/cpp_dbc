@@ -21,9 +21,6 @@
 #ifndef CPP_DBC_TEST_MOCKS_HPP
 #define CPP_DBC_TEST_MOCKS_HPP
 
-#include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
-#include <cpp_dbc/blob.hpp>
 #include <map>
 #include <functional>
 #include <memory>
@@ -31,6 +28,10 @@
 #include <vector>
 #include <atomic>
 #include <mutex>
+
+#include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/blob.hpp>
 
 namespace cpp_dbc_test
 {

@@ -18,17 +18,6 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
-#include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
-#include <cpp_dbc/config/database_config.hpp>
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
-#endif
-#if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
-#endif
 #include <string>
 #include <memory>
 #include <thread>
@@ -37,10 +26,15 @@
 #include <chrono>
 #include <iostream>
 #include <fstream>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/config/database_config.hpp>
+
 #include "test_mysql_common.hpp"
 #include "test_postgresql_common.hpp"
-
-std::string getConfigFilePath();
 
 #if USE_MYSQL
 // Test case for real MySQL connection pool
@@ -55,7 +49,7 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
 
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the configuration using DatabaseConfigManager
-    std::string config_path = getConfigFilePath();
+    std::string config_path = common_test_helpers::getConfigFilePath();
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the dev_mysql configuration
@@ -187,7 +181,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
 
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the configuration using DatabaseConfigManager
-    std::string config_path = getConfigFilePath();
+    std::string config_path = common_test_helpers::getConfigFilePath();
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the dev_postgresql configuration
@@ -315,7 +309,7 @@ static bool canConnectToSQLite()
     {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
         // Load the configuration using DatabaseConfigManager
-        std::string config_path = getConfigFilePath();
+        std::string config_path = common_test_helpers::getConfigFilePath();
         cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
         // Find the dev_sqlite configuration
@@ -381,7 +375,7 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
 
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the configuration using DatabaseConfigManager
-    std::string config_path = getConfigFilePath();
+    std::string config_path = common_test_helpers::getConfigFilePath();
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the dev_sqlite configuration

@@ -18,14 +18,6 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
-#include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
-#include <cpp_dbc/config/database_config.hpp>
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
-#endif
 #include <string>
 #include <memory>
 #include <vector>
@@ -33,13 +25,20 @@
 #include <fstream>
 #include <random>
 #include <sstream>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/config/database_config.hpp>
+
 #include "test_postgresql_common.hpp"
 
 // Helper function to get the path to the test_db_connections.yml file
-extern std::string getConfigFilePath();
+// Using common_test_helpers namespace for helper functions
 
 // Helper function to generate random JSON data
-extern std::string generateRandomJson(int depth, int maxItems);
+extern std::string common_test_helpers::generateRandomJson(int depth, int maxItems);
 
 #if USE_POSTGRESQL
 // Test case for PostgreSQL JSON and JSONB data types
@@ -55,7 +54,7 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[postgresql_real_json]")
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the YAML configuration
     // Load the configuration using DatabaseConfigManager
-    std::string config_path = getConfigFilePath();
+    std::string config_path = common_test_helpers::getConfigFilePath();
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the dev_postgresql configuration
@@ -368,11 +367,11 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[postgresql_real_json]")
             {
                 pstmt->setString(2, "{\"special_key\": \"special_value_" + std::to_string(i) + "\", "
                                                                                                "\"data\": " +
-                                        generateRandomJson(2, 3) + "}");
+                                        common_test_helpers::generateRandomJson(2, 3) + "}");
             }
             else
             {
-                pstmt->setString(2, generateRandomJson(3, 5));
+                pstmt->setString(2, common_test_helpers::generateRandomJson(3, 5));
             }
 
             REQUIRE(pstmt->executeUpdate() == 1);

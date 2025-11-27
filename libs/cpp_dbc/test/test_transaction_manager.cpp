@@ -18,10 +18,6 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
-#include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/transaction_manager.hpp>
-#include "test_mocks.hpp"
 #include <string>
 #include <thread>
 #include <vector>
@@ -29,6 +25,13 @@
 #include <chrono>
 #include <iostream>
 #include <memory>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/transaction_manager.hpp>
+
+#include "test_mocks.hpp"
 
 // Use the mock classes from test_mocks.hpp
 using namespace cpp_dbc_test;

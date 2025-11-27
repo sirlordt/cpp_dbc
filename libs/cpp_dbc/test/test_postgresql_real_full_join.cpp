@@ -18,25 +18,24 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/catch_approx.hpp>
-#include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
-#include <cpp_dbc/transaction_manager.hpp>
-#include <cpp_dbc/config/database_config.hpp>
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
-#endif
 #include <string>
 #include <memory>
 #include <vector>
 #include <iostream>
 #include <optional>
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+
+#include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/transaction_manager.hpp>
+#include <cpp_dbc/config/database_config.hpp>
+
 #include "test_postgresql_common.hpp"
 
 // Helper function to get the path to the test_db_connections.yml file
-extern std::string getConfigFilePath();
+// Using common_test_helpers namespace for helper functions
 
 #if USE_POSTGRESQL
 // Test case for PostgreSQL FULL JOIN operations
@@ -52,7 +51,7 @@ TEST_CASE("PostgreSQL FULL JOIN operations", "[postgresql_real_full_join]")
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the YAML configuration
     // Load the configuration using DatabaseConfigManager
-    std::string config_path = getConfigFilePath();
+    std::string config_path = common_test_helpers::getConfigFilePath();
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the dev_postgresql configuration

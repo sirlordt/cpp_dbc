@@ -18,20 +18,15 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
-#include <cpp_dbc/cpp_dbc.hpp>
-#if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
-#endif
 #include <string>
 #include <fstream>
 #include <iostream>
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#endif
 
-// Helper function to get the path to the test_db_connections.yml file
-std::string getConfigFilePath();
+#include <catch2/catch_test_macros.hpp>
+
+#include <cpp_dbc/cpp_dbc.hpp>
+
+#include "test_postgresql_common.hpp"
 
 // Test case to verify PostgreSQL connection
 TEST_CASE("PostgreSQL connection test", "[postgresql_connection]")
@@ -43,7 +38,7 @@ TEST_CASE("PostgreSQL connection test", "[postgresql_connection]")
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
         // Load the YAML configuration
         // Load the configuration using DatabaseConfigManager
-        std::string config_path = getConfigFilePath();
+        std::string config_path = common_test_helpers::getConfigFilePath();
         cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
         // Find the dev_postgresql configuration

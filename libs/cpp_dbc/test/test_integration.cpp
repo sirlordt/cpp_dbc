@@ -18,23 +18,6 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
-#include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
-#include <cpp_dbc/transaction_manager.hpp>
-#include <cpp_dbc/config/database_config.hpp>
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#include "test_mocks.hpp"
-#if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
-#endif
-#if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
-#endif
-#if USE_SQLITE
-#include <cpp_dbc/drivers/driver_sqlite.hpp>
-#endif
-#include "test_mocks.hpp"
 #include <string>
 #include <memory>
 #include <thread>
@@ -44,8 +27,18 @@
 #include <iostream>
 #include <fstream>
 
-// Helper function to get the path to the test_db_connections.yml file
-std::string getConfigFilePath();
+#include <catch2/catch_test_macros.hpp>
+
+#include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/transaction_manager.hpp>
+#include <cpp_dbc/config/database_config.hpp>
+
+#include "test_mysql_common.hpp"
+#include "test_postgresql_common.hpp"
+#include "test_sqlite_common.hpp"
+
+#include "test_mocks.hpp"
 
 // Integration test case
 TEST_CASE("Integration test with mock database", "[integration]")
@@ -410,7 +403,7 @@ TEST_CASE("Load and use test_db_connections.yml", "[integration]")
     SECTION("Load test_db_connections.yml")
     {
         // Load the YAML configuration
-        std::string config_path = getConfigFilePath();
+        std::string config_path = common_test_helpers::getConfigFilePath();
         std::ifstream file(config_path);
         REQUIRE(file.good());
         file.close();
@@ -446,7 +439,7 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
     {
 #if USE_CPP_YAML
         // Load the configuration using DatabaseConfigManager
-        std::string config_path = getConfigFilePath();
+        std::string config_path = common_test_helpers::getConfigFilePath();
         cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
         // Get all database configurations

@@ -18,18 +18,6 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
-#include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
-#include <cpp_dbc/transaction_manager.hpp>
-#include <cpp_dbc/config/database_config.hpp>
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
-#endif
-#if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
-#endif
 #include <string>
 #include <memory>
 #include <thread>
@@ -38,14 +26,16 @@
 #include <chrono>
 #include <iostream>
 #include <fstream>
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#endif
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/transaction_manager.hpp>
+#include <cpp_dbc/config/database_config.hpp>
+
 #include "test_mysql_common.hpp"
 #include "test_postgresql_common.hpp"
-
-// Helper function to get the path to the test_db_connections.yml file
-std::string getConfigFilePath();
 
 #if USE_MYSQL
 // Test case for real MySQL transaction manager
@@ -61,7 +51,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the YAML configuration
     // Load the configuration using DatabaseConfigManager
-    std::string config_path = getConfigFilePath();
+    std::string config_path = common_test_helpers::getConfigFilePath();
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the dev_mysql configuration
@@ -354,7 +344,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
     // Load the YAML configuration
     // Load the configuration using DatabaseConfigManager
-    std::string config_path = getConfigFilePath();
+    std::string config_path = common_test_helpers::getConfigFilePath();
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Find the dev_postgresql configuration

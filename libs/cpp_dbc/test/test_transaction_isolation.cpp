@@ -19,23 +19,14 @@
 */
 
 #include <catch2/catch_test_macros.hpp>
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#endif
 #include <cpp_dbc/cpp_dbc.hpp>
 #include "test_mocks.hpp"
-#if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
-#endif
-#if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
-#endif
 #include <string>
 #include <memory>
 #include <iostream>
 
-// Helper function to get the path to the test_db_connections.yml file
-std::string getConfigFilePath();
+#include "test_mysql_common.hpp"
+#include "test_postgresql_common.hpp"
 
 /*
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
@@ -76,6 +67,8 @@ std::string getConnectionString(const YAML::Node &dbConfig)
     return "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 }
 #else
+*/
+#if not defined(USE_CPP_YAML) || USE_CPP_YAML == 0
 // Helper function to get database configuration when YAML is disabled
 std::string getConnectionString(const std::string &dbType)
 {
@@ -94,7 +87,6 @@ std::string getConnectionString(const std::string &dbType)
     return "";
 }
 #endif
-*/
 
 // Test case for TransactionIsolationLevel enum
 TEST_CASE("TransactionIsolationLevel enum tests", "[transaction][isolation]")
@@ -211,7 +203,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the configuration using DatabaseConfigManager
-            std::string config_path = getConfigFilePath();
+            std::string config_path = common_test_helpers::getConfigFilePath();
             cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_mysql configuration
@@ -279,7 +271,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the configuration using DatabaseConfigManager
-            std::string config_path = getConfigFilePath();
+            std::string config_path = common_test_helpers::getConfigFilePath();
             cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_mysql configuration
@@ -360,7 +352,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the configuration using DatabaseConfigManager
-            std::string config_path = getConfigFilePath();
+            std::string config_path = common_test_helpers::getConfigFilePath();
             cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_mysql configuration
@@ -448,7 +440,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the configuration using DatabaseConfigManager
-            std::string config_path = getConfigFilePath();
+            std::string config_path = common_test_helpers::getConfigFilePath();
             cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_mysql configuration
@@ -529,7 +521,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the configuration using DatabaseConfigManager
-            std::string config_path = getConfigFilePath();
+            std::string config_path = common_test_helpers::getConfigFilePath();
             cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_mysql configuration
@@ -636,7 +628,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the configuration using DatabaseConfigManager
-            std::string config_path = getConfigFilePath();
+            std::string config_path = common_test_helpers::getConfigFilePath();
             cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_postgresql configuration
@@ -719,7 +711,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the configuration using DatabaseConfigManager
-            std::string config_path = getConfigFilePath();
+            std::string config_path = common_test_helpers::getConfigFilePath();
             cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_postgresql configuration
@@ -807,7 +799,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the configuration using DatabaseConfigManager
-            std::string config_path = getConfigFilePath();
+            std::string config_path = common_test_helpers::getConfigFilePath();
             cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_postgresql configuration
@@ -888,7 +880,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
         {
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
             // Load the configuration using DatabaseConfigManager
-            std::string config_path = getConfigFilePath();
+            std::string config_path = common_test_helpers::getConfigFilePath();
             cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
             // Find the dev_postgresql configuration

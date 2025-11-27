@@ -18,34 +18,24 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/catch_approx.hpp>
-#include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
-#include <cpp_dbc/transaction_manager.hpp>
-#include <cpp_dbc/config/database_config.hpp>
-#include <cpp_dbc/config/yaml_config_loader.hpp>
-#if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
-#include <cpp_dbc/drivers/mysql_blob.hpp>
-#endif
 #include <string>
 #include <memory>
 #include <vector>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+
+#include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/transaction_manager.hpp>
+#include <cpp_dbc/config/database_config.hpp>
+
 #include "test_mysql_common.hpp"
-#include "test_blob_common.hpp"
 
-// External helper functions from test_main.cpp
-extern std::vector<uint8_t> readBinaryFile(const std::string &filePath);
-extern void writeBinaryFile(const std::string &filePath, const std::vector<uint8_t> &data);
-extern std::string getTestImagePath();
-extern std::string generateRandomTempFilename();
-
-// Helper function to get the path to the test_db_connections.yml file
-extern std::string getConfigFilePath();
+// Using common_test_helpers namespace for helper functions
 
 #if USE_MYSQL
 // Test case for MySQL BLOB operations
@@ -58,6 +48,30 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
         return;
     }
 
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+    // Load the configuration using DatabaseConfigManager
+    std::string config_path = common_test_helpers::getConfigFilePath();
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+    // Find the dev_mysql configuration
+    auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
+    if (!dbConfigOpt.has_value())
+    {
+        SKIP("MySQL configuration 'dev_mysql' not found in config file");
+        return;
+    }
+    const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
+
+    // Create connection parameters from DatabaseConfig
+    std::string type = dbConfig.getType();
+    std::string host = dbConfig.getHost();
+    // int port = dbConfig.getPort();
+    std::string database = dbConfig.getDatabase();
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+
+    std::string connStr = dbConfig.createConnectionString();
+#else
     // Create connection parameters
     std::string type = "mysql";
     std::string host = "localhost";
@@ -66,28 +80,8 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
     std::string username = "root";
     std::string password = "dsystems";
 
-#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
-    // Load the configuration using DatabaseConfigManager
-    std::string config_path = getConfigFilePath();
-    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
-
-    // Find the dev_mysql configuration
-    auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
-    if (dbConfigOpt.has_value())
-    {
-        const cpp_dbc::config::DatabaseConfig &dbConfig = dbConfigOpt.value().get();
-
-        // Create connection parameters from DatabaseConfig
-        type = dbConfig.getType();
-        host = dbConfig.getHost();
-        port = dbConfig.getPort();
-        database = dbConfig.getDatabase();
-        username = dbConfig.getUsername();
-        password = dbConfig.getPassword();
-    }
-#endif
-
     std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+#endif
 
     // Register the MySQL driver
     cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
@@ -111,10 +105,10 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
     SECTION("Basic BLOB operations")
     {
         // Generate test data
-        std::vector<uint8_t> tinyData = generateRandomBinaryData(250); // TINYBLOB max is 255 bytes
-        std::vector<uint8_t> smallData = generateRandomBinaryData(1000);
-        std::vector<uint8_t> mediumData = generateRandomBinaryData(10000);
-        std::vector<uint8_t> largeData = generateRandomBinaryData(100000);
+        std::vector<uint8_t> tinyData = common_test_helpers::generateRandomBinaryData(250); // TINYBLOB max is 255 bytes
+        std::vector<uint8_t> smallData = common_test_helpers::generateRandomBinaryData(1000);
+        std::vector<uint8_t> mediumData = common_test_helpers::generateRandomBinaryData(10000);
+        std::vector<uint8_t> largeData = common_test_helpers::generateRandomBinaryData(100000);
 
         // Insert data using PreparedStatement
         auto stmt = conn->prepareStatement(
@@ -140,22 +134,22 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
         REQUIRE(rs->getString("name") == "Test BLOB");
 
         auto retrievedSmallData = rs->getBytes("data");
-        REQUIRE(compareBinaryData(smallData, retrievedSmallData));
+        REQUIRE(common_test_helpers::compareBinaryData(smallData, retrievedSmallData));
 
         auto retrievedTinyData = rs->getBytes("tiny_data");
-        REQUIRE(compareBinaryData(tinyData, retrievedTinyData));
+        REQUIRE(common_test_helpers::compareBinaryData(tinyData, retrievedTinyData));
 
         auto retrievedMediumData = rs->getBytes("medium_data");
-        REQUIRE(compareBinaryData(mediumData, retrievedMediumData));
+        REQUIRE(common_test_helpers::compareBinaryData(mediumData, retrievedMediumData));
 
         auto retrievedLargeData = rs->getBytes("long_data");
-        REQUIRE(compareBinaryData(largeData, retrievedLargeData));
+        REQUIRE(common_test_helpers::compareBinaryData(largeData, retrievedLargeData));
     }
 
     SECTION("BLOB streaming operations")
     {
         // Generate test data
-        std::vector<uint8_t> largeData = generateRandomBinaryData(200000);
+        std::vector<uint8_t> largeData = common_test_helpers::generateRandomBinaryData(200000);
 
         // Insert data using PreparedStatement with streaming
         auto stmt = conn->prepareStatement(
@@ -191,13 +185,13 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
         }
 
         // Verify the data
-        REQUIRE(compareBinaryData(largeData, retrievedData));
+        REQUIRE(common_test_helpers::compareBinaryData(largeData, retrievedData));
     }
 
     SECTION("BLOB object operations")
     {
         // Generate test data
-        std::vector<uint8_t> blobData = generateRandomBinaryData(50000);
+        std::vector<uint8_t> blobData = common_test_helpers::generateRandomBinaryData(50000);
 
         // Insert data using PreparedStatement with BLOB object
         auto stmt = conn->prepareStatement(
@@ -227,32 +221,32 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
 
         // Get the BLOB data
         auto retrievedData = retrievedBlob->getBytes(0, retrievedBlob->length());
-        REQUIRE(compareBinaryData(blobData, retrievedData));
+        REQUIRE(common_test_helpers::compareBinaryData(blobData, retrievedData));
 
         // Test partial retrieval
         size_t partialSize = 1000;
         auto partialData = retrievedBlob->getBytes(1000, partialSize);
         REQUIRE(partialData.size() == partialSize);
-        REQUIRE(compareBinaryData(
+        REQUIRE(common_test_helpers::compareBinaryData(
             std::vector<uint8_t>(blobData.begin() + 1000, blobData.begin() + 1000 + partialSize),
             partialData));
 
         // Test modification
-        std::vector<uint8_t> newData = generateRandomBinaryData(1000);
+        std::vector<uint8_t> newData = common_test_helpers::generateRandomBinaryData(1000);
         retrievedBlob->setBytes(2000, newData);
 
         // Verify the modification
         auto modifiedData = retrievedBlob->getBytes(2000, newData.size());
-        REQUIRE(compareBinaryData(newData, modifiedData));
+        REQUIRE(common_test_helpers::compareBinaryData(newData, modifiedData));
     }
 
     SECTION("Image file BLOB operations")
     {
         // Get the path to the test image
-        std::string imagePath = getTestImagePath();
+        std::string imagePath = common_test_helpers::getTestImagePath();
 
         // Read the image file
-        std::vector<uint8_t> imageData = readBinaryFile(imagePath);
+        std::vector<uint8_t> imageData = common_test_helpers::readBinaryFile(imagePath);
         REQUIRE(!imageData.empty());
 
         // Insert the image data into the database
@@ -281,18 +275,18 @@ TEST_CASE("MySQL BLOB operations", "[mysql_real_blob]")
 
         // Verify the image data is the same as the original
         REQUIRE(retrievedImageData.size() == imageData.size());
-        REQUIRE(compareBinaryData(imageData, retrievedImageData));
+        REQUIRE(common_test_helpers::compareBinaryData(imageData, retrievedImageData));
 
         // Write the retrieved image to a temporary file
-        std::string tempImagePath = generateRandomTempFilename();
-        writeBinaryFile(tempImagePath, retrievedImageData);
+        std::string tempImagePath = common_test_helpers::generateRandomTempFilename();
+        common_test_helpers::writeBinaryFile(tempImagePath, retrievedImageData);
 
         // Read back the temporary file
-        std::vector<uint8_t> tempImageData = readBinaryFile(tempImagePath);
+        std::vector<uint8_t> tempImageData = common_test_helpers::readBinaryFile(tempImagePath);
 
         // Verify the temporary file data is the same as the original
         REQUIRE(tempImageData.size() == imageData.size());
-        REQUIRE(compareBinaryData(imageData, tempImageData));
+        REQUIRE(common_test_helpers::compareBinaryData(imageData, tempImageData));
 
         // Clean up the temporary file
         std::remove(tempImagePath.c_str());

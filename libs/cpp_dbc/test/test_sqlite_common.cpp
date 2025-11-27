@@ -13,38 +13,14 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
 
- @file test_postgresql_common.hpp
- @brief Tests for PostgreSQL database operations
+ @file test_sqlite_common.cpp
+ @brief Implementation of SQLite test helpers
 
 */
 
-#pragma once
+#include "test_sqlite_common.hpp"
 
-#include <string>
-#include <memory>
-#include <iostream>
-#include <optional>
-
-#include <cpp_dbc/cpp_dbc.hpp>
-
-#include "test_main.hpp"
-
-#if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
-#include <cpp_dbc/drivers/postgresql_blob.hpp>
-#endif
-
-namespace postgresql_test_helpers
+namespace sqlite_test_helpers
 {
-
-#if USE_POSTGRESQL
-
-    // Helper function to try to create the database if it doesn't exist
-    bool tryCreateDatabase();
-
-    // Helper function to check if we can connect to PostgreSQL
-    bool canConnectToPostgreSQL();
-
-#endif
-
-} // namespace postgresql_test_helpers
+    // Empty namespace implementation
+} // namespace sqlite_test_helpers

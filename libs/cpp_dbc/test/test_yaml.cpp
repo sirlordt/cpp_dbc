@@ -18,8 +18,9 @@
 
 */
 
-#include <catch2/catch_test_macros.hpp>
 #include <string>
+
+#include <catch2/catch_test_macros.hpp>
 
 // Only include yaml-cpp if USE_CPP_YAML is defined
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
