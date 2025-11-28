@@ -154,6 +154,9 @@ namespace cpp_dbc
             bool m_autoCommit;
             TransactionIsolationLevel m_isolationLevel;
 
+            // Cached URL
+            std::string m_url;
+
             // Registry of active prepared statements
             std::set<std::shared_ptr<SQLitePreparedStatement>> m_activeStatements;
             std::mutex m_statementsMutex;
@@ -189,6 +192,9 @@ namespace cpp_dbc
             // Transaction isolation level methods
             void setTransactionIsolation(TransactionIsolationLevel level) override;
             TransactionIsolationLevel getTransactionIsolation() override;
+
+            // Get the connection URL
+            std::string getURL() const override;
         };
 
         class SQLiteDriver : public Driver

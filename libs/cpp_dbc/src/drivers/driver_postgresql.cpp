@@ -1163,6 +1163,15 @@ namespace cpp_dbc
 
             // Set auto-commit mode
             setAutoCommit(true);
+
+            // Initialize URL string once
+            std::stringstream urlBuilder;
+            urlBuilder << "cpp_dbc:postgresql://" << host << ":" << port;
+            if (!database.empty())
+            {
+                urlBuilder << "/" << database;
+            }
+            m_url = urlBuilder.str();
         }
 
         PostgreSQLConnection::~PostgreSQLConnection()
@@ -1580,6 +1589,11 @@ namespace cpp_dbc
             std::lock_guard<std::mutex> lock(m_statementsMutex);
             // m_activeStatements.erase(std::weak_ptr<MySQLPreparedStatement>(stmt));
             m_activeStatements.erase(stmt);
+        }
+
+        std::string PostgreSQLConnection::getURL() const
+        {
+            return m_url;
         }
 
         // PostgreSQLDriver implementation

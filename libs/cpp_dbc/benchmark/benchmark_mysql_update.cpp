@@ -24,37 +24,19 @@
 TEST_CASE("MySQL UPDATE Benchmark", "[benchmark][mysql][update]")
 {
     // Skip these tests if we can't connect to MySQL
-    if (!benchmark_helpers::canConnectToMySQL())
+    if (!mysql_benchmark_helpers::canConnectToMySQL())
     {
         SKIP("Cannot connect to MySQL database");
         return;
     }
 
-    // Load the YAML configuration
-    std::string config_path = getConfigFilePath();
-    YAML::Node config = YAML::LoadFile(config_path);
+    // Get database configuration using the centralized helper function
+    auto dbConfig = mysql_benchmark_helpers::getMySQLConfig("dev_mysql");
 
-    // Find the dev_mysql configuration
-    YAML::Node dbConfig;
-    for (size_t i = 0; i < config["databases"].size(); i++)
-    {
-        YAML::Node db = config["databases"][i];
-        if (db["name"].as<std::string>() == "dev_mysql")
-        {
-            dbConfig = YAML::Node(db);
-            break;
-        }
-    }
-
-    // Create connection parameters
-    std::string type = dbConfig["type"].as<std::string>();
-    std::string host = dbConfig["host"].as<std::string>();
-    int port = dbConfig["port"].as<int>();
-    std::string database = dbConfig["database"].as<std::string>();
-    std::string username = dbConfig["username"].as<std::string>();
-    std::string password = dbConfig["password"].as<std::string>();
-
-    std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+    // Get connection parameters
+    std::string connStr = dbConfig.createConnectionString();
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
 
     // Register the MySQL driver
     cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
@@ -68,189 +50,189 @@ TEST_CASE("MySQL UPDATE Benchmark", "[benchmark][mysql][update]")
     SECTION("UPDATE 10 rows")
     {
         // Create benchmark table
-        benchmark_helpers::createBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
 
         // Populate table with 10 rows
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::SMALL_SIZE);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
 
         BENCHMARK("MySQL UPDATE 10 rows - Individual updates")
         {
-            for (int i = 1; i <= benchmark_helpers::SMALL_SIZE; ++i)
+            for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
             {
                 // auto result =
                 conn->executeUpdate(
                     "UPDATE " + tableName + " SET name = 'Updated Name " + std::to_string(i) +
                     "', value = " + std::to_string(i * 2.5) +
-                    ", description = '" + benchmark_helpers::generateRandomString(60) +
+                    ", description = '" + common_benchmark_helpers::generateRandomString(60) +
                     "' WHERE id = " + std::to_string(i));
             }
-            return benchmark_helpers::SMALL_SIZE;
+            return common_benchmark_helpers::SMALL_SIZE;
         };
 
         // Repopulate table for next benchmark
-        benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        benchmark_helpers::createBenchmarkTable(conn, tableName);
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::SMALL_SIZE);
+        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
 
         BENCHMARK("MySQL UPDATE 10 rows - Prepared statement")
         {
             auto pstmt = conn->prepareStatement(
                 "UPDATE " + tableName + " SET name = ?, value = ?, description = ? WHERE id = ?");
 
-            for (int i = 1; i <= benchmark_helpers::SMALL_SIZE; ++i)
+            for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
             {
                 pstmt->setString(1, "Updated Name " + std::to_string(i));
                 pstmt->setDouble(2, i * 2.5);
-                pstmt->setString(3, benchmark_helpers::generateRandomString(60));
+                pstmt->setString(3, common_benchmark_helpers::generateRandomString(60));
                 pstmt->setInt(4, i);
                 pstmt->executeUpdate();
             }
-            return benchmark_helpers::SMALL_SIZE;
+            return common_benchmark_helpers::SMALL_SIZE;
         };
 
         // Clean up
-        benchmark_helpers::dropBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
     }
 
     SECTION("UPDATE 100 rows")
     {
         // Create benchmark table
-        benchmark_helpers::createBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
 
         // Populate table with 100 rows
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::MEDIUM_SIZE);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
 
         BENCHMARK("MySQL UPDATE 100 rows - Individual updates")
         {
-            for (int i = 1; i <= benchmark_helpers::MEDIUM_SIZE; ++i)
+            for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
             {
                 // auto result =
                 conn->executeUpdate(
                     "UPDATE " + tableName + " SET name = 'Updated Name " + std::to_string(i) +
                     "', value = " + std::to_string(i * 2.5) +
-                    ", description = '" + benchmark_helpers::generateRandomString(60) +
+                    ", description = '" + common_benchmark_helpers::generateRandomString(60) +
                     "' WHERE id = " + std::to_string(i));
             }
-            return benchmark_helpers::MEDIUM_SIZE;
+            return common_benchmark_helpers::MEDIUM_SIZE;
         };
 
         // Repopulate table for next benchmark
-        benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        benchmark_helpers::createBenchmarkTable(conn, tableName);
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::MEDIUM_SIZE);
+        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
 
         BENCHMARK("MySQL UPDATE 100 rows - Prepared statement")
         {
             auto pstmt = conn->prepareStatement(
                 "UPDATE " + tableName + " SET name = ?, value = ?, description = ? WHERE id = ?");
 
-            for (int i = 1; i <= benchmark_helpers::MEDIUM_SIZE; ++i)
+            for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
             {
                 pstmt->setString(1, "Updated Name " + std::to_string(i));
                 pstmt->setDouble(2, i * 2.5);
-                pstmt->setString(3, benchmark_helpers::generateRandomString(60));
+                pstmt->setString(3, common_benchmark_helpers::generateRandomString(60));
                 pstmt->setInt(4, i);
                 pstmt->executeUpdate();
             }
-            return benchmark_helpers::MEDIUM_SIZE;
+            return common_benchmark_helpers::MEDIUM_SIZE;
         };
 
         // Clean up
-        benchmark_helpers::dropBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
     }
 
     SECTION("UPDATE 1000 rows")
     {
         // Create benchmark table
-        benchmark_helpers::createBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
 
         // Populate table with 1000 rows
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::LARGE_SIZE);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
 
         BENCHMARK("MySQL UPDATE 1000 rows - Individual updates")
         {
-            for (int i = 1; i <= benchmark_helpers::LARGE_SIZE; ++i)
+            for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
             {
                 // auto result =
                 conn->executeUpdate(
                     "UPDATE " + tableName + " SET name = 'Updated Name " + std::to_string(i) +
                     "', value = " + std::to_string(i * 2.5) +
-                    ", description = '" + benchmark_helpers::generateRandomString(60) +
+                    ", description = '" + common_benchmark_helpers::generateRandomString(60) +
                     "' WHERE id = " + std::to_string(i));
             }
-            return benchmark_helpers::LARGE_SIZE;
+            return common_benchmark_helpers::LARGE_SIZE;
         };
 
         // Repopulate table for next benchmark
-        benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        benchmark_helpers::createBenchmarkTable(conn, tableName);
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::LARGE_SIZE);
+        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
 
         BENCHMARK("MySQL UPDATE 1000 rows - Prepared statement")
         {
             auto pstmt = conn->prepareStatement(
                 "UPDATE " + tableName + " SET name = ?, value = ?, description = ? WHERE id = ?");
 
-            for (int i = 1; i <= benchmark_helpers::LARGE_SIZE; ++i)
+            for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
             {
                 pstmt->setString(1, "Updated Name " + std::to_string(i));
                 pstmt->setDouble(2, i * 2.5);
-                pstmt->setString(3, benchmark_helpers::generateRandomString(60));
+                pstmt->setString(3, common_benchmark_helpers::generateRandomString(60));
                 pstmt->setInt(4, i);
                 pstmt->executeUpdate();
             }
-            return benchmark_helpers::LARGE_SIZE;
+            return common_benchmark_helpers::LARGE_SIZE;
         };
 
         // Clean up
-        benchmark_helpers::dropBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
     }
 
     SECTION("UPDATE 10000 rows")
     {
         // Create benchmark table
-        benchmark_helpers::createBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
 
         // Populate table with 10000 rows
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::XLARGE_SIZE);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
 
         BENCHMARK("MySQL UPDATE 10000 rows - Individual updates")
         {
-            for (int i = 1; i <= benchmark_helpers::XLARGE_SIZE; ++i)
+            for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
             {
                 // auto result =
                 conn->executeUpdate(
                     "UPDATE " + tableName + " SET name = 'Updated Name " + std::to_string(i) +
                     "', value = " + std::to_string(i * 2.5) +
-                    ", description = '" + benchmark_helpers::generateRandomString(60) +
+                    ", description = '" + common_benchmark_helpers::generateRandomString(60) +
                     "' WHERE id = " + std::to_string(i));
             }
-            return benchmark_helpers::XLARGE_SIZE;
+            return common_benchmark_helpers::XLARGE_SIZE;
         };
 
         // Repopulate table for next benchmark
-        benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        benchmark_helpers::createBenchmarkTable(conn, tableName);
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::XLARGE_SIZE);
+        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
 
         BENCHMARK("MySQL UPDATE 10000 rows - Prepared statement")
         {
             auto pstmt = conn->prepareStatement(
                 "UPDATE " + tableName + " SET name = ?, value = ?, description = ? WHERE id = ?");
 
-            for (int i = 1; i <= benchmark_helpers::XLARGE_SIZE; ++i)
+            for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
             {
                 pstmt->setString(1, "Updated Name " + std::to_string(i));
                 pstmt->setDouble(2, i * 2.5);
-                pstmt->setString(3, benchmark_helpers::generateRandomString(60));
+                pstmt->setString(3, common_benchmark_helpers::generateRandomString(60));
                 pstmt->setInt(4, i);
                 pstmt->executeUpdate();
             }
-            return benchmark_helpers::XLARGE_SIZE;
+            return common_benchmark_helpers::XLARGE_SIZE;
         };
 
         // Clean up
-        benchmark_helpers::dropBenchmarkTable(conn, tableName);
+        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
     }
 
     // Close the connection

@@ -147,6 +147,9 @@ namespace cpp_dbc
             int m_statementCounter;
             TransactionIsolationLevel m_isolationLevel;
 
+            // Cached URL string
+            std::string m_url;
+
             std::set<std::shared_ptr<PostgreSQLPreparedStatement>> m_activeStatements;
             std::mutex m_statementsMutex;
 
@@ -181,6 +184,9 @@ namespace cpp_dbc
             // Transaction isolation level methods
             void setTransactionIsolation(TransactionIsolationLevel level) override;
             TransactionIsolationLevel getTransactionIsolation() override;
+
+            // Get the connection URL
+            std::string getURL() const override;
 
             // Helper to generate unique statement names
             std::string generateStatementName();

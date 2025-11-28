@@ -271,6 +271,10 @@ if(CPP_DBC_BUILD_EXAMPLES)
     add_executable(error_handling_example examples/error_handling_example.cpp)
     target_link_libraries(error_handling_example PRIVATE cpp_dbc)
 
+    # Connection info example
+    add_executable(connection_info_example examples/connection_info_example.cpp)
+    target_link_libraries(connection_info_example PRIVATE cpp_dbc)
+
     # Copy necessary files for examples
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/examples/example_config.yml
         ${CMAKE_CURRENT_BINARY_DIR}/example_config.yml COPYONLY)

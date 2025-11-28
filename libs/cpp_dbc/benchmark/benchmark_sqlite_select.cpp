@@ -19,55 +19,33 @@
 #include "benchmark_common.hpp"
 
 #if USE_SQLITE
-// Using canConnectToSQLite from benchmark_common.hpp
 
 TEST_CASE("SQLite SELECT Benchmark", "[benchmark][sqlite][select]")
 {
     // Skip these tests if we can't connect to SQLite
-    if (!benchmark_helpers::canConnectToSQLite())
+    if (!sqlite_benchmark_helpers::canConnectToSQLite())
     {
         SKIP("Cannot connect to SQLite database");
         return;
     }
 
-    // Load the YAML configuration
-    std::string config_path = getConfigFilePath();
-    YAML::Node config = YAML::LoadFile(config_path);
+    // Get connection string using the centralized helper
+    std::string connStr = sqlite_benchmark_helpers::getSQLiteConnectionString();
 
-    // Find the dev_sqlite configuration
-    YAML::Node dbConfig;
-    for (size_t i = 0; i < config["databases"].size(); i++)
-    {
-        YAML::Node db = config["databases"][i];
-        if (db["name"].as<std::string>() == "dev_sqlite")
-        {
-            dbConfig = YAML::Node(db);
-            break;
-        }
-    }
-
-    // Create connection parameters
-    std::string type = dbConfig["type"].as<std::string>();
-    std::string database = dbConfig["database"].as<std::string>();
-
-    std::string connStr = "cpp_dbc:" + type + "://" + database;
-
-    // Register the SQLite driver
+    // Register the SQLite driver and get a connection
     cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
-
-    // Get a connection
     auto conn = cpp_dbc::DriverManager::getConnection(connStr, "", "");
 
     // Table name for benchmarks
     const std::string tableName = "benchmark_sqlite_select";
 
     // Create benchmark table
-    benchmark_helpers::createBenchmarkTable(conn, tableName);
+    common_benchmark_helpers::createBenchmarkTable(conn, tableName);
 
     SECTION("SELECT 10 rows")
     {
         // Populate table with 10 rows
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::SMALL_SIZE);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
 
         BENCHMARK("SQLite SELECT 10 rows - All columns")
         {
@@ -130,7 +108,7 @@ TEST_CASE("SQLite SELECT Benchmark", "[benchmark][sqlite][select]")
     SECTION("SELECT 100 rows")
     {
         // Populate table with 100 rows
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::MEDIUM_SIZE);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
 
         BENCHMARK("SQLite SELECT 100 rows - All columns")
         {
@@ -193,7 +171,7 @@ TEST_CASE("SQLite SELECT Benchmark", "[benchmark][sqlite][select]")
     SECTION("SELECT 1000 rows")
     {
         // Populate table with 1000 rows
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::LARGE_SIZE);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
 
         BENCHMARK("SQLite SELECT 1000 rows - All columns")
         {
@@ -256,7 +234,7 @@ TEST_CASE("SQLite SELECT Benchmark", "[benchmark][sqlite][select]")
     SECTION("SELECT 10000 rows")
     {
         // Populate table with 10000 rows
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::XLARGE_SIZE);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
 
         BENCHMARK("SQLite SELECT 10000 rows - All columns")
         {
@@ -317,7 +295,7 @@ TEST_CASE("SQLite SELECT Benchmark", "[benchmark][sqlite][select]")
     }
 
     // Clean up
-    benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
     conn->close();
 }
 #else

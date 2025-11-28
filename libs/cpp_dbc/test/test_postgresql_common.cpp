@@ -118,7 +118,7 @@ namespace postgresql_test_helpers
         try
         {
             // Get configuration with empty database name (we'll connect to postgres)
-            auto dbConfig = getPostgreSQLConfig("dev_postgresql", true);
+            auto dbConfig = getPostgreSQLConfig("dev_postgresql", false);
 
             // Get connection parameters
             std::string type = dbConfig.getType();
@@ -128,13 +128,9 @@ namespace postgresql_test_helpers
             std::string password = dbConfig.getPassword();
 
             // Get database name to create (default: Test01DB)
-            std::string dbName = dbConfig.getOption("database_name", "Test01DB");
+            std::string dbName = dbConfig.getDatabase(); //  .getOption("database_name", "Test01DB");
 
-            // Get or create the CREATE DATABASE query
-            std::string createDatabaseQuery = dbConfig.getOption("query__create_database",
-                                                                 "CREATE DATABASE IF NOT EXISTS " + dbName);
-
-            // Create connection string without database name to connect to PostgreSQL server
+            // Create connection string with postgres database name to connect to PostgreSQL server
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/postgres";
 
             // Register the PostgreSQL driver
@@ -144,10 +140,40 @@ namespace postgresql_test_helpers
             std::cout << "Attempting to connect to PostgreSQL server to create database..." << std::endl;
             auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
 
-            // Execute the create database query
-            std::cout << "Executing: " << createDatabaseQuery << std::endl;
-            conn->executeUpdate(createDatabaseQuery);
-            std::cout << "Database creation successful or database already exists!" << std::endl;
+            // First check if the database already exists
+            std::string checkDatabaseQuery = "SELECT 1 FROM pg_database WHERE datname = '" + dbName + "'";
+            auto resultSet = conn->executeQuery(checkDatabaseQuery);
+
+            if (!resultSet->next())
+            {
+                // Database doesn't exist, create it
+                std::string createDatabaseQuery = dbConfig.getOption("query__create_database",
+                                                                     "CREATE DATABASE " + dbName);
+                try
+                {
+                    std::cout << "Executing: " << createDatabaseQuery << std::endl;
+                    conn->executeUpdate(createDatabaseQuery);
+                    std::cout << "Database creation successful!" << std::endl;
+                }
+                catch (const std::exception &e)
+                {
+                    // Check if error contains "already exists" message (race condition)
+                    std::string error = e.what();
+                    if (error.find("already exists") != std::string::npos)
+                    {
+                        std::cout << "Database already exists, continuing..." << std::endl;
+                    }
+                    else
+                    {
+                        // This is a different error, rethrow it
+                        throw;
+                    }
+                }
+            }
+            else
+            {
+                std::cout << "Database '" << dbName << "' already exists." << std::endl;
+            }
 
             // Close the connection
             conn->close();

@@ -559,6 +559,14 @@ namespace cpp_dbc_test
         void setTransactionIsolation(cpp_dbc::TransactionIsolationLevel level) override { isolationLevel = level; }
         cpp_dbc::TransactionIsolationLevel getTransactionIsolation() override { return isolationLevel; }
 
+        std::string getURL() const override
+        {
+            // Initialize URL string once
+            std::stringstream urlBuilder;
+            urlBuilder << "cpp_dbc:mock://127.0.0.1:1000/MockDB";
+            return urlBuilder.str();
+        }
+
         // Helper methods for testing
         bool isCommitted() const { return committed; }
         bool isRolledBack() const { return rolledBack; }
@@ -732,6 +740,11 @@ namespace cpp_dbc_test
             cpp_dbc::TransactionIsolationLevel getTransactionIsolation() override
             {
                 return underlying->getTransactionIsolation();
+            }
+
+            std::string getURL() const override
+            {
+                return underlying->getURL();
             }
         };
     };

@@ -913,6 +913,16 @@ namespace cpp_dbc
         return m_conn->getTransactionIsolation();
     }
 
+    std::string PooledConnection::getURL() const
+    {
+        if (m_closed)
+        {
+            throw DBException("A4B7C9D2E5F1", "Connection is closed", system_utils::captureCallStack());
+        }
+        // Can't modify m_lastUsedTime in a const method
+        return m_conn->getURL();
+    }
+
     std::chrono::time_point<std::chrono::steady_clock> PooledConnection::getCreationTime() const
     {
         return m_creationTime;

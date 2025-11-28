@@ -32,6 +32,7 @@
 #include <sstream>
 #include <iomanip>
 
+/*
 // Helper function to get the path to the test_db_connections.yml file
 std::string getConfigFilePath()
 {
@@ -45,3 +46,4 @@ std::string getConfigFilePath()
     }
     return "test_db_connections.yml"; // Fallback
 }
+    */

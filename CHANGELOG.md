@@ -1,6 +1,27 @@
 # Changelog
 
-## 2025-11-26 09:04:53 PM PST [Current]
+## 2025-11-27 11:14:58 PM PST [Current]
+
+### Benchmark and Testing Framework Improvements
+* Added improved benchmark organization and reusability:
+  * Added benchmark_common.cpp with implementation of common benchmark helper functions
+  * Reorganized helper functions into namespaces (common_benchmark_helpers, mysql_benchmark_helpers, etc.)
+  * Updated benchmark CMakeLists.txt to include the new benchmark_common.cpp file
+  * Changed configuration to use dedicated benchmark_db_connections.yml instead of test config
+  * Improved consistency in helper function usage across benchmark files
+* Enhanced database driver improvements:
+  * Added getURL() method to Connection interface for URL retrieval
+  * Implemented getURL() in all database driver implementations
+  * Added URL caching in database connections for better performance
+  * Improved connection closing in MySQL driver with longer sleep time (25ms)
+  * Enhanced PostgreSQL database creation with proper existence checking
+* Added new example:
+  * Added connection_info_example.cpp showing different connection URL formats
+  * Updated CMakeLists.txt to build the new example
+* Updated helper.sh:
+  * Added new example command for comprehensive testing
+
+## 2025-11-26 09:04:53 PM PST
 
 ### Test Code Refactoring
 * Refactored test code to improve organization and reusability:

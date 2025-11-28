@@ -835,7 +835,8 @@ namespace cpp_dbc
         SQLiteConnection::SQLiteConnection(const std::string &database,
                                            const std::map<std::string, std::string> &options)
             : m_db(nullptr), m_closed(false), m_autoCommit(true),
-              m_isolationLevel(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE) // SQLite default
+              m_isolationLevel(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE), // SQLite default
+              m_url("cpp_dbc:sqlite://" + database)
         {
             try
             {
@@ -1273,6 +1274,11 @@ namespace cpp_dbc
         TransactionIsolationLevel SQLiteConnection::getTransactionIsolation()
         {
             return m_isolationLevel;
+        }
+
+        std::string SQLiteConnection::getURL() const
+        {
+            return m_url;
         }
 
         void SQLiteConnection::registerStatement(std::shared_ptr<SQLitePreparedStatement> stmt)

@@ -145,6 +145,9 @@ namespace cpp_dbc
             bool m_autoCommit;
             TransactionIsolationLevel m_isolationLevel;
 
+            // Cached URL string
+            std::string m_url;
+
             // Registry of active prepared statements
             // std::set<std::weak_ptr<MySQLPreparedStatement>, std::owner_less<std::weak_ptr<MySQLPreparedStatement>>> m_activeStatements;
             std::set<std::shared_ptr<MySQLPreparedStatement>> m_activeStatements;
@@ -181,6 +184,9 @@ namespace cpp_dbc
             // Transaction isolation level methods
             void setTransactionIsolation(TransactionIsolationLevel level) override;
             TransactionIsolationLevel getTransactionIsolation() override;
+
+            // Get the connection URL
+            std::string getURL() const override;
         };
 
         class MySQLDriver : public Driver

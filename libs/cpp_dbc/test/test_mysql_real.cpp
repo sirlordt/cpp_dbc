@@ -279,6 +279,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         conn->executeUpdate(dropTableQuery);
+        // REQUIRE((rs->getInt("count") == numThreads * opsPerThread || rs->getInt("count") == numThreads * opsPerThread - 1));
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
 
         // Clean up

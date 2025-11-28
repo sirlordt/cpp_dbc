@@ -1019,6 +1019,15 @@ namespace cpp_dbc
 
             // Disable auto-commit by default to match JDBC behavior
             setAutoCommit(true);
+
+            // Initialize URL string once
+            std::stringstream urlBuilder;
+            urlBuilder << "cpp_dbc:mysql://" << host << ":" << port;
+            if (!database.empty())
+            {
+                urlBuilder << "/" << database;
+            }
+            m_url = urlBuilder.str();
         }
 
         MySQLConnection::~MySQLConnection()
@@ -1046,8 +1055,8 @@ namespace cpp_dbc
                     m_activeStatements.clear();
                 }
 
-                // Sleep for 10ms to avoid problems with corrency
-                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                // Sleep for 25ms to avoid problems with corrency
+                std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
                 // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis(), "(1) MySQLConnection::close()");
                 mysql_close(m_mysql);
@@ -1318,6 +1327,11 @@ namespace cpp_dbc
             std::lock_guard<std::mutex> lock(m_statementsMutex);
             // m_activeStatements.erase(std::weak_ptr<MySQLPreparedStatement>(stmt));
             m_activeStatements.erase(stmt);
+        }
+
+        std::string MySQLConnection::getURL() const
+        {
+            return m_url;
         }
 
         // MySQLDriver implementation

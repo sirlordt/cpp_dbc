@@ -32,7 +32,25 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Test Code Refactoring**:
+1. **Benchmark and Testing Framework Improvements**:
+   - Added improved benchmark organization and reusability:
+     - Added benchmark_common.cpp with implementation of common benchmark helper functions
+     - Reorganized helper functions into namespaces (common_benchmark_helpers, mysql_benchmark_helpers, etc.)
+     - Updated benchmark CMakeLists.txt to include the new benchmark_common.cpp file
+     - Changed configuration to use dedicated benchmark_db_connections.yml instead of test config
+     - Improved consistency in helper function usage across benchmark files
+   - Enhanced database driver improvements:
+     - Added getURL() method to Connection interface for URL retrieval
+     - Implemented getURL() in all database driver implementations
+     - Added URL caching in database connections for better performance
+     - Improved connection closing in MySQL driver with longer sleep time (25ms)
+     - Enhanced PostgreSQL database creation with proper existence checking
+   - Added new example:
+     - Added connection_info_example.cpp showing different connection URL formats
+     - Updated CMakeLists.txt to build the new example
+   - Updated helper.sh with new example command for comprehensive testing
+
+2. **Test Code Refactoring**:
    - Refactored test code to improve organization and reusability:
      - Added test_sqlite_common.hpp with SQLite-specific helper functions
      - Added test_sqlite_common.cpp with helper function implementations

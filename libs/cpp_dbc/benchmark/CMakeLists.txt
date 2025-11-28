@@ -19,6 +19,7 @@ find_package(yaml-cpp REQUIRED)
 add_executable(cpp_dbc_benchmarks
     benchmark_main.cpp
     benchmark_common.hpp
+    benchmark_common.cpp
 
     # MySQL benchmarks
     benchmark_mysql_select.cpp
@@ -64,7 +65,7 @@ target_include_directories(cpp_dbc_benchmarks PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../test # Include test directory for helper functions
 )
 
-# Copy the test_db_connections.yml file directly to the directory where the executable is
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../test/test_db_connections.yml
-    ${CMAKE_CURRENT_BINARY_DIR}/test_db_connections.yml
+# Copy the benchmark_db_connections.yml file directly to the directory where the executable is
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/benchmark_db_connections.yml
+    ${CMAKE_CURRENT_BINARY_DIR}/benchmark_db_connections.yml
     COPYONLY)

@@ -310,6 +310,9 @@ namespace cpp_dbc
         // Transaction isolation level methods
         virtual void setTransactionIsolation(TransactionIsolationLevel level) = 0;
         virtual TransactionIsolationLevel getTransactionIsolation() = 0;
+
+        // Get the connection URL with connection type and parameters
+        virtual std::string getURL() const = 0;
     };
 
     // Abstract driver class

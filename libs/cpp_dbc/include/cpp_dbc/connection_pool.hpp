@@ -192,6 +192,9 @@ namespace cpp_dbc
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
+        // Get the connection URL
+        std::string getURL() const override;
+
         // PooledConnection specific methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const;
         std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime() const;

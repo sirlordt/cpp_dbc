@@ -19,59 +19,38 @@
 #include "benchmark_common.hpp"
 
 #if USE_POSTGRESQL
-// Using canConnectToPostgreSQL from benchmark_common.hpp
 
 TEST_CASE("PostgreSQL SELECT Benchmark", "[benchmark][postgresql][select]")
 {
     // Skip these tests if we can't connect to PostgreSQL
-    if (!benchmark_helpers::canConnectToPostgreSQL())
+    if (!postgresql_benchmark_helpers::canConnectToPostgreSQL())
     {
         SKIP("Cannot connect to PostgreSQL database");
         return;
     }
 
-    // Load the YAML configuration
-    std::string config_path = getConfigFilePath();
-    YAML::Node config = YAML::LoadFile(config_path);
+    // Get database configuration using the centralized helper
+    auto dbConfig = postgresql_benchmark_helpers::getPostgreSQLConfig("dev_postgresql");
 
-    // Find the dev_postgresql configuration
-    YAML::Node dbConfig;
-    for (size_t i = 0; i < config["databases"].size(); i++)
-    {
-        YAML::Node db = config["databases"][i];
-        if (db["name"].as<std::string>() == "dev_postgresql")
-        {
-            dbConfig = YAML::Node(db);
-            break;
-        }
-    }
+    // Get connection parameters
+    std::string connStr = dbConfig.createConnectionString();
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
 
-    // Create connection parameters
-    std::string type = dbConfig["type"].as<std::string>();
-    std::string host = dbConfig["host"].as<std::string>();
-    int port = dbConfig["port"].as<int>();
-    std::string database = dbConfig["database"].as<std::string>();
-    std::string username = dbConfig["username"].as<std::string>();
-    std::string password = dbConfig["password"].as<std::string>();
-
-    std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
-
-    // Register the PostgreSQL driver
+    // Register the PostgreSQL driver and get a connection
     cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
-
-    // Get a connection
     auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
 
     // Table name for benchmarks
     const std::string tableName = "benchmark_postgresql_select";
 
     // Create benchmark table
-    benchmark_helpers::createBenchmarkTable(conn, tableName);
+    common_benchmark_helpers::createBenchmarkTable(conn, tableName);
 
     SECTION("SELECT 10 rows")
     {
         // Populate table with 10 rows
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::SMALL_SIZE);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
 
         BENCHMARK("PostgreSQL SELECT 10 rows - All columns")
         {
@@ -134,7 +113,7 @@ TEST_CASE("PostgreSQL SELECT Benchmark", "[benchmark][postgresql][select]")
     SECTION("SELECT 100 rows")
     {
         // Populate table with 100 rows
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::MEDIUM_SIZE);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
 
         BENCHMARK("PostgreSQL SELECT 100 rows - All columns")
         {
@@ -197,7 +176,7 @@ TEST_CASE("PostgreSQL SELECT Benchmark", "[benchmark][postgresql][select]")
     SECTION("SELECT 1000 rows")
     {
         // Populate table with 1000 rows
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::LARGE_SIZE);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
 
         BENCHMARK("PostgreSQL SELECT 1000 rows - All columns")
         {
@@ -260,7 +239,7 @@ TEST_CASE("PostgreSQL SELECT Benchmark", "[benchmark][postgresql][select]")
     SECTION("SELECT 10000 rows")
     {
         // Populate table with 10000 rows
-        benchmark_helpers::populateTable(conn, tableName, benchmark_helpers::XLARGE_SIZE);
+        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
 
         BENCHMARK("PostgreSQL SELECT 10000 rows - All columns")
         {
@@ -321,7 +300,7 @@ TEST_CASE("PostgreSQL SELECT Benchmark", "[benchmark][postgresql][select]")
     }
 
     // Clean up
-    benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
     conn->close();
 }
 #else
