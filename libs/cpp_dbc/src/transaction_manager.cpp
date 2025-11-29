@@ -24,7 +24,7 @@
 #include <iostream>
 
 // Debug output is controlled by -DDEBUG_TRANSACTION_MANAGER=1 CMake option
-#if defined(DEBUG_TRANSACTION_MANAGER) && DEBUG_TRANSACTION_MANAGER
+#if (defined(DEBUG_TRANSACTION_MANAGER) && DEBUG_TRANSACTION_MANAGER) || (defined(DEBUG_ALL) && DEBUG_ALL)
 #define TM_DEBUG(x) std::cout << x << std::endl
 #else
 #define TM_DEBUG(x)

@@ -158,7 +158,20 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **Benchmark and Testing Framework Improvements**:
+1. **SQLite Driver Thread Safety Improvements**:
+   - Enhanced thread safety in SQLite driver implementation:
+     - Added thread-safe initialization pattern using std::atomic and std::mutex
+     - Implemented singleton pattern for SQLite configuration to ensure it's only done once
+     - Added static class members to track initialization state
+     - Improved debug output system with unique error codes for better troubleshooting
+   - Unified debug output system:
+     - Added support for DEBUG_ALL option to enable all debug outputs at once
+     - Updated debug macros in connection_pool.cpp, transaction_manager.cpp, and driver_sqlite.cpp
+     - Replaced std::cerr usage with debug macros for better control
+     - Added [[maybe_unused]] attribute to avoid warnings with unused variables
+   - Removed obsolete inject_cline_custom_instructions.sh script
+
+2. **Benchmark and Testing Framework Improvements**:
    - Added improved benchmark organization and reusability:
      - Added benchmark_common.cpp with implementation of common benchmark helper functions
      - Reorganized helper functions into namespaces (common_benchmark_helpers, mysql_benchmark_helpers, etc.)

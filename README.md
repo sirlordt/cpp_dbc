@@ -91,6 +91,7 @@ The library supports conditional compilation of database drivers and features:
 - `DEBUG_CONNECTION_POOL`: Enable debug output for ConnectionPool (OFF by default)
 - `DEBUG_TRANSACTION_MANAGER`: Enable debug output for TransactionManager (OFF by default)
 - `DEBUG_SQLITE`: Enable debug output for SQLite driver (OFF by default)
+- `DEBUG_ALL`: Enable all debug output at once (OFF by default)
 - `BACKWARD_HAS_DW`: Enable libdw support for enhanced stack traces (ON by default)
 
 The library also includes comprehensive warning flags and compile-time checks:

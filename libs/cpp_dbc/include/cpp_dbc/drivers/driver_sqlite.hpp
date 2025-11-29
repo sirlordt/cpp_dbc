@@ -36,6 +36,7 @@
 #include <mutex>
 #include <vector>
 #include <string>
+#include <atomic>
 
 namespace cpp_dbc
 {
@@ -199,6 +200,11 @@ namespace cpp_dbc
 
         class SQLiteDriver : public Driver
         {
+        private:
+            // Static members to ensure SQLite is configured only once
+            static std::atomic<bool> s_initialized;
+            static std::mutex s_initMutex;
+
         public:
             SQLiteDriver();
             ~SQLiteDriver() override;

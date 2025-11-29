@@ -32,8 +32,8 @@
 #include <fstream> // Para std::ifstream
 #include <charconv>
 
-// Debug output is controlled by -DDEBUG_SQLITE=1 CMake option
-#if defined(DEBUG_SQLITE) && DEBUG_SQLITE
+// Debug output is controlled by -DDEBUG_SQLITE=1 or -DDEBUG_ALL=1 CMake option
+#if (defined(DEBUG_SQLITE) && DEBUG_SQLITE) || (defined(DEBUG_ALL) && DEBUG_ALL)
 #define SQLITE_DEBUG(x) std::cout << "[SQLite] " << x << std::endl
 #else
 #define SQLITE_DEBUG(x)
@@ -93,8 +93,8 @@ namespace cpp_dbc
                 if (result != SQLITE_OK)
                 {
                     // No podemos lanzar excepciones en el destructor, así que solo registramos el error
-                    std::cerr << "Error finalizing SQLite statement in destructor: "
-                              << sqlite3_errstr(result) << std::endl;
+                    SQLITE_DEBUG("A1B2C3D4E5F6: Error finalizing SQLite statement in destructor: "
+                                 << sqlite3_errstr(result));
                 }
                 m_stmt = nullptr;
             }
@@ -335,30 +335,30 @@ namespace cpp_dbc
                         int resetResult = sqlite3_reset(m_stmt);
                         if (resetResult != SQLITE_OK)
                         {
-                            std::cerr << "Warning: Error resetting SQLite statement: "
-                                      << sqlite3_errstr(resetResult) << std::endl;
+                            SQLITE_DEBUG("7A8B9C0D1E2F: Error resetting SQLite statement: "
+                                         << sqlite3_errstr(resetResult));
                         }
 
                         // Now finalize the statement
                         int finalizeResult = sqlite3_finalize(m_stmt);
                         if (finalizeResult != SQLITE_OK)
                         {
-                            std::cerr << "Warning: Error finalizing SQLite statement: "
-                                      << sqlite3_errstr(finalizeResult) << std::endl;
+                            SQLITE_DEBUG("3G4H5I6J7K8L: Error finalizing SQLite statement: "
+                                         << sqlite3_errstr(finalizeResult));
                         }
                     }
                     else
                     {
-                        std::cerr << "SQLiteResultSet::close - Connection is closed or invalid, skipping statement reset/finalize" << std::endl;
+                        SQLITE_DEBUG("5M6N7O8P9Q0R: SQLiteResultSet::close - Connection is closed or invalid, skipping statement reset/finalize");
                     }
                 }
                 catch (const std::exception &e)
                 {
-                    std::cerr << "Exception during SQLite statement close: " << e.what() << std::endl;
+                    SQLITE_DEBUG("9S0T1U2V3W4X: Exception during SQLite statement close: " << e.what());
                 }
                 catch (...)
                 {
-                    std::cerr << "Unknown exception during SQLite statement close" << std::endl;
+                    SQLITE_DEBUG("5Y6Z7A8B9C0D: Unknown exception during SQLite statement close");
                 }
 
                 // Siempre establecer stmt a nullptr, incluso si hay excepciones
@@ -425,8 +425,8 @@ namespace cpp_dbc
                 if (result != SQLITE_OK)
                 {
                     // No podemos lanzar excepciones en el destructor, así que solo registramos el error
-                    std::cerr << "Error finalizing SQLite statement in destructor: "
-                              << sqlite3_errstr(result) << std::endl;
+                    SQLITE_DEBUG("1E2F3G4H5I6J: Error finalizing SQLite statement in destructor: "
+                                 << sqlite3_errstr(result));
                 }
                 m_stmt = nullptr;
             }
@@ -447,23 +447,23 @@ namespace cpp_dbc
                 int resetResult = sqlite3_reset(m_stmt);
                 if (resetResult != SQLITE_OK)
                 {
-                    std::cerr << "Warning: Error resetting SQLite statement: "
-                              << sqlite3_errstr(resetResult) << std::endl;
+                    SQLITE_DEBUG("7K8L9M0N1O2P: Error resetting SQLite statement: "
+                                 << sqlite3_errstr(resetResult));
                 }
 
                 int clearResult = sqlite3_clear_bindings(m_stmt);
                 if (clearResult != SQLITE_OK)
                 {
-                    std::cerr << "Warning: Error clearing SQLite statement bindings: "
-                              << sqlite3_errstr(clearResult) << std::endl;
+                    SQLITE_DEBUG("3Q4R5S6T7U8V: Error clearing SQLite statement bindings: "
+                                 << sqlite3_errstr(clearResult));
                 }
 
                 // Now finalize the statement
                 int finalizeResult = sqlite3_finalize(m_stmt);
                 if (finalizeResult != SQLITE_OK)
                 {
-                    std::cerr << "Warning: Error finalizing SQLite statement: "
-                              << sqlite3_errstr(finalizeResult) << std::endl;
+                    SQLITE_DEBUG("9W0X1Y2Z3A4B: Error finalizing SQLite statement: "
+                                 << sqlite3_errstr(finalizeResult));
                 }
                 m_stmt = nullptr;
 
@@ -485,7 +485,7 @@ namespace cpp_dbc
                     }
                     catch (const std::exception &e)
                     {
-                        std::cerr << "Exception during statement unregistration: " << e.what() << std::endl;
+                        SQLITE_DEBUG("5C6D7E8F9G0H: Exception during statement unregistration: " << e.what());
                     }
                 }
             }
@@ -840,7 +840,7 @@ namespace cpp_dbc
         {
             try
             {
-                std::cerr << "SQLiteConnection::SQLiteConnection - Creating connection to: " << database << std::endl;
+                SQLITE_DEBUG("Creating connection to: " << database);
 
                 // Verificar si el archivo existe (para bases de datos de archivo)
                 if (database != ":memory:")
@@ -848,38 +848,38 @@ namespace cpp_dbc
                     std::ifstream fileCheck(database.c_str());
                     if (!fileCheck)
                     {
-                        std::cerr << "SQLiteConnection::SQLiteConnection - Database file does not exist, will be created: " << database << std::endl;
+                        SQLITE_DEBUG("Database file does not exist, will be created: " << database);
                     }
                     else
                     {
-                        std::cerr << "SQLiteConnection::SQLiteConnection - Database file exists: " << database << std::endl;
+                        SQLITE_DEBUG("Database file exists: " << database);
                         fileCheck.close();
                     }
                 }
                 else
                 {
-                    std::cerr << "SQLiteConnection::SQLiteConnection - Using in-memory database" << std::endl;
+                    SQLITE_DEBUG("Using in-memory database");
                 }
 
-                std::cerr << "SQLiteConnection::SQLiteConnection - Calling sqlite3_open_v2" << std::endl;
+                SQLITE_DEBUG("Calling sqlite3_open_v2");
                 int result = sqlite3_open_v2(database.c_str(), &m_db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
                 if (result != SQLITE_OK)
                 {
                     std::string error = sqlite3_errmsg(m_db);
-                    std::cerr << "SQLiteConnection::SQLiteConnection - Failed to open database: " << error << std::endl;
+                    SQLITE_DEBUG("1I2J3K4L5M6N: Failed to open database: " << error);
                     sqlite3_close_v2(m_db);
                     m_db = nullptr;
                     throw DBException("9O0P1Q2R3S4T", "Failed to connect to SQLite database: " + error,
                                       system_utils::captureCallStack());
                 }
 
-                std::cerr << "SQLiteConnection::SQLiteConnection - Database opened successfully" << std::endl;
+                SQLITE_DEBUG("Database opened successfully");
 
                 // Aplicar opciones de configuración
-                std::cerr << "SQLiteConnection::SQLiteConnection - Applying configuration options" << std::endl;
+                SQLITE_DEBUG("Applying configuration options");
                 for (const auto &option : options)
                 {
-                    std::cerr << "SQLiteConnection::SQLiteConnection - Processing option: " << option.first << "=" << option.second << std::endl;
+                    SQLITE_DEBUG("Processing option: " << option.first << "=" << option.second);
                     if (option.first == "foreign_keys" && option.second == "true")
                     {
                         executeUpdate("PRAGMA foreign_keys = ON");
@@ -905,45 +905,45 @@ namespace cpp_dbc
                 // Si no se especificó foreign_keys en las opciones, habilitarlo por defecto
                 if (options.find("foreign_keys") == options.end())
                 {
-                    std::cerr << "SQLiteConnection::SQLiteConnection - Enabling foreign keys by default" << std::endl;
+                    SQLITE_DEBUG("Enabling foreign keys by default");
                     executeUpdate("PRAGMA foreign_keys = ON");
                 }
 
                 // Register this connection's weak_ptr in the active connections list
-                std::cerr << "SQLiteConnection::SQLiteConnection - Registering connection in active connections list" << std::endl;
+                SQLITE_DEBUG("Registering connection in active connections list");
                 {
                     std::lock_guard<std::mutex> lock(connectionsListMutex);
                     try
                     {
                         // shared_from_this() will throw if the object wasn't created with make_shared
                         activeConnections.insert(weak_from_this());
-                        std::cerr << "SQLiteConnection::SQLiteConnection - Connection registered successfully" << std::endl;
+                        SQLITE_DEBUG("Connection registered successfully");
                     }
                     catch (const std::bad_weak_ptr &e)
                     {
                         // This should not happen if the connection was properly created with make_shared
-                        std::cerr << "SQLiteConnection::SQLiteConnection - Error registering connection: " << e.what() << std::endl;
+                        SQLITE_DEBUG("7O8P9Q0R1S2T: Error registering connection: " << e.what());
                         throw DBException("F8A2C7D1E6B5", "SQLiteConnection not created with make_shared",
                                           system_utils::captureCallStack());
                     }
                 }
 
-                std::cerr << "SQLiteConnection::SQLiteConnection - Connection created successfully" << std::endl;
+                SQLITE_DEBUG("Connection created successfully");
             }
             catch (const DBException &e)
             {
-                std::cerr << "SQLiteConnection::SQLiteConnection - DBException: " << e.what_s() << std::endl;
+                SQLITE_DEBUG("3U4V5W6X7Y8Z: DBException: " << e.what_s());
                 throw;
             }
             catch (const std::exception &e)
             {
-                std::cerr << "SQLiteConnection::SQLiteConnection - std::exception: " << e.what() << std::endl;
+                SQLITE_DEBUG("9A0B1C2D3E4F: std::exception: " << e.what());
                 throw DBException("F1262039BA12", "SQLiteConnection constructor exception: " + std::string(e.what()),
                                   system_utils::captureCallStack());
             }
             catch (...)
             {
-                std::cerr << "SQLiteConnection::SQLiteConnection - Unknown exception" << std::endl;
+                SQLITE_DEBUG("5G6H7I8J9K0L: Unknown exception");
                 throw DBException("D68199523A23", "SQLiteConnection constructor unknown exception",
                                   system_utils::captureCallStack());
             }
@@ -1009,8 +1009,8 @@ namespace cpp_dbc
                         int result = sqlite3_finalize(stmt);
                         if (result != SQLITE_OK)
                         {
-                            std::cerr << "Warning: Error finalizing SQLite statement during connection close: "
-                                      << sqlite3_errstr(result) << std::endl;
+                            SQLITE_DEBUG("1M2N3O4P5Q6R: Error finalizing SQLite statement during connection close: "
+                                         << sqlite3_errstr(result));
                         }
                     }
 
@@ -1019,13 +1019,14 @@ namespace cpp_dbc
                     int closeResult = sqlite3_close_v2(m_db);
                     if (closeResult != SQLITE_OK)
                     {
-                        std::cerr << "Warning: Error closing SQLite database: "
-                                  << sqlite3_errstr(closeResult) << std::endl;
+                        SQLITE_DEBUG("7S8T9U0V1W2X: Error closing SQLite database: "
+                                     << sqlite3_errstr(closeResult));
                     }
 
                     // Call sqlite3_release_memory to free up caches and unused memory
+                    [[maybe_unused]]
                     int releasedMemory = sqlite3_release_memory(1000000); // Try to release up to 1MB of memory
-                    std::cerr << "Released " << releasedMemory << " bytes of SQLite memory" << std::endl;
+                    SQLITE_DEBUG("Released " << releasedMemory << " bytes of SQLite memory");
 
                     m_db = nullptr;
                     m_closed = true;
@@ -1055,7 +1056,7 @@ namespace cpp_dbc
                 }
                 catch (const std::exception &e)
                 {
-                    std::cerr << "Exception during SQLite connection close: " << e.what() << std::endl;
+                    SQLITE_DEBUG("3Y4Z5A6B7C8D: Exception during SQLite connection close: " << e.what());
                     // Asegurarse de que el db se establece a nullptr y closed a true incluso si hay una excepción
                     m_db = nullptr;
                     m_closed = true;
@@ -1300,25 +1301,45 @@ namespace cpp_dbc
         }
 
         // SQLiteDriver implementation
+        // Static member variables to ensure SQLite is configured once
+        std::atomic<bool> SQLiteDriver::s_initialized{false};
+        std::mutex SQLiteDriver::s_initMutex;
+
         SQLiteDriver::SQLiteDriver()
         {
-            // Configure SQLite for thread safety
-            int configResult = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
-            if (configResult != SQLITE_OK)
+            // Thread-safe single initialization pattern
+            bool alreadyInitialized = s_initialized.load(std::memory_order_acquire);
+            if (!alreadyInitialized)
             {
-                std::cerr << "Warning: Error configuring SQLite for thread safety: "
-                          << sqlite3_errstr(configResult) << std::endl;
+                // Use a mutex to ensure only one thread performs initialization
+                std::lock_guard<std::mutex> lock(s_initMutex);
+
+                // Double-check that initialization hasn't happened
+                // while we were waiting for the lock
+                if (!s_initialized.load(std::memory_order_relaxed))
+                {
+                    // Configure SQLite for thread safety before initialization
+                    int configResult = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
+                    if (configResult != SQLITE_OK)
+                    {
+                        SQLITE_DEBUG("9E0F1G2H3I4J: Error configuring SQLite for thread safety: "
+                                     << sqlite3_errstr(configResult));
+                    }
+
+                    // Initialize SQLite
+                    int initResult = sqlite3_initialize();
+                    if (initResult != SQLITE_OK)
+                    {
+                        SQLITE_DEBUG("5K6L7M8N9O0P: Error initializing SQLite: "
+                                     << sqlite3_errstr(initResult));
+                    }
+
+                    // Mark as initialized
+                    s_initialized.store(true, std::memory_order_release);
+                }
             }
 
-            // Initialize SQLite
-            int initResult = sqlite3_initialize();
-            if (initResult != SQLITE_OK)
-            {
-                std::cerr << "Warning: Error initializing SQLite: "
-                          << sqlite3_errstr(initResult) << std::endl;
-            }
-
-            // Set up memory management
+            // Set up memory management (per instance)
             sqlite3_soft_heap_limit64(8 * 1024 * 1024); // 8MB soft limit
         }
 
@@ -1327,15 +1348,16 @@ namespace cpp_dbc
             try
             {
                 // Release as much memory as possible
+                [[maybe_unused]]
                 int releasedMemory = sqlite3_release_memory(INT_MAX);
-                std::cerr << "Released " << releasedMemory << " bytes of SQLite memory during driver shutdown" << std::endl;
+                SQLITE_DEBUG("Released " << releasedMemory << " bytes of SQLite memory during driver shutdown");
 
                 // Call sqlite3_shutdown to release all resources
                 int shutdownResult = sqlite3_shutdown();
                 if (shutdownResult != SQLITE_OK)
                 {
-                    std::cerr << "Warning: Error shutting down SQLite: "
-                              << sqlite3_errstr(shutdownResult) << std::endl;
+                    SQLITE_DEBUG("1Q2R3S4T5U6V: Error shutting down SQLite: "
+                                 << sqlite3_errstr(shutdownResult));
                 }
 
                 // Sleep a bit to ensure all resources are properly released
@@ -1343,7 +1365,7 @@ namespace cpp_dbc
             }
             catch (const std::exception &e)
             {
-                std::cerr << "Exception during SQLite driver shutdown: " << e.what() << std::endl;
+                SQLITE_DEBUG("7W8X9Y0Z1A2B: Exception during SQLite driver shutdown: " << e.what());
             }
         }
 

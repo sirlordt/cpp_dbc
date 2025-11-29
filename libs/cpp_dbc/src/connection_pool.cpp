@@ -25,7 +25,7 @@
 #include <iostream>
 
 // Debug output is controlled by -DDEBUG_CONNECTION_POOL=1 CMake option
-#if defined(DEBUG_CONNECTION_POOL) && DEBUG_CONNECTION_POOL
+#if (defined(DEBUG_CONNECTION_POOL) && DEBUG_CONNECTION_POOL) || (defined(DEBUG_ALL) && DEBUG_ALL)
 #define CP_DEBUG(x) std::cout << x << std::endl
 #else
 #define CP_DEBUG(x)

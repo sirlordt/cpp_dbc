@@ -58,7 +58,7 @@ The project uses:
   - `--debug-pool`: Enable debug output for ConnectionPool
   - `--debug-txmgr`: Enable debug output for TransactionManager
   - `--debug-sqlite`: Enable debug output for SQLite driver
-  - `--debug-all`: Enable all debug output
+  - `--debug-all`: Enable all debug output at once (simplifies debugging across multiple components)
   - `--asan`: Enable AddressSanitizer (with known issues, see asan_issues.md)
 
 ### Development Environment
@@ -92,6 +92,7 @@ The project is configured to work with the CMakeTools extension, but does not re
 ### Thread Safety
 - Connection objects are not thread-safe and should not be shared between threads
 - ConnectionPool and TransactionManager are thread-safe
+- SQLiteDriver implements thread-safe initialization using std::atomic and std::mutex with singleton pattern
 - Applications must handle their own thread synchronization when sharing data between threads
 
 ### Memory Management
