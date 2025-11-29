@@ -140,9 +140,10 @@ namespace cpp_dbc
         class MySQLConnection : public Connection
         {
         private:
-            MYSQL *m_mysql;
-            bool m_closed;
-            bool m_autoCommit;
+            MYSQL *m_mysql{nullptr};
+            bool m_closed{true};
+            bool m_autoCommit{true};
+            bool m_transactionActive{false};
             TransactionIsolationLevel m_isolationLevel;
 
             // Cached URL string
@@ -177,6 +178,9 @@ namespace cpp_dbc
 
             void setAutoCommit(bool autoCommit) override;
             bool getAutoCommit() override;
+
+            bool beginTransaction() override;
+            bool transactionActive() override;
 
             void commit() override;
             void rollback() override;

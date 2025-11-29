@@ -1120,7 +1120,7 @@ namespace cpp_dbc
                                                    const std::string &user,
                                                    const std::string &password,
                                                    const std::map<std::string, std::string> &options)
-            : m_conn(nullptr), m_closed(false), m_autoCommit(true), m_statementCounter(0),
+            : m_conn(nullptr), m_closed(false), m_autoCommit(true), m_transactionActive(false), m_statementCounter(0),
               m_isolationLevel(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) // PostgreSQL default
         {
             // Build connection string
@@ -1301,6 +1301,70 @@ namespace cpp_dbc
             return rowCount;
         }
 
+        bool PostgreSQLConnection::beginTransaction()
+        {
+            if (m_closed || !m_conn)
+            {
+                throw DBException("7A8B9C0D1E2F", "Connection is closed", system_utils::captureCallStack());
+            }
+
+            // If transaction is already active, just return true
+            if (m_transactionActive)
+            {
+                return true;
+            }
+
+            // Start a transaction
+            std::string beginCmd = "BEGIN";
+
+            // For SERIALIZABLE isolation, we need special handling
+            if (m_isolationLevel == TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
+            {
+                beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+
+                // Execute the BEGIN command
+                PGresult *dummyResult = PQexec(m_conn, beginCmd.c_str());
+                if (PQresultStatus(dummyResult) != PGRES_COMMAND_OK)
+                {
+                    std::string error = PQresultErrorMessage(dummyResult);
+                    PQclear(dummyResult);
+                    throw DBException("3G4H5I6J7K8L", "Failed to start SERIALIZABLE transaction: " + error, system_utils::captureCallStack());
+                }
+                PQclear(dummyResult);
+
+                // Force snapshot acquisition with a dummy query
+                PGresult *snapshotResult = PQexec(m_conn, "SELECT 1");
+                if (PQresultStatus(snapshotResult) != PGRES_TUPLES_OK)
+                {
+                    std::string error = PQresultErrorMessage(snapshotResult);
+                    PQclear(snapshotResult);
+                    throw DBException("9M0N1O2P3Q4R", "Failed to acquire snapshot: " + error, system_utils::captureCallStack());
+                }
+                PQclear(snapshotResult);
+            }
+            else
+            {
+                // Standard BEGIN for other isolation levels
+                PGresult *result = PQexec(m_conn, beginCmd.c_str());
+                if (PQresultStatus(result) != PGRES_COMMAND_OK)
+                {
+                    std::string error = PQresultErrorMessage(result);
+                    PQclear(result);
+                    throw DBException("5S6T7U8V9W0X", "Failed to start transaction: " + error, system_utils::captureCallStack());
+                }
+                PQclear(result);
+            }
+
+            m_autoCommit = false;
+            m_transactionActive = true;
+            return true;
+        }
+
+        bool PostgreSQLConnection::transactionActive()
+        {
+            return m_transactionActive;
+        }
+
         void PostgreSQLConnection::setAutoCommit(bool autoCommitFlag)
         {
             if (m_closed || !m_conn)
@@ -1308,68 +1372,35 @@ namespace cpp_dbc
                 throw DBException("7A8B9C0D1E2F", "Connection is closed", system_utils::captureCallStack());
             }
 
-            // PostgreSQL: BEGIN starts a transaction, COMMIT ends it
-            // If autoCommit is true, we don't need to do anything special
-            // If autoCommit is false, we need to start a transaction if we're not already in one
-            if (this->m_autoCommit && !autoCommitFlag)
+            /*
+            // Cannot enable autocommit if a transaction is active
+            if (autoCommitFlag && m_transactionActive)
             {
-                // Start a transaction
-                std::string beginCmd = "BEGIN";
+                throw DBException("3G4H5I6J7K8L", "Cannot enable autocommit while a transaction is active. Commit or rollback first.", system_utils::captureCallStack());
+            }
+            */
 
-                // For SERIALIZABLE isolation, we need to ensure the snapshot is acquired immediately
-                // by using a READ ONLY DEFERRABLE transaction when possible
-                if (m_isolationLevel == TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
+            // Only take action if the flag is actually changing
+            if (this->m_autoCommit != autoCommitFlag)
+            {
+                if (!autoCommitFlag)
                 {
-                    beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
-
-                    // Execute a dummy SELECT to force snapshot acquisition immediately
-                    PGresult *dummyResult = PQexec(m_conn, beginCmd.c_str());
-                    if (PQresultStatus(dummyResult) != PGRES_COMMAND_OK)
-                    {
-                        std::string error = PQresultErrorMessage(dummyResult);
-                        PQclear(dummyResult);
-                        throw DBException("3G4H5I6J7K8L", "Failed to start SERIALIZABLE transaction: " + error, system_utils::captureCallStack());
-                    }
-                    PQclear(dummyResult);
-
-                    // Force snapshot acquisition with a dummy query
-                    PGresult *snapshotResult = PQexec(m_conn, "SELECT 1");
-                    if (PQresultStatus(snapshotResult) != PGRES_TUPLES_OK)
-                    {
-                        std::string error = PQresultErrorMessage(snapshotResult);
-                        PQclear(snapshotResult);
-                        throw DBException("9M0N1O2P3Q4R", "Failed to acquire snapshot: " + error, system_utils::captureCallStack());
-                    }
-                    PQclear(snapshotResult);
-                    return; // We've already started the transaction and acquired the snapshot
+                    // Si estamos desactivando autoCommit, iniciar una transacción explícita
+                    // PostgreSQL está siempre en modo autocommit hasta que se inicia una transacción
+                    this->m_autoCommit = false;
+                    beginTransaction();
                 }
                 else
                 {
-                    // Standard BEGIN for other isolation levels
-                    PGresult *result = PQexec(m_conn, beginCmd.c_str());
-                    if (PQresultStatus(result) != PGRES_COMMAND_OK)
+                    // If we're enabling autocommit, we must ensure any active transaction is ended
+                    if (m_transactionActive)
                     {
-                        std::string error = PQresultErrorMessage(result);
-                        PQclear(result);
-                        throw DBException("5S6T7U8V9W0X", "Failed to start transaction: " + error, system_utils::captureCallStack());
+                        commit();
                     }
-                    PQclear(result);
-                }
-            }
-            else if (!this->m_autoCommit && autoCommitFlag)
-            {
-                // Commit the current transaction
-                PGresult *result = PQexec(m_conn, "COMMIT");
-                if (PQresultStatus(result) != PGRES_COMMAND_OK)
-                {
-                    std::string error = PQresultErrorMessage(result);
-                    PQclear(result);
-                    throw DBException("1Y2Z3A4B5C6D", "Failed to commit transaction: " + error, system_utils::captureCallStack());
-                }
-                PQclear(result);
-            }
 
-            this->m_autoCommit = autoCommitFlag;
+                    this->m_autoCommit = true;
+                }
+            }
         }
 
         bool PostgreSQLConnection::getAutoCommit()
@@ -1384,6 +1415,12 @@ namespace cpp_dbc
                 throw DBException("7E8F9G0H1I2J", "Connection is closed", system_utils::captureCallStack());
             }
 
+            // If no transaction is active, nothing to commit
+            if (!m_transactionActive)
+            {
+                return;
+            }
+
             PGresult *result = PQexec(m_conn, "COMMIT");
             if (PQresultStatus(result) != PGRES_COMMAND_OK)
             {
@@ -1393,18 +1430,8 @@ namespace cpp_dbc
             }
             PQclear(result);
 
-            // Start a new transaction if auto-commit is disabled
-            if (!m_autoCommit)
-            {
-                result = PQexec(m_conn, "BEGIN");
-                if (PQresultStatus(result) != PGRES_COMMAND_OK)
-                {
-                    std::string error = PQresultErrorMessage(result);
-                    PQclear(result);
-                    throw DBException("9Q0R1S2T3U4V", "Failed to start transaction: " + error, system_utils::captureCallStack());
-                }
-                PQclear(result);
-            }
+            m_transactionActive = false;
+            m_autoCommit = true;
         }
 
         void PostgreSQLConnection::rollback()
@@ -1412,6 +1439,12 @@ namespace cpp_dbc
             if (m_closed || !m_conn)
             {
                 throw DBException("5W6X7Y8Z9A0B", "Connection is closed", system_utils::captureCallStack());
+            }
+
+            // If no transaction is active, nothing to rollback
+            if (!m_transactionActive)
+            {
+                return;
             }
 
             PGresult *result = PQexec(m_conn, "ROLLBACK");
@@ -1423,18 +1456,8 @@ namespace cpp_dbc
             }
             PQclear(result);
 
-            // Start a new transaction if auto-commit is disabled
-            if (!m_autoCommit)
-            {
-                result = PQexec(m_conn, "BEGIN");
-                if (PQresultStatus(result) != PGRES_COMMAND_OK)
-                {
-                    std::string error = PQresultErrorMessage(result);
-                    PQclear(result);
-                    throw DBException("7I8J9K0L1M2N", "Failed to start transaction: " + error, system_utils::captureCallStack());
-                }
-                PQclear(result);
-            }
+            m_transactionActive = false;
+            m_autoCommit = true;
         }
 
         void PostgreSQLConnection::setTransactionIsolation(TransactionIsolationLevel level)

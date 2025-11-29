@@ -150,9 +150,10 @@ namespace cpp_dbc
             friend class SQLiteResultSet;
 
         private:
-            sqlite3 *m_db;
-            bool m_closed;
-            bool m_autoCommit;
+            sqlite3 *m_db{nullptr};
+            bool m_closed{true};
+            bool m_autoCommit{true};
+            bool m_transactionActive{false};
             TransactionIsolationLevel m_isolationLevel;
 
             // Cached URL
@@ -186,6 +187,9 @@ namespace cpp_dbc
 
             void setAutoCommit(bool autoCommit) override;
             bool getAutoCommit() override;
+
+            bool beginTransaction() override;
+            bool transactionActive() override;
 
             void commit() override;
             void rollback() override;

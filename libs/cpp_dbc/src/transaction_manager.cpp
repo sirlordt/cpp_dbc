@@ -65,8 +65,8 @@ namespace cpp_dbc
         // Get a connection from the pool
         std::shared_ptr<Connection> conn = pool.getConnection();
 
-        // Disable auto-commit
-        conn->setAutoCommit(false);
+        // Iniciar transacción usando el nuevo método
+        conn->beginTransaction();
 
         // Generate a unique transaction ID
         std::string transactionId = generateUUID();
@@ -121,8 +121,7 @@ namespace cpp_dbc
         try
         {
             transContext->connection->commit();
-            // Re-enable auto-commit before returning to pool
-            transContext->connection->setAutoCommit(true);
+            // commit() ya establece autoCommit=true y transactionActive=false
 
             // Return the connection to the pool
             // No need to call close() first, as returnToPool() will handle the connection properly
@@ -130,11 +129,9 @@ namespace cpp_dbc
         }
         catch (const DBException &e1)
         {
-            // Make sure to reset auto-commit even on error
+            // Asegurarse de que la conexión se devuelve al pool incluso en caso de error
             try
             {
-                transContext->connection->setAutoCommit(true);
-
                 // Ensure the connection is properly returned to the pool
                 if (transContext->connection->isPooled())
                 {
@@ -172,8 +169,7 @@ namespace cpp_dbc
         try
         {
             transContext->connection->rollback();
-            // Re-enable auto-commit before returning to pool
-            transContext->connection->setAutoCommit(true);
+            // rollback() ya establece autoCommit=true y transactionActive=false
 
             // Return the connection to the pool
             // No need to call close() first, as returnToPool() will handle the connection properly
@@ -181,11 +177,9 @@ namespace cpp_dbc
         }
         catch (const DBException &e1)
         {
-            // Make sure to reset auto-commit even on error
+            // Asegurarse de que la conexión se devuelve al pool incluso en caso de error
             try
             {
-                transContext->connection->setAutoCommit(true);
-
                 // Ensure the connection is properly returned to the pool
                 if (transContext->connection->isPooled())
                 {

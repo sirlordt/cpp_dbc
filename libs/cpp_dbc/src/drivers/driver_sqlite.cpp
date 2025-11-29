@@ -834,7 +834,7 @@ namespace cpp_dbc
 
         SQLiteConnection::SQLiteConnection(const std::string &database,
                                            const std::map<std::string, std::string> &options)
-            : m_db(nullptr), m_closed(false), m_autoCommit(true),
+            : m_db(nullptr), m_closed(false), m_autoCommit(true), m_transactionActive(false),
               m_isolationLevel(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE), // SQLite default
               m_url("cpp_dbc:sqlite://" + database)
         {
@@ -1136,7 +1136,6 @@ namespace cpp_dbc
 
                 SQLITE_DEBUG("SQLiteConnection::executeQuery - Statement prepared successfully");
 
-                // Verificar que el statement se creó correctamente
                 if (!stmt)
                 {
                     SQLITE_DEBUG("SQLiteConnection::executeQuery - Statement is null after successful preparation");
@@ -1201,18 +1200,55 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
-            if (this->m_autoCommit && !autoCommit)
+            /*
+            if (m_transactionActive && autoCommit)
             {
-                // Start a transaction
-                executeUpdate("BEGIN TRANSACTION");
+                throw DBException("AC79D30BE5F1", "Cannot enable autocommit while a transaction is active. Commit or rollback first.",
+                                  system_utils::captureCallStack());
             }
-            else if (!this->m_autoCommit && autoCommit)
+            */
+
+            if (this->m_autoCommit != autoCommit)
             {
-                // Commit the current transaction
-                executeUpdate("COMMIT");
+                // Simplemente actualizar el flag sin iniciar transacción
+                this->m_autoCommit = autoCommit;
+            }
+        }
+
+        bool SQLiteConnection::beginTransaction()
+        {
+            if (m_closed || !m_db)
+            {
+                throw DBException("FD82C45A3E09", "Connection is closed",
+                                  system_utils::captureCallStack());
             }
 
-            this->m_autoCommit = autoCommit;
+            if (m_transactionActive)
+            {
+                return false;
+            }
+
+            if (m_autoCommit)
+            {
+                m_autoCommit = false;
+            }
+
+            try
+            {
+                executeUpdate("BEGIN TRANSACTION");
+                m_transactionActive = true;
+                return true;
+            }
+            catch (const DBException &e)
+            {
+                SQLITE_DEBUG("BC64F52A8D10: Error starting transaction: " << e.what());
+                return false;
+            }
+        }
+
+        bool SQLiteConnection::transactionActive()
+        {
+            return m_transactionActive;
         }
 
         bool SQLiteConnection::getAutoCommit()
@@ -1230,11 +1266,8 @@ namespace cpp_dbc
 
             executeUpdate("COMMIT");
 
-            // Start a new transaction if auto-commit is disabled
-            if (!m_autoCommit)
-            {
-                executeUpdate("BEGIN TRANSACTION");
-            }
+            m_transactionActive = false;
+            m_autoCommit = true;
         }
 
         void SQLiteConnection::rollback()
@@ -1247,11 +1280,8 @@ namespace cpp_dbc
 
             executeUpdate("ROLLBACK");
 
-            // Start a new transaction if auto-commit is disabled
-            if (!m_autoCommit)
-            {
-                executeUpdate("BEGIN TRANSACTION");
-            }
+            m_transactionActive = false;
+            m_autoCommit = true;
         }
 
         void SQLiteConnection::setTransactionIsolation(TransactionIsolationLevel level)
@@ -1533,7 +1563,7 @@ namespace cpp_dbc
         {
             if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
-                throw DBException("Z5A6B7C8D9E0", "Invalid column index or row position for getBinaryStream",
+                throw DBException("CEE30385E0BB", "Invalid column index or row position for getBinaryStream",
                                   system_utils::captureCallStack());
             }
 

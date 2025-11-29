@@ -475,9 +475,10 @@ namespace cpp_dbc_test
     {
     private:
         bool closed = false;
-        bool autoCommit = true;
+        bool m_autoCommit = true;
         bool committed = false;
         bool rolledBack = false;
+        bool m_transactionActive = false;
         cpp_dbc::TransactionIsolationLevel isolationLevel = cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED;
 
     public:
@@ -550,10 +551,38 @@ namespace cpp_dbc_test
             }
             return 1;
         }
-        void setAutoCommit(bool ac) override { autoCommit = ac; }
-        bool getAutoCommit() override { return autoCommit; }
-        void commit() override { committed = true; }
-        void rollback() override { rolledBack = true; }
+        void setAutoCommit(bool ac) override { m_autoCommit = ac; }
+        bool getAutoCommit() override { return m_autoCommit; }
+        void commit() override
+        {
+            committed = true;
+            m_transactionActive = false;
+            m_autoCommit = true;
+        }
+
+        void rollback() override
+        {
+            rolledBack = true;
+            m_transactionActive = false;
+            m_autoCommit = true;
+        }
+
+        // Transaction management methods
+        bool beginTransaction() override
+        {
+            if (m_transactionActive)
+            {
+                return true; // Transaction already active
+            }
+            m_transactionActive = true;
+            m_autoCommit = false;
+            return true;
+        }
+
+        bool transactionActive() override
+        {
+            return m_transactionActive;
+        }
 
         // Transaction isolation level methods
         void setTransactionIsolation(cpp_dbc::TransactionIsolationLevel level) override { isolationLevel = level; }
@@ -729,6 +758,17 @@ namespace cpp_dbc_test
             void rollback() override
             {
                 underlying->rollback();
+            }
+
+            // Transaction management methods
+            bool beginTransaction() override
+            {
+                return underlying->beginTransaction();
+            }
+
+            bool transactionActive() override
+            {
+                return underlying->transactionActive();
             }
 
             // Transaction isolation level methods

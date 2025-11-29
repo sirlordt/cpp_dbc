@@ -93,7 +93,7 @@ namespace cpp_dbc
             friend class PostgreSQLConnection;
 
         private:
-            PGconn *m_conn;
+            PGconn *m_conn{nullptr};
             std::string m_sql;
             std::string m_stmtName;
             std::vector<std::string> m_paramValues;
@@ -141,10 +141,11 @@ namespace cpp_dbc
         class PostgreSQLConnection : public Connection
         {
         private:
-            PGconn *m_conn;
-            bool m_closed;
-            bool m_autoCommit;
-            int m_statementCounter;
+            PGconn *m_conn{nullptr};
+            bool m_closed{true};
+            bool m_autoCommit{true};
+            bool m_transactionActive{false};
+            int m_statementCounter{0};
             TransactionIsolationLevel m_isolationLevel;
 
             // Cached URL string
@@ -177,6 +178,9 @@ namespace cpp_dbc
 
             void setAutoCommit(bool autoCommit) override;
             bool getAutoCommit() override;
+
+            bool beginTransaction() override;
+            bool transactionActive() override;
 
             void commit() override;
             void rollback() override;

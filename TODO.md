@@ -3,8 +3,6 @@
 ## Pending Tasks
 
 - Add to benchmark the feature to create a base line to CPU_RAM_PLATFORM_OS. AMD_Ryzen_9_9950X_16-Core_Processor_16GB_Ubuntu_24_04 an compare with the last match in base line
-- Reseearch Why sqlite driver is showing warning messages
-- Add the feature to messages warning folling the DEBUG_SQLITE flag
 - Analize the use of raw pointer in diferent class
   They are really safe?
   We need wrap in unique_ptr/shared_ptr with custom destruction functions?
@@ -22,6 +20,9 @@
 
 ## Completed Tasks
 
+- Added mtehots begiTransaction() to replace setAutoCommit funcionality
+- Reseearch Why sqlite driver is showing warning messages
+- Add the feature to messages warning folling the DEBUG_SQLITE flag
 - NEW FEATURE: Add benchmarks to 10 100 1000 10000 rows in Insert/Delete/Update/Select Operations
   - Implemented in benchmark directory with files for all database drivers
   - Added benchmark_main.cpp with common benchmark setup

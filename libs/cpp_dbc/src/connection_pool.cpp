@@ -893,6 +893,26 @@ namespace cpp_dbc
         m_conn->rollback();
     }
 
+    bool PooledConnection::beginTransaction()
+    {
+        if (m_closed)
+        {
+            throw DBException("B7C8D9E0F1G2", "Connection is closed", system_utils::captureCallStack());
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->beginTransaction();
+    }
+
+    bool PooledConnection::transactionActive()
+    {
+        if (m_closed)
+        {
+            throw DBException("H3I4J5K6L7M8", "Connection is closed", system_utils::captureCallStack());
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->transactionActive();
+    }
+
     void PooledConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
         if (m_closed)

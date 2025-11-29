@@ -78,8 +78,9 @@ TEST_CASE("SQLite connection test", "[sqlite_connection]")
             REQUIRE(queryResult->getString("name") == "Test Name");
 
             // Test transaction support
-            conn->setAutoCommit(false);
+            conn->beginTransaction();
             REQUIRE(conn->getAutoCommit() == false);
+            REQUIRE(conn->transactionActive() == true);
 
             // Insert another row in a transaction
             conn->executeUpdate("INSERT INTO test_table (id, name) VALUES (2, 'Transaction Test')");
@@ -95,6 +96,7 @@ TEST_CASE("SQLite connection test", "[sqlite_connection]")
             REQUIRE(verifyResult->getInt("count") == 0);
 
             // Insert again and commit
+            conn->beginTransaction();
             conn->executeUpdate("INSERT INTO test_table (id, name) VALUES (2, 'Transaction Test')");
             conn->commit();
 

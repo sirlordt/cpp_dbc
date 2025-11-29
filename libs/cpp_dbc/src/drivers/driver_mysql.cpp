@@ -953,7 +953,7 @@ namespace cpp_dbc
                                          const std::string &user,
                                          const std::string &password,
                                          const std::map<std::string, std::string> &options)
-            : m_mysql(nullptr), m_closed(false), m_autoCommit(true),
+            : m_mysql(nullptr), m_closed(false), m_autoCommit(true), m_transactionActive(false),
               m_isolationLevel(TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ) // MySQL default
         {
             m_mysql = mysql_init(nullptr);
@@ -1149,6 +1149,36 @@ namespace cpp_dbc
             return mysql_affected_rows(m_mysql);
         }
 
+        bool MySQLConnection::beginTransaction()
+        {
+            if (m_closed || !m_mysql)
+            {
+                throw DBException("7M8N9O0P1Q2R", "Connection is closed", system_utils::captureCallStack());
+            }
+
+            // If transaction is already active, just return true
+            if (m_transactionActive)
+            {
+                return true;
+            }
+
+            // Start transaction by disabling autocommit
+            std::string query = "SET autocommit=0";
+            if (mysql_query(m_mysql, query.c_str()) != 0)
+            {
+                throw DBException("N3O4P5Q6R7S8", std::string("Failed to begin transaction: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+            }
+
+            m_autoCommit = false;
+            m_transactionActive = true;
+            return true;
+        }
+
+        bool MySQLConnection::transactionActive()
+        {
+            return m_transactionActive;
+        }
+
         void MySQLConnection::setAutoCommit(bool autoCommitFlag)
         {
             if (m_closed || !m_mysql)
@@ -1156,14 +1186,35 @@ namespace cpp_dbc
                 throw DBException("7M8N9O0P1Q2R", "Connection is closed", system_utils::captureCallStack());
             }
 
-            // MySQL: autocommit=0 disables auto-commit, autocommit=1 enables it
-            std::string query = "SET autocommit=" + std::to_string(autoCommitFlag ? 1 : 0);
-            if (mysql_query(m_mysql, query.c_str()) != 0)
+            /*
+            // Cannot enable autocommit if a transaction is active
+            if (autoCommitFlag && m_transactionActive)
             {
-                throw DBException("N3O4P5Q6R7S8", std::string("Failed to set autocommit mode: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                throw DBException("Z5A6B7C8D9E0", "Cannot enable autocommit while a transaction is active. Commit or rollback first.", system_utils::captureCallStack());
             }
+            */
 
-            this->m_autoCommit = autoCommitFlag;
+            // Only change the SQL state if we're actually changing the mode
+            if (this->m_autoCommit != autoCommitFlag)
+            {
+                if (autoCommitFlag)
+                {
+                    // Habilitar autocommit (1) y desactivar transacciones
+                    std::string query = "SET autocommit=1";
+                    if (mysql_query(m_mysql, query.c_str()) != 0)
+                    {
+                        throw DBException("N3O4P5Q6R7S8", std::string("Failed to set autocommit mode: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                    }
+
+                    this->m_autoCommit = true;
+                    this->m_transactionActive = false;
+                }
+                else
+                {
+                    // Si estamos desactivando autocommit, usar beginTransaction para iniciar la transacción
+                    beginTransaction();
+                }
+            }
         }
 
         bool MySQLConnection::getAutoCommit()
@@ -1178,9 +1229,23 @@ namespace cpp_dbc
                 throw DBException("3S4T5U6V7W8X", "Connection is closed", system_utils::captureCallStack());
             }
 
+            // No transaction active, nothing to commit
+            if (!m_transactionActive)
+            {
+                return;
+            }
+
             if (mysql_query(m_mysql, "COMMIT") != 0)
             {
                 throw DBException("9Y0Z1A2B3C4D", std::string("Commit failed: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+            }
+
+            m_transactionActive = false;
+
+            // If autoCommit is still false, a new transaction starts automatically in MySQL
+            if (!m_autoCommit)
+            {
+                m_transactionActive = true;
             }
         }
 
@@ -1191,9 +1256,23 @@ namespace cpp_dbc
                 throw DBException("5E6F7G8H9I0J", "Connection is closed", system_utils::captureCallStack());
             }
 
+            // No transaction active, nothing to rollback
+            if (!m_transactionActive)
+            {
+                return;
+            }
+
             if (mysql_query(m_mysql, "ROLLBACK") != 0)
             {
                 throw DBException("1K2L3M4N5O6P", std::string("Rollback failed: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+            }
+
+            m_transactionActive = false;
+
+            // If autoCommit is still false, a new transaction starts automatically in MySQL
+            if (!m_autoCommit)
+            {
+                m_transactionActive = true;
             }
         }
 

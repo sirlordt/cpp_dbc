@@ -104,7 +104,8 @@ TEST_CASE("SQLite real database operations", "[sqlite_real]")
             REQUIRE(count == 34);
 
             // Test transaction support
-            conn->setAutoCommit(false);
+            // conn->setAutoCommit(false);
+            conn->beginTransaction();
 
             // Delete half the rows
             auto deleteStmt = conn->prepareStatement("DELETE FROM test_table WHERE id <= ?");
@@ -121,12 +122,13 @@ TEST_CASE("SQLite real database operations", "[sqlite_real]")
             // Rollback the transaction
             conn->rollback();
 
-            // Verify the rows are back
+            //  Verify the rows are back
             countResult = countStmt->executeQuery();
             REQUIRE(countResult->next());
             REQUIRE(countResult->getInt("count") == 100);
 
             // Now delete and commit
+            conn->beginTransaction();
             deletedRows = deleteStmt->executeUpdate();
             REQUIRE(deletedRows == 50);
             conn->commit();

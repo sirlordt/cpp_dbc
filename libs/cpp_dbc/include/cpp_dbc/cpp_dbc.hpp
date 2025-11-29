@@ -304,6 +304,9 @@ namespace cpp_dbc
         virtual void setAutoCommit(bool autoCommit) = 0;
         virtual bool getAutoCommit() = 0;
 
+        virtual bool beginTransaction() = 0;
+        virtual bool transactionActive() = 0;
+
         virtual void commit() = 0;
         virtual void rollback() = 0;
 

@@ -188,6 +188,10 @@ namespace cpp_dbc
         void commit() override;
         void rollback() override;
 
+        // Transaction management methods
+        bool beginTransaction() override;
+        bool transactionActive() override;
+
         // Transaction isolation level methods
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
