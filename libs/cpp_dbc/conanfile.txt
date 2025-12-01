@@ -2,6 +2,7 @@
 # Las dependencias de MySQL y PostgreSQL se manejan a través de los paquetes del sistema
 catch2/3.3.2
 yaml-cpp/0.8.0
+benchmark/1.8.3
 
 [generators]
 CMakeDeps

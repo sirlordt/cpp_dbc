@@ -797,6 +797,10 @@ cmd_run_benchmarks() {
           run_benchmark_cmd="$run_benchmark_cmd --mysql"
           echo "Running MySQL benchmarks only"
           ;;
+        mysql-off)
+          run_benchmark_cmd="$run_benchmark_cmd --mysql-off"
+          echo "Disabling MySQL benchmarks"
+          ;;
         postgres)
           run_benchmark_cmd="$run_benchmark_cmd --postgresql"
           echo "Running PostgreSQL benchmarks only"

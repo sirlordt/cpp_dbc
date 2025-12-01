@@ -158,7 +158,27 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **SQLite Driver Thread Safety Improvements**:
+1. **Benchmark System Migration to Google Benchmark**:
+   - Migrated benchmark system from Catch2 to Google Benchmark:
+     - Updated CMakeLists.txt to use Google Benchmark instead of Catch2WithMain
+     - Added benchmark/1.8.3 as a dependency in conanfile.txt
+     - Rewrote all benchmark files to use Google Benchmark API
+     - Improved benchmark table initialization system with table reuse
+     - Added support for multiple iterations and benchmark repetitions
+   - Logging system improvements:
+     - Added timestamp-based logging functions in system_utils.hpp
+     - Implemented logWithTimestampInfo, logWithTimestampError, logWithTimestampException, etc.
+     - Replaced std::cerr and std::cout with these logging functions in benchmark code
+   - Connection management improvements for benchmarks:
+     - Added setupMySQLConnection and setupPostgreSQLConnection functions
+     - Implemented system to reuse already initialized tables
+     - Used mutex for synchronization in multi-threaded environments
+   - Script updates:
+     - Added mysql-off option in helper.sh to disable MySQL benchmarks
+     - Changed configuration parameters (--samples and --resamples to --min-time and --repetitions)
+     - Improved filter handling for running specific benchmarks
+
+2. **SQLite Driver Thread Safety Improvements**:
    - Enhanced thread safety in SQLite driver implementation:
      - Added thread-safe initialization pattern using std::atomic and std::mutex
      - Implemented singleton pattern for SQLite configuration to ensure it's only done once

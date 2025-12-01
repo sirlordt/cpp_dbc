@@ -75,6 +75,80 @@ namespace cpp_dbc
             return oss.str();
         }
 
+        // Get current timestamp in format [YYYY-MM-DD HH:MM:SS.mmm]
+        inline std::string getCurrentTimestamp()
+        {
+            auto now = std::chrono::system_clock::now();
+            auto time_t_now = std::chrono::system_clock::to_time_t(now);
+
+            // Get milliseconds
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          now.time_since_epoch()) %
+                      1000;
+
+            std::stringstream ss;
+            ss << std::put_time(std::localtime(&time_t_now), "[%Y-%m-%d %H:%M:%S");
+            ss << "." << std::setfill('0') << std::setw(3) << ms.count() << "]";
+
+            return ss.str();
+        }
+
+        // Log a message with timestamp
+        inline void logWithTimestamp(const std::string &prefix, const std::string &message)
+        {
+            std::cout << getCurrentTimestamp() << " " << prefix << " " << message << std::endl;
+        }
+
+        inline void logWithTimestampInfo(const std::string &message)
+        {
+            logWithTimestamp("[INFO]", message);
+        }
+
+        inline void logWithTimestampInfoMark(const std::string &mark, const std::string &message)
+        {
+            logWithTimestamp("[INFO] [" + mark + "]", message);
+        }
+
+        inline void logWithTimestampDebug(const std::string &message)
+        {
+            logWithTimestamp("[DEBUG]", message);
+        }
+
+        inline void logWithTimestampDebugMark(const std::string &mark, const std::string &message)
+        {
+            logWithTimestamp("[DEBUG] [" + mark + "]", message);
+        }
+
+        inline void logWithTimestampWarning(const std::string &message)
+        {
+            logWithTimestamp("[WARNING]", message);
+        }
+
+        inline void logWithTimestampWarningMark(const std::string &mark, const std::string &message)
+        {
+            logWithTimestamp("[WARNING] [" + mark + "]", message);
+        }
+
+        inline void logWithTimestampError(const std::string &message)
+        {
+            logWithTimestamp("[ERROR]", message);
+        }
+
+        inline void logWithTimestampErrorMark(const std::string &mark, const std::string &message)
+        {
+            logWithTimestamp("[ERROR] [" + mark + "]", message);
+        }
+
+        inline void logWithTimestampException(const std::string &message)
+        {
+            logWithTimestamp("[EXCEPTION]", message);
+        }
+
+        inline void logWithTimestampExceptionMark(const std::string &mark, const std::string &message)
+        {
+            logWithTimestamp("[EXCEPTION] [" + mark + "]", message);
+        }
+
         // bool shouldSkipFrame(const std::string &filename, const std::string &function);
         std::vector<StackFrame> captureCallStack(bool captureAll = false, int skip = 1);
         void printCallStack(const std::vector<StackFrame> &frames);

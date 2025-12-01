@@ -7,12 +7,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Find required packages
-# Look for Catch2 in the cpp_dbc library's Conan packages
+# Set the CMAKE_PREFIX_PATH to find packages from the cpp_dbc library's Conan packages
 set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/${CMAKE_BUILD_TYPE}/generators")
-find_package(Catch2 REQUIRED)
 
-# Find yaml-cpp from the main project
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/${CMAKE_BUILD_TYPE}/generators")
+# Find required packages
+find_package(Catch2 REQUIRED) # Still needed for transitioning code
+find_package(benchmark REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 # Define benchmark executable
@@ -40,9 +40,10 @@ add_executable(cpp_dbc_benchmarks
     benchmark_sqlite_delete.cpp
 )
 
-# Link against Catch2, cpp_dbc and yaml-cpp
+# Link against Google Benchmark, cpp_dbc and yaml-cpp
 target_link_libraries(cpp_dbc_benchmarks PRIVATE
-    Catch2::Catch2WithMain
+    benchmark::benchmark
+    benchmark::benchmark_main
     cpp_dbc::cpp_dbc
     yaml-cpp::yaml-cpp
 )

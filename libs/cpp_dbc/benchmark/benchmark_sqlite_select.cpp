@@ -20,288 +20,638 @@
 
 #if USE_SQLITE
 
-TEST_CASE("SQLite SELECT Benchmark", "[benchmark][sqlite][select]")
+// Small dataset (10 rows)
+static void BM_SQLite_Select_Small_AllColumns(benchmark::State &state)
 {
-    // Skip these tests if we can't connect to SQLite
-    if (!sqlite_benchmark_helpers::canConnectToSQLite())
+    const std::string tableName = "benchmark_sqlite_select_small_all";
+    std::shared_ptr<cpp_dbc::Connection> conn;
+
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with test data...");
+    conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
     {
-        SKIP("Cannot connect to SQLite database");
+        state.SkipWithError("Cannot connect to SQLite database");
         return;
     }
+    // cpp_dbc::system_utils::logWithTimestampInfo("DB URL: " + conn->getURL());
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
 
-    // Get connection string using the centralized helper
-    std::string connStr = sqlite_benchmark_helpers::getSQLiteConnectionString();
+    // Begin a transaction before the benchmark loop
+    // This is not strictly necessary for SELECT operations but ensures consistency
+    conn->beginTransaction();
 
-    // Register the SQLite driver and get a connection
-    cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
-    auto conn = cpp_dbc::DriverManager::getConnection(connStr, "", "");
-
-    // Table name for benchmarks
-    const std::string tableName = "benchmark_sqlite_select";
-
-    // Create benchmark table
-    common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-    SECTION("SELECT 10 rows")
+    // The benchmark loop
+    for (auto _ : state)
     {
-        // Populate table with 10 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName);
+        benchmark::DoNotOptimize(rs);
 
-        BENCHMARK("SQLite SELECT 10 rows - All columns")
+        int count = 0;
+        while (rs->next())
         {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 10 rows - Single column")
-        {
-            auto rs = conn->executeQuery("SELECT id FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 10 rows - With WHERE clause")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " WHERE id <= 5");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 10 rows - With ORDER BY")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " ORDER BY name");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 10 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement("SELECT * FROM " + tableName + " WHERE id > ?");
-            pstmt->setInt(1, 5);
-            auto rs = pstmt->executeQuery();
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
     }
 
-    SECTION("SELECT 100 rows")
-    {
-        // Populate table with 100 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
 
-        BENCHMARK("SQLite SELECT 100 rows - All columns")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 100 rows - Single column")
-        {
-            auto rs = conn->executeQuery("SELECT id FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 100 rows - With WHERE clause")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " WHERE id <= 50");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 100 rows - With ORDER BY")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " ORDER BY name");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 100 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement("SELECT * FROM " + tableName + " WHERE id > ?");
-            pstmt->setInt(1, 50);
-            auto rs = pstmt->executeQuery();
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-    }
-
-    SECTION("SELECT 1000 rows")
-    {
-        // Populate table with 1000 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
-
-        BENCHMARK("SQLite SELECT 1000 rows - All columns")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 1000 rows - Single column")
-        {
-            auto rs = conn->executeQuery("SELECT id FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 1000 rows - With WHERE clause")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " WHERE id <= 500");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 1000 rows - With ORDER BY")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " ORDER BY name");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 1000 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement("SELECT * FROM " + tableName + " WHERE id > ?");
-            pstmt->setInt(1, 500);
-            auto rs = pstmt->executeQuery();
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-    }
-
-    SECTION("SELECT 10000 rows")
-    {
-        // Populate table with 10000 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
-
-        BENCHMARK("SQLite SELECT 10000 rows - All columns")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 10000 rows - Single column")
-        {
-            auto rs = conn->executeQuery("SELECT id FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 10000 rows - With WHERE clause")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " WHERE id <= 5000");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 10000 rows - With ORDER BY")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " ORDER BY name");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("SQLite SELECT 10000 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement("SELECT * FROM " + tableName + " WHERE id > ?");
-            pstmt->setInt(1, 5000);
-            auto rs = pstmt->executeQuery();
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-    }
-
-    // Clean up
-    common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
     conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    // Metric reporting
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
 }
-#else
-// Skip tests if SQLite support is not enabled
-TEST_CASE("SQLite SELECT Benchmark (skipped)", "[benchmark][sqlite][select]")
+BENCHMARK(BM_SQLite_Select_Small_AllColumns);
+
+static void BM_SQLite_Select_Small_SingleColumn(benchmark::State &state)
 {
-    SKIP("SQLite support is not enabled");
+    const std::string tableName = "benchmark_sqlite_select_small_single";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT id FROM " + tableName);
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
 }
+BENCHMARK(BM_SQLite_Select_Small_SingleColumn);
+
+static void BM_SQLite_Select_Small_WhereClause(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_select_small_where";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName + " WHERE id <= 5");
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * 5); // Only processing 5 rows per iteration
+}
+BENCHMARK(BM_SQLite_Select_Small_WhereClause);
+
+static void BM_SQLite_Select_Small_OrderBy(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_select_small_order";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName + " ORDER BY name");
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
+}
+BENCHMARK(BM_SQLite_Select_Small_OrderBy);
+
+static void BM_SQLite_Select_Small_PreparedStatement(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_select_small_prepared";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement("SELECT * FROM " + tableName + " WHERE id > ?");
+        pstmt->setInt(1, 5);
+        state.ResumeTiming(); // Resume timing for query execution
+
+        auto rs = pstmt->executeQuery();
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * 5); // 10 - 5 = 5 rows per iteration
+}
+BENCHMARK(BM_SQLite_Select_Small_PreparedStatement);
+
+// Medium dataset (100 rows)
+static void BM_SQLite_Select_Medium_AllColumns(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_select_med_all";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName);
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_SQLite_Select_Medium_AllColumns);
+
+static void BM_SQLite_Select_Medium_SingleColumn(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_select_med_single";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT id FROM " + tableName);
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_SQLite_Select_Medium_SingleColumn);
+
+static void BM_SQLite_Select_Medium_WhereClause(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_select_med_where";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName + " WHERE id <= 50");
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * 50); // Only processing 50 rows per iteration
+}
+BENCHMARK(BM_SQLite_Select_Medium_WhereClause);
+
+static void BM_SQLite_Select_Medium_OrderBy(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_select_med_order";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName + " ORDER BY name");
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_SQLite_Select_Medium_OrderBy);
+
+static void BM_SQLite_Select_Medium_PreparedStatement(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_select_med_prepared";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement("SELECT * FROM " + tableName + " WHERE id > ?");
+        pstmt->setInt(1, 50);
+        state.ResumeTiming(); // Resume timing for query execution
+
+        auto rs = pstmt->executeQuery();
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * 50); // 100 - 50 = 50 rows per iteration
+}
+BENCHMARK(BM_SQLite_Select_Medium_PreparedStatement);
+
+// Large dataset (1000 rows)
+static void BM_SQLite_Select_Large_AllColumns(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_select_large_all";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::LARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName);
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
+}
+BENCHMARK(BM_SQLite_Select_Large_AllColumns);
+
+static void BM_SQLite_Select_Large_SingleColumn(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_select_large_single";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::LARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT id FROM " + tableName);
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
+}
+BENCHMARK(BM_SQLite_Select_Large_SingleColumn);
+
+// XLarge dataset (10000 rows) - limit benchmarks to a few key tests
+static void BM_SQLite_Select_XLarge_SingleColumn(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_select_xlarge_single";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::XLARGE_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::XLARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT id FROM " + tableName);
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::XLARGE_SIZE);
+}
+BENCHMARK(BM_SQLite_Select_XLarge_SingleColumn);
+
+static void BM_SQLite_Select_XLarge_LimitedRows(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_select_xlarge_limit";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::XLARGE_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::XLARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName + " LIMIT 100");
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * 100); // Only processing 100 rows per iteration due to LIMIT
+}
+BENCHMARK(BM_SQLite_Select_XLarge_LimitedRows);
+
+#else
+// Register empty benchmark when SQLite is disabled
+static void BM_SQLite_Select_Disabled(benchmark::State &state)
+{
+    for (auto _ : state)
+    {
+        state.SkipWithError("SQLite support is not enabled");
+        break;
+    }
+}
+BENCHMARK(BM_SQLite_Select_Disabled);
+
+// No need for the custom initialization when SQLite is disabled
 #endif

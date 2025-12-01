@@ -20,380 +20,501 @@
 
 #if USE_SQLITE
 
-TEST_CASE("SQLite INSERT Benchmark", "[benchmark][sqlite][insert]")
+// Small dataset (10 rows)
+static void BM_SQLite_Insert_Small_Individual(benchmark::State &state)
 {
-    // Skip these tests if we can't connect to SQLite
-    if (!sqlite_benchmark_helpers::canConnectToSQLite())
+    const std::string tableName = "benchmark_sqlite_insert_small_ind";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' for benchmark...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName);
+
+    if (!conn)
     {
-        SKIP("Cannot connect to SQLite database");
+        state.SkipWithError("Cannot connect to SQLite database");
         return;
     }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
 
-    // Get connection string using the centralized helper
-    std::string connStr = sqlite_benchmark_helpers::getSQLiteConnectionString();
+    // Use a static counter to ensure unique IDs across benchmark runs
+    static int runCounter = 0;
 
-    // Register the SQLite driver and get a connection
-    cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
-    auto conn = cpp_dbc::DriverManager::getConnection(connStr, "", "");
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
 
-    // Table name for benchmarks
-    const std::string tableName = "benchmark_sqlite_insert";
-
-    SECTION("INSERT 10 rows")
+    for (auto _ : state)
     {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
+        int runId = ++runCounter;
 
-        BENCHMARK("SQLite INSERT 10 rows - Individual inserts")
+        for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
         {
-            // Use a unique ID prefix for each benchmark run to avoid UNIQUE constraint errors
-            static int runCounter = 0;
-            int runId = ++runCounter;
+            // Create a unique ID by combining the run counter and the loop counter
+            int uniqueId = runId * 10000 + i;
 
-            for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
-            {
-                // Create a unique ID by combining the run counter and the loop counter
-                int uniqueId = runId * 10000 + i;
+            auto result = conn->executeUpdate(
+                "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
+                std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
+                std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) +
+                "', CURRENT_TIMESTAMP)");
+            benchmark::DoNotOptimize(result);
+        }
 
-                // auto result =
-                conn->executeUpdate(
-                    "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
-                    std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
-                    std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) + "', CURRENT_TIMESTAMP)");
-            }
-            return common_benchmark_helpers::SMALL_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-
-        // Recreate table for next benchmark
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        BENCHMARK("SQLite INSERT 10 rows - Prepared statement")
-        {
-            // Use a unique ID prefix for each benchmark run to avoid UNIQUE constraint errors
-            static int runCounter = 0;
-            int runId = ++runCounter;
-
-            auto pstmt = conn->prepareStatement(
-                "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)");
-
-            for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
-            {
-                // Create a unique ID by combining the run counter and the loop counter
-                int uniqueId = runId * 10000 + i;
-
-                pstmt->setInt(1, uniqueId);
-                pstmt->setString(2, "Name " + std::to_string(i));
-                pstmt->setDouble(3, i * 1.5);
-                pstmt->setString(4, common_benchmark_helpers::generateRandomString(50));
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::SMALL_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-
-        // Recreate table for next benchmark
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        BENCHMARK("SQLite INSERT 10 rows - Transaction")
-        {
-            // Use a unique ID prefix for each benchmark run to avoid UNIQUE constraint errors
-            static int runCounter = 0;
-            int runId = ++runCounter;
-
-            conn->executeUpdate("BEGIN TRANSACTION");
-
-            for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
-            {
-                // Create a unique ID by combining the run counter and the loop counter
-                int uniqueId = runId * 10000 + i;
-
-                conn->executeUpdate(
-                    "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
-                    std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
-                    std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) + "', CURRENT_TIMESTAMP)");
-            }
-
-            conn->executeUpdate("COMMIT");
-            return common_benchmark_helpers::SMALL_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
     }
 
-    SECTION("INSERT 100 rows")
-    {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
+    // Rollback the final transaction outside the loop
+    conn->rollback();
 
-        BENCHMARK("SQLite INSERT 100 rows - Individual inserts")
-        {
-            // Use a unique ID prefix for each benchmark run to avoid UNIQUE constraint errors
-            static int runCounter = 0;
-            int runId = ++runCounter;
+    // Cleanup - outside of measurement
+    // std::cout << "Benchmark complete. Cleaning up table '" << tableName << "'..." << std::endl;
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
 
-            for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
-            {
-                // Create a unique ID by combining the run counter and the loop counter
-                int uniqueId = runId * 10000 + i;
-
-                // auto result =
-                conn->executeUpdate(
-                    "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
-                    std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
-                    std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) + "', CURRENT_TIMESTAMP)");
-            }
-            return common_benchmark_helpers::MEDIUM_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-
-        // Recreate table for next benchmark
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        BENCHMARK("SQLite INSERT 100 rows - Prepared statement")
-        {
-            // Use a unique ID prefix for each benchmark run to avoid UNIQUE constraint errors
-            static int runCounter = 0;
-            int runId = ++runCounter;
-
-            auto pstmt = conn->prepareStatement(
-                "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)");
-
-            for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
-            {
-                // Create a unique ID by combining the run counter and the loop counter
-                int uniqueId = runId * 10000 + i;
-
-                pstmt->setInt(1, uniqueId);
-                pstmt->setString(2, "Name " + std::to_string(i));
-                pstmt->setDouble(3, i * 1.5);
-                pstmt->setString(4, common_benchmark_helpers::generateRandomString(50));
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::MEDIUM_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-
-        // Recreate table for next benchmark
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        BENCHMARK("SQLite INSERT 100 rows - Transaction")
-        {
-            // Use a unique ID prefix for each benchmark run to avoid UNIQUE constraint errors
-            static int runCounter = 0;
-            int runId = ++runCounter;
-
-            conn->executeUpdate("BEGIN TRANSACTION");
-
-            for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
-            {
-                // Create a unique ID by combining the run counter and the loop counter
-                int uniqueId = runId * 10000 + i;
-
-                conn->executeUpdate(
-                    "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
-                    std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
-                    std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) + "', CURRENT_TIMESTAMP)");
-            }
-
-            conn->executeUpdate("COMMIT");
-            return common_benchmark_helpers::MEDIUM_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-    }
-
-    SECTION("INSERT 1000 rows")
-    {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        BENCHMARK("SQLite INSERT 1000 rows - Individual inserts")
-        {
-            // Use a unique ID prefix for each benchmark run to avoid UNIQUE constraint errors
-            static int runCounter = 0;
-            int runId = ++runCounter;
-
-            for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
-            {
-                // Create a unique ID by combining the run counter and the loop counter
-                int uniqueId = runId * 10000 + i;
-
-                // auto result =
-                conn->executeUpdate(
-                    "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
-                    std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
-                    std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) + "', CURRENT_TIMESTAMP)");
-            }
-            return common_benchmark_helpers::LARGE_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-
-        // Recreate table for next benchmark
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        BENCHMARK("SQLite INSERT 1000 rows - Prepared statement")
-        {
-            // Use a unique ID prefix for each benchmark run to avoid UNIQUE constraint errors
-            static int runCounter = 0;
-            int runId = ++runCounter;
-
-            auto pstmt = conn->prepareStatement(
-                "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)");
-
-            for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
-            {
-                // Create a unique ID by combining the run counter and the loop counter
-                int uniqueId = runId * 10000 + i;
-
-                pstmt->setInt(1, uniqueId);
-                pstmt->setString(2, "Name " + std::to_string(i));
-                pstmt->setDouble(3, i * 1.5);
-                pstmt->setString(4, common_benchmark_helpers::generateRandomString(50));
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::LARGE_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-
-        // Recreate table for next benchmark
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        BENCHMARK("SQLite INSERT 1000 rows - Transaction")
-        {
-            // Use a unique ID prefix for each benchmark run to avoid UNIQUE constraint errors
-            static int runCounter = 0;
-            int runId = ++runCounter;
-
-            conn->executeUpdate("BEGIN TRANSACTION");
-
-            for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
-            {
-                // Create a unique ID by combining the run counter and the loop counter
-                int uniqueId = runId * 10000 + i;
-
-                conn->executeUpdate(
-                    "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
-                    std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
-                    std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) + "', CURRENT_TIMESTAMP)");
-            }
-
-            conn->executeUpdate("COMMIT");
-            return common_benchmark_helpers::LARGE_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-    }
-
-    SECTION("INSERT 10000 rows")
-    {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        BENCHMARK("SQLite INSERT 10000 rows - Individual inserts")
-        {
-            // Use a unique ID prefix for each benchmark run to avoid UNIQUE constraint errors
-            static int runCounter = 0;
-            int runId = ++runCounter;
-
-            for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
-            {
-                // Create a unique ID by combining the run counter and the loop counter
-                int uniqueId = runId * 10000 + i;
-
-                // auto result =
-                conn->executeUpdate(
-                    "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
-                    std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
-                    std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) + "', CURRENT_TIMESTAMP)");
-            }
-            return common_benchmark_helpers::XLARGE_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-
-        // Recreate table for next benchmark
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        BENCHMARK("SQLite INSERT 10000 rows - Prepared statement")
-        {
-            // Use a unique ID prefix for each benchmark run to avoid UNIQUE constraint errors
-            static int runCounter = 0;
-            int runId = ++runCounter;
-
-            auto pstmt = conn->prepareStatement(
-                "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)");
-
-            for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
-            {
-                // Create a unique ID by combining the run counter and the loop counter
-                int uniqueId = runId * 10000 + i;
-
-                pstmt->setInt(1, uniqueId);
-                pstmt->setString(2, "Name " + std::to_string(i));
-                pstmt->setDouble(3, i * 1.5);
-                pstmt->setString(4, common_benchmark_helpers::generateRandomString(50));
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::XLARGE_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-
-        // Recreate table for next benchmark
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        BENCHMARK("SQLite INSERT 10000 rows - Transaction")
-        {
-            // Use a unique ID prefix for each benchmark run to avoid UNIQUE constraint errors
-            static int runCounter = 0;
-            int runId = ++runCounter;
-
-            conn->executeUpdate("BEGIN TRANSACTION");
-
-            for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
-            {
-                // Create a unique ID by combining the run counter and the loop counter
-                int uniqueId = runId * 10000 + i;
-
-                conn->executeUpdate(
-                    "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
-                    std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
-                    std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) + "', CURRENT_TIMESTAMP)");
-            }
-
-            conn->executeUpdate("COMMIT");
-            return common_benchmark_helpers::XLARGE_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-    }
-
-    // Close the connection
-    conn->close();
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
 }
-#else
-// Skip tests if SQLite support is not enabled
-TEST_CASE("SQLite INSERT Benchmark (skipped)", "[benchmark][sqlite][insert]")
+BENCHMARK(BM_SQLite_Insert_Small_Individual);
+
+static void BM_SQLite_Insert_Small_Prepared(benchmark::State &state)
 {
-    SKIP("SQLite support is not enabled");
+    const std::string tableName = "benchmark_sqlite_insert_small_prep";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Use a static counter to ensure unique IDs across benchmark runs
+    static int runCounter = 0;
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        int runId = ++runCounter;
+
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)");
+        state.ResumeTiming(); // Resume timing for actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
+        {
+            // Create a unique ID by combining the run counter and the loop counter
+            int uniqueId = runId * 10000 + i;
+
+            pstmt->setInt(1, uniqueId);
+            pstmt->setString(2, "Name " + std::to_string(i));
+            pstmt->setDouble(3, i * 1.5);
+            pstmt->setString(4, common_benchmark_helpers::generateRandomString(50));
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
 }
+BENCHMARK(BM_SQLite_Insert_Small_Prepared);
+
+// Commented out because all benchmarks are transactional
+/*
+static void BM_SQLite_Insert_Small_Transaction(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_insert_small_trans";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Use a static counter to ensure unique IDs across benchmark runs
+    static int runCounter = 0;
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        int runId = ++runCounter;
+
+        for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
+        {
+            // Create a unique ID by combining the run counter and the loop counter
+            int uniqueId = runId * 10000 + i;
+
+            auto result = conn->executeUpdate(
+                "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
+                std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
+                std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) +
+                "', CURRENT_TIMESTAMP)");
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
+}
+BENCHMARK(BM_SQLite_Insert_Small_Transaction);
+*/
+
+// Medium dataset (100 rows)
+static void BM_SQLite_Insert_Medium_Individual(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_insert_medium_ind";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Use a static counter to ensure unique IDs across benchmark runs
+    static int runCounter = 0;
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        int runId = ++runCounter;
+
+        for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
+        {
+            // Create a unique ID by combining the run counter and the loop counter
+            int uniqueId = runId * 10000 + i;
+
+            auto result = conn->executeUpdate(
+                "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
+                std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
+                std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) +
+                "', CURRENT_TIMESTAMP)");
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_SQLite_Insert_Medium_Individual);
+
+static void BM_SQLite_Insert_Medium_Prepared(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_insert_medium_prep";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Use a static counter to ensure unique IDs across benchmark runs
+    static int runCounter = 0;
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        int runId = ++runCounter;
+
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)");
+        state.ResumeTiming(); // Resume timing for actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
+        {
+            // Create a unique ID by combining the run counter and the loop counter
+            int uniqueId = runId * 10000 + i;
+
+            pstmt->setInt(1, uniqueId);
+            pstmt->setString(2, "Name " + std::to_string(i));
+            pstmt->setDouble(3, i * 1.5);
+            pstmt->setString(4, common_benchmark_helpers::generateRandomString(50));
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_SQLite_Insert_Medium_Prepared);
+
+// Commented out because all benchmarks are transactional
+/*
+static void BM_SQLite_Insert_Medium_Transaction(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_insert_medium_trans";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Use a static counter to ensure unique IDs across benchmark runs
+    static int runCounter = 0;
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        int runId = ++runCounter;
+
+        for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
+        {
+            // Create a unique ID by combining the run counter and the loop counter
+            int uniqueId = runId * 10000 + i;
+
+            auto result = conn->executeUpdate(
+                "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
+                std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
+                std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) +
+                "', CURRENT_TIMESTAMP)");
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_SQLite_Insert_Medium_Transaction);
+*/
+
+// Large dataset (1000 rows)
+// Commented out because all benchmarks are transactional
+/*
+static void BM_SQLite_Insert_Large_Transaction(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_insert_large_trans";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Use a static counter to ensure unique IDs across benchmark runs
+    static int runCounter = 0;
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        int runId = ++runCounter;
+
+        for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
+        {
+            // Create a unique ID by combining the run counter and the loop counter
+            int uniqueId = runId * 10000 + i;
+
+            auto result = conn->executeUpdate(
+                "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (" +
+                std::to_string(uniqueId) + ", 'Name " + std::to_string(i) + "', " +
+                std::to_string(i * 1.5) + ", '" + common_benchmark_helpers::generateRandomString(50) +
+                "', CURRENT_TIMESTAMP)");
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
+}
+BENCHMARK(BM_SQLite_Insert_Large_Transaction);
+*/
+
+// Only use prepared statements with transactions for large datasets
+// Commented out because all benchmarks are transactional
+/*
+static void BM_SQLite_Insert_Large_Prepared_Transaction(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_insert_large_prep_trans";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Use a static counter to ensure unique IDs across benchmark runs
+    static int runCounter = 0;
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        int runId = ++runCounter;
+
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "INSERT INTO " + tableName + " (id, name, value, description, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)");
+        state.ResumeTiming(); // Resume timing for actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
+        {
+            // Create a unique ID by combining the run counter and the loop counter
+            int uniqueId = runId * 10000 + i;
+
+            pstmt->setInt(1, uniqueId);
+            pstmt->setString(2, "Name " + std::to_string(i));
+            pstmt->setDouble(3, i * 1.5);
+            pstmt->setString(4, common_benchmark_helpers::generateRandomString(50));
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
+}
+BENCHMARK(BM_SQLite_Insert_Large_Prepared_Transaction);
+*/
+
+#else
+// Register empty benchmark when SQLite is disabled
+static void BM_SQLite_Insert_Disabled(benchmark::State &state)
+{
+    for (auto _ : state)
+    {
+        state.SkipWithError("SQLite support is not enabled");
+        break;
+    }
+}
+BENCHMARK(BM_SQLite_Insert_Disabled);
 #endif

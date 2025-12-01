@@ -129,6 +129,13 @@ The project is configured to work with the CMakeTools extension, but does not re
   - Typically installed via package manager (e.g., `libpq-dev` on Debian/Ubuntu)
   - Header: `libpq-fe.h`
 
+- **Google Benchmark Library**:
+  - Used for performance benchmarking
+  - Managed via Conan package manager (benchmark/1.8.3)
+  - Required when building with `--benchmarks` option
+  - Provides standardized benchmarking framework with statistical analysis
+  - Headers: `benchmark/benchmark.h`
+
 - **YAML-CPP Library**:
   - Optional dependency for YAML configuration support
   - Managed via Conan package manager

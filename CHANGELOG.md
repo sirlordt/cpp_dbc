@@ -1,6 +1,28 @@
 # Changelog
 
-## 2025-11-29 12:01:07 AM PST [Current]
+## 2025-11-30 11:26:33 PM PST [Current]
+
+### Benchmark System Migration to Google Benchmark
+* Migrated benchmark system from Catch2 to Google Benchmark:
+  * Updated CMakeLists.txt to use Google Benchmark instead of Catch2WithMain
+  * Added benchmark/1.8.3 as a dependency in conanfile.txt
+  * Rewrote all benchmark files to use Google Benchmark API
+  * Improved benchmark table initialization system with table reuse
+  * Added support for multiple iterations and benchmark repetitions
+* Logging system improvements:
+  * Added timestamp-based logging functions in system_utils.hpp
+  * Implemented logWithTimestampInfo, logWithTimestampError, logWithTimestampException, etc.
+  * Replaced std::cerr and std::cout with these logging functions in benchmark code
+* Connection management improvements for benchmarks:
+  * Added setupMySQLConnection and setupPostgreSQLConnection functions
+  * Implemented system to reuse already initialized tables
+  * Used mutex for synchronization in multi-threaded environments
+* Script updates:
+  * Added mysql-off option in helper.sh to disable MySQL benchmarks
+  * Changed configuration parameters (--samples and --resamples to --min-time and --repetitions)
+  * Improved filter handling for running specific benchmarks
+
+## 2025-11-29 12:01:07 AM PST
 
 ### SQLite Driver Thread Safety Improvements
 * Enhanced thread safety in SQLite driver implementation:

@@ -13,12 +13,10 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file benchmark_main.cpp
- * @brief Main file for cpp_dbc benchmarks using Catch2
+ * @brief Main file for cpp_dbc benchmarks using Google Benchmark
  */
 
-// This file is automatically included by Catch2WithMain
-// No need to define CATCH_CONFIG_MAIN as we're using the pre-compiled main
-#include <catch2/catch_test_macros.hpp>
+#include <benchmark/benchmark.h>
 
 #include <string>
 #include <unistd.h>
@@ -32,18 +30,6 @@
 #include <sstream>
 #include <iomanip>
 
-/*
-// Helper function to get the path to the test_db_connections.yml file
-std::string getConfigFilePath()
-{
-    std::vector<char> buffer(2048);
-    ssize_t len = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
-    if (len != -1)
-    {
-        buffer[len] = '\0';
-        std::filesystem::path p(std::string(buffer.data()));
-        return p.parent_path().string() + "/test_db_connections.yml";
-    }
-    return "test_db_connections.yml"; // Fallback
-}
-    */
+// Google Benchmark automatically provides the main function
+// Register all benchmarks in their respective files
+BENCHMARK_MAIN();

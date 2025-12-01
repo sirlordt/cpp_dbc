@@ -19,257 +19,440 @@
 #include "benchmark_common.hpp"
 
 #if USE_MYSQL
-// Using canConnectToMySQL from benchmark_common.hpp
 
-TEST_CASE("MySQL DELETE Benchmark", "[benchmark][mysql][delete]")
+// Small dataset (10 rows)
+static void BM_MySQL_Delete_Small_Individual(benchmark::State &state)
 {
-    // Skip these tests if we can't connect to MySQL
-    if (!mysql_benchmark_helpers::canConnectToMySQL())
+    const std::string tableName = "benchmark_mysql_delete_small_ind";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
     {
-        SKIP("Cannot connect to MySQL database");
+        state.SkipWithError("Cannot connect to MySQL database");
         return;
     }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
 
-    // Get database configuration using the centralized helper function
-    auto dbConfig = mysql_benchmark_helpers::getMySQLConfig("dev_mysql");
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
 
-    // Get connection parameters
-    std::string connStr = dbConfig.createConnectionString();
-    std::string username = dbConfig.getUsername();
-    std::string password = dbConfig.getPassword();
-
-    // Register the MySQL driver
-    cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
-
-    // Get a connection
-    auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
-
-    // Table name for benchmarks
-    const std::string tableName = "benchmark_mysql_delete";
-
-    SECTION("DELETE 10 rows")
+    for (auto _ : state)
     {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        // Populate table with 10 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
-
-        BENCHMARK("MySQL DELETE 10 rows - Individual deletes")
-        {
-            for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
-            {
-                // auto result =
-                conn->executeUpdate(
-                    "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
-            }
-            return common_benchmark_helpers::SMALL_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
-
-        BENCHMARK("MySQL DELETE 10 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement(
-                "DELETE FROM " + tableName + " WHERE id = ?");
-
-            for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
-            {
-                pstmt->setInt(1, i);
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::SMALL_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
-
-        BENCHMARK("MySQL DELETE 10 rows - Batch delete")
+        for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
         {
             auto result = conn->executeUpdate(
-                "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
-                std::to_string(common_benchmark_helpers::SMALL_SIZE));
-            return result;
-        };
+                "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
+            benchmark::DoNotOptimize(result);
+        }
 
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
     }
 
-    SECTION("DELETE 100 rows")
-    {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
+    // Rollback the final transaction outside the loop
+    conn->rollback();
 
-        // Populate table with 100 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
-
-        BENCHMARK("MySQL DELETE 100 rows - Individual deletes")
-        {
-            for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
-            {
-                // auto result =
-                conn->executeUpdate(
-                    "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
-            }
-            return common_benchmark_helpers::MEDIUM_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
-
-        BENCHMARK("MySQL DELETE 100 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement(
-                "DELETE FROM " + tableName + " WHERE id = ?");
-
-            for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
-            {
-                pstmt->setInt(1, i);
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::MEDIUM_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
-
-        BENCHMARK("MySQL DELETE 100 rows - Batch delete")
-        {
-            auto result = conn->executeUpdate(
-                "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
-                std::to_string(common_benchmark_helpers::MEDIUM_SIZE));
-            return result;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-    }
-
-    SECTION("DELETE 1000 rows")
-    {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        // Populate table with 1000 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
-
-        BENCHMARK("MySQL DELETE 1000 rows - Individual deletes")
-        {
-            for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
-            {
-                // auto result =
-                conn->executeUpdate(
-                    "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
-            }
-            return common_benchmark_helpers::LARGE_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
-
-        BENCHMARK("MySQL DELETE 1000 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement(
-                "DELETE FROM " + tableName + " WHERE id = ?");
-
-            for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
-            {
-                pstmt->setInt(1, i);
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::LARGE_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
-
-        BENCHMARK("MySQL DELETE 1000 rows - Batch delete")
-        {
-            auto result = conn->executeUpdate(
-                "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
-                std::to_string(common_benchmark_helpers::LARGE_SIZE));
-            return result;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-    }
-
-    SECTION("DELETE 10000 rows")
-    {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        // Populate table with 10000 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
-
-        BENCHMARK("MySQL DELETE 10000 rows - Individual deletes")
-        {
-            for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
-            {
-                // auto result =
-                conn->executeUpdate(
-                    "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
-            }
-            return common_benchmark_helpers::XLARGE_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
-
-        BENCHMARK("MySQL DELETE 10000 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement(
-                "DELETE FROM " + tableName + " WHERE id = ?");
-
-            for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
-            {
-                pstmt->setInt(1, i);
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::XLARGE_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
-
-        BENCHMARK("MySQL DELETE 10000 rows - Batch delete")
-        {
-            auto result = conn->executeUpdate(
-                "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
-                std::to_string(common_benchmark_helpers::XLARGE_SIZE));
-            return result;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-    }
-
-    // Close the connection
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
     conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
 }
-#else
-// Skip tests if MySQL support is not enabled
-TEST_CASE("MySQL DELETE Benchmark (skipped)", "[benchmark][mysql][delete]")
+BENCHMARK(BM_MySQL_Delete_Small_Individual);
+
+static void BM_MySQL_Delete_Small_Prepared(benchmark::State &state)
 {
-    SKIP("MySQL support is not enabled");
+    const std::string tableName = "benchmark_mysql_delete_small_prep";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "DELETE FROM " + tableName + " WHERE id = ?");
+        state.ResumeTiming(); // Resume timing for actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
+        {
+            pstmt->setInt(1, i);
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
 }
+BENCHMARK(BM_MySQL_Delete_Small_Prepared);
+
+static void BM_MySQL_Delete_Small_Batch(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_delete_small_batch";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto result = conn->executeUpdate(
+            "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
+            std::to_string(common_benchmark_helpers::SMALL_SIZE));
+        benchmark::DoNotOptimize(result);
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
+}
+BENCHMARK(BM_MySQL_Delete_Small_Batch);
+
+// Medium dataset (100 rows)
+static void BM_MySQL_Delete_Medium_Individual(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_delete_medium_ind";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
+        {
+            auto result = conn->executeUpdate(
+                "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_MySQL_Delete_Medium_Individual);
+
+static void BM_MySQL_Delete_Medium_Prepared(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_delete_medium_prep";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "DELETE FROM " + tableName + " WHERE id = ?");
+        state.ResumeTiming(); // Resume timing for the actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
+        {
+            pstmt->setInt(1, i);
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_MySQL_Delete_Medium_Prepared);
+
+static void BM_MySQL_Delete_Medium_Batch(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_delete_medium_batch";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto result = conn->executeUpdate(
+            "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
+            std::to_string(common_benchmark_helpers::MEDIUM_SIZE));
+        benchmark::DoNotOptimize(result);
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_MySQL_Delete_Medium_Batch);
+
+// Large dataset (1000 rows) - limit to batch operations for performance
+static void BM_MySQL_Delete_Large_Batch(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_delete_large_batch";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::LARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto result = conn->executeUpdate(
+            "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
+            std::to_string(common_benchmark_helpers::LARGE_SIZE));
+        benchmark::DoNotOptimize(result);
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
+}
+BENCHMARK(BM_MySQL_Delete_Large_Batch);
+
+static void BM_MySQL_Delete_Large_Prepared(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_delete_large_prep";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::LARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "DELETE FROM " + tableName + " WHERE id = ?");
+        state.ResumeTiming(); // Resume timing for the actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
+        {
+            pstmt->setInt(1, i);
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
+}
+BENCHMARK(BM_MySQL_Delete_Large_Prepared);
+
+// XLarge dataset (10000 rows) - only batch delete for better performance
+static void BM_MySQL_Delete_XLarge_Batch(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_delete_xlarge_batch";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::XLARGE_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::XLARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto result = conn->executeUpdate(
+            "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
+            std::to_string(common_benchmark_helpers::XLARGE_SIZE));
+        benchmark::DoNotOptimize(result);
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::XLARGE_SIZE);
+}
+BENCHMARK(BM_MySQL_Delete_XLarge_Batch);
+
+#else
+// Register empty benchmark when MySQL is disabled
+static void BM_MySQL_Delete_Disabled(benchmark::State &state)
+{
+    for (auto _ : state)
+    {
+        state.SkipWithError("MySQL support is not enabled");
+        break;
+    }
+}
+BENCHMARK(BM_MySQL_Delete_Disabled);
 #endif

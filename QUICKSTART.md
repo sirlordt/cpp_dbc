@@ -161,6 +161,9 @@ The test log analysis feature checks for:
 # Run only MySQL benchmarks
 ./helper.sh --run-benchmarks=mysql
 
+# Disable MySQL benchmarks
+./helper.sh --run-benchmarks=mysql-off
+
 # Run only PostgreSQL benchmarks
 ./helper.sh --run-benchmarks=postgresql
 
@@ -175,6 +178,15 @@ The test log analysis feature checks for:
 
 # Run benchmarks with rebuild
 ./helper.sh --run-benchmarks=rebuild,mysql,postgresql
+
+# Set minimum time per iteration (in seconds)
+./helper.sh --run-benchmarks=min-time=1.0
+
+# Set number of repetitions for each benchmark
+./helper.sh --run-benchmarks=repetitions=5
+
+# Combine options
+./helper.sh --run-benchmarks=mysql,min-time=0.5,repetitions=3
 ```
 
 All benchmark output is automatically logged to files in the `logs/benchmark/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.

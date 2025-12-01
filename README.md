@@ -265,7 +265,7 @@ All test output is automatically logged to files in the `logs/test/` directory w
 
 ### Running Benchmarks
 
-The project includes benchmarks for database operations using Google Catch2:
+The project includes benchmarks for database operations using Google Benchmark:
 
 ```bash
 # Build with benchmarks enabled
@@ -276,6 +276,9 @@ The project includes benchmarks for database operations using Google Catch2:
 
 # Run only MySQL benchmarks
 ./helper.sh --run-benchmarks=mysql
+
+# Disable MySQL benchmarks
+./helper.sh --run-benchmarks=mysql-off
 
 # Run only PostgreSQL benchmarks
 ./helper.sh --run-benchmarks=postgresql
@@ -288,6 +291,16 @@ The project includes benchmarks for database operations using Google Catch2:
 ```
 
 The benchmarks measure the performance of SELECT, INSERT, UPDATE, and DELETE operations for different database systems with varying data sizes (10, 100, 1000, and 10000 rows). All benchmark output is automatically logged to files in the `logs/benchmark/` directory with timestamps in the filenames.
+
+You can configure benchmark execution with additional parameters:
+
+```bash
+# Set minimum time per iteration (in seconds)
+./helper.sh --run-benchmarks --min-time=1.0
+
+# Set number of repetitions for each benchmark
+./helper.sh --run-benchmarks --repetitions=5
+```
 
 You can analyze test logs for failures and memory issues:
 

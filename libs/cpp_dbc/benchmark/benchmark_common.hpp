@@ -18,14 +18,13 @@
 
 #pragma once
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/benchmark/catch_benchmark.hpp>
-#include <catch2/benchmark/catch_benchmark_all.hpp>
+#include <benchmark/benchmark.h>
 
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #if USE_MYSQL
 #include <cpp_dbc/drivers/driver_mysql.hpp>
@@ -45,6 +44,8 @@
 #include <chrono>
 #include <iostream>
 #include <random>
+#include <unordered_map>
+#include <mutex>
 
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 #include <cpp_dbc/config/yaml_config_loader.hpp>
@@ -84,6 +85,9 @@ namespace mysql_benchmark_helpers
 
     // Check if a connection to MySQL can be established
     bool canConnectToMySQL();
+
+    // Helper function to setup MySQL connection
+    std::shared_ptr<cpp_dbc::Connection> setupMySQLConnection(const std::string &tableName, int rowCount = 0);
 #endif
 }
 
@@ -95,6 +99,9 @@ namespace postgresql_benchmark_helpers
 
     // Check if a connection to PostgreSQL can be established
     bool canConnectToPostgreSQL();
+
+    // Helper function to setup PostgreSQL connection
+    std::shared_ptr<cpp_dbc::Connection> setupPostgreSQLConnection(const std::string &tableName, int rowCount = 0);
 #endif
 }
 
@@ -109,5 +116,8 @@ namespace sqlite_benchmark_helpers
 
     // Check if a connection to SQLite can be established
     bool canConnectToSQLite();
+
+    // Helper function to setup SQLite connection
+    std::shared_ptr<cpp_dbc::Connection> setupSQLiteConnection(const std::string &tableName, int rowCount = 0);
 #endif
 }

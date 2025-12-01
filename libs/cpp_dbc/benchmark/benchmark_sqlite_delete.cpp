@@ -20,324 +20,682 @@
 
 #if USE_SQLITE
 
-TEST_CASE("SQLite DELETE Benchmark", "[benchmark][sqlite][delete]")
+// SQLite DELETE small dataset with individual deletes
+static void BM_SQLite_Delete_Small_Individual(benchmark::State &state)
 {
-    // Skip these tests if we can't connect to SQLite
-    if (!sqlite_benchmark_helpers::canConnectToSQLite())
+    const std::string tableName = "benchmark_sqlite_delete_small_ind";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
     {
-        SKIP("Cannot connect to SQLite database");
+        state.SkipWithError("Cannot connect to SQLite database");
         return;
     }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
 
-    // Get connection string using the centralized helper
-    std::string connStr = sqlite_benchmark_helpers::getSQLiteConnectionString();
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
 
-    // Register the SQLite driver and get a connection
-    cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
-    auto conn = cpp_dbc::DriverManager::getConnection(connStr, "", "");
-
-    // Table name for benchmarks
-    const std::string tableName = "benchmark_sqlite_delete";
-
-    SECTION("DELETE 10 rows")
+    for (auto _ : state)
     {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        // Populate table with 10 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
-
-        BENCHMARK("SQLite DELETE 10 rows - Individual deletes")
-        {
-            for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
-            {
-                // auto result =
-                conn->executeUpdate(
-                    "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
-            }
-            return common_benchmark_helpers::SMALL_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
-
-        BENCHMARK("SQLite DELETE 10 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement(
-                "DELETE FROM " + tableName + " WHERE id = ?");
-
-            for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
-            {
-                pstmt->setInt(1, i);
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::SMALL_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
-
-        BENCHMARK("SQLite DELETE 10 rows - Batch delete")
+        for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
         {
             auto result = conn->executeUpdate(
-                "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
-                std::to_string(common_benchmark_helpers::SMALL_SIZE));
-            return result;
-        };
+                "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
+            benchmark::DoNotOptimize(result);
+        }
 
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
-
-        BENCHMARK("SQLite DELETE 10 rows - Transaction")
-        {
-            conn->executeUpdate("BEGIN TRANSACTION");
-
-            for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
-            {
-                conn->executeUpdate(
-                    "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
-            }
-
-            conn->executeUpdate("COMMIT");
-            return common_benchmark_helpers::SMALL_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
     }
 
-    SECTION("DELETE 100 rows")
-    {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
+    // Rollback the final transaction outside the loop
+    conn->rollback();
 
-        // Populate table with 100 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
-
-        BENCHMARK("SQLite DELETE 100 rows - Individual deletes")
-        {
-            for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
-            {
-                // auto result =
-                conn->executeUpdate(
-                    "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
-            }
-            return common_benchmark_helpers::MEDIUM_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
-
-        BENCHMARK("SQLite DELETE 100 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement(
-                "DELETE FROM " + tableName + " WHERE id = ?");
-
-            for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
-            {
-                pstmt->setInt(1, i);
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::MEDIUM_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
-
-        BENCHMARK("SQLite DELETE 100 rows - Batch delete")
-        {
-            auto result = conn->executeUpdate(
-                "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
-                std::to_string(common_benchmark_helpers::MEDIUM_SIZE));
-            return result;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
-
-        BENCHMARK("SQLite DELETE 100 rows - Transaction")
-        {
-            conn->executeUpdate("BEGIN TRANSACTION");
-
-            for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
-            {
-                conn->executeUpdate(
-                    "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
-            }
-
-            conn->executeUpdate("COMMIT");
-            return common_benchmark_helpers::MEDIUM_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-    }
-
-    SECTION("DELETE 1000 rows")
-    {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        // Populate table with 1000 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
-
-        BENCHMARK("SQLite DELETE 1000 rows - Individual deletes")
-        {
-            for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
-            {
-                // auto result =
-                conn->executeUpdate(
-                    "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
-            }
-            return common_benchmark_helpers::LARGE_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
-
-        BENCHMARK("SQLite DELETE 1000 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement(
-                "DELETE FROM " + tableName + " WHERE id = ?");
-
-            for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
-            {
-                pstmt->setInt(1, i);
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::LARGE_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
-
-        BENCHMARK("SQLite DELETE 1000 rows - Batch delete")
-        {
-            auto result = conn->executeUpdate(
-                "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
-                std::to_string(common_benchmark_helpers::LARGE_SIZE));
-            return result;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
-
-        BENCHMARK("SQLite DELETE 1000 rows - Transaction")
-        {
-            conn->executeUpdate("BEGIN TRANSACTION");
-
-            for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
-            {
-                conn->executeUpdate(
-                    "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
-            }
-
-            conn->executeUpdate("COMMIT");
-            return common_benchmark_helpers::LARGE_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-    }
-
-    SECTION("DELETE 10000 rows")
-    {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        // Populate table with 10000 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
-
-        BENCHMARK("SQLite DELETE 10000 rows - Individual deletes")
-        {
-            for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
-            {
-                // auto result =
-                conn->executeUpdate(
-                    "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
-            }
-            return common_benchmark_helpers::XLARGE_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
-
-        BENCHMARK("SQLite DELETE 10000 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement(
-                "DELETE FROM " + tableName + " WHERE id = ?");
-
-            for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
-            {
-                pstmt->setInt(1, i);
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::XLARGE_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
-
-        BENCHMARK("SQLite DELETE 10000 rows - Batch delete")
-        {
-            auto result = conn->executeUpdate(
-                "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
-                std::to_string(common_benchmark_helpers::XLARGE_SIZE));
-            return result;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
-
-        BENCHMARK("SQLite DELETE 10000 rows - Transaction")
-        {
-            conn->executeUpdate("BEGIN TRANSACTION");
-
-            for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
-            {
-                conn->executeUpdate(
-                    "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
-            }
-
-            conn->executeUpdate("COMMIT");
-            return common_benchmark_helpers::XLARGE_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-    }
-
-    // Close the connection
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
     conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
 }
-#else
-// Skip tests if SQLite support is not enabled
-TEST_CASE("SQLite DELETE Benchmark (skipped)", "[benchmark][sqlite][delete]")
+BENCHMARK(BM_SQLite_Delete_Small_Individual);
+
+// SQLite DELETE small dataset with prepared statement
+static void BM_SQLite_Delete_Small_Prepared(benchmark::State &state)
 {
-    SKIP("SQLite support is not enabled");
+    const std::string tableName = "benchmark_sqlite_delete_small_prep";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "DELETE FROM " + tableName + " WHERE id = ?");
+        state.ResumeTiming(); // Resume timing for actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
+        {
+            pstmt->setInt(1, i);
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
 }
+BENCHMARK(BM_SQLite_Delete_Small_Prepared);
+
+// SQLite DELETE small dataset with batch delete
+static void BM_SQLite_Delete_Small_Batch(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_delete_small_batch";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto result = conn->executeUpdate(
+            "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
+            std::to_string(common_benchmark_helpers::SMALL_SIZE));
+        benchmark::DoNotOptimize(result);
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfoInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
+}
+BENCHMARK(BM_SQLite_Delete_Small_Batch);
+
+// SQLite DELETE small dataset with transaction
+// Commented out because all benchmarks are transactional
+/*
+static void BM_SQLite_Delete_Small_Transaction(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_delete_small_trans";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
+        {
+            auto result = conn->executeUpdate(
+                "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
+}
+BENCHMARK(BM_SQLite_Delete_Small_Transaction);
+*/
+
+// Medium dataset (100 rows)
+static void BM_SQLite_Delete_Medium_Individual(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_delete_medium_ind";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
+        {
+            auto result = conn->executeUpdate(
+                "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_SQLite_Delete_Medium_Individual);
+
+static void BM_SQLite_Delete_Medium_Prepared(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_delete_medium_prep";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "DELETE FROM " + tableName + " WHERE id = ?");
+        state.ResumeTiming(); // Resume timing for actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
+        {
+            pstmt->setInt(1, i);
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // std::cout << "Benchmark complete. Cleaning up table '" << tableName << "'..." << std::endl;
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_SQLite_Delete_Medium_Prepared);
+
+static void BM_SQLite_Delete_Medium_Batch(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_delete_medium_batch";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto result = conn->executeUpdate(
+            "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
+            std::to_string(common_benchmark_helpers::MEDIUM_SIZE));
+        benchmark::DoNotOptimize(result);
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // std::cout << "Benchmark complete. Cleaning up table '" << tableName << "'..." << std::endl;
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_SQLite_Delete_Medium_Batch);
+
+// Commented out because all benchmarks are transactional
+/*
+static void BM_SQLite_Delete_Medium_Transaction(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_delete_medium_trans";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
+        {
+            auto result = conn->executeUpdate(
+                "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // std::cout << "Benchmark complete. Cleaning up table '" << tableName << "'..." << std::endl;
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_SQLite_Delete_Medium_Transaction);
+*/
+
+// Large dataset (1000 rows)
+static void BM_SQLite_Delete_Large_Individual(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_delete_large_ind";
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::LARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
+        {
+            auto result = conn->executeUpdate(
+                "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // std::cout << "Benchmark complete. Cleaning up table '" << tableName << "'..." << std::endl;
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
+}
+BENCHMARK(BM_SQLite_Delete_Large_Individual);
+
+static void BM_SQLite_Delete_Large_Prepared(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_delete_large_prep";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::LARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "DELETE FROM " + tableName + " WHERE id = ?");
+        state.ResumeTiming(); // Resume timing for actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
+        {
+            pstmt->setInt(1, i);
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
+}
+BENCHMARK(BM_SQLite_Delete_Large_Prepared);
+
+static void BM_SQLite_Delete_Large_Batch(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_delete_large_batch";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::LARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto result = conn->executeUpdate(
+            "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
+            std::to_string(common_benchmark_helpers::LARGE_SIZE));
+        benchmark::DoNotOptimize(result);
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
+}
+BENCHMARK(BM_SQLite_Delete_Large_Batch);
+
+// Commented out because all benchmarks are transactional
+/*
+static void BM_SQLite_Delete_Large_Transaction(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_delete_large_trans";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::LARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
+        {
+            auto result = conn->executeUpdate(
+                "DELETE FROM " + tableName + " WHERE id = " + std::to_string(i));
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
+}
+BENCHMARK(BM_SQLite_Delete_Large_Transaction);
+*/
+
+// XLarge dataset (10000 rows) - only for batch operations, as individual deletes would be too slow
+static void BM_SQLite_Delete_XLarge_Batch(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_delete_xlarge_batch";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::XLARGE_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::XLARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto result = conn->executeUpdate(
+            "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
+            std::to_string(common_benchmark_helpers::XLARGE_SIZE));
+        benchmark::DoNotOptimize(result);
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::XLARGE_SIZE);
+}
+BENCHMARK(BM_SQLite_Delete_XLarge_Batch);
+
+// Commented out because all benchmarks are transactional
+/*
+static void BM_SQLite_Delete_XLarge_Transaction(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_sqlite_delete_xlarge_trans";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::XLARGE_SIZE) + " rows of test data...");
+    auto conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::XLARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to SQLite database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        // Use batch delete in transaction for better performance on large dataset
+        auto result = conn->executeUpdate(
+            "DELETE FROM " + tableName + " WHERE id BETWEEN 1 AND " +
+            std::to_string(common_benchmark_helpers::XLARGE_SIZE));
+        benchmark::DoNotOptimize(result);
+
+        state.PauseTiming(); // Pause for rollback
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::XLARGE_SIZE);
+}
+BENCHMARK(BM_SQLite_Delete_XLarge_Transaction);
+*/
+
+#else
+// Register empty benchmark when SQLite is disabled
+static void BM_SQLite_Delete_Disabled(benchmark::State &state)
+{
+    for (auto _ : state)
+    {
+        state.SkipWithError("SQLite support is not enabled");
+        break;
+    }
+}
+BENCHMARK(BM_SQLite_Delete_Disabled);
 #endif

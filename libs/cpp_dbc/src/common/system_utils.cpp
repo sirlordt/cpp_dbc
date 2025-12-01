@@ -115,6 +115,9 @@ namespace cpp_dbc
             }
         }
 
+        // getCurrentTimestamp and logWithTimestamp are already defined as inline in the header file
+        // No need to redefine them here
+
     }
 
 }

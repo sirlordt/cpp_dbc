@@ -20,6 +20,14 @@
 
 ## Completed Tasks
 
+- Migrated benchmark system from Catch2 to Google Benchmark:
+  - Updated CMakeLists.txt to use Google Benchmark instead of Catch2WithMain
+  - Added benchmark/1.8.3 as a dependency in conanfile.txt
+  - Rewrote all benchmark files to use Google Benchmark API
+  - Improved benchmark table initialization system with table reuse
+  - Added support for multiple iterations and benchmark repetitions
+  - Added new configuration parameters (--min-time and --repetitions)
+  - Added mysql-off option to disable MySQL benchmarks
 - Added mtehots begiTransaction() to replace setAutoCommit funcionality
 - Reseearch Why sqlite driver is showing warning messages
 - Add the feature to messages warning folling the DEBUG_SQLITE flag

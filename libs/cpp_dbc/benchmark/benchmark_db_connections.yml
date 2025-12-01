@@ -96,7 +96,7 @@ databases:
   # SQLite development database
   - name: dev_sqlite
     type: sqlite
-    database: ":memory:"
+    database: "/tmp/benchmark_sqlite.db"
     options:
       foreign_keys: true
       journal_mode: WAL

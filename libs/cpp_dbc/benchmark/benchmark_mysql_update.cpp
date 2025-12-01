@@ -19,229 +19,377 @@
 #include "benchmark_common.hpp"
 
 #if USE_MYSQL
-// Using canConnectToMySQL from benchmark_common.hpp
 
-TEST_CASE("MySQL UPDATE Benchmark", "[benchmark][mysql][update]")
+// Small dataset (10 rows)
+static void BM_MySQL_Update_Small_Individual(benchmark::State &state)
 {
-    // Skip these tests if we can't connect to MySQL
-    if (!mysql_benchmark_helpers::canConnectToMySQL())
+    const std::string tableName = "benchmark_mysql_update_small_ind";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
     {
-        SKIP("Cannot connect to MySQL database");
+        state.SkipWithError("Cannot connect to MySQL database");
         return;
     }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
 
-    // Get database configuration using the centralized helper function
-    auto dbConfig = mysql_benchmark_helpers::getMySQLConfig("dev_mysql");
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
 
-    // Get connection parameters
-    std::string connStr = dbConfig.createConnectionString();
-    std::string username = dbConfig.getUsername();
-    std::string password = dbConfig.getPassword();
-
-    // Register the MySQL driver
-    cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
-
-    // Get a connection
-    auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
-
-    // Table name for benchmarks
-    const std::string tableName = "benchmark_mysql_update";
-
-    SECTION("UPDATE 10 rows")
+    for (auto _ : state)
     {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        // Populate table with 10 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
-
-        BENCHMARK("MySQL UPDATE 10 rows - Individual updates")
+        for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
         {
-            for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
-            {
-                // auto result =
-                conn->executeUpdate(
-                    "UPDATE " + tableName + " SET name = 'Updated Name " + std::to_string(i) +
-                    "', value = " + std::to_string(i * 2.5) +
-                    ", description = '" + common_benchmark_helpers::generateRandomString(60) +
-                    "' WHERE id = " + std::to_string(i));
-            }
-            return common_benchmark_helpers::SMALL_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
-
-        BENCHMARK("MySQL UPDATE 10 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement(
-                "UPDATE " + tableName + " SET name = ?, value = ?, description = ? WHERE id = ?");
-
-            for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
-            {
-                pstmt->setString(1, "Updated Name " + std::to_string(i));
-                pstmt->setDouble(2, i * 2.5);
-                pstmt->setString(3, common_benchmark_helpers::generateRandomString(60));
-                pstmt->setInt(4, i);
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::SMALL_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+            auto result = conn->executeUpdate(
+                "UPDATE " + tableName + " SET name = 'Updated Name " + std::to_string(i) +
+                "', value = " + std::to_string(i * 2.5) +
+                ", description = '" + common_benchmark_helpers::generateRandomString(60) +
+                "' WHERE id = " + std::to_string(i));
+            benchmark::DoNotOptimize(result);
+        }
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
     }
 
-    SECTION("UPDATE 100 rows")
-    {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
+    // Rollback the final transaction outside the loop
+    conn->rollback();
 
-        // Populate table with 100 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
-
-        BENCHMARK("MySQL UPDATE 100 rows - Individual updates")
-        {
-            for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
-            {
-                // auto result =
-                conn->executeUpdate(
-                    "UPDATE " + tableName + " SET name = 'Updated Name " + std::to_string(i) +
-                    "', value = " + std::to_string(i * 2.5) +
-                    ", description = '" + common_benchmark_helpers::generateRandomString(60) +
-                    "' WHERE id = " + std::to_string(i));
-            }
-            return common_benchmark_helpers::MEDIUM_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
-
-        BENCHMARK("MySQL UPDATE 100 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement(
-                "UPDATE " + tableName + " SET name = ?, value = ?, description = ? WHERE id = ?");
-
-            for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
-            {
-                pstmt->setString(1, "Updated Name " + std::to_string(i));
-                pstmt->setDouble(2, i * 2.5);
-                pstmt->setString(3, common_benchmark_helpers::generateRandomString(60));
-                pstmt->setInt(4, i);
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::MEDIUM_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-    }
-
-    SECTION("UPDATE 1000 rows")
-    {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        // Populate table with 1000 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
-
-        BENCHMARK("MySQL UPDATE 1000 rows - Individual updates")
-        {
-            for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
-            {
-                // auto result =
-                conn->executeUpdate(
-                    "UPDATE " + tableName + " SET name = 'Updated Name " + std::to_string(i) +
-                    "', value = " + std::to_string(i * 2.5) +
-                    ", description = '" + common_benchmark_helpers::generateRandomString(60) +
-                    "' WHERE id = " + std::to_string(i));
-            }
-            return common_benchmark_helpers::LARGE_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
-
-        BENCHMARK("MySQL UPDATE 1000 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement(
-                "UPDATE " + tableName + " SET name = ?, value = ?, description = ? WHERE id = ?");
-
-            for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
-            {
-                pstmt->setString(1, "Updated Name " + std::to_string(i));
-                pstmt->setDouble(2, i * 2.5);
-                pstmt->setString(3, common_benchmark_helpers::generateRandomString(60));
-                pstmt->setInt(4, i);
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::LARGE_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-    }
-
-    SECTION("UPDATE 10000 rows")
-    {
-        // Create benchmark table
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-        // Populate table with 10000 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
-
-        BENCHMARK("MySQL UPDATE 10000 rows - Individual updates")
-        {
-            for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
-            {
-                // auto result =
-                conn->executeUpdate(
-                    "UPDATE " + tableName + " SET name = 'Updated Name " + std::to_string(i) +
-                    "', value = " + std::to_string(i * 2.5) +
-                    ", description = '" + common_benchmark_helpers::generateRandomString(60) +
-                    "' WHERE id = " + std::to_string(i));
-            }
-            return common_benchmark_helpers::XLARGE_SIZE;
-        };
-
-        // Repopulate table for next benchmark
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
-
-        BENCHMARK("MySQL UPDATE 10000 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement(
-                "UPDATE " + tableName + " SET name = ?, value = ?, description = ? WHERE id = ?");
-
-            for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
-            {
-                pstmt->setString(1, "Updated Name " + std::to_string(i));
-                pstmt->setDouble(2, i * 2.5);
-                pstmt->setString(3, common_benchmark_helpers::generateRandomString(60));
-                pstmt->setInt(4, i);
-                pstmt->executeUpdate();
-            }
-            return common_benchmark_helpers::XLARGE_SIZE;
-        };
-
-        // Clean up
-        common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
-    }
-
-    // Close the connection
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
     conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
 }
-#else
-// Skip tests if MySQL support is not enabled
-TEST_CASE("MySQL UPDATE Benchmark (skipped)", "[benchmark][mysql][update]")
+BENCHMARK(BM_MySQL_Update_Small_Individual);
+
+static void BM_MySQL_Update_Small_Prepared(benchmark::State &state)
 {
-    SKIP("MySQL support is not enabled");
+    const std::string tableName = "benchmark_mysql_update_small_prep";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "UPDATE " + tableName + " SET name = ?, value = ?, description = ? WHERE id = ?");
+        state.ResumeTiming(); // Resume timing for the actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::SMALL_SIZE; ++i)
+        {
+            pstmt->setString(1, "Updated Name " + std::to_string(i));
+            pstmt->setDouble(2, i * 2.5);
+            pstmt->setString(3, common_benchmark_helpers::generateRandomString(60));
+            pstmt->setInt(4, i);
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
 }
+BENCHMARK(BM_MySQL_Update_Small_Prepared);
+
+// Medium dataset (100 rows)
+static void BM_MySQL_Update_Medium_Individual(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_update_medium_ind";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
+        {
+            auto result = conn->executeUpdate(
+                "UPDATE " + tableName + " SET name = 'Updated Name " + std::to_string(i) +
+                "', value = " + std::to_string(i * 2.5) +
+                ", description = '" + common_benchmark_helpers::generateRandomString(60) +
+                "' WHERE id = " + std::to_string(i));
+            benchmark::DoNotOptimize(result);
+        }
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_MySQL_Update_Medium_Individual);
+
+static void BM_MySQL_Update_Medium_Prepared(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_update_medium_prep";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "UPDATE " + tableName + " SET name = ?, value = ?, description = ? WHERE id = ?");
+        state.ResumeTiming(); // Resume timing for the actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::MEDIUM_SIZE; ++i)
+        {
+            pstmt->setString(1, "Updated Name " + std::to_string(i));
+            pstmt->setDouble(2, i * 2.5);
+            pstmt->setString(3, common_benchmark_helpers::generateRandomString(60));
+            pstmt->setInt(4, i);
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_MySQL_Update_Medium_Prepared);
+
+// Large dataset (1000 rows)
+static void BM_MySQL_Update_Large_Individual(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_update_large_ind";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::LARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
+        {
+            auto result = conn->executeUpdate(
+                "UPDATE " + tableName + " SET name = 'Updated Name " + std::to_string(i) +
+                "', value = " + std::to_string(i * 2.5) +
+                ", description = '" + common_benchmark_helpers::generateRandomString(60) +
+                "' WHERE id = " + std::to_string(i));
+            benchmark::DoNotOptimize(result);
+        }
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
+}
+BENCHMARK(BM_MySQL_Update_Large_Individual);
+
+static void BM_MySQL_Update_Large_Prepared(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_update_large_prep";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::LARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "UPDATE " + tableName + " SET name = ?, value = ?, description = ? WHERE id = ?");
+        state.ResumeTiming(); // Resume timing for the actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::LARGE_SIZE; ++i)
+        {
+            pstmt->setString(1, "Updated Name " + std::to_string(i));
+            pstmt->setDouble(2, i * 2.5);
+            pstmt->setString(3, common_benchmark_helpers::generateRandomString(60));
+            pstmt->setInt(4, i);
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
+}
+BENCHMARK(BM_MySQL_Update_Large_Prepared);
+
+// Extra Large dataset (10000 rows) - only prepared statement for better performance
+static void BM_MySQL_Update_XLarge_Prepared(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_update_xlarge_prep";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::XLARGE_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::XLARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin initial transaction outside of timing loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement(
+            "UPDATE " + tableName + " SET name = ?, value = ?, description = ? WHERE id = ?");
+        state.ResumeTiming(); // Resume timing for actual operations
+
+        for (int i = 1; i <= common_benchmark_helpers::XLARGE_SIZE; ++i)
+        {
+            pstmt->setString(1, "Updated Name " + std::to_string(i));
+            pstmt->setDouble(2, i * 2.5);
+            pstmt->setString(3, common_benchmark_helpers::generateRandomString(60));
+            pstmt->setInt(4, i);
+            auto result = pstmt->executeUpdate();
+            benchmark::DoNotOptimize(result);
+        }
+
+        state.PauseTiming(); // Pause for rollback and repopulation
+        conn->rollback();
+        conn->beginTransaction(); // Begin a new transaction for the next iteration
+        state.ResumeTiming();     // Resume timing for next iteration
+    }
+
+    // Rollback the final transaction outside the loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::XLARGE_SIZE);
+}
+BENCHMARK(BM_MySQL_Update_XLarge_Prepared);
+
+#else
+// Register empty benchmark when MySQL is disabled
+static void BM_MySQL_Update_Disabled(benchmark::State &state)
+{
+    for (auto _ : state)
+    {
+        state.SkipWithError("MySQL support is not enabled");
+        break;
+    }
+}
+BENCHMARK(BM_MySQL_Update_Disabled);
 #endif

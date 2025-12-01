@@ -19,297 +19,413 @@
 #include "benchmark_common.hpp"
 
 #if USE_MYSQL
-// Using canConnectToMySQL from benchmark_common.hpp
 
-TEST_CASE("MySQL SELECT Benchmark", "[benchmark][mysql][select]")
+// Small dataset (10 rows)
+static void BM_MySQL_Select_Small_AllColumns(benchmark::State &state)
 {
-    // Skip these tests if we can't connect to MySQL
-    if (!mysql_benchmark_helpers::canConnectToMySQL())
+    const std::string tableName = "benchmark_mysql_select_small_all";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
     {
-        SKIP("Cannot connect to MySQL database");
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    // This is not strictly necessary for SELECT operations but ensures consistency
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName);
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
+}
+BENCHMARK(BM_MySQL_Select_Small_AllColumns);
+
+static void BM_MySQL_Select_Small_SingleColumn(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_select_small_single";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT id FROM " + tableName);
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
+}
+BENCHMARK(BM_MySQL_Select_Small_SingleColumn);
+
+static void BM_MySQL_Select_Small_WhereClause(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_select_small_where";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName + " WHERE id <= 5");
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * 5); // Only 5 rows processed per iteration
+}
+BENCHMARK(BM_MySQL_Select_Small_WhereClause);
+
+static void BM_MySQL_Select_Small_OrderBy(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_select_small_order";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName + " ORDER BY name");
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::SMALL_SIZE);
+}
+BENCHMARK(BM_MySQL_Select_Small_OrderBy);
+
+static void BM_MySQL_Select_Small_PreparedStatement(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_select_small_prepared";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::SMALL_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::SMALL_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        state.PauseTiming(); // Pause while preparing statement
+        auto pstmt = conn->prepareStatement("SELECT * FROM " + tableName + " WHERE id > ?");
+        pstmt->setInt(1, 5);
+        state.ResumeTiming(); // Resume timing for query execution
+
+        auto rs = pstmt->executeQuery();
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * 5); // 10 - 5 = 5 rows per iteration
+}
+BENCHMARK(BM_MySQL_Select_Small_PreparedStatement);
+
+// Medium dataset (100 rows)
+static void BM_MySQL_Select_Medium_AllColumns(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_select_medium_all";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName);
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
+}
+BENCHMARK(BM_MySQL_Select_Medium_AllColumns);
+
+static void BM_MySQL_Select_Medium_SingleColumn(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_select_medium_single";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::MEDIUM_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
         return;
     }
 
-    // Get database configuration using the centralized helper function
-    auto dbConfig = mysql_benchmark_helpers::getMySQLConfig("dev_mysql");
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
 
-    // Get connection parameters
-    std::string connStr = dbConfig.createConnectionString();
-    std::string username = dbConfig.getUsername();
-    std::string password = dbConfig.getPassword();
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
 
-    // Register the MySQL driver
-    cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
-
-    // Get a connection
-    auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
-
-    // Table name for benchmarks
-    const std::string tableName = "benchmark_mysql_select";
-
-    // Create benchmark table
-    common_benchmark_helpers::createBenchmarkTable(conn, tableName);
-
-    SECTION("SELECT 10 rows")
+    for (auto _ : state)
     {
-        // Populate table with 10 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::SMALL_SIZE);
-
-        BENCHMARK("MySQL SELECT 10 rows - All columns")
+        auto rs = conn->executeQuery("SELECT id FROM " + tableName);
+        int count = 0;
+        while (rs->next())
         {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 10 rows - Single column")
-        {
-            auto rs = conn->executeQuery("SELECT id FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 10 rows - With WHERE clause")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " WHERE id <= 5");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 10 rows - With ORDER BY")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " ORDER BY name");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 10 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement("SELECT * FROM " + tableName + " WHERE id > ?");
-            pstmt->setInt(1, 5);
-            auto rs = pstmt->executeQuery();
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
     }
 
-    SECTION("SELECT 100 rows")
-    {
-        // Populate table with 100 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::MEDIUM_SIZE);
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
 
-        BENCHMARK("MySQL SELECT 100 rows - All columns")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 100 rows - Single column")
-        {
-            auto rs = conn->executeQuery("SELECT id FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 100 rows - With WHERE clause")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " WHERE id <= 50");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 100 rows - With ORDER BY")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " ORDER BY name");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 100 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement("SELECT * FROM " + tableName + " WHERE id > ?");
-            pstmt->setInt(1, 50);
-            auto rs = pstmt->executeQuery();
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-    }
-
-    SECTION("SELECT 1000 rows")
-    {
-        // Populate table with 1000 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::LARGE_SIZE);
-
-        BENCHMARK("MySQL SELECT 1000 rows - All columns")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 1000 rows - Single column")
-        {
-            auto rs = conn->executeQuery("SELECT id FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 1000 rows - With WHERE clause")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " WHERE id <= 500");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 1000 rows - With ORDER BY")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " ORDER BY name");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 1000 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement("SELECT * FROM " + tableName + " WHERE id > ?");
-            pstmt->setInt(1, 500);
-            auto rs = pstmt->executeQuery();
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-    }
-
-    SECTION("SELECT 10000 rows")
-    {
-        // Populate table with 10000 rows
-        common_benchmark_helpers::populateTable(conn, tableName, common_benchmark_helpers::XLARGE_SIZE);
-
-        BENCHMARK("MySQL SELECT 10000 rows - All columns")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 10000 rows - Single column")
-        {
-            auto rs = conn->executeQuery("SELECT id FROM " + tableName);
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 10000 rows - With WHERE clause")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " WHERE id <= 5000");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 10000 rows - With ORDER BY")
-        {
-            auto rs = conn->executeQuery("SELECT * FROM " + tableName + " ORDER BY name");
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-
-        BENCHMARK("MySQL SELECT 10000 rows - Prepared statement")
-        {
-            auto pstmt = conn->prepareStatement("SELECT * FROM " + tableName + " WHERE id > ?");
-            pstmt->setInt(1, 5000);
-            auto rs = pstmt->executeQuery();
-            int count = 0;
-            while (rs->next())
-            {
-                count++;
-            }
-            return count;
-        };
-    }
-
-    // Clean up
-    common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
     conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::MEDIUM_SIZE);
 }
-#else
-// Skip tests if MySQL support is not enabled
-TEST_CASE("MySQL SELECT Benchmark (skipped)", "[benchmark][mysql][select]")
+BENCHMARK(BM_MySQL_Select_Medium_SingleColumn);
+
+// Large dataset (1000 rows) - fewer benchmarks for efficiency
+static void BM_MySQL_Select_Large_SingleColumn(benchmark::State &state)
 {
-    SKIP("MySQL support is not enabled");
+    const std::string tableName = "benchmark_mysql_select_large_single";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::LARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT id FROM " + tableName);
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * common_benchmark_helpers::LARGE_SIZE);
 }
+BENCHMARK(BM_MySQL_Select_Large_SingleColumn);
+
+static void BM_MySQL_Select_Large_WhereClause(benchmark::State &state)
+{
+    const std::string tableName = "benchmark_mysql_select_large_where";
+
+    // Setup phase - outside of measurement
+    cpp_dbc::system_utils::logWithTimestampInfo("Setting up MySQL connection and table '" + tableName + "' with " + std::to_string(common_benchmark_helpers::LARGE_SIZE) + " rows of test data...");
+    auto conn = mysql_benchmark_helpers::setupMySQLConnection(tableName, common_benchmark_helpers::LARGE_SIZE);
+
+    if (!conn)
+    {
+        state.SkipWithError("Cannot connect to MySQL database");
+        return;
+    }
+    cpp_dbc::system_utils::logWithTimestampInfo("Setup complete. Starting benchmark...");
+
+    // Begin a transaction before the benchmark loop
+    conn->beginTransaction();
+
+    for (auto _ : state)
+    {
+        auto rs = conn->executeQuery("SELECT * FROM " + tableName + " WHERE id <= 500");
+        benchmark::DoNotOptimize(rs);
+        int count = 0;
+        while (rs->next())
+        {
+            count++;
+        }
+        benchmark::DoNotOptimize(count);
+    }
+
+    // Rollback the transaction after the benchmark loop
+    conn->rollback();
+
+    // Cleanup - outside of measurement
+    // cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete. Cleaning up table '" + tableName + "'...");
+    // common_benchmark_helpers::dropBenchmarkTable(conn, tableName);
+    conn->close();
+    cpp_dbc::system_utils::logWithTimestampInfo("Benchmark complete.");
+
+    state.SetItemsProcessed(state.iterations() * 500); // Only 500 rows processed per iteration
+}
+BENCHMARK(BM_MySQL_Select_Large_WhereClause);
+
+#else
+// Register empty benchmark when MySQL is disabled
+static void BM_MySQL_Select_Disabled(benchmark::State &state)
+{
+    for (auto _ : state)
+    {
+        state.SkipWithError("MySQL support is not enabled");
+        break;
+    }
+}
+BENCHMARK(BM_MySQL_Select_Disabled);
 #endif

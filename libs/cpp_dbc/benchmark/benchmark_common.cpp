@@ -17,6 +17,10 @@
  */
 
 #include <filesystem>
+#include <random>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 #include "benchmark_common.hpp"
 
 namespace common_benchmark_helpers
@@ -79,7 +83,7 @@ namespace common_benchmark_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "Error dropping table: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimestampError("Error dropping table: " + std::string(e.what()));
         }
 
         // Check if this is a PostgreSQL connection
@@ -108,7 +112,7 @@ namespace common_benchmark_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "Error creating table: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
             throw; // Re-throw to fail the test
         }
     }
@@ -122,7 +126,7 @@ namespace common_benchmark_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "Error dropping table: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimestampError("Error dropping table: " + std::string(e.what()));
         }
     }
 
@@ -149,6 +153,9 @@ namespace mysql_benchmark_helpers
 {
 
 #if USE_MYSQL
+    // Track which tables have been initialized to avoid recreating them
+    static std::unordered_map<std::string, bool> tableInitialized;
+    static std::mutex tableMutex;
 
     cpp_dbc::config::DatabaseConfig getMySQLConfig(const std::string &databaseName)
     {
@@ -208,12 +215,12 @@ namespace mysql_benchmark_helpers
             cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
 
             // Attempt to connect to MySQL
-            std::cout << "Attempting to connect to MySQL with connection string: " << connStr << std::endl;
+            cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to MySQL with connection string: " + connStr);
 
             auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
 
             // If we get here, the connection was successful
-            std::cout << "MySQL connection successful!" << std::endl;
+            cpp_dbc::system_utils::logWithTimestampInfo("MySQL connection successful!");
 
             // Execute a simple query to verify the connection
             auto resultSet = conn->executeQuery("SELECT 1 as test_value");
@@ -226,8 +233,63 @@ namespace mysql_benchmark_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "MySQL connection error: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
             return false;
+        }
+    }
+
+    // Implementation of setupMySQLConnection
+    std::shared_ptr<cpp_dbc::Connection> setupMySQLConnection(const std::string &tableName, int rowCount)
+    {
+        try
+        {
+            // Get database configuration
+            auto dbConfig = getMySQLConfig("dev_mysql");
+
+            // Get connection parameters
+            std::string connStr = dbConfig.createConnectionString();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            // Check if this table has already been initialized
+            bool needsInitialization = false;
+            {
+                std::lock_guard<std::mutex> lock(tableMutex);
+                auto it = tableInitialized.find(tableName);
+                if (it == tableInitialized.end() || !it->second)
+                {
+                    needsInitialization = true;
+                    tableInitialized[tableName] = true;
+                }
+            }
+
+            // Register the MySQL driver and get a connection
+            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+
+            if (needsInitialization)
+            {
+                // Create benchmark table
+                cpp_dbc::system_utils::logWithTimestampInfo("Creating and populating table '" + tableName + "' for the first time...");
+                common_benchmark_helpers::createBenchmarkTable(conn, tableName);
+
+                // Populate table with specified rows if rowCount > 0
+                if (rowCount > 0)
+                {
+                    common_benchmark_helpers::populateTable(conn, tableName, rowCount);
+                }
+            }
+            else
+            {
+                cpp_dbc::system_utils::logWithTimestampInfo("Reusing existing table '" + tableName + "'");
+            }
+
+            return conn;
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
+            return nullptr;
         }
     }
 
@@ -239,6 +301,9 @@ namespace postgresql_benchmark_helpers
 {
 
 #if USE_POSTGRESQL
+    // Track which tables have been initialized to avoid recreating them
+    static std::unordered_map<std::string, bool> tableInitialized;
+    static std::mutex tableMutex;
 
     cpp_dbc::config::DatabaseConfig getPostgreSQLConfig(const std::string &databaseName)
     {
@@ -298,12 +363,12 @@ namespace postgresql_benchmark_helpers
             cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
 
             // Attempt to connect to PostgreSQL
-            std::cout << "Attempting to connect to PostgreSQL with connection string: " << connStr << std::endl;
+            cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to PostgreSQL with connection string: " + connStr);
 
             auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
 
             // If we get here, the connection was successful
-            std::cout << "PostgreSQL connection successful!" << std::endl;
+            cpp_dbc::system_utils::logWithTimestampInfo("PostgreSQL connection successful!");
 
             // Execute a simple query to verify the connection
             auto resultSet = conn->executeQuery("SELECT 1 as test_value");
@@ -316,8 +381,63 @@ namespace postgresql_benchmark_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "PostgreSQL connection error: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
             return false;
+        }
+    }
+
+    // Implementation of setupPostgreSQLConnection
+    std::shared_ptr<cpp_dbc::Connection> setupPostgreSQLConnection(const std::string &tableName, int rowCount)
+    {
+        try
+        {
+            // Get database configuration
+            auto dbConfig = getPostgreSQLConfig("dev_postgresql");
+
+            // Get connection parameters
+            std::string connStr = dbConfig.createConnectionString();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            // Check if this table has already been initialized
+            bool needsInitialization = false;
+            {
+                std::lock_guard<std::mutex> lock(tableMutex);
+                auto it = tableInitialized.find(tableName);
+                if (it == tableInitialized.end() || !it->second)
+                {
+                    needsInitialization = true;
+                    tableInitialized[tableName] = true;
+                }
+            }
+
+            // Register the PostgreSQL driver and get a connection
+            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+
+            if (needsInitialization)
+            {
+                // Create benchmark table
+                cpp_dbc::system_utils::logWithTimestampInfo("Creating and populating table '" + tableName + "' for the first time...");
+                common_benchmark_helpers::createBenchmarkTable(conn, tableName);
+
+                // Populate table with specified rows if rowCount > 0
+                if (rowCount > 0)
+                {
+                    common_benchmark_helpers::populateTable(conn, tableName, rowCount);
+                }
+            }
+            else
+            {
+                cpp_dbc::system_utils::logWithTimestampInfo("Reusing existing table '" + tableName + "'");
+            }
+
+            return conn;
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
+            return nullptr;
         }
     }
 
@@ -329,6 +449,9 @@ namespace sqlite_benchmark_helpers
 {
 
 #if USE_SQLITE
+    // Track which tables have been initialized to avoid recreating them
+    static std::unordered_map<std::string, bool> tableInitialized;
+    static std::mutex tableMutex;
 
     cpp_dbc::config::DatabaseConfig getSQLiteConfig(const std::string &databaseName)
     {
@@ -352,13 +475,21 @@ namespace sqlite_benchmark_helpers
             // Fallback to default values if configuration not found
             dbConfig.setName(databaseName);
             dbConfig.setType("sqlite");
-            dbConfig.setDatabase(":memory:");
+            // Create a temporary file with a random name
+            std::string tempDbPath = "/tmp/benchmark_sqlite_" +
+                                     std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) +
+                                     "_" + common_benchmark_helpers::generateRandomString(8) + ".db";
+            dbConfig.setDatabase(tempDbPath);
         }
 #else
         // Hardcoded values when YAML is not available
         dbConfig.setName(databaseName);
         dbConfig.setType("sqlite");
-        dbConfig.setDatabase(":memory:");
+        // Create a temporary file with a random name
+        std::string tempDbPath = "/tmp/benchmark_sqlite_" +
+                                 std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) +
+                                 "_" + common_benchmark_helpers::generateRandomString(8) + ".db";
+        dbConfig.setDatabase(tempDbPath);
 #endif
 
         return dbConfig;
@@ -389,12 +520,12 @@ namespace sqlite_benchmark_helpers
             cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
 
             // Attempt to connect to SQLite
-            std::cout << "Attempting to connect to SQLite with connection string: " << connStr << std::endl;
+            cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to SQLite with connection string: " + connStr);
 
             auto conn = cpp_dbc::DriverManager::getConnection(connStr, "", "");
 
             // If we get here, the connection was successful
-            std::cout << "SQLite connection successful!" << std::endl;
+            cpp_dbc::system_utils::logWithTimestampInfo("SQLite connection successful!");
 
             // Execute a simple query to verify the connection
             auto resultSet = conn->executeQuery("SELECT 1 as test_value");
@@ -407,8 +538,71 @@ namespace sqlite_benchmark_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "SQLite connection error: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
             return false;
+        }
+    }
+
+    // Helper function to setup SQLite connection
+    std::shared_ptr<cpp_dbc::Connection> setupSQLiteConnection(const std::string &tableName, int rowCount)
+    {
+        try
+        {
+            // Get connection string using the centralized helper
+            std::string connStr = getSQLiteConnectionString();
+
+            // Check if this table has already been initialized
+            bool needsInitialization = false;
+            {
+                std::lock_guard<std::mutex> lock(tableMutex);
+                auto it = tableInitialized.find(tableName);
+                if (it == tableInitialized.end() || !it->second)
+                {
+                    // Get database configuration
+                    auto dbConfig = getSQLiteConfig("dev_sqlite");
+
+                    // Get the database file path
+                    std::string dbPath = dbConfig.getDatabase();
+
+                    // Delete the database file if it exists to ensure a clean state
+                    if (std::filesystem::exists(dbPath))
+                    {
+                        cpp_dbc::system_utils::logWithTimestampInfo("Removing existing SQLite database file: " + dbPath);
+                        std::filesystem::remove(dbPath);
+                    }
+
+                    needsInitialization = true;
+                    tableInitialized[tableName] = true;
+                }
+            }
+
+            // Register the SQLite driver and get a connection
+            cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+            auto conn = cpp_dbc::DriverManager::getConnection(connStr, "", "");
+
+            if (needsInitialization)
+            {
+                // Create benchmark table
+                cpp_dbc::system_utils::logWithTimestampInfo("Creating and populating table '" + tableName + "' for the first time...");
+                common_benchmark_helpers::createBenchmarkTable(conn, tableName);
+
+                // Populate table with specified rows if rowCount > 0
+                if (rowCount > 0)
+                {
+                    common_benchmark_helpers::populateTable(conn, tableName, rowCount);
+                }
+            }
+            else
+            {
+                cpp_dbc::system_utils::logWithTimestampInfo("Reusing existing table '" + tableName + "'");
+            }
+
+            return conn;
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
+            return nullptr;
         }
     }
 

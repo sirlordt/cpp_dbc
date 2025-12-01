@@ -8,9 +8,9 @@ USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_CPP_YAML=OFF
-BENCHMARK_SAMPLES=5
-BENCHMARK_RESAMPLES=2
-BENCHMARK_TAGS=""
+BENCHMARK_MIN_TIME="0.5"  # Minimum time per iteration for Google Benchmark
+BENCHMARK_REPETITIONS=3   # Number of repetitions for Google Benchmark
+BENCHMARK_TAGS=""         # Preserved for compatibility
 CLEAN_BUILD=false
 REBUILD=false
 RELEASE_BUILD=false
@@ -46,12 +46,12 @@ while [[ $# -gt 0 ]]; do
             USE_SQLITE=OFF
             shift
             ;;
-        --samples=*)
-            BENCHMARK_SAMPLES="${1#*=}"
+        --min-time=*)
+            BENCHMARK_MIN_TIME="${1#*=}"
             shift
             ;;
-        --resamples=*)
-            BENCHMARK_RESAMPLES="${1#*=}"
+        --repetitions=*)
+            BENCHMARK_REPETITIONS="${1#*=}"
             shift
             ;;
         --run-benchmark=*)
@@ -111,8 +111,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --sqlite-off           Disable SQLite support"
             echo "  --yaml, --yaml-on      Enable YAML support"
             echo "  --yaml-off             Disable YAML support"
-            echo "  --samples=N            Set number of benchmark samples (default: 5)"
-            echo "  --resamples=N          Set number of benchmark resamples (default: 2)"
+            echo "  --min-time=N           Set minimum time per iteration in seconds (default: 0.5)"
+            echo "  --repetitions=N        Set number of benchmark repetitions (default: 5)"
             echo "  --run-benchmark=TAGS   Run only benchmarks with specified tags (e.g. update+postgresql)"
             echo "  --clean                Clean build directories before building"
             echo "  --rebuild              Force rebuild of benchmarks"
@@ -155,8 +155,8 @@ echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Clean build: $CLEAN_BUILD"
 echo "  Rebuild: $REBUILD"
-echo "  Benchmark samples: $BENCHMARK_SAMPLES"
-echo "  Benchmark resamples: $BENCHMARK_RESAMPLES"
+echo "  Benchmark min time: $BENCHMARK_MIN_TIME seconds"
+echo "  Benchmark repetitions: $BENCHMARK_REPETITIONS"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
@@ -256,23 +256,59 @@ fi
 echo "Running cpp_dbc benchmarks..."
 echo "=============================="
 
+# Prepare benchmark options
+BENCHMARK_OPTIONS="--benchmark_min_time=${BENCHMARK_MIN_TIME}s --benchmark_repetitions=${BENCHMARK_REPETITIONS}"
+
 # If benchmark tags are specified, use them directly
 if [ -n "$BENCHMARK_TAGS" ]; then
     echo "Running benchmarks with tags: $BENCHMARK_TAGS"
     
-    # Convert the tags format from "update+postgresql" to proper Catch2 format
-    # Replace '+' with '][' to create proper tag format
-    FORMATTED_TAGS=$(echo "$BENCHMARK_TAGS" | sed 's/+/][/g')
+    # Map tag formats from the previous Catch2 format to Google Benchmark format
+    # Convert formats like "update+postgresql" to regex patterns like "BM.*Update.*PostgreSQL"
+    # This is an approximate conversion
+    FILTER=""
     
-    echo "Using tag filter: [benchmark][$FORMATTED_TAGS]"
-    ${BENCHMARK_EXECUTABLE} "[benchmark][$FORMATTED_TAGS]" --benchmark-samples ${BENCHMARK_SAMPLES} --benchmark-resamples ${BENCHMARK_RESAMPLES}
+    if [[ "$BENCHMARK_TAGS" == *"mysql"* ]]; then
+        FILTER="${FILTER}MySQL|"
+    fi
+    
+    if [[ "$BENCHMARK_TAGS" == *"postgresql"* ]]; then
+        FILTER="${FILTER}PostgreSQL|"
+    fi
+    
+    if [[ "$BENCHMARK_TAGS" == *"sqlite"* ]]; then
+        FILTER="${FILTER}SQLite|"
+    fi
+    
+    if [[ "$BENCHMARK_TAGS" == *"insert"* ]]; then
+        FILTER="${FILTER}.*Insert.*|"
+    fi
+    
+    if [[ "$BENCHMARK_TAGS" == *"update"* ]]; then
+        FILTER="${FILTER}.*Update.*|"
+    fi
+    
+    if [[ "$BENCHMARK_TAGS" == *"delete"* ]]; then
+        FILTER="${FILTER}.*Delete.*|"
+    fi
+    
+    if [[ "$BENCHMARK_TAGS" == *"select"* ]]; then
+        FILTER="${FILTER}.*Select.*|"
+    fi
+    
+    # Remove trailing pipe if it exists
+    FILTER=${FILTER%|}
+    
+    echo "Using benchmark filter: $FILTER"
+    ${BENCHMARK_EXECUTABLE} --benchmark_filter="$FILTER" $BENCHMARK_OPTIONS
     echo ""
     echo "=============================="
 else
     # MySQL benchmarks
     if [ "$USE_MYSQL" = "ON" ]; then
         echo "Running MySQL benchmarks..."
-        ${BENCHMARK_EXECUTABLE} "[benchmark][mysql]" --benchmark-samples ${BENCHMARK_SAMPLES} --benchmark-resamples ${BENCHMARK_RESAMPLES}
+        # Pattern to match the standard BM_MySQL_* benchmark names
+        ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_MySQL" $BENCHMARK_OPTIONS
         echo ""
         echo "=============================="
     fi
@@ -280,7 +316,8 @@ else
     # PostgreSQL benchmarks
     if [ "$USE_POSTGRESQL" = "ON" ]; then
         echo "Running PostgreSQL benchmarks..."
-        ${BENCHMARK_EXECUTABLE} "[benchmark][postgresql]" --benchmark-samples ${BENCHMARK_SAMPLES} --benchmark-resamples ${BENCHMARK_RESAMPLES}
+        # Pattern to match the standard BM_PostgreSQL_* benchmark names
+        ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_PostgreSQL" $BENCHMARK_OPTIONS
         echo ""
         echo "=============================="
     fi
@@ -288,7 +325,8 @@ else
     # SQLite benchmarks
     if [ "$USE_SQLITE" = "ON" ]; then
         echo "Running SQLite benchmarks..."
-        ${BENCHMARK_EXECUTABLE} "[benchmark][sqlite]" --benchmark-samples ${BENCHMARK_SAMPLES} --benchmark-resamples ${BENCHMARK_RESAMPLES}
+        # Pattern to match the standard BM_SQLite_* benchmark names
+        ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_SQLite" $BENCHMARK_OPTIONS
         echo ""
         echo "=============================="
     fi
