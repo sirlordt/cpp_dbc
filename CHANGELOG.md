@@ -1,6 +1,24 @@
 # Changelog
 
-## 2025-11-30 11:26:33 PM PST [Current]
+## 2025-12-04 09:30:36 PM PST [Current]
+
+### Benchmark Baseline and Comparison System
+* Added benchmark baseline creation and comparison functionality:
+  * Added `create_benchmark_cpp_dbc_base_line.sh` script to create benchmark baselines from log files
+  * Added `compare_benchmark_cpp_dbc_base_line.sh` script to compare two benchmark baseline files
+  * Baseline files are stored in `libs/cpp_dbc/benchmark/base_line/` directory organized by system configuration
+  * Baseline data includes benchmark results, memory usage, and time command output
+  * Comparison script supports filtering by benchmark name and automatic detection of latest baseline files
+* Added memory usage tracking for benchmarks:
+  * Added `--memory-usage` option to `run_benchmarks_cpp_dbc.sh` to track memory usage with `/usr/bin/time -v`
+  * Automatic installation of `time` package if not available on Debian-based systems
+  * Memory usage data is captured per database type (MySQL, PostgreSQL, SQLite)
+* Updated helper.sh with new benchmark options:
+  * Added `memory-usage` option to enable memory tracking during benchmarks
+  * Added `base-line` option to automatically create baseline after running benchmarks
+  * Updated help text with new options and examples
+
+## 2025-11-30 11:26:33 PM PST
 
 ### Benchmark System Migration to Google Benchmark
 * Migrated benchmark system from Catch2 to Google Benchmark:

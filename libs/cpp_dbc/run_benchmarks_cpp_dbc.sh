@@ -18,6 +18,7 @@ DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 BACKWARD_HAS_DW=ON
+USE_MEMORY_USAGE=false    # Whether to use /usr/bin/time for memory usage tracking
 
 # Parse command-line arguments
 while [[ $# -gt 0 ]]; do
@@ -80,6 +81,10 @@ while [[ $# -gt 0 ]]; do
             BACKWARD_HAS_DW=OFF
             shift
             ;;
+        --memory-usage)
+            USE_MEMORY_USAGE=true
+            shift
+            ;;
         --clean)
             CLEAN_BUILD=true
             shift
@@ -122,6 +127,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
+            echo "  --memory-usage         Track memory usage with /usr/bin/time"
             echo "  --help                 Show this help message"
             exit 0
             ;;
@@ -161,6 +167,7 @@ echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  libdw support: $BACKWARD_HAS_DW"
+echo "  Memory usage tracking: $USE_MEMORY_USAGE"
 if [ -n "$BENCHMARK_TAGS" ]; then
     echo "  Benchmark tags: $BENCHMARK_TAGS"
 fi
@@ -252,6 +259,36 @@ if [ ! -f "${BENCHMARK_EXECUTABLE}" ]; then
     exit 1
 fi
 
+# Check if memory usage tracking is requested
+if [ "$USE_MEMORY_USAGE" = true ]; then
+    echo "Checking for /usr/bin/time..."
+    if ! command -v /usr/bin/time &> /dev/null; then
+        echo "/usr/bin/time not found. Attempting to install..."
+        
+        # Check if we're on a Debian-based system
+        if command -v apt-get &> /dev/null; then
+            echo "Debian-based system detected. Installing time package..."
+            # Try to update, but continue even if it fails
+            sudo apt-get update || echo "apt-get update failed, but continuing with installation attempt..."
+            
+            # Try to install time
+            if sudo apt-get install -y time; then
+                echo "time package installed successfully."
+            else
+                echo "Error: Failed to install time package."
+                echo "Please install time package manually and try again."
+                exit 1
+            fi
+        else
+            echo "Error: /usr/bin/time is not installed and this doesn't appear to be a Debian-based system."
+            echo "Please install time package manually and try again."
+            exit 1
+        fi
+    else
+        echo "/usr/bin/time is available."
+    fi
+fi
+
 # Run the benchmarks
 echo "Running cpp_dbc benchmarks..."
 echo "=============================="
@@ -300,7 +337,12 @@ if [ -n "$BENCHMARK_TAGS" ]; then
     FILTER=${FILTER%|}
     
     echo "Using benchmark filter: $FILTER"
-    ${BENCHMARK_EXECUTABLE} --benchmark_filter="$FILTER" $BENCHMARK_OPTIONS
+    if [ "$USE_MEMORY_USAGE" = true ]; then
+        echo "Running with memory usage tracking..."
+        /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="$FILTER" $BENCHMARK_OPTIONS
+    else
+        ${BENCHMARK_EXECUTABLE} --benchmark_filter="$FILTER" $BENCHMARK_OPTIONS
+    fi
     echo ""
     echo "=============================="
 else
@@ -308,7 +350,12 @@ else
     if [ "$USE_MYSQL" = "ON" ]; then
         echo "Running MySQL benchmarks..."
         # Pattern to match the standard BM_MySQL_* benchmark names
-        ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_MySQL" $BENCHMARK_OPTIONS
+        if [ "$USE_MEMORY_USAGE" = true ]; then
+            echo "Running with memory usage tracking..."
+            /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_MySQL" $BENCHMARK_OPTIONS
+        else
+            ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_MySQL" $BENCHMARK_OPTIONS
+        fi
         echo ""
         echo "=============================="
     fi
@@ -317,7 +364,12 @@ else
     if [ "$USE_POSTGRESQL" = "ON" ]; then
         echo "Running PostgreSQL benchmarks..."
         # Pattern to match the standard BM_PostgreSQL_* benchmark names
-        ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_PostgreSQL" $BENCHMARK_OPTIONS
+        if [ "$USE_MEMORY_USAGE" = true ]; then
+            echo "Running with memory usage tracking..."
+            /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_PostgreSQL" $BENCHMARK_OPTIONS
+        else
+            ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_PostgreSQL" $BENCHMARK_OPTIONS
+        fi
         echo ""
         echo "=============================="
     fi
@@ -326,10 +378,17 @@ else
     if [ "$USE_SQLITE" = "ON" ]; then
         echo "Running SQLite benchmarks..."
         # Pattern to match the standard BM_SQLite_* benchmark names
-        ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_SQLite" $BENCHMARK_OPTIONS
+        if [ "$USE_MEMORY_USAGE" = true ]; then
+            echo "Running with memory usage tracking..."
+            /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_SQLite" $BENCHMARK_OPTIONS
+        else
+            ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_SQLite" $BENCHMARK_OPTIONS
+        fi
         echo ""
         echo "=============================="
     fi
 fi
 
 echo "Benchmarks completed!"
+
+# No need for a summary message since output is displayed directly to the screen

@@ -80,11 +80,12 @@ show_usage() {
   echo "  --run-benchmarks         Run the benchmarks"
   echo "  --run-benchmarks=OPTIONS Run benchmarks with comma-separated options"
   echo "                           Available options: clean,release,rebuild,sqlite,mysql,mysql-off,postgres,"
-  echo "                                              yaml,benchmark=Tag1+Tag2+Tag3"
+  echo "                                              yaml,benchmark=Tag1+Tag2+Tag3,memory-usage,base-line,"
   echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off"
   echo "                           Example: --run-benchmarks=mysql,postgresql"
   echo "                           Example: --run-benchmarks=benchmark=update+postgresql"
-  echo "                           Example: --run-benchmarks=clean,rebuild,sqlite,mysql,postgres,yaml"
+  echo "                           Example: --run-benchmarks=clean,rebuild,sqlite,mysql,postgres,yaml,memory-usage"
+  echo "                           Example: --run-benchmarks=mysql,postgresql,base-line"
   echo "                           Note: Multiple benchmark tags can be specified using + as separator after benchmark="
   echo "  --ldd-bin-ctr [name]     Run ldd on the executable inside the container"
   echo "  --ldd-build-bin          Run ldd on the final local build/ executable"
@@ -752,6 +753,9 @@ cmd_run_benchmarks() {
   # Build command with options
   local run_benchmark_cmd="./libs/cpp_dbc/run_benchmarks_cpp_dbc.sh"
   
+  # Flag to track if base-line option is present
+  local create_baseline=false
+  
   # First, extract all benchmark tags from the options string
   local benchmark_tags=""
   if [[ "$BENCHMARK_OPTIONS" =~ benchmark= ]]; then
@@ -793,6 +797,14 @@ cmd_run_benchmarks() {
       fi
       
       case "$opt" in
+        base-line)
+          create_baseline=true
+          echo "Will create benchmark baseline after running benchmarks"
+          ;;
+        memory-usage)
+          run_benchmark_cmd="$run_benchmark_cmd --memory-usage"
+          echo "Enabling memory usage tracking"
+          ;;
         mysql)
           run_benchmark_cmd="$run_benchmark_cmd --mysql"
           echo "Running MySQL benchmarks only"
@@ -875,6 +887,19 @@ cmd_run_benchmarks() {
   echo ""
   echo "Command runned: $run_benchmark_cmd"
   echo "Log file: $log_file."
+  
+  # If base-line option is present, run the create_benchmark_cpp_dbc_base_line.sh script
+  if [ "$create_baseline" = true ]; then
+    echo ""
+    echo "Creating benchmark baseline..."
+    local create_baseline_cmd="./libs/cpp_dbc/create_benchmark_cpp_dbc_base_line.sh --log-file=\"$log_file\""
+    echo "Running: $create_baseline_cmd"
+    
+    # Execute the create_benchmark_cpp_dbc_base_line.sh script
+    ./libs/cpp_dbc/create_benchmark_cpp_dbc_base_line.sh --log-file="$log_file"
+    
+    echo "Baseline creation completed."
+  fi
 }
 
 get_bin_name() {

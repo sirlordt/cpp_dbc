@@ -288,6 +288,12 @@ The project includes benchmarks for database operations using Google Benchmark:
 
 # Run MySQL and PostgreSQL benchmarks
 ./helper.sh --run-benchmarks=mysql+postgresql
+
+# Run benchmarks with memory usage tracking
+./helper.sh --run-benchmarks=mysql,postgresql,memory-usage
+
+# Run benchmarks and create a baseline
+./helper.sh --run-benchmarks=mysql,postgresql,base-line
 ```
 
 The benchmarks measure the performance of SELECT, INSERT, UPDATE, and DELETE operations for different database systems with varying data sizes (10, 100, 1000, and 10000 rows). All benchmark output is automatically logged to files in the `logs/benchmark/` directory with timestamps in the filenames.
@@ -301,6 +307,36 @@ You can configure benchmark execution with additional parameters:
 # Set number of repetitions for each benchmark
 ./helper.sh --run-benchmarks --repetitions=5
 ```
+
+### Benchmark Baselines and Comparison
+
+The project includes tools for creating and comparing benchmark baselines:
+
+```bash
+# Create a baseline from a benchmark log file
+./libs/cpp_dbc/create_benchmark_cpp_dbc_base_line.sh --log-file=logs/benchmark/output-YYYYMMDD-HHMMSS.log
+
+# Compare two baseline files
+./libs/cpp_dbc/compare_benchmark_cpp_dbc_base_line.sh \
+  --benchmarkA=base_line/SystemConfig/benchmark-A.data \
+  --benchmarkB=base_line/SystemConfig/benchmark-B.data
+
+# Use automatic detection to find the latest baseline files
+./libs/cpp_dbc/compare_benchmark_cpp_dbc_base_line.sh \
+  --benchmarkA=base_line/SystemConfig/detect \
+  --benchmarkB=base_line/SystemConfig/detect
+
+# Filter comparison by benchmark name
+./libs/cpp_dbc/compare_benchmark_cpp_dbc_base_line.sh \
+  --benchmarkA=base_line/SystemConfig/detect \
+  --benchmarkB=base_line/SystemConfig/detect \
+  --filter=MySQL
+```
+
+Baseline files are stored in `libs/cpp_dbc/benchmark/base_line/` organized by system configuration (CPU, RAM, OS). Each baseline file contains:
+- Benchmark results (time, CPU time, iterations, items per second)
+- Memory usage per database type
+- Time command output with detailed resource usage
 
 You can analyze test logs for failures and memory issues:
 
