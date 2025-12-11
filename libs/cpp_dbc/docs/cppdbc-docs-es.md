@@ -406,15 +406,16 @@ Los mismos que Connection, más:
 - `SQLiteConnection(string, map<string, string>)`: Constructor que toma una ruta de base de datos y opciones de conexión opcionales.
 - `setTransactionIsolation(TransactionIsolationLevel)`: Establece el nivel de aislamiento de transacción para SQLite (solo se admite SERIALIZABLE).
 - `getTransactionIsolation()`: Devuelve el nivel de aislamiento de transacción actual.
-- `registerStatement(std::shared_ptr<SQLitePreparedStatement>)`: Registra una declaración con la conexión para una limpieza adecuada.
-- `unregisterStatement(std::shared_ptr<SQLitePreparedStatement>)`: Anula el registro de una declaración de la conexión.
+- `registerStatement(std::weak_ptr<SQLitePreparedStatement>)`: Registra una declaración con la conexión para una limpieza adecuada.
+- `unregisterStatement(std::weak_ptr<SQLitePreparedStatement>)`: Anula el registro de una declaración de la conexión.
 
 **Herencia:**
 - Hereda de `Connection` y `std::enable_shared_from_this<SQLiteConnection>` para una gestión adecuada de recursos.
 
-**Miembros Estáticos:**
-- `activeConnections`: Un conjunto de punteros débiles (weak_ptr) a conexiones SQLite activas para la limpieza de declaraciones.
-- `connectionsListMutex`: Mutex para acceso seguro a la lista de conexiones activas.
+**Uso de Punteros Inteligentes:**
+- Usa `shared_ptr<sqlite3>` con deleter personalizado (`SQLiteDbDeleter`) para el handle de conexión
+- Los PreparedStatements usan `weak_ptr<sqlite3>` para detectar de forma segura cuando la conexión está cerrada
+- Las declaraciones activas se rastrean mediante `set<weak_ptr<SQLitePreparedStatement>>` para evitar impedir la destrucción
 
 ### SQLiteDriver
 Implementación de Driver para SQLite.

@@ -2,10 +2,6 @@
 
 ## Pending Tasks
 
-- Add to benchmark the feature to create a base line to CPU_RAM_PLATFORM_OS. AMD_Ryzen_9_9950X_16-Core_Processor_16GB_Ubuntu_24_04 an compare with the last match in base line
-- Analize the use of raw pointer in diferent class
-  They are really safe?
-  We need wrap in unique_ptr/shared_ptr with custom destruction functions?
 - NEW FEATURE: Add more examples.
 - NEW FEATURE: Add more debug messages?
 - PLANNED: Start to using in real proyect and test how ease is integrate in third party project. Maybe write a INTERGRATION.md to explain how full integrate in a real project.
@@ -20,6 +16,19 @@
 
 ## Completed Tasks
 
+- Migrated all database drivers from raw pointers to smart pointers:
+  - MySQL: Added MySQLResDeleter, MySQLStmtDeleter, MySQLDeleter custom deleters
+  - MySQL: Changed m_mysql to shared_ptr, m_stmt to unique_ptr, m_result to unique_ptr
+  - MySQL: PreparedStatement uses weak_ptr for safe connection reference
+  - PostgreSQL: Added PGresultDeleter, PGconnDeleter custom deleters
+  - PostgreSQL: Changed m_conn to shared_ptr, m_result to unique_ptr
+  - PostgreSQL: PreparedStatement uses weak_ptr for safe connection reference
+  - SQLite: Added SQLiteStmtDeleter, SQLiteDbDeleter custom deleters
+  - SQLite: Changed m_db to shared_ptr, m_stmt to unique_ptr
+  - SQLite: PreparedStatement uses weak_ptr for safe connection reference
+  - SQLite: Changed m_activeStatements from set<shared_ptr> to set<weak_ptr>
+  - Benefits: RAII cleanup, exception safety, clear ownership semantics
+- Add to benchmark the feature to create a base line to  CPU_RAM_PLATFORM_OS. AMD_Ryzen_9_9950X_16-Core_Processor_16GB_Ubuntu_24_04 an compare with the last match in base line  
 - Migrated benchmark system from Catch2 to Google Benchmark:
   - Updated CMakeLists.txt to use Google Benchmark instead of Catch2WithMain
   - Added benchmark/1.8.3 as a dependency in conanfile.txt

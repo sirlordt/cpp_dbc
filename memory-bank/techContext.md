@@ -4,7 +4,8 @@
 
 ### Programming Language
 - **C++23**: The library uses modern C++ features including:
-  - Smart pointers (`std::shared_ptr`)
+  - Smart pointers (`std::shared_ptr`, `std::unique_ptr`, `std::weak_ptr`)
+  - Custom deleters for smart pointers (RAII resource management)
   - Lambda expressions
   - Thread support library
   - Chrono library for time management
@@ -96,8 +97,15 @@ The project is configured to work with the CMakeTools extension, but does not re
 - Applications must handle their own thread synchronization when sharing data between threads
 
 ### Memory Management
-- Uses smart pointers for automatic resource management
-- Relies on RAII for proper cleanup
+- Uses smart pointers for automatic resource management:
+  - `shared_ptr` for connection handles (MySQL, PostgreSQL, SQLite)
+  - `unique_ptr` with custom deleters for result sets and prepared statements
+  - `weak_ptr` for safe references from PreparedStatements to Connections
+- Custom deleters ensure proper cleanup of database-specific resources:
+  - `MySQLDeleter`, `MySQLStmtDeleter`, `MySQLResDeleter` for MySQL
+  - `PGconnDeleter`, `PGresultDeleter` for PostgreSQL
+  - `SQLiteDbDeleter`, `SQLiteStmtDeleter` for SQLite
+- Relies on RAII for proper cleanup even in case of exceptions
 - No explicit memory management required from client code
 - Comprehensive warning flags to catch memory-related issues:
   - `-Wshadow`: Prevents variable shadowing that could lead to memory bugs

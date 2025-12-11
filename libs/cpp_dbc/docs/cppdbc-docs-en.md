@@ -213,15 +213,16 @@ Same as Connection, plus:
 - `SQLiteConnection(string, map<string, string>)`: Constructor that takes a database path and optional connection options.
 - `setTransactionIsolation(TransactionIsolationLevel)`: Sets the transaction isolation level for SQLite (only SERIALIZABLE is supported).
 - `getTransactionIsolation()`: Returns the current transaction isolation level.
-- `registerStatement(std::shared_ptr<SQLitePreparedStatement>)`: Registers a statement with the connection for proper cleanup.
-- `unregisterStatement(std::shared_ptr<SQLitePreparedStatement>)`: Unregisters a statement from the connection.
+- `registerStatement(std::weak_ptr<SQLitePreparedStatement>)`: Registers a statement with the connection for proper cleanup.
+- `unregisterStatement(std::weak_ptr<SQLitePreparedStatement>)`: Unregisters a statement from the connection.
 
 **Inheritance:**
 - Inherits from `Connection` and `std::enable_shared_from_this<SQLiteConnection>` for proper resource management.
 
-**Static Members:**
-- `activeConnections`: A set of weak pointers to active SQLite connections for statement cleanup.
-- `connectionsListMutex`: Mutex for thread-safe access to the active connections list.
+**Smart Pointer Usage:**
+- Uses `shared_ptr<sqlite3>` with custom deleter (`SQLiteDbDeleter`) for connection handle
+- PreparedStatements use `weak_ptr<sqlite3>` to safely detect when connection is closed
+- Active statements tracked via `set<weak_ptr<SQLitePreparedStatement>>` to avoid preventing destruction
 
 ### SQLiteDriver
 Implementation of Driver for SQLite.

@@ -32,7 +32,28 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Benchmark Baseline and Comparison System**:
+1. **Smart Pointer Migration for Database Drivers**:
+   - Migrated all database drivers from raw pointers to smart pointers for improved memory safety:
+     - **MySQL Driver:**
+       - Added `MySQLResDeleter`, `MySQLStmtDeleter`, `MySQLDeleter` custom deleters
+       - Changed `m_mysql` to `shared_ptr<MYSQL>`, `m_stmt` to `unique_ptr<MYSQL_STMT>`, `m_result` to `unique_ptr<MYSQL_RES>`
+       - PreparedStatement uses `weak_ptr<MYSQL>` for safe connection reference
+       - Added `validateResultState()`, `validateCurrentRow()`, and `getMySQLConnection()` helper methods
+     - **PostgreSQL Driver:**
+       - Added `PGresultDeleter`, `PGconnDeleter` custom deleters
+       - Changed `m_conn` to `shared_ptr<PGconn>`, `m_result` to `unique_ptr<PGresult>`
+       - PreparedStatement uses `weak_ptr<PGconn>` for safe connection reference
+       - Added `getPGConnection()` helper method for safe connection access
+     - **SQLite Driver:**
+       - Added `SQLiteStmtDeleter`, `SQLiteDbDeleter` custom deleters
+       - Changed `m_db` to `shared_ptr<sqlite3>`, `m_stmt` to `unique_ptr<sqlite3_stmt>`
+       - PreparedStatement uses `weak_ptr<sqlite3>` for safe connection reference
+       - Changed `m_activeStatements` from `set<shared_ptr>` to `set<weak_ptr>`
+       - Added `getSQLiteConnection()` helper method for safe connection access
+       - Removed obsolete `activeConnections` static list and related mutex
+   - Benefits: RAII cleanup, exception safety, clear ownership semantics, elimination of manual delete/free calls
+
+2. **Benchmark Baseline and Comparison System**:
    - Added benchmark baseline creation and comparison functionality:
      - Added `create_benchmark_cpp_dbc_base_line.sh` script to create benchmark baselines from log files
      - Added `compare_benchmark_cpp_dbc_base_line.sh` script to compare two benchmark baseline files

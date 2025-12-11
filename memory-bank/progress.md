@@ -158,7 +158,43 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **Benchmark Baseline and Comparison System**:
+1. **Smart Pointer Migration for Database Drivers**:
+   - Migrated all database drivers from raw pointers to smart pointers for improved memory safety:
+     - **MySQL Driver:**
+       - Added `MySQLResDeleter` custom deleter for `MYSQL_RES*` with `unique_ptr`
+       - Added `MySQLStmtDeleter` custom deleter for `MYSQL_STMT*` with `unique_ptr`
+       - Added `MySQLDeleter` custom deleter for `MYSQL*` with `shared_ptr`
+       - Changed `MySQLConnection::m_mysql` from raw pointer to `MySQLHandle` (`shared_ptr<MYSQL>`)
+       - Changed `MySQLPreparedStatement::m_mysql` from raw pointer to `weak_ptr<MYSQL>` for safe connection reference
+       - Changed `MySQLPreparedStatement::m_stmt` from raw pointer to `MySQLStmtHandle` (`unique_ptr<MYSQL_STMT>`)
+       - Changed `MySQLResultSet::m_result` from raw pointer to `MySQLResHandle` (`unique_ptr<MYSQL_RES>`)
+       - Added `validateResultState()` and `validateCurrentRow()` helper methods
+       - Added `getMySQLConnection()` helper method for safe connection access
+     - **PostgreSQL Driver:**
+       - Added `PGresultDeleter` custom deleter for `PGresult*` with `unique_ptr`
+       - Added `PGconnDeleter` custom deleter for `PGconn*` with `shared_ptr`
+       - Changed `PostgreSQLConnection::m_conn` from raw pointer to `PGconnHandle` (`shared_ptr<PGconn>`)
+       - Changed `PostgreSQLPreparedStatement::m_conn` from raw pointer to `weak_ptr<PGconn>` for safe connection reference
+       - Changed `PostgreSQLResultSet::m_result` from raw pointer to `PGresultHandle` (`unique_ptr<PGresult>`)
+       - Added `getPGConnection()` helper method for safe connection access
+     - **SQLite Driver:**
+       - Added `SQLiteStmtDeleter` custom deleter for `sqlite3_stmt*` with `unique_ptr`
+       - Added `SQLiteDbDeleter` custom deleter for `sqlite3*` with `shared_ptr`
+       - Changed `SQLiteConnection::m_db` from raw pointer to `shared_ptr<sqlite3>`
+       - Changed `SQLitePreparedStatement::m_db` from raw pointer to `weak_ptr<sqlite3>` for safe connection reference
+       - Changed `SQLitePreparedStatement::m_stmt` from raw pointer to `SQLiteStmtHandle` (`unique_ptr<sqlite3_stmt>`)
+       - Changed `SQLiteResultSet::m_stmt` to use `getStmt()` accessor method
+       - Changed `m_activeStatements` from `set<shared_ptr>` to `set<weak_ptr>` to avoid preventing statement destruction
+       - Added `getSQLiteConnection()` helper method for safe connection access
+       - Removed obsolete `activeConnections` static list and related mutex
+   - Benefits of smart pointer migration:
+     - Automatic resource cleanup even in case of exceptions
+     - Prevention of memory leaks through RAII
+     - Safe detection of closed connections via `weak_ptr`
+     - Clear ownership semantics documented in code
+     - Elimination of manual `delete`/`free` calls
+
+2. **Benchmark Baseline and Comparison System**:
    - Added benchmark baseline creation and comparison functionality:
      - Added `create_benchmark_cpp_dbc_base_line.sh` script to create benchmark baselines from log files
      - Added `compare_benchmark_cpp_dbc_base_line.sh` script to compare two benchmark baseline files

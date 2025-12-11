@@ -76,8 +76,15 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 - Connection objects are not thread-safe and should not be shared between threads
 
 ### Resource Management
-- Smart pointers (`std::shared_ptr`) are used for automatic resource management
-- RAII (Resource Acquisition Is Initialization) principle is followed for resource cleanup
+- Smart pointers are used for automatic resource management:
+  - `std::shared_ptr` for connection handles (allows `weak_ptr` references from PreparedStatements)
+  - `std::unique_ptr` with custom deleters for result sets and prepared statements
+  - `std::weak_ptr` for safe references from PreparedStatements to Connections (detects closed connections)
+- Custom deleters ensure proper cleanup of database-specific resources:
+  - MySQL: `MySQLDeleter`, `MySQLStmtDeleter`, `MySQLResDeleter`
+  - PostgreSQL: `PGconnDeleter`, `PGresultDeleter`
+  - SQLite: `SQLiteDbDeleter`, `SQLiteStmtDeleter`
+- RAII (Resource Acquisition Is Initialization) principle is followed for resource cleanup even in case of exceptions
 
 ### Error Handling
 - Custom `SQLException` class for consistent error reporting

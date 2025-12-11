@@ -392,19 +392,36 @@ The library provides comprehensive support for JSON data types:
 
 ### Memory Leak Prevention
 
-The project includes several improvements to prevent memory leaks:
+The project includes comprehensive smart pointer usage to prevent memory leaks:
 
-1. Enhanced SQLite connection management with better resource handling:
-   - SQLiteConnection inherits from std::enable_shared_from_this
-   - Replaced raw pointer tracking with weak_ptr in activeConnections list
-   - Improved connection cleanup with weak_ptr-based reference tracking
-   - Added proper error handling for shared_from_this() usage
-   - Added safeguards to ensure connections are created with make_shared
+1. **Smart Pointer Migration for All Database Drivers**:
+   - All database drivers now use smart pointers (unique_ptr, shared_ptr, weak_ptr) instead of raw pointers
+   - Custom deleters ensure proper cleanup of database-specific resources
+   - RAII principles guarantee resource cleanup even in case of exceptions
 
-2. Improved PostgreSQL driver with better memory management:
-   - Enhanced connection options handling
-   - Better cleanup of resources on connection close
-   - Improved error handling with detailed error codes
+2. **MySQL Driver Smart Pointers**:
+   - `MySQLHandle` (shared_ptr<MYSQL>) for connection management
+   - `MySQLStmtHandle` (unique_ptr<MYSQL_STMT>) for prepared statements
+   - `MySQLResHandle` (unique_ptr<MYSQL_RES>) for result sets
+   - `weak_ptr<MYSQL>` in PreparedStatement for safe connection reference
+
+3. **PostgreSQL Driver Smart Pointers**:
+   - `PGconnHandle` (shared_ptr<PGconn>) for connection management
+   - `PGresultHandle` (unique_ptr<PGresult>) for result sets
+   - `weak_ptr<PGconn>` in PreparedStatement for safe connection reference
+
+4. **SQLite Driver Smart Pointers**:
+   - `shared_ptr<sqlite3>` for connection management
+   - `SQLiteStmtHandle` (unique_ptr<sqlite3_stmt>) for prepared statements
+   - `weak_ptr<sqlite3>` in PreparedStatement for safe connection reference
+   - `weak_ptr` tracking for active statements to avoid preventing destruction
+
+5. **Benefits**:
+   - Automatic resource cleanup through RAII
+   - Safe detection of closed connections via weak_ptr
+   - Clear ownership semantics documented in code
+   - Elimination of manual delete/free calls
+   - Prevention of double-free errors
 
 To run memory leak checks:
 

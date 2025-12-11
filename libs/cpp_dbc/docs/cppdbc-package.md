@@ -168,6 +168,7 @@ cmake --build .
 8. YAML configuration support
 9. Docker container generation with automatic dependency detection
 10. Comprehensive warning flags and compile-time checks for code quality
+11. Smart pointer-based resource management with custom deleters for all database drivers
 
 ### Code Quality Features
 
