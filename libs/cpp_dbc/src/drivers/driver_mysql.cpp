@@ -33,15 +33,33 @@ namespace cpp_dbc
     {
 
         // MySQLResultSet implementation
+
+        void MySQLResultSet::validateResultState() const
+        {
+            if (!m_result)
+            {
+                throw DBException("E53694BC170E", "ResultSet has been closed or is invalid", system_utils::captureCallStack());
+            }
+        }
+
+        void MySQLResultSet::validateCurrentRow() const
+        {
+            validateResultState();
+            if (!m_currentRow)
+            {
+                throw DBException("F200B1E69DA7", "No current row - call next() first", system_utils::captureCallStack());
+            }
+        }
+
         MySQLResultSet::MySQLResultSet(MYSQL_RES *res) : m_result(res), m_currentRow(nullptr), m_rowPosition(0)
         {
             if (m_result)
             {
-                m_rowCount = mysql_num_rows(m_result);
-                m_fieldCount = mysql_num_fields(m_result);
+                m_rowCount = mysql_num_rows(m_result.get());
+                m_fieldCount = mysql_num_fields(m_result.get());
 
                 // Store column names and create column name to index mapping
-                MYSQL_FIELD *fields = mysql_fetch_fields(m_result);
+                MYSQL_FIELD *fields = mysql_fetch_fields(m_result.get());
                 for (size_t i = 0; i < m_fieldCount; i++)
                 {
                     std::string name = fields[i].name;
@@ -65,10 +83,11 @@ namespace cpp_dbc
         {
             if (!m_result || m_rowPosition >= m_rowCount)
             {
+                m_currentRow = nullptr; // Ensure currentRow is invalidated
                 return false;
             }
 
-            m_currentRow = mysql_fetch_row(m_result);
+            m_currentRow = mysql_fetch_row(m_result.get());
             if (m_currentRow)
             {
                 m_rowPosition++;
@@ -95,7 +114,8 @@ namespace cpp_dbc
 
         int MySQLResultSet::getInt(size_t columnIndex)
         {
-            if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
+            validateCurrentRow();
+            if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("7O8P9Q0R1S2T", "Invalid column index", system_utils::captureCallStack());
             }
@@ -123,7 +143,8 @@ namespace cpp_dbc
 
         long MySQLResultSet::getLong(size_t columnIndex)
         {
-            if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
+            validateCurrentRow();
+            if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("9A0B1C2D3E4F", "Invalid column index", system_utils::captureCallStack());
             }
@@ -150,7 +171,8 @@ namespace cpp_dbc
 
         double MySQLResultSet::getDouble(size_t columnIndex)
         {
-            if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
+            validateCurrentRow();
+            if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("1M2N3O4P5Q6R", "Invalid column index", system_utils::captureCallStack());
             }
@@ -177,7 +199,8 @@ namespace cpp_dbc
 
         std::string MySQLResultSet::getString(size_t columnIndex)
         {
-            if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
+            validateCurrentRow();
+            if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("089F37F0D90E", "Invalid column index", system_utils::captureCallStack());
             }
@@ -221,7 +244,8 @@ namespace cpp_dbc
 
         bool MySQLResultSet::isNull(size_t columnIndex)
         {
-            if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
+            validateCurrentRow();
+            if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("9BB5941B830C", "Invalid column index", system_utils::captureCallStack());
             }
@@ -255,8 +279,8 @@ namespace cpp_dbc
         {
             if (m_result)
             {
-                mysql_free_result(m_result);
-                m_result = nullptr;
+                // Smart pointer will automatically call mysql_free_result via MySQLResDeleter
+                m_result.reset();
                 m_currentRow = nullptr;
                 m_rowPosition = 0;
                 m_rowCount = 0;
@@ -267,7 +291,8 @@ namespace cpp_dbc
         // BLOB support methods for MySQLResultSet
         std::shared_ptr<Blob> MySQLResultSet::getBlob(size_t columnIndex)
         {
-            if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
+            validateCurrentRow();
+            if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("B7C8D9E0F1G2", "Invalid column index for getBlob", system_utils::captureCallStack());
             }
@@ -280,7 +305,7 @@ namespace cpp_dbc
             }
 
             // Get the length of the BLOB data
-            unsigned long *lengths = mysql_fetch_lengths(m_result);
+            unsigned long *lengths = mysql_fetch_lengths(m_result.get());
             if (!lengths)
             {
                 throw DBException("H3I4J5K6L7M8", "Failed to get BLOB data length", system_utils::captureCallStack());
@@ -310,7 +335,8 @@ namespace cpp_dbc
 
         std::shared_ptr<InputStream> MySQLResultSet::getBinaryStream(size_t columnIndex)
         {
-            if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
+            validateCurrentRow();
+            if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("T5U6V7W8X9Y0", "Invalid column index for getBinaryStream", system_utils::captureCallStack());
             }
@@ -324,7 +350,7 @@ namespace cpp_dbc
             }
 
             // Get the length of the BLOB data
-            unsigned long *lengths = mysql_fetch_lengths(m_result);
+            unsigned long *lengths = mysql_fetch_lengths(m_result.get());
             if (!lengths)
             {
                 throw DBException("Z1A2B3C4D5E6", "Failed to get BLOB data length", system_utils::captureCallStack());
@@ -347,7 +373,8 @@ namespace cpp_dbc
 
         std::vector<uint8_t> MySQLResultSet::getBytes(size_t columnIndex)
         {
-            if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
+            validateCurrentRow();
+            if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("L3M4N5O6P7Q8", "Invalid column index for getBytes", system_utils::captureCallStack());
             }
@@ -360,7 +387,7 @@ namespace cpp_dbc
             }
 
             // Get the length of the BLOB data
-            unsigned long *lengths = mysql_fetch_lengths(m_result);
+            unsigned long *lengths = mysql_fetch_lengths(m_result.get());
             if (!lengths)
             {
                 throw DBException("R9S0T1U2V3W4", "Failed to get BLOB data length", system_utils::captureCallStack());
@@ -389,31 +416,36 @@ namespace cpp_dbc
         }
 
         // MySQLPreparedStatement implementation
-        MySQLPreparedStatement::MySQLPreparedStatement(MYSQL *mysql_conn, const std::string &sql_stmt)
+        MYSQL *MySQLPreparedStatement::getMySQLConnection() const
+        {
+            auto conn = m_mysql.lock();
+            if (!conn)
+            {
+                throw DBException("471F2E35F961", "MySQL connection has been closed", system_utils::captureCallStack());
+            }
+            return conn.get();
+        }
+
+        MySQLPreparedStatement::MySQLPreparedStatement(std::weak_ptr<MYSQL> mysql_conn, const std::string &sql_stmt)
             : m_mysql(mysql_conn), m_sql(sql_stmt), m_stmt(nullptr)
         {
+            MYSQL *mysqlPtr = getMySQLConnection();
 
-            if (!m_mysql)
-            {
-                throw DBException("7S8T9U0V1W2X", "Invalid MySQL connection", system_utils::captureCallStack());
-            }
-
-            m_stmt = mysql_stmt_init(m_mysql);
+            m_stmt.reset(mysql_stmt_init(mysqlPtr));
             if (!m_stmt)
             {
                 throw DBException("3Y4Z5A6B7C8D", "Failed to initialize statement", system_utils::captureCallStack());
             }
 
-            if (mysql_stmt_prepare(m_stmt, m_sql.c_str(), m_sql.length()) != 0)
+            if (mysql_stmt_prepare(m_stmt.get(), m_sql.c_str(), m_sql.length()) != 0)
             {
-                std::string error = mysql_stmt_error(m_stmt);
-                mysql_stmt_close(m_stmt);
-                m_stmt = nullptr;
+                std::string error = mysql_stmt_error(m_stmt.get());
+                m_stmt.reset(); // Smart pointer will call mysql_stmt_close via deleter
                 throw DBException("9E0F1G2H3I4J", "Failed to prepare statement: " + error, system_utils::captureCallStack());
             }
 
             // Count parameters (question marks) in the SQL
-            unsigned long paramCount = mysql_stmt_param_count(m_stmt);
+            unsigned long paramCount = mysql_stmt_param_count(m_stmt.get());
             m_binds.resize(paramCount);
             memset(m_binds.data(), 0, sizeof(MYSQL_BIND) * paramCount);
 
@@ -444,8 +476,7 @@ namespace cpp_dbc
         {
             if (m_stmt)
             {
-                mysql_stmt_close(m_stmt);
-                m_stmt = nullptr;
+                m_stmt.reset(); // Smart pointer will call mysql_stmt_close via deleter
             }
         }
 
@@ -862,6 +893,9 @@ namespace cpp_dbc
                 throw DBException("3G4H5I6J7K8L", "Statement is applied", system_utils::captureCallStack());
             }
 
+            // Get the MySQL connection safely (throws if connection is closed)
+            MYSQL *mysqlPtr = getMySQLConnection();
+
             // Reconstruct the query with bound parameters to avoid "Commands out of sync" issue
             std::string finalQuery = m_sql;
 
@@ -876,15 +910,15 @@ namespace cpp_dbc
             }
 
             // Execute the reconstructed query using the regular connection interface
-            if (mysql_query(m_mysql, finalQuery.c_str()) != 0)
+            if (mysql_query(mysqlPtr, finalQuery.c_str()) != 0)
             {
-                throw DBException("9M0N1O2P3Q4R", std::string("Query failed: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                throw DBException("9M0N1O2P3Q4R", std::string("Query failed: ") + mysql_error(mysqlPtr), system_utils::captureCallStack());
             }
 
-            MYSQL_RES *result = mysql_store_result(m_mysql);
-            if (!result && mysql_field_count(m_mysql) > 0)
+            MYSQL_RES *result = mysql_store_result(mysqlPtr);
+            if (!result && mysql_field_count(mysqlPtr) > 0)
             {
-                throw DBException("H1I2J3K4L5M6", std::string("Failed to get result set: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                throw DBException("H1I2J3K4L5M6", std::string("Failed to get result set: ") + mysql_error(mysqlPtr), system_utils::captureCallStack());
             }
 
             auto resultSet = std::make_shared<MySQLResultSet>(result);
@@ -904,23 +938,23 @@ namespace cpp_dbc
             }
 
             // Bind parameters
-            if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt, m_binds.data()) != 0)
+            if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
             {
-                throw DBException("9B7E537EB656", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt), system_utils::captureCallStack());
+                throw DBException("9B7E537EB656", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack());
             }
 
             // Execute the query
-            if (mysql_stmt_execute(m_stmt) != 0)
+            if (mysql_stmt_execute(m_stmt.get()) != 0)
             {
-                throw DBException("547F7466347C", std::string("Failed to execute update: ") + mysql_stmt_error(m_stmt), system_utils::captureCallStack());
+                throw DBException("547F7466347C", std::string("Failed to execute update: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack());
             }
 
-            // auto result = mysql_stmt_affected_rows(m_stmt);
+            // auto result = mysql_stmt_affected_rows(m_stmt.get());
 
             // this->close();
 
             // Return the number of affected rows
-            return mysql_stmt_affected_rows(m_stmt);
+            return mysql_stmt_affected_rows(m_stmt.get());
         }
 
         bool MySQLPreparedStatement::execute()
@@ -931,19 +965,19 @@ namespace cpp_dbc
             }
 
             // Bind parameters
-            if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt, m_binds.data()) != 0)
+            if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
             {
-                throw DBException("1Y2Z3A4B5C6D", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt), system_utils::captureCallStack());
+                throw DBException("1Y2Z3A4B5C6D", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack());
             }
 
             // Execute the query
-            if (mysql_stmt_execute(m_stmt) != 0)
+            if (mysql_stmt_execute(m_stmt.get()) != 0)
             {
-                throw DBException("7E8F9G0H1I2J", std::string("Failed to execute statement: ") + mysql_stmt_error(m_stmt), system_utils::captureCallStack());
+                throw DBException("7E8F9G0H1I2J", std::string("Failed to execute statement: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack());
             }
 
             // Return whether there's a result set
-            return mysql_stmt_field_count(m_stmt) > 0;
+            return mysql_stmt_field_count(m_stmt.get()) > 0;
         }
 
         // MySQLConnection implementation
@@ -953,10 +987,11 @@ namespace cpp_dbc
                                          const std::string &user,
                                          const std::string &password,
                                          const std::map<std::string, std::string> &options)
-            : m_mysql(nullptr), m_closed(false), m_autoCommit(true), m_transactionActive(false),
+            : m_closed(false), m_autoCommit(true), m_transactionActive(false),
               m_isolationLevel(TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ) // MySQL default
         {
-            m_mysql = mysql_init(nullptr);
+            // Create shared_ptr with custom deleter for MYSQL*
+            m_mysql = std::shared_ptr<MYSQL>(mysql_init(nullptr), MySQLDeleter());
             if (!m_mysql)
             {
                 throw DBException("3K4L5M6N7O8P", "Failed to initialize MySQL connection", system_utils::captureCallStack());
@@ -964,7 +999,7 @@ namespace cpp_dbc
 
             // Force TCP/IP connection
             unsigned int protocol = MYSQL_PROTOCOL_TCP;
-            mysql_options(m_mysql, MYSQL_OPT_PROTOCOL, &protocol);
+            mysql_options(m_mysql.get(), MYSQL_OPT_PROTOCOL, &protocol);
 
             // Aplicar opciones de conexión desde el mapa
             for (const auto &option : options)
@@ -972,47 +1007,47 @@ namespace cpp_dbc
                 if (option.first == "connect_timeout")
                 {
                     unsigned int timeout = std::stoi(option.second);
-                    mysql_options(m_mysql, MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
+                    mysql_options(m_mysql.get(), MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
                 }
                 else if (option.first == "read_timeout")
                 {
                     unsigned int timeout = std::stoi(option.second);
-                    mysql_options(m_mysql, MYSQL_OPT_READ_TIMEOUT, &timeout);
+                    mysql_options(m_mysql.get(), MYSQL_OPT_READ_TIMEOUT, &timeout);
                 }
                 else if (option.first == "write_timeout")
                 {
                     unsigned int timeout = std::stoi(option.second);
-                    mysql_options(m_mysql, MYSQL_OPT_WRITE_TIMEOUT, &timeout);
+                    mysql_options(m_mysql.get(), MYSQL_OPT_WRITE_TIMEOUT, &timeout);
                 }
                 else if (option.first == "charset")
                 {
-                    mysql_options(m_mysql, MYSQL_SET_CHARSET_NAME, option.second.c_str());
+                    mysql_options(m_mysql.get(), MYSQL_SET_CHARSET_NAME, option.second.c_str());
                 }
                 else if (option.first == "auto_reconnect" && option.second == "true")
                 {
                     bool reconnect = true;
-                    mysql_options(m_mysql, MYSQL_OPT_RECONNECT, &reconnect);
+                    mysql_options(m_mysql.get(), MYSQL_OPT_RECONNECT, &reconnect);
                 }
             }
 
             // Connect to the database
-            if (!mysql_real_connect(m_mysql, host.c_str(), user.c_str(), password.c_str(),
+            if (!mysql_real_connect(m_mysql.get(), host.c_str(), user.c_str(), password.c_str(),
                                     nullptr, port, nullptr, 0))
             {
-                std::string error = mysql_error(m_mysql);
-                mysql_close(m_mysql);
-                m_mysql = nullptr;
+                std::string error = mysql_error(m_mysql.get());
+                // unique_ptr will automatically call mysql_close via the deleter
+                m_mysql.reset();
                 throw DBException("9Q0R1S2T3U4V", "Failed to connect to MySQL: " + error, system_utils::captureCallStack());
             }
 
             // Select the database if provided
             if (!database.empty())
             {
-                if (mysql_select_db(m_mysql, database.c_str()) != 0)
+                if (mysql_select_db(m_mysql.get(), database.c_str()) != 0)
                 {
-                    std::string error = mysql_error(m_mysql);
-                    mysql_close(m_mysql);
-                    m_mysql = nullptr;
+                    std::string error = mysql_error(m_mysql.get());
+                    // unique_ptr will automatically call mysql_close via the deleter
+                    m_mysql.reset();
                     throw DBException("5W6X7Y8Z9A0B", "Failed to select database: " + error, system_utils::captureCallStack());
                 }
             }
@@ -1059,8 +1094,8 @@ namespace cpp_dbc
                 std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
                 // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis(), "(1) MySQLConnection::close()");
-                mysql_close(m_mysql);
-                m_mysql = nullptr;
+                // unique_ptr will automatically call mysql_close via the deleter
+                m_mysql.reset();
                 m_closed = true;
             }
         }
@@ -1105,7 +1140,8 @@ namespace cpp_dbc
                 throw DBException("1C2D3E4F5G6H", "Connection is closed", system_utils::captureCallStack());
             }
 
-            auto stmt = std::make_shared<MySQLPreparedStatement>(m_mysql, sql);
+            // Pass weak_ptr to the PreparedStatement so it can safely detect when connection is closed
+            auto stmt = std::make_shared<MySQLPreparedStatement>(std::weak_ptr<MYSQL>(m_mysql), sql);
 
             // Register the statement in our registry
             registerStatement(stmt);
@@ -1120,15 +1156,15 @@ namespace cpp_dbc
                 throw DBException("7I8J9K0L1M2N", "Connection is closed", system_utils::captureCallStack());
             }
 
-            if (mysql_query(m_mysql, sql.c_str()) != 0)
+            if (mysql_query(m_mysql.get(), sql.c_str()) != 0)
             {
-                throw DBException("3O4P5Q6R7S8T", std::string("Query failed: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                throw DBException("3O4P5Q6R7S8T", std::string("Query failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack());
             }
 
-            MYSQL_RES *result = mysql_store_result(m_mysql);
-            if (!result && mysql_field_count(m_mysql) > 0)
+            MYSQL_RES *result = mysql_store_result(m_mysql.get());
+            if (!result && mysql_field_count(m_mysql.get()) > 0)
             {
-                throw DBException("9U0V1W2X3Y4Z", std::string("Failed to get result set: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                throw DBException("9U0V1W2X3Y4Z", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack());
             }
 
             return std::make_shared<MySQLResultSet>(result);
@@ -1141,12 +1177,12 @@ namespace cpp_dbc
                 throw DBException("5A6B7C8D9E0F", "Connection is closed", system_utils::captureCallStack());
             }
 
-            if (mysql_query(m_mysql, sql.c_str()) != 0)
+            if (mysql_query(m_mysql.get(), sql.c_str()) != 0)
             {
-                throw DBException("1G2H3I4J5K6L", std::string("Update failed: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                throw DBException("1G2H3I4J5K6L", std::string("Update failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack());
             }
 
-            return mysql_affected_rows(m_mysql);
+            return mysql_affected_rows(m_mysql.get());
         }
 
         bool MySQLConnection::beginTransaction()
@@ -1164,9 +1200,9 @@ namespace cpp_dbc
 
             // Start transaction by disabling autocommit
             std::string query = "SET autocommit=0";
-            if (mysql_query(m_mysql, query.c_str()) != 0)
+            if (mysql_query(m_mysql.get(), query.c_str()) != 0)
             {
-                throw DBException("N3O4P5Q6R7S8", std::string("Failed to begin transaction: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                throw DBException("N3O4P5Q6R7S8", std::string("Failed to begin transaction: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack());
             }
 
             m_autoCommit = false;
@@ -1201,9 +1237,9 @@ namespace cpp_dbc
                 {
                     // Habilitar autocommit (1) y desactivar transacciones
                     std::string query = "SET autocommit=1";
-                    if (mysql_query(m_mysql, query.c_str()) != 0)
+                    if (mysql_query(m_mysql.get(), query.c_str()) != 0)
                     {
-                        throw DBException("N3O4P5Q6R7S8", std::string("Failed to set autocommit mode: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                        throw DBException("N3O4P5Q6R7S8", std::string("Failed to set autocommit mode: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack());
                     }
 
                     this->m_autoCommit = true;
@@ -1235,9 +1271,9 @@ namespace cpp_dbc
                 return;
             }
 
-            if (mysql_query(m_mysql, "COMMIT") != 0)
+            if (mysql_query(m_mysql.get(), "COMMIT") != 0)
             {
-                throw DBException("9Y0Z1A2B3C4D", std::string("Commit failed: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                throw DBException("9Y0Z1A2B3C4D", std::string("Commit failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack());
             }
 
             m_transactionActive = false;
@@ -1262,9 +1298,9 @@ namespace cpp_dbc
                 return;
             }
 
-            if (mysql_query(m_mysql, "ROLLBACK") != 0)
+            if (mysql_query(m_mysql.get(), "ROLLBACK") != 0)
             {
-                throw DBException("1K2L3M4N5O6P", std::string("Rollback failed: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                throw DBException("1K2L3M4N5O6P", std::string("Rollback failed: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack());
             }
 
             m_transactionActive = false;
@@ -1302,9 +1338,9 @@ namespace cpp_dbc
                 throw DBException("7Q8R9S0T1U2V", "Unsupported transaction isolation level", system_utils::captureCallStack());
             }
 
-            if (mysql_query(m_mysql, query.c_str()) != 0)
+            if (mysql_query(m_mysql.get(), query.c_str()) != 0)
             {
-                throw DBException("3W4X5Y6Z7A8B", std::string("Failed to set transaction isolation level: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                throw DBException("3W4X5Y6Z7A8B", std::string("Failed to set transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack());
             }
 
             // Verify that the isolation level was actually set
@@ -1341,21 +1377,21 @@ namespace cpp_dbc
             try
             {
                 // Query the current isolation level
-                if (mysql_query(m_mysql, "SELECT @@transaction_isolation") != 0)
+                if (mysql_query(m_mysql.get(), "SELECT @@transaction_isolation") != 0)
                 {
                     // Fall back to older MySQL versions that use tx_isolation
-                    if (mysql_query(m_mysql, "SELECT @@tx_isolation") != 0)
+                    if (mysql_query(m_mysql.get(), "SELECT @@tx_isolation") != 0)
                     {
                         inGetTransactionIsolation = false;
-                        throw DBException("5I6J7K8L9M0N", std::string("Failed to get transaction isolation level: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                        throw DBException("5I6J7K8L9M0N", std::string("Failed to get transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack());
                     }
                 }
 
-                MYSQL_RES *result = mysql_store_result(m_mysql);
+                MYSQL_RES *result = mysql_store_result(m_mysql.get());
                 if (!result)
                 {
                     inGetTransactionIsolation = false;
-                    throw DBException("1O2P3Q4R5S6T", std::string("Failed to get result set: ") + mysql_error(m_mysql), system_utils::captureCallStack());
+                    throw DBException("1O2P3Q4R5S6T", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack());
                 }
 
                 MYSQL_ROW row = mysql_fetch_row(result);

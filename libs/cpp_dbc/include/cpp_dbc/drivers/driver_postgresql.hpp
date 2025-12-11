@@ -35,11 +35,67 @@ namespace cpp_dbc
 {
     namespace PostgreSQL
     {
+        /**
+         * @brief Custom deleter for PGresult* to use with unique_ptr
+         *
+         * This deleter ensures that PQclear() is called automatically
+         * when the unique_ptr goes out of scope, preventing memory leaks.
+         */
+        struct PGresultDeleter
+        {
+            void operator()(PGresult *result) const noexcept
+            {
+                if (result)
+                {
+                    PQclear(result);
+                }
+            }
+        };
+
+        /**
+         * @brief Custom deleter for PGconn* to use with shared_ptr
+         *
+         * This deleter ensures that PQfinish() is called automatically
+         * when the shared_ptr reference count reaches zero, preventing resource leaks.
+         */
+        struct PGconnDeleter
+        {
+            void operator()(PGconn *conn) const noexcept
+            {
+                if (conn)
+                {
+                    PQfinish(conn);
+                }
+            }
+        };
+
+        /**
+         * @brief Type alias for the smart pointer managing PGresult
+         *
+         * Uses unique_ptr with custom deleter to ensure automatic cleanup
+         * of PostgreSQL result sets, even in case of exceptions.
+         */
+        using PGresultHandle = std::unique_ptr<PGresult, PGresultDeleter>;
+
+        /**
+         * @brief Type alias for the smart pointer managing PGconn connection (shared_ptr for weak_ptr support)
+         *
+         * Uses shared_ptr so that PreparedStatements can use weak_ptr to safely
+         * detect when the connection has been closed.
+         * Note: The deleter is passed to the constructor, not as a template parameter.
+         */
+        using PGconnHandle = std::shared_ptr<PGconn>;
 
         class PostgreSQLResultSet : public ResultSet
         {
         private:
-            PGresult *m_result{nullptr};
+            /**
+             * @brief Smart pointer for PGresult - automatically calls PQclear
+             *
+             * This is an OWNING pointer that manages the lifecycle of the PostgreSQL result set.
+             * When this pointer is reset or destroyed, PQclear() is called automatically.
+             */
+            PGresultHandle m_result;
             int m_rowPosition{0};
             int m_rowCount{0};
             int m_fieldCount{0};
@@ -93,7 +149,7 @@ namespace cpp_dbc
             friend class PostgreSQLConnection;
 
         private:
-            PGconn *m_conn{nullptr};
+            std::weak_ptr<PGconn> m_conn; // Safe weak reference to connection - detects when connection is closed
             std::string m_sql;
             std::string m_stmtName;
             std::vector<std::string> m_paramValues;
@@ -112,8 +168,11 @@ namespace cpp_dbc
             // Helper method to process SQL and count parameters
             int processSQL(std::string &sqlQuery) const;
 
+            // Helper method to get PGconn* safely, throws if connection is closed
+            PGconn *getPGConnection() const;
+
         public:
-            PostgreSQLPreparedStatement(PGconn *conn, const std::string &sql, const std::string &stmt_name);
+            PostgreSQLPreparedStatement(std::weak_ptr<PGconn> conn, const std::string &sql, const std::string &stmt_name);
             ~PostgreSQLPreparedStatement() override;
 
             void setInt(int parameterIndex, int value) override;
@@ -141,7 +200,7 @@ namespace cpp_dbc
         class PostgreSQLConnection : public Connection
         {
         private:
-            PGconn *m_conn{nullptr};
+            PGconnHandle m_conn; // shared_ptr allows PreparedStatements to use weak_ptr
             bool m_closed{true};
             bool m_autoCommit{true};
             bool m_transactionActive{false};
@@ -151,6 +210,7 @@ namespace cpp_dbc
             // Cached URL string
             std::string m_url;
 
+            // Registry of active prepared statements
             std::set<std::shared_ptr<PostgreSQLPreparedStatement>> m_activeStatements;
             std::mutex m_statementsMutex;
 

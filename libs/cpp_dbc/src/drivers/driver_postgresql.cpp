@@ -44,13 +44,13 @@ namespace cpp_dbc
         {
             if (m_result)
             {
-                m_rowCount = PQntuples(m_result);
-                m_fieldCount = PQnfields(m_result);
+                m_rowCount = PQntuples(m_result.get());
+                m_fieldCount = PQnfields(m_result.get());
 
                 // Store column names and create column name to index mapping
                 for (int i = 0; i < m_fieldCount; i++)
                 {
-                    std::string name = PQfname(m_result, i);
+                    std::string name = PQfname(m_result.get(), i);
                     m_columnNames.push_back(name);
                     m_columnMap[name] = i;
                 }
@@ -104,12 +104,12 @@ namespace cpp_dbc
             int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
-            if (PQgetisnull(m_result, row, idx))
+            if (PQgetisnull(m_result.get(), row, idx))
             {
                 return 0; // Return 0 for NULL values (similar to JDBC)
             }
 
-            const char *value = PQgetvalue(m_result, row, idx);
+            const char *value = PQgetvalue(m_result.get(), row, idx);
             try
             {
                 return std::stoi(value);
@@ -141,12 +141,12 @@ namespace cpp_dbc
             int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
-            if (PQgetisnull(m_result, row, idx))
+            if (PQgetisnull(m_result.get(), row, idx))
             {
                 return 0;
             }
 
-            const char *value = PQgetvalue(m_result, row, idx);
+            const char *value = PQgetvalue(m_result.get(), row, idx);
             try
             {
                 return std::stol(value);
@@ -178,12 +178,12 @@ namespace cpp_dbc
             int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
-            if (PQgetisnull(m_result, row, idx))
+            if (PQgetisnull(m_result.get(), row, idx))
             {
                 return 0.0;
             }
 
-            const char *value = PQgetvalue(m_result, row, idx);
+            const char *value = PQgetvalue(m_result.get(), row, idx);
             try
             {
                 return std::stod(value);
@@ -215,12 +215,12 @@ namespace cpp_dbc
             int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
-            if (PQgetisnull(m_result, row, idx))
+            if (PQgetisnull(m_result.get(), row, idx))
             {
                 return "";
             }
 
-            return std::string(PQgetvalue(m_result, row, idx));
+            return std::string(PQgetvalue(m_result.get(), row, idx));
         }
 
         std::string PostgreSQLResultSet::getString(const std::string &columnName)
@@ -261,7 +261,7 @@ namespace cpp_dbc
             int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
-            return PQgetisnull(m_result, row, idx);
+            return PQgetisnull(m_result.get(), row, idx);
         }
 
         bool PostgreSQLResultSet::isNull(const std::string &columnName)
@@ -289,8 +289,8 @@ namespace cpp_dbc
         {
             if (m_result)
             {
-                PQclear(m_result);
-                m_result = nullptr;
+                // Smart pointer will automatically call PQclear via PGresultDeleter
+                m_result.reset();
                 m_rowPosition = 0;
                 m_rowCount = 0;
                 m_fieldCount = 0;
@@ -298,6 +298,17 @@ namespace cpp_dbc
         }
 
         // PostgreSQLPreparedStatement implementation
+        // Helper method to get PGconn* safely, throws if connection is closed
+        PGconn *PostgreSQLPreparedStatement::getPGConnection() const
+        {
+            auto conn = m_conn.lock();
+            if (!conn)
+            {
+                throw DBException("4EB26050A94C", "PostgreSQL connection has been closed", system_utils::captureCallStack());
+            }
+            return conn.get();
+        }
+
         // Helper method to process SQL and count parameters
         int PostgreSQLPreparedStatement::processSQL(std::string &sqlQuery) const
         {
@@ -367,10 +378,12 @@ namespace cpp_dbc
             return paramCount;
         }
 
-        PostgreSQLPreparedStatement::PostgreSQLPreparedStatement(PGconn *conn_handle, const std::string &sql_stmt, const std::string &stmt_name)
+        PostgreSQLPreparedStatement::PostgreSQLPreparedStatement(std::weak_ptr<PGconn> conn_handle, const std::string &sql_stmt, const std::string &stmt_name)
             : m_conn(conn_handle), m_sql(sql_stmt), m_stmtName(stmt_name)
         {
-            if (!m_conn)
+            // Verify connection is valid by trying to lock it
+            PGconn *connPtr = getPGConnection();
+            if (!connPtr)
             {
                 throw DBException("5Q6R7S8T9U0V", "Invalid PostgreSQL connection", system_utils::captureCallStack());
             }
@@ -408,12 +421,16 @@ namespace cpp_dbc
         {
             if (m_prepared)
             {
-                // Deallocate the prepared statement
-                std::string deallocateSQL = "DEALLOCATE " + m_stmtName;
-                PGresult *res = PQexec(m_conn, deallocateSQL.c_str());
-                if (res)
+                // Try to deallocate the prepared statement if connection is still valid
+                auto conn = m_conn.lock();
+                if (conn)
                 {
-                    PQclear(res);
+                    std::string deallocateSQL = "DEALLOCATE " + m_stmtName;
+                    PGresult *res = PQexec(conn.get(), deallocateSQL.c_str());
+                    if (res)
+                    {
+                        PQclear(res);
+                    }
                 }
                 m_prepared = false;
             }
@@ -575,15 +592,13 @@ namespace cpp_dbc
 
         std::shared_ptr<ResultSet> PostgreSQLPreparedStatement::executeQuery()
         {
-            if (!m_conn)
-            {
-                throw DBException("7O8P9Q0R1S2T", "Connection is invalid", system_utils::captureCallStack());
-            }
+            // Get the connection safely (throws if connection is closed)
+            PGconn *connPtr = getPGConnection();
 
             // Prepare the statement if not already prepared
             if (!m_prepared)
             {
-                PGresult *prepareResult = PQprepare(m_conn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
+                PGresult *prepareResult = PQprepare(connPtr, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
                 if (PQresultStatus(prepareResult) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
@@ -606,7 +621,7 @@ namespace cpp_dbc
             std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
 
             PGresult *result = PQexecPrepared(
-                m_conn,
+                connPtr,
                 m_stmtName.c_str(),
                 static_cast<int>(m_paramValues.size()),
                 paramValuePtrs.data(),
@@ -633,15 +648,13 @@ namespace cpp_dbc
 
         uint64_t PostgreSQLPreparedStatement::executeUpdate()
         {
-            if (!m_conn)
-            {
-                throw DBException("5G6H7I8J9K0L", "Connection is invalid", system_utils::captureCallStack());
-            }
+            // Get the connection safely (throws if connection is closed)
+            PGconn *connPtr = getPGConnection();
 
             // Prepare the statement if not already prepared
             if (!m_prepared)
             {
-                PGresult *prepareResult = PQprepare(m_conn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
+                PGresult *prepareResult = PQprepare(connPtr, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
                 if (PQresultStatus(prepareResult) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
@@ -664,7 +677,7 @@ namespace cpp_dbc
             std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
 
             PGresult *result = PQexecPrepared(
-                m_conn,
+                connPtr,
                 m_stmtName.c_str(),
                 static_cast<int>(m_paramValues.size()),
                 paramValuePtrs.data(),
@@ -698,15 +711,13 @@ namespace cpp_dbc
 
         bool PostgreSQLPreparedStatement::execute()
         {
-            if (!m_conn)
-            {
-                throw DBException("3Y4Z5A6B7C8D", "Connection is invalid", system_utils::captureCallStack());
-            }
+            // Get the connection safely (throws if connection is closed)
+            PGconn *connPtr = getPGConnection();
 
             // Prepare the statement if not already prepared
             if (!m_prepared)
             {
-                PGresult *prepareResult = PQprepare(m_conn, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
+                PGresult *prepareResult = PQprepare(connPtr, m_stmtName.c_str(), m_sql.c_str(), static_cast<int>(m_paramValues.size()), m_paramTypes.data());
                 if (PQresultStatus(prepareResult) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
@@ -729,7 +740,7 @@ namespace cpp_dbc
             std::vector<int> paramLengthsInt(m_paramLengths.begin(), m_paramLengths.end());
 
             PGresult *result = PQexecPrepared(
-                m_conn,
+                connPtr,
                 m_stmtName.c_str(),
                 static_cast<int>(m_paramValues.size()),
                 paramValuePtrs.data(),
@@ -765,13 +776,13 @@ namespace cpp_dbc
             int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
-            if (PQgetisnull(m_result, row, idx))
+            if (PQgetisnull(m_result.get(), row, idx))
             {
                 return std::make_shared<PostgreSQLBlob>(nullptr);
             }
 
             // Check if the column is a bytea type
-            Oid type = PQftype(m_result, idx);
+            Oid type = PQftype(m_result.get(), idx);
             if (type != 17) // BYTEAOID
             {
                 throw DBException("EA04B0D9155C", "Column is not a BLOB/bytea type", system_utils::captureCallStack());
@@ -811,7 +822,7 @@ namespace cpp_dbc
             int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
-            if (PQgetisnull(m_result, row, idx))
+            if (PQgetisnull(m_result.get(), row, idx))
             {
                 // Return an empty stream
                 return std::make_shared<PostgreSQLInputStream>("", 0);
@@ -856,17 +867,17 @@ namespace cpp_dbc
             int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
-            if (PQgetisnull(m_result, row, idx))
+            if (PQgetisnull(m_result.get(), row, idx))
             {
                 return {};
             }
 
             // Get the binary data
-            const char *value = PQgetvalue(m_result, row, idx);
-            int length = PQgetlength(m_result, row, idx);
+            const char *value = PQgetvalue(m_result.get(), row, idx);
+            int length = PQgetlength(m_result.get(), row, idx);
 
             // Check if the column is a bytea type
-            Oid type = PQftype(m_result, idx);
+            Oid type = PQftype(m_result.get(), idx);
 
             // Create a vector with the data
             std::vector<uint8_t> data;
@@ -1120,7 +1131,7 @@ namespace cpp_dbc
                                                    const std::string &user,
                                                    const std::string &password,
                                                    const std::map<std::string, std::string> &options)
-            : m_conn(nullptr), m_closed(false), m_autoCommit(true), m_transactionActive(false), m_statementCounter(0),
+            : m_closed(false), m_autoCommit(true), m_transactionActive(false), m_statementCounter(0),
               m_isolationLevel(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) // PostgreSQL default
         {
             // Build connection string
@@ -1144,18 +1155,20 @@ namespace cpp_dbc
                 conninfo << "gssencmode=disable";
             }
 
-            // Connect to the database
-            m_conn = PQconnectdb(conninfo.str().c_str());
-            if (PQstatus(m_conn) != CONNECTION_OK)
+            // Connect to the database - create shared_ptr with custom deleter
+            PGconn *rawConn = PQconnectdb(conninfo.str().c_str());
+            if (PQstatus(rawConn) != CONNECTION_OK)
             {
-                std::string error = PQerrorMessage(m_conn);
-                PQfinish(m_conn);
-                m_conn = nullptr;
+                std::string error = PQerrorMessage(rawConn);
+                PQfinish(rawConn);
                 throw DBException("1Q2R3S4T5U6V", "Failed to connect to PostgreSQL: " + error, system_utils::captureCallStack());
             }
 
+            // Wrap in shared_ptr with custom deleter
+            m_conn = std::shared_ptr<PGconn>(rawConn, PGconnDeleter());
+
             // Set up a notice processor to suppress NOTICE messages
-            PQsetNoticeProcessor(m_conn, [](void *, const char *)
+            PQsetNoticeProcessor(m_conn.get(), [](void *, const char *)
                                  {
                                      // Do nothing with the notice message
                                  },
@@ -1189,7 +1202,6 @@ namespace cpp_dbc
                     std::lock_guard<std::mutex> lock(m_statementsMutex);
                     for (auto &stmt : m_activeStatements)
                     {
-                        // if (auto stmt = weakStmt.lock())
                         if (stmt)
                         {
                             stmt->notifyConnClosing();
@@ -1198,12 +1210,12 @@ namespace cpp_dbc
                     m_activeStatements.clear();
                 }
 
-                PQfinish(m_conn);
-                m_conn = nullptr;
-                m_closed = true;
+                // Sleep for 25ms to avoid problems with concurrency
+                std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
-                // Sleep for 5ms to avoid problems with concurrency and memory stability
-                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                // shared_ptr will automatically call PQfinish via PGconnDeleter
+                m_conn.reset();
+                m_closed = true;
             }
         }
 
@@ -1247,9 +1259,10 @@ namespace cpp_dbc
                 throw DBException("7W8X9Y0Z1A2B", "Connection is closed", system_utils::captureCallStack());
             }
 
-            // Generate a unique statement name and pass it to the prepared statement
+            // Generate a unique statement name and pass weak_ptr to the prepared statement
+            // so it can safely detect when connection is closed
             std::string stmtName = generateStatementName();
-            auto stmt = std::make_shared<PostgreSQLPreparedStatement>(m_conn, sql, stmtName);
+            auto stmt = std::make_shared<PostgreSQLPreparedStatement>(std::weak_ptr<PGconn>(m_conn), sql, stmtName);
 
             registerStatement(stmt);
 
@@ -1263,7 +1276,7 @@ namespace cpp_dbc
                 throw DBException("3C4D5E6F7G8H", "Connection is closed", system_utils::captureCallStack());
             }
 
-            PGresult *result = PQexec(m_conn, sql.c_str());
+            PGresult *result = PQexec(m_conn.get(), sql.c_str());
             if (PQresultStatus(result) != PGRES_TUPLES_OK)
             {
                 std::string error = PQresultErrorMessage(result);
@@ -1281,7 +1294,7 @@ namespace cpp_dbc
                 throw DBException("5O6P7Q8R9S0T", "Connection is closed", system_utils::captureCallStack());
             }
 
-            PGresult *result = PQexec(m_conn, sql.c_str());
+            PGresult *result = PQexec(m_conn.get(), sql.c_str());
             if (PQresultStatus(result) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(result);
@@ -1323,7 +1336,7 @@ namespace cpp_dbc
                 beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
 
                 // Execute the BEGIN command
-                PGresult *dummyResult = PQexec(m_conn, beginCmd.c_str());
+                PGresult *dummyResult = PQexec(m_conn.get(), beginCmd.c_str());
                 if (PQresultStatus(dummyResult) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(dummyResult);
@@ -1333,7 +1346,7 @@ namespace cpp_dbc
                 PQclear(dummyResult);
 
                 // Force snapshot acquisition with a dummy query
-                PGresult *snapshotResult = PQexec(m_conn, "SELECT 1");
+                PGresult *snapshotResult = PQexec(m_conn.get(), "SELECT 1");
                 if (PQresultStatus(snapshotResult) != PGRES_TUPLES_OK)
                 {
                     std::string error = PQresultErrorMessage(snapshotResult);
@@ -1345,7 +1358,7 @@ namespace cpp_dbc
             else
             {
                 // Standard BEGIN for other isolation levels
-                PGresult *result = PQexec(m_conn, beginCmd.c_str());
+                PGresult *result = PQexec(m_conn.get(), beginCmd.c_str());
                 if (PQresultStatus(result) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(result);
@@ -1421,7 +1434,7 @@ namespace cpp_dbc
                 return;
             }
 
-            PGresult *result = PQexec(m_conn, "COMMIT");
+            PGresult *result = PQexec(m_conn.get(), "COMMIT");
             if (PQresultStatus(result) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(result);
@@ -1447,7 +1460,7 @@ namespace cpp_dbc
                 return;
             }
 
-            PGresult *result = PQexec(m_conn, "ROLLBACK");
+            PGresult *result = PQexec(m_conn.get(), "ROLLBACK");
             if (PQresultStatus(result) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(result);
@@ -1487,7 +1500,7 @@ namespace cpp_dbc
                 throw DBException("9U0V1W2X3Y4Z", "Unsupported transaction isolation level", system_utils::captureCallStack());
             }
 
-            PGresult *result = PQexec(m_conn, query.c_str());
+            PGresult *result = PQexec(m_conn.get(), query.c_str());
             if (PQresultStatus(result) != PGRES_COMMAND_OK)
             {
                 std::string error = PQresultErrorMessage(result);
@@ -1502,7 +1515,7 @@ namespace cpp_dbc
             // for the new isolation level to take effect
             if (!m_autoCommit)
             {
-                result = PQexec(m_conn, "COMMIT");
+                result = PQexec(m_conn.get(), "COMMIT");
                 if (PQresultStatus(result) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(result);
@@ -1515,7 +1528,7 @@ namespace cpp_dbc
                 if (m_isolationLevel == TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
                 {
                     std::string beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
-                    result = PQexec(m_conn, beginCmd.c_str());
+                    result = PQexec(m_conn.get(), beginCmd.c_str());
                     if (PQresultStatus(result) != PGRES_COMMAND_OK)
                     {
                         std::string error = PQresultErrorMessage(result);
@@ -1525,7 +1538,7 @@ namespace cpp_dbc
                     PQclear(result);
 
                     // Force snapshot acquisition with a dummy query
-                    PGresult *snapshotResult = PQexec(m_conn, "SELECT 1");
+                    PGresult *snapshotResult = PQexec(m_conn.get(), "SELECT 1");
                     if (PQresultStatus(snapshotResult) != PGRES_TUPLES_OK)
                     {
                         std::string error = PQresultErrorMessage(snapshotResult);
@@ -1537,7 +1550,7 @@ namespace cpp_dbc
                 else
                 {
                     // Standard BEGIN for other isolation levels
-                    result = PQexec(m_conn, "BEGIN");
+                    result = PQexec(m_conn.get(), "BEGIN");
                     if (PQresultStatus(result) != PGRES_COMMAND_OK)
                     {
                         std::string error = PQresultErrorMessage(result);
@@ -1557,7 +1570,7 @@ namespace cpp_dbc
             }
 
             // Query the current isolation level
-            PGresult *result = PQexec(m_conn, "SHOW transaction_isolation");
+            PGresult *result = PQexec(m_conn.get(), "SHOW transaction_isolation");
             if (PQresultStatus(result) != PGRES_TUPLES_OK)
             {
                 std::string error = PQresultErrorMessage(result);
@@ -1627,10 +1640,7 @@ namespace cpp_dbc
 
         PostgreSQLDriver::~PostgreSQLDriver()
         {
-            // Also call PQfinish with nullptr as a fallback
-            PQfinish(nullptr);
-
-            // Sleep a bit more to ensure all resources are properly released
+            // Sleep a bit to ensure all resources are properly released
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
 

@@ -35,20 +35,85 @@ namespace cpp_dbc
 {
     namespace MySQL
     {
+        /**
+         * @brief Custom deleter for MYSQL_RES* to use with unique_ptr
+         *
+         * This deleter ensures that mysql_free_result() is called automatically
+         * when the unique_ptr goes out of scope, preventing memory leaks.
+         */
+        struct MySQLResDeleter
+        {
+            void operator()(MYSQL_RES *res) const noexcept
+            {
+                if (res)
+                {
+                    mysql_free_result(res);
+                }
+            }
+        };
+
+        /**
+         * @brief Type alias for the smart pointer managing MYSQL_RES
+         *
+         * Uses unique_ptr with custom deleter to ensure automatic cleanup
+         * of MySQL result sets, even in case of exceptions.
+         */
+        using MySQLResHandle = std::unique_ptr<MYSQL_RES, MySQLResDeleter>;
 
         class MySQLResultSet : public ResultSet
         {
         private:
-            MYSQL_RES *m_result{nullptr};
+            /**
+             * @brief Smart pointer for MYSQL_RES - automatically calls mysql_free_result
+             *
+             * This is an OWNING pointer that manages the lifecycle of the MySQL result set.
+             * When this pointer is reset or destroyed, mysql_free_result() is called automatically.
+             */
+            MySQLResHandle m_result;
+
+            /**
+             * @brief Non-owning pointer to internal data within m_result
+             *
+             * IMPORTANT: This is intentionally a raw pointer, NOT a smart pointer, because:
+             *
+             * 1. MYSQL_ROW is a typedef for char** - it points to internal memory managed
+             *    by the MYSQL_RES structure, not separately allocated memory.
+             *
+             * 2. This memory is automatically managed by the MySQL library:
+             *    - It is invalidated when mysql_fetch_row() is called again
+             *    - It is freed automatically when mysql_free_result() is called on m_result
+             *
+             * 3. Using a smart pointer here would cause DOUBLE-FREE errors because:
+             *    - The smart pointer would try to free memory it doesn't own
+             *    - mysql_free_result() would also try to free the same memory
+             *
+             * 4. Protection is provided through:
+             *    - validateCurrentRow() method that checks both m_result and m_currentRow
+             *    - Explicit nullification in close() and next() when appropriate
+             *    - Exception throwing when accessing invalid state
+             */
             MYSQL_ROW m_currentRow{nullptr};
+
             size_t m_rowPosition{0};
             size_t m_rowCount{0};
             size_t m_fieldCount{0};
             std::vector<std::string> m_columnNames;
             std::map<std::string, size_t> m_columnMap;
 
+            /**
+             * @brief Validates that the result set is still valid (not closed)
+             * @throws DBException if m_result is nullptr
+             */
+            void validateResultState() const;
+
+            /**
+             * @brief Validates that there is a current row to read from
+             * @throws DBException if m_result is nullptr or m_currentRow is nullptr
+             */
+            void validateCurrentRow() const;
+
         public:
-            MySQLResultSet(MYSQL_RES *res);
+            explicit MySQLResultSet(MYSQL_RES *res);
             ~MySQLResultSet() override;
 
             bool next() override;
@@ -89,14 +154,29 @@ namespace cpp_dbc
             std::vector<uint8_t> getBytes(const std::string &columnName) override;
         };
 
+        // Custom deleter for MYSQL_STMT* to use with unique_ptr
+        struct MySQLStmtDeleter
+        {
+            void operator()(MYSQL_STMT *stmt) const noexcept
+            {
+                if (stmt)
+                {
+                    mysql_stmt_close(stmt);
+                }
+            }
+        };
+
+        // Type alias for the smart pointer managing MYSQL_STMT
+        using MySQLStmtHandle = std::unique_ptr<MYSQL_STMT, MySQLStmtDeleter>;
+
         class MySQLPreparedStatement : public PreparedStatement
         {
             friend class MySQLConnection;
 
         private:
-            MYSQL *m_mysql{nullptr};
+            std::weak_ptr<MYSQL> m_mysql; // Safe weak reference to connection - detects when connection is closed
             std::string m_sql;
-            MYSQL_STMT *m_stmt{nullptr};
+            MySQLStmtHandle m_stmt; // Smart pointer for MYSQL_STMT - automatically calls mysql_stmt_close
             std::vector<MYSQL_BIND> m_binds;
             std::vector<std::string> m_stringValues;                   // To keep string values alive
             std::vector<std::string> m_parameterValues;                // To store parameter values for query reconstruction
@@ -111,8 +191,11 @@ namespace cpp_dbc
             // Internal method called by connection when closing
             void notifyConnClosing();
 
+            // Helper method to get MYSQL* safely, throws if connection is closed
+            MYSQL *getMySQLConnection() const;
+
         public:
-            MySQLPreparedStatement(MYSQL *mysql, const std::string &sql);
+            MySQLPreparedStatement(std::weak_ptr<MYSQL> mysql, const std::string &sql);
             ~MySQLPreparedStatement() override;
 
             void setInt(int parameterIndex, int value) override;
@@ -137,10 +220,26 @@ namespace cpp_dbc
             void close() override;
         };
 
+        // Custom deleter for MYSQL* to use with shared_ptr
+        struct MySQLDeleter
+        {
+            void operator()(MYSQL *mysql) const noexcept
+            {
+                if (mysql)
+                {
+                    mysql_close(mysql);
+                }
+            }
+        };
+
+        // Type alias for the smart pointer managing MYSQL connection (shared_ptr for weak_ptr support)
+        // Note: The deleter is passed to the constructor, not as a template parameter
+        using MySQLHandle = std::shared_ptr<MYSQL>;
+
         class MySQLConnection : public Connection
         {
         private:
-            MYSQL *m_mysql{nullptr};
+            MySQLHandle m_mysql; // shared_ptr allows PreparedStatements to use weak_ptr
             bool m_closed{true};
             bool m_autoCommit{true};
             bool m_transactionActive{false};

@@ -45,25 +45,22 @@ namespace cpp_dbc
 {
     namespace SQLite
     {
-        // Initialize static members
-
-        // Initialize static members
-        std::set<std::weak_ptr<SQLiteConnection>, std::owner_less<std::weak_ptr<SQLiteConnection>>> SQLiteConnection::activeConnections;
-        std::mutex SQLiteConnection::connectionsListMutex;
+        // No static members needed - connection tracking is done via weak_ptr in PreparedStatement
 
         // SQLiteResultSet implementation
         SQLiteResultSet::SQLiteResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteConnection> conn)
-            : m_stmt(stmt), m_ownStatement(ownStatement), m_rowPosition(0), m_rowCount(0), m_fieldCount(0), m_columnNames(), m_columnMap(), m_hasData(false), m_closed(false), m_connection(conn)
+            : m_stmt(stmt), m_ownStatement(ownStatement), m_rowPosition(0), m_rowCount(0), m_fieldCount(0),
+              m_columnNames(), m_columnMap(), m_hasData(false), m_closed(false), m_connection(conn)
         {
-            if (stmt)
+            if (m_stmt)
             {
                 // Get column count
-                m_fieldCount = static_cast<size_t>(sqlite3_column_count(stmt));
+                m_fieldCount = static_cast<size_t>(sqlite3_column_count(m_stmt));
 
                 // Store column names and create column name to index mapping
                 for (size_t i = 0; i < m_fieldCount; i++)
                 {
-                    std::string name = sqlite3_column_name(stmt, static_cast<int>(i));
+                    std::string name = sqlite3_column_name(m_stmt, static_cast<int>(i));
                     m_columnNames.push_back(name);
                     m_columnMap[name] = i;
                 }
@@ -85,32 +82,19 @@ namespace cpp_dbc
                 // Ignore exceptions during destruction
             }
 
-            // Double-check that resources are released
-            if (m_stmt && m_ownStatement)
-            {
-                // Asegurarse de que el statement se finaliza correctamente
-                int result = sqlite3_finalize(m_stmt);
-                if (result != SQLITE_OK)
-                {
-                    // No podemos lanzar excepciones en el destructor, así que solo registramos el error
-                    SQLITE_DEBUG("A1B2C3D4E5F6: Error finalizing SQLite statement in destructor: "
-                                 << sqlite3_errstr(result));
-                }
-                m_stmt = nullptr;
-            }
-
             // Sleep briefly to ensure resources are released
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
         bool SQLiteResultSet::next()
         {
-            if (!m_stmt || m_closed)
+            sqlite3_stmt *stmt = getStmt();
+            if (!stmt || m_closed)
             {
                 return false;
             }
 
-            int result = sqlite3_step(m_stmt);
+            int result = sqlite3_step(stmt);
 
             if (result == SQLITE_ROW)
             {
@@ -127,7 +111,7 @@ namespace cpp_dbc
             else
             {
                 // Error occurred
-                throw DBException("A1B2C3D4E5F6", "Error stepping through SQLite result set: " + std::string(sqlite3_errmsg(sqlite3_db_handle(m_stmt))),
+                throw DBException("A1B2C3D4E5F6", "Error stepping through SQLite result set: " + std::string(sqlite3_errmsg(sqlite3_db_handle(stmt))),
                                   system_utils::captureCallStack());
             }
         }
@@ -149,7 +133,8 @@ namespace cpp_dbc
 
         int SQLiteResultSet::getInt(size_t columnIndex)
         {
-            if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+            sqlite3_stmt *stmt = getStmt();
+            if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("7A8B9C0D1E2F", "Invalid column index or row position",
                                   system_utils::captureCallStack());
@@ -158,12 +143,12 @@ namespace cpp_dbc
             // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
             int idx = static_cast<int>(columnIndex - 1);
 
-            if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
+            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
             {
                 return 0; // Return 0 for NULL values (similar to JDBC)
             }
 
-            return sqlite3_column_int(m_stmt, idx);
+            return sqlite3_column_int(stmt, idx);
         }
 
         int SQLiteResultSet::getInt(const std::string &columnName)
@@ -180,7 +165,8 @@ namespace cpp_dbc
 
         long SQLiteResultSet::getLong(size_t columnIndex)
         {
-            if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+            sqlite3_stmt *stmt = getStmt();
+            if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("DDAABD02C9D3", "Invalid column index or row position",
                                   system_utils::captureCallStack());
@@ -188,12 +174,12 @@ namespace cpp_dbc
 
             int idx = static_cast<int>(columnIndex - 1);
 
-            if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
+            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
             {
                 return 0;
             }
 
-            return sqlite3_column_int64(m_stmt, idx);
+            return sqlite3_column_int64(stmt, idx);
         }
 
         long SQLiteResultSet::getLong(const std::string &columnName)
@@ -210,7 +196,8 @@ namespace cpp_dbc
 
         double SQLiteResultSet::getDouble(size_t columnIndex)
         {
-            if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+            sqlite3_stmt *stmt = getStmt();
+            if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("9M0N1O2P3Q4R", "Invalid column index or row position",
                                   system_utils::captureCallStack());
@@ -218,12 +205,12 @@ namespace cpp_dbc
 
             int idx = static_cast<int>(columnIndex - 1);
 
-            if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
+            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
             {
                 return 0.0;
             }
 
-            return sqlite3_column_double(m_stmt, idx);
+            return sqlite3_column_double(stmt, idx);
         }
 
         double SQLiteResultSet::getDouble(const std::string &columnName)
@@ -240,7 +227,8 @@ namespace cpp_dbc
 
         std::string SQLiteResultSet::getString(size_t columnIndex)
         {
-            if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+            sqlite3_stmt *stmt = getStmt();
+            if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("1Y2Z3A4B5C6D", "Invalid column index or row position",
                                   system_utils::captureCallStack());
@@ -248,12 +236,12 @@ namespace cpp_dbc
 
             int idx = static_cast<int>(columnIndex - 1);
 
-            if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
+            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
             {
                 return "";
             }
 
-            const char *text = reinterpret_cast<const char *>(sqlite3_column_text(m_stmt, idx));
+            const char *text = reinterpret_cast<const char *>(sqlite3_column_text(stmt, idx));
             return text ? std::string(text) : "";
         }
 
@@ -281,14 +269,15 @@ namespace cpp_dbc
 
         bool SQLiteResultSet::isNull(size_t columnIndex)
         {
-            if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+            sqlite3_stmt *stmt = getStmt();
+            if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("407EBCBBE843", "Invalid column index or row position",
                                   system_utils::captureCallStack());
             }
 
             int idx = static_cast<int>(columnIndex - 1);
-            return sqlite3_column_type(m_stmt, idx) == SQLITE_NULL;
+            return sqlite3_column_type(stmt, idx) == SQLITE_NULL;
         }
 
         bool SQLiteResultSet::isNull(const std::string &columnName)
@@ -321,7 +310,7 @@ namespace cpp_dbc
                 return;
             }
 
-            if (m_stmt && m_ownStatement)
+            if (m_ownStatement && m_stmt)
             {
                 try
                 {
@@ -339,17 +328,19 @@ namespace cpp_dbc
                                          << sqlite3_errstr(resetResult));
                         }
 
-                        // Now finalize the statement
+                        // Finalize the statement - only if connection is still valid
+                        // If connection is closed, it already finalized all statements via sqlite3_next_stmt()
                         int finalizeResult = sqlite3_finalize(m_stmt);
                         if (finalizeResult != SQLITE_OK)
                         {
-                            SQLITE_DEBUG("3G4H5I6J7K8L: Error finalizing SQLite statement: "
+                            SQLITE_DEBUG("8H9I0J1K2L3M: Error finalizing SQLite statement: "
                                          << sqlite3_errstr(finalizeResult));
                         }
                     }
                     else
                     {
-                        SQLITE_DEBUG("5M6N7O8P9Q0R: SQLiteResultSet::close - Connection is closed or invalid, skipping statement reset/finalize");
+                        SQLITE_DEBUG("5M6N7O8P9Q0R: SQLiteResultSet::close - Connection is closed or invalid, skipping statement finalization");
+                        // Don't finalize - connection already did it
                     }
                 }
                 catch (const std::exception &e)
@@ -360,10 +351,10 @@ namespace cpp_dbc
                 {
                     SQLITE_DEBUG("5Y6Z7A8B9C0D: Unknown exception during SQLite statement close");
                 }
-
-                // Siempre establecer stmt a nullptr, incluso si hay excepciones
-                m_stmt = nullptr;
             }
+
+            // Clear the pointer
+            m_stmt = nullptr;
 
             // Marcar como cerrado antes de limpiar los datos
             m_closed = true;
@@ -380,24 +371,34 @@ namespace cpp_dbc
         }
 
         // SQLitePreparedStatement implementation
-        SQLitePreparedStatement::SQLitePreparedStatement(sqlite3 *db, const std::string &sql)
+        sqlite3 *SQLitePreparedStatement::getSQLiteConnection() const
+        {
+            auto conn = m_db.lock();
+            if (!conn)
+            {
+                throw DBException("471F2E35F962", "SQLite connection has been closed", system_utils::captureCallStack());
+            }
+            return conn.get();
+        }
+
+        SQLitePreparedStatement::SQLitePreparedStatement(std::weak_ptr<sqlite3> db, const std::string &sql)
             : m_db(db), m_sql(sql), m_stmt(nullptr), m_closed(false), m_blobValues(), m_blobObjects(), m_streamObjects()
         {
-            if (!db)
-            {
-                throw DBException("7E8F9G0H1I2J", "Invalid SQLite database connection",
-                                  system_utils::captureCallStack());
-            }
+            sqlite3 *dbPtr = getSQLiteConnection();
 
-            int result = sqlite3_prepare_v2(db, m_sql.c_str(), -1, &m_stmt, nullptr);
+            sqlite3_stmt *rawStmt = nullptr;
+            int result = sqlite3_prepare_v2(dbPtr, m_sql.c_str(), -1, &rawStmt, nullptr);
             if (result != SQLITE_OK)
             {
-                throw DBException("3K4L5M6N7O8P", "Failed to prepare SQLite statement: " + std::string(sqlite3_errmsg(db)),
+                throw DBException("3K4L5M6N7O8P", "Failed to prepare SQLite statement: " + std::string(sqlite3_errmsg(dbPtr)),
                                   system_utils::captureCallStack());
             }
 
+            // Transfer ownership to smart pointer
+            m_stmt.reset(rawStmt);
+
             // Initialize BLOB-related vectors
-            int paramCount = sqlite3_bind_parameter_count(m_stmt);
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             m_blobValues.resize(paramCount);
             m_blobObjects.resize(paramCount);
             m_streamObjects.resize(paramCount);
@@ -418,21 +419,10 @@ namespace cpp_dbc
                 // Ignore exceptions during destruction
             }
 
-            // If close() failed or wasn't called, ensure we clean up
-            if (!m_closed && m_stmt)
-            {
-                int result = sqlite3_finalize(m_stmt);
-                if (result != SQLITE_OK)
-                {
-                    // No podemos lanzar excepciones en el destructor, así que solo registramos el error
-                    SQLITE_DEBUG("1E2F3G4H5I6J: Error finalizing SQLite statement in destructor: "
-                                 << sqlite3_errstr(result));
-                }
-                m_stmt = nullptr;
-            }
+            // Smart pointer m_stmt will automatically call sqlite3_finalize via SQLiteStmtDeleter
+            // No need for manual cleanup - the destructor handles it automatically
 
-            // Reset the statement pointer and mark as closed
-            m_stmt = nullptr;
+            // Mark as closed
             m_closed = true;
 
             // Sleep briefly to ensure resources are released
@@ -443,50 +433,33 @@ namespace cpp_dbc
         {
             if (!m_closed && m_stmt)
             {
-                // Reset the statement first to ensure all bindings are cleared
-                int resetResult = sqlite3_reset(m_stmt);
-                if (resetResult != SQLITE_OK)
+                // Check if connection is still valid before resetting
+                auto dbPtr = m_db.lock();
+                if (dbPtr)
                 {
-                    SQLITE_DEBUG("7K8L9M0N1O2P: Error resetting SQLite statement: "
-                                 << sqlite3_errstr(resetResult));
-                }
-
-                int clearResult = sqlite3_clear_bindings(m_stmt);
-                if (clearResult != SQLITE_OK)
-                {
-                    SQLITE_DEBUG("3Q4R5S6T7U8V: Error clearing SQLite statement bindings: "
-                                 << sqlite3_errstr(clearResult));
-                }
-
-                // Now finalize the statement
-                int finalizeResult = sqlite3_finalize(m_stmt);
-                if (finalizeResult != SQLITE_OK)
-                {
-                    SQLITE_DEBUG("9W0X1Y2Z3A4B: Error finalizing SQLite statement: "
-                                 << sqlite3_errstr(finalizeResult));
-                }
-                m_stmt = nullptr;
-
-                // Unregister from the connection if it's still valid
-                if (m_db)
-                {
-                    try
+                    // Reset the statement first to ensure all bindings are cleared
+                    int resetResult = sqlite3_reset(m_stmt.get());
+                    if (resetResult != SQLITE_OK)
                     {
-                        // Find the connection object that owns this statement
-                        for (auto &weak_conn : SQLiteConnection::activeConnections)
-                        {
-                            auto conn = weak_conn.lock();
-                            if (conn && conn->m_db == m_db)
-                            {
-                                conn->unregisterStatement(shared_from_this());
-                                break;
-                            }
-                        }
+                        SQLITE_DEBUG("7K8L9M0N1O2P: Error resetting SQLite statement: "
+                                     << sqlite3_errstr(resetResult));
                     }
-                    catch (const std::exception &e)
+
+                    int clearResult = sqlite3_clear_bindings(m_stmt.get());
+                    if (clearResult != SQLITE_OK)
                     {
-                        SQLITE_DEBUG("5C6D7E8F9G0H: Exception during statement unregistration: " << e.what());
+                        SQLITE_DEBUG("3Q4R5S6T7U8V: Error clearing SQLite statement bindings: "
+                                     << sqlite3_errstr(clearResult));
                     }
+
+                    // Smart pointer will automatically call sqlite3_finalize via SQLiteStmtDeleter
+                    m_stmt.reset();
+                }
+                else
+                {
+                    // Connection is closed, release without finalizing (connection already did it)
+                    m_stmt.release();
+                    SQLITE_DEBUG("5C6D7E8F9G0H: Connection closed, releasing statement without finalize");
                 }
             }
             m_closed = true;
@@ -497,9 +470,9 @@ namespace cpp_dbc
 
         void SQLitePreparedStatement::notifyConnClosing()
         {
-            // Connection is closing, invalidate the statement without calling sqlite3_finalize
-            // since the connection is already being destroyed
-            m_stmt = nullptr;
+            // Connection is closing, release the statement pointer without calling sqlite3_finalize
+            // since the connection is already being destroyed and will clean up all statements
+            m_stmt.release(); // Release without calling deleter
             m_closed = true;
         }
 
@@ -510,6 +483,9 @@ namespace cpp_dbc
                 throw DBException("9Q0R1S2T3U4V", "Statement is closed",
                                   system_utils::captureCallStack());
             }
+
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
 
             // Do not reset or clear bindings here
             // This would erase previously set parameters
@@ -523,7 +499,7 @@ namespace cpp_dbc
             }
 
             // Get the number of parameters in the statement
-            int paramCount = sqlite3_bind_parameter_count(m_stmt);
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
                 throw DBException("1C2D3E4F5G6H", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
@@ -534,10 +510,10 @@ namespace cpp_dbc
             // std::cout << "Binding integer parameter " << parameterIndex << " with value " << value
             //           << " (statement has " << paramCount << " parameters)" << std::endl;
 
-            int result = sqlite3_bind_int(m_stmt, parameterIndex, value);
+            int result = sqlite3_bind_int(m_stmt.get(), parameterIndex, value);
             if (result != SQLITE_OK)
             {
-                throw DBException("7I8J9K0L1M2N", "Failed to bind integer parameter: " + std::string(sqlite3_errmsg(m_db)) + " (index=" + std::to_string(parameterIndex) + ", value=" + std::to_string(value) + ", result=" + std::to_string(result) + ")",
+                throw DBException("7I8J9K0L1M2N", "Failed to bind integer parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value=" + std::to_string(value) + ", result=" + std::to_string(result) + ")",
                                   system_utils::captureCallStack());
             }
         }
@@ -550,6 +526,9 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
+
             // SQLite parameter indices are 1-based, which matches our API
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
@@ -558,10 +537,10 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
-            int result = sqlite3_bind_int64(m_stmt, parameterIndex, value);
+            int result = sqlite3_bind_int64(m_stmt.get(), parameterIndex, value);
             if (result != SQLITE_OK)
             {
-                throw DBException("5A6B7C8D9E0F", "Failed to bind long parameter: " + std::string(sqlite3_errmsg(m_db)),
+                throw DBException("5A6B7C8D9E0F", "Failed to bind long parameter: " + std::string(sqlite3_errmsg(dbPtr)),
                                   system_utils::captureCallStack());
             }
         }
@@ -573,6 +552,9 @@ namespace cpp_dbc
                 throw DBException("1G2H3I4J5K6L", "Statement is closed",
                                   system_utils::captureCallStack());
             }
+
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
 
             // Do not reset or clear bindings here
             // This would erase previously set parameters
@@ -586,7 +568,7 @@ namespace cpp_dbc
             }
 
             // Get the number of parameters in the statement
-            int paramCount = sqlite3_bind_parameter_count(m_stmt);
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
                 throw DBException("3S4T5U6V7W8X", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
@@ -597,10 +579,10 @@ namespace cpp_dbc
             // std::cout << "Binding double parameter " << parameterIndex << " with value " << value
             //           << " (statement has " << paramCount << " parameters)" << std::endl;
 
-            int result = sqlite3_bind_double(m_stmt, parameterIndex, value);
+            int result = sqlite3_bind_double(m_stmt.get(), parameterIndex, value);
             if (result != SQLITE_OK)
             {
-                throw DBException("9Y0Z1A2B3C4D", "Failed to bind double parameter: " + std::string(sqlite3_errmsg(m_db)) + " (index=" + std::to_string(parameterIndex) + ", value=" + std::to_string(value) + ", result=" + std::to_string(result) + ")",
+                throw DBException("9Y0Z1A2B3C4D", "Failed to bind double parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value=" + std::to_string(value) + ", result=" + std::to_string(result) + ")",
                                   system_utils::captureCallStack());
             }
         }
@@ -612,6 +594,9 @@ namespace cpp_dbc
                 throw DBException("5E6F7G8H9I0J", "Statement is closed",
                                   system_utils::captureCallStack());
             }
+
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
 
             // Do not reset or clear bindings here
             // This would erase previously set parameters
@@ -625,7 +610,7 @@ namespace cpp_dbc
             }
 
             // Get the number of parameters in the statement
-            int paramCount = sqlite3_bind_parameter_count(m_stmt);
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
                 throw DBException("7Q8R9S0T1U2V", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
@@ -637,10 +622,10 @@ namespace cpp_dbc
             //           << "' (statement has " << paramCount << " parameters)" << std::endl;
 
             // SQLITE_TRANSIENT tells SQLite to make its own copy of the data
-            int result = sqlite3_bind_text(m_stmt, parameterIndex, value.c_str(), -1, SQLITE_TRANSIENT);
+            int result = sqlite3_bind_text(m_stmt.get(), parameterIndex, value.c_str(), -1, SQLITE_TRANSIENT);
             if (result != SQLITE_OK)
             {
-                throw DBException("3W4X5Y6Z7A8B", "Failed to bind string parameter: " + std::string(sqlite3_errmsg(m_db)) + " (index=" + std::to_string(parameterIndex) + ", value='" + value + "'" + ", result=" + std::to_string(result) + ")",
+                throw DBException("3W4X5Y6Z7A8B", "Failed to bind string parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value='" + value + "'" + ", result=" + std::to_string(result) + ")",
                                   system_utils::captureCallStack());
             }
         }
@@ -652,6 +637,9 @@ namespace cpp_dbc
                 throw DBException("9C0D1E2F3G4H", "Statement is closed",
                                   system_utils::captureCallStack());
             }
+
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
 
             // Do not reset or clear bindings here
             // This would erase previously set parameters
@@ -665,7 +653,7 @@ namespace cpp_dbc
             }
 
             // Get the number of parameters in the statement
-            int paramCount = sqlite3_bind_parameter_count(m_stmt);
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
                 throw DBException("1O2P3Q4R5S6T", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
@@ -677,10 +665,10 @@ namespace cpp_dbc
             //           << " (statement has " << paramCount << " parameters)" << std::endl;
 
             int intValue = value ? 1 : 0;
-            int result = sqlite3_bind_int(m_stmt, parameterIndex, intValue);
+            int result = sqlite3_bind_int(m_stmt.get(), parameterIndex, intValue);
             if (result != SQLITE_OK)
             {
-                throw DBException("7U8V9W0X1Y2Z", "Failed to bind boolean parameter: " + std::string(sqlite3_errmsg(m_db)) + " (index=" + std::to_string(parameterIndex) + ", value=" + (value ? "true" : "false") + ", result=" + std::to_string(result) + ")",
+                throw DBException("7U8V9W0X1Y2Z", "Failed to bind boolean parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value=" + (value ? "true" : "false") + ", result=" + std::to_string(result) + ")",
                                   system_utils::captureCallStack());
             }
         }
@@ -693,6 +681,9 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
+
             // SQLite parameter indices are 1-based, which matches our API
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
@@ -701,10 +692,10 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
-            int result = sqlite3_bind_null(m_stmt, parameterIndex);
+            int result = sqlite3_bind_null(m_stmt.get(), parameterIndex);
             if (result != SQLITE_OK)
             {
-                throw DBException("5M6N7O8P9Q0R", "Failed to bind null parameter: " + std::string(sqlite3_errmsg(m_db)),
+                throw DBException("5M6N7O8P9Q0R", "Failed to bind null parameter: " + std::string(sqlite3_errmsg(dbPtr)),
                                   system_utils::captureCallStack());
             }
         }
@@ -729,27 +720,30 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
+
             // Reset the statement to ensure it's ready for execution
-            int resetResult = sqlite3_reset(m_stmt);
+            int resetResult = sqlite3_reset(m_stmt.get());
             if (resetResult != SQLITE_OK)
             {
-                throw DBException("7Y8Z9A0B1C2D", "Failed to reset statement: " + std::string(sqlite3_errmsg(m_db)) + " (result=" + std::to_string(resetResult) + ")",
+                throw DBException("7Y8Z9A0B1C2D", "Failed to reset statement: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
                                   system_utils::captureCallStack());
             }
 
             // Debug output - comentado para reducir la salida de Valgrind
             // Commented out to avoid unused variable warning
-            // int paramCount = sqlite3_bind_parameter_count(m_stmt);
+            // int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             // std::cout << "Executing query with " << paramCount << " parameters" << std::endl;
 
             // Print the SQL statement - comentado para reducir la salida de Valgrind
             // std::cout << "SQL: " << sql << std::endl;
 
-            // Create a result set that will own the statement
+            // Create a result set that will NOT own the statement (false = non-owning)
             // We don't execute the first step here - let the ResultSet do it when next() is called
-            // Get a shared_ptr to the connection
-            auto conn = std::dynamic_pointer_cast<SQLiteConnection>(shared_from_this());
-            auto resultSet = std::make_shared<SQLiteResultSet>(m_stmt, false, conn);
+            // Note: We pass nullptr for connection since this ResultSet doesn't own the statement
+            // and doesn't need to check connection validity for finalization
+            auto resultSet = std::make_shared<SQLiteResultSet>(m_stmt.get(), false, nullptr);
 
             // Note: We don't clear bindings here because the ResultSet needs them
             // The bindings will be cleared when the statement is reset for the next use
@@ -765,30 +759,33 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
+
             // Reset the statement to ensure it's ready for execution
-            int resetResult = sqlite3_reset(m_stmt);
+            int resetResult = sqlite3_reset(m_stmt.get());
             if (resetResult != SQLITE_OK)
             {
-                throw DBException("9K0L1M2N3O4P", "Failed to reset statement: " + std::string(sqlite3_errmsg(m_db)) + " (result=" + std::to_string(resetResult) + ")",
+                throw DBException("9K0L1M2N3O4P", "Failed to reset statement: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
                                   system_utils::captureCallStack());
             }
 
             // Execute the statement
-            int result = sqlite3_step(m_stmt);
+            int result = sqlite3_step(m_stmt.get());
             if (result != SQLITE_DONE)
             {
-                throw DBException("5Q6R7S8T9U0V", "Failed to execute update: " + std::string(sqlite3_errmsg(m_db)) + " (result=" + std::to_string(result) + ")",
+                throw DBException("5Q6R7S8T9U0V", "Failed to execute update: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(result) + ")",
                                   system_utils::captureCallStack());
             }
 
             // Get the number of affected rows
-            uint64_t changes = sqlite3_changes(m_db);
+            uint64_t changes = sqlite3_changes(dbPtr);
 
             // Reset the statement after execution to allow reuse
-            resetResult = sqlite3_reset(m_stmt);
+            resetResult = sqlite3_reset(m_stmt.get());
             if (resetResult != SQLITE_OK)
             {
-                throw DBException("1W2X3Y4Z5A6B", "Failed to reset statement after execution: " + std::string(sqlite3_errmsg(m_db)) + " (result=" + std::to_string(resetResult) + ")",
+                throw DBException("1W2X3Y4Z5A6B", "Failed to reset statement after execution: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
                                   system_utils::captureCallStack());
             }
 
@@ -806,16 +803,19 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
+
             // Reset the statement to ensure it's ready for execution
-            sqlite3_reset(m_stmt);
+            sqlite3_reset(m_stmt.get());
 
             // Execute the statement
-            int result = sqlite3_step(m_stmt);
+            int result = sqlite3_step(m_stmt.get());
 
             if (result == SQLITE_ROW)
             {
                 // There are rows to fetch, so this is a query
-                sqlite3_reset(m_stmt);
+                sqlite3_reset(m_stmt.get());
                 return true;
             }
             else if (result == SQLITE_DONE)
@@ -825,7 +825,7 @@ namespace cpp_dbc
             }
             else
             {
-                throw DBException("3I4J5K6L7M8N", "Failed to execute statement: " + std::string(sqlite3_errmsg(m_db)),
+                throw DBException("3I4J5K6L7M8N", "Failed to execute statement: " + std::string(sqlite3_errmsg(dbPtr)),
                                   system_utils::captureCallStack());
             }
         }
@@ -862,16 +862,19 @@ namespace cpp_dbc
                 }
 
                 SQLITE_DEBUG("Calling sqlite3_open_v2");
-                int result = sqlite3_open_v2(database.c_str(), &m_db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
+                sqlite3 *rawDb = nullptr;
+                int result = sqlite3_open_v2(database.c_str(), &rawDb, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
                 if (result != SQLITE_OK)
                 {
-                    std::string error = sqlite3_errmsg(m_db);
+                    std::string error = sqlite3_errmsg(rawDb);
                     SQLITE_DEBUG("1I2J3K4L5M6N: Failed to open database: " << error);
-                    sqlite3_close_v2(m_db);
-                    m_db = nullptr;
+                    sqlite3_close_v2(rawDb);
                     throw DBException("9O0P1Q2R3S4T", "Failed to connect to SQLite database: " + error,
                                       system_utils::captureCallStack());
                 }
+
+                // Create shared_ptr with custom deleter for sqlite3*
+                m_db = std::shared_ptr<sqlite3>(rawDb, SQLiteDbDeleter());
 
                 SQLITE_DEBUG("Database opened successfully");
 
@@ -909,25 +912,6 @@ namespace cpp_dbc
                     executeUpdate("PRAGMA foreign_keys = ON");
                 }
 
-                // Register this connection's weak_ptr in the active connections list
-                SQLITE_DEBUG("Registering connection in active connections list");
-                {
-                    std::lock_guard<std::mutex> lock(connectionsListMutex);
-                    try
-                    {
-                        // shared_from_this() will throw if the object wasn't created with make_shared
-                        activeConnections.insert(weak_from_this());
-                        SQLITE_DEBUG("Connection registered successfully");
-                    }
-                    catch (const std::bad_weak_ptr &e)
-                    {
-                        // This should not happen if the connection was properly created with make_shared
-                        SQLITE_DEBUG("7O8P9Q0R1S2T: Error registering connection: " << e.what());
-                        throw DBException("F8A2C7D1E6B5", "SQLiteConnection not created with make_shared",
-                                          system_utils::captureCallStack());
-                    }
-                }
-
                 SQLITE_DEBUG("Connection created successfully");
             }
             catch (const DBException &e)
@@ -960,26 +944,6 @@ namespace cpp_dbc
             {
                 // Ignore exceptions during destruction
             }
-
-            // Ensure this connection's weak_ptr is removed from the active connections list
-            // even if close() wasn't called or failed
-            {
-                std::lock_guard<std::mutex> lock(connectionsListMutex);
-                // Find and remove this connection's weak_ptr from the set
-                for (auto it = activeConnections.begin(); it != activeConnections.end();)
-                {
-                    // If the weak_ptr is expired or points to this connection, remove it
-                    auto conn_ptr = it->lock();
-                    if (!conn_ptr || conn_ptr.get() == this)
-                    {
-                        it = activeConnections.erase(it);
-                    }
-                    else
-                    {
-                        ++it;
-                    }
-                }
-            }
         }
 
         void SQLiteConnection::close()
@@ -991,8 +955,9 @@ namespace cpp_dbc
                     // Notify all active statements that connection is closing
                     {
                         std::lock_guard<std::mutex> lock(m_statementsMutex);
-                        for (auto &stmt : m_activeStatements)
+                        for (auto &weak_stmt : m_activeStatements)
                         {
+                            auto stmt = weak_stmt.lock();
                             if (stmt)
                             {
                                 stmt->notifyConnClosing();
@@ -1004,7 +969,7 @@ namespace cpp_dbc
                     // Explicitly finalize all prepared statements
                     // This is a more aggressive approach to ensure all statements are properly cleaned up
                     sqlite3_stmt *stmt;
-                    while ((stmt = sqlite3_next_stmt(m_db, nullptr)) != nullptr)
+                    while ((stmt = sqlite3_next_stmt(m_db.get(), nullptr)) != nullptr)
                     {
                         int result = sqlite3_finalize(stmt);
                         if (result != SQLITE_OK)
@@ -1014,51 +979,24 @@ namespace cpp_dbc
                         }
                     }
 
-                    // Use sqlite3_close_v2 instead of sqlite3_close
-                    // sqlite3_close_v2 will handle unfinalized prepared statements gracefully
-                    int closeResult = sqlite3_close_v2(m_db);
-                    if (closeResult != SQLITE_OK)
-                    {
-                        SQLITE_DEBUG("7S8T9U0V1W2X: Error closing SQLite database: "
-                                     << sqlite3_errstr(closeResult));
-                    }
-
                     // Call sqlite3_release_memory to free up caches and unused memory
                     [[maybe_unused]]
                     int releasedMemory = sqlite3_release_memory(1000000); // Try to release up to 1MB of memory
                     SQLITE_DEBUG("Released " << releasedMemory << " bytes of SQLite memory");
 
-                    m_db = nullptr;
+                    // Smart pointer will automatically call sqlite3_close_v2 via SQLiteDbDeleter
+                    m_db.reset();
                     m_closed = true;
 
                     // Sleep for 10ms to avoid problems with concurrency and memory stability
                     // This helps ensure all resources are properly released
                     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-                    // Remove this connection's weak_ptr from the active connections list
-                    {
-                        std::lock_guard<std::mutex> lock(connectionsListMutex);
-                        // Find and remove this connection's weak_ptr from the set
-                        for (auto it = activeConnections.begin(); it != activeConnections.end();)
-                        {
-                            // If the weak_ptr is expired or points to this connection, remove it
-                            auto conn_ptr = it->lock();
-                            if (!conn_ptr || conn_ptr.get() == this)
-                            {
-                                it = activeConnections.erase(it);
-                            }
-                            else
-                            {
-                                ++it;
-                            }
-                        }
-                    }
                 }
                 catch (const std::exception &e)
                 {
                     SQLITE_DEBUG("3Y4Z5A6B7C8D: Exception during SQLite connection close: " << e.what());
                     // Asegurarse de que el db se establece a nullptr y closed a true incluso si hay una excepción
-                    m_db = nullptr;
+                    m_db.reset();
                     m_closed = true;
                 }
             }
@@ -1105,8 +1043,9 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
-            auto stmt = std::make_shared<SQLitePreparedStatement>(m_db, sql);
-            registerStatement(stmt);
+            // Pass weak_ptr to the PreparedStatement so it can safely detect when connection is closed
+            auto stmt = std::make_shared<SQLitePreparedStatement>(std::weak_ptr<sqlite3>(m_db), sql);
+            registerStatement(std::weak_ptr<SQLitePreparedStatement>(stmt));
             return stmt;
         }
 
@@ -1125,10 +1064,10 @@ namespace cpp_dbc
 
                 SQLITE_DEBUG("SQLiteConnection::executeQuery - Preparing statement");
                 sqlite3_stmt *stmt = nullptr;
-                int result = sqlite3_prepare_v2(m_db, sql.c_str(), -1, &stmt, nullptr);
+                int result = sqlite3_prepare_v2(m_db.get(), sql.c_str(), -1, &stmt, nullptr);
                 if (result != SQLITE_OK)
                 {
-                    std::string errorMsg = sqlite3_errmsg(m_db);
+                    std::string errorMsg = sqlite3_errmsg(m_db.get());
                     SQLITE_DEBUG("SQLiteConnection::executeQuery - Failed to prepare query: " << errorMsg);
                     throw DBException("7G8H9I0J1K2L", "Failed to prepare query: " + errorMsg,
                                       system_utils::captureCallStack());
@@ -1145,6 +1084,7 @@ namespace cpp_dbc
 
                 SQLITE_DEBUG("SQLiteConnection::executeQuery - Creating SQLiteResultSet");
                 // Pass a shared_ptr to this connection to the result set
+                // The ResultSet will check if connection is still valid before finalizing
                 auto self = std::dynamic_pointer_cast<SQLiteConnection>(shared_from_this());
                 auto resultSet = std::make_shared<SQLiteResultSet>(stmt, true, self);
                 SQLITE_DEBUG("SQLiteConnection::executeQuery - SQLiteResultSet created successfully");
@@ -1179,7 +1119,7 @@ namespace cpp_dbc
             }
 
             char *errmsg = nullptr;
-            int result = sqlite3_exec(m_db, sql.c_str(), nullptr, nullptr, &errmsg);
+            int result = sqlite3_exec(m_db.get(), sql.c_str(), nullptr, nullptr, &errmsg);
 
             if (result != SQLITE_OK)
             {
@@ -1189,7 +1129,7 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
-            return static_cast<uint64_t>(sqlite3_changes(m_db));
+            return static_cast<uint64_t>(sqlite3_changes(m_db.get()));
         }
 
         void SQLiteConnection::setAutoCommit(bool autoCommit)
@@ -1312,22 +1252,29 @@ namespace cpp_dbc
             return m_url;
         }
 
-        void SQLiteConnection::registerStatement(std::shared_ptr<SQLitePreparedStatement> stmt)
+        void SQLiteConnection::registerStatement(std::weak_ptr<SQLitePreparedStatement> stmt)
         {
-            if (!stmt)
-                return;
-
             std::lock_guard<std::mutex> lock(m_statementsMutex);
             m_activeStatements.insert(stmt);
         }
 
-        void SQLiteConnection::unregisterStatement(std::shared_ptr<SQLitePreparedStatement> stmt)
+        void SQLiteConnection::unregisterStatement(std::weak_ptr<SQLitePreparedStatement> stmt)
         {
-            if (!stmt)
-                return;
-
             std::lock_guard<std::mutex> lock(m_statementsMutex);
-            m_activeStatements.erase(stmt);
+            // Remove expired weak_ptrs and the specified one
+            for (auto it = m_activeStatements.begin(); it != m_activeStatements.end();)
+            {
+                auto locked = it->lock();
+                auto stmtLocked = stmt.lock();
+                if (!locked || (stmtLocked && locked.get() == stmtLocked.get()))
+                {
+                    it = m_activeStatements.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
         }
 
         // SQLiteDriver implementation
@@ -1502,7 +1449,8 @@ namespace cpp_dbc
         // BLOB support methods for SQLiteResultSet
         std::shared_ptr<Blob> SQLiteResultSet::getBlob(size_t columnIndex)
         {
-            if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+            sqlite3_stmt *stmt = getStmt();
+            if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("B1C2D3E4F5G6", "Invalid column index or row position for getBlob",
                                   system_utils::captureCallStack());
@@ -1511,21 +1459,21 @@ namespace cpp_dbc
             // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
             int idx = static_cast<int>(columnIndex - 1);
 
-            if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
+            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
             {
                 return std::make_shared<SQLite::SQLiteBlob>(nullptr);
             }
 
             // Check if the column is a BLOB type
-            if (sqlite3_column_type(m_stmt, idx) != SQLITE_BLOB)
+            if (sqlite3_column_type(stmt, idx) != SQLITE_BLOB)
             {
                 throw DBException("H7I8J9K0L1M2", "Column is not a BLOB type",
                                   system_utils::captureCallStack());
             }
 
             // Get the binary data
-            const void *blobData = sqlite3_column_blob(m_stmt, idx);
-            int blobSize = sqlite3_column_bytes(m_stmt, idx);
+            const void *blobData = sqlite3_column_blob(stmt, idx);
+            int blobSize = sqlite3_column_bytes(stmt, idx);
 
             // Create a vector with the data
             std::vector<uint8_t> data;
@@ -1544,7 +1492,7 @@ namespace cpp_dbc
             }
 
             // Create a new BLOB object with the data
-            return std::make_shared<SQLite::SQLiteBlob>(conn->m_db, data);
+            return std::make_shared<SQLite::SQLiteBlob>(conn->m_db.get(), data);
         }
 
         std::shared_ptr<Blob> SQLiteResultSet::getBlob(const std::string &columnName)
@@ -1561,7 +1509,8 @@ namespace cpp_dbc
 
         std::shared_ptr<InputStream> SQLiteResultSet::getBinaryStream(size_t columnIndex)
         {
-            if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+            sqlite3_stmt *stmt = getStmt();
+            if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("CEE30385E0BB", "Invalid column index or row position for getBinaryStream",
                                   system_utils::captureCallStack());
@@ -1570,15 +1519,15 @@ namespace cpp_dbc
             // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
             int idx = static_cast<int>(columnIndex - 1);
 
-            if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
+            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
             {
                 // Return an empty stream
                 return std::make_shared<SQLite::SQLiteInputStream>(nullptr, 0);
             }
 
             // Get the binary data
-            const void *blobData = sqlite3_column_blob(m_stmt, idx);
-            int blobSize = sqlite3_column_bytes(m_stmt, idx);
+            const void *blobData = sqlite3_column_blob(stmt, idx);
+            int blobSize = sqlite3_column_bytes(stmt, idx);
 
             // Create a new input stream with the data
             return std::make_shared<SQLite::SQLiteInputStream>(blobData, blobSize);
@@ -1598,7 +1547,8 @@ namespace cpp_dbc
 
         std::vector<uint8_t> SQLiteResultSet::getBytes(size_t columnIndex)
         {
-            if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+            sqlite3_stmt *stmt = getStmt();
+            if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("L7M8N9O0P1Q2", "Invalid column index or row position for getBytes",
                                   system_utils::captureCallStack());
@@ -1607,14 +1557,14 @@ namespace cpp_dbc
             // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
             int idx = static_cast<int>(columnIndex - 1);
 
-            if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
+            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
             {
                 return {};
             }
 
             // Get the binary data
-            const void *blobData = sqlite3_column_blob(m_stmt, idx);
-            int blobSize = sqlite3_column_bytes(m_stmt, idx);
+            const void *blobData = sqlite3_column_blob(stmt, idx);
+            int blobSize = sqlite3_column_bytes(stmt, idx);
 
             // Create a vector with the data
             std::vector<uint8_t> data;
@@ -1648,6 +1598,9 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
+
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
             {
@@ -1656,7 +1609,7 @@ namespace cpp_dbc
             }
 
             // Get the number of parameters in the statement
-            int paramCount = sqlite3_bind_parameter_count(m_stmt);
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
                 throw DBException("J1K2L3M4N5O6", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
@@ -1669,10 +1622,10 @@ namespace cpp_dbc
             if (!x)
             {
                 // Set to NULL
-                int result = sqlite3_bind_null(m_stmt, parameterIndex);
+                int result = sqlite3_bind_null(m_stmt.get(), parameterIndex);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("P7Q8R9S0T1U2", "Failed to bind null BLOB: " + std::string(sqlite3_errmsg(m_db)),
+                    throw DBException("P7Q8R9S0T1U2", "Failed to bind null BLOB: " + std::string(sqlite3_errmsg(dbPtr)),
                                       system_utils::captureCallStack());
                 }
                 return;
@@ -1685,13 +1638,13 @@ namespace cpp_dbc
             m_blobValues[parameterIndex - 1] = std::move(data);
 
             // Bind the BLOB data
-            int result = sqlite3_bind_blob(m_stmt, parameterIndex,
+            int result = sqlite3_bind_blob(m_stmt.get(), parameterIndex,
                                            m_blobValues[parameterIndex - 1].data(),
                                            static_cast<int>(m_blobValues[parameterIndex - 1].size()),
                                            SQLITE_STATIC);
             if (result != SQLITE_OK)
             {
-                throw DBException("V3W4X5Y6Z7A8", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(m_db)),
+                throw DBException("V3W4X5Y6Z7A8", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(dbPtr)),
                                   system_utils::captureCallStack());
             }
         }
@@ -1704,6 +1657,9 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
+
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
             {
@@ -1712,7 +1668,7 @@ namespace cpp_dbc
             }
 
             // Get the number of parameters in the statement
-            int paramCount = sqlite3_bind_parameter_count(m_stmt);
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
                 throw DBException("N1O2P3Q4R5S6", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
@@ -1725,10 +1681,10 @@ namespace cpp_dbc
             if (!x)
             {
                 // Set to NULL
-                int result = sqlite3_bind_null(m_stmt, parameterIndex);
+                int result = sqlite3_bind_null(m_stmt.get(), parameterIndex);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("T7U8V9W0X1Y2", "Failed to bind null BLOB: " + std::string(sqlite3_errmsg(m_db)),
+                    throw DBException("T7U8V9W0X1Y2", "Failed to bind null BLOB: " + std::string(sqlite3_errmsg(dbPtr)),
                                       system_utils::captureCallStack());
                 }
                 return;
@@ -1747,13 +1703,13 @@ namespace cpp_dbc
             m_blobValues[parameterIndex - 1] = std::move(data);
 
             // Bind the BLOB data
-            int result = sqlite3_bind_blob(m_stmt, parameterIndex,
+            int result = sqlite3_bind_blob(m_stmt.get(), parameterIndex,
                                            m_blobValues[parameterIndex - 1].data(),
                                            static_cast<int>(m_blobValues[parameterIndex - 1].size()),
                                            SQLITE_STATIC);
             if (result != SQLITE_OK)
             {
-                throw DBException("Z3A4B5C6D7E8", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(m_db)),
+                throw DBException("Z3A4B5C6D7E8", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(dbPtr)),
                                   system_utils::captureCallStack());
             }
         }
@@ -1766,6 +1722,9 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
+
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
             {
@@ -1774,7 +1733,7 @@ namespace cpp_dbc
             }
 
             // Get the number of parameters in the statement
-            int paramCount = sqlite3_bind_parameter_count(m_stmt);
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
                 throw DBException("R1S2T3U4V5W6", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
@@ -1787,10 +1746,10 @@ namespace cpp_dbc
             if (!x)
             {
                 // Set to NULL
-                int result = sqlite3_bind_null(m_stmt, parameterIndex);
+                int result = sqlite3_bind_null(m_stmt.get(), parameterIndex);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("X7Y8Z9A0B1C2", "Failed to bind null BLOB: " + std::string(sqlite3_errmsg(m_db)),
+                    throw DBException("X7Y8Z9A0B1C2", "Failed to bind null BLOB: " + std::string(sqlite3_errmsg(dbPtr)),
                                       system_utils::captureCallStack());
                 }
                 return;
@@ -1812,13 +1771,13 @@ namespace cpp_dbc
             m_blobValues[parameterIndex - 1] = std::move(data);
 
             // Bind the BLOB data
-            int result = sqlite3_bind_blob(m_stmt, parameterIndex,
+            int result = sqlite3_bind_blob(m_stmt.get(), parameterIndex,
                                            m_blobValues[parameterIndex - 1].data(),
                                            static_cast<int>(m_blobValues[parameterIndex - 1].size()),
                                            SQLITE_STATIC);
             if (result != SQLITE_OK)
             {
-                throw DBException("D3E4F5G6H7I8", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(m_db)),
+                throw DBException("D3E4F5G6H7I8", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(dbPtr)),
                                   system_utils::captureCallStack());
             }
         }
@@ -1831,6 +1790,9 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
+
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
             {
@@ -1839,7 +1801,7 @@ namespace cpp_dbc
             }
 
             // Get the number of parameters in the statement
-            int paramCount = sqlite3_bind_parameter_count(m_stmt);
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
                 throw DBException("V1W2X3Y4Z5A6", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
@@ -1850,13 +1812,13 @@ namespace cpp_dbc
             m_blobValues[parameterIndex - 1] = x;
 
             // Bind the BLOB data
-            int result = sqlite3_bind_blob(m_stmt, parameterIndex,
+            int result = sqlite3_bind_blob(m_stmt.get(), parameterIndex,
                                            m_blobValues[parameterIndex - 1].data(),
                                            static_cast<int>(m_blobValues[parameterIndex - 1].size()),
                                            SQLITE_STATIC);
             if (result != SQLITE_OK)
             {
-                throw DBException("B7C8D9E0F1G2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(m_db)),
+                throw DBException("B7C8D9E0F1G2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(dbPtr)),
                                   system_utils::captureCallStack());
             }
         }
@@ -1869,6 +1831,9 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
+            // Get the SQLite connection safely (throws if connection is closed)
+            sqlite3 *dbPtr = getSQLiteConnection();
+
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
             {
@@ -1877,7 +1842,7 @@ namespace cpp_dbc
             }
 
             // Get the number of parameters in the statement
-            int paramCount = sqlite3_bind_parameter_count(m_stmt);
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
                 throw DBException("T5U6V7W8X9Y0", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
@@ -1887,10 +1852,10 @@ namespace cpp_dbc
             if (!x)
             {
                 // Set to NULL
-                int result = sqlite3_bind_null(m_stmt, parameterIndex);
+                int result = sqlite3_bind_null(m_stmt.get(), parameterIndex);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("Z1A2B3C4D5E6", "Failed to bind null BLOB: " + std::string(sqlite3_errmsg(m_db)),
+                    throw DBException("Z1A2B3C4D5E6", "Failed to bind null BLOB: " + std::string(sqlite3_errmsg(dbPtr)),
                                       system_utils::captureCallStack());
                 }
                 return;
@@ -1901,13 +1866,13 @@ namespace cpp_dbc
             std::memcpy(m_blobValues[parameterIndex - 1].data(), x, length);
 
             // Bind the BLOB data
-            int result = sqlite3_bind_blob(m_stmt, parameterIndex,
+            int result = sqlite3_bind_blob(m_stmt.get(), parameterIndex,
                                            m_blobValues[parameterIndex - 1].data(),
                                            static_cast<int>(m_blobValues[parameterIndex - 1].size()),
                                            SQLITE_STATIC);
             if (result != SQLITE_OK)
             {
-                throw DBException("F7G8H9I0J1K2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(m_db)),
+                throw DBException("F7G8H9I0J1K2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(dbPtr)),
                                   system_utils::captureCallStack());
             }
         }

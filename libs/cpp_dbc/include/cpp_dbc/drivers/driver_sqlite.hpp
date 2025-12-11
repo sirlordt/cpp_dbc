@@ -42,20 +42,104 @@ namespace cpp_dbc
 {
     namespace SQLite
     {
+        /**
+         * @brief Custom deleter for sqlite3_stmt* to use with unique_ptr
+         *
+         * This deleter ensures that sqlite3_finalize() is called automatically
+         * when the unique_ptr goes out of scope, preventing memory leaks.
+         */
+        struct SQLiteStmtDeleter
+        {
+            void operator()(sqlite3_stmt *stmt) const noexcept
+            {
+                if (stmt)
+                {
+                    sqlite3_finalize(stmt);
+                }
+            }
+        };
+
+        /**
+         * @brief Type alias for the smart pointer managing sqlite3_stmt
+         *
+         * Uses unique_ptr with custom deleter to ensure automatic cleanup
+         * of SQLite statements, even in case of exceptions.
+         */
+        using SQLiteStmtHandle = std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter>;
+
+        /**
+         * @brief Custom deleter for sqlite3* to use with shared_ptr
+         *
+         * This deleter ensures that sqlite3_close_v2() is called automatically
+         * when the shared_ptr reference count reaches zero, preventing resource leaks.
+         */
+        struct SQLiteDbDeleter
+        {
+            void operator()(sqlite3 *db) const noexcept
+            {
+                if (db)
+                {
+                    // Finalize all remaining statements before closing
+                    sqlite3_stmt *stmt;
+                    while ((stmt = sqlite3_next_stmt(db, nullptr)) != nullptr)
+                    {
+                        sqlite3_finalize(stmt);
+                    }
+                    sqlite3_close_v2(db);
+                }
+            }
+        };
+
+        /**
+         * @brief Type alias for the smart pointer managing sqlite3 connection (shared_ptr for weak_ptr support)
+         *
+         * Uses shared_ptr to allow PreparedStatements to use weak_ptr for safe connection detection.
+         * Note: The deleter is passed to the constructor, not as a template parameter.
+         */
+        using SQLiteDbHandle = std::shared_ptr<sqlite3>;
 
         class SQLiteResultSet : public ResultSet
         {
         private:
-            sqlite3_stmt *m_stmt;
+            /**
+             * @brief Raw pointer to sqlite3_stmt
+             *
+             * IMPORTANT: This is intentionally a raw pointer, NOT a smart pointer, because:
+             *
+             * 1. When m_ownStatement is true, we own the statement and must finalize it
+             *    BUT only if the connection is still valid (not closed).
+             *
+             * 2. When m_ownStatement is false, the statement is owned by a PreparedStatement
+             *    and should not be finalized by the ResultSet.
+             *
+             * 3. The connection's close() method uses sqlite3_next_stmt() to finalize ALL
+             *    statements, so if we try to finalize after connection close, we get double-free.
+             *
+             * 4. Protection is provided through:
+             *    - m_ownStatement flag that determines ownership
+             *    - m_connection weak_ptr to check if connection is still valid
+             *    - Only finalize if we own AND connection is still valid
+             */
+            sqlite3_stmt *m_stmt{nullptr};
+
             bool m_ownStatement;
-            size_t m_rowPosition;
-            size_t m_rowCount;
-            size_t m_fieldCount;
+            size_t m_rowPosition{0};
+            size_t m_rowCount{0};
+            size_t m_fieldCount{0};
             std::vector<std::string> m_columnNames;
             std::map<std::string, size_t> m_columnMap;
-            bool m_hasData;
-            bool m_closed;
-            std::weak_ptr<SQLiteConnection> m_connection; // Referencia débil a la conexión
+            bool m_hasData{false};
+            bool m_closed{true};
+            std::weak_ptr<SQLiteConnection> m_connection; // Weak reference to the connection
+
+            /**
+             * @brief Helper method to get the active statement pointer
+             * @return The active statement pointer
+             */
+            sqlite3_stmt *getStmt() const
+            {
+                return m_stmt;
+            }
 
         public:
             SQLiteResultSet(sqlite3_stmt *stmt, bool ownStatement = true, std::shared_ptr<SQLiteConnection> conn = nullptr);
@@ -102,15 +186,30 @@ namespace cpp_dbc
         // Forward declaration
         class SQLiteConnection;
 
-        class SQLitePreparedStatement : public PreparedStatement, public std::enable_shared_from_this<SQLitePreparedStatement>
+        class SQLitePreparedStatement : public PreparedStatement
         {
             friend class SQLiteConnection;
 
         private:
-            sqlite3 *m_db;
+            /**
+             * @brief Safe weak reference to connection - detects when connection is closed
+             *
+             * Uses weak_ptr to safely detect when the connection has been closed,
+             * preventing use-after-free errors.
+             */
+            std::weak_ptr<sqlite3> m_db;
+
             std::string m_sql;
-            sqlite3_stmt *m_stmt;
-            bool m_closed;
+
+            /**
+             * @brief Smart pointer for sqlite3_stmt - automatically calls sqlite3_finalize
+             *
+             * This is an OWNING pointer that manages the lifecycle of the SQLite statement.
+             * When this pointer is reset or destroyed, sqlite3_finalize() is called automatically.
+             */
+            SQLiteStmtHandle m_stmt;
+
+            bool m_closed{true};
             std::vector<std::vector<uint8_t>> m_blobValues;            // To keep blob values alive
             std::vector<std::shared_ptr<Blob>> m_blobObjects;          // To keep blob objects alive
             std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
@@ -118,8 +217,11 @@ namespace cpp_dbc
             // Internal method called by connection when closing
             void notifyConnClosing();
 
+            // Helper method to get sqlite3* safely, throws if connection is closed
+            sqlite3 *getSQLiteConnection() const;
+
         public:
-            SQLitePreparedStatement(sqlite3 *db, const std::string &sql);
+            SQLitePreparedStatement(std::weak_ptr<sqlite3> db, const std::string &sql);
             ~SQLitePreparedStatement() override;
 
             void setInt(int parameterIndex, int value) override;
@@ -150,7 +252,14 @@ namespace cpp_dbc
             friend class SQLiteResultSet;
 
         private:
-            sqlite3 *m_db{nullptr};
+            /**
+             * @brief Smart pointer for sqlite3 connection - shared_ptr allows weak_ptr support
+             *
+             * Uses shared_ptr to allow PreparedStatements to use weak_ptr for safe
+             * connection detection. The custom deleter ensures sqlite3_close_v2() is called.
+             */
+            SQLiteDbHandle m_db;
+
             bool m_closed{true};
             bool m_autoCommit{true};
             bool m_transactionActive{false};
@@ -159,17 +268,13 @@ namespace cpp_dbc
             // Cached URL
             std::string m_url;
 
-            // Registry of active prepared statements
-            std::set<std::shared_ptr<SQLitePreparedStatement>> m_activeStatements;
+            // Registry of active prepared statements (weak pointers to avoid preventing destruction)
+            std::set<std::weak_ptr<SQLitePreparedStatement>, std::owner_less<std::weak_ptr<SQLitePreparedStatement>>> m_activeStatements;
             std::mutex m_statementsMutex;
 
             // Internal methods for statement registry
-            void registerStatement(std::shared_ptr<SQLitePreparedStatement> stmt);
-            void unregisterStatement(std::shared_ptr<SQLitePreparedStatement> stmt);
-
-            // Static list of active connections for statement cleanup
-            static std::set<std::weak_ptr<SQLiteConnection>, std::owner_less<std::weak_ptr<SQLiteConnection>>> activeConnections;
-            static std::mutex connectionsListMutex;
+            void registerStatement(std::weak_ptr<SQLitePreparedStatement> stmt);
+            void unregisterStatement(std::weak_ptr<SQLitePreparedStatement> stmt);
 
         public:
             SQLiteConnection(const std::string &database,
