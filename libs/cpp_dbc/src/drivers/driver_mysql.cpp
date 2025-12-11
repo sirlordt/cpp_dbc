@@ -42,7 +42,7 @@ namespace cpp_dbc
 
                 // Store column names and create column name to index mapping
                 MYSQL_FIELD *fields = mysql_fetch_fields(m_result);
-                for (int i = 0; i < m_fieldCount; i++)
+                for (size_t i = 0; i < m_fieldCount; i++)
                 {
                     std::string name = fields[i].name;
                     m_columnNames.push_back(name);
@@ -93,7 +93,7 @@ namespace cpp_dbc
             return m_rowPosition;
         }
 
-        int MySQLResultSet::getInt(int columnIndex)
+        int MySQLResultSet::getInt(size_t columnIndex)
         {
             if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -101,7 +101,7 @@ namespace cpp_dbc
             }
 
             // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = columnIndex - 1;
+            size_t idx = columnIndex - 1;
             if (m_currentRow[idx] == nullptr)
             {
                 return 0; // Return 0 for NULL values (similar to JDBC)
@@ -121,14 +121,14 @@ namespace cpp_dbc
             return getInt(it->second + 1); // +1 because getInt(int) is 1-based
         }
 
-        long MySQLResultSet::getLong(int columnIndex)
+        long MySQLResultSet::getLong(size_t columnIndex)
         {
             if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("9A0B1C2D3E4F", "Invalid column index", system_utils::captureCallStack());
             }
 
-            int idx = columnIndex - 1;
+            size_t idx = columnIndex - 1;
             if (m_currentRow[idx] == nullptr)
             {
                 return 0;
@@ -148,14 +148,14 @@ namespace cpp_dbc
             return getLong(it->second + 1);
         }
 
-        double MySQLResultSet::getDouble(int columnIndex)
+        double MySQLResultSet::getDouble(size_t columnIndex)
         {
             if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("1M2N3O4P5Q6R", "Invalid column index", system_utils::captureCallStack());
             }
 
-            int idx = columnIndex - 1;
+            size_t idx = columnIndex - 1;
             if (m_currentRow[idx] == nullptr)
             {
                 return 0.0;
@@ -175,14 +175,14 @@ namespace cpp_dbc
             return getDouble(it->second + 1);
         }
 
-        std::string MySQLResultSet::getString(int columnIndex)
+        std::string MySQLResultSet::getString(size_t columnIndex)
         {
             if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("089F37F0D90E", "Invalid column index", system_utils::captureCallStack());
             }
 
-            int idx = columnIndex - 1;
+            size_t idx = columnIndex - 1;
             if (m_currentRow[idx] == nullptr)
             {
                 return "";
@@ -202,7 +202,7 @@ namespace cpp_dbc
             return getString(it->second + 1);
         }
 
-        bool MySQLResultSet::getBoolean(int columnIndex)
+        bool MySQLResultSet::getBoolean(size_t columnIndex)
         {
             std::string value = getString(columnIndex);
             return (value == "1" || value == "true" || value == "TRUE" || value == "True");
@@ -219,14 +219,14 @@ namespace cpp_dbc
             return getBoolean(it->second + 1);
         }
 
-        bool MySQLResultSet::isNull(int columnIndex)
+        bool MySQLResultSet::isNull(size_t columnIndex)
         {
             if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
             {
                 throw DBException("9BB5941B830C", "Invalid column index", system_utils::captureCallStack());
             }
 
-            int idx = columnIndex - 1;
+            size_t idx = columnIndex - 1;
             return m_currentRow[idx] == nullptr;
         }
 
@@ -265,7 +265,7 @@ namespace cpp_dbc
         }
 
         // BLOB support methods for MySQLResultSet
-        std::shared_ptr<Blob> MySQLResultSet::getBlob(int columnIndex)
+        std::shared_ptr<Blob> MySQLResultSet::getBlob(size_t columnIndex)
         {
             if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -273,7 +273,7 @@ namespace cpp_dbc
             }
 
             // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = columnIndex - 1;
+            size_t idx = columnIndex - 1;
             if (m_currentRow[idx] == nullptr)
             {
                 return std::make_shared<MySQL::MySQLBlob>(nullptr);
@@ -308,7 +308,7 @@ namespace cpp_dbc
             return getBlob(it->second + 1); // +1 because getBlob(int) is 1-based
         }
 
-        std::shared_ptr<InputStream> MySQLResultSet::getBinaryStream(int columnIndex)
+        std::shared_ptr<InputStream> MySQLResultSet::getBinaryStream(size_t columnIndex)
         {
             if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -316,7 +316,7 @@ namespace cpp_dbc
             }
 
             // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = columnIndex - 1;
+            size_t idx = columnIndex - 1;
             if (m_currentRow[idx] == nullptr)
             {
                 // Return an empty stream
@@ -345,7 +345,7 @@ namespace cpp_dbc
             return getBinaryStream(it->second + 1); // +1 because getBinaryStream(int) is 1-based
         }
 
-        std::vector<uint8_t> MySQLResultSet::getBytes(int columnIndex)
+        std::vector<uint8_t> MySQLResultSet::getBytes(size_t columnIndex)
         {
             if (!m_result || !m_currentRow || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -353,7 +353,7 @@ namespace cpp_dbc
             }
 
             // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = columnIndex - 1;
+            size_t idx = columnIndex - 1;
             if (m_currentRow[idx] == nullptr)
             {
                 return {};

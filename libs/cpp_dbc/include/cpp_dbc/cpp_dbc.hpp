@@ -221,35 +221,35 @@ namespace cpp_dbc
         virtual bool isAfterLast() = 0;
         virtual uint64_t getRow() = 0;
 
-        virtual int getInt(int columnIndex) = 0;
+        virtual int getInt(size_t columnIndex) = 0;
         virtual int getInt(const std::string &columnName) = 0;
 
-        virtual long getLong(int columnIndex) = 0;
+        virtual long getLong(size_t columnIndex) = 0;
         virtual long getLong(const std::string &columnName) = 0;
 
-        virtual double getDouble(int columnIndex) = 0;
+        virtual double getDouble(size_t columnIndex) = 0;
         virtual double getDouble(const std::string &columnName) = 0;
 
-        virtual std::string getString(int columnIndex) = 0;
+        virtual std::string getString(size_t columnIndex) = 0;
         virtual std::string getString(const std::string &columnName) = 0;
 
-        virtual bool getBoolean(int columnIndex) = 0;
+        virtual bool getBoolean(size_t columnIndex) = 0;
         virtual bool getBoolean(const std::string &columnName) = 0;
 
-        virtual bool isNull(int columnIndex) = 0;
+        virtual bool isNull(size_t columnIndex) = 0;
         virtual bool isNull(const std::string &columnName) = 0;
 
         virtual std::vector<std::string> getColumnNames() = 0;
         virtual size_t getColumnCount() = 0;
 
         // BLOB support methods
-        virtual std::shared_ptr<Blob> getBlob(int columnIndex) = 0;
+        virtual std::shared_ptr<Blob> getBlob(size_t columnIndex) = 0;
         virtual std::shared_ptr<Blob> getBlob(const std::string &columnName) = 0;
 
-        virtual std::shared_ptr<InputStream> getBinaryStream(int columnIndex) = 0;
+        virtual std::shared_ptr<InputStream> getBinaryStream(size_t columnIndex) = 0;
         virtual std::shared_ptr<InputStream> getBinaryStream(const std::string &columnName) = 0;
 
-        virtual std::vector<uint8_t> getBytes(int columnIndex) = 0;
+        virtual std::vector<uint8_t> getBytes(size_t columnIndex) = 0;
         virtual std::vector<uint8_t> getBytes(const std::string &columnName) = 0;
 
         // Close the result set and free resources

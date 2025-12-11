@@ -39,13 +39,13 @@ namespace cpp_dbc
         class MySQLResultSet : public ResultSet
         {
         private:
-            MYSQL_RES *m_result;
-            MYSQL_ROW m_currentRow;
-            uint64_t m_rowPosition;
-            uint64_t m_rowCount;
-            int m_fieldCount;
+            MYSQL_RES *m_result{nullptr};
+            MYSQL_ROW m_currentRow{nullptr};
+            size_t m_rowPosition{0};
+            size_t m_rowCount{0};
+            size_t m_fieldCount{0};
             std::vector<std::string> m_columnNames;
-            std::map<std::string, int> m_columnMap;
+            std::map<std::string, size_t> m_columnMap;
 
         public:
             MySQLResultSet(MYSQL_RES *res);
@@ -56,22 +56,22 @@ namespace cpp_dbc
             bool isAfterLast() override;
             uint64_t getRow() override;
 
-            int getInt(int columnIndex) override;
+            int getInt(size_t columnIndex) override;
             int getInt(const std::string &columnName) override;
 
-            long getLong(int columnIndex) override;
+            long getLong(size_t columnIndex) override;
             long getLong(const std::string &columnName) override;
 
-            double getDouble(int columnIndex) override;
+            double getDouble(size_t columnIndex) override;
             double getDouble(const std::string &columnName) override;
 
-            std::string getString(int columnIndex) override;
+            std::string getString(size_t columnIndex) override;
             std::string getString(const std::string &columnName) override;
 
-            bool getBoolean(int columnIndex) override;
+            bool getBoolean(size_t columnIndex) override;
             bool getBoolean(const std::string &columnName) override;
 
-            bool isNull(int columnIndex) override;
+            bool isNull(size_t columnIndex) override;
             bool isNull(const std::string &columnName) override;
 
             std::vector<std::string> getColumnNames() override;
@@ -79,13 +79,13 @@ namespace cpp_dbc
             void close() override;
 
             // BLOB support methods
-            std::shared_ptr<Blob> getBlob(int columnIndex) override;
+            std::shared_ptr<Blob> getBlob(size_t columnIndex) override;
             std::shared_ptr<Blob> getBlob(const std::string &columnName) override;
 
-            std::shared_ptr<InputStream> getBinaryStream(int columnIndex) override;
+            std::shared_ptr<InputStream> getBinaryStream(size_t columnIndex) override;
             std::shared_ptr<InputStream> getBinaryStream(const std::string &columnName) override;
 
-            std::vector<uint8_t> getBytes(int columnIndex) override;
+            std::vector<uint8_t> getBytes(size_t columnIndex) override;
             std::vector<uint8_t> getBytes(const std::string &columnName) override;
         };
 
@@ -94,9 +94,9 @@ namespace cpp_dbc
             friend class MySQLConnection;
 
         private:
-            MYSQL *m_mysql;
+            MYSQL *m_mysql{nullptr};
             std::string m_sql;
-            MYSQL_STMT *m_stmt;
+            MYSQL_STMT *m_stmt{nullptr};
             std::vector<MYSQL_BIND> m_binds;
             std::vector<std::string> m_stringValues;                   // To keep string values alive
             std::vector<std::string> m_parameterValues;                // To store parameter values for query reconstruction

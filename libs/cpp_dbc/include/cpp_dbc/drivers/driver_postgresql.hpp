@@ -55,22 +55,22 @@ namespace cpp_dbc
             bool isAfterLast() override;
             uint64_t getRow() override;
 
-            int getInt(int columnIndex) override;
+            int getInt(size_t columnIndex) override;
             int getInt(const std::string &columnName) override;
 
-            long getLong(int columnIndex) override;
+            long getLong(size_t columnIndex) override;
             long getLong(const std::string &columnName) override;
 
-            double getDouble(int columnIndex) override;
+            double getDouble(size_t columnIndex) override;
             double getDouble(const std::string &columnName) override;
 
-            std::string getString(int columnIndex) override;
+            std::string getString(size_t columnIndex) override;
             std::string getString(const std::string &columnName) override;
 
-            bool getBoolean(int columnIndex) override;
+            bool getBoolean(size_t columnIndex) override;
             bool getBoolean(const std::string &columnName) override;
 
-            bool isNull(int columnIndex) override;
+            bool isNull(size_t columnIndex) override;
             bool isNull(const std::string &columnName) override;
 
             std::vector<std::string> getColumnNames() override;
@@ -78,13 +78,13 @@ namespace cpp_dbc
             virtual void close() override;
 
             // BLOB support methods
-            std::shared_ptr<Blob> getBlob(int columnIndex) override;
+            std::shared_ptr<Blob> getBlob(size_t columnIndex) override;
             std::shared_ptr<Blob> getBlob(const std::string &columnName) override;
 
-            std::shared_ptr<InputStream> getBinaryStream(int columnIndex) override;
+            std::shared_ptr<InputStream> getBinaryStream(size_t columnIndex) override;
             std::shared_ptr<InputStream> getBinaryStream(const std::string &columnName) override;
 
-            std::vector<uint8_t> getBytes(int columnIndex) override;
+            std::vector<uint8_t> getBytes(size_t columnIndex) override;
             std::vector<uint8_t> getBytes(const std::string &columnName) override;
         };
 

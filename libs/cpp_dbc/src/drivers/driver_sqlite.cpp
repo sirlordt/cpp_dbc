@@ -58,12 +58,12 @@ namespace cpp_dbc
             if (stmt)
             {
                 // Get column count
-                m_fieldCount = sqlite3_column_count(stmt);
+                m_fieldCount = static_cast<size_t>(sqlite3_column_count(stmt));
 
                 // Store column names and create column name to index mapping
-                for (int i = 0; i < m_fieldCount; i++)
+                for (size_t i = 0; i < m_fieldCount; i++)
                 {
-                    std::string name = sqlite3_column_name(stmt, i);
+                    std::string name = sqlite3_column_name(stmt, static_cast<int>(i));
                     m_columnNames.push_back(name);
                     m_columnMap[name] = i;
                 }
@@ -147,7 +147,7 @@ namespace cpp_dbc
             return m_rowPosition;
         }
 
-        int SQLiteResultSet::getInt(int columnIndex)
+        int SQLiteResultSet::getInt(size_t columnIndex)
         {
             if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -156,7 +156,7 @@ namespace cpp_dbc
             }
 
             // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
 
             if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
             {
@@ -178,7 +178,7 @@ namespace cpp_dbc
             return getInt(it->second + 1); // +1 because getInt(int) is 1-based
         }
 
-        long SQLiteResultSet::getLong(int columnIndex)
+        long SQLiteResultSet::getLong(size_t columnIndex)
         {
             if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -186,7 +186,7 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
 
             if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
             {
@@ -208,7 +208,7 @@ namespace cpp_dbc
             return getLong(it->second + 1);
         }
 
-        double SQLiteResultSet::getDouble(int columnIndex)
+        double SQLiteResultSet::getDouble(size_t columnIndex)
         {
             if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -216,7 +216,7 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
 
             if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
             {
@@ -238,7 +238,7 @@ namespace cpp_dbc
             return getDouble(it->second + 1);
         }
 
-        std::string SQLiteResultSet::getString(int columnIndex)
+        std::string SQLiteResultSet::getString(size_t columnIndex)
         {
             if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -246,7 +246,7 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
 
             if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
             {
@@ -269,7 +269,7 @@ namespace cpp_dbc
             return getString(it->second + 1);
         }
 
-        bool SQLiteResultSet::getBoolean(int columnIndex)
+        bool SQLiteResultSet::getBoolean(size_t columnIndex)
         {
             return getInt(columnIndex) != 0;
         }
@@ -279,7 +279,7 @@ namespace cpp_dbc
             return getInt(columnName) != 0;
         }
 
-        bool SQLiteResultSet::isNull(int columnIndex)
+        bool SQLiteResultSet::isNull(size_t columnIndex)
         {
             if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -287,7 +287,7 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
             return sqlite3_column_type(m_stmt, idx) == SQLITE_NULL;
         }
 
@@ -1500,7 +1500,7 @@ namespace cpp_dbc
         }
 
         // BLOB support methods for SQLiteResultSet
-        std::shared_ptr<Blob> SQLiteResultSet::getBlob(int columnIndex)
+        std::shared_ptr<Blob> SQLiteResultSet::getBlob(size_t columnIndex)
         {
             if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -1509,7 +1509,7 @@ namespace cpp_dbc
             }
 
             // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
 
             if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
             {
@@ -1559,7 +1559,7 @@ namespace cpp_dbc
             return getBlob(it->second + 1); // +1 because getBlob(int) is 1-based
         }
 
-        std::shared_ptr<InputStream> SQLiteResultSet::getBinaryStream(int columnIndex)
+        std::shared_ptr<InputStream> SQLiteResultSet::getBinaryStream(size_t columnIndex)
         {
             if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -1568,7 +1568,7 @@ namespace cpp_dbc
             }
 
             // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
 
             if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
             {
@@ -1596,7 +1596,7 @@ namespace cpp_dbc
             return getBinaryStream(it->second + 1); // +1 because getBinaryStream(int) is 1-based
         }
 
-        std::vector<uint8_t> SQLiteResultSet::getBytes(int columnIndex)
+        std::vector<uint8_t> SQLiteResultSet::getBytes(size_t columnIndex)
         {
             if (!m_stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -1605,7 +1605,7 @@ namespace cpp_dbc
             }
 
             // SQLite column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
 
             if (sqlite3_column_type(m_stmt, idx) == SQLITE_NULL)
             {

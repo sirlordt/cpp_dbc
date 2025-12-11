@@ -93,15 +93,15 @@ namespace cpp_dbc
             return m_rowPosition;
         }
 
-        int PostgreSQLResultSet::getInt(int columnIndex)
+        int PostgreSQLResultSet::getInt(size_t columnIndex)
         {
-            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("1S2T3U4V5W6X", "Invalid column index or row position", system_utils::captureCallStack());
             }
 
             // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
             if (PQgetisnull(m_result, row, idx))
@@ -131,14 +131,14 @@ namespace cpp_dbc
             return getInt(it->second + 1); // +1 because getInt(int) is 1-based
         }
 
-        long PostgreSQLResultSet::getLong(int columnIndex)
+        long PostgreSQLResultSet::getLong(size_t columnIndex)
         {
-            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("9K0L1M2N3O4P", "Invalid column index or row position", system_utils::captureCallStack());
             }
 
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
             if (PQgetisnull(m_result, row, idx))
@@ -168,14 +168,14 @@ namespace cpp_dbc
             return getLong(it->second + 1);
         }
 
-        double PostgreSQLResultSet::getDouble(int columnIndex)
+        double PostgreSQLResultSet::getDouble(size_t columnIndex)
         {
-            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("3I4J5K6L7M8N", "Invalid column index or row position", system_utils::captureCallStack());
             }
 
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
             if (PQgetisnull(m_result, row, idx))
@@ -205,14 +205,14 @@ namespace cpp_dbc
             return getDouble(it->second + 1);
         }
 
-        std::string PostgreSQLResultSet::getString(int columnIndex)
+        std::string PostgreSQLResultSet::getString(size_t columnIndex)
         {
-            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("1A2B3C4D5E6F", "Invalid column index or row position", system_utils::captureCallStack());
             }
 
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
             if (PQgetisnull(m_result, row, idx))
@@ -234,7 +234,7 @@ namespace cpp_dbc
             return getString(it->second + 1);
         }
 
-        bool PostgreSQLResultSet::getBoolean(int columnIndex)
+        bool PostgreSQLResultSet::getBoolean(size_t columnIndex)
         {
             std::string value = getString(columnIndex);
             return (value == "t" || value == "true" || value == "1" || value == "TRUE" || value == "True");
@@ -251,14 +251,14 @@ namespace cpp_dbc
             return getBoolean(it->second + 1);
         }
 
-        bool PostgreSQLResultSet::isNull(int columnIndex)
+        bool PostgreSQLResultSet::isNull(size_t columnIndex)
         {
-            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("3M4N5O6P7Q8R", "Invalid column index or row position", system_utils::captureCallStack());
             }
 
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
             return PQgetisnull(m_result, row, idx);
@@ -754,15 +754,15 @@ namespace cpp_dbc
         }
 
         // BLOB support methods for PostgreSQLResultSet
-        std::shared_ptr<Blob> PostgreSQLResultSet::getBlob(int columnIndex)
+        std::shared_ptr<Blob> PostgreSQLResultSet::getBlob(size_t columnIndex)
         {
-            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("5K6L7M8N9O0P", "Invalid column index or row position for getBlob", system_utils::captureCallStack());
             }
 
             // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
             if (PQgetisnull(m_result, row, idx))
@@ -800,15 +800,15 @@ namespace cpp_dbc
             return getBlob(it->second + 1); // +1 because getBlob(int) is 1-based
         }
 
-        std::shared_ptr<InputStream> PostgreSQLResultSet::getBinaryStream(int columnIndex)
+        std::shared_ptr<InputStream> PostgreSQLResultSet::getBinaryStream(size_t columnIndex)
         {
-            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("FC94875EDF73", "Invalid column index or row position for getBinaryStream", system_utils::captureCallStack());
             }
 
             // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
             if (PQgetisnull(m_result, row, idx))
@@ -845,15 +845,15 @@ namespace cpp_dbc
             return getBinaryStream(it->second + 1); // +1 because getBinaryStream(int) is 1-based
         }
 
-        std::vector<uint8_t> PostgreSQLResultSet::getBytes(int columnIndex)
+        std::vector<uint8_t> PostgreSQLResultSet::getBytes(size_t columnIndex)
         {
-            if (!m_result || columnIndex < 1 || columnIndex > m_fieldCount || m_rowPosition < 1 || m_rowPosition > m_rowCount)
+            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("D5E8D5D3A7A4", "Invalid column index or row position for getBytes", system_utils::captureCallStack());
             }
 
             // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
-            int idx = columnIndex - 1;
+            int idx = static_cast<int>(columnIndex - 1);
             int row = m_rowPosition - 1;
 
             if (PQgetisnull(m_result, row, idx))

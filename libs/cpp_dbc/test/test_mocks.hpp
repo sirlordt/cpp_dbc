@@ -152,9 +152,9 @@ namespace cpp_dbc_test
         }
 
         // Get value from current row by column index
-        std::string getValueByIndex(int columnIndex) const
+        std::string getValueByIndex(size_t columnIndex) const
         {
-            if (columnIndex < 1 || columnIndex > static_cast<int>(columnNames.size()))
+            if (columnIndex < 1 || columnIndex > columnNames.size())
             {
                 return "";
             }
@@ -236,7 +236,7 @@ namespace cpp_dbc_test
             return rowPosition;
         }
 
-        int getInt(int columnIndex) override
+        int getInt(size_t columnIndex) override
         {
             return stringToInt(getValueByIndex(columnIndex));
         }
@@ -246,7 +246,7 @@ namespace cpp_dbc_test
             return stringToInt(getValueByName(columnName));
         }
 
-        long getLong(int columnIndex) override
+        long getLong(size_t columnIndex) override
         {
             return stringToLong(getValueByIndex(columnIndex));
         }
@@ -256,7 +256,7 @@ namespace cpp_dbc_test
             return stringToLong(getValueByName(columnName));
         }
 
-        double getDouble(int columnIndex) override
+        double getDouble(size_t columnIndex) override
         {
             return stringToDouble(getValueByIndex(columnIndex));
         }
@@ -266,7 +266,7 @@ namespace cpp_dbc_test
             return stringToDouble(getValueByName(columnName));
         }
 
-        std::string getString(int columnIndex) override
+        std::string getString(size_t columnIndex) override
         {
             return getValueByIndex(columnIndex);
         }
@@ -276,7 +276,7 @@ namespace cpp_dbc_test
             return getValueByName(columnName);
         }
 
-        bool getBoolean(int columnIndex) override
+        bool getBoolean(size_t columnIndex) override
         {
             return stringToBoolean(getValueByIndex(columnIndex));
         }
@@ -286,7 +286,7 @@ namespace cpp_dbc_test
             return stringToBoolean(getValueByName(columnName));
         }
 
-        bool isNull(int columnIndex) override
+        bool isNull(size_t columnIndex) override
         {
             return getValueByIndex(columnIndex).empty();
         }
@@ -312,7 +312,7 @@ namespace cpp_dbc_test
         }
 
         // BLOB support methods
-        std::shared_ptr<cpp_dbc::Blob> getBlob(int /*columnIndex*/) override
+        std::shared_ptr<cpp_dbc::Blob> getBlob(size_t /*columnIndex*/) override
         {
             // Return an empty mock blob
             return std::make_shared<MockBlob>();
@@ -324,7 +324,7 @@ namespace cpp_dbc_test
             return std::make_shared<MockBlob>();
         }
 
-        std::shared_ptr<cpp_dbc::InputStream> getBinaryStream(int /*columnIndex*/) override
+        std::shared_ptr<cpp_dbc::InputStream> getBinaryStream(size_t /*columnIndex*/) override
         {
             // Return a mock input stream
             return std::make_shared<MockInputStream>();
@@ -336,7 +336,7 @@ namespace cpp_dbc_test
             return std::make_shared<MockInputStream>();
         }
 
-        std::vector<uint8_t> getBytes(int /*columnIndex*/) override
+        std::vector<uint8_t> getBytes(size_t /*columnIndex*/) override
         {
             // Return an empty vector
             return std::vector<uint8_t>();
