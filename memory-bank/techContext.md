@@ -60,6 +60,7 @@ The project uses:
   - `--debug-txmgr`: Enable debug output for TransactionManager
   - `--debug-sqlite`: Enable debug output for SQLite driver
   - `--debug-all`: Enable all debug output at once (simplifies debugging across multiple components)
+  - `--db-driver-thread-safe-off`: Disable thread-safe database driver operations (for single-threaded performance)
   - `--asan`: Enable AddressSanitizer (with known issues, see asan_issues.md)
 
 ### Development Environment
@@ -91,10 +92,12 @@ The project is configured to work with the CMakeTools extension, but does not re
 - Adding support for other databases requires implementing new driver classes
 
 ### Thread Safety
-- Connection objects are not thread-safe and should not be shared between threads
+- Connection objects can be made thread-safe with the `DB_DRIVER_THREAD_SAFE` option (default: ON)
+- When thread-safety is enabled, mutex protection is added to key connection methods
 - ConnectionPool and TransactionManager are thread-safe
 - SQLiteDriver implements thread-safe initialization using std::atomic and std::mutex with singleton pattern
-- Applications must handle their own thread synchronization when sharing data between threads
+- Applications can disable thread-safety with `--db-driver-thread-safe-off` for single-threaded performance
+- Thread-safety can be disabled at compile time with `-DDB_DRIVER_THREAD_SAFE=OFF`
 
 ### Memory Management
 - Uses smart pointers for automatic resource management:

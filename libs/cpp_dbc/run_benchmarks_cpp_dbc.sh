@@ -19,6 +19,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 BACKWARD_HAS_DW=ON
 USE_MEMORY_USAGE=false    # Whether to use /usr/bin/time for memory usage tracking
+DB_DRIVER_THREAD_SAFE=ON
 
 # Parse command-line arguments
 while [[ $# -gt 0 ]]; do
@@ -81,6 +82,10 @@ while [[ $# -gt 0 ]]; do
             BACKWARD_HAS_DW=OFF
             shift
             ;;
+        --db-driver-thread-safe-off)
+            DB_DRIVER_THREAD_SAFE=OFF
+            shift
+            ;;
         --memory-usage)
             USE_MEMORY_USAGE=true
             shift
@@ -127,6 +132,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
+            echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
             echo "  --memory-usage         Track memory usage with /usr/bin/time"
             echo "  --help                 Show this help message"
             exit 0
@@ -167,6 +173,7 @@ echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  libdw support: $BACKWARD_HAS_DW"
+echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
 echo "  Memory usage tracking: $USE_MEMORY_USAGE"
 if [ -n "$BENCHMARK_TAGS" ]; then
     echo "  Benchmark tags: $BENCHMARK_TAGS"
@@ -238,6 +245,10 @@ if [ "$CLEAN_BUILD" = true ] || [ "$REBUILD" = true ]; then
     
     if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
         BUILD_OPTIONS="$BUILD_OPTIONS --dw-off"
+    fi
+    
+    if [ "$DB_DRIVER_THREAD_SAFE" = "OFF" ]; then
+        BUILD_OPTIONS="$BUILD_OPTIONS --db-driver-thread-safe-off"
     fi
     
     # Always include benchmarks

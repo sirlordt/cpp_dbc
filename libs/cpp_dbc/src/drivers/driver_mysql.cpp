@@ -36,6 +36,10 @@ namespace cpp_dbc
 
         void MySQLResultSet::validateResultState() const
         {
+#if DB_DRIVER_THREAD_SAFE
+            // Note: This is called from other methods that already hold the lock
+            // so we don't acquire the lock here
+#endif
             if (!m_result)
             {
                 throw DBException("E53694BC170E", "ResultSet has been closed or is invalid", system_utils::captureCallStack());
@@ -44,6 +48,10 @@ namespace cpp_dbc
 
         void MySQLResultSet::validateCurrentRow() const
         {
+#if DB_DRIVER_THREAD_SAFE
+            // Note: This is called from other methods that already hold the lock
+            // so we don't acquire the lock here
+#endif
             validateResultState();
             if (!m_currentRow)
             {
@@ -81,6 +89,9 @@ namespace cpp_dbc
 
         bool MySQLResultSet::next()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_result || m_rowPosition >= m_rowCount)
             {
                 m_currentRow = nullptr; // Ensure currentRow is invalidated
@@ -114,6 +125,9 @@ namespace cpp_dbc
 
         int MySQLResultSet::getInt(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -143,6 +157,9 @@ namespace cpp_dbc
 
         long MySQLResultSet::getLong(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -171,6 +188,9 @@ namespace cpp_dbc
 
         double MySQLResultSet::getDouble(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -199,6 +219,9 @@ namespace cpp_dbc
 
         std::string MySQLResultSet::getString(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -227,7 +250,25 @@ namespace cpp_dbc
 
         bool MySQLResultSet::getBoolean(size_t columnIndex)
         {
-            std::string value = getString(columnIndex);
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
+            // Note: getString also acquires the lock, but we need to hold it for the entire operation
+            // Since we're using recursive mutex behavior through separate lock acquisition,
+            // we need to call the internal implementation directly
+            validateCurrentRow();
+            if (columnIndex < 1 || columnIndex > m_fieldCount)
+            {
+                throw DBException("089F37F0D90E", "Invalid column index", system_utils::captureCallStack());
+            }
+
+            size_t idx = columnIndex - 1;
+            if (m_currentRow[idx] == nullptr)
+            {
+                return false;
+            }
+
+            std::string value = std::string(m_currentRow[idx]);
             return (value == "1" || value == "true" || value == "TRUE" || value == "True");
         }
 
@@ -244,6 +285,9 @@ namespace cpp_dbc
 
         bool MySQLResultSet::isNull(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -277,6 +321,9 @@ namespace cpp_dbc
 
         void MySQLResultSet::close()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_result)
             {
                 // Smart pointer will automatically call mysql_free_result via MySQLResDeleter
@@ -291,6 +338,9 @@ namespace cpp_dbc
         // BLOB support methods for MySQLResultSet
         std::shared_ptr<Blob> MySQLResultSet::getBlob(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -335,6 +385,9 @@ namespace cpp_dbc
 
         std::shared_ptr<InputStream> MySQLResultSet::getBinaryStream(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -373,6 +426,9 @@ namespace cpp_dbc
 
         std::vector<uint8_t> MySQLResultSet::getBytes(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -489,6 +545,9 @@ namespace cpp_dbc
 
         void MySQLPreparedStatement::setInt(int parameterIndex, int value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("5K6L7M8N9O0P", "Invalid parameter index", system_utils::captureCallStack());
@@ -510,6 +569,9 @@ namespace cpp_dbc
 
         void MySQLPreparedStatement::setLong(int parameterIndex, long value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("1Q2R3S4T5U6V", "Invalid parameter index", system_utils::captureCallStack());
@@ -532,6 +594,9 @@ namespace cpp_dbc
         // BLOB support methods
         void MySQLPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("D1E2F3G4H5I6", "Invalid parameter index for setBlob", system_utils::captureCallStack());
@@ -572,6 +637,9 @@ namespace cpp_dbc
 
         void MySQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("J7K8L9M0N1O2", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack());
@@ -618,6 +686,9 @@ namespace cpp_dbc
 
         void MySQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("P3Q4R5S6T7U8", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack());
@@ -667,6 +738,9 @@ namespace cpp_dbc
 
         void MySQLPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("V9W0X1Y2Z3A4", "Invalid parameter index for setBytes", system_utils::captureCallStack());
@@ -689,6 +763,9 @@ namespace cpp_dbc
 
         void MySQLPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("B5C6D7E8F9G0", "Invalid parameter index for setBytes", system_utils::captureCallStack());
@@ -724,6 +801,9 @@ namespace cpp_dbc
 
         void MySQLPreparedStatement::setDouble(int parameterIndex, double value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("7W8X9Y0Z1A2B", "Invalid parameter index", system_utils::captureCallStack());
@@ -745,6 +825,9 @@ namespace cpp_dbc
 
         void MySQLPreparedStatement::setString(int parameterIndex, const std::string &value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("3C4D5E6F7G8H", "Invalid parameter index", system_utils::captureCallStack());
@@ -776,6 +859,9 @@ namespace cpp_dbc
 
         void MySQLPreparedStatement::setBoolean(int parameterIndex, bool value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("9I0J1K2L3M4N", "Invalid parameter index", system_utils::captureCallStack());
@@ -797,6 +883,9 @@ namespace cpp_dbc
 
         void MySQLPreparedStatement::setNull(int parameterIndex, Types type)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("5O6P7Q8R9S0T", "Invalid parameter index", system_utils::captureCallStack());
@@ -848,6 +937,9 @@ namespace cpp_dbc
 
         void MySQLPreparedStatement::setDate(int parameterIndex, const std::string &value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("1U2V3W4X5Y6Z", "Invalid parameter index", system_utils::captureCallStack());
@@ -868,6 +960,9 @@ namespace cpp_dbc
 
         void MySQLPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
                 throw DBException("7A8B9C0D1E2F", "Invalid parameter index", system_utils::captureCallStack());
@@ -888,6 +983,9 @@ namespace cpp_dbc
 
         std::shared_ptr<ResultSet> MySQLPreparedStatement::executeQuery()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_stmt)
             {
                 throw DBException("3G4H5I6J7K8L", "Statement is applied", system_utils::captureCallStack());
@@ -932,6 +1030,9 @@ namespace cpp_dbc
 
         uint64_t MySQLPreparedStatement::executeUpdate()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_stmt)
             {
                 throw DBException("255F5A0C6008", "Statement is applied", system_utils::captureCallStack());
@@ -959,6 +1060,9 @@ namespace cpp_dbc
 
         bool MySQLPreparedStatement::execute()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_stmt)
             {
                 throw DBException("5S6T7U8V9W0X", "Statement is not initialized", system_utils::captureCallStack());
@@ -1135,6 +1239,9 @@ namespace cpp_dbc
 
         std::shared_ptr<PreparedStatement> MySQLConnection::prepareStatement(const std::string &sql)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_mysql)
             {
                 throw DBException("1C2D3E4F5G6H", "Connection is closed", system_utils::captureCallStack());
@@ -1151,6 +1258,9 @@ namespace cpp_dbc
 
         std::shared_ptr<ResultSet> MySQLConnection::executeQuery(const std::string &sql)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_mysql)
             {
                 throw DBException("7I8J9K0L1M2N", "Connection is closed", system_utils::captureCallStack());
@@ -1172,6 +1282,9 @@ namespace cpp_dbc
 
         uint64_t MySQLConnection::executeUpdate(const std::string &sql)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_mysql)
             {
                 throw DBException("5A6B7C8D9E0F", "Connection is closed", system_utils::captureCallStack());
@@ -1187,6 +1300,9 @@ namespace cpp_dbc
 
         bool MySQLConnection::beginTransaction()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_mysql)
             {
                 throw DBException("7M8N9O0P1Q2R", "Connection is closed", system_utils::captureCallStack());
@@ -1217,6 +1333,9 @@ namespace cpp_dbc
 
         void MySQLConnection::setAutoCommit(bool autoCommitFlag)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_mysql)
             {
                 throw DBException("7M8N9O0P1Q2R", "Connection is closed", system_utils::captureCallStack());
@@ -1260,6 +1379,9 @@ namespace cpp_dbc
 
         void MySQLConnection::commit()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_mysql)
             {
                 throw DBException("3S4T5U6V7W8X", "Connection is closed", system_utils::captureCallStack());
@@ -1287,6 +1409,9 @@ namespace cpp_dbc
 
         void MySQLConnection::rollback()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_mysql)
             {
                 throw DBException("5E6F7G8H9I0J", "Connection is closed", system_utils::captureCallStack());
@@ -1314,6 +1439,9 @@ namespace cpp_dbc
 
         void MySQLConnection::setTransactionIsolation(TransactionIsolationLevel level)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_mysql)
             {
                 throw DBException("47FCEE77D4F3", "Connection is closed", system_utils::captureCallStack());
@@ -1359,6 +1487,9 @@ namespace cpp_dbc
 
         TransactionIsolationLevel MySQLConnection::getTransactionIsolation()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_mysql)
             {
                 throw DBException("9C0D1E2F3G4H", "Connection is closed", system_utils::captureCallStack());

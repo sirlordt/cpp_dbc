@@ -69,6 +69,9 @@ namespace cpp_dbc
 
         bool PostgreSQLResultSet::next()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_result || m_rowPosition >= m_rowCount)
             {
                 return false;
@@ -95,6 +98,9 @@ namespace cpp_dbc
 
         int PostgreSQLResultSet::getInt(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("1S2T3U4V5W6X", "Invalid column index or row position", system_utils::captureCallStack());
@@ -133,6 +139,9 @@ namespace cpp_dbc
 
         long PostgreSQLResultSet::getLong(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("9K0L1M2N3O4P", "Invalid column index or row position", system_utils::captureCallStack());
@@ -170,6 +179,9 @@ namespace cpp_dbc
 
         double PostgreSQLResultSet::getDouble(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("3I4J5K6L7M8N", "Invalid column index or row position", system_utils::captureCallStack());
@@ -207,6 +219,9 @@ namespace cpp_dbc
 
         std::string PostgreSQLResultSet::getString(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("1A2B3C4D5E6F", "Invalid column index or row position", system_utils::captureCallStack());
@@ -236,7 +251,24 @@ namespace cpp_dbc
 
         bool PostgreSQLResultSet::getBoolean(size_t columnIndex)
         {
-            std::string value = getString(columnIndex);
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
+            // Get value directly to avoid double-locking
+            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
+            {
+                throw DBException("F7096FE7EDFC", "Invalid column index or row position", system_utils::captureCallStack());
+            }
+
+            int idx = static_cast<int>(columnIndex - 1);
+            int row = m_rowPosition - 1;
+
+            if (PQgetisnull(m_result.get(), row, idx))
+            {
+                return false;
+            }
+
+            std::string value = std::string(PQgetvalue(m_result.get(), row, idx));
             return (value == "t" || value == "true" || value == "1" || value == "TRUE" || value == "True");
         }
 
@@ -253,6 +285,9 @@ namespace cpp_dbc
 
         bool PostgreSQLResultSet::isNull(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("3M4N5O6P7Q8R", "Invalid column index or row position", system_utils::captureCallStack());
@@ -287,6 +322,9 @@ namespace cpp_dbc
 
         void PostgreSQLResultSet::close()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_result)
             {
                 // Smart pointer will automatically call PQclear via PGresultDeleter
@@ -445,6 +483,9 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setInt(int parameterIndex, int value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("5Y6Z7A8B9C0D", "Invalid parameter index", system_utils::captureCallStack());
@@ -459,6 +500,9 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setLong(int parameterIndex, long value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("1E2F3G4H5I6J", "Invalid parameter index", system_utils::captureCallStack());
@@ -473,6 +517,9 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setDouble(int parameterIndex, double value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("7K8L9M0N1O2P", "Invalid parameter index", system_utils::captureCallStack());
@@ -487,6 +534,9 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setString(int parameterIndex, const std::string &value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("3Q4R5S6T7U8V", "Invalid parameter index", system_utils::captureCallStack());
@@ -501,6 +551,9 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setBoolean(int parameterIndex, bool value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("9W0X1Y2Z3A4B", "Invalid parameter index", system_utils::captureCallStack());
@@ -515,6 +568,9 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setNull(int parameterIndex, Types type)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("4A049129B485", "Invalid parameter index", system_utils::captureCallStack());
@@ -564,6 +620,9 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setDate(int parameterIndex, const std::string &value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("5C6D7E8F9G0H", "Invalid parameter index", system_utils::captureCallStack());
@@ -578,6 +637,9 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("1I2J3K4L5M6N", "Invalid parameter index", system_utils::captureCallStack());
@@ -592,6 +654,9 @@ namespace cpp_dbc
 
         std::shared_ptr<ResultSet> PostgreSQLPreparedStatement::executeQuery()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             // Get the connection safely (throws if connection is closed)
             PGconn *connPtr = getPGConnection();
 
@@ -648,6 +713,9 @@ namespace cpp_dbc
 
         uint64_t PostgreSQLPreparedStatement::executeUpdate()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             // Get the connection safely (throws if connection is closed)
             PGconn *connPtr = getPGConnection();
 
@@ -711,6 +779,9 @@ namespace cpp_dbc
 
         bool PostgreSQLPreparedStatement::execute()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             // Get the connection safely (throws if connection is closed)
             PGconn *connPtr = getPGConnection();
 
@@ -767,6 +838,9 @@ namespace cpp_dbc
         // BLOB support methods for PostgreSQLResultSet
         std::shared_ptr<Blob> PostgreSQLResultSet::getBlob(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("5K6L7M8N9O0P", "Invalid column index or row position for getBlob", system_utils::captureCallStack());
@@ -813,6 +887,9 @@ namespace cpp_dbc
 
         std::shared_ptr<InputStream> PostgreSQLResultSet::getBinaryStream(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("FC94875EDF73", "Invalid column index or row position for getBinaryStream", system_utils::captureCallStack());
@@ -858,6 +935,9 @@ namespace cpp_dbc
 
         std::vector<uint8_t> PostgreSQLResultSet::getBytes(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
                 throw DBException("D5E8D5D3A7A4", "Invalid column index or row position for getBytes", system_utils::captureCallStack());
@@ -947,6 +1027,9 @@ namespace cpp_dbc
         // BLOB support methods for PostgreSQLPreparedStatement
         void PostgreSQLPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("3C2333857671", "Invalid parameter index for setBlob", system_utils::captureCallStack());
@@ -984,6 +1067,9 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("D182B9C3A9CC", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack());
@@ -1027,6 +1113,9 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("13B0690421E5", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack());
@@ -1073,6 +1162,9 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("D6EC2CC8C12C", "Invalid parameter index for setBytes", system_utils::captureCallStack());
@@ -1094,6 +1186,9 @@ namespace cpp_dbc
 
         void PostgreSQLPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
                 throw DBException("D8D28AD75097", "Invalid parameter index for setBytes", system_utils::captureCallStack());
@@ -1254,6 +1349,9 @@ namespace cpp_dbc
 
         std::shared_ptr<PreparedStatement> PostgreSQLConnection::prepareStatement(const std::string &sql)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_conn)
             {
                 throw DBException("7W8X9Y0Z1A2B", "Connection is closed", system_utils::captureCallStack());
@@ -1271,6 +1369,9 @@ namespace cpp_dbc
 
         std::shared_ptr<ResultSet> PostgreSQLConnection::executeQuery(const std::string &sql)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_conn)
             {
                 throw DBException("3C4D5E6F7G8H", "Connection is closed", system_utils::captureCallStack());
@@ -1289,6 +1390,9 @@ namespace cpp_dbc
 
         uint64_t PostgreSQLConnection::executeUpdate(const std::string &sql)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_conn)
             {
                 throw DBException("5O6P7Q8R9S0T", "Connection is closed", system_utils::captureCallStack());
@@ -1316,6 +1420,9 @@ namespace cpp_dbc
 
         bool PostgreSQLConnection::beginTransaction()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_conn)
             {
                 throw DBException("7A8B9C0D1E2F", "Connection is closed", system_utils::captureCallStack());
@@ -1380,6 +1487,9 @@ namespace cpp_dbc
 
         void PostgreSQLConnection::setAutoCommit(bool autoCommitFlag)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_conn)
             {
                 throw DBException("7A8B9C0D1E2F", "Connection is closed", system_utils::captureCallStack());
@@ -1423,6 +1533,9 @@ namespace cpp_dbc
 
         void PostgreSQLConnection::commit()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_conn)
             {
                 throw DBException("7E8F9G0H1I2J", "Connection is closed", system_utils::captureCallStack());
@@ -1449,6 +1562,9 @@ namespace cpp_dbc
 
         void PostgreSQLConnection::rollback()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_conn)
             {
                 throw DBException("5W6X7Y8Z9A0B", "Connection is closed", system_utils::captureCallStack());
@@ -1475,6 +1591,9 @@ namespace cpp_dbc
 
         void PostgreSQLConnection::setTransactionIsolation(TransactionIsolationLevel level)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_conn)
             {
                 throw DBException("3O4P5Q6R7S8T", "Connection is closed", system_utils::captureCallStack());
@@ -1564,6 +1683,9 @@ namespace cpp_dbc
 
         TransactionIsolationLevel PostgreSQLConnection::getTransactionIsolation()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_conn)
             {
                 throw DBException("5E6F7G8H9I0J", "Connection is closed", system_utils::captureCallStack());

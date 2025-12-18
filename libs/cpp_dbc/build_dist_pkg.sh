@@ -18,7 +18,7 @@ function show_usage {
     echo "                      Default: ubuntu:24.04"
     echo "                      Example: --distro=ubuntu:24.04+fedora:42+debian:12"
     echo "  --build=OPTIONS     Comma-separated build options."
-    echo "                      Supported values: yaml, mysql, postgres, sqlite, debug, dw, examples"
+    echo "                      Supported values: yaml, mysql, postgres, sqlite, debug, dw, examples, thread-safe-off"
     echo "                      Default: yaml,mysql,postgres,sqlite,debug,dw"
     echo "  --version=VERSION   Specify a version string to use instead of timestamp."
     echo "                      Example: --version=1.0.1 or --version=2-0-1"
@@ -144,6 +144,7 @@ USE_CPP_YAML="OFF"
 USE_DW="OFF"
 BUILD_TYPE="Debug"
 BUILD_EXAMPLES="OFF"
+DB_DRIVER_THREAD_SAFE="ON"
 # Create a variable to store the build flags for the Debian package
 BUILD_FLAGS=""
 
@@ -189,6 +190,10 @@ for option in "${OPTIONS[@]}"; do
         examples)
             BUILD_EXAMPLES="ON"
             BUILD_FLAGS="$BUILD_FLAGS --examples"
+            ;;
+        thread-safe-off)
+            DB_DRIVER_THREAD_SAFE="OFF"
+            BUILD_FLAGS="$BUILD_FLAGS --db-driver-thread-safe-off"
             ;;
         *)
             echo "Unknown build option: $option"
@@ -249,6 +254,7 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__USE_DW__/$USE_DW/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__BUILD_TYPE__/$BUILD_TYPE/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__BUILD_EXAMPLES__/$BUILD_EXAMPLES/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__DB_DRIVER_THREAD_SAFE__/$DB_DRIVER_THREAD_SAFE/g" "$TEMP_BUILD_DIR/build_script.sh"
     # Pass the build flags to the build script
     sed -i "s/__BUILD_FLAGS__/$BUILD_FLAGS/g" "$TEMP_BUILD_DIR/build_script.sh"
     

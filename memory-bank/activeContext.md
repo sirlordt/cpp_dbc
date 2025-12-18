@@ -32,7 +32,25 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Smart Pointer Migration for Database Drivers**:
+1. **Thread-Safe Database Driver Operations**:
+   - Added optional thread-safety support for database driver operations:
+     - **New CMake Option:**
+       - Added `DB_DRIVER_THREAD_SAFE` option (default: ON) to enable/disable thread-safe operations
+       - Use `-DDB_DRIVER_THREAD_SAFE=OFF` to disable thread-safety for single-threaded applications
+     - **Build Script Updates:**
+       - Added `--db-driver-thread-safe-off` option to all build scripts (build.sh, build.dist.sh, helper.sh, run_test.sh)
+       - Updated helper.sh with new option for --run-build, --run-build-dist, --run-test, and --run-benchmarks
+     - **Driver Implementations:**
+       - MySQL: Added `std::mutex m_mutex` and `std::lock_guard` protection in key methods
+       - PostgreSQL: Added `std::mutex m_mutex` and `std::lock_guard` protection in key methods
+       - SQLite: Added `std::mutex m_mutex` and `std::lock_guard` protection in key methods
+     - **New Thread-Safety Tests:**
+       - Added test_mysql_thread_safe.cpp, test_postgresql_thread_safe.cpp, test_sqlite_thread_safe.cpp
+       - Tests include: multiple threads with individual connections, connection pool concurrent access,
+         concurrent read operations, high concurrency stress test, rapid connection open/close stress test
+   - Benefits: Safe concurrent access, protection against race conditions, optional feature for performance
+
+2. **Smart Pointer Migration for Database Drivers**:
    - Migrated all database drivers from raw pointers to smart pointers for improved memory safety:
      - **MySQL Driver:**
        - Added `MySQLResDeleter`, `MySQLStmtDeleter`, `MySQLDeleter` custom deleters

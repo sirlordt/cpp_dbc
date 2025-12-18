@@ -8,6 +8,10 @@ option(USE_SQLITE "Enable SQLite support" OFF)
 option(USE_CPP_YAML "Enable YAML configuration support" OFF)
 option(BACKWARD_HAS_DW "Enable libdw support for stack traces" ON)
 
+# Thread safety option for database drivers
+# Default is ON (thread-safe). Use -DDB_DRIVER_THREAD_SAFE=OFF to disable.
+option(DB_DRIVER_THREAD_SAFE "Enable thread-safe database driver operations" ON)
+
 # Debug options
 option(DEBUG_CONNECTION_POOL "Enable debug output for ConnectionPool" OFF)
 option(DEBUG_TRANSACTION_MANAGER "Enable debug output for TransactionManager" OFF)
@@ -54,6 +58,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
+    $<$<BOOL:${DB_DRIVER_THREAD_SAFE}>:DB_DRIVER_THREAD_SAFE=1>
+    $<$<NOT:$<BOOL:${DB_DRIVER_THREAD_SAFE}>>:DB_DRIVER_THREAD_SAFE=0>
     $<$<BOOL:${DEBUG_CONNECTION_POOL}>:DEBUG_CONNECTION_POOL=1>
     $<$<BOOL:${DEBUG_TRANSACTION_MANAGER}>:DEBUG_TRANSACTION_MANAGER=1>
     $<$<BOOL:${DEBUG_SQLITE}>:DEBUG_SQLITE=1>

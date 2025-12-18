@@ -88,6 +88,9 @@ namespace cpp_dbc
 
         bool SQLiteResultSet::next()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             sqlite3_stmt *stmt = getStmt();
             if (!stmt || m_closed)
             {
@@ -133,6 +136,9 @@ namespace cpp_dbc
 
         int SQLiteResultSet::getInt(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             sqlite3_stmt *stmt = getStmt();
             if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -165,6 +171,9 @@ namespace cpp_dbc
 
         long SQLiteResultSet::getLong(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             sqlite3_stmt *stmt = getStmt();
             if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -196,6 +205,9 @@ namespace cpp_dbc
 
         double SQLiteResultSet::getDouble(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             sqlite3_stmt *stmt = getStmt();
             if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -227,6 +239,9 @@ namespace cpp_dbc
 
         std::string SQLiteResultSet::getString(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             sqlite3_stmt *stmt = getStmt();
             if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -259,7 +274,25 @@ namespace cpp_dbc
 
         bool SQLiteResultSet::getBoolean(size_t columnIndex)
         {
-            return getInt(columnIndex) != 0;
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
+            // Get value directly to avoid double-locking
+            sqlite3_stmt *stmt = getStmt();
+            if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
+            {
+                throw DBException("7A8B9C0D1E2F", "Invalid column index or row position",
+                                  system_utils::captureCallStack());
+            }
+
+            int idx = static_cast<int>(columnIndex - 1);
+
+            if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
+            {
+                return false;
+            }
+
+            return sqlite3_column_int(stmt, idx) != 0;
         }
 
         bool SQLiteResultSet::getBoolean(const std::string &columnName)
@@ -269,6 +302,9 @@ namespace cpp_dbc
 
         bool SQLiteResultSet::isNull(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             sqlite3_stmt *stmt = getStmt();
             if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -304,6 +340,9 @@ namespace cpp_dbc
 
         void SQLiteResultSet::close()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             // Evitar cerrar dos veces o si ya está cerrado
             if (m_closed)
             {
@@ -478,6 +517,9 @@ namespace cpp_dbc
 
         void SQLitePreparedStatement::setInt(int parameterIndex, int value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("9Q0R1S2T3U4V", "Statement is closed",
@@ -520,6 +562,9 @@ namespace cpp_dbc
 
         void SQLitePreparedStatement::setLong(int parameterIndex, long value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("3O4P5Q6R7S8T", "Statement is closed",
@@ -547,6 +592,9 @@ namespace cpp_dbc
 
         void SQLitePreparedStatement::setDouble(int parameterIndex, double value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("1G2H3I4J5K6L", "Statement is closed",
@@ -589,6 +637,9 @@ namespace cpp_dbc
 
         void SQLitePreparedStatement::setString(int parameterIndex, const std::string &value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("5E6F7G8H9I0J", "Statement is closed",
@@ -632,6 +683,9 @@ namespace cpp_dbc
 
         void SQLitePreparedStatement::setBoolean(int parameterIndex, bool value)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("9C0D1E2F3G4H", "Statement is closed",
@@ -675,6 +729,9 @@ namespace cpp_dbc
 
         void SQLitePreparedStatement::setNull(int parameterIndex, [[maybe_unused]] Types type)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("3A4B5C6D7E8F", "Statement is closed",
@@ -714,6 +771,9 @@ namespace cpp_dbc
 
         std::shared_ptr<ResultSet> SQLitePreparedStatement::executeQuery()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("1S2T3U4V5W6X", "Statement is closed",
@@ -753,6 +813,9 @@ namespace cpp_dbc
 
         uint64_t SQLitePreparedStatement::executeUpdate()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("3E4F5G6H7I8J", "Statement is closed",
@@ -797,6 +860,9 @@ namespace cpp_dbc
 
         bool SQLitePreparedStatement::execute()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("7C8D9E0F1G2H", "Statement is closed",
@@ -1037,6 +1103,9 @@ namespace cpp_dbc
 
         std::shared_ptr<PreparedStatement> SQLiteConnection::prepareStatement(const std::string &sql)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_db)
             {
                 throw DBException("5U6V7W8X9Y0Z", "Connection is closed",
@@ -1051,6 +1120,9 @@ namespace cpp_dbc
 
         std::shared_ptr<ResultSet> SQLiteConnection::executeQuery(const std::string &sql)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             try
             {
                 SQLITE_DEBUG("SQLiteConnection::executeQuery - Executing query: " << sql);
@@ -1112,6 +1184,9 @@ namespace cpp_dbc
 
         uint64_t SQLiteConnection::executeUpdate(const std::string &sql)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_db)
             {
                 throw DBException("3M4N5O6P7Q8R", "Connection is closed",
@@ -1134,6 +1209,9 @@ namespace cpp_dbc
 
         void SQLiteConnection::setAutoCommit(bool autoCommit)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_db)
             {
                 throw DBException("5Y6Z7A8B9C0D", "Connection is closed",
@@ -1157,6 +1235,9 @@ namespace cpp_dbc
 
         bool SQLiteConnection::beginTransaction()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_db)
             {
                 throw DBException("FD82C45A3E09", "Connection is closed",
@@ -1198,6 +1279,9 @@ namespace cpp_dbc
 
         void SQLiteConnection::commit()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_db)
             {
                 throw DBException("1E2F3G4H5I6J", "Connection is closed",
@@ -1212,6 +1296,9 @@ namespace cpp_dbc
 
         void SQLiteConnection::rollback()
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_db)
             {
                 throw DBException("7K8L9M0N1O2P", "Connection is closed",
@@ -1226,6 +1313,9 @@ namespace cpp_dbc
 
         void SQLiteConnection::setTransactionIsolation(TransactionIsolationLevel level)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_connMutex);
+#endif
             if (m_closed || !m_db)
             {
                 throw DBException("3Q4R5S6T7U8V", "Connection is closed",
@@ -1449,6 +1539,9 @@ namespace cpp_dbc
         // BLOB support methods for SQLiteResultSet
         std::shared_ptr<Blob> SQLiteResultSet::getBlob(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             sqlite3_stmt *stmt = getStmt();
             if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -1509,6 +1602,9 @@ namespace cpp_dbc
 
         std::shared_ptr<InputStream> SQLiteResultSet::getBinaryStream(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             sqlite3_stmt *stmt = getStmt();
             if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -1547,6 +1643,9 @@ namespace cpp_dbc
 
         std::vector<uint8_t> SQLiteResultSet::getBytes(size_t columnIndex)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             sqlite3_stmt *stmt = getStmt();
             if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -1592,6 +1691,9 @@ namespace cpp_dbc
         // BLOB support methods for SQLitePreparedStatement
         void SQLitePreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("X9Y0Z1A2B3C4", "Statement is closed",
@@ -1651,6 +1753,9 @@ namespace cpp_dbc
 
         void SQLitePreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("B9C0D1E2F3G4", "Statement is closed",
@@ -1716,6 +1821,9 @@ namespace cpp_dbc
 
         void SQLitePreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("F9G0H1I2J3K4", "Statement is closed",
@@ -1784,6 +1892,9 @@ namespace cpp_dbc
 
         void SQLitePreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("J9K0L1M2N3O4", "Statement is closed",
@@ -1825,6 +1936,9 @@ namespace cpp_dbc
 
         void SQLitePreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
         {
+#if DB_DRIVER_THREAD_SAFE
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+#endif
             if (m_closed || !m_stmt)
             {
                 throw DBException("H3I4J5K6L7M8", "Statement is closed",

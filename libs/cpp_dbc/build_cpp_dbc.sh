@@ -18,6 +18,7 @@ DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 BACKWARD_HAS_DW=ON
+DB_DRIVER_THREAD_SAFE=ON
 
 # Parse command line arguments
 for arg in "$@"
@@ -97,6 +98,10 @@ do
         BACKWARD_HAS_DW=OFF
         shift
         ;;
+        --db-driver-thread-safe-off)
+        DB_DRIVER_THREAD_SAFE=OFF
+        shift
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -117,6 +122,7 @@ do
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
+        echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
         echo "  --help                 Show this help message"
         exit 1
         ;;
@@ -137,6 +143,7 @@ echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  libdw support: $BACKWARD_HAS_DW"
+echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
 
 # Check for MySQL dependencies
 if [ "$USE_MYSQL" = "ON" ]; then
@@ -328,6 +335,7 @@ cmake "${SCRIPT_DIR}" \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
+      -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
       -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
       -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align" \
       -Wno-dev
@@ -407,3 +415,4 @@ echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  libdw support: $BACKWARD_HAS_DW"
+echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"

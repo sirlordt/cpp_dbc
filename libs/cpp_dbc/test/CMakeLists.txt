@@ -72,6 +72,9 @@ add_executable(cpp_dbc_tests
     test_connection_pool_real.cpp
     test_transaction_manager_real.cpp
     test_transaction_isolation.cpp
+    test_mysql_thread_safe.cpp
+    test_postgresql_thread_safe.cpp
+    test_sqlite_thread_safe.cpp
 )
 
 # Link against Catch2 and cpp_dbc
@@ -97,6 +100,8 @@ target_compile_definitions(cpp_dbc_tests PUBLIC
     $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
+    $<$<BOOL:${DB_DRIVER_THREAD_SAFE}>:DB_DRIVER_THREAD_SAFE=1>
+    $<$<NOT:$<BOOL:${DB_DRIVER_THREAD_SAFE}>>:DB_DRIVER_THREAD_SAFE=0>
 )
 
 # Define macros for backward.hpp to silence -Wundef warnings

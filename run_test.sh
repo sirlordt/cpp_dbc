@@ -27,6 +27,7 @@ set -e  # Exit on error
 #   --debug-sqlite         Enable debug output for SQLite driver
 #   --debug-all            Enable all debug output
 #   --dw-off               Disable libdw support for stack traces
+#   --db-driver-thread-safe-off  Disable thread-safe database driver operations
 #   --help                 Show this help message
 
 # Default values for options
@@ -48,6 +49,7 @@ DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DW_OFF=false
+DB_DRIVER_THREAD_SAFE_OFF=false
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -156,6 +158,10 @@ while [[ $# -gt 0 ]]; do
             DW_OFF=true
             shift
             ;;
+        --db-driver-thread-safe-off)
+            DB_DRIVER_THREAD_SAFE_OFF=true
+            shift
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
@@ -182,6 +188,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
+            echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
             echo "  --help                 Show this help message"
             exit 0
             ;;
@@ -348,6 +355,11 @@ fi
 # Add dw-off option if specified
 if [ "$DW_OFF" = true ]; then
     CMD="$CMD --dw-off"
+fi
+
+# Add db-driver-thread-safe-off option if specified
+if [ "$DB_DRIVER_THREAD_SAFE_OFF" = true ]; then
+    CMD="$CMD --db-driver-thread-safe-off"
 fi
 
 # Execute the command

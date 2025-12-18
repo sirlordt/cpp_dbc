@@ -54,12 +54,12 @@ show_usage() {
   echo "  --run-build              Build via ./build.sh, logs to build/run-build-<timestamp>.log"
   echo "  --run-build=OPTIONS      Build with comma-separated options"
   echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off,benchmarks"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
   echo "                           Example: --run-build=clean,sqlite,yaml,test,debug-pool"
   echo "  --run-build-dist         Build via ./build.dist.sh, logs to build/run-build-dist-<timestamp>.log"
   echo "  --run-build-dist=OPTIONS Build dist with comma-separated options"
   echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off,benchmarks"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
   echo "                           Example: --run-build-dist=clean,sqlite,yaml,test,debug-sqlite"
   echo "  --check-test-log         Check the most recent test log file in logs/test/ for failures and memory issues"
   echo "  --check-test-log=PATH    Check the specified test log file for failures and memory issues"
@@ -72,7 +72,7 @@ show_usage() {
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
   echo "                           Available options: clean,release,rebuild,sqlite,mysql,mysql-off,postgres,valgrind,"
   echo "                                              yaml,auto,asan,ctest,check,run=N,test=Tag1+Tag2+Tag3,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3,test=integration+mysql_real_right_join"
   echo "                           Example: --run-test=rebuild,sqlite,debug-pool,debug-sqlite,test=integration"
   echo "                           Example: --run-test=clean,rebuild,sqlite,mysql,postgres,yaml,valgrind,auto,run=1"
@@ -81,7 +81,7 @@ show_usage() {
   echo "  --run-benchmarks=OPTIONS Run benchmarks with comma-separated options"
   echo "                           Available options: clean,release,rebuild,sqlite,mysql,mysql-off,postgres,"
   echo "                                              yaml,benchmark=Tag1+Tag2+Tag3,memory-usage,base-line,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Example: --run-benchmarks=mysql,postgresql"
   echo "                           Example: --run-benchmarks=benchmark=update+postgresql"
   echo "                           Example: --run-benchmarks=clean,rebuild,sqlite,mysql,postgres,yaml,memory-usage"
@@ -218,6 +218,10 @@ cmd_run_build() {
       dw-off)
         build_cmd="$build_cmd --dw-off"
         echo "Disabling libdw support for stack traces"
+        ;;
+      db-driver-thread-safe-off)
+        build_cmd="$build_cmd --db-driver-thread-safe-off"
+        echo "Disabling thread-safe database driver operations"
         ;;
       *)
         echo "Warning: Unknown build option: $opt"
@@ -363,6 +367,10 @@ cmd_run_test() {
         dw-off)
           run_test_cmd="$run_test_cmd --dw-off"
           echo "Disabling libdw support for stack traces"
+          ;;
+        db-driver-thread-safe-off)
+          run_test_cmd="$run_test_cmd --db-driver-thread-safe-off"
+          echo "Disabling thread-safe database driver operations"
           ;;
         release)
           run_test_cmd="$run_test_cmd --release"
@@ -856,6 +864,10 @@ cmd_run_benchmarks() {
           run_benchmark_cmd="$run_benchmark_cmd --dw-off"
           echo "Disabling libdw support for stack traces"
           ;;
+        db-driver-thread-safe-off)
+          run_benchmark_cmd="$run_benchmark_cmd --db-driver-thread-safe-off"
+          echo "Disabling thread-safe database driver operations"
+          ;;
         *)
           echo "Warning: Unknown benchmark option: $opt"
           ;;
@@ -1012,6 +1024,10 @@ cmd_run_build_dist() {
       dw-off)
         build_cmd="$build_cmd --dw-off"
         echo "Disabling libdw support for stack traces"
+        ;;
+      db-driver-thread-safe-off)
+        build_cmd="$build_cmd --db-driver-thread-safe-off"
+        echo "Disabling thread-safe database driver operations"
         ;;
       *)
         echo "Warning: Unknown build option: $opt"

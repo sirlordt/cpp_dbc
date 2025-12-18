@@ -1,6 +1,46 @@
 # Changelog
 
-## 2025-12-10 10:36:15 PM PST [Current]
+## 2025-12-17 06:41:25 PM PST [Current]
+
+### Thread-Safe Database Driver Operations
+* Added optional thread-safety support for database driver operations:
+  * **New CMake Option:**
+    * Added `DB_DRIVER_THREAD_SAFE` option (default: ON) to enable/disable thread-safe operations
+    * Use `-DDB_DRIVER_THREAD_SAFE=OFF` to disable thread-safety for single-threaded applications
+  * **Build Script Updates:**
+    * Added `--db-driver-thread-safe-off` option to all build scripts (build.sh, build.dist.sh, helper.sh, run_test.sh)
+    * Updated helper.sh with new option for --run-build, --run-build-dist, --run-test, and --run-benchmarks
+  * **Driver Implementations:**
+    * **MySQL Driver:**
+      * Added `std::mutex m_mutex` member to `MySQLConnection` class
+      * Added `std::lock_guard` protection in `executeQuery()`, `executeUpdate()`, `prepareStatement()`, and `close()` methods
+      * Thread-safety is conditionally compiled based on `DB_DRIVER_THREAD_SAFE` macro
+    * **PostgreSQL Driver:**
+      * Added `std::mutex m_mutex` member to `PostgreSQLConnection` class
+      * Added `std::lock_guard` protection in `executeQuery()`, `executeUpdate()`, `prepareStatement()`, and `close()` methods
+      * Thread-safety is conditionally compiled based on `DB_DRIVER_THREAD_SAFE` macro
+    * **SQLite Driver:**
+      * Added `std::mutex m_mutex` member to `SQLiteConnection` class
+      * Added `std::lock_guard` protection in `executeQuery()`, `executeUpdate()`, `prepareStatement()`, and `close()` methods
+      * Thread-safety is conditionally compiled based on `DB_DRIVER_THREAD_SAFE` macro
+  * **New Thread-Safety Tests:**
+    * Added `test_mysql_thread_safe.cpp` with comprehensive MySQL thread-safety stress tests
+    * Added `test_postgresql_thread_safe.cpp` with comprehensive PostgreSQL thread-safety stress tests
+    * Added `test_sqlite_thread_safe.cpp` with comprehensive SQLite thread-safety stress tests
+    * Tests include:
+      * Multiple threads with individual connections
+      * Connection pool concurrent access
+      * Concurrent read operations with connection pool
+      * High concurrency stress test with mixed operations
+      * Rapid connection open/close stress test
+    * Tests are conditionally compiled based on `DB_DRIVER_THREAD_SAFE` macro
+* Benefits of thread-safe driver operations:
+  * Safe concurrent access to database connections from multiple threads
+  * Protection against race conditions in connection operations
+  * Optional feature that can be disabled for performance in single-threaded applications
+  * Comprehensive test coverage for thread-safety scenarios
+
+## 2025-12-10 10:36:15 PM PST
 
 ### Smart Pointer Migration for Database Drivers
 * Migrated all database drivers from raw pointers to smart pointers for improved memory safety:

@@ -93,6 +93,7 @@ The library supports conditional compilation of database drivers and features:
 - `DEBUG_SQLITE`: Enable debug output for SQLite driver (OFF by default)
 - `DEBUG_ALL`: Enable all debug output at once (OFF by default)
 - `BACKWARD_HAS_DW`: Enable libdw support for enhanced stack traces (ON by default)
+- `DB_DRIVER_THREAD_SAFE`: Enable thread-safe database driver operations (ON by default)
 
 The library also includes comprehensive warning flags and compile-time checks:
 
@@ -159,6 +160,9 @@ The `libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the c
 # Disable libdw support for stack traces
 ./libs/cpp_dbc/build_cpp_dbc.sh --dw-off
 
+# Disable thread-safe database driver operations (for single-threaded performance)
+./libs/cpp_dbc/build_cpp_dbc.sh --db-driver-thread-safe-off
+
 # Enable YAML and build examples
 ./libs/cpp_dbc/build_cpp_dbc.sh --yaml --examples
 
@@ -224,6 +228,9 @@ The `build.sh` script builds the main application, passing all parameters to the
 # Disable libdw support for stack traces
 ./build.sh --dw-off
 
+# Disable thread-safe database driver operations (for single-threaded performance)
+./build.sh --db-driver-thread-safe-off
+
 # Show help
 ./build.sh --help
 ```
@@ -259,6 +266,7 @@ The project includes scripts for building and running tests:
 ./run_test.sh --debug-txmgr  # Enable debug output for TransactionManager
 ./run_test.sh --debug-sqlite  # Enable debug output for SQLite driver
 ./run_test.sh --debug-all  # Enable all debug output
+./run_test.sh --db-driver-thread-safe-off  # Disable thread-safe driver operations
 ```
 
 All test output is automatically logged to files in the `logs/test/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.

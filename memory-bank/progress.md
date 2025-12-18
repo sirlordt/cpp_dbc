@@ -5,9 +5,9 @@
 The CPP_DBC library appears to be in a functional state with the following components implemented:
 
 1. **Core Interfaces**: All core interfaces (`Connection`, `PreparedStatement`, `ResultSet`, `Driver`) are defined
-2. **MySQL Implementation**: Complete implementation of MySQL driver
-3. **PostgreSQL Implementation**: Complete implementation of PostgreSQL driver
-4. **SQLite Implementation**: Complete implementation of SQLite driver
+2. **MySQL Implementation**: Complete implementation of MySQL driver with optional thread-safety
+3. **PostgreSQL Implementation**: Complete implementation of PostgreSQL driver with optional thread-safety
+4. **SQLite Implementation**: Complete implementation of SQLite driver with optional thread-safety
 5. **Connection Pool**: Fully implemented with configuration options for MySQL, PostgreSQL, and SQLite
 6. **Transaction Manager**: Fully implemented with transaction tracking, timeout, and improved resource management
 7. **Connection Options**: Support for database-specific connection options in all drivers
@@ -17,6 +17,7 @@ The CPP_DBC library appears to be in a functional state with the following compo
 11. **JSON Support**: Complete implementation of JSON data type support for MySQL and PostgreSQL
 12. **Code Quality**: Comprehensive warning flags and compile-time checks with improved variable naming
 13. **Benchmark System**: Comprehensive benchmark system for database operations with different data sizes
+14. **Thread-Safe Drivers**: Optional thread-safety support for all database drivers with mutex protection
 
 The project includes example code demonstrating:
 - Basic database operations
@@ -158,7 +159,25 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **Smart Pointer Migration for Database Drivers**:
+1. **Thread-Safe Database Driver Operations**:
+   - Added optional thread-safety support for database driver operations:
+     - **New CMake Option:**
+       - Added `DB_DRIVER_THREAD_SAFE` option (default: ON) to enable/disable thread-safe operations
+       - Use `-DDB_DRIVER_THREAD_SAFE=OFF` to disable thread-safety for single-threaded applications
+     - **Build Script Updates:**
+       - Added `--db-driver-thread-safe-off` option to all build scripts
+       - Updated helper.sh with new option for --run-build, --run-build-dist, --run-test, and --run-benchmarks
+     - **Driver Implementations:**
+       - MySQL: Added mutex protection in executeQuery(), executeUpdate(), prepareStatement(), and close()
+       - PostgreSQL: Added mutex protection in executeQuery(), executeUpdate(), prepareStatement(), and close()
+       - SQLite: Added mutex protection in executeQuery(), executeUpdate(), prepareStatement(), and close()
+     - **New Thread-Safety Tests:**
+       - Added test_mysql_thread_safe.cpp, test_postgresql_thread_safe.cpp, test_sqlite_thread_safe.cpp
+       - Tests include: multiple threads with individual connections, connection pool concurrent access,
+         concurrent read operations, high concurrency stress test, rapid connection open/close stress test
+   - Benefits: Safe concurrent access, protection against race conditions, optional feature for performance
+
+2. **Smart Pointer Migration for Database Drivers**:
    - Migrated all database drivers from raw pointers to smart pointers for improved memory safety:
      - **MySQL Driver:**
        - Added `MySQLResDeleter` custom deleter for `MYSQL_RES*` with `unique_ptr`

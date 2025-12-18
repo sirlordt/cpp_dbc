@@ -23,6 +23,7 @@ DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 BACKWARD_HAS_DW=ON
+DB_DRIVER_THREAD_SAFE=ON
 
 for arg in "$@"
 do
@@ -83,6 +84,9 @@ do
         --dw-off)
         BACKWARD_HAS_DW=OFF
         ;;
+        --db-driver-thread-safe-off)
+        DB_DRIVER_THREAD_SAFE=OFF
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -103,6 +107,7 @@ do
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
+        echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
         echo "  --help                 Show this help message"
         exit 0
         ;;
@@ -122,6 +127,7 @@ export DEBUG_CONNECTION_POOL
 export DEBUG_TRANSACTION_MANAGER
 export DEBUG_SQLITE
 export BACKWARD_HAS_DW
+export DB_DRIVER_THREAD_SAFE
 
 # Call the cpp_dbc build script with explicit parameters
 if [ "$USE_MYSQL" = "ON" ]; then
@@ -196,6 +202,11 @@ if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
     DEBUG_PARAMS="$DEBUG_PARAMS --dw-off"
 fi
 
+# Pass the db-driver-thread-safe-off option to the cpp_dbc build script
+if [ "$DB_DRIVER_THREAD_SAFE" = "OFF" ]; then
+    DEBUG_PARAMS="$DEBUG_PARAMS --db-driver-thread-safe-off"
+fi
+
 echo "$0 >= Running ./libs/cpp_dbc/build_cpp_dbc.sh "
 # Build the cpp_dbc library
 ./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM $BUILD_BENCHMARKS_PARAM $DEBUG_PARAMS
@@ -263,3 +274,4 @@ echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  libdw support: $BACKWARD_HAS_DW"
+echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"

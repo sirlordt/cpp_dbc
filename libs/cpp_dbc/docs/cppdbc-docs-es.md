@@ -701,6 +701,9 @@ La biblioteca proporciona scripts de compilación para simplificar el proceso:
 # Deshabilitar soporte libdw para trazas de pila
 ./build.sh --dw-off
 
+# Deshabilitar operaciones de controlador de base de datos thread-safe (para rendimiento en aplicaciones de un solo hilo)
+./build.sh --db-driver-thread-safe-off
+
 # Compilar contenedor Docker
 ./build.dist.sh
 
@@ -715,6 +718,9 @@ La biblioteca proporciona scripts de compilación para simplificar el proceso:
 
 # Compilar contenedor Docker sin soporte libdw
 ./build.dist.sh --dw-off
+
+# Compilar contenedor Docker sin operaciones de controlador thread-safe
+./build.dist.sh --db-driver-thread-safe-off
 
 # Compilar paquetes de distribución (.deb y .rpm)
 ./libs/cpp_dbc/build_dist_pkg.sh
@@ -806,8 +812,11 @@ También puedes compilar la biblioteca manualmente con CMake:
 mkdir -p libs/cpp_dbc/build
 cd libs/cpp_dbc/build
 
-# Configurar con CMake (MySQL habilitado, PostgreSQL deshabilitado, SQLite deshabilitado, YAML deshabilitado, libdw habilitado)
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+# Configurar con CMake (MySQL habilitado, PostgreSQL deshabilitado, SQLite deshabilitado, YAML deshabilitado, libdw habilitado, thread-safe habilitado)
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DDB_DRIVER_THREAD_SAFE=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+
+# Configurar sin operaciones de controlador thread-safe (para rendimiento en aplicaciones de un solo hilo)
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DDB_DRIVER_THREAD_SAFE=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Configurar con soporte YAML
 # cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
@@ -867,6 +876,8 @@ target_compile_definitions(tu_app PRIVATE
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
     $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
     $<$<NOT:$<BOOL:${BACKWARD_HAS_DW}>>:BACKWARD_HAS_DW=0>
+    $<$<BOOL:${DB_DRIVER_THREAD_SAFE}>:DB_DRIVER_THREAD_SAFE=1>
+    $<$<NOT:$<BOOL:${DB_DRIVER_THREAD_SAFE}>>:DB_DRIVER_THREAD_SAFE=0>
 )
 ```
 

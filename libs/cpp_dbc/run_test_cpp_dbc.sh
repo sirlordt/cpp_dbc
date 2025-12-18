@@ -29,6 +29,7 @@ set -e  # Exit on error
 #   --debug-sqlite         Enable debug output for SQLite driver
 #   --debug-all            Enable all debug output
 #   --dw-off               Disable libdw support for stack traces
+#   --db-driver-thread-safe-off  Disable thread-safe database driver operations
 #   --help                 Show this help message
 
 # Default values for options
@@ -52,6 +53,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 RUN_COUNT=1
 BACKWARD_HAS_DW=ON
+DB_DRIVER_THREAD_SAFE=ON
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -160,6 +162,10 @@ while [[ $# -gt 0 ]]; do
             BACKWARD_HAS_DW=OFF
             shift
             ;;
+        --db-driver-thread-safe-off)
+            DB_DRIVER_THREAD_SAFE=OFF
+            shift
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
@@ -185,6 +191,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
+            echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
             echo "  --help                 Show this help message"
             exit 0
             ;;
@@ -341,6 +348,11 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
     # Add dw-off option if specified
     if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
         BUILD_CMD="$BUILD_CMD --dw-off"
+    fi
+
+    # Add db-driver-thread-safe-off option if specified
+    if [ "$DB_DRIVER_THREAD_SAFE" = "OFF" ]; then
+        BUILD_CMD="$BUILD_CMD --db-driver-thread-safe-off"
     fi
 
     # Execute the build command

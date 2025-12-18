@@ -21,6 +21,7 @@ YAML_PARAM="--yaml-off"
 DEBUG_PARAM="--debug"
 DW_PARAM="--dw-off"
 EXAMPLES_PARAM=""
+DB_DRIVER_THREAD_SAFE_PARAM=""
 
 # Check environment variables set by build_dist_deb.sh
 if [ "__USE_MYSQL__" = "ON" ]; then
@@ -65,8 +66,13 @@ if [ "__BUILD_EXAMPLES__" = "ON" ]; then
     EXAMPLES_PARAM="--examples"
 fi
 
-echo "Using parameters: $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM"
-./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM
+# Set DB driver thread-safe parameter if needed
+if [ "__DB_DRIVER_THREAD_SAFE__" = "OFF" ]; then
+    DB_DRIVER_THREAD_SAFE_PARAM="--db-driver-thread-safe-off"
+fi
+
+echo "Using parameters: $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM $DB_DRIVER_THREAD_SAFE_PARAM"
+./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM $DB_DRIVER_THREAD_SAFE_PARAM
 
 # Now create the debian package
 

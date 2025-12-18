@@ -31,6 +31,19 @@
 #include <set>
 #include <mutex>
 
+// Thread-safety macros for conditional mutex locking
+// Using recursive_mutex to allow the same thread to acquire the lock multiple times
+// This is needed when a method that holds the lock calls another method that also needs the lock
+#if DB_DRIVER_THREAD_SAFE
+#define DB_DRIVER_MUTEX mutable std::recursive_mutex
+#define DB_DRIVER_LOCK_GUARD(mutex) std::lock_guard<std::recursive_mutex> lock(mutex)
+#define DB_DRIVER_UNIQUE_LOCK(mutex) std::unique_lock<std::recursive_mutex> lock(mutex)
+#else
+#define DB_DRIVER_MUTEX
+#define DB_DRIVER_LOCK_GUARD(mutex) (void)0
+#define DB_DRIVER_UNIQUE_LOCK(mutex) (void)0
+#endif
+
 namespace cpp_dbc
 {
     namespace PostgreSQL
@@ -102,6 +115,10 @@ namespace cpp_dbc
             std::vector<std::string> m_columnNames;
             std::map<std::string, int> m_columnMap;
 
+#if DB_DRIVER_THREAD_SAFE
+            mutable std::recursive_mutex m_mutex; // Mutex for thread-safe ResultSet operations
+#endif
+
         public:
             PostgreSQLResultSet(PGresult *res);
             ~PostgreSQLResultSet() override;
@@ -162,6 +179,10 @@ namespace cpp_dbc
             std::vector<std::shared_ptr<Blob>> m_blobObjects;          // To keep blob objects alive
             std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
 
+#if DB_DRIVER_THREAD_SAFE
+            mutable std::recursive_mutex m_mutex; // Mutex for thread-safe PreparedStatement operations
+#endif
+
             // Internal method called by connection when closing
             void notifyConnClosing();
 
@@ -213,6 +234,10 @@ namespace cpp_dbc
             // Registry of active prepared statements
             std::set<std::shared_ptr<PostgreSQLPreparedStatement>> m_activeStatements;
             std::mutex m_statementsMutex;
+
+#if DB_DRIVER_THREAD_SAFE
+            mutable std::recursive_mutex m_connMutex; // Mutex for thread-safe Connection operations
+#endif
 
             // Internal methods for statement registry
             void registerStatement(std::shared_ptr<PostgreSQLPreparedStatement> stmt);

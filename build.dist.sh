@@ -154,6 +154,7 @@ DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 BACKWARD_HAS_DW=ON
+DB_DRIVER_THREAD_SAFE=ON
 
 for arg in "$@"
 do
@@ -211,6 +212,9 @@ do
         --dw-off)
         BACKWARD_HAS_DW=OFF
         ;;
+        --db-driver-thread-safe-off)
+        DB_DRIVER_THREAD_SAFE=OFF
+        ;;
         --help)
         echo "Usage: $0 [options]"
         echo "Options:"
@@ -230,6 +234,7 @@ do
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
+        echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
         echo "  --help                 Show this help message"
         exit 0
         ;;
@@ -284,6 +289,10 @@ fi
 
 if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
     BUILD_CMD="$BUILD_CMD --dw-off"
+fi
+
+if [ "$DB_DRIVER_THREAD_SAFE" = "OFF" ]; then
+    BUILD_CMD="$BUILD_CMD --db-driver-thread-safe-off"
 fi
 
 # 9. Build locally with Conan + CMake
@@ -515,6 +524,7 @@ echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  libdw support: $BACKWARD_HAS_DW"
+echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
 
 # Debug information
 echo ""
