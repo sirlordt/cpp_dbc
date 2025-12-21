@@ -37,6 +37,7 @@
 #include "test_mysql_common.hpp"
 #include "test_postgresql_common.hpp"
 #include "test_sqlite_common.hpp"
+#include "test_firebird_common.hpp"
 
 #include "test_mocks.hpp"
 
@@ -435,6 +436,11 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
     // std::cout << "SQLite driver registered" << std::endl;
 #endif
 
+#if USE_FIREBIRD
+    cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
+    // std::cout << "Firebird driver registered" << std::endl;
+#endif
+
     SECTION("Test connection to all available databases")
     {
 #if USE_CPP_YAML
@@ -461,6 +467,10 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
 #endif
 #if !USE_SQLITE
             if (type == "sqlite")
+                continue;
+#endif
+#if !USE_FIREBIRD
+            if (type == "firebird")
                 continue;
 #endif
 
@@ -511,6 +521,38 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
                     catch (...)
                     {
                         std::cerr << "DEBUG: Unknown SQLite exception occurred" << std::endl;
+                        throw; // Re-throw to be caught by the outer catch block
+                    }
+                }
+                else if (type == "firebird")
+                {
+                    try
+                    {
+                        // Attempt to connect
+                        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+
+                        // Execute a simple query to verify the connection
+                        // Firebird uses "SELECT 1 FROM RDB$DATABASE" for a simple test query
+                        auto resultSet = conn->executeQuery("SELECT 1 as test_value FROM RDB$DATABASE");
+
+                        if (resultSet->next())
+                        {
+                            // std::cout << "Connection to " << name << " successful" << std::endl;
+                            // Firebird returns uppercase column names
+                            REQUIRE(resultSet->getInt("TEST_VALUE") == 1);
+                        }
+
+                        // Close the connection
+                        conn->close();
+                    }
+                    catch (const std::exception &e)
+                    {
+                        std::cerr << "DEBUG: Firebird exception: " << e.what() << std::endl;
+                        throw; // Re-throw to be caught by the outer catch block
+                    }
+                    catch (...)
+                    {
+                        std::cerr << "DEBUG: Unknown Firebird exception occurred" << std::endl;
                         throw; // Re-throw to be caught by the outer catch block
                     }
                 }

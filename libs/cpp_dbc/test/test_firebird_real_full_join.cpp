@@ -223,7 +223,6 @@ TEST_CASE("Firebird FULL JOIN operations", "[firebird_real_full_join]")
         orderStmt->executeUpdate();
     }
 
-    /* TEMPORARILY DISABLED FOR DEBUGGING
     SECTION("Basic FULL OUTER JOIN")
     {
         // Test FULL OUTER JOIN between customers and orders
@@ -283,10 +282,7 @@ TEST_CASE("Firebird FULL JOIN operations", "[firebird_real_full_join]")
 
         REQUIRE(rowCount == expectedResults.size());
     }
-    */
-    // END TEMPORARILY DISABLED
 
-    /* TEMPORARILY DISABLED FOR DEBUGGING
     SECTION("FULL OUTER JOIN between products and orders")
     {
         // Test FULL OUTER JOIN between products and orders
@@ -345,10 +341,7 @@ TEST_CASE("Firebird FULL JOIN operations", "[firebird_real_full_join]")
 
         REQUIRE(rowCount == expectedResults.size());
     }
-    */
-    // END TEMPORARILY DISABLED
 
-    /* TEMPORARILY DISABLED FOR DEBUGGING
     SECTION("Three-table FULL OUTER JOIN")
     {
         // Test FULL OUTER JOIN across all three tables
@@ -419,8 +412,6 @@ TEST_CASE("Firebird FULL JOIN operations", "[firebird_real_full_join]")
 
         REQUIRE(rowCount == expectedResults.size());
     }
-    */
-    // END TEMPORARILY DISABLED
 
     SECTION("FULL OUTER JOIN with WHERE clause")
     {
@@ -471,7 +462,6 @@ TEST_CASE("Firebird FULL JOIN operations", "[firebird_real_full_join]")
         REQUIRE(rowCount >= 1);
     }
 
-    /* TEMPORARILY DISABLED FOR DEBUGGING
     SECTION("FULL OUTER JOIN with invalid column")
     {
         // Test FULL OUTER JOIN with an invalid column name
@@ -483,8 +473,6 @@ TEST_CASE("Firebird FULL JOIN operations", "[firebird_real_full_join]")
         // This should throw an exception
         REQUIRE_THROWS_AS(conn->executeQuery(query), cpp_dbc::DBException);
     }
-    */
-    // END TEMPORARILY DISABLED
 
     // Clean up
     try

@@ -28,6 +28,7 @@
 
 #include "test_mysql_common.hpp"
 #include "test_postgresql_common.hpp"
+#include "test_firebird_common.hpp"
 
 #include "test_mocks.hpp"
 
@@ -125,6 +126,45 @@ TEST_CASE("PostgreSQL driver tests", "[driver][postgresql]")
         // but we're just testing the URL parsing logic
         REQUIRE_THROWS_AS(
             driver.connect("cpp_dbc:postgresql://localhost:5432/non_existent_db", "user", "pass"),
+            cpp_dbc::DBException);
+    }
+}
+#endif
+
+#if USE_FIREBIRD
+// Test case for Firebird driver
+TEST_CASE("Firebird driver tests", "[driver][firebird]")
+{
+    SECTION("Firebird driver URL acceptance")
+    {
+        // Create a Firebird driver
+        cpp_dbc::Firebird::FirebirdDriver driver;
+
+        // Check that it accepts Firebird URLs
+        REQUIRE(driver.acceptsURL("cpp_dbc:firebird://localhost:3050/testdb"));
+        REQUIRE(driver.acceptsURL("cpp_dbc:firebird://127.0.0.1:3050/testdb"));
+        REQUIRE(driver.acceptsURL("cpp_dbc:firebird://db.example.com:3050/testdb"));
+        REQUIRE(driver.acceptsURL("cpp_dbc:firebird://localhost:3050//var/lib/firebird/data/testdb.fdb"));
+
+        // Check that it rejects non-Firebird URLs
+        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:mysql://localhost:3306/testdb"));
+        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:postgresql://localhost:5432/testdb"));
+        REQUIRE_FALSE(driver.acceptsURL("jdbc:firebird://localhost:3050/testdb"));
+        REQUIRE_FALSE(driver.acceptsURL("firebird://localhost:3050/testdb"));
+    }
+
+    SECTION("Firebird driver connection string parsing")
+    {
+        // Create a Firebird driver
+        cpp_dbc::Firebird::FirebirdDriver driver;
+
+        // We can't actually connect to a database in unit tests,
+        // but we can verify that the driver correctly parses connection strings
+
+        // This would normally throw a DBException if the database doesn't exist,
+        // but we're just testing the URL parsing logic
+        REQUIRE_THROWS_AS(
+            driver.connect("cpp_dbc:firebird://localhost:3050/non_existent_db", "user", "pass"),
             cpp_dbc::DBException);
     }
 }

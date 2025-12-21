@@ -243,7 +243,25 @@ namespace cpp_dbc
             }
             case SQL_BLOB:
             {
-                return "[BLOB]";
+                // For BLOB columns, read the content and return as string
+                // This is useful for BLOB SUB_TYPE TEXT columns storing JSON or other text
+                auto conn = m_connection.lock();
+                if (!conn)
+                {
+                    return "[BLOB]"; // Can't read without connection
+                }
+
+                ISC_QUAD *blobId = reinterpret_cast<ISC_QUAD *>(var->sqldata);
+                try
+                {
+                    auto blob = std::make_shared<FirebirdBlob>(conn->m_db.get(), &conn->m_tr, *blobId);
+                    std::vector<uint8_t> data = blob->getBytes(0, blob->length());
+                    return std::string(data.begin(), data.end());
+                }
+                catch (...)
+                {
+                    return "[BLOB]"; // Return placeholder on error
+                }
             }
             default:
                 return "";
@@ -1171,6 +1189,22 @@ namespace cpp_dbc
             {
                 std::string errorMsg = interpretStatusVector(status);
                 FIREBIRD_DEBUG("  Execute failed: " << errorMsg);
+
+                // If autocommit is enabled, rollback the failed transaction and start a new one
+                auto conn = m_connection.lock();
+                if (conn && conn->getAutoCommit())
+                {
+                    FIREBIRD_DEBUG("  AutoCommit is enabled, rolling back failed transaction");
+                    try
+                    {
+                        conn->rollback();
+                    }
+                    catch (...)
+                    {
+                        FIREBIRD_DEBUG("  Rollback failed, ignoring");
+                    }
+                }
+
                 throw DBException("E5F1A7B3C0D6", "Failed to execute query: " + errorMsg,
                                   system_utils::captureCallStack());
             }
@@ -1245,6 +1279,23 @@ namespace cpp_dbc
             if (isc_dsql_execute(status, m_trPtr, &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
             {
                 FIREBIRD_DEBUG("  isc_dsql_execute failed: " << interpretStatusVector(status));
+
+                // If autocommit is enabled, rollback the failed transaction and start a new one
+                // This ensures the connection is in a clean state for the next operation
+                auto conn = m_connection.lock();
+                if (conn && conn->getAutoCommit())
+                {
+                    FIREBIRD_DEBUG("  AutoCommit is enabled, rolling back failed transaction");
+                    try
+                    {
+                        conn->rollback();
+                    }
+                    catch (...)
+                    {
+                        FIREBIRD_DEBUG("  Rollback failed, ignoring");
+                    }
+                }
+
                 throw DBException("A7B3C9D5E2F8", "Failed to execute update: " + interpretStatusVector(status),
                                   system_utils::captureCallStack());
             }
@@ -1648,11 +1699,68 @@ namespace cpp_dbc
 
         void FirebirdConnection::returnToPool()
         {
+            FIREBIRD_DEBUG("FirebirdConnection::returnToPool - Starting");
+            FIREBIRD_DEBUG("  m_transactionActive: " << (m_transactionActive ? "true" : "false"));
+            FIREBIRD_DEBUG("  m_autoCommit: " << (m_autoCommit ? "true" : "false"));
+            FIREBIRD_DEBUG("  m_tr: " << m_tr);
+
             // Reset connection state for pool reuse
-            if (m_transactionActive && !m_autoCommit)
+            // Always ensure we have a clean transaction state
+            if (m_tr)
             {
-                rollback();
+                FIREBIRD_DEBUG("  Transaction handle exists, committing/rolling back");
+                try
+                {
+                    if (m_autoCommit)
+                    {
+                        // In autocommit mode, commit any pending changes
+                        commit();
+                    }
+                    else if (m_transactionActive)
+                    {
+                        // In manual mode with active transaction, rollback
+                        rollback();
+                    }
+                }
+                catch (...)
+                {
+                    FIREBIRD_DEBUG("  Commit/rollback failed, forcing rollback");
+                    // If commit/rollback fails, force a rollback to clean up
+                    try
+                    {
+                        ISC_STATUS_ARRAY status;
+                        if (m_tr)
+                        {
+                            isc_rollback_transaction(status, &m_tr);
+                            m_tr = 0;
+                        }
+                    }
+                    catch (...)
+                    {
+                        FIREBIRD_DEBUG("  Force rollback also failed");
+                    }
+                }
             }
+
+            // Ensure autocommit is enabled for pool reuse (default state)
+            m_autoCommit = true;
+            m_transactionActive = false;
+
+            // Start a fresh transaction for the next use
+            if (!m_tr && !m_closed)
+            {
+                FIREBIRD_DEBUG("  Starting fresh transaction for pool reuse");
+                try
+                {
+                    startTransaction();
+                }
+                catch (...)
+                {
+                    FIREBIRD_DEBUG("  Failed to start fresh transaction");
+                }
+            }
+
+            FIREBIRD_DEBUG("FirebirdConnection::returnToPool - Done, m_tr=" << m_tr);
         }
 
         bool FirebirdConnection::isPooled()
@@ -1901,9 +2009,7 @@ namespace cpp_dbc
 
         bool FirebirdDriver::acceptsURL(const std::string &url)
         {
-            return url.find("cpp_dbc:firebird:") == 0 ||
-                   url.find("jdbc:firebird:") == 0 ||
-                   url.find("firebird:") == 0;
+            return url.find("cpp_dbc:firebird:") == 0;
         }
 
         bool FirebirdDriver::parseURL(const std::string &url, std::string &host, int &port, std::string &database)
@@ -1915,18 +2021,10 @@ namespace cpp_dbc
 
             std::string workUrl = url;
 
-            // Remove prefix
+            // Remove prefix - only accept cpp_dbc:firebird:// prefix
             if (workUrl.find("cpp_dbc:firebird://") == 0)
             {
                 workUrl = workUrl.substr(19);
-            }
-            else if (workUrl.find("jdbc:firebird://") == 0)
-            {
-                workUrl = workUrl.substr(16);
-            }
-            else if (workUrl.find("firebird://") == 0)
-            {
-                workUrl = workUrl.substr(11);
             }
             else
             {

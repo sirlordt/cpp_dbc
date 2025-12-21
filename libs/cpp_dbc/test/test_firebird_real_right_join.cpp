@@ -430,19 +430,11 @@ TEST_CASE("Firebird RIGHT JOIN operations", "[firebird_real_right_join]")
             "FROM test_orders o "
             "RIGHT JOIN test_products p ON o.product_id = p.name";
 
-        // This should execute but return only NULL values for the left side
+        // Firebird is strict about type safety and throws a conversion error
+        // when trying to compare INTEGER with VARCHAR. The error occurs during
+        // row fetching, not during query execution.
         auto rs = conn->executeQuery(query);
-
-        size_t rowCount = 0;
-        while (rs->next())
-        {
-            REQUIRE_FALSE(rs->isNull("PRODUCT_ID"));
-            REQUIRE_FALSE(rs->isNull("NAME"));
-            REQUIRE(rs->isNull("ORDER_ID"));
-            rowCount++;
-        }
-
-        REQUIRE(rowCount == products.size());
+        REQUIRE_THROWS_AS(rs->next(), cpp_dbc::DBException);
     }
 
     // Clean up

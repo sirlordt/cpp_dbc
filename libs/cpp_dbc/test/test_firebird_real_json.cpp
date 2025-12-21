@@ -115,12 +115,14 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
         REQUIRE(jsonData.find("John") != std::string::npos);
         REQUIRE(jsonData.find("30") != std::string::npos);
         REQUIRE(jsonData.find("New York") != std::string::npos);
+        rs->close();
 
         // Test retrieving JSON array
         rs = conn->executeQuery("SELECT * FROM test_json_types WHERE id = 2");
         REQUIRE(rs->next());
         jsonData = rs->getString("JSON_DATA");
         REQUIRE(jsonData.find("[1, 2, 3, 4, 5]") != std::string::npos);
+        rs->close();
 
         // Test retrieving nested JSON
         rs = conn->executeQuery("SELECT * FROM test_json_types WHERE id = 3");
@@ -129,6 +131,10 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
         REQUIRE(jsonData.find("Alice") != std::string::npos);
         REQUIRE(jsonData.find("25") != std::string::npos);
         REQUIRE(jsonData.find("true") != std::string::npos);
+        rs->close();
+
+        // Close prepared statement before dropping table (Firebird requires this)
+        pstmt->close();
 
         // Clean up
         conn->executeUpdate("DROP TABLE test_json_types");
@@ -174,6 +180,12 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
         REQUIRE(jsonData.find("John") != std::string::npos);
         REQUIRE(jsonData.find("30") != std::string::npos);
         REQUIRE(jsonData.find("New York") != std::string::npos);
+
+        // Close result set before dropping table (Firebird requires this)
+        rs->close();
+
+        // Close prepared statement before dropping table (Firebird requires this)
+        pstmt->close();
 
         // Clean up
         conn->executeUpdate("DROP TABLE test_json_varchar");
@@ -244,11 +256,16 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
         REQUIRE(rs->getInt("ID") == 1);
         std::string jsonData = rs->getString("JSON_DATA");
         REQUIRE(jsonData.find("Laptop") != std::string::npos);
+        rs->close();
 
         // Test search for clothing
         rs = conn->executeQuery("SELECT id FROM test_json_search WHERE json_data LIKE '%clothing%'");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("ID") == 4);
+        rs->close();
+
+        // Close prepared statement before dropping table (Firebird requires this)
+        pstmt->close();
 
         // Clean up
         conn->executeUpdate("DROP TABLE test_json_search");
@@ -327,6 +344,9 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
         REQUIRE(rs->getString("CATEGORY") == "electronics");
         REQUIRE(rs->getInt("ITEM_COUNT") == 2);
 
+        // Close result set before next query
+        rs->close();
+
         // Test retrieving all items in a category
         rs = conn->executeQuery(
             "SELECT id, json_data FROM test_json_aggregation WHERE category = 'electronics' ORDER BY id");
@@ -340,6 +360,10 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
         REQUIRE(rs->getInt("ID") == 2);
         jsonData = rs->getString("JSON_DATA");
         REQUIRE(jsonData.find("Smartphone") != std::string::npos);
+        rs->close();
+
+        // Close prepared statement before dropping table (Firebird requires this)
+        pstmt->close();
 
         // Clean up
         conn->executeUpdate("DROP TABLE test_json_aggregation");
@@ -388,11 +412,18 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("CNT") == 2);
 
+        // Close result set before next query
+        rs->close();
+
         // Retrieve and verify the invalid JSON was stored as-is
         rs = conn->executeQuery("SELECT json_data FROM test_json_validation WHERE id = 2");
         REQUIRE(rs->next());
         std::string invalidJson = rs->getString("JSON_DATA");
         REQUIRE(invalidJson == "{invalid: json}");
+        rs->close();
+
+        // Close prepared statement before dropping table (Firebird requires this)
+        pstmt->close();
 
         // Clean up
         conn->executeUpdate("DROP TABLE test_json_validation");
@@ -459,10 +490,17 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
         // Should find at least one record
         REQUIRE(rs->next());
 
+        // Close result set before next query
+        rs->close();
+
         // Test count query
         rs = conn->executeQuery("SELECT COUNT(*) as cnt FROM test_json_performance");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("CNT") == numRecords);
+        rs->close();
+
+        // Close prepared statement before dropping table (Firebird requires this)
+        pstmt->close();
 
         // Clean up
         conn->executeUpdate("DROP TABLE test_json_performance");

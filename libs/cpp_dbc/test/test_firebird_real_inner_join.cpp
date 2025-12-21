@@ -352,9 +352,13 @@ TEST_CASE("Firebird INNER JOIN operations", "[firebird_real_inner_join]")
             "FROM test_customers c "
             "INNER JOIN test_orders o ON c.name = o.customer_id";
 
-        // This should execute but return no results due to type mismatch
+        // Firebird is strict about type safety and throws a conversion error
+        // when trying to compare VARCHAR with INTEGER. The error may occur
+        // during executeQuery or during rs->next() depending on when Firebird
+        // evaluates the join condition.
         auto rs = conn->executeQuery(query);
-        REQUIRE_FALSE(rs->next());
+        // The conversion error happens when fetching rows
+        REQUIRE_THROWS_AS(rs->next(), cpp_dbc::DBException);
     }
 
     // Clean up
