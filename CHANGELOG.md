@@ -1,6 +1,45 @@
 # Changelog
 
-## 2025-12-17 06:41:25 PM PST [Current]
+## 2025-12-20 01:28:00 PM PST [Current]
+
+### Firebird SQL Database Driver Support
+* Added complete Firebird SQL database driver implementation:
+  * **New Files:**
+    * Added `include/cpp_dbc/drivers/driver_firebird.hpp` with Firebird driver class declarations
+    * Added `include/cpp_dbc/drivers/firebird_blob.hpp` with Firebird BLOB support classes
+    * Added `src/drivers/driver_firebird.cpp` with full Firebird driver implementation
+    * Added `cmake/FindFirebird.cmake` module for Firebird library detection
+  * **Driver Features:**
+    * Full support for Firebird SQL databases (version 2.5+, 3.0+, 4.0+)
+    * Connection management with proper resource cleanup using smart pointers
+    * Prepared statement support with parameter binding
+    * Result set handling with all data types (TEXT, VARCHAR, SHORT, LONG, INT64, FLOAT, DOUBLE, TIMESTAMP, DATE, TIME, BLOB)
+    * BLOB support with lazy loading and streaming capabilities
+    * Transaction management with isolation level support
+    * Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+  * **Build System Updates:**
+    * Added `USE_FIREBIRD` option to CMakeLists.txt (default: OFF)
+    * Added `--firebird` and `--firebird-off` options to build.sh
+    * Added `--firebird` and `--firebird-off` options to build_cpp_dbc.sh
+    * Added `firebird` option to helper.sh for --run-build, --run-test, and --run-benchmarks
+    * Automatic detection and installation of Firebird development libraries
+  * **Required System Packages:**
+    * Debian/Ubuntu: `sudo apt-get install firebird-dev libfbclient2`
+    * RHEL/CentOS/Fedora: `sudo dnf install firebird-devel libfbclient2`
+  * **Connection URL Format:**
+    * `cpp_dbc:firebird://host:port/path/to/database.fdb`
+    * `cpp_dbc:firebird:///path/to/local/database.fdb` (local connection)
+    * Default port: 3050
+  * **Smart Pointer Implementation:**
+    * `shared_ptr<isc_db_handle>` for connection management
+    * Custom deleters for proper Firebird resource cleanup
+    * `weak_ptr<isc_db_handle>` in PreparedStatement for safe connection reference
+    * SQLDA structure management with proper memory allocation/deallocation
+* Updated documentation:
+  * Updated README.md with Firebird support information
+  * Updated memory-bank/techContext.md with Firebird technical details
+
+## 2025-12-17 06:41:25 PM PST
 
 ### Thread-Safe Database Driver Operations
 * Added optional thread-safety support for database driver operations:

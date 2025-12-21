@@ -11,11 +11,14 @@ set -e  # Exit on error
 #   --postgres-off         Disable PostgreSQL support
 #   --sqlite, --sqlite-on  Enable SQLite support
 #   --sqlite-off           Disable SQLite support
+#   --firebird, --firebird-on  Enable Firebird support
+#   --firebird-off         Disable Firebird support
 #   --release              Build in Release mode (default: Debug)
 #   --asan                 Enable Address Sanitizer
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
 #   --debug-sqlite         Enable debug output for SQLite driver
+#   --debug-firebird       Enable debug output for Firebird driver
 #   --debug-all            Enable all debug output
 #   --help                 Show this help message
 
@@ -23,6 +26,7 @@ set -e  # Exit on error
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
+USE_FIREBIRD=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 ENABLE_ASAN=OFF
@@ -30,6 +34,7 @@ NO_REBUILD_DEPS=false
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_FIREBIRD=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
 
@@ -68,6 +73,14 @@ while [[ $# -gt 0 ]]; do
             USE_SQLITE=OFF
             shift
             ;;
+        --firebird|--firebird-on)
+            USE_FIREBIRD=ON
+            shift
+            ;;
+        --firebird-off)
+            USE_FIREBIRD=OFF
+            shift
+            ;;
         --release)
             BUILD_TYPE=Release
             shift
@@ -92,10 +105,15 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             shift
             ;;
+        --debug-firebird)
+            DEBUG_FIREBIRD=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
+            DEBUG_FIREBIRD=ON
             shift
             ;;
         --dw-off)
@@ -121,12 +139,15 @@ while [[ $# -gt 0 ]]; do
             echo "  --postgres-off         Disable PostgreSQL support"
             echo "  --sqlite, --sqlite-on  Enable SQLite support"
             echo "  --sqlite-off           Disable SQLite support"
+            echo "  --firebird, --firebird-on  Enable Firebird support"
+            echo "  --firebird-off         Disable Firebird support"
             echo "  --release              Build in Release mode (default: Debug)"
             echo "  --debug                Build in Debug mode (default)"
             echo "  --asan                 Enable Address Sanitizer"
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
+            echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -136,7 +157,7 @@ while [[ $# -gt 0 ]]; do
         *)
             # Unknown option
             echo "Unknown option: $1"
-            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--sqlite|--sqlite-on|--sqlite-off] [--release] [--asan] [--dw-off] [--help]"
+            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--sqlite|--sqlite-on|--sqlite-off] [--firebird|--firebird-on|--firebird-off] [--release] [--asan] [--dw-off] [--help]"
             exit 1
             ;;
     esac
@@ -207,11 +228,13 @@ echo "  CPP-YAML support: $USE_CPP_YAML"
 echo "  MySQL support: $USE_MYSQL"
 echo "  PostgreSQL support: $USE_POSTGRESQL"
 echo "  SQLite support: $USE_SQLITE"
+echo "  Firebird support: $USE_FIREBIRD"
 echo "  Build type: $BUILD_TYPE"
 echo "  Address Sanitizer: $ENABLE_ASAN"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
 
@@ -260,11 +283,13 @@ cmake "${CPP_DBC_DIR}" \
       -DUSE_MYSQL=$USE_MYSQL \
       -DUSE_POSTGRESQL=$USE_POSTGRESQL \
       -DUSE_SQLITE=$USE_SQLITE \
+      -DUSE_FIREBIRD=$USE_FIREBIRD \
       -DCPP_DBC_BUILD_TESTS=ON \
       -DENABLE_ASAN=$ENABLE_ASAN \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
+      -DDEBUG_FIREBIRD=$DEBUG_FIREBIRD \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
       -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align" \

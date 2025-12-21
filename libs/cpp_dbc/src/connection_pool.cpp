@@ -1036,4 +1036,22 @@ namespace cpp_dbc
         }
     }
 
+    // Firebird connection pool implementation
+    namespace Firebird
+    {
+        FirebirdConnectionPool::FirebirdConnectionPool(const std::string &url,
+                                                       const std::string &username,
+                                                       const std::string &password)
+            : ConnectionPool(url, username, password)
+        {
+            // Firebird-specific initialization if needed
+        }
+
+        FirebirdConnectionPool::FirebirdConnectionPool(const config::ConnectionPoolConfig &config)
+            : ConnectionPool(config)
+        {
+            // Firebird-specific initialization if needed
+        }
+    }
+
 } // namespace cpp_dbc

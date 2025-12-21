@@ -118,6 +118,28 @@ databases:
       journal_mode: WAL
       synchronous: FULL
 
+  # Firebird development database
+  - name: dev_firebird
+    type: firebird
+    host: localhost
+    port: 3050
+    database: /firebird/data/test_firebird.fdb
+    username: SYSDBA
+    password: dsystems
+    options:
+      charset: UTF8
+      
+  # Firebird testing database
+  - name: test_firebird
+    type: firebird
+    host: localhost
+    port: 3050
+    database: /firebird/data/test_firebird.fdb
+    username: SYSDBA
+    password: dsystems
+    options:
+      charset: UTF8
+
 # Connection pool configuration for tests
 connection_pool:
   default:
@@ -170,3 +192,11 @@ test_queries:
     insert_data: "INSERT INTO test_table (id, name) VALUES (?, ?)"
     select_data: "SELECT * FROM test_table WHERE id = ?"
     drop_table: "DROP TABLE IF EXISTS test_table"
+    
+  # Firebird specific test queries
+  firebird:
+    connection_test: "SELECT 1 AS TEST_VALUE FROM RDB$DATABASE"
+    create_table: "RECREATE TABLE test_table (id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(100), num_value DOUBLE PRECISION)"
+    insert_data: "INSERT INTO test_table (id, name, num_value) VALUES (?, ?, ?)"
+    select_data: "SELECT * FROM test_table WHERE id = ?"
+    drop_table: "DROP TABLE test_table"

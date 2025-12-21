@@ -23,6 +23,17 @@
   - Uses the C API (`libpq-fe.h`)
   - Requires libpq development package
 
+- **SQLite Library**: For SQLite database connectivity
+  - Uses the C API (`sqlite3.h`)
+  - Requires libsqlite3 development package
+
+- **Firebird Client Library**: For Firebird SQL database connectivity
+  - Uses the C API (`ibase.h`)
+  - Requires firebird-dev and libfbclient2 packages (Debian/Ubuntu)
+  - Requires firebird-devel and libfbclient2 packages (RHEL/Fedora)
+  - Default port: 3050
+  - URL format: `cpp_dbc:firebird://host:port/path/to/database.fdb`
+
 - **YAML-CPP Library**: For YAML configuration support (optional)
   - Used for parsing YAML configuration files
   - Included via Conan dependency management
@@ -88,7 +99,7 @@ The project is configured to work with the CMakeTools extension, but does not re
 ## Technical Constraints
 
 ### Database Support
-- Currently supports MySQL, PostgreSQL, and SQLite
+- Currently supports MySQL, PostgreSQL, SQLite, and Firebird SQL
 - Adding support for other databases requires implementing new driver classes
 
 ### Thread Safety
@@ -101,13 +112,14 @@ The project is configured to work with the CMakeTools extension, but does not re
 
 ### Memory Management
 - Uses smart pointers for automatic resource management:
-  - `shared_ptr` for connection handles (MySQL, PostgreSQL, SQLite)
+  - `shared_ptr` for connection handles (MySQL, PostgreSQL, SQLite, Firebird)
   - `unique_ptr` with custom deleters for result sets and prepared statements
   - `weak_ptr` for safe references from PreparedStatements to Connections
 - Custom deleters ensure proper cleanup of database-specific resources:
   - `MySQLDeleter`, `MySQLStmtDeleter`, `MySQLResDeleter` for MySQL
   - `PGconnDeleter`, `PGresultDeleter` for PostgreSQL
   - `SQLiteDbDeleter`, `SQLiteStmtDeleter` for SQLite
+  - `FirebirdDbDeleter`, `FirebirdStmtDeleter` for Firebird
 - Relies on RAII for proper cleanup even in case of exceptions
 - No explicit memory management required from client code
 - Comprehensive warning flags to catch memory-related issues:
@@ -139,6 +151,21 @@ The project is configured to work with the CMakeTools extension, but does not re
   - Required for PostgreSQL support
   - Typically installed via package manager (e.g., `libpq-dev` on Debian/Ubuntu)
   - Header: `libpq-fe.h`
+
+- **SQLite Library**:
+  - Required for SQLite support
+  - Typically installed via package manager (e.g., `libsqlite3-dev` on Debian/Ubuntu)
+  - Header: `sqlite3.h`
+
+- **Firebird Client Library**:
+  - Required for Firebird SQL support
+  - Typically installed via package manager:
+    - Debian/Ubuntu: `sudo apt-get install firebird-dev libfbclient2`
+    - RHEL/Fedora: `sudo dnf install firebird-devel libfbclient2`
+  - Header: `ibase.h`
+  - Key functions: `isc_attach_database`, `isc_dsql_*`, `isc_*_blob`
+  - Uses ISC_STATUS_ARRAY for error handling
+  - Uses XSQLDA structures for parameter binding and result sets
 
 - **Google Benchmark Library**:
   - Used for performance benchmarking

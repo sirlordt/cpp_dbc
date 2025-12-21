@@ -13,6 +13,8 @@ set -e  # Exit on error
 #   --postgres-off         Disable PostgreSQL support
 #   --sqlite, --sqlite-on  Enable SQLite support
 #   --sqlite-off           Disable SQLite support
+#   --firebird, --firebird-on  Enable Firebird support
+#   --firebird-off         Disable Firebird support
 #   --release              Run in Release mode (default: Debug)
 #   --asan                 Enable Address Sanitizer
 #   --valgrind             Run tests with Valgrind
@@ -27,6 +29,7 @@ set -e  # Exit on error
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
 #   --debug-sqlite         Enable debug output for SQLite driver
+#   --debug-firebird       Enable debug output for Firebird driver
 #   --debug-all            Enable all debug output
 #   --dw-off               Disable libdw support for stack traces
 #   --db-driver-thread-safe-off  Disable thread-safe database driver operations
@@ -37,6 +40,7 @@ USE_MYSQL=ON
 USE_CPP_YAML=OFF
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
+USE_FIREBIRD=OFF
 BUILD_TYPE=Debug
 ASAN_OPTIONS=""
 ENABLE_ASAN=false
@@ -51,6 +55,7 @@ RUN_SPECIFIC_TEST=""
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_FIREBIRD=OFF
 RUN_COUNT=1
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
@@ -88,6 +93,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --sqlite-off)
             USE_SQLITE=OFF
+            shift
+            ;;
+        --firebird|--firebird-on)
+            USE_FIREBIRD=ON
+            shift
+            ;;
+        --firebird-off)
+            USE_FIREBIRD=OFF
             shift
             ;;
         --release)
@@ -152,10 +165,15 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             shift
             ;;
+        --debug-firebird)
+            DEBUG_FIREBIRD=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
+            DEBUG_FIREBIRD=ON
             shift
             ;;
         --dw-off)
@@ -175,6 +193,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --postgres-off         Disable PostgreSQL support"
             echo "  --sqlite, --sqlite-on  Enable SQLite support"
             echo "  --sqlite-off           Disable SQLite support"
+            echo "  --firebird, --firebird-on  Enable Firebird support"
+            echo "  --firebird-off         Disable Firebird support"
             echo "  --release              Run in Release mode (default: Debug)"
             echo "  --asan                 Enable Address Sanitizer"
             echo "  --valgrind             Run tests with Valgrind"
@@ -189,6 +209,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
+            echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -326,6 +347,12 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
         BUILD_CMD="$BUILD_CMD --sqlite-off"
     fi
     
+    if [ "$USE_FIREBIRD" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --firebird"
+    else
+        BUILD_CMD="$BUILD_CMD --firebird-off"
+    fi
+    
     if [ "$BUILD_TYPE" = "Release" ]; then
         BUILD_CMD="$BUILD_CMD --release"
     else
@@ -343,6 +370,10 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
 
     if [ "$DEBUG_SQLITE" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --debug-sqlite"
+    fi
+
+    if [ "$DEBUG_FIREBIRD" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --debug-firebird"
     fi
     
     # Add dw-off option if specified

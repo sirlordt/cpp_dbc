@@ -11,6 +11,8 @@ set -e  # Exit on error
 #   --postgres-off         Disable PostgreSQL support
 #   --sqlite, --sqlite-on  Enable SQLite support
 #   --sqlite-off           Disable SQLite support
+#   --firebird, --firebird-on  Enable Firebird support
+#   --firebird-off         Disable Firebird support
 #   --yaml, --yaml-on      Enable YAML configuration support
 #   --yaml-off             Disable YAML configuration support
 #   --auto                 Automatically run tests without user interaction
@@ -34,6 +36,7 @@ set -e  # Exit on error
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
+USE_FIREBIRD=OFF
 USE_YAML=ON
 BUILD_TYPE=Debug
 ASAN_OPTIONS=""
@@ -48,6 +51,8 @@ RUN_SPECIFIC_TEST=""
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_FIREBIRD=OFF
+DEBUG_ALL=OFF
 DW_OFF=false
 DB_DRIVER_THREAD_SAFE_OFF=false
 
@@ -76,6 +81,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --sqlite-off)
             USE_SQLITE=OFF
+            shift
+            ;;
+        --firebird|--firebird-on)
+            USE_FIREBIRD=ON
+            shift
+            ;;
+        --firebird-off)
+            USE_FIREBIRD=OFF
             shift
             ;;
         --yaml|--yaml-on)
@@ -148,10 +161,16 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             shift
             ;;
+        --debug-firebird)
+            DEBUG_FIREBIRD=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
+            DEBUG_FIREBIRD=ON
+            DEBUG_ALL=ON
             shift
             ;;
         --dw-off)
@@ -171,6 +190,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --postgres-off         Disable PostgreSQL support"
             echo "  --sqlite, --sqlite-on  Enable SQLite support"
             echo "  --sqlite-off           Disable SQLite support"
+            echo "  --firebird, --firebird-on  Enable Firebird support"
+            echo "  --firebird-off         Disable Firebird support"
             echo "  --yaml, --yaml-on      Enable YAML configuration support"
             echo "  --yaml-off             Disable YAML configuration support"
             echo "  --auto                 Automatically run tests without user interaction"
@@ -186,6 +207,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
+            echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -229,6 +251,10 @@ if [ ! -f "$MAIN_EXECUTABLE" ]; then
     
     if [ "$USE_SQLITE" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --sqlite"
+    fi
+    
+    if [ "$USE_FIREBIRD" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --firebird"
     fi
     
     if [ "$USE_YAML" = "ON" ]; then
@@ -293,6 +319,10 @@ if [ "$USE_SQLITE" = "ON" ]; then
     CMD="$CMD --sqlite-on"
 fi
 
+if [ "$USE_FIREBIRD" = "ON" ]; then
+    CMD="$CMD --firebird-on"
+fi
+
 if [ "$USE_YAML" = "ON" ]; then
     CMD="$CMD --yaml-on"
 else
@@ -350,6 +380,14 @@ fi
 
 if [ "$DEBUG_SQLITE" = "ON" ]; then
     CMD="$CMD --debug-sqlite"
+fi
+
+if [ "$DEBUG_FIREBIRD" = "ON" ]; then
+    CMD="$CMD --debug-firebird"
+fi
+
+if [ "$DEBUG_ALL" = "ON" ]; then
+    CMD="$CMD --debug-all"
 fi
 
 # Add dw-off option if specified

@@ -9,6 +9,7 @@ set -e
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
+USE_FIREBIRD=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
@@ -17,6 +18,8 @@ BUILD_BENCHMARKS=OFF
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_FIREBIRD=OFF
+DEBUG_ALL=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
 
@@ -46,6 +49,14 @@ do
         ;;
         --sqlite-off)
         USE_SQLITE=OFF
+        shift
+        ;;
+        --firebird|--firebird-on)
+        USE_FIREBIRD=ON
+        shift
+        ;;
+        --firebird-off)
+        USE_FIREBIRD=OFF
         shift
         ;;
         --yaml|--yaml-on)
@@ -88,10 +99,16 @@ do
         DEBUG_SQLITE=ON
         shift
         ;;
+        --debug-firebird)
+        DEBUG_FIREBIRD=ON
+        shift
+        ;;
         --debug-all)
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
         DEBUG_SQLITE=ON
+        DEBUG_FIREBIRD=ON
+        DEBUG_ALL=ON
         shift
         ;;
         --dw-off)
@@ -111,6 +128,8 @@ do
         echo "  --postgres-off         Disable PostgreSQL support"
         echo "  --sqlite, --sqlite-on  Enable SQLite support"
         echo "  --sqlite-off           Disable SQLite support"
+        echo "  --firebird, --firebird-on  Enable Firebird SQL support"
+        echo "  --firebird-off         Disable Firebird SQL support"
         echo "  --yaml, --yaml-on      Enable YAML configuration support"
         echo "  --debug                Build in Debug mode (default)"
         echo "  --release              Build in Release mode"
@@ -120,6 +139,7 @@ do
         echo "  --debug-pool           Enable debug output for ConnectionPool"
         echo "  --debug-txmgr          Enable debug output for TransactionManager"
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
+        echo "  --debug-firebird       Enable debug output for Firebird driver"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
         echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -134,6 +154,7 @@ echo "Database driver configuration:"
 echo "  MySQL support: $USE_MYSQL"
 echo "  PostgreSQL support: $USE_POSTGRESQL"
 echo "  SQLite support: $USE_SQLITE"
+echo "  Firebird support: $USE_FIREBIRD"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
@@ -142,6 +163,8 @@ echo "  Build benchmarks: $BUILD_BENCHMARKS"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  Debug Firebird: $DEBUG_FIREBIRD"
+echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
 
@@ -250,6 +273,43 @@ if [ "$USE_SQLITE" = "ON" ]; then
     fi
 fi
 
+# Check for Firebird dependencies
+if [ "$USE_FIREBIRD" = "ON" ]; then
+    echo "Checking for Firebird development libraries..."
+    
+    # Detect package manager
+    if command -v apt-get &> /dev/null; then
+        # Debian/Ubuntu
+        if ! dpkg -l | grep -q firebird-dev; then
+            echo "Firebird development libraries not found. Installing..."
+            sudo apt-get update
+            sudo apt-get install -y firebird-dev libfbclient2
+        else
+            echo "Firebird development libraries already installed."
+        fi
+    elif command -v dnf &> /dev/null; then
+        # Fedora/RHEL/CentOS
+        if ! rpm -q firebird-devel &> /dev/null; then
+            echo "Firebird development libraries not found. Installing..."
+            sudo dnf install -y firebird-devel libfbclient2
+        else
+            echo "Firebird development libraries already installed."
+        fi
+    elif command -v yum &> /dev/null; then
+        # Older RHEL/CentOS
+        if ! rpm -q firebird-devel &> /dev/null; then
+            echo "Firebird development libraries not found. Installing..."
+            sudo yum install -y firebird-devel libfbclient2
+        else
+            echo "Firebird development libraries already installed."
+        fi
+    else
+        echo "Warning: Could not detect package manager. Please install Firebird development libraries manually."
+        echo "  Debian/Ubuntu: sudo apt-get install firebird-dev libfbclient2"
+        echo "  Fedora/RHEL: sudo dnf install firebird-devel libfbclient2"
+    fi
+fi
+
 # Check for libdw dependencies if enabled
 if [ "$BACKWARD_HAS_DW" = "ON" ]; then
     echo "Checking for libdw development libraries..."
@@ -326,6 +386,7 @@ cmake "${SCRIPT_DIR}" \
       -DUSE_MYSQL=$USE_MYSQL \
       -DUSE_POSTGRESQL=$USE_POSTGRESQL \
       -DUSE_SQLITE=$USE_SQLITE \
+      -DUSE_FIREBIRD=$USE_FIREBIRD \
       -DUSE_CPP_YAML=$USE_CPP_YAML \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DCPP_DBC_BUILD_TESTS=$BUILD_TESTS \
@@ -334,6 +395,8 @@ cmake "${SCRIPT_DIR}" \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
+      -DDEBUG_FIREBIRD=$DEBUG_FIREBIRD \
+      -DDEBUG_ALL=$DEBUG_ALL \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
       -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
@@ -379,6 +442,11 @@ if [ "$BUILD_TESTS" = "ON" ]; then
         TEST_PARAMS="$TEST_PARAMS --sqlite"
     fi
     
+    # Pass Firebird configuration
+    if [ "$USE_FIREBIRD" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --firebird"
+    fi
+    
     # Pass build type
     if [ "$BUILD_TYPE" = "Release" ]; then
         TEST_PARAMS="$TEST_PARAMS --release"
@@ -397,6 +465,14 @@ if [ "$BUILD_TESTS" = "ON" ]; then
         TEST_PARAMS="$TEST_PARAMS --debug-sqlite"
     fi
     
+    if [ "$DEBUG_FIREBIRD" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --debug-firebird"
+    fi
+    
+    if [ "$DEBUG_ALL" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --debug-all"
+    fi
+    
     # Call build_test_cpp_dbc.sh with the parameters
     echo "Running: ${SCRIPT_DIR}/build_test_cpp_dbc.sh $TEST_PARAMS"
     "${SCRIPT_DIR}/build_test_cpp_dbc.sh" $TEST_PARAMS
@@ -406,6 +482,7 @@ echo "Database driver status:"
 echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
 echo "  SQLite: $USE_SQLITE"
+echo "  Firebird: $USE_FIREBIRD"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
@@ -414,5 +491,7 @@ echo "  Build benchmarks: $BUILD_BENCHMARKS"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  Debug Firebird: $DEBUG_FIREBIRD"
+echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"

@@ -5,6 +5,7 @@ project(cpp_dbc VERSION 0.1.0 LANGUAGES CXX)
 option(USE_MYSQL "Enable MySQL support" ON)
 option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
 option(USE_SQLITE "Enable SQLite support" OFF)
+option(USE_FIREBIRD "Enable Firebird SQL support" OFF)
 option(USE_CPP_YAML "Enable YAML configuration support" OFF)
 option(BACKWARD_HAS_DW "Enable libdw support for stack traces" ON)
 
@@ -16,6 +17,8 @@ option(DB_DRIVER_THREAD_SAFE "Enable thread-safe database driver operations" ON)
 option(DEBUG_CONNECTION_POOL "Enable debug output for ConnectionPool" OFF)
 option(DEBUG_TRANSACTION_MANAGER "Enable debug output for TransactionManager" OFF)
 option(DEBUG_SQLITE "Enable debug output for SQLite driver" OFF)
+option(DEBUG_FIREBIRD "Enable debug output for Firebird driver" OFF)
+option(DEBUG_ALL "Enable debug output for all drivers and components" OFF)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 23)
@@ -56,6 +59,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
     $<$<BOOL:${USE_SQLITE}>:USE_SQLITE=1>
     $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
+    $<$<BOOL:${USE_FIREBIRD}>:USE_FIREBIRD=1>
+    $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
     $<$<BOOL:${DB_DRIVER_THREAD_SAFE}>:DB_DRIVER_THREAD_SAFE=1>
@@ -63,6 +68,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<BOOL:${DEBUG_CONNECTION_POOL}>:DEBUG_CONNECTION_POOL=1>
     $<$<BOOL:${DEBUG_TRANSACTION_MANAGER}>:DEBUG_TRANSACTION_MANAGER=1>
     $<$<BOOL:${DEBUG_SQLITE}>:DEBUG_SQLITE=1>
+    $<$<BOOL:${DEBUG_FIREBIRD}>:DEBUG_FIREBIRD=1>
+    $<$<BOOL:${DEBUG_ALL}>:DEBUG_ALL=1>
     $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
     $<$<NOT:$<BOOL:${BACKWARD_HAS_DW}>>:BACKWARD_HAS_DW=0>
 )
@@ -130,6 +137,20 @@ if(USE_SQLITE)
     find_package(SQLite3 REQUIRED)
     target_include_directories(cpp_dbc PUBLIC ${SQLite3_INCLUDE_DIRS})
     target_link_libraries(cpp_dbc PUBLIC ${SQLite3_LIBRARIES})
+endif()
+
+# Conditionally add Firebird driver files and dependencies
+if(USE_FIREBIRD)
+    target_sources(cpp_dbc PRIVATE
+        src/drivers/driver_firebird.cpp
+    )
+
+    # Find Firebird package
+    # Required system package: firebird-dev (Debian/Ubuntu) or firebird-devel (RHEL/Fedora)
+    # Install with: sudo apt-get install firebird-dev libfbclient2
+    find_package(Firebird REQUIRED)
+    target_include_directories(cpp_dbc PUBLIC ${FIREBIRD_INCLUDE_DIRS})
+    target_link_libraries(cpp_dbc PUBLIC ${FIREBIRD_LIBRARIES})
 endif()
 
 # Conditionally add YAML-CPP dependencies
@@ -215,6 +236,7 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindMySQL.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindPostgreSQL.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSQLite3.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindFirebird.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/cpp_dbc
 )
 

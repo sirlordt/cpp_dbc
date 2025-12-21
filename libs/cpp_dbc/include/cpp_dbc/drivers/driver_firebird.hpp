@@ -1,0 +1,448 @@
+/**
+
+ * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+
+ * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
+ * See the LICENSE.md file in the project root for more information.
+
+ @file driver_firebird.hpp
+ @brief Firebird database driver implementation
+
+ Required system package: firebird-dev (Debian/Ubuntu) or firebird-devel (RHEL/CentOS/Fedora)
+ Install with: sudo apt-get install firebird-dev libfbclient2
+
+*/
+
+#ifndef CPP_DBC_DRIVER_FIREBIRD_HPP
+#define CPP_DBC_DRIVER_FIREBIRD_HPP
+
+#include "../cpp_dbc.hpp"
+#include "firebird_blob.hpp"
+
+#ifndef USE_FIREBIRD
+#define USE_FIREBIRD 0 // Default to disabled
+#endif
+
+#if USE_FIREBIRD
+#include <ibase.h>
+#include <map>
+#include <memory>
+#include <set>
+#include <mutex>
+#include <vector>
+#include <string>
+#include <atomic>
+#include <cstring>
+
+// Thread-safety macros for conditional mutex locking
+// Using recursive_mutex to allow the same thread to acquire the lock multiple times
+// This is needed when a method that holds the lock calls another method that also needs the lock
+#if DB_DRIVER_THREAD_SAFE
+#define DB_DRIVER_MUTEX mutable std::recursive_mutex
+#define DB_DRIVER_LOCK_GUARD(mutex) std::lock_guard<std::recursive_mutex> lock(mutex)
+#define DB_DRIVER_UNIQUE_LOCK(mutex) std::unique_lock<std::recursive_mutex> lock(mutex)
+#else
+#define DB_DRIVER_MUTEX
+#define DB_DRIVER_LOCK_GUARD(mutex) (void)0
+#define DB_DRIVER_UNIQUE_LOCK(mutex) (void)0
+#endif
+
+namespace cpp_dbc
+{
+    namespace Firebird
+    {
+        // Forward declarations
+        class FirebirdConnection;
+        class FirebirdPreparedStatement;
+
+        /**
+         * @brief Helper function to interpret Firebird status vector
+         * @param status The status vector from Firebird API calls
+         * @return Error message string
+         */
+        inline std::string interpretStatusVector(const ISC_STATUS_ARRAY status)
+        {
+            char buffer[512];
+            const ISC_STATUS *pvector = status;
+            std::string result;
+
+            while (fb_interpret(buffer, sizeof(buffer), &pvector))
+            {
+                if (!result.empty())
+                    result += " - ";
+                result += buffer;
+            }
+
+            return result.empty() ? "Unknown Firebird error" : result;
+        }
+
+        /**
+         * @brief Custom deleter for Firebird statement handle
+         * Note: This deleter only frees the pointer wrapper, NOT the statement itself.
+         * The statement is freed by the PreparedStatement::close() or ResultSet::close() methods.
+         */
+        struct FirebirdStmtDeleter
+        {
+            void operator()(isc_stmt_handle *stmt) const noexcept
+            {
+                // Only delete the pointer wrapper, don't free the statement
+                // The statement is managed by PreparedStatement or ResultSet
+                delete stmt;
+            }
+        };
+
+        /**
+         * @brief Type alias for the smart pointer managing Firebird statement
+         */
+        using FirebirdStmtHandle = std::unique_ptr<isc_stmt_handle, FirebirdStmtDeleter>;
+
+        /**
+         * @brief Custom deleter for XSQLDA structure
+         */
+        struct XSQLDADeleter
+        {
+            void operator()(XSQLDA *sqlda) const noexcept
+            {
+                if (sqlda)
+                {
+                    free(sqlda);
+                }
+            }
+        };
+
+        /**
+         * @brief Type alias for the smart pointer managing XSQLDA
+         */
+        using XSQLDAHandle = std::unique_ptr<XSQLDA, XSQLDADeleter>;
+
+        /**
+         * @brief Custom deleter for transaction handle (non-owning, just for type safety)
+         * Note: Transaction handles are managed by FirebirdConnection, not by this deleter
+         */
+        struct FirebirdTrDeleter
+        {
+            void operator()(isc_tr_handle *tr) const noexcept
+            {
+                // Transaction handles are managed by FirebirdConnection
+                // This deleter only frees the pointer wrapper, not the transaction itself
+                delete tr;
+            }
+        };
+
+        /**
+         * @brief Type alias for transaction handle wrapper
+         */
+        using FirebirdTrHandle = std::unique_ptr<isc_tr_handle, FirebirdTrDeleter>;
+
+        /**
+         * @brief Firebird ResultSet implementation
+         */
+        class FirebirdResultSet : public ResultSet
+        {
+        private:
+            FirebirdStmtHandle m_stmt;
+            XSQLDAHandle m_sqlda;
+            bool m_ownStatement{false};
+            size_t m_rowPosition{0};
+            size_t m_fieldCount{0};
+            std::vector<std::string> m_columnNames;
+            std::map<std::string, size_t> m_columnMap;
+            bool m_hasData{false};
+            bool m_closed{true};
+            bool m_fetchedFirst{false};
+            std::weak_ptr<FirebirdConnection> m_connection;
+
+            // Buffer for SQLDA data
+            std::vector<std::vector<char>> m_dataBuffers;
+            std::vector<short> m_nullIndicators;
+
+#if DB_DRIVER_THREAD_SAFE
+            mutable std::recursive_mutex m_mutex;
+#endif
+
+            /**
+             * @brief Initialize column metadata from SQLDA
+             */
+            void initializeColumns();
+
+            /**
+             * @brief Get column value as string
+             */
+            std::string getColumnValue(size_t columnIndex) const;
+
+            /**
+             * @brief Get raw statement handle pointer for Firebird API calls
+             */
+            isc_stmt_handle *getStmtPtr() { return m_stmt.get(); }
+
+        public:
+            FirebirdResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement = true,
+                              std::shared_ptr<FirebirdConnection> conn = nullptr);
+            ~FirebirdResultSet() override;
+
+            bool next() override;
+            bool isBeforeFirst() override;
+            bool isAfterLast() override;
+            uint64_t getRow() override;
+
+            int getInt(size_t columnIndex) override;
+            int getInt(const std::string &columnName) override;
+
+            long getLong(size_t columnIndex) override;
+            long getLong(const std::string &columnName) override;
+
+            double getDouble(size_t columnIndex) override;
+            double getDouble(const std::string &columnName) override;
+
+            std::string getString(size_t columnIndex) override;
+            std::string getString(const std::string &columnName) override;
+
+            bool getBoolean(size_t columnIndex) override;
+            bool getBoolean(const std::string &columnName) override;
+
+            bool isNull(size_t columnIndex) override;
+            bool isNull(const std::string &columnName) override;
+
+            std::vector<std::string> getColumnNames() override;
+            size_t getColumnCount() override;
+            void close() override;
+
+            // BLOB support methods
+            std::shared_ptr<Blob> getBlob(size_t columnIndex) override;
+            std::shared_ptr<Blob> getBlob(const std::string &columnName) override;
+
+            std::shared_ptr<InputStream> getBinaryStream(size_t columnIndex) override;
+            std::shared_ptr<InputStream> getBinaryStream(const std::string &columnName) override;
+
+            std::vector<uint8_t> getBytes(size_t columnIndex) override;
+            std::vector<uint8_t> getBytes(const std::string &columnName) override;
+        };
+
+        /**
+         * @brief Firebird PreparedStatement implementation
+         */
+        // Forward declaration
+        class FirebirdConnection;
+
+        class FirebirdPreparedStatement : public PreparedStatement
+        {
+            friend class FirebirdConnection;
+
+        private:
+            std::weak_ptr<isc_db_handle> m_dbHandle;
+            std::weak_ptr<FirebirdConnection> m_connection; // Reference to connection for autocommit
+            isc_tr_handle *m_trPtr{nullptr};                // Non-owning pointer to transaction handle (owned by Connection)
+            isc_stmt_handle m_stmt;
+            std::string m_sql;
+            XSQLDAHandle m_inputSqlda;
+            XSQLDAHandle m_outputSqlda;
+            bool m_closed{true};
+            bool m_prepared{false};
+
+            // Parameter storage
+            std::vector<std::vector<char>> m_paramBuffers;
+            std::vector<short> m_paramNullIndicators;
+            std::vector<std::vector<uint8_t>> m_blobValues;
+            std::vector<std::shared_ptr<Blob>> m_blobObjects;
+            std::vector<std::shared_ptr<InputStream>> m_streamObjects;
+
+#if DB_DRIVER_THREAD_SAFE
+            mutable std::recursive_mutex m_mutex;
+#endif
+
+            void notifyConnClosing();
+            isc_db_handle *getFirebirdConnection() const;
+            void prepareStatement();
+            void allocateInputSqlda();
+            void setParameter(int parameterIndex, const void *data, size_t length, short sqlType);
+
+        public:
+            FirebirdPreparedStatement(std::weak_ptr<isc_db_handle> db, isc_tr_handle *trPtr, const std::string &sql,
+                                      std::weak_ptr<FirebirdConnection> conn = std::weak_ptr<FirebirdConnection>());
+            ~FirebirdPreparedStatement() override;
+
+            void setInt(int parameterIndex, int value) override;
+            void setLong(int parameterIndex, long value) override;
+            void setDouble(int parameterIndex, double value) override;
+            void setString(int parameterIndex, const std::string &value) override;
+            void setBoolean(int parameterIndex, bool value) override;
+            void setNull(int parameterIndex, Types type) override;
+            void setDate(int parameterIndex, const std::string &value) override;
+            void setTimestamp(int parameterIndex, const std::string &value) override;
+
+            // BLOB support methods
+            void setBlob(int parameterIndex, std::shared_ptr<Blob> x) override;
+            void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x) override;
+            void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length) override;
+            void setBytes(int parameterIndex, const std::vector<uint8_t> &x) override;
+            void setBytes(int parameterIndex, const uint8_t *x, size_t length) override;
+
+            std::shared_ptr<ResultSet> executeQuery() override;
+            uint64_t executeUpdate() override;
+            bool execute() override;
+            void close() override;
+        };
+
+        /**
+         * @brief Custom deleter for Firebird database handle
+         */
+        struct FirebirdDbDeleter
+        {
+            void operator()(isc_db_handle *db) const noexcept
+            {
+                if (db && *db)
+                {
+                    ISC_STATUS_ARRAY status;
+                    isc_detach_database(status, db);
+                    delete db;
+                }
+            }
+        };
+
+        /**
+         * @brief Type alias for the smart pointer managing Firebird connection
+         */
+        using FirebirdDbHandle = std::shared_ptr<isc_db_handle>;
+
+        /**
+         * @brief Firebird Connection implementation
+         */
+        class FirebirdConnection : public Connection, public std::enable_shared_from_this<FirebirdConnection>
+        {
+            friend class FirebirdPreparedStatement;
+            friend class FirebirdResultSet;
+
+        private:
+            FirebirdDbHandle m_db;
+            isc_tr_handle m_tr;
+            bool m_closed{true};
+            bool m_autoCommit{true};
+            bool m_transactionActive{false};
+            TransactionIsolationLevel m_isolationLevel;
+            std::string m_url;
+
+            // Registry of active prepared statements
+            std::set<std::weak_ptr<FirebirdPreparedStatement>, std::owner_less<std::weak_ptr<FirebirdPreparedStatement>>> m_activeStatements;
+            std::mutex m_statementsMutex;
+
+#if DB_DRIVER_THREAD_SAFE
+            mutable std::recursive_mutex m_connMutex;
+#endif
+
+            void registerStatement(std::weak_ptr<FirebirdPreparedStatement> stmt);
+            void unregisterStatement(std::weak_ptr<FirebirdPreparedStatement> stmt);
+            void startTransaction();
+            void endTransaction(bool commit);
+
+        public:
+            FirebirdConnection(const std::string &host,
+                               int port,
+                               const std::string &database,
+                               const std::string &user,
+                               const std::string &password,
+                               const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+            ~FirebirdConnection() override;
+
+            void close() override;
+            bool isClosed() override;
+            void returnToPool() override;
+            bool isPooled() override;
+
+            std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
+            std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;
+            uint64_t executeUpdate(const std::string &sql) override;
+
+            void setAutoCommit(bool autoCommit) override;
+            bool getAutoCommit() override;
+
+            bool beginTransaction() override;
+            bool transactionActive() override;
+
+            void commit() override;
+            void rollback() override;
+
+            // Transaction isolation level methods
+            void setTransactionIsolation(TransactionIsolationLevel level) override;
+            TransactionIsolationLevel getTransactionIsolation() override;
+
+            // Get the connection URL
+            std::string getURL() const override;
+        };
+
+        /**
+         * @brief Firebird Driver implementation
+         */
+        class FirebirdDriver : public Driver
+        {
+        private:
+            static std::atomic<bool> s_initialized;
+            static std::mutex s_initMutex;
+
+        public:
+            FirebirdDriver();
+            ~FirebirdDriver() override;
+
+            std::shared_ptr<Connection> connect(const std::string &url,
+                                                const std::string &user,
+                                                const std::string &password,
+                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+
+            bool acceptsURL(const std::string &url) override;
+
+            /**
+             * @brief Parses a URL: cpp_dbc:firebird://host:port/path/to/database.fdb
+             * @param url The URL to parse
+             * @param host Output: the host name
+             * @param port Output: the port number
+             * @param database Output: the database path
+             * @return true if parsing was successful
+             */
+            bool parseURL(const std::string &url, std::string &host, int &port, std::string &database);
+        };
+
+    } // namespace Firebird
+} // namespace cpp_dbc
+
+#else // USE_FIREBIRD
+
+// Stub implementations when Firebird is disabled
+namespace cpp_dbc
+{
+    namespace Firebird
+    {
+        class FirebirdDriver : public Driver
+        {
+        public:
+            FirebirdDriver()
+            {
+                throw DBException("R9T3U5V1W7X4", "Firebird support is not enabled in this build", system_utils::captureCallStack());
+            }
+            ~FirebirdDriver() override = default;
+
+            std::shared_ptr<Connection> connect(const std::string &url,
+                                                const std::string &user,
+                                                const std::string &password,
+                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
+            {
+                throw DBException("S0U4V6W2X8Y5", "Firebird support is not enabled in this build", system_utils::captureCallStack());
+            }
+
+            bool acceptsURL(const std::string &url) override
+            {
+                return false;
+            }
+        };
+    } // namespace Firebird
+} // namespace cpp_dbc
+
+#endif // USE_FIREBIRD
+
+#endif // CPP_DBC_DRIVER_FIREBIRD_HPP

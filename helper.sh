@@ -53,13 +53,13 @@ show_usage() {
   echo "Commands:"
   echo "  --run-build              Build via ./build.sh, logs to build/run-build-<timestamp>.log"
   echo "  --run-build=OPTIONS      Build with comma-separated options"
-  echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
+  echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,firebird,yaml,test,examples,"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
   echo "                           Example: --run-build=clean,sqlite,yaml,test,debug-pool"
   echo "  --run-build-dist         Build via ./build.dist.sh, logs to build/run-build-dist-<timestamp>.log"
   echo "  --run-build-dist=OPTIONS Build dist with comma-separated options"
-  echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
+  echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,firebird,yaml,test,examples,"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
   echo "                           Example: --run-build-dist=clean,sqlite,yaml,test,debug-sqlite"
   echo "  --check-test-log         Check the most recent test log file in logs/test/ for failures and memory issues"
   echo "  --check-test-log=PATH    Check the specified test log file for failures and memory issues"
@@ -70,18 +70,18 @@ show_usage() {
   echo "  --clean-conan-cache      Clear Conan local cache"
   echo "  --run-test               Build (if needed) and run the tests"
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
-  echo "                           Available options: clean,release,rebuild,sqlite,mysql,mysql-off,postgres,valgrind,"
+  echo "                           Available options: clean,release,rebuild,sqlite,firebird,mysql,mysql-off,postgres,valgrind,"
   echo "                                              yaml,auto,asan,ctest,check,run=N,test=Tag1+Tag2+Tag3,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off,db-driver-thread-safe-off"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3,test=integration+mysql_real_right_join"
   echo "                           Example: --run-test=rebuild,sqlite,debug-pool,debug-sqlite,test=integration"
   echo "                           Example: --run-test=clean,rebuild,sqlite,mysql,postgres,yaml,valgrind,auto,run=1"
   echo "                           Note: Multiple test tags can be specified using + as separator after test="
   echo "  --run-benchmarks         Run the benchmarks"
   echo "  --run-benchmarks=OPTIONS Run benchmarks with comma-separated options"
-  echo "                           Available options: clean,release,rebuild,sqlite,mysql,mysql-off,postgres,"
+  echo "                           Available options: clean,release,rebuild,sqlite,firebird,mysql,mysql-off,postgres,"
   echo "                                              yaml,benchmark=Tag1+Tag2+Tag3,memory-usage,base-line,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-all,dw-off,db-driver-thread-safe-off"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Example: --run-benchmarks=mysql,postgresql"
   echo "                           Example: --run-benchmarks=benchmark=update+postgresql"
   echo "                           Example: --run-benchmarks=clean,rebuild,sqlite,mysql,postgres,yaml,memory-usage"
@@ -90,8 +90,8 @@ show_usage() {
   echo "  --ldd-bin-ctr [name]     Run ldd on the executable inside the container"
   echo "  --ldd-build-bin          Run ldd on the final local build/ executable"
   echo "  --run-build-bin          Run the final local build/ executable"
-  echo "  --bk-combo-01            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,yaml,valgrind,auto,run=1"
-  echo "  --bk-combo-02            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,yaml,auto,run=1"
+  echo "  --bk-combo-01            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,yaml,valgrind,auto,run=1"
+  echo "  --bk-combo-02            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,yaml,auto,run=1"
   echo "  --bk-combo-03            Equivalent to --run-test=sqlite,postgres,mysql,yaml,valgrind,auto,run=1"
   echo "  --bk-combo-04            Equivalent to --run-test=sqlite,postgres,mysql,yaml,auto,run=1"
   echo "  --mc-combo-01            Equivalent to --run-build=clean,postgres,mysql,sqlite,yaml,test,examples"
@@ -179,6 +179,10 @@ cmd_run_build() {
         build_cmd="$build_cmd --sqlite"
         echo "Enabling SQLite support"
         ;;
+      firebird)
+        build_cmd="$build_cmd --firebird"
+        echo "Enabling Firebird SQL support"
+        ;;
       yaml)
         build_cmd="$build_cmd --yaml"
         echo "Enabling YAML support"
@@ -210,6 +214,10 @@ cmd_run_build() {
       debug-sqlite)
         build_cmd="$build_cmd --debug-sqlite"
         echo "Enabling debug output for SQLite driver"
+        ;;
+      debug-firebird)
+        build_cmd="$build_cmd --debug-firebird"
+        echo "Enabling debug output for Firebird driver"
         ;;
       debug-all)
         build_cmd="$build_cmd --debug-all"
@@ -318,6 +326,9 @@ cmd_run_test() {
         sqlite)
           run_test_cmd="$run_test_cmd --sqlite"
           ;;
+        firebird)
+          run_test_cmd="$run_test_cmd --firebird"
+          ;;
         mysql)
           run_test_cmd="$run_test_cmd --mysql"
           ;;
@@ -359,6 +370,10 @@ cmd_run_test() {
         debug-sqlite)
           run_test_cmd="$run_test_cmd --debug-sqlite"
           echo "Enabling debug output for SQLite driver"
+          ;;
+        debug-firebird)
+          run_test_cmd="$run_test_cmd --debug-firebird"
+          echo "Enabling debug output for Firebird driver"
           ;;
         debug-all)
           run_test_cmd="$run_test_cmd --debug-all"
@@ -829,6 +844,10 @@ cmd_run_benchmarks() {
           run_benchmark_cmd="$run_benchmark_cmd --sqlite"
           echo "Running SQLite benchmarks only"
           ;;
+        firebird)
+          run_benchmark_cmd="$run_benchmark_cmd --firebird"
+          echo "Running Firebird benchmarks only"
+          ;;
         clean)
           run_benchmark_cmd="$run_benchmark_cmd --clean"
           echo "Cleaning build directories"
@@ -855,6 +874,10 @@ cmd_run_benchmarks() {
         debug-sqlite)
           run_benchmark_cmd="$run_benchmark_cmd --debug-sqlite"
           echo "Enabling debug output for SQLite driver"
+          ;;
+        debug-firebird)
+          run_benchmark_cmd="$run_benchmark_cmd --debug-firebird"
+          echo "Enabling debug output for Firebird driver"
           ;;
         debug-all)
           run_benchmark_cmd="$run_benchmark_cmd --debug-all"
@@ -989,6 +1012,10 @@ cmd_run_build_dist() {
         build_cmd="$build_cmd --sqlite"
         echo "Enabling SQLite support"
         ;;
+      firebird)
+        build_cmd="$build_cmd --firebird"
+        echo "Enabling Firebird SQL support"
+        ;;
       yaml)
         build_cmd="$build_cmd --yaml"
         echo "Enabling YAML support"
@@ -1016,6 +1043,10 @@ cmd_run_build_dist() {
       debug-sqlite)
         build_cmd="$build_cmd --debug-sqlite"
         echo "Enabling debug output for SQLite driver"
+        ;;
+      debug-firebird)
+        build_cmd="$build_cmd --debug-firebird"
+        echo "Enabling debug output for Firebird driver"
         ;;
       debug-all)
         build_cmd="$build_cmd --debug-all"
@@ -1279,12 +1310,12 @@ while [ $i -lt ${#args[@]} ]; do
       ;;
     --bk-combo-01)
       # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,yaml,valgrind,auto,run=1
-      TEST_OPTIONS="rebuild,sqlite,postgres,mysql,yaml,valgrind,auto,run=1"
+      TEST_OPTIONS="rebuild,sqlite,postgres,mysql,firebird,yaml,valgrind,auto,run=1"
       cmd_run_test
       ;;
     --bk-combo-02)
       # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,yaml,auto,run=1
-      TEST_OPTIONS="rebuild,sqlite,postgres,mysql,yaml,auto,run=1"
+      TEST_OPTIONS="rebuild,sqlite,postgres,mysql,firebird,yaml,auto,run=1"
       cmd_run_test
       ;;
     --bk-combo-03)

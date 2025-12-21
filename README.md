@@ -17,7 +17,7 @@ If you're in a hurry and want to get started quickly, check out the [Quick Start
 
 ---
 
-This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, and SQLite databases. The library includes connection pooling, transaction management, support for different transaction isolation levels, and comprehensive BLOB handling with image file support.
+This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, SQLite, and Firebird SQL databases. The library includes connection pooling, transaction management, support for different transaction isolation levels, and comprehensive BLOB handling with image file support.
 
 ## Features
 
@@ -40,6 +40,7 @@ The library currently supports:
 - **MySQL**: Full support for MySQL databases (enabled by default)
 - **PostgreSQL**: Full support for PostgreSQL databases (disabled by default)
 - **SQLite**: Full support for SQLite databases (disabled by default)
+- **Firebird SQL**: Full support for Firebird SQL databases (disabled by default)
 
 Each database driver can be enabled or disabled at compile time to reduce dependencies. By default, only MySQL support is enabled.
 
@@ -57,6 +58,7 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - `include/cpp_dbc/drivers/driver_mysql.hpp` & `src/drivers/driver_mysql.cpp`: MySQL implementation
   - `include/cpp_dbc/drivers/driver_postgresql.hpp` & `src/drivers/driver_postgresql.cpp`: PostgreSQL implementation
   - `include/cpp_dbc/drivers/driver_sqlite.hpp` & `src/drivers/driver_sqlite.cpp`: SQLite implementation
+  - `include/cpp_dbc/drivers/driver_firebird.hpp` & `src/drivers/driver_firebird.cpp`: Firebird SQL implementation
 
 - **Examples**:
   - `examples/example.cpp`: Basic usage example
@@ -75,6 +77,7 @@ Depending on which database drivers you enable, you'll need:
 - For MySQL support: MySQL development libraries (`libmysqlclient-dev` on Debian/Ubuntu, `mysql-devel` on RHEL/CentOS)
 - For PostgreSQL support: PostgreSQL development libraries (`libpq-dev` on Debian/Ubuntu, `postgresql-devel` on RHEL/CentOS)
 - For SQLite support: SQLite development libraries (`libsqlite3-dev` on Debian/Ubuntu, `sqlite-devel` on RHEL/CentOS)
+- For Firebird support: Firebird development libraries (`firebird-dev libfbclient2` on Debian/Ubuntu, `firebird-devel libfbclient2` on RHEL/CentOS/Fedora)
 
 The build script will automatically check for and install these dependencies if needed.
 
@@ -85,6 +88,7 @@ The library supports conditional compilation of database drivers and features:
 - `USE_MYSQL`: Enable/disable MySQL support (ON by default)
 - `USE_POSTGRESQL`: Enable/disable PostgreSQL support (OFF by default)
 - `USE_SQLITE`: Enable/disable SQLite support (OFF by default)
+- `USE_FIREBIRD`: Enable/disable Firebird SQL support (OFF by default)
 - `USE_CPP_YAML`: Enable/disable YAML configuration support (OFF by default)
 - `CPP_DBC_BUILD_EXAMPLES`: Enable/disable building examples (OFF by default)
 - `CPP_DBC_BUILD_BENCHMARKS`: Enable/disable building benchmarks (OFF by default)
@@ -130,8 +134,11 @@ The `libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the c
 # Enable SQLite support
 ./libs/cpp_dbc/build_cpp_dbc.sh --sqlite
 
+# Enable Firebird SQL support
+./libs/cpp_dbc/build_cpp_dbc.sh --firebird
+
 # Enable all database drivers
-./libs/cpp_dbc/build_cpp_dbc.sh --mysql --postgres --sqlite
+./libs/cpp_dbc/build_cpp_dbc.sh --mysql --postgres --sqlite --firebird
 
 # Disable MySQL support
 ./libs/cpp_dbc/build_cpp_dbc.sh --mysql-off
@@ -192,8 +199,11 @@ The `build.sh` script builds the main application, passing all parameters to the
 # Enable SQLite support
 ./build.sh --sqlite
 
+# Enable Firebird SQL support
+./build.sh --firebird
+
 # Enable all database drivers
-./build.sh --mysql --postgres --sqlite
+./build.sh --mysql --postgres --sqlite --firebird
 
 # Disable MySQL support
 ./build.sh --mysql-off
@@ -369,6 +379,7 @@ The library provides comprehensive support for Binary Large Object (BLOB) operat
    - MySQL: Support for BLOB data types with MySQLBlob implementation
    - PostgreSQL: Support for BYTEA data type with PostgreSQLBlob implementation
    - SQLite: Support for BLOB data type with SQLiteBlob implementation
+   - Firebird: Support for BLOB data type with FirebirdBlob implementation
 
 3. **Image File Support**:
    - Helper functions for reading and writing binary files
@@ -424,7 +435,13 @@ The project includes comprehensive smart pointer usage to prevent memory leaks:
    - `weak_ptr<sqlite3>` in PreparedStatement for safe connection reference
    - `weak_ptr` tracking for active statements to avoid preventing destruction
 
-5. **Benefits**:
+5. **Firebird Driver Smart Pointers**:
+   - `shared_ptr<isc_db_handle>` for connection management
+   - Custom deleters for statement handles and database handles
+   - `weak_ptr<isc_db_handle>` in PreparedStatement for safe connection reference
+   - SQLDA structure management with proper memory allocation/deallocation
+
+6. **Benefits**:
    - Automatic resource cleanup through RAII
    - Safe detection of closed connections via weak_ptr
    - Clear ownership semantics documented in code
@@ -591,6 +608,8 @@ target_compile_definitions(your_app PRIVATE
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
     $<$<BOOL:${USE_SQLITE}>:USE_SQLITE=1>
     $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
+    $<$<BOOL:${USE_FIREBIRD}>:USE_FIREBIRD=1>
+    $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
 )
 ```
 
@@ -599,6 +618,7 @@ The library exports the following CMake variables that you can use to check whic
 - `CPP_DBC_USE_MYSQL`: Set to ON if MySQL support is enabled
 - `CPP_DBC_USE_POSTGRESQL`: Set to ON if PostgreSQL support is enabled
 - `CPP_DBC_USE_SQLITE`: Set to ON if SQLite support is enabled
+- `CPP_DBC_USE_FIREBIRD`: Set to ON if Firebird SQL support is enabled
 
 You can use these variables to conditionally include code in your project:
 
@@ -613,6 +633,10 @@ endif()
 
 if(CPP_DBC_USE_SQLITE)
     # SQLite-specific code
+endif()
+
+if(CPP_DBC_USE_FIREBIRD)
+    # Firebird-specific code
 endif()
 ```
 
@@ -630,6 +654,9 @@ When using the library as an external dependency, include the headers as follows
 #endif
 #if USE_SQLITE
 #include <cpp_dbc/drivers/driver_sqlite.hpp>
+#endif
+#if USE_FIREBIRD
+#include <cpp_dbc/drivers/driver_firebird.hpp>
 #endif
 ```
 
@@ -650,6 +677,10 @@ When using the library as an external dependency, include the headers as follows
 #include "cpp_dbc/drivers/driver_sqlite.hpp"
 #endif
 
+#if USE_FIREBIRD
+#include "cpp_dbc/drivers/driver_firebird.hpp"
+#endif
+
 int main() {
     // Register available drivers
 #if USE_MYSQL
@@ -665,6 +696,11 @@ int main() {
 #if USE_SQLITE
     cpp_dbc::DriverManager::registerDriver("sqlite",
         std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+#endif
+
+#if USE_FIREBIRD
+    cpp_dbc::DriverManager::registerDriver("firebird",
+        std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
 #endif
 
     // Get a connection (will use whichever driver is available)

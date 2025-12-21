@@ -78,7 +78,7 @@ TEST_CASE("Database configurations", "[db_config]")
         const auto &allDatabases = configManager.getAllDatabases();
 
         // Check that we have the expected number of databases
-        REQUIRE(allDatabases.size() == 9); // 3 MySQL + 3 PostgreSQL + 3 SQLite
+        REQUIRE(allDatabases.size() == 11); // 3 MySQL + 3 PostgreSQL + 3 SQLite + 2 Firebird
 
         // Check that each database has the required fields
         for (const auto &db : allDatabases)
@@ -90,8 +90,8 @@ TEST_CASE("Database configurations", "[db_config]")
             REQUIRE(!db.getType().empty());
             REQUIRE(!db.getDatabase().empty());
 
-            // Host and port are only required for MySQL and PostgreSQL
-            if (type == "mysql" || type == "postgresql")
+            // Host and port are only required for MySQL, PostgreSQL, and Firebird
+            if (type == "mysql" || type == "postgresql" || type == "firebird")
             {
                 REQUIRE(!db.getHost().empty());
                 REQUIRE(db.getPort() > 0);

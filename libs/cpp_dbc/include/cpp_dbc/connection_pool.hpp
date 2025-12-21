@@ -65,15 +65,15 @@ namespace cpp_dbc
         std::string m_username;
         std::string m_password;
         std::map<std::string, std::string> m_options;     // Connection options
-        int m_initialSize;                                // Initial number of connections
-        size_t m_maxSize;                                 // Maximum number of connections
-        size_t m_minIdle;                                 // Minimum number of idle connections
-        long m_maxWaitMillis;                             // Maximum wait time for a connection in milliseconds
-        long m_validationTimeoutMillis;                   // Timeout for connection validation
-        long m_idleTimeoutMillis;                         // Maximum time a connection can be idle before being closed
-        long m_maxLifetimeMillis;                         // Maximum lifetime of a connection
-        bool m_testOnBorrow;                              // Test connection before borrowing
-        bool m_testOnReturn;                              // Test connection when returning to pool
+        int m_initialSize{0};                             // Initial number of connections
+        size_t m_maxSize{0};                              // Maximum number of connections
+        size_t m_minIdle{0};                              // Minimum number of idle connections
+        long m_maxWaitMillis{0};                          // Maximum wait time for a connection in milliseconds
+        long m_validationTimeoutMillis{0};                // Timeout for connection validation
+        long m_idleTimeoutMillis{0};                      // Maximum time a connection can be idle before being closed
+        long m_maxLifetimeMillis{0};                      // Maximum lifetime of a connection
+        bool m_testOnBorrow{false};                       // Test connection before borrowing
+        bool m_testOnReturn{false};                       // Test connection when returning to pool
         std::string m_validationQuery;                    // Query used to validate connections
         TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
         std::vector<std::shared_ptr<PooledConnection>> m_allConnections;
@@ -246,6 +246,19 @@ namespace cpp_dbc
                                  const std::string &password);
 
             SQLiteConnectionPool(const config::ConnectionPoolConfig &config);
+        };
+    }
+
+    namespace Firebird
+    {
+        class FirebirdConnectionPool : public ConnectionPool
+        {
+        public:
+            FirebirdConnectionPool(const std::string &url,
+                                   const std::string &username,
+                                   const std::string &password);
+
+            FirebirdConnectionPool(const config::ConnectionPoolConfig &config);
         };
     }
 
