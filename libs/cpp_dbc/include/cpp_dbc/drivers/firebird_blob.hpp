@@ -170,7 +170,10 @@ namespace cpp_dbc
             std::shared_ptr<InputStream> getBinaryStream() const override
             {
                 const_cast<FirebirdBlob *>(this)->ensureLoaded();
-                return MemoryBlob::getBinaryStream();
+                // Use FirebirdInputStream which stores a COPY of the data,
+                // not MemoryInputStream which stores a reference.
+                // This ensures the data remains valid even after the blob is destroyed.
+                return std::make_shared<FirebirdInputStream>(m_data.data(), m_data.size());
             }
 
             std::shared_ptr<OutputStream> setBinaryStream(size_t pos) override

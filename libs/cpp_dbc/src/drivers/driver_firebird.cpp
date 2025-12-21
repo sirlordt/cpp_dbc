@@ -101,11 +101,20 @@ namespace cpp_dbc
             {
                 XSQLVAR *var = &m_sqlda->sqlvar[i];
 
-                // Get column name
-                std::string colName(var->sqlname, static_cast<size_t>(var->sqlname_length));
+                // Get column name - prefer alias name if available, otherwise use column name
+                // Firebird stores the alias in aliasname field when AS is used in the query
+                std::string colName;
+                if (var->aliasname_length > 0)
+                {
+                    colName = std::string(var->aliasname, static_cast<size_t>(var->aliasname_length));
+                }
+                else
+                {
+                    colName = std::string(var->sqlname, static_cast<size_t>(var->sqlname_length));
+                }
                 m_columnNames.push_back(colName);
                 m_columnMap[colName] = i;
-                FIREBIRD_DEBUG("  Column " << i << ": " << colName << " (type=" << (var->sqltype & ~1) << ", len=" << var->sqllen << ")");
+                FIREBIRD_DEBUG("  Column " << i << ": " << colName << " (raw_sqltype=" << var->sqltype << ", type=" << (var->sqltype & ~1) << ", nullable=" << (var->sqltype & 1) << ", len=" << var->sqllen << ", scale=" << var->sqlscale << ")");
 
                 // Allocate buffer for data
                 size_t bufferSize = static_cast<size_t>(var->sqllen);
@@ -121,25 +130,31 @@ namespace cpp_dbc
                 m_dataBuffers[i].resize(bufferSize + 1, 0);
                 var->sqldata = m_dataBuffers[i].data();
                 var->sqlind = &m_nullIndicators[i];
+                FIREBIRD_DEBUG("    Buffer " << i << ": size=" << bufferSize << ", sqldata=" << static_cast<void *>(var->sqldata) << ", sqlind=" << static_cast<void *>(var->sqlind) << ", *sqlind=" << *var->sqlind);
             }
             FIREBIRD_DEBUG("FirebirdResultSet::initializeColumns - Done");
         }
 
         std::string FirebirdResultSet::getColumnValue(size_t columnIndex) const
         {
+            FIREBIRD_DEBUG("getColumnValue: columnIndex=" << columnIndex << ", m_fieldCount=" << m_fieldCount);
             if (columnIndex >= m_fieldCount)
             {
                 throw DBException("A7B3C9D2E5F1", "Column index out of range: " + std::to_string(columnIndex),
                                   system_utils::captureCallStack());
             }
 
+            FIREBIRD_DEBUG("  nullIndicator=" << m_nullIndicators[columnIndex]);
             if (m_nullIndicators[columnIndex] < 0)
             {
+                FIREBIRD_DEBUG("  returning empty (NULL)");
                 return "";
             }
 
             XSQLVAR *var = &m_sqlda->sqlvar[columnIndex];
             short sqlType = var->sqltype & ~1;
+            FIREBIRD_DEBUG("  sqlType=" << sqlType << ", sqllen=" << var->sqllen << ", sqlscale=" << var->sqlscale);
+            FIREBIRD_DEBUG("  sqldata=" << static_cast<void *>(var->sqldata));
 
             switch (sqlType)
             {
@@ -175,9 +190,15 @@ namespace cpp_dbc
             case SQL_INT64:
             {
                 ISC_INT64 value = *reinterpret_cast<ISC_INT64 *>(var->sqldata);
+                FIREBIRD_DEBUG("getColumnValue SQL_INT64: columnIndex=" << columnIndex
+                                                                        << ", sqldata=" << static_cast<void *>(var->sqldata)
+                                                                        << ", sqllen=" << var->sqllen
+                                                                        << ", sqlscale=" << var->sqlscale
+                                                                        << ", raw_value=" << value);
                 if (var->sqlscale < 0)
                 {
                     double scaled = static_cast<double>(value) / std::pow(10.0, -var->sqlscale);
+                    FIREBIRD_DEBUG("  scaled_value=" << scaled);
                     return std::to_string(scaled);
                 }
                 return std::to_string(value);
@@ -275,6 +296,11 @@ namespace cpp_dbc
                 m_rowPosition++;
                 m_hasData = true;
                 FIREBIRD_DEBUG("FirebirdResultSet::next - Got row " << m_rowPosition);
+                // Debug: print null indicators after fetch
+                for (size_t i = 0; i < m_fieldCount; ++i)
+                {
+                    FIREBIRD_DEBUG("  After fetch - Column " << i << ": nullInd=" << m_nullIndicators[i] << ", sqlind=" << static_cast<void *>(m_sqlda->sqlvar[i].sqlind) << ", *sqlind=" << (m_sqlda->sqlvar[i].sqlind ? *m_sqlda->sqlvar[i].sqlind : -999));
+                }
                 return true;
             }
             else if (fetchStatus == 100)
@@ -359,7 +385,9 @@ namespace cpp_dbc
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
 #endif
+            FIREBIRD_DEBUG("getDouble(columnIndex=" << columnIndex << ")");
             std::string value = getColumnValue(columnIndex);
+            FIREBIRD_DEBUG("  getColumnValue returned: '" << value << "'");
             return value.empty() ? 0.0 : std::stod(value);
         }
 
@@ -779,7 +807,84 @@ namespace cpp_dbc
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
 #endif
-            setParameter(parameterIndex, &value, sizeof(double), SQL_DOUBLE);
+            if (parameterIndex < 1 || parameterIndex > m_inputSqlda->sqld)
+            {
+                throw DBException("D8E4F0A6B3C8", "Parameter index out of range: " + std::to_string(parameterIndex),
+                                  system_utils::captureCallStack());
+            }
+
+            size_t idx = static_cast<size_t>(parameterIndex - 1);
+            XSQLVAR *var = &m_inputSqlda->sqlvar[idx];
+            short sqlType = var->sqltype & ~1;
+
+            FIREBIRD_DEBUG("setDouble: parameterIndex=" << parameterIndex << ", value=" << value);
+            FIREBIRD_DEBUG("  sqlType=" << sqlType << ", sqlscale=" << var->sqlscale << ", sqllen=" << var->sqllen);
+
+            // Handle DECIMAL/NUMERIC types which are stored as scaled integers
+            if (var->sqlscale < 0)
+            {
+                // Convert double to scaled integer
+                double scaleFactor = std::pow(10.0, -var->sqlscale);
+                FIREBIRD_DEBUG("  DECIMAL type detected, scaleFactor=" << scaleFactor);
+
+                if (sqlType == SQL_SHORT)
+                {
+                    short scaledValue = static_cast<short>(std::round(value * scaleFactor));
+                    FIREBIRD_DEBUG("  SQL_SHORT: scaledValue=" << scaledValue);
+                    // Don't use setParameter, set directly to preserve sqllen
+                    if (m_paramBuffers[idx].size() < sizeof(short))
+                    {
+                        m_paramBuffers[idx].resize(sizeof(short), 0);
+                        var->sqldata = m_paramBuffers[idx].data();
+                    }
+                    std::memcpy(var->sqldata, &scaledValue, sizeof(short));
+                    m_paramNullIndicators[idx] = 0;
+                }
+                else if (sqlType == SQL_LONG)
+                {
+                    ISC_LONG scaledValue = static_cast<ISC_LONG>(std::round(value * scaleFactor));
+                    FIREBIRD_DEBUG("  SQL_LONG: scaledValue=" << scaledValue);
+                    // Don't use setParameter, set directly to preserve sqllen
+                    if (m_paramBuffers[idx].size() < sizeof(ISC_LONG))
+                    {
+                        m_paramBuffers[idx].resize(sizeof(ISC_LONG), 0);
+                        var->sqldata = m_paramBuffers[idx].data();
+                    }
+                    std::memcpy(var->sqldata, &scaledValue, sizeof(ISC_LONG));
+                    m_paramNullIndicators[idx] = 0;
+                }
+                else if (sqlType == SQL_INT64)
+                {
+                    ISC_INT64 scaledValue = static_cast<ISC_INT64>(std::round(value * scaleFactor));
+                    FIREBIRD_DEBUG("  SQL_INT64: scaledValue=" << scaledValue);
+                    // Don't use setParameter, set directly to preserve sqllen
+                    if (m_paramBuffers[idx].size() < sizeof(ISC_INT64))
+                    {
+                        m_paramBuffers[idx].resize(sizeof(ISC_INT64), 0);
+                        var->sqldata = m_paramBuffers[idx].data();
+                    }
+                    std::memcpy(var->sqldata, &scaledValue, sizeof(ISC_INT64));
+                    m_paramNullIndicators[idx] = 0;
+                }
+                else
+                {
+                    FIREBIRD_DEBUG("  Unknown scaled type, falling back to double");
+                    // Fallback to double
+                    setParameter(parameterIndex, &value, sizeof(double), SQL_DOUBLE);
+                }
+            }
+            else if (sqlType == SQL_FLOAT)
+            {
+                float floatValue = static_cast<float>(value);
+                FIREBIRD_DEBUG("  SQL_FLOAT: floatValue=" << floatValue);
+                setParameter(parameterIndex, &floatValue, sizeof(float), SQL_FLOAT);
+            }
+            else
+            {
+                FIREBIRD_DEBUG("  SQL_DOUBLE: value=" << value);
+                // SQL_DOUBLE or SQL_D_FLOAT
+                setParameter(parameterIndex, &value, sizeof(double), SQL_DOUBLE);
+            }
         }
 
         void FirebirdPreparedStatement::setString(int parameterIndex, const std::string &value)
@@ -795,6 +900,43 @@ namespace cpp_dbc
 
             size_t idx = static_cast<size_t>(parameterIndex - 1);
             XSQLVAR *var = &m_inputSqlda->sqlvar[idx];
+            short sqlType = var->sqltype & ~1;
+
+            // Handle BLOB type - convert string to BLOB
+            if (sqlType == SQL_BLOB)
+            {
+                FIREBIRD_DEBUG("setString: parameterIndex=" << parameterIndex << " is BLOB type, converting to BLOB");
+                // Convert string to bytes and use setBytes
+                std::vector<uint8_t> data(value.begin(), value.end());
+
+                auto db = m_dbHandle.lock();
+                if (!db)
+                {
+                    throw DBException("E9F5A1B7C4D1", "Connection has been closed", system_utils::captureCallStack());
+                }
+
+                // Create a FirebirdBlob with the data
+                auto blob = std::make_shared<FirebirdBlob>(db.get(), m_trPtr, data);
+
+                // Save the blob to the database and get its ID
+                ISC_QUAD blobId = blob->save();
+
+                // Store the blob data to keep it alive
+                m_blobValues.push_back(data);
+
+                // Ensure buffer is large enough for ISC_QUAD
+                if (m_paramBuffers[idx].size() < sizeof(ISC_QUAD))
+                {
+                    m_paramBuffers[idx].resize(sizeof(ISC_QUAD), 0);
+                    var->sqldata = m_paramBuffers[idx].data();
+                }
+
+                // Copy the blob ID to the parameter buffer
+                std::memcpy(var->sqldata, &blobId, sizeof(ISC_QUAD));
+                var->sqllen = sizeof(ISC_QUAD);
+                m_paramNullIndicators[idx] = 0;
+                return;
+            }
 
             // Handle VARCHAR type
             size_t totalLen = sizeof(short) + value.length();
@@ -960,30 +1102,45 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
-            // Store the blob data
-            m_blobValues.push_back(std::vector<uint8_t>(x, x + length));
-
-            // For Firebird, we need to create a blob and get its ID
-            // This is a simplified version - in production, you'd create the blob properly
             size_t idx = static_cast<size_t>(parameterIndex - 1);
             XSQLVAR *var = &m_inputSqlda->sqlvar[idx];
 
             if ((var->sqltype & ~1) == SQL_BLOB)
             {
-                // Create blob and store ID
-                // Note: This requires an active transaction
-                // For now, store the data for later use
-                if (length > m_paramBuffers[idx].size())
+                // For Firebird BLOB parameters, we need to create a BLOB in the database
+                // and store its ID (ISC_QUAD) in the parameter buffer
+                auto db = m_dbHandle.lock();
+                if (!db)
                 {
-                    m_paramBuffers[idx].resize(length + 1, 0);
+                    throw DBException("C3D9E5F1A8B5", "Connection has been closed", system_utils::captureCallStack());
+                }
+
+                // Create a FirebirdBlob with the data
+                std::vector<uint8_t> blobData(x, x + length);
+                auto blob = std::make_shared<FirebirdBlob>(db.get(), m_trPtr, blobData);
+
+                // Save the blob to the database and get its ID
+                ISC_QUAD blobId = blob->save();
+
+                // Store the blob object to keep it alive
+                m_blobValues.push_back(blobData);
+
+                // Ensure buffer is large enough for ISC_QUAD
+                if (m_paramBuffers[idx].size() < sizeof(ISC_QUAD))
+                {
+                    m_paramBuffers[idx].resize(sizeof(ISC_QUAD), 0);
                     var->sqldata = m_paramBuffers[idx].data();
                 }
-                std::memcpy(var->sqldata, x, length);
-                var->sqllen = static_cast<short>(length);
+
+                // Copy the blob ID to the parameter buffer
+                std::memcpy(var->sqldata, &blobId, sizeof(ISC_QUAD));
+                var->sqllen = sizeof(ISC_QUAD);
                 m_paramNullIndicators[idx] = 0;
             }
             else
             {
+                // For non-BLOB types, store the raw bytes
+                m_blobValues.push_back(std::vector<uint8_t>(x, x + length));
                 setParameter(parameterIndex, x, length, SQL_BLOB);
             }
         }
@@ -1036,7 +1193,7 @@ namespace cpp_dbc
             for (int i = 0; i < m_outputSqlda->sqld; ++i)
             {
                 resultSqlda->sqlvar[i] = m_outputSqlda->sqlvar[i];
-                FIREBIRD_DEBUG("    Column " << i << ": type=" << (resultSqlda->sqlvar[i].sqltype & ~1) << ", len=" << resultSqlda->sqlvar[i].sqllen);
+                FIREBIRD_DEBUG("    Column " << i << ": raw_sqltype=" << m_outputSqlda->sqlvar[i].sqltype << ", type=" << (resultSqlda->sqlvar[i].sqltype & ~1) << ", nullable=" << (m_outputSqlda->sqlvar[i].sqltype & 1) << ", len=" << resultSqlda->sqlvar[i].sqllen);
             }
 
             // IMPORTANT: Transfer ownership of the statement handle to the ResultSet
@@ -1059,7 +1216,9 @@ namespace cpp_dbc
 
             // ownStatement = true means the ResultSet will free the statement when closed
             FIREBIRD_DEBUG("  Creating FirebirdResultSet with ownStatement=true");
-            auto resultSet = std::make_shared<FirebirdResultSet>(std::move(stmtHandle), std::move(sqldaHandle), true, nullptr);
+            // Pass the connection to the ResultSet so it can read BLOBs
+            auto conn = m_connection.lock();
+            auto resultSet = std::make_shared<FirebirdResultSet>(std::move(stmtHandle), std::move(sqldaHandle), true, conn);
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeQuery - Done");
             return resultSet;
         }

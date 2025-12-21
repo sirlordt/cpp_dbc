@@ -71,6 +71,14 @@ add_executable(cpp_dbc_tests
     test_sqlite_real_left_join.cpp
     test_sqlite_real_blob.cpp
     test_firebird_real.cpp
+    test_firebird_connection.cpp
+    test_firebird_real_blob.cpp
+    test_firebird_real_inner_join.cpp
+    test_firebird_real_left_join.cpp
+    test_firebird_real_right_join.cpp
+    test_firebird_real_full_join.cpp
+    test_firebird_real_json.cpp
+    test_firebird_thread_safe.cpp
     test_connection_pool_real.cpp
     test_transaction_manager_real.cpp
     test_transaction_isolation.cpp
