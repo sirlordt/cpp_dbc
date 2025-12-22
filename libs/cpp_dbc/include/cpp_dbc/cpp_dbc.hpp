@@ -40,6 +40,7 @@
 #include <map>
 #include <stdexcept>
 #include <cstdint>
+#include <any>
 #include "cpp_dbc/backward.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 
@@ -330,6 +331,30 @@ namespace cpp_dbc
                                                     const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
 
         virtual bool acceptsURL(const std::string &url) = 0;
+
+        /**
+         * @brief Execute a driver-specific command
+         *
+         * This method allows executing driver-specific operations that don't require
+         * an existing connection, such as creating a database.
+         *
+         * Supported commands vary by driver:
+         * - Firebird: "create_database" - Creates a new database file
+         *
+         * @param params A map of parameters for the command:
+         *               - "command": The command name (e.g., "create_database")
+         *               - "url": The database URL
+         *               - "user": The username
+         *               - "password": The password
+         *               - Additional driver-specific options
+         * @return Result code (0 for success, non-zero for errors)
+         * @throws DBException if the command fails
+         */
+        virtual int command([[maybe_unused]] const std::map<std::string, std::any> &)
+        {
+            // Default implementation does nothing - override in specific drivers
+            return 0;
+        }
     };
 
     // Manager class to retrieve driver instances

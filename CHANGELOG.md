@@ -1,6 +1,37 @@
 # Changelog
 
-## 2025-12-21 09:41:52 PM PST [Current]
+## 2025-12-21 11:22:26 PM PST [Current]
+
+### Firebird Driver Database Creation and Error Handling Improvements
+* Added database creation support to Firebird driver:
+  * **New Driver Methods:**
+    * Added `createDatabase()` method to `FirebirdDriver` for creating new Firebird databases
+    * Added `command()` method for executing driver-specific commands
+    * Added `executeCreateDatabase()` method to `FirebirdConnection` for CREATE DATABASE statements
+  * **Database Creation Features:**
+    * Support for specifying page size (default: 4096)
+    * Support for specifying character set (default: UTF8)
+    * Automatic database file creation with proper Firebird connection string format
+    * Works with both local and remote database servers
+* Improved Firebird error message handling:
+  * **Critical Bug Fix:**
+    * Fixed error message capture in `isc_dsql_prepare` - now saves error message BEFORE calling cleanup functions
+    * Fixed error message capture in `isc_dsql_execute` - now saves error message BEFORE calling cleanup functions
+    * Uses separate status array for cleanup operations to avoid overwriting error information
+  * **Enhanced Error Reporting:**
+    * Improved `interpretStatusVector()` to provide more detailed error messages
+    * Added SQLCODE interpretation with `isc_sql_interprete`
+    * Combined SQLCODE and `fb_interpret` messages for comprehensive error information
+    * Added fallback error message with status vector values for debugging
+* Added new example:
+  * **New Example File:**
+    * Added `firebird_reserved_word_example.cpp` demonstrating reserved word handling in Firebird
+    * Shows what happens when using reserved words like 'value' as column names
+    * Includes database creation example using the new driver methods
+  * **Build System Update:**
+    * Updated `CMakeLists.txt` to include the new example when Firebird is enabled
+
+## 2025-12-21 09:41:52 PM PST
 
 ### Firebird SQL Driver Enhancements and Benchmark Support
 * Added comprehensive Firebird benchmark suite:

@@ -181,7 +181,23 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **Firebird SQL Driver Enhancements and Benchmark Support** (2025-12-21):
+1. **Firebird Driver Database Creation and Error Handling Improvements** (2025-12-21):
+   - Added database creation support to Firebird driver:
+     - Added `createDatabase()` method to `FirebirdDriver` for creating new Firebird databases
+     - Added `command()` method for executing driver-specific commands
+     - Added `executeCreateDatabase()` method to `FirebirdConnection` for CREATE DATABASE statements
+     - Support for specifying page size (default: 4096) and character set (default: UTF8)
+   - Improved Firebird error message handling:
+     - Fixed critical bug: error messages now captured BEFORE calling cleanup functions
+     - Uses separate status array for cleanup operations to avoid overwriting error information
+     - Improved `interpretStatusVector()` with SQLCODE interpretation using `isc_sql_interprete`
+     - Combined SQLCODE and `fb_interpret` messages for comprehensive error information
+     - Added fallback error message with status vector values for debugging
+   - Added new example:
+     - Added `firebird_reserved_word_example.cpp` demonstrating reserved word handling in Firebird
+     - Updated `CMakeLists.txt` to include the new example when Firebird is enabled
+
+2. **Firebird SQL Driver Enhancements and Benchmark Support** (2025-12-21):
    - Added comprehensive Firebird benchmark suite:
      - New benchmark files for SELECT, INSERT, UPDATE, DELETE operations
      - Updated benchmark infrastructure with Firebird support

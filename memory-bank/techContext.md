@@ -33,6 +33,8 @@
   - Requires firebird-devel and libfbclient2 packages (RHEL/Fedora)
   - Default port: 3050
   - URL format: `cpp_dbc:firebird://host:port/path/to/database.fdb`
+  - Database creation support via `createDatabase()` method
+  - Driver-specific commands via `command()` method
 
 - **YAML-CPP Library**: For YAML configuration support (optional)
   - Used for parsing YAML configuration files

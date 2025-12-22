@@ -275,6 +275,34 @@ Same as Driver, plus:
 - `FirebirdDriver()`: Constructor.
 - `parseURL(string, string&, int&, string&)`: Parses a connection URL.
 - `acceptsURL(string)`: Returns true only for `cpp_dbc:firebird://` URLs.
+- `command(map<string, any>)`: Executes driver-specific commands (e.g., "create_database").
+- `createDatabase(string, string, string, map<string, string>)`: Creates a new Firebird database with optional page size and charset.
+
+**Database Creation:**
+The Firebird driver supports creating new databases programmatically:
+
+```cpp
+auto driver = std::make_shared<cpp_dbc::Firebird::FirebirdDriver>();
+
+// Using the command method
+std::map<std::string, std::any> params = {
+    {"command", std::string("create_database")},
+    {"url", std::string("cpp_dbc:firebird://localhost:3050/path/to/new.fdb")},
+    {"user", std::string("SYSDBA")},
+    {"password", std::string("masterkey")},
+    {"page_size", std::string("4096")},  // optional, default: 4096
+    {"charset", std::string("UTF8")}     // optional, default: UTF8
+};
+driver->command(params);
+
+// Or using the createDatabase method directly
+driver->createDatabase(
+    "cpp_dbc:firebird://localhost:3050/path/to/new.fdb",
+    "SYSDBA",
+    "masterkey",
+    {{"page_size", "8192"}, {"charset", "UTF8"}}
+);
+```
 
 ### FirebirdConnectionPool
 Implementation of ConnectionPool for Firebird SQL databases.

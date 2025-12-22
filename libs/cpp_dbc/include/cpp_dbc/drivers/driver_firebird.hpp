@@ -66,22 +66,52 @@ namespace cpp_dbc
         /**
          * @brief Helper function to interpret Firebird status vector
          * @param status The status vector from Firebird API calls
-         * @return Error message string
+         * @return Error message string with detailed error information
          */
         inline std::string interpretStatusVector(const ISC_STATUS_ARRAY status)
         {
-            char buffer[512];
-            const ISC_STATUS *pvector = status;
             std::string result;
+
+            // First, get the SQL code for more specific error information
+            ISC_LONG sqlcode = isc_sqlcode(status);
+            if (sqlcode != 0)
+            {
+                char sqlMsg[256];
+                isc_sql_interprete(static_cast<short>(sqlcode), sqlMsg, sizeof(sqlMsg));
+                result = "SQLCODE " + std::to_string(sqlcode) + ": " + std::string(sqlMsg);
+            }
+
+            // Then get the detailed error messages from the status vector using fb_interpret
+            // This is the primary and most reliable source of error information
+            char buffer[1024];
+            const ISC_STATUS *pvector = status;
+            std::string details;
 
             while (fb_interpret(buffer, sizeof(buffer), &pvector))
             {
-                if (!result.empty())
-                    result += " - ";
-                result += buffer;
+                if (!details.empty())
+                    details += " - ";
+                details += buffer;
             }
 
-            return result.empty() ? "Unknown Firebird error" : result;
+            // Combine the messages
+            if (!details.empty())
+            {
+                if (!result.empty())
+                    result += " | ";
+                result += details;
+                // fb_interpret gave us a good message, return it
+                return result;
+            }
+
+            // Final fallback - only if fb_interpret didn't give us anything
+            if (result.empty())
+            {
+                result = "Unknown Firebird error (status[0]=" + std::to_string(status[0]) +
+                         ", status[1]=" + std::to_string(status[1]) + ")";
+            }
+
+            return result;
         }
 
         /**
@@ -342,6 +372,13 @@ namespace cpp_dbc
             void startTransaction();
             void endTransaction(bool commit);
 
+            /**
+             * @brief Execute a CREATE DATABASE statement using isc_dsql_execute_immediate
+             * @param sql The CREATE DATABASE SQL statement
+             * @return 0 (CREATE DATABASE doesn't return affected rows)
+             */
+            uint64_t executeCreateDatabase(const std::string &sql);
+
         public:
             FirebirdConnection(const std::string &host,
                                int port,
@@ -396,6 +433,40 @@ namespace cpp_dbc
                                                 const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
             bool acceptsURL(const std::string &url) override;
+
+            /**
+             * @brief Execute a driver-specific command
+             *
+             * Supported commands:
+             * - "create_database": Creates a new Firebird database
+             *   Required params: "url", "user", "password"
+             *   Optional params: "page_size" (default: "4096"), "charset" (default: "UTF8")
+             *
+             * @param params Command parameters as a map of string to std::any
+             * @return 0 on success
+             * @throws DBException if the command fails
+             */
+            int command(const std::map<std::string, std::any> &params) override;
+
+            /**
+             * @brief Creates a new Firebird database
+             *
+             * This method creates a new database file using isc_dsql_execute_immediate.
+             * It can be called without an existing connection.
+             *
+             * @param url The database URL (cpp_dbc:firebird://host:port/path/to/database.fdb)
+             * @param user The database user (typically SYSDBA)
+             * @param password The user's password
+             * @param options Optional parameters:
+             *                - "page_size": Database page size (default: 4096)
+             *                - "charset": Default character set (default: UTF8)
+             * @return true if database was created successfully
+             * @throws DBException if database creation fails
+             */
+            bool createDatabase(const std::string &url,
+                                const std::string &user,
+                                const std::string &password,
+                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
 
             /**
              * @brief Parses a URL: cpp_dbc:firebird://host:port/path/to/database.fdb

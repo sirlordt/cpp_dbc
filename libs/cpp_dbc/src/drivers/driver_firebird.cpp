@@ -679,10 +679,14 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("  m_trPtr=" << m_trPtr << ", *m_trPtr=" << (m_trPtr ? *m_trPtr : 0));
             if (isc_dsql_prepare(status, m_trPtr, &m_stmt, 0, m_sql.c_str(), SQL_DIALECT_V6, m_outputSqlda.get()))
             {
-                FIREBIRD_DEBUG("  Failed to prepare statement: " << interpretStatusVector(status));
+                // Save the error message BEFORE calling any other Firebird API functions
+                // because they will overwrite the status vector
+                std::string errorMsg = interpretStatusVector(status);
+                FIREBIRD_DEBUG("  Failed to prepare statement: " << errorMsg);
                 m_outputSqlda.reset();
-                isc_dsql_free_statement(status, &m_stmt, DSQL_drop);
-                throw DBException("F4A0B6C2D9E5", "Failed to prepare statement: " + interpretStatusVector(status),
+                ISC_STATUS_ARRAY freeStatus; // Use separate status array for cleanup
+                isc_dsql_free_statement(freeStatus, &m_stmt, DSQL_drop);
+                throw DBException("F4A0B6C2D9E5", "Failed to prepare statement: " + errorMsg,
                                   system_utils::captureCallStack());
             }
             FIREBIRD_DEBUG("  Statement prepared, m_stmt=" << m_stmt << ", output columns=" << m_outputSqlda->sqld);
@@ -1278,7 +1282,10 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("    &m_stmt=" << &m_stmt << ", m_stmt=" << m_stmt);
             if (isc_dsql_execute(status, m_trPtr, &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
             {
-                FIREBIRD_DEBUG("  isc_dsql_execute failed: " << interpretStatusVector(status));
+                // Save the error message BEFORE calling any other Firebird API functions
+                // because they will overwrite the status vector
+                std::string errorMsg = interpretStatusVector(status);
+                FIREBIRD_DEBUG("  isc_dsql_execute failed: " << errorMsg);
 
                 // If autocommit is enabled, rollback the failed transaction and start a new one
                 // This ensures the connection is in a clean state for the next operation
@@ -1296,7 +1303,7 @@ namespace cpp_dbc
                     }
                 }
 
-                throw DBException("A7B3C9D5E2F8", "Failed to execute update: " + interpretStatusVector(status),
+                throw DBException("A7B3C9D5E2F8", "Failed to execute update: " + errorMsg,
                                   system_utils::captureCallStack());
             }
             FIREBIRD_DEBUG("  isc_dsql_execute succeeded");
@@ -1814,6 +1821,24 @@ namespace cpp_dbc
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_connMutex);
 #endif
+            // Check if this is a CREATE DATABASE statement
+            // CREATE DATABASE requires special handling with isc_dsql_execute_immediate
+            std::string upperSql = sql;
+            std::transform(upperSql.begin(), upperSql.end(), upperSql.begin(), ::toupper);
+
+            // Remove leading whitespace for comparison
+            size_t start = upperSql.find_first_not_of(" \t\n\r");
+            if (start != std::string::npos)
+            {
+                upperSql = upperSql.substr(start);
+            }
+
+            if (upperSql.find("CREATE DATABASE") == 0 || upperSql.find("CREATE SCHEMA") == 0)
+            {
+                FIREBIRD_DEBUG("FirebirdConnection::executeUpdate - Detected CREATE DATABASE statement");
+                return executeCreateDatabase(sql);
+            }
+
             auto stmt = prepareStatement(sql);
             // Note: PreparedStatement::executeUpdate now handles autocommit internally
             return stmt->executeUpdate();
@@ -1971,6 +1996,36 @@ namespace cpp_dbc
             return m_url;
         }
 
+        uint64_t FirebirdConnection::executeCreateDatabase(const std::string &sql)
+        {
+            FIREBIRD_DEBUG("FirebirdConnection::executeCreateDatabase - Starting");
+            FIREBIRD_DEBUG("  SQL: " << sql);
+
+            ISC_STATUS_ARRAY status;
+            isc_db_handle db = 0;
+            isc_tr_handle tr = 0;
+
+            // Execute CREATE DATABASE using isc_dsql_execute_immediate
+            // Note: For CREATE DATABASE, we pass null handles and the SQL creates the database
+            if (isc_dsql_execute_immediate(status, &db, &tr, 0, sql.c_str(), SQL_DIALECT_V6, nullptr))
+            {
+                std::string errorMsg = interpretStatusVector(status);
+                FIREBIRD_DEBUG("  Failed to create database or schema: " << errorMsg);
+                throw DBException("G8H4I0J6K2L8", "Failed to create database/schema: " + errorMsg,
+                                  system_utils::captureCallStack());
+            }
+
+            FIREBIRD_DEBUG("  Database created successfully!");
+
+            // Detach from the newly created database
+            if (db)
+            {
+                isc_detach_database(status, &db);
+            }
+
+            return 0; // CREATE DATABASE doesn't return affected rows
+        }
+
         // ============================================================================
         // FirebirdDriver Implementation
         // ============================================================================
@@ -2010,6 +2065,196 @@ namespace cpp_dbc
         bool FirebirdDriver::acceptsURL(const std::string &url)
         {
             return url.find("cpp_dbc:firebird:") == 0;
+        }
+
+        int FirebirdDriver::command(const std::map<std::string, std::any> &params)
+        {
+            FIREBIRD_DEBUG("FirebirdDriver::command - Starting");
+
+            // Get the command name
+            auto cmdIt = params.find("command");
+            if (cmdIt == params.end())
+            {
+                throw DBException("J1K7L3M9N5O1", "Missing 'command' parameter", system_utils::captureCallStack());
+            }
+
+            std::string cmd;
+            try
+            {
+                cmd = std::any_cast<std::string>(cmdIt->second);
+            }
+            catch (const std::bad_any_cast &)
+            {
+                throw DBException("K2L8M4N0O6P2", "Invalid 'command' parameter type (expected string)",
+                                  system_utils::captureCallStack());
+            }
+
+            FIREBIRD_DEBUG("  Command: " << cmd);
+
+            if (cmd == "create_database")
+            {
+                // Extract required parameters
+                std::string url, user, password;
+                std::map<std::string, std::string> options;
+
+                auto urlIt = params.find("url");
+                if (urlIt == params.end())
+                {
+                    throw DBException("L3M9N5O1P7Q3", "Missing 'url' parameter for create_database",
+                                      system_utils::captureCallStack());
+                }
+                try
+                {
+                    url = std::any_cast<std::string>(urlIt->second);
+                }
+                catch (const std::bad_any_cast &)
+                {
+                    throw DBException("M4N0O6P2Q8R4", "Invalid 'url' parameter type", system_utils::captureCallStack());
+                }
+
+                auto userIt = params.find("user");
+                if (userIt == params.end())
+                {
+                    throw DBException("N5O1P7Q3R9S5", "Missing 'user' parameter for create_database",
+                                      system_utils::captureCallStack());
+                }
+                try
+                {
+                    user = std::any_cast<std::string>(userIt->second);
+                }
+                catch (const std::bad_any_cast &)
+                {
+                    throw DBException("O6P2Q8R4S0T6", "Invalid 'user' parameter type", system_utils::captureCallStack());
+                }
+
+                auto passIt = params.find("password");
+                if (passIt == params.end())
+                {
+                    throw DBException("P7Q3R9S5T1U7", "Missing 'password' parameter for create_database",
+                                      system_utils::captureCallStack());
+                }
+                try
+                {
+                    password = std::any_cast<std::string>(passIt->second);
+                }
+                catch (const std::bad_any_cast &)
+                {
+                    throw DBException("Q8R4S0T6U2V8", "Invalid 'password' parameter type", system_utils::captureCallStack());
+                }
+
+                // Extract optional parameters
+                auto pageSizeIt = params.find("page_size");
+                if (pageSizeIt != params.end())
+                {
+                    try
+                    {
+                        options["page_size"] = std::any_cast<std::string>(pageSizeIt->second);
+                    }
+                    catch (const std::bad_any_cast &)
+                    { /* ignore invalid type */
+                    }
+                }
+
+                auto charsetIt = params.find("charset");
+                if (charsetIt != params.end())
+                {
+                    try
+                    {
+                        options["charset"] = std::any_cast<std::string>(charsetIt->second);
+                    }
+                    catch (const std::bad_any_cast &)
+                    { /* ignore invalid type */
+                    }
+                }
+
+                // Call createDatabase
+                createDatabase(url, user, password, options);
+                return 0;
+            }
+            else
+            {
+                throw DBException("R9S5T1U7V3W9", "Unknown command: " + cmd, system_utils::captureCallStack());
+            }
+        }
+
+        bool FirebirdDriver::createDatabase(const std::string &url,
+                                            const std::string &user,
+                                            const std::string &password,
+                                            const std::map<std::string, std::string> &options)
+        {
+            std::string host;
+            int port;
+            std::string database;
+
+            if (!parseURL(url, host, port, database))
+            {
+                throw DBException("H9I5J1K7L3M9", "Invalid Firebird URL: " + url, system_utils::captureCallStack());
+            }
+
+            // Build the Firebird connection string for CREATE DATABASE
+            std::string fbConnStr;
+            if (!host.empty() && host != "localhost" && host != "127.0.0.1")
+            {
+                fbConnStr = host;
+                if (port != 3050 && port != 0)
+                {
+                    fbConnStr += "/" + std::to_string(port);
+                }
+                fbConnStr += ":";
+            }
+            fbConnStr += database;
+
+            // Get page size from options
+            std::string pageSize = "4096";
+            auto it = options.find("page_size");
+            if (it != options.end())
+            {
+                pageSize = it->second;
+            }
+
+            // Get charset from options
+            std::string charset = "UTF8";
+            it = options.find("charset");
+            if (it != options.end())
+            {
+                charset = it->second;
+            }
+
+            // Build CREATE DATABASE SQL command
+            std::string createDbSql = "CREATE DATABASE '" + fbConnStr + "' "
+                                                                        "USER '" +
+                                      user + "' "
+                                             "PASSWORD '" +
+                                      password + "' "
+                                                 "PAGE_SIZE " +
+                                      pageSize + " "
+                                                 "DEFAULT CHARACTER SET " +
+                                      charset;
+
+            FIREBIRD_DEBUG("FirebirdDriver::createDatabase - Executing: " << createDbSql);
+
+            ISC_STATUS_ARRAY status;
+            isc_db_handle db = 0;
+            isc_tr_handle tr = 0;
+
+            // Execute CREATE DATABASE using isc_dsql_execute_immediate
+            if (isc_dsql_execute_immediate(status, &db, &tr, 0, createDbSql.c_str(), SQL_DIALECT_V6, nullptr))
+            {
+                std::string errorMsg = interpretStatusVector(status);
+                FIREBIRD_DEBUG("  Failed to create database: " << errorMsg);
+                throw DBException("I0J6K2L8M4N0", "Failed to create database: " + errorMsg,
+                                  system_utils::captureCallStack());
+            }
+
+            FIREBIRD_DEBUG("  Database created successfully!");
+
+            // Detach from the newly created database
+            if (db)
+            {
+                isc_detach_database(status, &db);
+            }
+
+            return true;
         }
 
         bool FirebirdDriver::parseURL(const std::string &url, std::string &host, int &port, std::string &database)

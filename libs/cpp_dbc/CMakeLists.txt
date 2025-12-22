@@ -303,6 +303,12 @@ if(CPP_DBC_BUILD_EXAMPLES)
     add_executable(connection_info_example examples/connection_info_example.cpp)
     target_link_libraries(connection_info_example PRIVATE cpp_dbc)
 
+    # Firebird reserved word example (only if Firebird is enabled)
+    if(USE_FIREBIRD)
+        add_executable(firebird_reserved_word_example examples/firebird_reserved_word_example.cpp)
+        target_link_libraries(firebird_reserved_word_example PRIVATE cpp_dbc)
+    endif()
+
     # Copy necessary files for examples
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/examples/example_config.yml
         ${CMAKE_CURRENT_BINARY_DIR}/example_config.yml COPYONLY)

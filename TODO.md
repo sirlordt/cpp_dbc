@@ -15,6 +15,12 @@
 
 ## Completed Tasks
 
+- Firebird driver database creation and improved error handling:
+  - Added `createDatabase()` method to FirebirdDriver for creating new databases
+  - Added `command()` method for driver-specific commands
+  - Fixed critical bug in error message capture (now saves error BEFORE cleanup)
+  - Improved `interpretStatusVector()` with SQLCODE interpretation
+  - Added `firebird_reserved_word_example.cpp` example
 - Firebird/Interbase driver with comprehensive test coverage and benchmarks:
   - Full driver implementation with BLOB, transaction, and connection pool support
   - Added benchmark suite (SELECT, INSERT, UPDATE, DELETE operations)

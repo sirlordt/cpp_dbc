@@ -490,6 +490,34 @@ Implementación de Driver para Firebird.
 Los mismos que Driver, más:
 - `FirebirdDriver()`: Constructor.
 - `parseURL(string, string&, int&, string&)`: Analiza una URL de conexión.
+- `command(map<string, any>)`: Ejecuta comandos específicos del controlador (ej., "create_database").
+- `createDatabase(string, string, string, map<string, string>)`: Crea una nueva base de datos Firebird con tamaño de página y charset opcionales.
+
+**Creación de Base de Datos:**
+El controlador Firebird soporta la creación de nuevas bases de datos programáticamente:
+
+```cpp
+auto driver = std::make_shared<cpp_dbc::Firebird::FirebirdDriver>();
+
+// Usando el método command
+std::map<std::string, std::any> params = {
+    {"command", std::string("create_database")},
+    {"url", std::string("cpp_dbc:firebird://localhost:3050/ruta/a/nueva.fdb")},
+    {"user", std::string("SYSDBA")},
+    {"password", std::string("masterkey")},
+    {"page_size", std::string("4096")},  // opcional, predeterminado: 4096
+    {"charset", std::string("UTF8")}     // opcional, predeterminado: UTF8
+};
+driver->command(params);
+
+// O usando el método createDatabase directamente
+driver->createDatabase(
+    "cpp_dbc:firebird://localhost:3050/ruta/a/nueva.fdb",
+    "SYSDBA",
+    "masterkey",
+    {{"page_size", "8192"}, {"charset", "UTF8"}}
+);
+```
 
 **Formato de URL de Conexión:**
 ```
