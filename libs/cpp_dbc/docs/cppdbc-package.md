@@ -1,6 +1,6 @@
 # CPPDBC - C++ Database Connectivity Library
 
-This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, and SQLite databases using a unified interface. The library includes connection pooling, transaction management with different isolation levels, support for YAML configuration, and enhanced stack trace capabilities with libdw.
+This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, SQLite, and Firebird databases using a unified interface. The library includes connection pooling, transaction management with different isolation levels, support for YAML configuration, and enhanced stack trace capabilities with libdw.
 
 ## File Structure
 
@@ -9,6 +9,7 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `include/cpp_dbc/drivers/driver_mysql.hpp` - MySQL-specific definitions
 - `include/cpp_dbc/drivers/driver_postgresql.hpp` - PostgreSQL-specific definitions
 - `include/cpp_dbc/drivers/driver_sqlite.hpp` - SQLite-specific definitions
+- `include/cpp_dbc/drivers/driver_firebird.hpp` - Firebird-specific definitions
 - `include/cpp_dbc/connection_pool.hpp` - Connection pool with thread-safety support
 - `include/cpp_dbc/transaction_manager.hpp` - Transaction manager for cross-thread transactions
 - `include/cpp_dbc/backward.hpp` - Stack trace capture and analysis
@@ -20,6 +21,7 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `src/drivers/driver_mysql.cpp` - MySQL implementation using libmysqlclient
 - `src/drivers/driver_postgresql.cpp` - PostgreSQL implementation using libpq
 - `src/drivers/driver_sqlite.cpp` - SQLite implementation using libsqlite3
+- `src/drivers/driver_firebird.cpp` - Firebird implementation using libfbclient
 - `src/connection_pool.cpp` - Connection pool implementation
 - `src/transaction_manager.cpp` - Transaction manager implementation
 - `src/driver_manager.cpp` - Driver manager implementation
@@ -42,10 +44,11 @@ To build the library and examples, you'll need:
 2. MySQL development libraries (libmysqlclient-dev)
 3. PostgreSQL development libraries (libpq-dev) (optional)
 4. SQLite development libraries (libsqlite3-dev) (optional)
-5. yaml-cpp development libraries (optional)
-6. libdw development libraries (part of elfutils, optional)
-7. CMake 3.15 or later
-8. Conan for dependency management
+5. Firebird development libraries (libfbclient2, firebird-dev) (optional)
+6. yaml-cpp development libraries (optional)
+7. libdw development libraries (part of elfutils, optional)
+8. CMake 3.15 or later
+9. Conan for dependency management
 
 ### Using the Build Scripts
 
@@ -62,8 +65,11 @@ To build the library and examples, you'll need:
 # Build with SQLite support
 ./build.sh --sqlite
 
+# Build with Firebird support
+./build.sh --firebird
+
 # Build with all database drivers
-./build.sh --mysql --postgres --sqlite
+./build.sh --mysql --postgres --sqlite --firebird
 
 # Build with YAML configuration support
 ./build.sh --yaml
@@ -89,8 +95,11 @@ To build the library and examples, you'll need:
 # Build Docker image with SQLite support
 ./build.dist.sh --sqlite
 
+# Build Docker image with Firebird support
+./build.dist.sh --firebird
+
 # Build Docker image with all database drivers
-./build.dist.sh --mysql --postgres --sqlite --yaml
+./build.dist.sh --mysql --postgres --sqlite --firebird --yaml
 
 # Build Docker image without libdw support
 ./build.dist.sh --dw-off
@@ -102,7 +111,7 @@ To build the library and examples, you'll need:
 ./libs/cpp_dbc/build_dist_pkg.sh --distro=ubuntu:24.04+ubuntu:22.04+debian:12+debian:13+fedora:42+fedora:43
 
 # Build packages with specific options
-./libs/cpp_dbc/build_dist_pkg.sh --build=yaml,mysql,postgres,sqlite,debug,dw,examples
+./libs/cpp_dbc/build_dist_pkg.sh --build=yaml,mysql,postgres,sqlite,firebird,debug,dw,examples
 
 # Build packages with specific version
 ./libs/cpp_dbc/build_dist_pkg.sh --version=1.0.1
@@ -133,8 +142,11 @@ The `build_dist_pkg.sh` script:
 mkdir -p libs/cpp_dbc/build
 cd libs/cpp_dbc/build
 
-# Configure with CMake (MySQL enabled, PostgreSQL and SQLite disabled, libdw enabled)
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+# Configure with CMake (MySQL enabled, PostgreSQL, SQLite, and Firebird disabled, libdw enabled)
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_FIREBIRD=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+
+# Configure with Firebird support
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=OFF -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_FIREBIRD=ON -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Configure without libdw support
 # cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
@@ -158,7 +170,7 @@ cmake --build .
 
 ## Main Features
 
-1. Unified interface for MySQL, PostgreSQL, and SQLite
+1. Unified interface for MySQL, PostgreSQL, SQLite, and Firebird
 2. Connection, query, and result set management
 3. Prepared statement support
 4. Thread-safe connection pool
@@ -169,6 +181,9 @@ cmake --build .
 9. Docker container generation with automatic dependency detection
 10. Comprehensive warning flags and compile-time checks for code quality
 11. Smart pointer-based resource management with custom deleters for all database drivers
+12. Full BLOB support for all database drivers including Firebird
+13. JOIN operations support (INNER, LEFT, RIGHT, FULL OUTER) for all drivers
+14. JSON operations support for databases that support it
 
 ### Code Quality Features
 
@@ -208,6 +223,7 @@ Code quality improvements include:
 - libmysqlclient for MySQL connections
 - libpq for PostgreSQL connections (optional)
 - libsqlite3 for SQLite connections (optional)
+- libfbclient for Firebird connections (optional)
 - yaml-cpp for YAML configuration support (optional)
 - libdw (part of elfutils) for enhanced stack traces (optional)
 - C++23 standard library for threads, mutexes, and condition variables
@@ -231,7 +247,8 @@ cpp_dbc/
 │       │       └── drivers/
 │       │           ├── driver_mysql.hpp
 │       │           ├── driver_postgresql.hpp
-│       │           └── driver_sqlite.hpp
+│       │           ├── driver_sqlite.hpp
+│       │           └── driver_firebird.hpp
 │       ├── src/
 │       │   ├── connection_pool.cpp
 │       │   ├── transaction_manager.cpp
@@ -241,7 +258,8 @@ cpp_dbc/
 │       │   └── drivers/
 │       │       ├── driver_mysql.cpp
 │       │       ├── driver_postgresql.cpp
-│       │       └── driver_sqlite.cpp
+│       │       ├── driver_sqlite.cpp
+│       │       └── driver_firebird.cpp
 │       ├── examples/
 │       │   ├── example.cpp
 │       │   ├── connection_pool_example.cpp

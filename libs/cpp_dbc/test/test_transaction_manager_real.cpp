@@ -729,13 +729,22 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
             manager.setTransactionTimeout(30); // 30 seconds
         }
 
-        // Clean up
-        auto cleanupConn = pool.getConnection();
-        cleanupConn->executeUpdate(dropTableQuery);
-        cleanupConn->close();
-
-        // Close the pool
+        // Close the pool first to release all connections and their transactions
+        // This is necessary because Firebird DDL operations require exclusive access
         pool.close();
+
+        // Clean up using a direct connection (not from pool)
+        cpp_dbc::Firebird::FirebirdDriver driver;
+        auto cleanupConn = driver.connect(connStr, username, password);
+        try
+        {
+            cleanupConn->executeUpdate(dropTableQuery);
+        }
+        catch (...)
+        {
+            // Ignore errors if table doesn't exist
+        }
+        cleanupConn->close();
     }
 }
 #endif

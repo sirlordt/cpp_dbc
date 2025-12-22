@@ -1,6 +1,58 @@
 # Changelog
 
-## 2025-12-20 01:28:00 PM PST [Current]
+## 2025-12-21 09:41:52 PM PST [Current]
+
+### Firebird SQL Driver Enhancements and Benchmark Support
+* Added comprehensive Firebird benchmark suite:
+  * **New Benchmark Files:**
+    * Added `benchmark_firebird_select.cpp` with SELECT benchmarks (small, medium, large datasets)
+    * Added `benchmark_firebird_insert.cpp` with INSERT benchmarks (individual and prepared statements)
+    * Added `benchmark_firebird_update.cpp` with UPDATE benchmarks (individual and prepared statements)
+    * Added `benchmark_firebird_delete.cpp` with DELETE benchmarks (individual and prepared statements)
+  * **Benchmark Infrastructure Updates:**
+    * Updated `benchmark/CMakeLists.txt` to include Firebird benchmark files
+    * Added `USE_FIREBIRD` compile definition for conditional compilation
+    * Updated `benchmark_common.hpp` with Firebird helper functions and namespace
+    * Updated `benchmark_common.cpp` with Firebird connection setup implementation
+  * **Benchmark Script Updates:**
+    * Updated `run_benchmarks_cpp_dbc.sh` with `--firebird` and `--firebird-off` options
+    * Updated `create_benchmark_cpp_dbc_base_line.sh` to capture Firebird memory usage
+    * Added Firebird time command output processing for baseline creation
+* Enhanced Firebird driver implementation:
+  * **BLOB Text Support:**
+    * Added automatic BLOB content reading for BLOB SUB_TYPE TEXT columns
+    * Enables JSON and text data retrieval from BLOB columns
+  * **Connection Pool Improvements:**
+    * Enhanced `returnToPool()` with proper transaction cleanup
+    * Added autocommit mode handling when returning connections
+    * Added fresh transaction start for pool reuse
+    * Improved debug logging for connection pool operations
+  * **Error Handling Improvements:**
+    * Added automatic rollback on failed queries when autocommit is enabled
+    * Ensures connection remains in clean state after errors
+  * **URL Parsing Cleanup:**
+    * Simplified URL acceptance to only `cpp_dbc:firebird://` prefix
+    * Removed legacy `jdbc:firebird://` and `firebird://` prefix support
+* Added comprehensive Firebird test coverage:
+  * **New Test Files:**
+    * Added `test_firebird_real_full_join.cpp` with FULL OUTER JOIN tests
+    * Added `test_firebird_real_inner_join.cpp` with INNER JOIN tests
+    * Added `test_firebird_real_left_join.cpp` with LEFT JOIN tests
+    * Added `test_firebird_real_right_join.cpp` with RIGHT JOIN tests
+    * Added `test_firebird_real_json.cpp` with JSON operations tests
+    * Added `test_firebird_thread_safe.cpp` with thread-safety stress tests
+  * **Updated Test Files:**
+    * Updated `test_drivers.cpp` with Firebird driver URL acceptance tests
+    * Updated `test_integration.cpp` with Firebird integration tests
+    * Updated `test_transaction_isolation.cpp` with Firebird isolation level tests
+    * Updated `test_transaction_manager_real.cpp` with Firebird transaction manager tests
+  * **Test Improvements:**
+    * Fixed column name from `value` to `val_data` (reserved word in Firebird)
+    * Used `RECREATE TABLE` instead of DROP/CREATE pattern
+    * Added proper pool closure before table cleanup
+    * Fixed column index usage for Firebird result sets
+
+## 2025-12-20 01:28:00 PM PST
 
 ### Firebird SQL Database Driver Support
 * Added complete Firebird SQL database driver implementation:

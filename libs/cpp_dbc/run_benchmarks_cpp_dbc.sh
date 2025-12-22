@@ -7,6 +7,7 @@
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
+USE_FIREBIRD=OFF
 USE_CPP_YAML=OFF
 BENCHMARK_MIN_TIME="0.5"  # Minimum time per iteration for Google Benchmark
 BENCHMARK_REPETITIONS=3   # Number of repetitions for Google Benchmark
@@ -46,6 +47,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --sqlite-off)
             USE_SQLITE=OFF
+            shift
+            ;;
+        --firebird|--firebird-on)
+            USE_FIREBIRD=ON
+            shift
+            ;;
+        --firebird-off)
+            USE_FIREBIRD=OFF
             shift
             ;;
         --min-time=*)
@@ -119,6 +128,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --postgres-off         Disable PostgreSQL support"
             echo "  --sqlite, --sqlite-on  Enable SQLite support"
             echo "  --sqlite-off           Disable SQLite support"
+            echo "  --firebird, --firebird-on  Enable Firebird support"
+            echo "  --firebird-off         Disable Firebird support"
             echo "  --yaml, --yaml-on      Enable YAML support"
             echo "  --yaml-off             Disable YAML support"
             echo "  --min-time=N           Set minimum time per iteration in seconds (default: 0.5)"
@@ -163,6 +174,7 @@ echo "Benchmark configuration:"
 echo "  MySQL support: $USE_MYSQL"
 echo "  PostgreSQL support: $USE_POSTGRESQL"
 echo "  SQLite support: $USE_SQLITE"
+echo "  Firebird support: $USE_FIREBIRD"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Clean build: $CLEAN_BUILD"
@@ -207,6 +219,12 @@ if [ "$CLEAN_BUILD" = true ] || [ "$REBUILD" = true ]; then
         USE_POSTGRESQL=ON
     fi
     
+    # Check if benchmark tags contain "firebird" and enable Firebird support if needed
+    if [ -n "$BENCHMARK_TAGS" ] && [[ "$BENCHMARK_TAGS" == *"firebird"* ]]; then
+        echo "Firebird benchmark tag detected, ensuring Firebird support is enabled"
+        USE_FIREBIRD=ON
+    fi
+    
     # Add database options
     if [ "$USE_MYSQL" = "ON" ]; then
         BUILD_OPTIONS="$BUILD_OPTIONS --mysql"
@@ -224,6 +242,12 @@ if [ "$CLEAN_BUILD" = true ] || [ "$REBUILD" = true ]; then
         BUILD_OPTIONS="$BUILD_OPTIONS --sqlite"
     else
         BUILD_OPTIONS="$BUILD_OPTIONS --sqlite-off"
+    fi
+    
+    if [ "$USE_FIREBIRD" = "ON" ]; then
+        BUILD_OPTIONS="$BUILD_OPTIONS --firebird"
+    else
+        BUILD_OPTIONS="$BUILD_OPTIONS --firebird-off"
     fi
     
     if [ "$USE_CPP_YAML" = "ON" ]; then
@@ -328,6 +352,10 @@ if [ -n "$BENCHMARK_TAGS" ]; then
         FILTER="${FILTER}SQLite|"
     fi
     
+    if [[ "$BENCHMARK_TAGS" == *"firebird"* ]]; then
+        FILTER="${FILTER}Firebird|"
+    fi
+    
     if [[ "$BENCHMARK_TAGS" == *"insert"* ]]; then
         FILTER="${FILTER}.*Insert.*|"
     fi
@@ -394,6 +422,20 @@ else
             /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_SQLite" $BENCHMARK_OPTIONS
         else
             ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_SQLite" $BENCHMARK_OPTIONS
+        fi
+        echo ""
+        echo "=============================="
+    fi
+
+    # Firebird benchmarks
+    if [ "$USE_FIREBIRD" = "ON" ]; then
+        echo "Running Firebird benchmarks..."
+        # Pattern to match the standard BM_Firebird_* benchmark names
+        if [ "$USE_MEMORY_USAGE" = true ]; then
+            echo "Running with memory usage tracking..."
+            /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_Firebird" $BENCHMARK_OPTIONS
+        else
+            ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_Firebird" $BENCHMARK_OPTIONS
         fi
         echo ""
         echo "=============================="

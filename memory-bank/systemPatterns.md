@@ -84,6 +84,7 @@ Client Application → DriverManager → Driver → Connection → PreparedState
   - MySQL: `MySQLDeleter`, `MySQLStmtDeleter`, `MySQLResDeleter`
   - PostgreSQL: `PGconnDeleter`, `PGresultDeleter`
   - SQLite: `SQLiteDbDeleter`, `SQLiteStmtDeleter`
+  - Firebird: `FirebirdDbDeleter`, `FirebirdStmtDeleter`
 - RAII (Resource Acquisition Is Initialization) principle is followed for resource cleanup even in case of exceptions
 
 ### Error Handling
@@ -183,6 +184,7 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 - `MySQLBlob` → Implements → `Blob` (for MySQL BLOBs)
 - `PostgreSQLBlob` → Implements → `Blob` (for PostgreSQL BLOBs)
 - `SQLiteBlob` → Implements → `Blob` (for SQLite BLOBs)
+- `FirebirdBlob` → Implements → `Blob` (for Firebird BLOBs)
 
 ## Critical Implementation Paths
 

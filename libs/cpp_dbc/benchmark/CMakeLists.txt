@@ -38,6 +38,12 @@ add_executable(cpp_dbc_benchmarks
     benchmark_sqlite_insert.cpp
     benchmark_sqlite_update.cpp
     benchmark_sqlite_delete.cpp
+
+    # Firebird benchmarks
+    benchmark_firebird_select.cpp
+    benchmark_firebird_insert.cpp
+    benchmark_firebird_update.cpp
+    benchmark_firebird_delete.cpp
 )
 
 # Link against Google Benchmark, cpp_dbc and yaml-cpp
@@ -56,6 +62,8 @@ target_compile_definitions(cpp_dbc_benchmarks PUBLIC
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
     $<$<BOOL:${USE_SQLITE}>:USE_SQLITE=1>
     $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
+    $<$<BOOL:${USE_FIREBIRD}>:USE_FIREBIRD=1>
+    $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
 )

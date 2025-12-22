@@ -6,7 +6,7 @@ This document explains how to use the cpp_dbc library in your CMake project.
 
 - CMake 3.15 or higher
 - C++ compiler with C++23 support
-- Dependencies based on enabled options (MySQL, PostgreSQL, SQLite, yaml-cpp)
+- Dependencies based on enabled options (MySQL, PostgreSQL, SQLite, Firebird, yaml-cpp)
 
 ## Basic Usage with find_package
 
@@ -77,9 +77,55 @@ The cpp_dbc library may have been compiled with different options. Depending on 
 - MySQL: Requires libmysqlclient
 - PostgreSQL: Requires libpq
 - SQLite: Requires libsqlite3
+- Firebird: Requires libfbclient
 - YAML: Requires libyaml-cpp
 
 The CMake configuration file will automatically handle these dependencies.
+
+## Firebird Connection Example
+
+```cpp
+#include <cpp_dbc/cpp_dbc.hpp>
+#if USE_FIREBIRD
+#include <cpp_dbc/drivers/driver_firebird.hpp>
+#endif
+#include <iostream>
+
+int main() {
+    try {
+#if USE_FIREBIRD
+        // Register the Firebird driver
+        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::FirebirdDriver>());
+        
+        // Connect to a Firebird database
+        auto conn = cpp_dbc::DriverManager::getConnection(
+            "cpp_dbc:firebird://localhost:3050/path/to/database.fdb",
+            "SYSDBA",
+            "masterkey"
+        );
+        
+        // Execute a query
+        auto result = conn->executeQuery("SELECT * FROM my_table");
+        
+        // Process the results
+        while (result->next()) {
+            std::cout << "ID: " << result->getInt("id") << ", "
+                      << "Name: " << result->getString("name") << std::endl;
+        }
+        
+        conn->close();
+#else
+        std::cerr << "Firebird support not enabled" << std::endl;
+#endif
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+    
+    return 0;
+}
+```
 
 ## Compiler Warnings and Code Quality
 

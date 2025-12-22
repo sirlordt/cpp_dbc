@@ -609,3 +609,216 @@ namespace sqlite_benchmark_helpers
 #endif // USE_SQLITE
 
 } // namespace sqlite_benchmark_helpers
+
+namespace firebird_benchmark_helpers
+{
+
+#if USE_FIREBIRD
+    // Track which tables have been initialized to avoid recreating them
+    static std::unordered_map<std::string, bool> tableInitialized;
+    static std::mutex tableMutex;
+
+    cpp_dbc::config::DatabaseConfig getFirebirdConfig(const std::string &databaseName)
+    {
+        cpp_dbc::config::DatabaseConfig dbConfig;
+
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+        // Load the configuration using DatabaseConfigManager
+        std::string config_path = common_benchmark_helpers::getConfigFilePath();
+        cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+        // Find the requested database configuration
+        auto dbConfigOpt = configManager.getDatabaseByName(databaseName);
+
+        if (dbConfigOpt.has_value())
+        {
+            // Use the configuration from the YAML file
+            dbConfig = dbConfigOpt.value().get();
+        }
+        else
+        {
+            // Fallback to default values if configuration not found
+            dbConfig.setName(databaseName);
+            dbConfig.setType("firebird");
+            dbConfig.setHost("localhost");
+            dbConfig.setPort(3050);
+            dbConfig.setDatabase("/var/lib/firebird/data/test.fdb");
+            dbConfig.setUsername("SYSDBA");
+            dbConfig.setPassword("masterkey");
+        }
+#else
+        // Hardcoded values when YAML is not available
+        dbConfig.setName(databaseName);
+        dbConfig.setType("firebird");
+        dbConfig.setHost("localhost");
+        dbConfig.setPort(3050);
+        dbConfig.setDatabase("/var/lib/firebird/data/test.fdb");
+        dbConfig.setUsername("SYSDBA");
+        dbConfig.setPassword("masterkey");
+#endif
+
+        return dbConfig;
+    }
+
+    bool canConnectToFirebird()
+    {
+        try
+        {
+            // Get database configuration
+            auto dbConfig = getFirebirdConfig("dev_firebird");
+
+            // Get connection parameters
+            std::string connStr = dbConfig.createConnectionString();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            // Register the Firebird driver
+            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
+
+            // Attempt to connect to Firebird
+            cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to Firebird with connection string: " + connStr);
+
+            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+
+            // If we get here, the connection was successful
+            cpp_dbc::system_utils::logWithTimestampInfo("Firebird connection successful!");
+
+            // Execute a simple query to verify the connection
+            auto resultSet = conn->executeQuery("SELECT 1 as test_value FROM RDB$DATABASE");
+            bool success = resultSet->next() && resultSet->getInt("TEST_VALUE") == 1;
+
+            // Close the connection
+            conn->close();
+
+            return success;
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
+            return false;
+        }
+    }
+
+    // Helper function to create Firebird-specific benchmark table
+    void createFirebirdBenchmarkTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName)
+    {
+        // Drop table if it exists - Firebird doesn't support IF EXISTS, so we need to handle the error
+        try
+        {
+            conn->executeUpdate("DROP TABLE " + tableName);
+            conn->commit();
+        }
+        catch (const std::exception &e)
+        {
+            // Table might not exist, which is fine
+            try
+            {
+                conn->rollback();
+            }
+            catch (...)
+            {
+                // Ignore rollback errors
+            }
+        }
+
+        // Create table with standard columns for benchmarks
+        // Firebird uses DOUBLE PRECISION for floating point numbers
+        try
+        {
+            conn->executeUpdate(
+                "CREATE TABLE " + tableName + " ("
+                                              "id INTEGER NOT NULL PRIMARY KEY, "
+                                              "name VARCHAR(100), "
+                                              "num_value DOUBLE PRECISION, "
+                                              "description BLOB SUB_TYPE TEXT, "
+                                              "created_at TIMESTAMP"
+                                              ")");
+            conn->commit();
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
+            throw; // Re-throw to fail the test
+        }
+    }
+
+    // Helper function to populate Firebird table with test data
+    void populateFirebirdTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName, int rowCount)
+    {
+        // Prepare the insert statement
+        // Firebird uses CURRENT_TIMESTAMP for the current timestamp
+        auto pstmt = conn->prepareStatement(
+            "INSERT INTO " + tableName + " (id, name, num_value, description, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)");
+
+        // Insert the specified number of rows
+        for (int i = 1; i <= rowCount; ++i)
+        {
+            pstmt->setInt(1, i);
+            pstmt->setString(2, "Name " + std::to_string(i));
+            pstmt->setDouble(3, i * 1.5);
+            pstmt->setString(4, common_benchmark_helpers::generateRandomString(50));
+            pstmt->executeUpdate();
+        }
+
+        // Commit the inserts
+        conn->commit();
+    }
+
+    // Implementation of setupFirebirdConnection
+    std::shared_ptr<cpp_dbc::Connection> setupFirebirdConnection(const std::string &tableName, int rowCount)
+    {
+        try
+        {
+            // Get database configuration
+            auto dbConfig = getFirebirdConfig("dev_firebird");
+
+            // Get connection parameters
+            std::string connStr = dbConfig.createConnectionString();
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            // Check if this table has already been initialized
+            bool needsInitialization = false;
+            {
+                std::lock_guard<std::mutex> lock(tableMutex);
+                auto it = tableInitialized.find(tableName);
+                if (it == tableInitialized.end() || !it->second)
+                {
+                    needsInitialization = true;
+                    tableInitialized[tableName] = true;
+                }
+            }
+
+            // Register the Firebird driver and get a connection
+            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
+            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+
+            if (needsInitialization)
+            {
+                // Create benchmark table
+                cpp_dbc::system_utils::logWithTimestampInfo("Creating and populating table '" + tableName + "' for the first time...");
+                createFirebirdBenchmarkTable(conn, tableName);
+
+                // Populate table with specified rows if rowCount > 0
+                if (rowCount > 0)
+                {
+                    populateFirebirdTable(conn, tableName, rowCount);
+                }
+            }
+            else
+            {
+                cpp_dbc::system_utils::logWithTimestampInfo("Reusing existing table '" + tableName + "'");
+            }
+
+            return conn;
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
+            return nullptr;
+        }
+    }
+
+#endif // USE_FIREBIRD
+
+} // namespace firebird_benchmark_helpers

@@ -16,7 +16,7 @@ These files contain critical information for understanding the project structure
 
 The current focus appears to be on maintaining and potentially extending the CPP_DBC library. The library provides a C++ database connectivity framework inspired by Java's JDBC, with support for:
 
-1. MySQL, PostgreSQL, and SQLite databases
+1. MySQL, PostgreSQL, SQLite, and Firebird SQL databases
 2. Connection pooling for all supported databases
 3. Transaction management with isolation levels
 4. Prepared statements and result sets
@@ -32,7 +32,36 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Thread-Safe Database Driver Operations**:
+1. **Firebird SQL Driver Enhancements and Benchmark Support** (2025-12-21):
+   - Added comprehensive Firebird benchmark suite:
+     - New benchmark files for SELECT, INSERT, UPDATE, DELETE operations
+     - Updated benchmark infrastructure with Firebird support
+     - Updated benchmark scripts with `--firebird` options
+   - Enhanced Firebird driver implementation:
+     - Added automatic BLOB content reading for BLOB SUB_TYPE TEXT columns
+     - Enhanced `returnToPool()` with proper transaction cleanup
+     - Added automatic rollback on failed queries when autocommit is enabled
+     - Simplified URL acceptance to only `cpp_dbc:firebird://` prefix
+   - Added comprehensive Firebird test coverage:
+     - New test files for JOIN operations (FULL, INNER, LEFT, RIGHT)
+     - Added JSON operations tests
+     - Added thread-safety stress tests
+     - Updated integration tests with Firebird support
+     - Updated transaction isolation and transaction manager tests
+
+2. **Firebird SQL Database Driver Support** (2025-12-20):
+   - Added complete Firebird SQL database driver implementation
+   - Full support for Firebird SQL databases (version 2.5+, 3.0+, 4.0+)
+   - Connection management with proper resource cleanup using smart pointers
+   - Prepared statement support with parameter binding
+   - Result set handling with all data types
+   - BLOB support with lazy loading and streaming capabilities
+   - Transaction management with isolation level support
+   - Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+   - Build system updates with `USE_FIREBIRD` option
+   - Connection URL format: `cpp_dbc:firebird://host:port/path/to/database.fdb`
+
+3. **Thread-Safe Database Driver Operations**:
    - Added optional thread-safety support for database driver operations:
      - **New CMake Option:**
        - Added `DB_DRIVER_THREAD_SAFE` option (default: ON) to enable/disable thread-safe operations

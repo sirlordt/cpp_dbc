@@ -8,7 +8,8 @@ The CPP_DBC library appears to be in a functional state with the following compo
 2. **MySQL Implementation**: Complete implementation of MySQL driver with optional thread-safety
 3. **PostgreSQL Implementation**: Complete implementation of PostgreSQL driver with optional thread-safety
 4. **SQLite Implementation**: Complete implementation of SQLite driver with optional thread-safety
-5. **Connection Pool**: Fully implemented with configuration options for MySQL, PostgreSQL, and SQLite
+5. **Firebird Implementation**: Complete implementation of Firebird SQL driver with optional thread-safety
+6. **Connection Pool**: Fully implemented with configuration options for MySQL, PostgreSQL, SQLite, and Firebird
 6. **Transaction Manager**: Fully implemented with transaction tracking, timeout, and improved resource management
 7. **Connection Options**: Support for database-specific connection options in all drivers
 8. **BLOB Support**: Complete implementation of Binary Large Object (BLOB) support for all database drivers
@@ -56,6 +57,25 @@ The project includes example code demonstrating:
 - BLOB data handling with PostgreSQLBlob implementation
 - JSON and JSONB data type support with comprehensive query capabilities
 
+### Firebird SQL Support
+- Connection to Firebird SQL databases (version 2.5+, 3.0+, 4.0+)
+- Prepared statements with parameter binding
+- Result set processing with all data types
+- Transaction management with isolation levels
+- BLOB support with lazy loading and streaming capabilities
+- Connection pooling with FirebirdConnectionPool
+- Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+- Comprehensive test coverage:
+  - JOIN operations (INNER, LEFT, RIGHT, FULL OUTER)
+  - JSON operations tests
+  - Thread-safety stress tests
+  - Transaction isolation tests
+  - Transaction manager tests
+- Benchmark suite for performance testing:
+  - SELECT, INSERT, UPDATE, DELETE operations
+  - Small, medium, large, and extra-large datasets
+- Connection URL format: `cpp_dbc:firebird://host:port/path/to/database.fdb`
+
 ### Connection Pooling
 - Dynamic connection creation and management
 - Connection validation
@@ -66,6 +86,7 @@ The project includes example code demonstrating:
   - MySQL: MySQLConnectionPool
   - PostgreSQL: PostgreSQLConnectionPool
   - SQLite: SQLiteConnectionPool
+  - Firebird: FirebirdConnectionPool
 
 ### SQLite Support
 - Connection to SQLite databases
@@ -103,6 +124,7 @@ The project includes example code demonstrating:
   - MySQL: All levels supported (default: REPEATABLE_READ)
   - PostgreSQL: All levels supported (default: READ_COMMITTED)
   - SQLite: Only SERIALIZABLE supported
+  - Firebird: All levels supported (default: READ_COMMITTED)
 
 ### YAML Configuration
 - Database configuration loading from YAML files
@@ -159,7 +181,36 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **Thread-Safe Database Driver Operations**:
+1. **Firebird SQL Driver Enhancements and Benchmark Support** (2025-12-21):
+   - Added comprehensive Firebird benchmark suite:
+     - New benchmark files for SELECT, INSERT, UPDATE, DELETE operations
+     - Updated benchmark infrastructure with Firebird support
+     - Updated benchmark scripts with `--firebird` options
+   - Enhanced Firebird driver implementation:
+     - Added automatic BLOB content reading for BLOB SUB_TYPE TEXT columns
+     - Enhanced `returnToPool()` with proper transaction cleanup
+     - Added automatic rollback on failed queries when autocommit is enabled
+     - Simplified URL acceptance to only `cpp_dbc:firebird://` prefix
+   - Added comprehensive Firebird test coverage:
+     - New test files for JOIN operations (FULL, INNER, LEFT, RIGHT)
+     - Added JSON operations tests
+     - Added thread-safety stress tests
+     - Updated integration tests with Firebird support
+     - Updated transaction isolation and transaction manager tests
+
+2. **Firebird SQL Database Driver Support** (2025-12-20):
+   - Added complete Firebird SQL database driver implementation
+   - Full support for Firebird SQL databases (version 2.5+, 3.0+, 4.0+)
+   - Connection management with proper resource cleanup using smart pointers
+   - Prepared statement support with parameter binding
+   - Result set handling with all data types
+   - BLOB support with lazy loading and streaming capabilities
+   - Transaction management with isolation level support
+   - Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+   - Build system updates with `USE_FIREBIRD` option
+   - Connection URL format: `cpp_dbc:firebird://host:port/path/to/database.fdb`
+
+3. **Thread-Safe Database Driver Operations**:
    - Added optional thread-safety support for database driver operations:
      - **New CMake Option:**
        - Added `DB_DRIVER_THREAD_SAFE` option (default: ON) to enable/disable thread-safe operations

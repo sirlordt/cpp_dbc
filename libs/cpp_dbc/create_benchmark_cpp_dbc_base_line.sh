@@ -87,11 +87,13 @@ echo "Output will be saved to: $OUTPUT_FILE"
     mysql_memory=0
     postgresql_memory=0
     sqlite_memory=0
+    firebird_memory=0
     
     # Extract full time command output for each database type
     mysql_time_output=""
     postgresql_time_output=""
     sqlite_time_output=""
+    firebird_time_output=""
     
     # Extract MySQL time command output
     mysql_section=$(grep -n "Command being timed:.*BM_MySQL" "$LOG_FILE" | head -1 | cut -d':' -f1)
@@ -132,8 +134,21 @@ echo "Output will be saved to: $OUTPUT_FILE"
         fi
     fi
     
+    # Extract Firebird time command output
+    firebird_section=$(grep -n "Command being timed:.*BM_Firebird" "$LOG_FILE" | head -1 | cut -d':' -f1)
+    if [ -n "$firebird_section" ]; then
+        # Extract the complete time command output
+        firebird_time_output=$(tail -n +$firebird_section "$LOG_FILE" | head -25)
+        
+        # Extract memory usage
+        firebird_memory=$(echo "$firebird_time_output" | grep "Maximum resident set size" | awk '{print $6}')
+        if [ -z "$firebird_memory" ]; then
+            firebird_memory=0
+        fi
+    fi
+    
     # Write memory usage to output file
-    echo "# Memory usage (KB): MySQL=$mysql_memory, PostgreSQL=$postgresql_memory, SQLite=$sqlite_memory" >> "$OUTPUT_FILE"
+    echo "# Memory usage (KB): MySQL=$mysql_memory, PostgreSQL=$postgresql_memory, SQLite=$sqlite_memory, Firebird=$firebird_memory" >> "$OUTPUT_FILE"
     
     # Extract benchmark results from the log file
     # This pattern looks for lines with benchmark results in Google Benchmark format
@@ -173,6 +188,9 @@ echo "Output will be saved to: $OUTPUT_FILE"
         elif [[ "$benchmark_name" == BM_SQLite_* ]]; then
             memory_kb=$sqlite_memory
             benchmark_type="SQLite"
+        elif [[ "$benchmark_name" == BM_Firebird_* ]]; then
+            memory_kb=$firebird_memory
+            benchmark_type="Firebird"
         fi
         
         # Output in semicolon-separated format - preserve exact format for all values
@@ -198,6 +216,9 @@ if [ $postgresql_memory -gt 0 ]; then
 fi
 if [ $sqlite_memory -gt 0 ]; then
     echo "  SQLite benchmarks: $sqlite_memory KB"
+fi
+if [ $firebird_memory -gt 0 ]; then
+    echo "  Firebird benchmarks: $firebird_memory KB"
 fi
 echo ""
 echo "You can compare this baseline with future runs to track performance changes."
@@ -298,3 +319,35 @@ if [ -n "$sqlite_time_output" ]; then
     # Write to output file
     echo "SQLite;\"$command\";$user_time;$system_time;$cpu_percent;\"$elapsed_time\";$max_resident;$page_faults_major;$page_faults_minor;$vol_ctx_switches;$invol_ctx_switches;$fs_inputs;$fs_outputs;$exit_status" >> "$OUTPUT_FILE"
 fi
+
+# Process Firebird time command output
+if [ -n "$firebird_time_output" ]; then
+    # Extract command and trim whitespace while keeping quotes
+    command=$(echo "$firebird_time_output" | grep "Command being timed:" | sed 's/Command being timed: "//' | sed 's/"$//' | sed 's/^[ \t]*//;s/[ \t]*$//')
+    # Extract user time
+    user_time=$(echo "$firebird_time_output" | grep "User time" | awk '{print $4}')
+    # Extract system time
+    system_time=$(echo "$firebird_time_output" | grep "System time" | awk '{print $4}')
+    # Extract CPU percent
+    cpu_percent=$(echo "$firebird_time_output" | grep "Percent of CPU" | sed 's/.*: //' | sed 's/%$//')
+    # Extract elapsed time
+    elapsed_time=$(echo "$firebird_time_output" | grep "Elapsed" | sed 's/.*: //')
+    # Extract max resident set size
+    max_resident=$(echo "$firebird_time_output" | grep "Maximum resident set size" | awk '{print $6}')
+    # Extract page faults
+    page_faults_major=$(echo "$firebird_time_output" | grep "Major" | awk '{print $6}')
+    page_faults_minor=$(echo "$firebird_time_output" | grep "Minor" | awk '{print $6}')
+    # Extract context switches
+    vol_ctx_switches=$(echo "$firebird_time_output" | grep "Voluntary context switches" | awk '{print $4}')
+    invol_ctx_switches=$(echo "$firebird_time_output" | grep "Involuntary context switches" | awk '{print $4}')
+    # Extract file system I/O
+    fs_inputs=$(echo "$firebird_time_output" | grep "File system inputs" | awk '{print $4}')
+    fs_outputs=$(echo "$firebird_time_output" | grep "File system outputs" | awk '{print $4}')
+    # Extract exit status
+    exit_status=$(echo "$firebird_time_output" | grep "Exit status" | awk '{print $3}')
+    
+    # Write to output file
+    echo "Firebird;\"$command\";$user_time;$system_time;$cpu_percent;\"$elapsed_time\";$max_resident;$page_faults_major;$page_faults_minor;$vol_ctx_switches;$invol_ctx_switches;$fs_inputs;$fs_outputs;$exit_status" >> "$OUTPUT_FILE"
+fi
+
+echo "Baseline creation completed."

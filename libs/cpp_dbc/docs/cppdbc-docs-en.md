@@ -1,12 +1,13 @@
 # CPP_DBC Library Documentation
 
-This document provides a comprehensive guide to the CPP_DBC library, a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, and SQLite databases.
+This document provides a comprehensive guide to the CPP_DBC library, a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, SQLite, and Firebird SQL databases.
 
 ## Table of Contents
 - [Core Components](#core-components)
 - [MySQL Implementation](#mysql-implementation)
 - [PostgreSQL Implementation](#postgresql-implementation)
 - [SQLite Implementation](#sqlite-implementation)
+- [Firebird Implementation](#firebird-implementation)
 - [Connection Pool](#connection-pool)
 - [Transaction Manager](#transaction-manager)
 - [Configuration System](#configuration-system)
@@ -234,6 +235,56 @@ Same as Driver, plus:
 
 ---
 
+## Firebird Implementation
+*Components defined in drivers/driver_firebird.hpp and drivers/driver_firebird.cpp*
+
+### FirebirdResultSet
+Implementation of ResultSet for Firebird SQL.
+
+**Methods:**
+Same as ResultSet, plus:
+- `FirebirdResultSet(isc_stmt_handle, XSQLDA*, weak_ptr<isc_db_handle>)`: Constructor that takes a Firebird statement handle, SQLDA structure, and connection reference.
+
+### FirebirdPreparedStatement
+Implementation of PreparedStatement for Firebird SQL.
+
+**Methods:**
+Same as PreparedStatement, plus:
+- `FirebirdPreparedStatement(shared_ptr<isc_db_handle>, isc_tr_handle*, string)`: Constructor that takes a Firebird database handle, transaction handle, and SQL statement.
+
+### FirebirdConnection
+Implementation of Connection for Firebird SQL.
+
+**Methods:**
+Same as Connection, plus:
+- `FirebirdConnection(string, int, string, string, string, map<string, string>)`: Constructor that takes host, port, database, user, password, and optional connection options.
+- `setTransactionIsolation(TransactionIsolationLevel)`: Sets the transaction isolation level for Firebird (default: READ COMMITTED).
+- `getTransactionIsolation()`: Returns the current transaction isolation level.
+- `returnToPool()`: Returns the connection to the pool with proper transaction cleanup.
+
+**Smart Pointer Usage:**
+- Uses `shared_ptr<isc_db_handle>` with custom deleter for connection handle
+- PreparedStatements use `weak_ptr<isc_db_handle>` to safely detect when connection is closed
+- SQLDA structures managed with proper memory allocation/deallocation
+
+### FirebirdDriver
+Implementation of Driver for Firebird SQL.
+
+**Methods:**
+Same as Driver, plus:
+- `FirebirdDriver()`: Constructor.
+- `parseURL(string, string&, int&, string&)`: Parses a connection URL.
+- `acceptsURL(string)`: Returns true only for `cpp_dbc:firebird://` URLs.
+
+### FirebirdConnectionPool
+Implementation of ConnectionPool for Firebird SQL databases.
+
+**Methods:**
+- `FirebirdConnectionPool(string, string, string)`: Constructor that takes a URL, username, and password.
+- `FirebirdConnectionPool(ConnectionPoolConfig)`: Constructor that takes a pool configuration.
+
+---
+
 ## Connection Pool
 *Components defined in connection_pool.hpp and connection_pool.cpp*
 
@@ -417,6 +468,7 @@ Loads database configurations from YAML files.
 - MySQL development libraries (for MySQL support)
 - PostgreSQL development libraries (for PostgreSQL support, optional)
 - SQLite development libraries (for SQLite support, optional)
+- Firebird development libraries (for Firebird SQL support, optional)
 - yaml-cpp library (for YAML configuration support, optional)
 - libdw library (part of elfutils, for enhanced stack traces, optional)
 - CMake 3.15 or later
@@ -487,8 +539,11 @@ The library provides build scripts to simplify the build process:
 # Build with SQLite support
 ./build.sh --sqlite
 
-# Build with MySQL, PostgreSQL and SQLite support
-./build.sh --mysql --postgres --sqlite
+# Build with Firebird SQL support
+./build.sh --firebird
+
+# Build with MySQL, PostgreSQL, SQLite and Firebird support
+./build.sh --mysql --postgres --sqlite --firebird
 
 # Enable YAML configuration support
 ./build.sh --yaml
@@ -520,8 +575,11 @@ The library provides build scripts to simplify the build process:
 # Build Docker container with SQLite support
 ./build.dist.sh --sqlite
 
+# Build Docker container with Firebird support
+./build.dist.sh --firebird
+
 # Build Docker container with all database drivers
-./build.dist.sh --postgres --sqlite --yaml
+./build.dist.sh --postgres --sqlite --firebird --yaml
 
 # Build Docker container without libdw support
 ./build.dist.sh --dw-off
@@ -574,6 +632,9 @@ The project includes a helper script (`helper.sh`) that provides various utiliti
 # Build with SQLite support
 ./helper.sh --build --sqlite
 
+# Build with Firebird support
+./helper.sh --build --firebird
+
 # Build with YAML support
 ./helper.sh --build --yaml
 
@@ -619,8 +680,11 @@ You can also build the library manually with CMake:
 mkdir -p libs/cpp_dbc/build
 cd libs/cpp_dbc/build
 
-# Configure with CMake (MySQL enabled, PostgreSQL disabled, SQLite disabled, YAML disabled, libdw enabled, thread-safe enabled)
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DDB_DRIVER_THREAD_SAFE=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+# Configure with CMake (MySQL enabled, PostgreSQL disabled, SQLite disabled, Firebird disabled, YAML disabled, libdw enabled, thread-safe enabled)
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_FIREBIRD=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DDB_DRIVER_THREAD_SAFE=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+
+# Configure with Firebird support
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_FIREBIRD=ON -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Configure without thread-safe driver operations (for single-threaded performance)
 # cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DDB_DRIVER_THREAD_SAFE=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
@@ -679,6 +743,8 @@ target_compile_definitions(your_app PRIVATE
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
     $<$<BOOL:${USE_SQLITE}>:USE_SQLITE=1>
     $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
+    $<$<BOOL:${USE_FIREBIRD}>:USE_FIREBIRD=1>
+    $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
     $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
@@ -697,6 +763,9 @@ In your C++ code:
 #endif
 #if USE_POSTGRESQL
 #include <cpp_dbc/drivers/driver_postgresql.hpp>
+#endif
+#if USE_FIREBIRD
+#include <cpp_dbc/drivers/driver_firebird.hpp>
 #endif
 
 // Use the library...

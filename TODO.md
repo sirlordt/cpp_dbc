@@ -2,7 +2,6 @@
 
 ## Pending Tasks
 
-- WIP: Firebird/Interbase
 - NEW FEATURE: Add more examples.
 - NEW FEATURE: Add more debug messages?
 - PLANNED: Start to using in real proyect and test how ease is integrate in third party project. Maybe write a INTERGRATION.md to explain how full integrate in a real project.
@@ -16,6 +15,10 @@
 
 ## Completed Tasks
 
+- Firebird/Interbase driver with comprehensive test coverage and benchmarks:
+  - Full driver implementation with BLOB, transaction, and connection pool support
+  - Added benchmark suite (SELECT, INSERT, UPDATE, DELETE operations)
+  - Added thread-safety tests, JOIN tests, JSON tests, and transaction isolation tests
 - Added optional thread-safe database driver operations:
   - Added DB_DRIVER_THREAD_SAFE CMake option (default: ON)
   - Added --db-driver-thread-safe-off option to all build scripts

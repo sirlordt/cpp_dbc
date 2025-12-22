@@ -32,7 +32,7 @@ CPP_DBC solves these problems by providing:
 
 ## Use Cases
 
-1. **Cross-Database Applications**: Systems that need to work with both MySQL and PostgreSQL
+1. **Cross-Database Applications**: Systems that need to work with MySQL, PostgreSQL, SQLite, and Firebird
 2. **High-Performance Applications**: Applications that benefit from connection pooling
 3. **Distributed Systems**: Applications with complex transaction requirements across multiple components
 4. **Concurrent Data Access**: Applications requiring fine-grained control over transaction isolation levels

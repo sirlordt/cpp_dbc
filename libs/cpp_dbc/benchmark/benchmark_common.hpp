@@ -38,6 +38,10 @@
 #include <cpp_dbc/drivers/driver_sqlite.hpp>
 #endif
 
+#if USE_FIREBIRD
+#include <cpp_dbc/drivers/driver_firebird.hpp>
+#endif
+
 #include <string>
 #include <memory>
 #include <vector>
@@ -119,5 +123,25 @@ namespace sqlite_benchmark_helpers
 
     // Helper function to setup SQLite connection
     std::shared_ptr<cpp_dbc::Connection> setupSQLiteConnection(const std::string &tableName, int rowCount = 0);
+#endif
+}
+
+namespace firebird_benchmark_helpers
+{
+#if USE_FIREBIRD
+    // Get a Firebird database configuration based on the given name
+    cpp_dbc::config::DatabaseConfig getFirebirdConfig(const std::string &databaseName = "dev_firebird");
+
+    // Check if a connection to Firebird can be established
+    bool canConnectToFirebird();
+
+    // Helper function to setup Firebird connection
+    std::shared_ptr<cpp_dbc::Connection> setupFirebirdConnection(const std::string &tableName, int rowCount = 0);
+
+    // Helper function to create Firebird-specific benchmark table
+    void createFirebirdBenchmarkTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName);
+
+    // Helper function to populate Firebird table with test data
+    void populateFirebirdTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName, int rowCount);
 #endif
 }

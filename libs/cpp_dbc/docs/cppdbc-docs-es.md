@@ -1,6 +1,6 @@
  Documentación de la Biblioteca CPP_DBC
 
-Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL y SQLite.
+Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL, SQLite y Firebird.
 
 ## Tabla de Contenidos
 - [Componentes Principales](#componentes-principales)
@@ -8,6 +8,7 @@ Este documento proporciona una guía completa de la biblioteca CPP_DBC, una bibl
 - [Implementación MySQL](#implementación-mysql)
 - [Implementación PostgreSQL](#implementación-postgresql)
 - [Implementación SQLite](#implementación-sqlite)
+- [Implementación Firebird](#implementación-firebird)
 - [Pool de Conexiones](#pool-de-conexiones)
 - [Gestor de Transacciones](#gestor-de-transacciones)
 - [Sistema de Configuración](#sistema-de-configuración)
@@ -427,6 +428,101 @@ Los mismos que Driver, más:
 
 ---
 
+## Implementación Firebird
+*Componentes definidos en drivers/driver_firebird.hpp, drivers/driver_firebird.cpp y drivers/firebird_blob.hpp*
+
+### FirebirdInputStream
+Implementación de InputStream para Firebird.
+
+**Métodos:**
+Los mismos que InputStream, más:
+- `FirebirdInputStream(const char*, size_t)`: Constructor que toma un buffer y su longitud.
+
+### FirebirdBlob
+Implementación de Blob para Firebird.
+
+**Métodos:**
+Los mismos que Blob, más:
+- `FirebirdBlob(std::shared_ptr<isc_db_handle>)`: Constructor para crear un nuevo BLOB.
+- `FirebirdBlob(std::shared_ptr<isc_db_handle>, ISC_QUAD)`: Constructor para cargar un BLOB existente por su ID.
+- `FirebirdBlob(std::shared_ptr<isc_db_handle>, const std::vector<uint8_t>&)`: Constructor para crear un BLOB a partir de datos existentes.
+- `ensureLoaded()`: Asegura que los datos del BLOB estén cargados desde la base de datos.
+- `save()`: Guarda los datos del BLOB en la base de datos y devuelve el ID del BLOB.
+- `getBlobId()`: Devuelve el ID del BLOB.
+
+### FirebirdResultSet
+Implementación de ResultSet para Firebird.
+
+**Métodos:**
+Los mismos que ResultSet, más:
+- `FirebirdResultSet(isc_stmt_handle, XSQLDA*, std::weak_ptr<isc_db_handle>)`: Constructor que toma un handle de sentencia, descriptor de salida y referencia débil a la conexión.
+
+### FirebirdPreparedStatement
+Implementación de PreparedStatement para Firebird.
+
+**Métodos:**
+Los mismos que PreparedStatement, más:
+- `FirebirdPreparedStatement(std::weak_ptr<isc_db_handle>, string)`: Constructor que toma una referencia débil a la conexión Firebird y una declaración SQL.
+
+### FirebirdConnection
+Implementación de Connection para Firebird.
+
+**Métodos:**
+Los mismos que Connection, más:
+- `FirebirdConnection(string, int, string, string, string, map<string, string>)`: Constructor que toma host, puerto, base de datos, usuario, contraseña y opciones de conexión opcionales.
+- `setTransactionIsolation(TransactionIsolationLevel)`: Establece el nivel de aislamiento de transacción para Firebird (predeterminado: READ COMMITTED).
+- `getTransactionIsolation()`: Devuelve el nivel de aislamiento de transacción actual.
+- `registerStatement(std::weak_ptr<FirebirdPreparedStatement>)`: Registra una declaración con la conexión para una limpieza adecuada.
+- `unregisterStatement(std::weak_ptr<FirebirdPreparedStatement>)`: Anula el registro de una declaración de la conexión.
+
+**Herencia:**
+- Hereda de `Connection` y `std::enable_shared_from_this<FirebirdConnection>` para una gestión adecuada de recursos.
+
+**Uso de Punteros Inteligentes:**
+- Usa `shared_ptr<isc_db_handle>` con deleter personalizado (`FirebirdDbDeleter`) para el handle de conexión
+- Los PreparedStatements usan `weak_ptr<isc_db_handle>` para detectar de forma segura cuando la conexión está cerrada
+- Las declaraciones activas se rastrean mediante `set<weak_ptr<FirebirdPreparedStatement>>` para evitar impedir la destrucción
+
+### FirebirdDriver
+Implementación de Driver para Firebird.
+
+**Métodos:**
+Los mismos que Driver, más:
+- `FirebirdDriver()`: Constructor.
+- `parseURL(string, string&, int&, string&)`: Analiza una URL de conexión.
+
+**Formato de URL de Conexión:**
+```
+cpp_dbc:firebird://host:port/ruta/a/base_de_datos.fdb
+```
+
+**Ejemplo de Uso:**
+```cpp
+#if USE_FIREBIRD
+#include <cpp_dbc/drivers/driver_firebird.hpp>
+
+// Registrar el controlador Firebird
+cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::FirebirdDriver>());
+
+// Conectar a la base de datos
+auto conn = cpp_dbc::DriverManager::getConnection(
+    "cpp_dbc:firebird://localhost:3050/ruta/a/base_de_datos.fdb",
+    "SYSDBA",
+    "masterkey"
+);
+
+// Ejecutar consultas
+auto rs = conn->executeQuery("SELECT * FROM mi_tabla");
+while (rs->next()) {
+    std::cout << rs->getString("columna") << std::endl;
+}
+
+conn->close();
+#endif
+```
+
+---
+
 ## Pool de Conexiones
 *Componentes definidos en connection_pool.hpp y connection_pool.cpp*
 
@@ -680,8 +776,11 @@ La biblioteca proporciona scripts de compilación para simplificar el proceso:
 # Compilar con soporte para SQLite
 ./build.sh --sqlite
 
-# Compilar con soporte para MySQL, PostgreSQL y SQLite
-./build.sh --mysql --postgres --sqlite
+# Compilar con soporte para Firebird
+./build.sh --firebird
+
+# Compilar con soporte para MySQL, PostgreSQL, SQLite y Firebird
+./build.sh --mysql --postgres --sqlite --firebird
 
 # Habilitar soporte de configuración YAML
 ./build.sh --yaml
@@ -812,8 +911,11 @@ También puedes compilar la biblioteca manualmente con CMake:
 mkdir -p libs/cpp_dbc/build
 cd libs/cpp_dbc/build
 
-# Configurar con CMake (MySQL habilitado, PostgreSQL deshabilitado, SQLite deshabilitado, YAML deshabilitado, libdw habilitado, thread-safe habilitado)
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DDB_DRIVER_THREAD_SAFE=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+# Configurar con CMake (MySQL habilitado, PostgreSQL deshabilitado, SQLite deshabilitado, Firebird deshabilitado, YAML deshabilitado, libdw habilitado, thread-safe habilitado)
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_FIREBIRD=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DDB_DRIVER_THREAD_SAFE=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
+
+# Configurar con soporte Firebird
+# cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=OFF -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_FIREBIRD=ON -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DDB_DRIVER_THREAD_SAFE=ON -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
 
 # Configurar sin operaciones de controlador thread-safe (para rendimiento en aplicaciones de un solo hilo)
 # cmake .. -DCMAKE_BUILD_TYPE=Debug -DUSE_MYSQL=ON -DUSE_POSTGRESQL=OFF -DUSE_SQLITE=OFF -DUSE_CPP_YAML=OFF -DBACKWARD_HAS_DW=ON -DDB_DRIVER_THREAD_SAFE=OFF -DCMAKE_INSTALL_PREFIX="../../../build/libs/cpp_dbc"
@@ -872,6 +974,8 @@ target_compile_definitions(tu_app PRIVATE
     $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
     $<$<BOOL:${USE_SQLITE}>:USE_SQLITE=1>
     $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
+    $<$<BOOL:${USE_FIREBIRD}>:USE_FIREBIRD=1>
+    $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
     $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
@@ -890,6 +994,9 @@ En tu código C++:
 #endif
 #if USE_POSTGRESQL
 #include <cpp_dbc/drivers/driver_postgresql.hpp>
+#endif
+#if USE_FIREBIRD
+#include <cpp_dbc/drivers/driver_firebird.hpp>
 #endif
 
 // Usar la biblioteca...

@@ -62,14 +62,17 @@ This will display the full usage information with all available options.
 # Enable SQLite support
 ./helper.sh --run-build=sqlite
 
+# Enable Firebird support
+./helper.sh --run-build=firebird
+
 # Enable all database drivers
-./helper.sh --run-build=mysql,postgres,sqlite
+./helper.sh --run-build=mysql,postgres,sqlite,firebird
 
 # Build in Release mode with all drivers and YAML support
-./helper.sh --run-build=release,mysql,postgres,sqlite,yaml
+./helper.sh --run-build=release,mysql,postgres,sqlite,firebird,yaml
 
 # Clean build and rebuild with all features
-./helper.sh --run-build=clean,mysql,postgres,sqlite,yaml,test,examples
+./helper.sh --run-build=clean,mysql,postgres,sqlite,firebird,yaml,test,examples
 ```
 
 All build output is now automatically logged to files in the `logs/build/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
@@ -87,7 +90,10 @@ All build output is now automatically logged to files in the `logs/build/` direc
 ./helper.sh --run-test=postgres
 
 # Run tests with all database drivers
-./helper.sh --run-test=sqlite,postgres,mysql
+./helper.sh --run-test=sqlite,postgres,mysql,firebird
+
+# Run Firebird-specific tests
+./helper.sh --run-test=firebird,test=firebird_real+firebird_thread_safe
 
 # Run tests with Valgrind memory checking
 ./helper.sh --run-test=valgrind
@@ -111,7 +117,7 @@ All build output is now automatically logged to files in the `logs/build/` direc
 ./helper.sh --run-test=test=sqlite_real_inner_join+sqlite_real_left_join
 
 # Run JSON-specific tests
-./helper.sh --run-test=test=mysql_real_json+postgresql_real_json
+./helper.sh --run-test=test=mysql_real_json+postgresql_real_json+firebird_real_json
 
 # Run tests with debug output for ConnectionPool
 ./helper.sh --run-test=debug-pool
@@ -170,8 +176,14 @@ The test log analysis feature checks for:
 # Run only SQLite benchmarks
 ./helper.sh --run-benchmarks=sqlite
 
+# Run only Firebird benchmarks
+./helper.sh --run-benchmarks=firebird
+
 # Run MySQL and PostgreSQL benchmarks
 ./helper.sh --run-benchmarks=mysql+postgresql
+
+# Run all database benchmarks
+./helper.sh --run-benchmarks=mysql+postgresql+sqlite+firebird
 
 # Run specific benchmark tags
 ./helper.sh --run-benchmarks=benchmark=update+postgresql
@@ -246,7 +258,7 @@ All benchmark output is automatically logged to files in the `logs/benchmark/` d
 
 ```bash
 # Clean everything and set up a full development environment
-./helper.sh --clean-conan-cache --run-build=clean,mysql,postgres,sqlite,yaml,test,examples
+./helper.sh --clean-conan-cache --run-build=clean,mysql,postgres,sqlite,firebird,yaml,test,examples
 ```
 
 ### Quick Test Run
@@ -270,10 +282,10 @@ All benchmark output is automatically logged to files in the `logs/benchmark/` d
 
 ```bash
 # Create a production-ready build
-./helper.sh --run-build=clean,release,mysql,postgres,sqlite,yaml
+./helper.sh --run-build=clean,release,mysql,postgres,sqlite,firebird,yaml
 
 # Create a production-ready build without libdw support
-./helper.sh --run-build=clean,release,mysql,postgres,sqlite,yaml,dw-off
+./helper.sh --run-build=clean,release,mysql,postgres,sqlite,firebird,yaml,dw-off
 ```
 
 ### Container Deployment
@@ -296,7 +308,7 @@ All benchmark output is automatically logged to files in the `logs/benchmark/` d
 ./libs/cpp_dbc/build_dist_pkg.sh --distro=fedora:42+fedora:43
 
 # Specify build options
-./libs/cpp_dbc/build_dist_pkg.sh --build=yaml,mysql,postgres,sqlite,debug,dw,examples
+./libs/cpp_dbc/build_dist_pkg.sh --build=yaml,mysql,postgres,sqlite,firebird,debug,dw,examples
 
 # Specify a version instead of using a timestamp
 ./libs/cpp_dbc/build_dist_pkg.sh --version=1.0.1
