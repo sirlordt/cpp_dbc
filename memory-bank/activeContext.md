@@ -32,7 +32,18 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Firebird Driver Database Creation and Error Handling Improvements** (2025-12-21):
+1. **BLOB Memory Safety Improvements with Smart Pointers** (2025-12-22):
+   - Migrated all BLOB implementations from raw pointers to smart pointers for improved memory safety:
+     - **Firebird BLOB:** Changed from raw `isc_db_handle*` and `isc_tr_handle*` to `std::weak_ptr<FirebirdConnection>`
+     - **MySQL BLOB:** Changed from raw `MYSQL*` to `std::weak_ptr<MYSQL>`
+     - **PostgreSQL BLOB:** Changed from raw `PGconn*` to `std::weak_ptr<PGconn>`
+     - **SQLite BLOB:** Changed from raw `sqlite3*` to `std::weak_ptr<sqlite3>`
+   - Added helper methods for safe connection access that throw `DBException` if connection is closed
+   - Added `isConnectionValid()` methods to check connection state
+   - Updated driver implementations to use new BLOB constructors
+   - Benefits: Automatic detection of closed connections, prevention of use-after-free errors, clear ownership semantics
+
+2. **Firebird Driver Database Creation and Error Handling Improvements** (2025-12-21):
    - Added database creation support to Firebird driver:
      - Added `createDatabase()` method to `FirebirdDriver` for creating new Firebird databases
      - Added `command()` method for executing driver-specific commands

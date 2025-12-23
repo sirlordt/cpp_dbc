@@ -441,7 +441,16 @@ The project includes comprehensive smart pointer usage to prevent memory leaks:
    - `weak_ptr<isc_db_handle>` in PreparedStatement for safe connection reference
    - SQLDA structure management with proper memory allocation/deallocation
 
-6. **Benefits**:
+6. **BLOB Memory Safety**:
+   - All BLOB implementations use `weak_ptr` for safe connection references
+   - `FirebirdBlob`: Uses `weak_ptr<FirebirdConnection>` with `getConnection()` helper
+   - `MySQLBlob`: Uses `weak_ptr<MYSQL>` with `getMySQLConnection()` helper
+   - `PostgreSQLBlob`: Uses `weak_ptr<PGconn>` with `getPGConnection()` helper
+   - `SQLiteBlob`: Uses `weak_ptr<sqlite3>` with `getSQLiteConnection()` helper
+   - All BLOB classes have `isConnectionValid()` method to check connection state
+   - Operations throw `DBException` if connection has been closed
+
+7. **Benefits**:
    - Automatic resource cleanup through RAII
    - Safe detection of closed connections via weak_ptr
    - Clear ownership semantics documented in code

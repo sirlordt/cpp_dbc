@@ -45,7 +45,7 @@ namespace cpp_dbc
         {
         private:
             const std::vector<uint8_t> m_data;
-            size_t m_position;
+            size_t m_position{0};
 
         public:
             PostgreSQLInputStream(const char *buffer, size_t length)
@@ -73,35 +73,92 @@ namespace cpp_dbc
             }
         };
 
-        // PostgreSQL implementation of Blob
+        /**
+         * @brief PostgreSQL implementation of Blob using smart pointers for memory safety
+         *
+         * This class uses std::weak_ptr to safely reference the PostgreSQL connection handle,
+         * preventing dangling pointer issues if the connection is closed while the
+         * blob is still in use. All operations that require database access will
+         * check if the connection is still valid before proceeding.
+         */
         class PostgreSQLBlob : public MemoryBlob
         {
         private:
-            PGconn *m_conn;
-            Oid m_lobOid;
-            bool m_loaded;
+            /**
+             * @brief Weak reference to the PostgreSQL connection handle
+             *
+             * Using weak_ptr allows us to detect when the connection has been closed
+             * and avoid use-after-free errors. The connection owns the PGconn handle,
+             * so we must ensure it's still valid before using it.
+             */
+            std::weak_ptr<PGconn> m_conn;
+            Oid m_lobOid{0};
+            bool m_loaded{false};
+
+            /**
+             * @brief Get a locked pointer to the PostgreSQL connection handle
+             * @return Raw pointer to the PGconn handle
+             * @throws DBException if the connection has been closed
+             */
+            PGconn *getPGConnection() const
+            {
+                auto conn = m_conn.lock();
+                if (!conn)
+                {
+                    throw DBException("PG_BLOB_CONN_CLOSED", "Connection has been closed", system_utils::captureCallStack());
+                }
+                return conn.get();
+            }
 
         public:
-            // Constructor for creating a new BLOB
-            PostgreSQLBlob(PGconn *conn)
+            /**
+             * @brief Constructor for creating a new BLOB
+             * @param conn Shared pointer to the PostgreSQL connection handle
+             */
+            PostgreSQLBlob(std::shared_ptr<PGconn> conn)
                 : m_conn(conn), m_lobOid(0), m_loaded(true) {}
 
-            // Constructor for loading an existing BLOB by OID
-            PostgreSQLBlob(PGconn *conn, Oid oid)
+            /**
+             * @brief Constructor for loading an existing BLOB by OID
+             * @param conn Shared pointer to the PostgreSQL connection handle
+             * @param oid The OID of the large object to load
+             */
+            PostgreSQLBlob(std::shared_ptr<PGconn> conn, Oid oid)
                 : m_conn(conn), m_lobOid(oid), m_loaded(false) {}
 
-            // Constructor for creating a BLOB from existing data
-            PostgreSQLBlob(PGconn *conn, const std::vector<uint8_t> &initialData)
+            /**
+             * @brief Constructor for creating a BLOB from existing data
+             * @param conn Shared pointer to the PostgreSQL connection handle
+             * @param initialData The initial data for the BLOB
+             */
+            PostgreSQLBlob(std::shared_ptr<PGconn> conn, const std::vector<uint8_t> &initialData)
                 : MemoryBlob(initialData), m_conn(conn), m_lobOid(0), m_loaded(true) {}
 
-            // Load the BLOB data from the database if not already loaded
+            /**
+             * @brief Check if the connection is still valid
+             * @return true if the connection is still valid
+             */
+            bool isConnectionValid() const
+            {
+                return !m_conn.expired();
+            }
+
+            /**
+             * @brief Load the BLOB data from the database if not already loaded
+             *
+             * This method safely accesses the connection through the weak_ptr,
+             * ensuring the connection is still valid before attempting to read.
+             */
             void ensureLoaded()
             {
                 if (m_loaded || m_lobOid == 0)
                     return;
 
+                // Get PostgreSQL connection safely - throws if connection is closed
+                PGconn *conn = getPGConnection();
+
                 // Start a transaction if not already in one
-                PGresult *res = PQexec(m_conn, "BEGIN");
+                PGresult *res = PQexec(conn, "BEGIN");
                 if (PQresultStatus(res) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(res);
@@ -111,26 +168,26 @@ namespace cpp_dbc
                 PQclear(res);
 
                 // Open the large object
-                int fd = lo_open(m_conn, m_lobOid, INV_READ);
+                int fd = lo_open(conn, m_lobOid, INV_READ);
                 if (fd < 0)
                 {
-                    PQexec(m_conn, "ROLLBACK");
+                    PQexec(conn, "ROLLBACK");
                     throw DBException("L6O7B8O9P0E", "Failed to open large object: " + std::to_string(m_lobOid), system_utils::captureCallStack());
                 }
 
                 // Get the size of the large object
-                int loSize = lo_lseek(m_conn, fd, 0, SEEK_END);
-                lo_lseek(m_conn, fd, 0, SEEK_SET);
+                int loSize = lo_lseek(conn, fd, 0, SEEK_END);
+                lo_lseek(conn, fd, 0, SEEK_SET);
 
                 if (loSize > 0)
                 {
                     // Read the data
                     m_data.resize(loSize);
-                    int bytesRead = lo_read(m_conn, fd, reinterpret_cast<char *>(m_data.data()), loSize);
+                    int bytesRead = lo_read(conn, fd, reinterpret_cast<char *>(m_data.data()), loSize);
                     if (bytesRead != loSize)
                     {
-                        lo_close(m_conn, fd);
-                        PQexec(m_conn, "ROLLBACK");
+                        lo_close(conn, fd);
+                        PQexec(conn, "ROLLBACK");
                         throw DBException("N1R2E3A4D5L", "Failed to read large object data", system_utils::captureCallStack());
                     }
                 }
@@ -140,10 +197,10 @@ namespace cpp_dbc
                 }
 
                 // Close the large object
-                lo_close(m_conn, fd);
+                lo_close(conn, fd);
 
                 // Commit the transaction
-                res = PQexec(m_conn, "COMMIT");
+                res = PQexec(conn, "COMMIT");
                 if (PQresultStatus(res) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(res);
@@ -198,11 +255,22 @@ namespace cpp_dbc
                 MemoryBlob::truncate(len);
             }
 
-            // Save the BLOB data to the database
+            /**
+             * @brief Save the BLOB data to the database
+             *
+             * This method safely accesses the connection through the weak_ptr,
+             * ensuring the connection is still valid before attempting to write.
+             *
+             * @return The OID of the saved large object
+             * @throws DBException if the connection has been closed or if writing fails
+             */
             Oid save()
             {
+                // Get PostgreSQL connection safely - throws if connection is closed
+                PGconn *conn = getPGConnection();
+
                 // Start a transaction if not already in one
-                PGresult *res = PQexec(m_conn, "BEGIN");
+                PGresult *res = PQexec(conn, "BEGIN");
                 if (PQresultStatus(res) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(res);
@@ -214,42 +282,42 @@ namespace cpp_dbc
                 // Create a new large object if needed
                 if (m_lobOid == 0)
                 {
-                    m_lobOid = lo_creat(m_conn, INV_WRITE);
+                    m_lobOid = lo_creat(conn, INV_WRITE);
                     if (m_lobOid == 0)
                     {
-                        PQexec(m_conn, "ROLLBACK");
+                        PQexec(conn, "ROLLBACK");
                         throw DBException("C6R7E8A9T0E", "Failed to create large object", system_utils::captureCallStack());
                     }
                 }
 
                 // Open the large object
-                int fd = lo_open(m_conn, m_lobOid, INV_WRITE);
+                int fd = lo_open(conn, m_lobOid, INV_WRITE);
                 if (fd < 0)
                 {
-                    PQexec(m_conn, "ROLLBACK");
+                    PQexec(conn, "ROLLBACK");
                     throw DBException("O1P2E3N4W5R", "Failed to open large object for writing", system_utils::captureCallStack());
                 }
 
                 // Truncate the large object
-                lo_truncate(m_conn, fd, 0);
+                lo_truncate(conn, fd, 0);
 
                 // Write the data
                 if (!m_data.empty())
                 {
-                    int bytesWritten = lo_write(m_conn, fd, reinterpret_cast<const char *>(m_data.data()), m_data.size());
+                    int bytesWritten = lo_write(conn, fd, reinterpret_cast<const char *>(m_data.data()), m_data.size());
                     if (bytesWritten != static_cast<int>(m_data.size()))
                     {
-                        lo_close(m_conn, fd);
-                        PQexec(m_conn, "ROLLBACK");
+                        lo_close(conn, fd);
+                        PQexec(conn, "ROLLBACK");
                         throw DBException("W6R7I8T9E0D", "Failed to write large object data", system_utils::captureCallStack());
                     }
                 }
 
                 // Close the large object
-                lo_close(m_conn, fd);
+                lo_close(conn, fd);
 
                 // Commit the transaction
-                res = PQexec(m_conn, "COMMIT");
+                res = PQexec(conn, "COMMIT");
                 if (PQresultStatus(res) != PGRES_COMMAND_OK)
                 {
                     std::string error = PQresultErrorMessage(res);
@@ -271,22 +339,27 @@ namespace cpp_dbc
             {
                 if (m_lobOid != 0)
                 {
-                    // Start a transaction if not already in one
-                    PGresult *res = PQexec(m_conn, "BEGIN");
-                    if (PQresultStatus(res) == PGRES_COMMAND_OK)
+                    // Try to get the connection - if it's closed, just clear local state
+                    auto conn = m_conn.lock();
+                    if (conn)
                     {
-                        PQclear(res);
+                        // Start a transaction if not already in one
+                        PGresult *res = PQexec(conn.get(), "BEGIN");
+                        if (PQresultStatus(res) == PGRES_COMMAND_OK)
+                        {
+                            PQclear(res);
 
-                        // Delete the large object
-                        lo_unlink(m_conn, m_lobOid);
+                            // Delete the large object
+                            lo_unlink(conn.get(), m_lobOid);
 
-                        // Commit the transaction
-                        res = PQexec(m_conn, "COMMIT");
-                        PQclear(res);
-                    }
-                    else
-                    {
-                        PQclear(res);
+                            // Commit the transaction
+                            res = PQexec(conn.get(), "COMMIT");
+                            PQclear(res);
+                        }
+                        else
+                        {
+                            PQclear(res);
+                        }
                     }
 
                     m_lobOid = 0;

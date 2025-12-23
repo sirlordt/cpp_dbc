@@ -349,6 +349,7 @@ namespace cpp_dbc
         {
             friend class FirebirdPreparedStatement;
             friend class FirebirdResultSet;
+            friend class FirebirdBlob;
 
         private:
             FirebirdDbHandle m_db;
@@ -478,6 +479,31 @@ namespace cpp_dbc
              */
             bool parseURL(const std::string &url, std::string &host, int &port, std::string &database);
         };
+
+        // ============================================================================
+        // FirebirdBlob inline method implementations
+        // These must be defined after FirebirdConnection is fully defined
+        // ============================================================================
+
+        /**
+         * @brief Get the database handle from the connection
+         * @return Pointer to the database handle
+         */
+        inline isc_db_handle *FirebirdBlob::getDbHandle() const
+        {
+            auto conn = getConnection();
+            return conn->m_db.get();
+        }
+
+        /**
+         * @brief Get the transaction handle from the connection
+         * @return Pointer to the transaction handle
+         */
+        inline isc_tr_handle *FirebirdBlob::getTrHandle() const
+        {
+            auto conn = getConnection();
+            return &conn->m_tr;
+        }
 
     } // namespace Firebird
 } // namespace cpp_dbc

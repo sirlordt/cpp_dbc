@@ -351,7 +351,8 @@ namespace cpp_dbc
             size_t idx = columnIndex - 1;
             if (m_currentRow[idx] == nullptr)
             {
-                return std::make_shared<MySQL::MySQLBlob>(nullptr);
+                // Return an empty blob with no connection (data is already loaded)
+                return std::make_shared<MySQL::MySQLBlob>(std::shared_ptr<MYSQL>());
             }
 
             // Get the length of the BLOB data
@@ -362,6 +363,8 @@ namespace cpp_dbc
             }
 
             // Create a new BLOB object with the data
+            // Note: We pass an empty shared_ptr because the data is already loaded
+            // and the blob won't need to query the database
             std::vector<uint8_t> data;
             if (lengths[idx] > 0)
             {
@@ -369,7 +372,7 @@ namespace cpp_dbc
                 std::memcpy(data.data(), m_currentRow[idx], lengths[idx]);
             }
 
-            return std::make_shared<MySQL::MySQLBlob>(nullptr, data);
+            return std::make_shared<MySQL::MySQLBlob>(std::shared_ptr<MYSQL>(), data);
         }
 
         std::shared_ptr<Blob> MySQLResultSet::getBlob(const std::string &columnName)

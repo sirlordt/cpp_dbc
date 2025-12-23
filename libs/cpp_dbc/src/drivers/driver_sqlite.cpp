@@ -1554,7 +1554,7 @@ namespace cpp_dbc
 
             if (sqlite3_column_type(stmt, idx) == SQLITE_NULL)
             {
-                return std::make_shared<SQLite::SQLiteBlob>(nullptr);
+                return std::make_shared<SQLite::SQLiteBlob>(std::shared_ptr<sqlite3>());
             }
 
             // Check if the column is a BLOB type
@@ -1584,8 +1584,8 @@ namespace cpp_dbc
                                   system_utils::captureCallStack());
             }
 
-            // Create a new BLOB object with the data
-            return std::make_shared<SQLite::SQLiteBlob>(conn->m_db.get(), data);
+            // Create a new BLOB object with the data (pass shared_ptr for safe reference)
+            return std::make_shared<SQLite::SQLiteBlob>(conn->m_db, data);
         }
 
         std::shared_ptr<Blob> SQLiteResultSet::getBlob(const std::string &columnName)

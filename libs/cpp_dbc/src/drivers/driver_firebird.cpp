@@ -254,7 +254,7 @@ namespace cpp_dbc
                 ISC_QUAD *blobId = reinterpret_cast<ISC_QUAD *>(var->sqldata);
                 try
                 {
-                    auto blob = std::make_shared<FirebirdBlob>(conn->m_db.get(), &conn->m_tr, *blobId);
+                    auto blob = std::make_shared<FirebirdBlob>(conn, *blobId);
                     std::vector<uint8_t> data = blob->getBytes(0, blob->length());
                     return std::string(data.begin(), data.end());
                 }
@@ -564,8 +564,8 @@ namespace cpp_dbc
             }
 
             ISC_QUAD *blobId = reinterpret_cast<ISC_QUAD *>(var->sqldata);
-            // Access private members directly since FirebirdResultSet is a friend of FirebirdConnection
-            return std::make_shared<FirebirdBlob>(conn->m_db.get(), &conn->m_tr, *blobId);
+            // Use the connection-based constructor for memory safety
+            return std::make_shared<FirebirdBlob>(conn, *blobId);
         }
 
         std::shared_ptr<Blob> FirebirdResultSet::getBlob(const std::string &columnName)
@@ -931,14 +931,14 @@ namespace cpp_dbc
                 // Convert string to bytes and use setBytes
                 std::vector<uint8_t> data(value.begin(), value.end());
 
-                auto db = m_dbHandle.lock();
-                if (!db)
+                auto conn = m_connection.lock();
+                if (!conn)
                 {
                     throw DBException("E9F5A1B7C4D1", "Connection has been closed", system_utils::captureCallStack());
                 }
 
-                // Create a FirebirdBlob with the data
-                auto blob = std::make_shared<FirebirdBlob>(db.get(), m_trPtr, data);
+                // Create a FirebirdBlob with the data using the connection-based constructor
+                auto blob = std::make_shared<FirebirdBlob>(conn, data);
 
                 // Save the blob to the database and get its ID
                 ISC_QUAD blobId = blob->save();
@@ -1131,15 +1131,15 @@ namespace cpp_dbc
             {
                 // For Firebird BLOB parameters, we need to create a BLOB in the database
                 // and store its ID (ISC_QUAD) in the parameter buffer
-                auto db = m_dbHandle.lock();
-                if (!db)
+                auto conn = m_connection.lock();
+                if (!conn)
                 {
                     throw DBException("C3D9E5F1A8B5", "Connection has been closed", system_utils::captureCallStack());
                 }
 
-                // Create a FirebirdBlob with the data
+                // Create a FirebirdBlob with the data using the connection-based constructor
                 std::vector<uint8_t> blobData(x, x + length);
-                auto blob = std::make_shared<FirebirdBlob>(db.get(), m_trPtr, blobData);
+                auto blob = std::make_shared<FirebirdBlob>(conn, blobData);
 
                 // Save the blob to the database and get its ID
                 ISC_QUAD blobId = blob->save();

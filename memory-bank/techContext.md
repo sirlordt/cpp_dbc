@@ -117,11 +117,19 @@ The project is configured to work with the CMakeTools extension, but does not re
   - `shared_ptr` for connection handles (MySQL, PostgreSQL, SQLite, Firebird)
   - `unique_ptr` with custom deleters for result sets and prepared statements
   - `weak_ptr` for safe references from PreparedStatements to Connections
+  - `weak_ptr` for safe references from BLOB objects to Connections (prevents use-after-free)
 - Custom deleters ensure proper cleanup of database-specific resources:
   - `MySQLDeleter`, `MySQLStmtDeleter`, `MySQLResDeleter` for MySQL
   - `PGconnDeleter`, `PGresultDeleter` for PostgreSQL
   - `SQLiteDbDeleter`, `SQLiteStmtDeleter` for SQLite
   - `FirebirdDbDeleter`, `FirebirdStmtDeleter` for Firebird
+- BLOB implementations use `weak_ptr` for safe connection references:
+  - `FirebirdBlob`: Uses `weak_ptr<FirebirdConnection>` with `getConnection()` helper
+  - `MySQLBlob`: Uses `weak_ptr<MYSQL>` with `getMySQLConnection()` helper
+  - `PostgreSQLBlob`: Uses `weak_ptr<PGconn>` with `getPGConnection()` helper
+  - `SQLiteBlob`: Uses `weak_ptr<sqlite3>` with `getSQLiteConnection()` helper
+  - All BLOB classes have `isConnectionValid()` method to check connection state
+  - Operations throw `DBException` if connection has been closed
 - Relies on RAII for proper cleanup even in case of exceptions
 - No explicit memory management required from client code
 - Comprehensive warning flags to catch memory-related issues:

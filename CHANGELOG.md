@@ -1,6 +1,45 @@
 # Changelog
 
-## 2025-12-21 11:22:26 PM PST [Current]
+## 2025-12-22 08:15:09 PM PST [Current]
+
+### BLOB Memory Safety Improvements with Smart Pointers
+* Migrated all BLOB implementations from raw pointers to smart pointers for improved memory safety:
+  * **Firebird BLOB:**
+    * Changed from raw `isc_db_handle*` and `isc_tr_handle*` to `std::weak_ptr<FirebirdConnection>`
+    * Added `getConnection()` helper method that throws `DBException` if connection is closed
+    * Added `getDbHandle()` and `getTrHandle()` inline methods for safe handle access
+    * Added `FirebirdBlob` as friend class to `FirebirdConnection` for private member access
+    * Updated all BLOB operations to use connection-based constructor
+  * **MySQL BLOB:**
+    * Changed from raw `MYSQL*` to `std::weak_ptr<MYSQL>`
+    * Added `getMySQLConnection()` helper method that throws `DBException` if connection is closed
+    * Added `isConnectionValid()` method to check connection state
+    * Updated constructors to accept `std::shared_ptr<MYSQL>`
+  * **PostgreSQL BLOB:**
+    * Changed from raw `PGconn*` to `std::weak_ptr<PGconn>`
+    * Added `getPGConnection()` helper method that throws `DBException` if connection is closed
+    * Added `isConnectionValid()` method to check connection state
+    * Updated all large object operations to use safe connection access
+    * Improved `remove()` method to gracefully handle closed connections
+  * **SQLite BLOB:**
+    * Changed from raw `sqlite3*` to `std::weak_ptr<sqlite3>`
+    * Added `getSQLiteConnection()` helper method that throws `DBException` if connection is closed
+    * Added `isConnectionValid()` method to check connection state
+    * Updated constructors to accept `std::shared_ptr<sqlite3>`
+* Updated driver implementations to use new BLOB constructors:
+  * Updated `FirebirdResultSet::getBlob()` to use connection-based constructor
+  * Updated `FirebirdPreparedStatement::setString()` and `setBytes()` to use connection-based constructor
+  * Updated `MySQLResultSet::getBlob()` to pass empty `shared_ptr` for data-only blobs
+  * Updated `PostgreSQLResultSet::getBlob()` to pass empty `shared_ptr` for data-only blobs
+  * Updated `SQLiteResultSet::getBlob()` to pass `shared_ptr` for safe reference
+* Benefits of BLOB smart pointer migration:
+  * Automatic detection of closed connections via `weak_ptr::lock()`
+  * Prevention of use-after-free errors when connection is closed while BLOB is in use
+  * Clear ownership semantics with `weak_ptr` for non-owning references
+  * Comprehensive error messages with unique error codes for debugging
+  * Graceful handling of connection closure in cleanup operations
+
+## 2025-12-21 11:22:26 PM PST
 
 ### Firebird Driver Database Creation and Error Handling Improvements
 * Added database creation support to Firebird driver:

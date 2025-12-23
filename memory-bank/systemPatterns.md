@@ -118,6 +118,14 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 - File-based implementations for file I/O operations
 - Database-specific BLOB implementations for each supported database
 - Streaming support for efficient handling of large binary data
+- Memory safety with smart pointers:
+  - All BLOB implementations use `weak_ptr` for safe connection references
+  - `FirebirdBlob`: Uses `weak_ptr<FirebirdConnection>` with `getConnection()` helper
+  - `MySQLBlob`: Uses `weak_ptr<MYSQL>` with `getMySQLConnection()` helper
+  - `PostgreSQLBlob`: Uses `weak_ptr<PGconn>` with `getPGConnection()` helper
+  - `SQLiteBlob`: Uses `weak_ptr<sqlite3>` with `getSQLiteConnection()` helper
+  - All BLOB classes have `isConnectionValid()` method to check connection state
+  - Operations throw `DBException` if connection has been closed (prevents use-after-free)
 
 ### JSON Management
 - Database-specific JSON implementations for MySQL and PostgreSQL

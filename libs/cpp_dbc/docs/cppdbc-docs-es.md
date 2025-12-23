@@ -159,6 +159,17 @@ Una clase gestora para registrar y recuperar instancias de controladores.
 
 CPP_DBC proporciona soporte completo para objetos binarios grandes (BLOB) en todas las bases de datos soportadas. La implementación sigue un diseño similar a JDBC, con clases base abstractas y implementaciones específicas para cada motor de base de datos.
 
+### Seguridad de Memoria en BLOB
+
+Todas las implementaciones de BLOB utilizan punteros inteligentes (`std::weak_ptr`) para referencias seguras a la conexión:
+
+- **FirebirdBlob**: Usa `weak_ptr<FirebirdConnection>` con el método auxiliar `getConnection()`
+- **MySQLBlob**: Usa `weak_ptr<MYSQL>` con el método auxiliar `getMySQLConnection()`
+- **PostgreSQLBlob**: Usa `weak_ptr<PGconn>` con el método auxiliar `getPGConnection()`
+- **SQLiteBlob**: Usa `weak_ptr<sqlite3>` con el método auxiliar `getSQLiteConnection()`
+
+Todas las clases BLOB tienen un método `isConnectionValid()` para verificar si la conexión sigue siendo válida. Las operaciones lanzan `DBException` si la conexión ha sido cerrada, previniendo errores de uso después de liberación (use-after-free).
+
 ### Clases Base
 
 #### MemoryInputStream

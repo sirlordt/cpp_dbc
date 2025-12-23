@@ -15,6 +15,14 @@
 
 ## Completed Tasks
 
+- BLOB memory safety improvements with smart pointers:
+  - Migrated all BLOB implementations from raw pointers to weak_ptr for safe connection references
+  - FirebirdBlob: Uses weak_ptr<FirebirdConnection> with getConnection() helper
+  - MySQLBlob: Uses weak_ptr<MYSQL> with getMySQLConnection() helper
+  - PostgreSQLBlob: Uses weak_ptr<PGconn> with getPGConnection() helper
+  - SQLiteBlob: Uses weak_ptr<sqlite3> with getSQLiteConnection() helper
+  - Added isConnectionValid() method to all BLOB classes
+  - Operations throw DBException if connection has been closed (prevents use-after-free)
 - Firebird driver database creation and improved error handling:
   - Added `createDatabase()` method to FirebirdDriver for creating new databases
   - Added `command()` method for driver-specific commands

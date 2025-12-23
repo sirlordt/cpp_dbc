@@ -852,7 +852,8 @@ namespace cpp_dbc
 
             if (PQgetisnull(m_result.get(), row, idx))
             {
-                return std::make_shared<PostgreSQLBlob>(nullptr);
+                // Return an empty blob with no connection (data is already loaded)
+                return std::make_shared<PostgreSQLBlob>(std::shared_ptr<PGconn>());
             }
 
             // Check if the column is a bytea type
@@ -871,7 +872,9 @@ namespace cpp_dbc
             std::vector<uint8_t> data = getBytes(columnIndex);
 
             // Create a PostgreSQLBlob with the data
-            return std::make_shared<PostgreSQLBlob>(nullptr, data);
+            // Note: We pass an empty shared_ptr because the data is already loaded
+            // and the blob won't need to query the database
+            return std::make_shared<PostgreSQLBlob>(std::shared_ptr<PGconn>(), data);
         }
 
         std::shared_ptr<Blob> PostgreSQLResultSet::getBlob(const std::string &columnName)

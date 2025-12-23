@@ -36,7 +36,7 @@ namespace cpp_dbc
         {
         private:
             const std::vector<uint8_t> m_data;
-            size_t m_position;
+            size_t m_position{0};
 
         public:
             MySQLInputStream(const char *buffer, size_t length)
@@ -64,36 +64,95 @@ namespace cpp_dbc
             }
         };
 
-        // MySQL implementation of Blob
+        /**
+         * @brief MySQL implementation of Blob using smart pointers for memory safety
+         *
+         * This class uses std::weak_ptr to safely reference the MySQL connection handle,
+         * preventing dangling pointer issues if the connection is closed while the
+         * blob is still in use. All operations that require database access will
+         * check if the connection is still valid before proceeding.
+         */
         class MySQLBlob : public MemoryBlob
         {
         private:
-            MYSQL *m_mysql;
+            /**
+             * @brief Weak reference to the MySQL connection handle
+             *
+             * Using weak_ptr allows us to detect when the connection has been closed
+             * and avoid use-after-free errors. The connection owns the MYSQL handle,
+             * so we must ensure it's still valid before using it.
+             */
+            std::weak_ptr<MYSQL> m_mysql;
             std::string m_tableName;
             std::string m_columnName;
             std::string m_whereClause;
-            bool m_loaded;
+            bool m_loaded{false};
+
+            /**
+             * @brief Get a locked pointer to the MySQL handle
+             * @return Raw pointer to the MYSQL handle
+             * @throws DBException if the connection has been closed
+             */
+            MYSQL *getMySQLHandle() const
+            {
+                auto mysql = m_mysql.lock();
+                if (!mysql)
+                {
+                    throw DBException("MYSQL_BLOB_CONN_CLOSED", "Connection has been closed", system_utils::captureCallStack());
+                }
+                return mysql.get();
+            }
 
         public:
-            // Constructor for creating a new BLOB
-            MySQLBlob(MYSQL *mysql)
+            /**
+             * @brief Constructor for creating a new BLOB
+             * @param mysql Shared pointer to the MySQL connection handle
+             */
+            MySQLBlob(std::shared_ptr<MYSQL> mysql)
                 : m_mysql(mysql), m_loaded(true) {}
 
-            // Constructor for loading an existing BLOB
-            MySQLBlob(MYSQL *mysql, const std::string &tableName,
+            /**
+             * @brief Constructor for loading an existing BLOB
+             * @param mysql Shared pointer to the MySQL connection handle
+             * @param tableName The table containing the BLOB
+             * @param columnName The column containing the BLOB
+             * @param whereClause The WHERE clause to identify the row
+             */
+            MySQLBlob(std::shared_ptr<MYSQL> mysql, const std::string &tableName,
                       const std::string &columnName, const std::string &whereClause)
                 : m_mysql(mysql), m_tableName(tableName), m_columnName(columnName),
                   m_whereClause(whereClause), m_loaded(false) {}
 
-            // Constructor for creating a BLOB from existing data
-            MySQLBlob(MYSQL *mysql, const std::vector<uint8_t> &initialData)
+            /**
+             * @brief Constructor for creating a BLOB from existing data
+             * @param mysql Shared pointer to the MySQL connection handle
+             * @param initialData The initial data for the BLOB
+             */
+            MySQLBlob(std::shared_ptr<MYSQL> mysql, const std::vector<uint8_t> &initialData)
                 : MemoryBlob(initialData), m_mysql(mysql), m_loaded(true) {}
 
-            // Load the BLOB data from the database if not already loaded
+            /**
+             * @brief Check if the connection is still valid
+             * @return true if the connection is still valid
+             */
+            bool isConnectionValid() const
+            {
+                return !m_mysql.expired();
+            }
+
+            /**
+             * @brief Load the BLOB data from the database if not already loaded
+             *
+             * This method safely accesses the connection through the weak_ptr,
+             * ensuring the connection is still valid before attempting to read.
+             */
             void ensureLoaded()
             {
                 if (m_loaded)
                     return;
+
+                // Get MySQL handle safely - throws if connection is closed
+                MYSQL *mysql = getMySQLHandle();
 
                 // Construct a query to fetch the BLOB data
                 std::string query = "SELECT " + m_columnName + " FROM " + m_tableName;
@@ -101,16 +160,16 @@ namespace cpp_dbc
                     query += " WHERE " + m_whereClause;
 
                 // Execute the query
-                if (mysql_query(m_mysql, query.c_str()) != 0)
+                if (mysql_query(mysql, query.c_str()) != 0)
                 {
-                    throw DBException("M1Y2S3Q4L5B", "Failed to fetch BLOB data: " + std::string(mysql_error(m_mysql)), system_utils::captureCallStack());
+                    throw DBException("M1Y2S3Q4L5B", "Failed to fetch BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
                 }
 
                 // Get the result
-                MYSQL_RES *result = mysql_store_result(m_mysql);
+                MYSQL_RES *result = mysql_store_result(mysql);
                 if (!result)
                 {
-                    throw DBException("L6O7B8R9E0S", "Failed to get result set for BLOB data: " + std::string(mysql_error(m_mysql)), system_utils::captureCallStack());
+                    throw DBException("L6O7B8R9E0S", "Failed to get result set for BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
                 }
 
                 // Get the row
@@ -188,19 +247,29 @@ namespace cpp_dbc
                 MemoryBlob::truncate(len);
             }
 
-            // Save the BLOB data back to the database
+            /**
+             * @brief Save the BLOB data back to the database
+             *
+             * This method safely accesses the connection through the weak_ptr,
+             * ensuring the connection is still valid before attempting to write.
+             *
+             * @throws DBException if the connection has been closed or if writing fails
+             */
             void save()
             {
                 if (m_tableName.empty() || m_columnName.empty() || m_whereClause.empty())
                     return; // Nothing to save
 
+                // Get MySQL handle safely - throws if connection is closed
+                MYSQL *mysql = getMySQLHandle();
+
                 // Prepare a statement to update the BLOB data
                 std::string query = "UPDATE " + m_tableName + " SET " + m_columnName + " = ? WHERE " + m_whereClause;
 
-                MYSQL_STMT *stmt = mysql_stmt_init(m_mysql);
+                MYSQL_STMT *stmt = mysql_stmt_init(mysql);
                 if (!stmt)
                 {
-                    throw DBException("G1T2H3I4N5I", "Failed to initialize statement for BLOB update: " + std::string(mysql_error(m_mysql)), system_utils::captureCallStack());
+                    throw DBException("G1T2H3I4N5I", "Failed to initialize statement for BLOB update: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
                 }
 
                 if (mysql_stmt_prepare(stmt, query.c_str(), query.length()) != 0)

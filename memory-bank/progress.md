@@ -181,7 +181,30 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **Firebird Driver Database Creation and Error Handling Improvements** (2025-12-21):
+1. **BLOB Memory Safety Improvements with Smart Pointers** (2025-12-22):
+   - Migrated all BLOB implementations from raw pointers to smart pointers for improved memory safety:
+     - **Firebird BLOB:**
+       - Changed from raw `isc_db_handle*` and `isc_tr_handle*` to `std::weak_ptr<FirebirdConnection>`
+       - Added `getConnection()` helper method that throws `DBException` if connection is closed
+       - Added `getDbHandle()` and `getTrHandle()` inline methods for safe handle access
+       - Added `FirebirdBlob` as friend class to `FirebirdConnection` for private member access
+     - **MySQL BLOB:**
+       - Changed from raw `MYSQL*` to `std::weak_ptr<MYSQL>`
+       - Added `getMySQLConnection()` helper method that throws `DBException` if connection is closed
+       - Added `isConnectionValid()` method to check connection state
+     - **PostgreSQL BLOB:**
+       - Changed from raw `PGconn*` to `std::weak_ptr<PGconn>`
+       - Added `getPGConnection()` helper method that throws `DBException` if connection is closed
+       - Added `isConnectionValid()` method to check connection state
+       - Improved `remove()` method to gracefully handle closed connections
+     - **SQLite BLOB:**
+       - Changed from raw `sqlite3*` to `std::weak_ptr<sqlite3>`
+       - Added `getSQLiteConnection()` helper method that throws `DBException` if connection is closed
+       - Added `isConnectionValid()` method to check connection state
+   - Updated driver implementations to use new BLOB constructors
+   - Benefits: Automatic detection of closed connections, prevention of use-after-free errors, clear ownership semantics
+
+2. **Firebird Driver Database Creation and Error Handling Improvements** (2025-12-21):
    - Added database creation support to Firebird driver:
      - Added `createDatabase()` method to `FirebirdDriver` for creating new Firebird databases
      - Added `command()` method for executing driver-specific commands

@@ -40,7 +40,7 @@ namespace cpp_dbc
         {
         private:
             const std::vector<uint8_t> m_data;
-            size_t m_position;
+            size_t m_position{0};
 
         public:
             FirebirdInputStream(const void *buffer, size_t length)
@@ -71,48 +71,112 @@ namespace cpp_dbc
         // Forward declaration for weak_ptr usage
         class FirebirdConnection;
 
-        // Firebird implementation of Blob
+        /**
+         * @brief Firebird implementation of Blob using smart pointers for memory safety
+         *
+         * This class uses std::weak_ptr to safely reference the FirebirdConnection,
+         * preventing dangling pointer issues if the connection is closed while the
+         * blob is still in use. All operations that require database access will
+         * check if the connection is still valid before proceeding.
+         */
         class FirebirdBlob : public MemoryBlob
         {
         private:
-            isc_db_handle *m_db;
-            isc_tr_handle *m_tr;
+            /**
+             * @brief Weak reference to the Firebird connection
+             *
+             * Using weak_ptr allows us to detect when the connection has been closed
+             * and avoid use-after-free errors. The connection owns the database and
+             * transaction handles, so we must ensure it's still valid before using them.
+             */
+            std::weak_ptr<FirebirdConnection> m_connection;
+
             ISC_QUAD m_blobId;
-            bool m_loaded;
-            bool m_hasValidId;
+            bool m_loaded{false};
+            bool m_hasValidId{false};
+
+            /**
+             * @brief Get a locked shared_ptr to the connection
+             * @return shared_ptr to the connection
+             * @throws DBException if the connection has been closed
+             */
+            std::shared_ptr<FirebirdConnection> getConnection() const
+            {
+                auto conn = m_connection.lock();
+                if (!conn)
+                {
+                    throw DBException("FB_BLOB_CONN_CLOSED", "Connection has been closed", system_utils::captureCallStack());
+                }
+                return conn;
+            }
+
+            /**
+             * @brief Get the database handle from the connection
+             * @return Pointer to the database handle
+             * @note This method is implemented after FirebirdConnection is defined
+             */
+            isc_db_handle *getDbHandle() const;
+
+            /**
+             * @brief Get the transaction handle from the connection
+             * @return Pointer to the transaction handle
+             * @note This method is implemented after FirebirdConnection is defined
+             */
+            isc_tr_handle *getTrHandle() const;
 
         public:
-            // Constructor for creating a new BLOB
-            FirebirdBlob(isc_db_handle *db, isc_tr_handle *tr)
-                : m_db(db), m_tr(tr), m_loaded(true), m_hasValidId(false)
+            /**
+             * @brief Constructor for creating a new BLOB
+             * @param connection Shared pointer to the Firebird connection
+             */
+            FirebirdBlob(std::shared_ptr<FirebirdConnection> connection)
+                : m_connection(connection), m_loaded(true), m_hasValidId(false)
             {
                 m_blobId.gds_quad_high = 0;
                 m_blobId.gds_quad_low = 0;
             }
 
-            // Constructor for loading an existing BLOB by ID
-            FirebirdBlob(isc_db_handle *db, isc_tr_handle *tr, ISC_QUAD blobId)
-                : m_db(db), m_tr(tr), m_blobId(blobId), m_loaded(false), m_hasValidId(true) {}
+            /**
+             * @brief Constructor for loading an existing BLOB by ID
+             * @param connection Shared pointer to the Firebird connection
+             * @param blobId The BLOB ID to load
+             */
+            FirebirdBlob(std::shared_ptr<FirebirdConnection> connection, ISC_QUAD blobId)
+                : m_connection(connection), m_blobId(blobId), m_loaded(false), m_hasValidId(true) {}
 
-            // Constructor for creating a BLOB from existing data
-            FirebirdBlob(isc_db_handle *db, isc_tr_handle *tr, const std::vector<uint8_t> &initialData)
-                : MemoryBlob(initialData), m_db(db), m_tr(tr), m_loaded(true), m_hasValidId(false)
+            /**
+             * @brief Constructor for creating a BLOB from existing data
+             * @param connection Shared pointer to the Firebird connection
+             * @param initialData The initial data for the BLOB
+             */
+            FirebirdBlob(std::shared_ptr<FirebirdConnection> connection, const std::vector<uint8_t> &initialData)
+                : MemoryBlob(initialData), m_connection(connection), m_loaded(true), m_hasValidId(false)
             {
                 m_blobId.gds_quad_high = 0;
                 m_blobId.gds_quad_low = 0;
             }
 
-            // Load the BLOB data from the database if not already loaded
+            /**
+             * @brief Load the BLOB data from the database if not already loaded
+             *
+             * This method safely accesses the connection through the weak_ptr,
+             * ensuring the connection is still valid before attempting to read.
+             */
             void ensureLoaded()
             {
                 if (m_loaded || !m_hasValidId)
                     return;
 
+                // Get connection safely - throws if connection is closed
+                auto conn = getConnection();
+                isc_db_handle *db = getDbHandle();
+                isc_tr_handle *tr = getTrHandle();
+
                 ISC_STATUS_ARRAY status;
                 isc_blob_handle blobHandle = 0;
 
                 // Open the blob
-                if (isc_open_blob2(status, m_db, m_tr, &blobHandle, &m_blobId, 0, nullptr))
+                if (isc_open_blob2(status, db, tr, &blobHandle, &m_blobId, 0, nullptr))
                 {
                     throw DBException("K3M7N9P2Q5R8", "Failed to open BLOB for reading", system_utils::captureCallStack());
                 }
@@ -200,14 +264,27 @@ namespace cpp_dbc
                 MemoryBlob::truncate(len);
             }
 
-            // Save the BLOB data to the database and return the blob ID
+            /**
+             * @brief Save the BLOB data to the database and return the blob ID
+             *
+             * This method safely accesses the connection through the weak_ptr,
+             * ensuring the connection is still valid before attempting to write.
+             *
+             * @return The BLOB ID that can be used to reference this BLOB
+             * @throws DBException if the connection has been closed or if writing fails
+             */
             ISC_QUAD save()
             {
+                // Get connection safely - throws if connection is closed
+                auto conn = getConnection();
+                isc_db_handle *db = getDbHandle();
+                isc_tr_handle *tr = getTrHandle();
+
                 ISC_STATUS_ARRAY status;
                 isc_blob_handle blobHandle = 0;
 
                 // Create a new blob
-                if (isc_create_blob2(status, m_db, m_tr, &blobHandle, &m_blobId, 0, nullptr))
+                if (isc_create_blob2(status, db, tr, &blobHandle, &m_blobId, 0, nullptr))
                 {
                     throw DBException("N6Q0R2S8T4U1", "Failed to create BLOB for writing", system_utils::captureCallStack());
                 }
@@ -241,16 +318,31 @@ namespace cpp_dbc
                 return m_blobId;
             }
 
-            // Get the BLOB ID
+            /**
+             * @brief Get the BLOB ID
+             * @return The BLOB ID
+             */
             ISC_QUAD getBlobId() const
             {
                 return m_blobId;
             }
 
-            // Check if the blob has a valid ID
+            /**
+             * @brief Check if the blob has a valid ID
+             * @return true if the blob has been saved and has a valid ID
+             */
             bool hasValidId() const
             {
                 return m_hasValidId;
+            }
+
+            /**
+             * @brief Check if the connection is still valid
+             * @return true if the connection is still valid
+             */
+            bool isConnectionValid() const
+            {
+                return !m_connection.expired();
             }
 
             void free() override

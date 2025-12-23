@@ -36,7 +36,7 @@ namespace cpp_dbc
         {
         private:
             const std::vector<uint8_t> m_data;
-            size_t m_position;
+            size_t m_position{0};
 
         public:
             SQLiteInputStream(const void *buffer, size_t length)
@@ -68,25 +68,56 @@ namespace cpp_dbc
         class SQLiteBlob : public MemoryBlob
         {
         private:
-            sqlite3 *m_db;
+            /**
+             * @brief Safe weak reference to SQLite connection - detects when connection is closed
+             *
+             * Uses weak_ptr to safely detect when the connection has been closed,
+             * preventing use-after-free errors. The connection is managed by SQLiteConnection
+             * using shared_ptr with custom deleter.
+             */
+            std::weak_ptr<sqlite3> m_db;
             std::string m_tableName;
             std::string m_columnName;
             std::string m_rowId;
-            bool m_loaded;
+            bool m_loaded{false};
+
+            /**
+             * @brief Helper method to get sqlite3* safely, throws if connection is closed
+             * @return The sqlite3 connection pointer
+             * @throws DBException if the connection has been closed
+             */
+            sqlite3 *getSQLiteConnection() const
+            {
+                auto conn = m_db.lock();
+                if (!conn)
+                {
+                    throw DBException("SQLITE_BLOB_CONN_CLOSED", "SQLite connection has been closed", system_utils::captureCallStack());
+                }
+                return conn.get();
+            }
 
         public:
-            // Constructor for creating a new BLOB
-            SQLiteBlob(sqlite3 *db)
+            /**
+             * @brief Check if the database connection is still valid
+             * @return true if connection is valid, false if it has been closed
+             */
+            bool isConnectionValid() const
+            {
+                return !m_db.expired();
+            }
+
+            // Constructor for creating a new BLOB (empty shared_ptr for data-only blobs)
+            SQLiteBlob(std::shared_ptr<sqlite3> db)
                 : m_db(db), m_loaded(true) {}
 
             // Constructor for loading an existing BLOB
-            SQLiteBlob(sqlite3 *db, const std::string &tableName,
+            SQLiteBlob(std::shared_ptr<sqlite3> db, const std::string &tableName,
                        const std::string &columnName, const std::string &rowId)
                 : m_db(db), m_tableName(tableName), m_columnName(columnName),
                   m_rowId(rowId), m_loaded(false) {}
 
             // Constructor for creating a BLOB from existing data
-            SQLiteBlob(sqlite3 *db, const std::vector<uint8_t> &initialData)
+            SQLiteBlob(std::shared_ptr<sqlite3> db, const std::vector<uint8_t> &initialData)
                 : MemoryBlob(initialData), m_db(db), m_loaded(true) {}
 
             // Load the BLOB data from the database if not already loaded
@@ -95,15 +126,18 @@ namespace cpp_dbc
                 if (m_loaded || m_tableName.empty() || m_columnName.empty() || m_rowId.empty())
                     return;
 
+                // Get the SQLite connection safely (throws if connection is closed)
+                sqlite3 *db = getSQLiteConnection();
+
                 // Construct a query to fetch the BLOB data
                 std::string query = "SELECT " + m_columnName + " FROM " + m_tableName + " WHERE rowid = " + m_rowId;
 
                 // Prepare the statement
                 sqlite3_stmt *stmt = nullptr;
-                int result = sqlite3_prepare_v2(m_db, query.c_str(), -1, &stmt, nullptr);
+                int result = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("4AE05442DB70", "Failed to prepare statement for BLOB loading: " + std::string(sqlite3_errmsg(m_db)), system_utils::captureCallStack());
+                    throw DBException("4AE05442DB70", "Failed to prepare statement for BLOB loading: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Execute the statement
@@ -128,7 +162,7 @@ namespace cpp_dbc
                 else
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("D281D99D6FAC", "Failed to fetch BLOB data: " + std::string(sqlite3_errmsg(m_db)), system_utils::captureCallStack());
+                    throw DBException("D281D99D6FAC", "Failed to fetch BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Finalize the statement
@@ -185,15 +219,18 @@ namespace cpp_dbc
                 if (m_tableName.empty() || m_columnName.empty() || m_rowId.empty())
                     return; // Nothing to save
 
+                // Get the SQLite connection safely (throws if connection is closed)
+                sqlite3 *db = getSQLiteConnection();
+
                 // Construct a query to update the BLOB data
                 std::string query = "UPDATE " + m_tableName + " SET " + m_columnName + " = ? WHERE rowid = " + m_rowId;
 
                 // Prepare the statement
                 sqlite3_stmt *stmt = nullptr;
-                int result = sqlite3_prepare_v2(m_db, query.c_str(), -1, &stmt, nullptr);
+                int result = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("78BBDB81BED9", "Failed to prepare statement for BLOB saving: " + std::string(sqlite3_errmsg(m_db)), system_utils::captureCallStack());
+                    throw DBException("78BBDB81BED9", "Failed to prepare statement for BLOB saving: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Bind the BLOB data
@@ -201,7 +238,7 @@ namespace cpp_dbc
                 if (result != SQLITE_OK)
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("6C9619BE36A2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(m_db)), system_utils::captureCallStack());
+                    throw DBException("6C9619BE36A2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Execute the statement
@@ -209,7 +246,7 @@ namespace cpp_dbc
                 if (result != SQLITE_DONE)
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("8DB1A784821C", "Failed to save BLOB data: " + std::string(sqlite3_errmsg(m_db)), system_utils::captureCallStack());
+                    throw DBException("8DB1A784821C", "Failed to save BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Finalize the statement
