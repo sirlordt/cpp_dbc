@@ -56,10 +56,10 @@ TEST_CASE("Firebird INNER JOIN operations", "[firebird_real_inner_join]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the Firebird driver
-    cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
+    cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
     // Get a connection
-    auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+    auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
     REQUIRE(conn != nullptr);
 
     // Create test tables - Firebird uses different syntax

@@ -36,7 +36,7 @@
 #include <functional>
 
 // Helper function to print query results
-void printResults(std::shared_ptr<cpp_dbc::ResultSet> rs)
+void printResults(std::shared_ptr<cpp_dbc::RelationalDBResultSet> rs)
 {
     // Get column names
     auto columnNames = rs->getColumnNames();
@@ -84,7 +84,7 @@ void printResults(std::shared_ptr<cpp_dbc::ResultSet> rs)
 }
 
 // Function to set up test database schema and data
-void setupDatabase(std::shared_ptr<cpp_dbc::Connection> conn)
+void setupDatabase(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "Setting up test database schema and data..." << std::endl;
 
@@ -206,7 +206,7 @@ void setupDatabase(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate INNER JOIN
-void demonstrateInnerJoin(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateInnerJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== INNER JOIN Example ===\n"
               << std::endl;
@@ -224,7 +224,7 @@ void demonstrateInnerJoin(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate LEFT JOIN
-void demonstrateLeftJoin(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateLeftJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== LEFT JOIN Example ===\n"
               << std::endl;
@@ -243,7 +243,7 @@ void demonstrateLeftJoin(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate RIGHT JOIN
-void demonstrateRightJoin(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateRightJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== RIGHT JOIN Example ===\n"
               << std::endl;
@@ -262,7 +262,7 @@ void demonstrateRightJoin(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate FULL JOIN (not supported in MySQL, simulated with UNION)
-void demonstrateFullJoin(std::shared_ptr<cpp_dbc::Connection> conn, bool isMySQL)
+void demonstrateFullJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn, bool isMySQL)
 {
     std::cout << "\n=== FULL JOIN Example ===\n"
               << std::endl;
@@ -305,7 +305,7 @@ void demonstrateFullJoin(std::shared_ptr<cpp_dbc::Connection> conn, bool isMySQL
 }
 
 // Function to demonstrate CROSS JOIN
-void demonstrateCrossJoin(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateCrossJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== CROSS JOIN Example ===\n"
               << std::endl;
@@ -333,7 +333,7 @@ void demonstrateCrossJoin(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate SELF JOIN
-void demonstrateSelfJoin(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateSelfJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== SELF JOIN Example ===\n"
               << std::endl;
@@ -351,7 +351,7 @@ void demonstrateSelfJoin(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate JOIN with aggregate functions
-void demonstrateJoinWithAggregates(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateJoinWithAggregates(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== JOIN with Aggregate Functions Example ===\n"
               << std::endl;
@@ -372,7 +372,7 @@ void demonstrateJoinWithAggregates(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate multi-table JOIN
-void demonstrateMultiTableJoin(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateMultiTableJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Multi-Table JOIN Example ===\n"
               << std::endl;
@@ -394,7 +394,7 @@ void demonstrateMultiTableJoin(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate JOIN with subquery
-void demonstrateJoinWithSubquery(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateJoinWithSubquery(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== JOIN with Subquery Example ===\n"
               << std::endl;
@@ -419,14 +419,14 @@ int main()
     {
         // Register database drivers
 #if USE_MYSQL
-        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
         // Connect to MySQL
         std::cout << "Connecting to MySQL..." << std::endl;
-        auto mysqlConn = cpp_dbc::DriverManager::getConnection(
+        auto mysqlConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:mysql://localhost:3306/testdb",
             "username",
-            "password");
+            "password"));
 
         // Set up database schema and data
         setupDatabase(mysqlConn);
@@ -454,14 +454,14 @@ int main()
 #endif
 
 #if USE_POSTGRESQL
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Connect to PostgreSQL
         std::cout << "\nConnecting to PostgreSQL..." << std::endl;
-        auto pgConn = cpp_dbc::DriverManager::getConnection(
+        auto pgConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:postgresql://localhost:5432/testdb",
             "username",
-            "password");
+            "password"));
 
         // Set up database schema and data
         setupDatabase(pgConn);

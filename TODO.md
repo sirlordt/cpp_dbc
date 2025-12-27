@@ -15,6 +15,14 @@
 
 ## Completed Tasks
 
+- API naming convention refactoring:
+  - Renamed driver classes: MySQLDriver → MySQLDBDriver, PostgreSQLDriver → PostgreSQLDBDriver, SQLiteDriver → SQLiteDBDriver, FirebirdDriver → FirebirdDBDriver
+  - Renamed connection class: Connection → RelationalDBConnection
+  - Renamed config class: ConnectionPoolConfig → DBConnectionPoolConfig
+  - Renamed DriverManager method: getConnection() → getDBConnection()
+  - Renamed TransactionManager method: getTransactionConnection() → getTransactionDBConnection()
+  - Renamed Driver method: connect() → connectRelational()
+  - Updated all benchmarks, tests, and examples to use new naming convention
 - BLOB memory safety improvements with smart pointers:
   - Migrated all BLOB implementations from raw pointers to weak_ptr for safe connection references
   - FirebirdBlob: Uses weak_ptr<FirebirdConnection> with getConnection() helper

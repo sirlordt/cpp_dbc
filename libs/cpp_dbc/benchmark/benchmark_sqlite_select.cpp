@@ -24,7 +24,7 @@
 static void BM_SQLite_Select_Small_AllColumns(benchmark::State &state)
 {
     const std::string tableName = "benchmark_sqlite_select_small_all";
-    std::shared_ptr<cpp_dbc::Connection> conn;
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> conn;
 
     cpp_dbc::system_utils::logWithTimestampInfo("Setting up SQLite connection and table '" + tableName + "' with test data...");
     conn = sqlite_benchmark_helpers::setupSQLiteConnection(tableName, common_benchmark_helpers::SMALL_SIZE);

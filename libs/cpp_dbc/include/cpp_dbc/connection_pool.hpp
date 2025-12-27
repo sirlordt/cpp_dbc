@@ -22,16 +22,10 @@
 #define CPP_DBC_CONNECTION_POOL_HPP
 
 #include "cpp_dbc.hpp"
+#include "cpp_dbc/relational/relational_db_connection.hpp"
+#include "cpp_dbc/relational/relational_db_prepared_statement.hpp"
+#include "cpp_dbc/relational/relational_db_result_set.hpp"
 
-// Forward declarations for configuration classes
-namespace cpp_dbc
-{
-    namespace config
-    {
-        class DatabaseConfig;
-        class ConnectionPoolConfig;
-    }
-}
 #include <queue>
 #include <vector>
 #include <mutex>
@@ -46,19 +40,20 @@ namespace cpp_dbc
 {
 
     // Forward declaration
-    class PooledConnection;
+    class RelationalDBPooledConnection;
 
     // Forward declaration of configuration classes
     namespace config
     {
-        class ConnectionPoolConfig;
+        class DatabaseConfig;
+        class DBConnectionPoolConfig;
     }
 
-    // Connection Pool class
-    class ConnectionPool
+    // Relational Database Connection Pool class
+    class RelationalDBConnectionPool
     {
     private:
-        friend class PooledConnection;
+        friend class RelationalDBPooledConnection;
 
         // Connection parameters
         std::string m_url;
@@ -76,9 +71,9 @@ namespace cpp_dbc
         bool m_testOnReturn{false};                       // Test connection when returning to pool
         std::string m_validationQuery;                    // Query used to validate connections
         TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
-        std::vector<std::shared_ptr<PooledConnection>> m_allConnections;
-        std::queue<std::shared_ptr<PooledConnection>> m_idleConnections;
-        // std::unordered_set<std::shared_ptr<PooledConnection>> m_idleConnectionsSet; // Track what's in the queue
+        std::vector<std::shared_ptr<RelationalDBPooledConnection>> m_allConnections;
+        std::queue<std::shared_ptr<RelationalDBPooledConnection>> m_idleConnections;
+        // std::unordered_set<std::shared_ptr<RelationalDBPooledConnection>> m_idleConnectionsSet; // Track what's in the queue
         mutable std::mutex m_mutexGetConnection;
         mutable std::mutex m_mutexReturnConnection;
         mutable std::mutex m_mutexAllConnections;
@@ -91,21 +86,21 @@ namespace cpp_dbc
         std::thread m_maintenanceThread;
 
         // Creates a new physical connection
-        std::shared_ptr<Connection> createConnection();
+        std::shared_ptr<RelationalDBConnection> createDBConnection();
 
         // Creates a new pooled connection wrapper
-        std::shared_ptr<PooledConnection> createPooledConnection();
+        std::shared_ptr<RelationalDBPooledConnection> createPooledDBConnection();
 
         // Validates a connection
-        bool validateConnection(std::shared_ptr<Connection> conn);
+        bool validateConnection(std::shared_ptr<RelationalDBConnection> conn);
 
         // Returns a connection to the pool
-        void returnConnection(std::shared_ptr<PooledConnection> conn);
+        void returnConnection(std::shared_ptr<RelationalDBPooledConnection> conn);
 
         // Maintenance thread function
         void maintenanceTask();
 
-        std::shared_ptr<PooledConnection> getIdleConnection();
+        std::shared_ptr<RelationalDBPooledConnection> getIdleDBConnection();
 
     protected:
         // Sets the transaction isolation level for the pool
@@ -116,37 +111,37 @@ namespace cpp_dbc
 
     public:
         // Constructor that takes individual parameters
-        ConnectionPool(const std::string &url,
-                       const std::string &username,
-                       const std::string &password,
-                       const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
-                       int initialSize = 5,
-                       int maxSize = 20,
-                       int minIdle = 3,
-                       long maxWaitMillis = 5000,
-                       long validationTimeoutMillis = 5000,
-                       long idleTimeoutMillis = 300000,
-                       long maxLifetimeMillis = 1800000,
-                       bool testOnBorrow = true,
-                       bool testOnReturn = false,
-                       const std::string &validationQuery = "SELECT 1",
-                       TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
+        RelationalDBConnectionPool(const std::string &url,
+                                   const std::string &username,
+                                   const std::string &password,
+                                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
+                                   int initialSize = 5,
+                                   int maxSize = 20,
+                                   int minIdle = 3,
+                                   long maxWaitMillis = 5000,
+                                   long validationTimeoutMillis = 5000,
+                                   long idleTimeoutMillis = 300000,
+                                   long maxLifetimeMillis = 1800000,
+                                   bool testOnBorrow = true,
+                                   bool testOnReturn = false,
+                                   const std::string &validationQuery = "SELECT 1",
+                                   TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
         // Constructor that accepts a configuration object
-        ConnectionPool(const config::ConnectionPoolConfig &config);
+        RelationalDBConnectionPool(const config::DBConnectionPoolConfig &config);
 
         // Static factory method
-        static std::shared_ptr<ConnectionPool> create(const config::ConnectionPoolConfig &config);
+        static std::shared_ptr<RelationalDBConnectionPool> create(const config::DBConnectionPoolConfig &config);
 
-        ~ConnectionPool();
+        ~RelationalDBConnectionPool();
 
         // Borrows a connection from the pool
-        virtual std::shared_ptr<Connection> getConnection();
+        virtual std::shared_ptr<RelationalDBConnection> getDBConnection();
 
         // Gets current pool statistics
-        int getActiveConnectionCount() const;
-        size_t getIdleConnectionCount() const;
-        size_t getTotalConnectionCount() const;
+        int getActiveDBConnectionCount() const;
+        size_t getIdleDBConnectionCount() const;
+        size_t getTotalDBConnectionCount() const;
 
         // Closes the pool and all connections
         void close();
@@ -155,31 +150,33 @@ namespace cpp_dbc
         bool isRunning() const;
     };
 
-    // PooledConnection wraps a physical connection
-    class PooledConnection : public Connection, public std::enable_shared_from_this<PooledConnection>
+    // RelationalDBPooledConnection wraps a physical relational database connection
+    class RelationalDBPooledConnection : public RelationalDBConnection, public std::enable_shared_from_this<RelationalDBPooledConnection>
     {
     private:
-        std::shared_ptr<Connection> m_conn;
-        ConnectionPool *m_pool;
+        std::shared_ptr<RelationalDBConnection> m_conn;
+        RelationalDBConnectionPool *m_pool;
         std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
         std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
         std::atomic<bool> m_active;
         std::atomic<bool> m_closed;
 
-        friend class ConnectionPool;
+        friend class RelationalDBConnectionPool;
 
     public:
-        PooledConnection(std::shared_ptr<Connection> conn, ConnectionPool *pool);
-        ~PooledConnection() override;
+        RelationalDBPooledConnection(std::shared_ptr<RelationalDBConnection> conn, RelationalDBConnectionPool *pool);
+        ~RelationalDBPooledConnection() override;
 
-        // Overridden Connection interface methods
+        // Overridden DBConnection interface methods
         void close() override;
         bool isClosed() override;
         void returnToPool() override;
         bool isPooled() override;
+        std::string getURL() const override;
 
-        std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
-        std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;
+        // Overridden RelationalDBConnection interface methods
+        std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
+        std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
         uint64_t executeUpdate(const std::string &sql) override;
 
         void setAutoCommit(bool autoCommit) override;
@@ -196,69 +193,66 @@ namespace cpp_dbc
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
-        // Get the connection URL
-        std::string getURL() const override;
-
-        // PooledConnection specific methods
+        // RelationalDBPooledConnection specific methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const;
         std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime() const;
         void setActive(bool active);
         bool isActive() const;
 
         // Returns the underlying physical connection
-        std::shared_ptr<Connection> getUnderlyingConnection();
+        std::shared_ptr<RelationalDBConnection> getUnderlyingConnection();
     };
 
-    // Specialized connection pools for MySQL and PostgreSQL
+    // Specialized connection pools for MySQL, PostgreSQL, SQLite, and Firebird
     namespace MySQL
     {
-        class MySQLConnectionPool : public ConnectionPool
+        class MySQLConnectionPool : public RelationalDBConnectionPool
         {
         public:
             MySQLConnectionPool(const std::string &url,
                                 const std::string &username,
                                 const std::string &password);
 
-            MySQLConnectionPool(const config::ConnectionPoolConfig &config);
+            MySQLConnectionPool(const config::DBConnectionPoolConfig &config);
         };
     }
 
     namespace PostgreSQL
     {
-        class PostgreSQLConnectionPool : public ConnectionPool
+        class PostgreSQLConnectionPool : public RelationalDBConnectionPool
         {
         public:
             PostgreSQLConnectionPool(const std::string &url,
                                      const std::string &username,
                                      const std::string &password);
 
-            PostgreSQLConnectionPool(const config::ConnectionPoolConfig &config);
+            PostgreSQLConnectionPool(const config::DBConnectionPoolConfig &config);
         };
     }
 
     namespace SQLite
     {
-        class SQLiteConnectionPool : public ConnectionPool
+        class SQLiteConnectionPool : public RelationalDBConnectionPool
         {
         public:
             SQLiteConnectionPool(const std::string &url,
                                  const std::string &username,
                                  const std::string &password);
 
-            SQLiteConnectionPool(const config::ConnectionPoolConfig &config);
+            SQLiteConnectionPool(const config::DBConnectionPoolConfig &config);
         };
     }
 
     namespace Firebird
     {
-        class FirebirdConnectionPool : public ConnectionPool
+        class FirebirdConnectionPool : public RelationalDBConnectionPool
         {
         public:
             FirebirdConnectionPool(const std::string &url,
                                    const std::string &username,
                                    const std::string &password);
 
-            FirebirdConnectionPool(const config::ConnectionPoolConfig &config);
+            FirebirdConnectionPool(const config::DBConnectionPoolConfig &config);
         };
     }
 

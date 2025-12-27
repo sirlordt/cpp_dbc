@@ -32,7 +32,7 @@
 #include <iomanip>
 
 // Helper function to print JSON query results
-void printJsonResults(std::shared_ptr<cpp_dbc::ResultSet> rs)
+void printJsonResults(std::shared_ptr<cpp_dbc::RelationalDBResultSet> rs)
 {
     // Get column names
     auto columnNames = rs->getColumnNames();
@@ -64,7 +64,7 @@ void printJsonResults(std::shared_ptr<cpp_dbc::ResultSet> rs)
 }
 
 // Function to demonstrate JSON operations with MySQL
-void demonstrateMySQLJson(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateMySQLJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== MySQL JSON Operations ===\n"
               << std::endl;
@@ -190,7 +190,7 @@ void demonstrateMySQLJson(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate JSON operations with PostgreSQL
-void demonstratePostgreSQLJson(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstratePostgreSQLJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== PostgreSQL JSON Operations ===\n"
               << std::endl;
@@ -341,14 +341,14 @@ int main()
     {
         // Register database drivers
 #if USE_MYSQL
-        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
         // Connect to MySQL
         std::cout << "Connecting to MySQL..." << std::endl;
-        auto mysqlConn = cpp_dbc::DriverManager::getConnection(
+        auto mysqlConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:mysql://localhost:3306/testdb",
             "username",
-            "password");
+            "password"));
 
         // Demonstrate MySQL JSON operations
         demonstrateMySQLJson(mysqlConn);
@@ -360,14 +360,14 @@ int main()
 #endif
 
 #if USE_POSTGRESQL
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Connect to PostgreSQL
         std::cout << "\nConnecting to PostgreSQL..." << std::endl;
-        auto pgConn = cpp_dbc::DriverManager::getConnection(
+        auto pgConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:postgresql://localhost:5432/testdb",
             "username",
-            "password");
+            "password"));
 
         // Demonstrate PostgreSQL JSON operations
         demonstratePostgreSQLJson(pgConn);

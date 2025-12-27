@@ -39,7 +39,7 @@
 std::mutex consoleMutex;
 
 // Function to simulate a database operation
-void performDatabaseOperation(cpp_dbc::ConnectionPool &pool, int threadId)
+void performDatabaseOperation(cpp_dbc::RelationalDBConnectionPool &pool, int threadId)
 {
     try
     {
@@ -47,7 +47,7 @@ void performDatabaseOperation(cpp_dbc::ConnectionPool &pool, int threadId)
         std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 500));
 
         // Get connection from pool
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
 
         {
             std::lock_guard<std::mutex> lock(consoleMutex);
@@ -96,7 +96,7 @@ int main()
     try
     {
         // Configure MySQL connection pool
-        cpp_dbc::config::ConnectionPoolConfig mysqlConfig;
+        cpp_dbc::config::DBConnectionPoolConfig mysqlConfig;
         mysqlConfig.setUrl("cpp_dbc:mysql://localhost:3306/testdb");
         mysqlConfig.setUsername("username");
         mysqlConfig.setPassword("password");
@@ -109,7 +109,7 @@ int main()
         cpp_dbc::MySQL::MySQLConnectionPool mysqlPool(mysqlConfig);
 
         std::cout << "MySQL connection pool created with "
-                  << mysqlPool.getIdleConnectionCount() << " idle connections" << std::endl;
+                  << mysqlPool.getIdleDBConnectionCount() << " idle connections" << std::endl;
 
         // Demonstrate concurrent usage with multiple threads
         std::vector<std::thread> threads;
@@ -130,9 +130,9 @@ int main()
 
         std::cout << "All threads completed." << std::endl;
         std::cout << "Final pool statistics:" << std::endl;
-        std::cout << "  Active connections: " << mysqlPool.getActiveConnectionCount() << std::endl;
-        std::cout << "  Idle connections: " << mysqlPool.getIdleConnectionCount() << std::endl;
-        std::cout << "  Total connections: " << mysqlPool.getTotalConnectionCount() << std::endl;
+        std::cout << "  Active connections: " << mysqlPool.getActiveDBConnectionCount() << std::endl;
+        std::cout << "  Idle connections: " << mysqlPool.getIdleDBConnectionCount() << std::endl;
+        std::cout << "  Total connections: " << mysqlPool.getTotalDBConnectionCount() << std::endl;
 
         // Close the pool
         mysqlPool.close();
@@ -146,7 +146,7 @@ int main()
         std::cout << "\nNow demonstrating PostgreSQL connection pool..." << std::endl;
 
         // Configure PostgreSQL connection pool
-        cpp_dbc::config::ConnectionPoolConfig pgConfig;
+        cpp_dbc::config::DBConnectionPoolConfig pgConfig;
         pgConfig.setUrl("cpp_dbc:postgresql://localhost:5432/testdb");
         pgConfig.setUsername("username");
         pgConfig.setPassword("password");
@@ -158,7 +158,7 @@ int main()
         cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pgPool(pgConfig);
 
         std::cout << "PostgreSQL connection pool created with "
-                  << pgPool.getIdleConnectionCount() << " idle connections" << std::endl;
+                  << pgPool.getIdleDBConnectionCount() << " idle connections" << std::endl;
 
         // Run a few operations with the PostgreSQL pool
         // (Similar to MySQL example but with fewer threads for brevity)

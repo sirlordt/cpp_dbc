@@ -73,12 +73,12 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the Firebird driver
-    cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
+    cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
     SECTION("Multiple threads with individual connections")
     {
         // Setup: create test table using a single connection
-        auto setupConn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto setupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         REQUIRE(setupConn != nullptr);
         // Use RECREATE TABLE - Firebird's equivalent of DROP TABLE IF EXISTS + CREATE TABLE
         setupConn->executeUpdate("RECREATE TABLE thread_test (id INTEGER NOT NULL PRIMARY KEY, val_data VARCHAR(100))");
@@ -108,7 +108,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
                 try
                 {
                     // Each thread gets its own connection
-                    auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+                    auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
                     
                     for (int j = 0; j < opsPerThread; j++)
                     {
@@ -164,7 +164,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
         std::cout << "Multiple threads with individual connections: " << successCount << " successes, " << errorCount << " errors" << std::endl;
 
         // Clean up
-        auto cleanupConn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         try
         {
             cleanupConn->executeUpdate("DROP TABLE thread_test");
@@ -181,7 +181,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
     SECTION("Connection pool concurrent access")
     {
         // Create connection pool
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -196,7 +196,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
         auto pool = std::make_shared<cpp_dbc::Firebird::FirebirdConnectionPool>(poolConfig);
 
         // Setup: create test table using RECREATE TABLE
-        auto setupConn = pool->getConnection();
+        auto setupConn = pool->getDBConnection();
         setupConn->executeUpdate("RECREATE TABLE thread_test (id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(100), val_data DOUBLE PRECISION)");
         setupConn->returnToPool();
 
@@ -215,7 +215,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
                 {
                     try
                     {
-                        auto conn = pool->getConnection();
+                        auto conn = pool->getDBConnection();
                         int id = idCounter.fetch_add(1);
                         
                         // Insert with prepared statement
@@ -247,7 +247,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
         pool->close();
 
         // Clean up using a direct connection
-        auto cleanupConn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         try
         {
             cleanupConn->executeUpdate("DROP TABLE thread_test");
@@ -263,7 +263,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
     SECTION("Concurrent read operations with connection pool")
     {
         // Create connection pool
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -278,7 +278,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
         auto pool = std::make_shared<cpp_dbc::Firebird::FirebirdConnectionPool>(poolConfig);
 
         // Setup: create and populate test table using RECREATE TABLE
-        auto setupConn = pool->getConnection();
+        auto setupConn = pool->getDBConnection();
         setupConn->executeUpdate("RECREATE TABLE thread_test (id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(100), val_data DOUBLE PRECISION)");
 
         // Insert test data
@@ -310,7 +310,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
                 {
                     try
                     {
-                        auto conn = pool->getConnection();
+                        auto conn = pool->getDBConnection();
                         int targetId = idDist(gen);
                         
                         auto pstmt = conn->prepareStatement("SELECT * FROM thread_test WHERE id = ?");
@@ -347,7 +347,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
         pool->close();
 
         // Clean up using a direct connection
-        auto cleanupConn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         try
         {
             cleanupConn->executeUpdate("DROP TABLE thread_test");
@@ -364,7 +364,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
     SECTION("High concurrency stress test")
     {
         // Create connection pool for stress test
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -380,7 +380,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
 
         // Create test table using RECREATE TABLE
         // Note: Firebird doesn't have AUTO_INCREMENT, we use manual ID management
-        auto setupConn = pool->getConnection();
+        auto setupConn = pool->getDBConnection();
         setupConn->executeUpdate("RECREATE TABLE thread_stress_test (id INTEGER NOT NULL PRIMARY KEY, thread_id INTEGER, op_id INTEGER, data VARCHAR(255))");
         setupConn->returnToPool();
 
@@ -407,7 +407,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
                 {
                     try
                     {
-                        auto conn = pool->getConnection();
+                        auto conn = pool->getDBConnection();
                         int op = opDist(gen);
 
                         switch (op)
@@ -482,7 +482,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
         pool->close();
 
         // Clean up using a direct connection
-        auto cleanupConn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         try
         {
             cleanupConn->executeUpdate("DROP TABLE thread_stress_test");
@@ -513,7 +513,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
                 {
                     try
                     {
-                        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+                        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
                         
                         // Do a simple operation
                         auto rs = conn->executeQuery("SELECT 1 as test FROM RDB$DATABASE");

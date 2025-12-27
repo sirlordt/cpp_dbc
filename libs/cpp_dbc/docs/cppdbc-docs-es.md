@@ -142,6 +142,7 @@ Una clase base abstracta que representa un controlador de base de datos.
 
 **Métodos:**
 - `connect(string, string, string, map<string, string>)`: Establece una conexión a la base de datos con opciones de conexión opcionales.
+- `connectRelational(string, string, string, map<string, string>)`: Establece una conexión relacional a la base de datos con opciones de conexión opcionales.
 - `acceptsURL(string)`: Devuelve true si el controlador puede conectarse a la URL dada.
 
 ### DriverManager
@@ -149,8 +150,8 @@ Una clase gestora para registrar y recuperar instancias de controladores.
 
 **Métodos:**
 - `registerDriver(string, Driver)`: Registra un controlador con el nombre dado.
-- `getConnection(string, string, string, map<string, string>)`: Obtiene una conexión a la base de datos especificada por la URL con opciones de conexión opcionales.
-- `getConnection(DatabaseConfig)`: Obtiene una conexión utilizando un objeto de configuración de base de datos.
+- `getDBConnection(string, string, string, map<string, string>)`: Obtiene una conexión a la base de datos especificada por la URL con opciones de conexión opcionales.
+- `getDBConnection(DatabaseConfig)`: Obtiene una conexión utilizando un objeto de configuración de base de datos.
 
 ---
 
@@ -309,12 +310,12 @@ Los mismos que Connection, más:
 - `setTransactionIsolation(TransactionIsolationLevel)`: Establece el nivel de aislamiento de transacción para MySQL (predeterminado: REPEATABLE READ).
 - `getTransactionIsolation()`: Devuelve el nivel de aislamiento de transacción actual.
 
-### MySQLDriver
+### MySQLDBDriver
 Implementación de Driver para MySQL.
 
 **Métodos:**
 Los mismos que Driver, más:
-- `MySQLDriver()`: Constructor que inicializa la biblioteca MySQL.
+- `MySQLDBDriver()`: Constructor que inicializa la biblioteca MySQL.
 - `parseURL(string, string&, int&, string&)`: Analiza una URL de conexión.
 
 ---
@@ -365,12 +366,12 @@ Los mismos que Connection, más:
 - `setTransactionIsolation(TransactionIsolationLevel)`: Establece el nivel de aislamiento de transacción para PostgreSQL (predeterminado: READ COMMITTED).
 - `getTransactionIsolation()`: Devuelve el nivel de aislamiento de transacción actual.
 
-### PostgreSQLDriver
+### PostgreSQLDBDriver
 Implementación de Driver para PostgreSQL.
 
 **Métodos:**
 Los mismos que Driver, más:
-- `PostgreSQLDriver()`: Constructor.
+- `PostgreSQLDBDriver()`: Constructor.
 - `parseURL(string, string&, int&, string&)`: Analiza una URL de conexión.
 
 ---
@@ -429,12 +430,12 @@ Los mismos que Connection, más:
 - Los PreparedStatements usan `weak_ptr<sqlite3>` para detectar de forma segura cuando la conexión está cerrada
 - Las declaraciones activas se rastrean mediante `set<weak_ptr<SQLitePreparedStatement>>` para evitar impedir la destrucción
 
-### SQLiteDriver
+### SQLiteDBDriver
 Implementación de Driver para SQLite.
 
 **Métodos:**
 Los mismos que Driver, más:
-- `SQLiteDriver()`: Constructor.
+- `SQLiteDBDriver()`: Constructor.
 - `parseURL(string, string&)`: Analiza una URL de conexión.
 
 ---
@@ -494,12 +495,12 @@ Los mismos que Connection, más:
 - Los PreparedStatements usan `weak_ptr<isc_db_handle>` para detectar de forma segura cuando la conexión está cerrada
 - Las declaraciones activas se rastrean mediante `set<weak_ptr<FirebirdPreparedStatement>>` para evitar impedir la destrucción
 
-### FirebirdDriver
+### FirebirdDBDriver
 Implementación de Driver para Firebird.
 
 **Métodos:**
 Los mismos que Driver, más:
-- `FirebirdDriver()`: Constructor.
+- `FirebirdDBDriver()`: Constructor.
 - `parseURL(string, string&, int&, string&)`: Analiza una URL de conexión.
 - `command(map<string, any>)`: Ejecuta comandos específicos del controlador (ej., "create_database").
 - `createDatabase(string, string, string, map<string, string>)`: Crea una nueva base de datos Firebird con tamaño de página y charset opcionales.
@@ -508,7 +509,7 @@ Los mismos que Driver, más:
 El controlador Firebird soporta la creación de nuevas bases de datos programáticamente:
 
 ```cpp
-auto driver = std::make_shared<cpp_dbc::Firebird::FirebirdDriver>();
+auto driver = std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>();
 
 // Usando el método command
 std::map<std::string, std::any> params = {
@@ -541,10 +542,10 @@ cpp_dbc:firebird://host:port/ruta/a/base_de_datos.fdb
 #include <cpp_dbc/drivers/driver_firebird.hpp>
 
 // Registrar el controlador Firebird
-cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::FirebirdDriver>());
+cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::FirebirdDBDriver>());
 
 // Conectar a la base de datos
-auto conn = cpp_dbc::DriverManager::getConnection(
+auto conn = cpp_dbc::DriverManager::getDBConnection(
     "cpp_dbc:firebird://localhost:3050/ruta/a/base_de_datos.fdb",
     "SYSDBA",
     "masterkey"
@@ -572,7 +573,7 @@ Implementación de ConnectionPool para bases de datos SQLite.
 - `SQLiteConnectionPool(string, string, string)`: Constructor que toma una URL, nombre de usuario y contraseña.
 - `SQLiteConnectionPool(ConnectionPoolConfig)`: Constructor que toma una configuración de pool.
 
-### ConnectionPoolConfig
+### DBConnectionPoolConfig
 Estructura de configuración para pools de conexiones.
 
 **Propiedades:**
@@ -643,7 +644,7 @@ Gestiona transacciones a través de diferentes hilos.
 **Métodos:**
 - `TransactionManager(ConnectionPool&)`: Constructor que toma un pool de conexiones.
 - `beginTransaction()`: Inicia una nueva transacción y devuelve su ID.
-- `getTransactionConnection(string)`: Obtiene la conexión para una transacción.
+- `getTransactionDBConnection(string)`: Obtiene la conexión para una transacción.
 - `commitTransaction(string)`: Confirma una transacción por su ID.
 - `rollbackTransaction(string)`: Revierte una transacción por su ID.
 - `isTransactionActive(string)`: Devuelve si una transacción está activa.
@@ -1055,7 +1056,7 @@ if (dbConfigOpt) {
     // Usar la configuración para crear una conexión
     const auto& dbConfig = dbConfigOpt->get();
     std::string connStr = dbConfig.createConnectionString();
-    auto conn = cpp_dbc::DriverManager::getConnection(
+    auto conn = cpp_dbc::DriverManager::getDBConnection(
         connStr, dbConfig.getUsername(), dbConfig.getPassword()
     );
     

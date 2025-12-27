@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
         configManager.addDatabaseConfig(mysqlConfig);
 
         // Create a connection pool configuration
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setName("default");
         poolConfig.setInitialSize(5);
         poolConfig.setMaxSize(20);
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(false);
         poolConfig.setValidationQuery("SELECT 1");
-        configManager.addConnectionPoolConfig(poolConfig);
+        configManager.addDBConnectionPoolConfig(poolConfig);
     }
 
     std::cout << "\n=== Example 1: Creating a connection directly from DatabaseConfig ===" << std::endl;
@@ -97,9 +97,9 @@ int main(int argc, char *argv[])
         try
         {
             // Method 1: Create a connection directly from DatabaseConfig
-            std::cout << "Creating connection using DatabaseConfig::createConnection()" << std::endl;
+            std::cout << "Creating connection using DatabaseConfig::createDBConnection()" << std::endl;
             const auto &dbConfig = dbConfigOpt->get();
-            auto conn = dbConfig.createConnection();
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(dbConfig.createDBConnection());
             std::cout << "Connection created successfully" << std::endl;
 
             // Use the connection
@@ -123,9 +123,9 @@ int main(int argc, char *argv[])
         try
         {
             // Method 2: Create a connection from DriverManager with DatabaseConfig
-            std::cout << "Creating connection using DriverManager::getConnection(dbConfig)" << std::endl;
+            std::cout << "Creating connection using DriverManager::getDBConnection(dbConfig)" << std::endl;
             const auto &dbConfig = dbConfigOpt->get();
-            auto conn = cpp_dbc::DriverManager::getConnection(dbConfig);
+            auto conn = cpp_dbc::DriverManager::getDBConnection(dbConfig);
             std::cout << "Connection created successfully" << std::endl;
 
             // Close the connection
@@ -142,8 +142,8 @@ int main(int argc, char *argv[])
     try
     {
         // Method 3: Create a connection from DriverManager with DatabaseConfigManager
-        std::cout << "Creating connection using DriverManager::getConnection(configManager, \"dev_mysql\")" << std::endl;
-        auto conn = cpp_dbc::DriverManager::getConnection(configManager, "dev_mysql");
+        std::cout << "Creating connection using DriverManager::getDBConnection(configManager, \"dev_mysql\")" << std::endl;
+        auto conn = cpp_dbc::DriverManager::getDBConnection(configManager, "dev_mysql");
         std::cout << "Connection created successfully" << std::endl;
 
         // Close the connection
@@ -159,8 +159,8 @@ int main(int argc, char *argv[])
     try
     {
         // Method 4: Create a connection from DatabaseConfigManager
-        std::cout << "Creating connection using configManager.createConnection(\"dev_mysql\")" << std::endl;
-        auto conn = configManager.createConnection("dev_mysql");
+        std::cout << "Creating connection using configManager.createDBConnection(\"dev_mysql\")" << std::endl;
+        auto conn = configManager.createDBConnection("dev_mysql");
         if (conn)
         {
             std::cout << "Connection created successfully" << std::endl;
@@ -184,14 +184,14 @@ int main(int argc, char *argv[])
     {
         // Method 5: Create a connection pool
         std::cout << "Creating connection pool using configManager.createConnectionPool(\"dev_mysql\", \"default\")" << std::endl;
-        auto pool = configManager.createConnectionPool("dev_mysql", "default");
+        auto pool = configManager.createDBConnectionPool("dev_mysql", "default");
         if (pool)
         {
             std::cout << "Connection pool created successfully" << std::endl;
 
             // Get a connection from the pool
             std::cout << "Getting connection from pool" << std::endl;
-            auto conn = pool->getConnection();
+            auto conn = pool->getDBConnection();
             std::cout << "Connection obtained from pool" << std::endl;
 
             // Use the connection

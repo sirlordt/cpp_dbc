@@ -134,11 +134,11 @@ namespace postgresql_test_helpers
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/postgres";
 
             // Register the PostgreSQL driver
-            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
             // Attempt to connect to PostgreSQL server
             std::cout << "Attempting to connect to PostgreSQL server to create database..." << std::endl;
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // First check if the database already exists
             std::string checkDatabaseQuery = "SELECT 1 FROM pg_database WHERE datname = '" + dbName + "'";
@@ -206,13 +206,13 @@ namespace postgresql_test_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the PostgreSQL driver
-            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
             // Attempt to connect to PostgreSQL
             std::cout << "Attempting to connect to PostgreSQL with connection string: " << connStr << std::endl;
             std::cout << "Username: " << username << ", Password: " << password << std::endl;
 
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // If we get here, the connection was successful
             std::cout << "PostgreSQL connection successful!" << std::endl;

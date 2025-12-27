@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file driver_sqlite.hpp
- @brief Tests for SQLite database operations
+ @brief SQLite database driver implementation
 
 */
 
@@ -103,6 +103,9 @@ namespace cpp_dbc
             }
         };
 
+        // Forward declaration
+        class SQLiteDBConnection;
+
         /**
          * @brief Type alias for the smart pointer managing sqlite3 connection (shared_ptr for weak_ptr support)
          *
@@ -111,7 +114,7 @@ namespace cpp_dbc
          */
         using SQLiteDbHandle = std::shared_ptr<sqlite3>;
 
-        class SQLiteResultSet : public ResultSet
+        class SQLiteDBResultSet : public RelationalDBResultSet
         {
         private:
             /**
@@ -143,7 +146,7 @@ namespace cpp_dbc
             std::map<std::string, size_t> m_columnMap;
             bool m_hasData{false};
             bool m_closed{true};
-            std::weak_ptr<SQLiteConnection> m_connection; // Weak reference to the connection
+            std::weak_ptr<SQLiteDBConnection> m_connection; // Weak reference to the connection
 
 #if DB_DRIVER_THREAD_SAFE
             mutable std::recursive_mutex m_mutex; // Mutex for thread-safe ResultSet operations
@@ -159,8 +162,8 @@ namespace cpp_dbc
             }
 
         public:
-            SQLiteResultSet(sqlite3_stmt *stmt, bool ownStatement = true, std::shared_ptr<SQLiteConnection> conn = nullptr);
-            ~SQLiteResultSet() override;
+            SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement = true, std::shared_ptr<SQLiteDBConnection> conn = nullptr);
+            ~SQLiteDBResultSet() override;
 
             bool next() override;
             bool isBeforeFirst() override;
@@ -188,6 +191,7 @@ namespace cpp_dbc
             std::vector<std::string> getColumnNames() override;
             size_t getColumnCount() override;
             void close() override;
+            bool isEmpty() override;
 
             // BLOB support methods
             std::shared_ptr<Blob> getBlob(size_t columnIndex) override;
@@ -200,12 +204,9 @@ namespace cpp_dbc
             std::vector<uint8_t> getBytes(const std::string &columnName) override;
         };
 
-        // Forward declaration
-        class SQLiteConnection;
-
-        class SQLitePreparedStatement : public PreparedStatement
+        class SQLiteDBPreparedStatement : public RelationalDBPreparedStatement
         {
-            friend class SQLiteConnection;
+            friend class SQLiteDBConnection;
 
         private:
             /**
@@ -242,8 +243,8 @@ namespace cpp_dbc
             sqlite3 *getSQLiteConnection() const;
 
         public:
-            SQLitePreparedStatement(std::weak_ptr<sqlite3> db, const std::string &sql);
-            ~SQLitePreparedStatement() override;
+            SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, const std::string &sql);
+            ~SQLiteDBPreparedStatement() override;
 
             void setInt(int parameterIndex, int value) override;
             void setLong(int parameterIndex, long value) override;
@@ -261,16 +262,16 @@ namespace cpp_dbc
             void setBytes(int parameterIndex, const std::vector<uint8_t> &x) override;
             void setBytes(int parameterIndex, const uint8_t *x, size_t length) override;
 
-            std::shared_ptr<ResultSet> executeQuery() override;
+            std::shared_ptr<RelationalDBResultSet> executeQuery() override;
             uint64_t executeUpdate() override;
             bool execute() override;
             void close() override;
         };
 
-        class SQLiteConnection : public Connection, public std::enable_shared_from_this<SQLiteConnection>
+        class SQLiteDBConnection : public RelationalDBConnection, public std::enable_shared_from_this<SQLiteDBConnection>
         {
-            friend class SQLitePreparedStatement;
-            friend class SQLiteResultSet;
+            friend class SQLiteDBPreparedStatement;
+            friend class SQLiteDBResultSet;
 
         private:
             /**
@@ -290,7 +291,7 @@ namespace cpp_dbc
             std::string m_url;
 
             // Registry of active prepared statements (weak pointers to avoid preventing destruction)
-            std::set<std::weak_ptr<SQLitePreparedStatement>, std::owner_less<std::weak_ptr<SQLitePreparedStatement>>> m_activeStatements;
+            std::set<std::weak_ptr<SQLiteDBPreparedStatement>, std::owner_less<std::weak_ptr<SQLiteDBPreparedStatement>>> m_activeStatements;
             std::mutex m_statementsMutex;
 
 #if DB_DRIVER_THREAD_SAFE
@@ -298,21 +299,21 @@ namespace cpp_dbc
 #endif
 
             // Internal methods for statement registry
-            void registerStatement(std::weak_ptr<SQLitePreparedStatement> stmt);
-            void unregisterStatement(std::weak_ptr<SQLitePreparedStatement> stmt);
+            void registerStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
+            void unregisterStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
 
         public:
-            SQLiteConnection(const std::string &database,
-                             const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
-            ~SQLiteConnection() override;
+            SQLiteDBConnection(const std::string &database,
+                               const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+            ~SQLiteDBConnection() override;
 
             void close() override;
             bool isClosed() override;
             void returnToPool() override;
             bool isPooled() override;
 
-            std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
-            std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;
+            std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
+            std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
             uint64_t executeUpdate(const std::string &sql) override;
 
             void setAutoCommit(bool autoCommit) override;
@@ -332,7 +333,7 @@ namespace cpp_dbc
             std::string getURL() const override;
         };
 
-        class SQLiteDriver : public Driver
+        class SQLiteDBDriver : public RelationalDBDriver
         {
         private:
             // Static members to ensure SQLite is configured only once
@@ -340,13 +341,13 @@ namespace cpp_dbc
             static std::mutex s_initMutex;
 
         public:
-            SQLiteDriver();
-            ~SQLiteDriver() override;
+            SQLiteDBDriver();
+            ~SQLiteDBDriver() override;
 
-            std::shared_ptr<Connection> connect(const std::string &url,
-                                                const std::string &user,
-                                                const std::string &password,
-                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+                                                                      const std::string &user,
+                                                                      const std::string &password,
+                                                                      const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
             bool acceptsURL(const std::string &url) override;
 
@@ -365,19 +366,19 @@ namespace cpp_dbc
     namespace SQLite
     {
         // Forward declarations only
-        class SQLiteDriver : public Driver
+        class SQLiteDBDriver : public RelationalDBDriver
         {
         public:
-            SQLiteDriver()
+            SQLiteDBDriver()
             {
                 throw DBException("C27AD46A860B", "SQLite support is not enabled in this build", system_utils::captureCallStack());
             }
-            ~SQLiteDriver() override = default;
+            ~SQLiteDBDriver() override = default;
 
-            std::shared_ptr<Connection> connect(const std::string &url,
-                                                const std::string &user,
-                                                const std::string &password,
-                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
+            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+                                                                      const std::string &user,
+                                                                      const std::string &password,
+                                                                      const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
             {
                 throw DBException("269CC140F035", "SQLite support is not enabled in this build", system_utils::captureCallStack());
             }

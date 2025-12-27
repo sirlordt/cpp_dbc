@@ -165,7 +165,7 @@ bool compareBinaryData(const std::vector<uint8_t> &data1, const std::vector<uint
 }
 
 // Function to demonstrate basic BLOB operations
-void demonstrateBasicBlobOperations(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateBasicBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Basic BLOB Operations ===\n"
               << std::endl;
@@ -234,7 +234,7 @@ void demonstrateBasicBlobOperations(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate BLOB streaming operations
-void demonstrateBlobStreaming(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateBlobStreaming(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== BLOB Streaming Operations ===\n"
               << std::endl;
@@ -340,7 +340,7 @@ void demonstrateBlobStreaming(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate BLOB object operations
-void demonstrateBlobObjects(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateBlobObjects(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== BLOB Object Operations ===\n"
               << std::endl;
@@ -425,7 +425,7 @@ void demonstrateBlobObjects(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate image file BLOB operations
-void demonstrateImageBlob(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateImageBlob(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Image BLOB Operations ===\n"
               << std::endl;
@@ -507,14 +507,14 @@ int main()
     {
         // Register database drivers
 #if USE_MYSQL
-        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
         // Connect to MySQL
         std::cout << "Connecting to MySQL..." << std::endl;
-        auto mysqlConn = cpp_dbc::DriverManager::getConnection(
+        auto mysqlConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:mysql://localhost:3306/testdb",
             "username",
-            "password");
+            "password"));
 
         // Demonstrate BLOB operations with MySQL
         demonstrateBasicBlobOperations(mysqlConn);
@@ -533,14 +533,14 @@ int main()
 #endif
 
 #if USE_POSTGRESQL
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Connect to PostgreSQL
         std::cout << "\nConnecting to PostgreSQL..." << std::endl;
-        auto pgConn = cpp_dbc::DriverManager::getConnection(
+        auto pgConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:postgresql://localhost:5432/testdb",
             "username",
-            "password");
+            "password"));
 
         // Demonstrate BLOB operations with PostgreSQL
         demonstrateBasicBlobOperations(pgConn);
@@ -559,14 +559,14 @@ int main()
 #endif
 
 #if USE_SQLITE
-        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
         // Connect to SQLite (in-memory database)
         std::cout << "\nConnecting to SQLite..." << std::endl;
-        auto sqliteConn = cpp_dbc::DriverManager::getConnection(
+        auto sqliteConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:sqlite::memory:",
             "",
-            "");
+            ""));
 
         // Demonstrate BLOB operations with SQLite
         demonstrateBasicBlobOperations(sqliteConn);

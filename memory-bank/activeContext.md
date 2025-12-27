@@ -32,7 +32,17 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **BLOB Memory Safety Improvements with Smart Pointers** (2025-12-22):
+1. **API Naming Convention Refactoring** (2025-12-26):
+   - Renamed classes and methods to use "DB" prefix for better clarity and consistency:
+     - **Driver Classes:** `MySQLDriver` → `MySQLDBDriver`, `PostgreSQLDriver` → `PostgreSQLDBDriver`, `SQLiteDriver` → `SQLiteDBDriver`, `FirebirdDriver` → `FirebirdDBDriver`
+     - **Connection Classes:** `Connection` → `RelationalDBConnection`
+     - **Configuration Classes:** `ConnectionPoolConfig` → `DBConnectionPoolConfig`
+     - **DriverManager Methods:** `getConnection()` → `getDBConnection()`
+     - **TransactionManager Methods:** `getTransactionConnection()` → `getTransactionDBConnection()`
+     - **Driver Methods:** `connect()` → `connectRelational()`
+   - Updated all benchmark, test, and example files to use new naming convention
+
+2. **BLOB Memory Safety Improvements with Smart Pointers** (2025-12-22):
    - Migrated all BLOB implementations from raw pointers to smart pointers for improved memory safety:
      - **Firebird BLOB:** Changed from raw `isc_db_handle*` and `isc_tr_handle*` to `std::weak_ptr<FirebirdConnection>`
      - **MySQL BLOB:** Changed from raw `MYSQL*` to `std::weak_ptr<MYSQL>`

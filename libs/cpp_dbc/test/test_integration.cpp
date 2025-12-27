@@ -53,7 +53,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
     std::vector<std::string> userColumns = {"id", "name", "email"};
 
     // Create result set provider function (usado en el código comentado)
-    [[maybe_unused]] auto createUserResultSet = [&userData, &userColumns](const std::string &sql) -> std::shared_ptr<cpp_dbc::ResultSet>
+    [[maybe_unused]] auto createUserResultSet = [&userData, &userColumns](const std::string &sql) -> std::shared_ptr<cpp_dbc::RelationalDBResultSet>
     {
         // Simple SQL parsing to determine what to return
         if (sql.find("SELECT") != std::string::npos && sql.find("users") != std::string::npos)
@@ -89,9 +89,9 @@ TEST_CASE("Integration test with mock database", "[integration]")
     };
 
     // Create prepared statement provider function (usado en el código comentado)
-    [[maybe_unused]] auto createPreparedStatement = [&userData, &userColumns](const std::string &sql) -> std::shared_ptr<cpp_dbc::PreparedStatement>
+    [[maybe_unused]] auto createPreparedStatement = [&userData, &userColumns](const std::string &sql) -> std::shared_ptr<cpp_dbc::RelationalDBPreparedStatement>
     {
-        auto queryProvider = [&userData, &userColumns, sql]() -> std::shared_ptr<cpp_dbc::ResultSet>
+        auto queryProvider = [&userData, &userColumns, sql]() -> std::shared_ptr<cpp_dbc::RelationalDBResultSet>
         {
             if (sql.find("SELECT") != std::string::npos && sql.find("users") != std::string::npos)
             {
@@ -128,7 +128,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
     };
 
     // No necesitamos esta función, ya que usamos directamente el DriverManager
-    // auto createConnection = [&createUserResultSet, &createUpdateResult, &createPreparedStatement](
+    // auto createDBConnection = [&createUserResultSet, &createUpdateResult, &createPreparedStatement](
     //                             const std::string & /*url*/, const std::string & /*user*/, const std::string & /*password*/) -> std::shared_ptr<cpp_dbc::Connection>
     // {
     //     return std::make_shared<cpp_dbc_test::MockConnection>();
@@ -140,10 +140,11 @@ TEST_CASE("Integration test with mock database", "[integration]")
     SECTION("Integration test with direct connection")
     {
         // Get a connection directly from the driver manager
-        auto conn = cpp_dbc::DriverManager::getConnection(
-            "cpp_dbc:mock://localhost:1234/mockdb",
-            "mockuser",
-            "mockpass");
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+            cpp_dbc::DriverManager::getDBConnection(
+                "cpp_dbc:mock://localhost:1234/mockdb",
+                "mockuser",
+                "mockpass"));
 
         // Check that we got a connection
         REQUIRE(conn != nullptr);
@@ -210,7 +211,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
     SECTION("Integration test with connection pool")
     {
         // Create a connection pool
-        cpp_dbc::ConnectionPool pool(
+        cpp_dbc::RelationalDBConnectionPool pool(
             "cpp_dbc:mock://localhost:1234/mockdb",
             "mockuser",
             "mockpass",
@@ -228,7 +229,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
         );
 
         // Get a connection from the pool
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         REQUIRE(conn != nullptr);
 
         // Execute a query
@@ -247,13 +248,13 @@ TEST_CASE("Integration test with mock database", "[integration]")
         conn->close();
 
         // Get multiple connections
-        std::vector<std::shared_ptr<cpp_dbc::Connection>> connections;
+        std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
         for (int i = 0; i < 5; i++)
         {
-            connections.push_back(pool.getConnection());
+            connections.push_back(pool.getDBConnection());
         }
 
-        REQUIRE(pool.getActiveConnectionCount() == 5);
+        REQUIRE(pool.getActiveDBConnectionCount() == 5);
 
         // Return connections to the pool
         for (auto &c : connections)
@@ -261,7 +262,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
             c->close();
         }
 
-        REQUIRE(pool.getActiveConnectionCount() == 0);
+        REQUIRE(pool.getActiveDBConnectionCount() == 0);
 
         // Close the pool
         pool.close();
@@ -270,7 +271,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
     SECTION("Integration test with transaction manager")
     {
         // Create a connection pool
-        cpp_dbc::ConnectionPool pool(
+        cpp_dbc::RelationalDBConnectionPool pool(
             "cpp_dbc:mock://localhost:1234/mockdb",
             "mockuser",
             "mockpass",
@@ -295,7 +296,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
         REQUIRE(!txId.empty());
 
         // Get the connection associated with the transaction
-        auto conn = manager.getTransactionConnection(txId);
+        auto conn = manager.getTransactionDBConnection(txId);
         REQUIRE(conn != nullptr);
 
         // Execute a query within the transaction
@@ -325,7 +326,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
         REQUIRE(!txId.empty());
 
         // Get the connection associated with the transaction
-        conn = manager.getTransactionConnection(txId);
+        conn = manager.getTransactionDBConnection(txId);
         REQUIRE(conn != nullptr);
 
         // Execute an update within the transaction
@@ -364,7 +365,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
         REQUIRE(connStr == "cpp_dbc:mock://localhost:1234/mockdb");
 
         // Create a connection pool configuration
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setName("test_pool");
         poolConfig.setInitialSize(3);
         poolConfig.setMaxSize(10);
@@ -386,10 +387,10 @@ TEST_CASE("Integration test with mock database", "[integration]")
         REQUIRE(retrievedDbConfig.getType() == "mock");
 
         // Add the connection pool configuration
-        manager.addConnectionPoolConfig(poolConfig);
+        manager.addDBConnectionPoolConfig(poolConfig);
 
         // Get the connection pool configuration by name
-        auto poolConfigOpt = manager.getConnectionPoolConfig("test_pool");
+        auto poolConfigOpt = manager.getDBConnectionPoolConfig("test_pool");
         REQUIRE(poolConfigOpt.has_value());
         const auto &retrievedPoolConfig = poolConfigOpt->get();
         REQUIRE(retrievedPoolConfig.getName() == "test_pool");
@@ -422,22 +423,22 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
 {
     // Register all available drivers
 #if USE_MYSQL
-    cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+    cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
     // std::cout << "MySQL driver registered" << std::endl;
 #endif
 
 #if USE_POSTGRESQL
-    cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+    cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
     // std::cout << "PostgreSQL driver registered" << std::endl;
 #endif
 
 #if USE_SQLITE
-    cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+    cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
     // std::cout << "SQLite driver registered" << std::endl;
 #endif
 
 #if USE_FIREBIRD
-    cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
+    cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
     // std::cout << "Firebird driver registered" << std::endl;
 #endif
 
@@ -493,7 +494,7 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
 
                         // Attempt to connect with extra debug info
                         // std::cout << "DEBUG: About to get SQLite connection" << std::endl;
-                        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+                        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
                         // std::cout << "DEBUG: SQLite connection obtained successfully" << std::endl;
 
                         // Execute a simple query to verify the connection
@@ -529,7 +530,7 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
                     try
                     {
                         // Attempt to connect
-                        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+                        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
                         // Execute a simple query to verify the connection
                         // Firebird uses "SELECT 1 FROM RDB$DATABASE" for a simple test query
@@ -559,7 +560,7 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
                 else
                 {
                     // Attempt to connect
-                    auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+                    auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
                     // Execute a simple query to verify the connection
                     auto resultSet = conn->executeQuery("SELECT 1 as test_value");

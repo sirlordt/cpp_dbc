@@ -69,12 +69,12 @@ namespace cpp_dbc
         };
 
         // Forward declaration for weak_ptr usage
-        class FirebirdConnection;
+        class FirebirdDBConnection;
 
         /**
          * @brief Firebird implementation of Blob using smart pointers for memory safety
          *
-         * This class uses std::weak_ptr to safely reference the FirebirdConnection,
+         * This class uses std::weak_ptr to safely reference the FirebirdDBConnection,
          * preventing dangling pointer issues if the connection is closed while the
          * blob is still in use. All operations that require database access will
          * check if the connection is still valid before proceeding.
@@ -89,7 +89,7 @@ namespace cpp_dbc
              * and avoid use-after-free errors. The connection owns the database and
              * transaction handles, so we must ensure it's still valid before using them.
              */
-            std::weak_ptr<FirebirdConnection> m_connection;
+            std::weak_ptr<FirebirdDBConnection> m_connection;
 
             ISC_QUAD m_blobId;
             bool m_loaded{false};
@@ -100,7 +100,7 @@ namespace cpp_dbc
              * @return shared_ptr to the connection
              * @throws DBException if the connection has been closed
              */
-            std::shared_ptr<FirebirdConnection> getConnection() const
+            std::shared_ptr<FirebirdDBConnection> getConnection() const
             {
                 auto conn = m_connection.lock();
                 if (!conn)
@@ -129,7 +129,7 @@ namespace cpp_dbc
              * @brief Constructor for creating a new BLOB
              * @param connection Shared pointer to the Firebird connection
              */
-            FirebirdBlob(std::shared_ptr<FirebirdConnection> connection)
+            FirebirdBlob(std::shared_ptr<FirebirdDBConnection> connection)
                 : m_connection(connection), m_loaded(true), m_hasValidId(false)
             {
                 m_blobId.gds_quad_high = 0;
@@ -141,7 +141,7 @@ namespace cpp_dbc
              * @param connection Shared pointer to the Firebird connection
              * @param blobId The BLOB ID to load
              */
-            FirebirdBlob(std::shared_ptr<FirebirdConnection> connection, ISC_QUAD blobId)
+            FirebirdBlob(std::shared_ptr<FirebirdDBConnection> connection, ISC_QUAD blobId)
                 : m_connection(connection), m_blobId(blobId), m_loaded(false), m_hasValidId(true) {}
 
             /**
@@ -149,7 +149,7 @@ namespace cpp_dbc
              * @param connection Shared pointer to the Firebird connection
              * @param initialData The initial data for the BLOB
              */
-            FirebirdBlob(std::shared_ptr<FirebirdConnection> connection, const std::vector<uint8_t> &initialData)
+            FirebirdBlob(std::shared_ptr<FirebirdDBConnection> connection, const std::vector<uint8_t> &initialData)
                 : MemoryBlob(initialData), m_connection(connection), m_loaded(true), m_hasValidId(false)
             {
                 m_blobId.gds_quad_high = 0;

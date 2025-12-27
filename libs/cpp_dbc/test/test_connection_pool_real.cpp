@@ -73,7 +73,7 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
     SECTION("Basic connection pool operations")
     {
         // Create a connection pool configuration
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         // poolConfig.setPort(port);
         poolConfig.setUsername(username);
@@ -93,7 +93,7 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
         cpp_dbc::MySQL::MySQLConnectionPool pool(poolConfig);
 
         // Create a test table
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -102,39 +102,39 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
         SECTION("Get and return connections")
         {
             // Get initial pool statistics
-            auto initialIdleCount = pool.getIdleConnectionCount();
-            auto initialActiveCount = pool.getActiveConnectionCount();
-            auto initialTotalCount = pool.getTotalConnectionCount();
+            auto initialIdleCount = pool.getIdleDBConnectionCount();
+            auto initialActiveCount = pool.getActiveDBConnectionCount();
+            auto initialTotalCount = pool.getTotalDBConnectionCount();
 
             REQUIRE(initialActiveCount == 0);
             REQUIRE(initialIdleCount >= 3);  // minIdle
             REQUIRE(initialTotalCount >= 3); // minIdle
 
             // Get a connection
-            auto conn1 = pool.getConnection();
+            auto conn1 = pool.getDBConnection();
             REQUIRE(conn1 != nullptr);
-            REQUIRE(pool.getActiveConnectionCount() == 1);
-            REQUIRE(pool.getIdleConnectionCount() == initialIdleCount - 1);
+            REQUIRE(pool.getActiveDBConnectionCount() == 1);
+            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount - 1);
 
             // Get another connection
-            auto conn2 = pool.getConnection();
+            auto conn2 = pool.getDBConnection();
             REQUIRE(conn2 != nullptr);
-            REQUIRE(pool.getActiveConnectionCount() == 2);
-            REQUIRE(pool.getIdleConnectionCount() == initialIdleCount - 2);
+            REQUIRE(pool.getActiveDBConnectionCount() == 2);
+            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount - 2);
 
             // Return the first connection
             conn1->close();
-            REQUIRE(pool.getActiveConnectionCount() == 1);
-            REQUIRE(pool.getIdleConnectionCount() == initialIdleCount - 1);
+            REQUIRE(pool.getActiveDBConnectionCount() == 1);
+            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount - 1);
 
             // Return the second connection
             conn2->close();
-            REQUIRE(pool.getActiveConnectionCount() == 0);
-            REQUIRE(pool.getIdleConnectionCount() == initialIdleCount);
+            REQUIRE(pool.getActiveDBConnectionCount() == 0);
+            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount);
         }
 
         // Clean up
-        auto cleanupConn = pool.getConnection();
+        auto cleanupConn = pool.getDBConnection();
         cleanupConn->executeUpdate(dropTableQuery);
         cleanupConn->close();
 
@@ -180,7 +180,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
     SECTION("Basic connection pool operations")
     {
         // Create a connection pool configuration
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -199,7 +199,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
         cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pool(poolConfig);
 
         // Create a test table
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -208,39 +208,39 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
         SECTION("Get and return connections")
         {
             // Get initial pool statistics
-            auto initialIdleCount = pool.getIdleConnectionCount();
-            auto initialActiveCount = pool.getActiveConnectionCount();
-            auto initialTotalCount = pool.getTotalConnectionCount();
+            auto initialIdleCount = pool.getIdleDBConnectionCount();
+            auto initialActiveCount = pool.getActiveDBConnectionCount();
+            auto initialTotalCount = pool.getTotalDBConnectionCount();
 
             REQUIRE(initialActiveCount == 0);
             REQUIRE(initialIdleCount >= 3);  // minIdle
             REQUIRE(initialTotalCount >= 3); // minIdle
 
             // Get a connection
-            auto conn1 = pool.getConnection();
+            auto conn1 = pool.getDBConnection();
             REQUIRE(conn1 != nullptr);
-            REQUIRE(pool.getActiveConnectionCount() == 1);
-            REQUIRE(pool.getIdleConnectionCount() == initialIdleCount - 1);
+            REQUIRE(pool.getActiveDBConnectionCount() == 1);
+            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount - 1);
 
             // Get another connection
-            auto conn2 = pool.getConnection();
+            auto conn2 = pool.getDBConnection();
             REQUIRE(conn2 != nullptr);
-            REQUIRE(pool.getActiveConnectionCount() == 2);
-            REQUIRE(pool.getIdleConnectionCount() == initialIdleCount - 2);
+            REQUIRE(pool.getActiveDBConnectionCount() == 2);
+            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount - 2);
 
             // Return the first connection
             conn1->close();
-            REQUIRE(pool.getActiveConnectionCount() == 1);
-            REQUIRE(pool.getIdleConnectionCount() == initialIdleCount - 1);
+            REQUIRE(pool.getActiveDBConnectionCount() == 1);
+            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount - 1);
 
             // Return the second connection
             conn2->close();
-            REQUIRE(pool.getActiveConnectionCount() == 0);
-            REQUIRE(pool.getIdleConnectionCount() == initialIdleCount);
+            REQUIRE(pool.getActiveDBConnectionCount() == 0);
+            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount);
         }
 
         // Clean up
-        auto cleanupConn = pool.getConnection();
+        auto cleanupConn = pool.getDBConnection();
         cleanupConn->executeUpdate(dropTableQuery);
         cleanupConn->close();
 
@@ -285,7 +285,7 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
                                                     "DROP TABLE IF EXISTS test_table");
 
     // Create a connection pool configuration
-    cpp_dbc::config::ConnectionPoolConfig poolConfig;
+    cpp_dbc::config::DBConnectionPoolConfig poolConfig;
     poolConfig.setUrl(connStr);
     poolConfig.setUsername(username);
     poolConfig.setPassword(password);
@@ -296,10 +296,10 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
     // Load the SQLite pool configuration from DatabaseConfigManager
-    auto poolConfigOpt = configManager.getConnectionPoolConfig("sqlite_pool");
+    auto poolConfigOpt = configManager.getDBConnectionPoolConfig("sqlite_pool");
     if (poolConfigOpt.has_value())
     {
-        const cpp_dbc::config::ConnectionPoolConfig &poolCfg = poolConfigOpt.value().get();
+        const cpp_dbc::config::DBConnectionPoolConfig &poolCfg = poolConfigOpt.value().get();
 
         // Set pool parameters from the configuration
         poolConfig.setInitialSize(poolCfg.getInitialSize());
@@ -331,7 +331,7 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
         cpp_dbc::SQLite::SQLiteConnectionPool pool(poolConfig);
 
         // Create a test table
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -340,39 +340,39 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
         SECTION("Get and return connections")
         {
             // Get initial pool statistics
-            auto initialIdleCount = pool.getIdleConnectionCount();
-            auto initialActiveCount = pool.getActiveConnectionCount();
-            auto initialTotalCount = pool.getTotalConnectionCount();
+            auto initialIdleCount = pool.getIdleDBConnectionCount();
+            auto initialActiveCount = pool.getActiveDBConnectionCount();
+            auto initialTotalCount = pool.getTotalDBConnectionCount();
 
             REQUIRE(initialActiveCount == 0);
             REQUIRE(initialIdleCount >= 3);  // minIdle
             REQUIRE(initialTotalCount >= 3); // minIdle
 
             // Get a connection
-            auto conn1 = pool.getConnection();
+            auto conn1 = pool.getDBConnection();
             REQUIRE(conn1 != nullptr);
-            REQUIRE(pool.getActiveConnectionCount() == 1);
-            REQUIRE(pool.getIdleConnectionCount() == initialIdleCount - 1);
+            REQUIRE(pool.getActiveDBConnectionCount() == 1);
+            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount - 1);
 
             // Get another connection
-            auto conn2 = pool.getConnection();
+            auto conn2 = pool.getDBConnection();
             REQUIRE(conn2 != nullptr);
-            REQUIRE(pool.getActiveConnectionCount() == 2);
-            REQUIRE(pool.getIdleConnectionCount() == initialIdleCount - 2);
+            REQUIRE(pool.getActiveDBConnectionCount() == 2);
+            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount - 2);
 
             // Return the first connection
             conn1->close();
-            REQUIRE(pool.getActiveConnectionCount() == 1);
-            REQUIRE(pool.getIdleConnectionCount() == initialIdleCount - 1);
+            REQUIRE(pool.getActiveDBConnectionCount() == 1);
+            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount - 1);
 
             // Return the second connection
             conn2->close();
-            REQUIRE(pool.getActiveConnectionCount() == 0);
-            REQUIRE(pool.getIdleConnectionCount() == initialIdleCount);
+            REQUIRE(pool.getActiveDBConnectionCount() == 0);
+            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount);
         }
 
         // Clean up
-        auto cleanupConn = pool.getConnection();
+        auto cleanupConn = pool.getDBConnection();
         cleanupConn->executeUpdate(dropTableQuery);
         cleanupConn->close();
 

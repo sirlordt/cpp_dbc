@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file driver_mysql.cpp
- @brief Tests for MySQL database operations
+ @brief MySQL database driver implementation
 
 */
 
@@ -32,9 +32,9 @@ namespace cpp_dbc
     namespace MySQL
     {
 
-        // MySQLResultSet implementation
+        // MySQLDBResultSet implementation
 
-        void MySQLResultSet::validateResultState() const
+        void MySQLDBResultSet::validateResultState() const
         {
 #if DB_DRIVER_THREAD_SAFE
             // Note: This is called from other methods that already hold the lock
@@ -46,7 +46,7 @@ namespace cpp_dbc
             }
         }
 
-        void MySQLResultSet::validateCurrentRow() const
+        void MySQLDBResultSet::validateCurrentRow() const
         {
 #if DB_DRIVER_THREAD_SAFE
             // Note: This is called from other methods that already hold the lock
@@ -59,7 +59,7 @@ namespace cpp_dbc
             }
         }
 
-        MySQLResultSet::MySQLResultSet(MYSQL_RES *res) : m_result(res), m_currentRow(nullptr), m_rowPosition(0)
+        MySQLDBResultSet::MySQLDBResultSet(MYSQL_RES *res) : m_result(res), m_currentRow(nullptr), m_rowPosition(0)
         {
             if (m_result)
             {
@@ -82,12 +82,20 @@ namespace cpp_dbc
             }
         }
 
-        MySQLResultSet::~MySQLResultSet()
+        MySQLDBResultSet::~MySQLDBResultSet()
         {
             close();
         }
 
-        bool MySQLResultSet::next()
+        bool MySQLDBResultSet::isEmpty()
+        {
+#if DB_DRIVER_THREAD_SAFE
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+#endif
+            return m_rowCount == 0;
+        }
+
+        bool MySQLDBResultSet::next()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -108,22 +116,22 @@ namespace cpp_dbc
             return false;
         }
 
-        bool MySQLResultSet::isBeforeFirst()
+        bool MySQLDBResultSet::isBeforeFirst()
         {
             return m_rowPosition == 0;
         }
 
-        bool MySQLResultSet::isAfterLast()
+        bool MySQLDBResultSet::isAfterLast()
         {
             return m_result && m_rowPosition > m_rowCount;
         }
 
-        uint64_t MySQLResultSet::getRow()
+        uint64_t MySQLDBResultSet::getRow()
         {
             return m_rowPosition;
         }
 
-        int MySQLResultSet::getInt(size_t columnIndex)
+        int MySQLDBResultSet::getInt(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -144,7 +152,7 @@ namespace cpp_dbc
             return std::stoi(m_currentRow[idx]);
         }
 
-        int MySQLResultSet::getInt(const std::string &columnName)
+        int MySQLDBResultSet::getInt(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -155,7 +163,7 @@ namespace cpp_dbc
             return getInt(it->second + 1); // +1 because getInt(int) is 1-based
         }
 
-        long MySQLResultSet::getLong(size_t columnIndex)
+        long MySQLDBResultSet::getLong(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -175,7 +183,7 @@ namespace cpp_dbc
             return std::stol(m_currentRow[idx]);
         }
 
-        long MySQLResultSet::getLong(const std::string &columnName)
+        long MySQLDBResultSet::getLong(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -186,7 +194,7 @@ namespace cpp_dbc
             return getLong(it->second + 1);
         }
 
-        double MySQLResultSet::getDouble(size_t columnIndex)
+        double MySQLDBResultSet::getDouble(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -206,7 +214,7 @@ namespace cpp_dbc
             return std::stod(m_currentRow[idx]);
         }
 
-        double MySQLResultSet::getDouble(const std::string &columnName)
+        double MySQLDBResultSet::getDouble(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -217,7 +225,7 @@ namespace cpp_dbc
             return getDouble(it->second + 1);
         }
 
-        std::string MySQLResultSet::getString(size_t columnIndex)
+        std::string MySQLDBResultSet::getString(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -237,7 +245,7 @@ namespace cpp_dbc
             return std::string(m_currentRow[idx]);
         }
 
-        std::string MySQLResultSet::getString(const std::string &columnName)
+        std::string MySQLDBResultSet::getString(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -248,7 +256,7 @@ namespace cpp_dbc
             return getString(it->second + 1);
         }
 
-        bool MySQLResultSet::getBoolean(size_t columnIndex)
+        bool MySQLDBResultSet::getBoolean(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -272,7 +280,7 @@ namespace cpp_dbc
             return (value == "1" || value == "true" || value == "TRUE" || value == "True");
         }
 
-        bool MySQLResultSet::getBoolean(const std::string &columnName)
+        bool MySQLDBResultSet::getBoolean(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -283,7 +291,7 @@ namespace cpp_dbc
             return getBoolean(it->second + 1);
         }
 
-        bool MySQLResultSet::isNull(size_t columnIndex)
+        bool MySQLDBResultSet::isNull(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -298,7 +306,7 @@ namespace cpp_dbc
             return m_currentRow[idx] == nullptr;
         }
 
-        bool MySQLResultSet::isNull(const std::string &columnName)
+        bool MySQLDBResultSet::isNull(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -309,17 +317,17 @@ namespace cpp_dbc
             return isNull(it->second + 1);
         }
 
-        std::vector<std::string> MySQLResultSet::getColumnNames()
+        std::vector<std::string> MySQLDBResultSet::getColumnNames()
         {
             return m_columnNames;
         }
 
-        size_t MySQLResultSet::getColumnCount()
+        size_t MySQLDBResultSet::getColumnCount()
         {
             return m_fieldCount;
         }
 
-        void MySQLResultSet::close()
+        void MySQLDBResultSet::close()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -335,8 +343,8 @@ namespace cpp_dbc
             }
         }
 
-        // BLOB support methods for MySQLResultSet
-        std::shared_ptr<Blob> MySQLResultSet::getBlob(size_t columnIndex)
+        // BLOB support methods for MySQLDBResultSet
+        std::shared_ptr<Blob> MySQLDBResultSet::getBlob(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -375,7 +383,7 @@ namespace cpp_dbc
             return std::make_shared<MySQL::MySQLBlob>(std::shared_ptr<MYSQL>(), data);
         }
 
-        std::shared_ptr<Blob> MySQLResultSet::getBlob(const std::string &columnName)
+        std::shared_ptr<Blob> MySQLDBResultSet::getBlob(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -386,7 +394,7 @@ namespace cpp_dbc
             return getBlob(it->second + 1); // +1 because getBlob(int) is 1-based
         }
 
-        std::shared_ptr<InputStream> MySQLResultSet::getBinaryStream(size_t columnIndex)
+        std::shared_ptr<InputStream> MySQLDBResultSet::getBinaryStream(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -416,7 +424,7 @@ namespace cpp_dbc
             return std::make_shared<MySQL::MySQLInputStream>(m_currentRow[idx], lengths[idx]);
         }
 
-        std::shared_ptr<InputStream> MySQLResultSet::getBinaryStream(const std::string &columnName)
+        std::shared_ptr<InputStream> MySQLDBResultSet::getBinaryStream(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -427,7 +435,7 @@ namespace cpp_dbc
             return getBinaryStream(it->second + 1); // +1 because getBinaryStream(int) is 1-based
         }
 
-        std::vector<uint8_t> MySQLResultSet::getBytes(size_t columnIndex)
+        std::vector<uint8_t> MySQLDBResultSet::getBytes(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -463,7 +471,7 @@ namespace cpp_dbc
             return data;
         }
 
-        std::vector<uint8_t> MySQLResultSet::getBytes(const std::string &columnName)
+        std::vector<uint8_t> MySQLDBResultSet::getBytes(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -474,8 +482,8 @@ namespace cpp_dbc
             return getBytes(it->second + 1); // +1 because getBytes(int) is 1-based
         }
 
-        // MySQLPreparedStatement implementation
-        MYSQL *MySQLPreparedStatement::getMySQLConnection() const
+        // MySQLDBPreparedStatement implementation
+        MYSQL *MySQLDBPreparedStatement::getMySQLConnection() const
         {
             auto conn = m_mysql.lock();
             if (!conn)
@@ -485,7 +493,7 @@ namespace cpp_dbc
             return conn.get();
         }
 
-        MySQLPreparedStatement::MySQLPreparedStatement(std::weak_ptr<MYSQL> mysql_conn, const std::string &sql_stmt)
+        MySQLDBPreparedStatement::MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql_conn, const std::string &sql_stmt)
             : m_mysql(mysql_conn), m_sql(sql_stmt), m_stmt(nullptr)
         {
             MYSQL *mysqlPtr = getMySQLConnection();
@@ -526,12 +534,12 @@ namespace cpp_dbc
             m_streamObjects.resize(paramCount);
         }
 
-        MySQLPreparedStatement::~MySQLPreparedStatement()
+        MySQLDBPreparedStatement::~MySQLDBPreparedStatement()
         {
             close();
         }
 
-        void MySQLPreparedStatement::close()
+        void MySQLDBPreparedStatement::close()
         {
             if (m_stmt)
             {
@@ -539,14 +547,14 @@ namespace cpp_dbc
             }
         }
 
-        void MySQLPreparedStatement::notifyConnClosing()
+        void MySQLDBPreparedStatement::notifyConnClosing()
         {
             // Connection is closing, invalidate the statement without calling mysql_stmt_close
             // since the connection is already being destroyed
             this->close();
         }
 
-        void MySQLPreparedStatement::setInt(int parameterIndex, int value)
+        void MySQLDBPreparedStatement::setInt(int parameterIndex, int value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -570,7 +578,7 @@ namespace cpp_dbc
             m_parameterValues[idx] = std::to_string(value);
         }
 
-        void MySQLPreparedStatement::setLong(int parameterIndex, long value)
+        void MySQLDBPreparedStatement::setLong(int parameterIndex, long value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -595,7 +603,7 @@ namespace cpp_dbc
         }
 
         // BLOB support methods
-        void MySQLPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
+        void MySQLDBPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -638,7 +646,7 @@ namespace cpp_dbc
             m_parameterValues[idx] = "BINARY DATA";
         }
 
-        void MySQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
+        void MySQLDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -687,7 +695,7 @@ namespace cpp_dbc
             m_parameterValues[idx] = "BINARY DATA";
         }
 
-        void MySQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
+        void MySQLDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -739,7 +747,7 @@ namespace cpp_dbc
             m_parameterValues[idx] = "BINARY DATA";
         }
 
-        void MySQLPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
+        void MySQLDBPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -764,7 +772,7 @@ namespace cpp_dbc
             m_parameterValues[idx] = "BINARY DATA";
         }
 
-        void MySQLPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
+        void MySQLDBPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -802,7 +810,7 @@ namespace cpp_dbc
             m_parameterValues[idx] = "BINARY DATA";
         }
 
-        void MySQLPreparedStatement::setDouble(int parameterIndex, double value)
+        void MySQLDBPreparedStatement::setDouble(int parameterIndex, double value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -826,7 +834,7 @@ namespace cpp_dbc
             m_parameterValues[idx] = std::to_string(value);
         }
 
-        void MySQLPreparedStatement::setString(int parameterIndex, const std::string &value)
+        void MySQLDBPreparedStatement::setString(int parameterIndex, const std::string &value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -860,7 +868,7 @@ namespace cpp_dbc
             m_parameterValues[idx] = "'" + escapedValue + "'";
         }
 
-        void MySQLPreparedStatement::setBoolean(int parameterIndex, bool value)
+        void MySQLDBPreparedStatement::setBoolean(int parameterIndex, bool value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -884,7 +892,7 @@ namespace cpp_dbc
             m_parameterValues[idx] = std::to_string(m_intValues[idx]);
         }
 
-        void MySQLPreparedStatement::setNull(int parameterIndex, Types type)
+        void MySQLDBPreparedStatement::setNull(int parameterIndex, Types type)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -938,7 +946,7 @@ namespace cpp_dbc
             m_binds[idx].length = nullptr;
         }
 
-        void MySQLPreparedStatement::setDate(int parameterIndex, const std::string &value)
+        void MySQLDBPreparedStatement::setDate(int parameterIndex, const std::string &value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -961,7 +969,7 @@ namespace cpp_dbc
             m_binds[idx].length = nullptr;
         }
 
-        void MySQLPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
+        void MySQLDBPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -984,7 +992,7 @@ namespace cpp_dbc
             m_binds[idx].length = nullptr;
         }
 
-        std::shared_ptr<ResultSet> MySQLPreparedStatement::executeQuery()
+        std::shared_ptr<RelationalDBResultSet> MySQLDBPreparedStatement::executeQuery()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1022,7 +1030,7 @@ namespace cpp_dbc
                 throw DBException("H1I2J3K4L5M6", std::string("Failed to get result set: ") + mysql_error(mysqlPtr), system_utils::captureCallStack());
             }
 
-            auto resultSet = std::make_shared<MySQLResultSet>(result);
+            auto resultSet = std::make_shared<MySQLDBResultSet>(result);
 
             // Close the statement after execution (single-use)
             // This is safe because mysql_store_result() copies all data to client memory
@@ -1031,7 +1039,7 @@ namespace cpp_dbc
             return resultSet;
         }
 
-        uint64_t MySQLPreparedStatement::executeUpdate()
+        uint64_t MySQLDBPreparedStatement::executeUpdate()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1061,7 +1069,7 @@ namespace cpp_dbc
             return mysql_stmt_affected_rows(m_stmt.get());
         }
 
-        bool MySQLPreparedStatement::execute()
+        bool MySQLDBPreparedStatement::execute()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1087,13 +1095,13 @@ namespace cpp_dbc
             return mysql_stmt_field_count(m_stmt.get()) > 0;
         }
 
-        // MySQLConnection implementation
-        MySQLConnection::MySQLConnection(const std::string &host,
-                                         int port,
-                                         const std::string &database,
-                                         const std::string &user,
-                                         const std::string &password,
-                                         const std::map<std::string, std::string> &options)
+        // MySQLDBConnection implementation
+        MySQLDBConnection::MySQLDBConnection(const std::string &host,
+                                             int port,
+                                             const std::string &database,
+                                             const std::string &user,
+                                             const std::string &password,
+                                             const std::map<std::string, std::string> &options)
             : m_closed(false), m_autoCommit(true), m_transactionActive(false),
               m_isolationLevel(TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ) // MySQL default
         {
@@ -1172,14 +1180,14 @@ namespace cpp_dbc
             m_url = urlBuilder.str();
         }
 
-        MySQLConnection::~MySQLConnection()
+        MySQLDBConnection::~MySQLDBConnection()
         {
             // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis(), "(1) MySQLConnection::~MySQLConnection()");
 
             close();
         }
 
-        void MySQLConnection::close()
+        void MySQLDBConnection::close()
         {
             if (!m_closed && m_mysql)
             {
@@ -1207,12 +1215,12 @@ namespace cpp_dbc
             }
         }
 
-        bool MySQLConnection::isClosed()
+        bool MySQLDBConnection::isClosed()
         {
             return m_closed;
         }
 
-        void MySQLConnection::returnToPool()
+        void MySQLDBConnection::returnToPool()
         {
             // Don't physically close the connection, just mark it as available
             // so it can be reused by the pool
@@ -1235,12 +1243,12 @@ namespace cpp_dbc
             }
         }
 
-        bool MySQLConnection::isPooled()
+        bool MySQLDBConnection::isPooled()
         {
             return false;
         }
 
-        std::shared_ptr<PreparedStatement> MySQLConnection::prepareStatement(const std::string &sql)
+        std::shared_ptr<RelationalDBPreparedStatement> MySQLDBConnection::prepareStatement(const std::string &sql)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1251,7 +1259,7 @@ namespace cpp_dbc
             }
 
             // Pass weak_ptr to the PreparedStatement so it can safely detect when connection is closed
-            auto stmt = std::make_shared<MySQLPreparedStatement>(std::weak_ptr<MYSQL>(m_mysql), sql);
+            auto stmt = std::make_shared<MySQLDBPreparedStatement>(std::weak_ptr<MYSQL>(m_mysql), sql);
 
             // Register the statement in our registry
             registerStatement(stmt);
@@ -1259,7 +1267,7 @@ namespace cpp_dbc
             return stmt;
         }
 
-        std::shared_ptr<ResultSet> MySQLConnection::executeQuery(const std::string &sql)
+        std::shared_ptr<RelationalDBResultSet> MySQLDBConnection::executeQuery(const std::string &sql)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1280,10 +1288,10 @@ namespace cpp_dbc
                 throw DBException("9U0V1W2X3Y4Z", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack());
             }
 
-            return std::make_shared<MySQLResultSet>(result);
+            return std::make_shared<MySQLDBResultSet>(result);
         }
 
-        uint64_t MySQLConnection::executeUpdate(const std::string &sql)
+        uint64_t MySQLDBConnection::executeUpdate(const std::string &sql)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1301,7 +1309,7 @@ namespace cpp_dbc
             return mysql_affected_rows(m_mysql.get());
         }
 
-        bool MySQLConnection::beginTransaction()
+        bool MySQLDBConnection::beginTransaction()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1329,12 +1337,12 @@ namespace cpp_dbc
             return true;
         }
 
-        bool MySQLConnection::transactionActive()
+        bool MySQLDBConnection::transactionActive()
         {
             return m_transactionActive;
         }
 
-        void MySQLConnection::setAutoCommit(bool autoCommitFlag)
+        void MySQLDBConnection::setAutoCommit(bool autoCommitFlag)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1375,12 +1383,12 @@ namespace cpp_dbc
             }
         }
 
-        bool MySQLConnection::getAutoCommit()
+        bool MySQLDBConnection::getAutoCommit()
         {
             return m_autoCommit;
         }
 
-        void MySQLConnection::commit()
+        void MySQLDBConnection::commit()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1410,7 +1418,7 @@ namespace cpp_dbc
             }
         }
 
-        void MySQLConnection::rollback()
+        void MySQLDBConnection::rollback()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1440,7 +1448,7 @@ namespace cpp_dbc
             }
         }
 
-        void MySQLConnection::setTransactionIsolation(TransactionIsolationLevel level)
+        void MySQLDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1488,7 +1496,7 @@ namespace cpp_dbc
             }
         }
 
-        TransactionIsolationLevel MySQLConnection::getTransactionIsolation()
+        TransactionIsolationLevel MySQLDBConnection::getTransactionIsolation()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1564,42 +1572,42 @@ namespace cpp_dbc
             }
         }
 
-        void MySQLConnection::registerStatement(std::shared_ptr<MySQLPreparedStatement> stmt)
+        void MySQLDBConnection::registerStatement(std::shared_ptr<MySQLDBPreparedStatement> stmt)
         {
             std::lock_guard<std::mutex> lock(m_statementsMutex);
             // m_activeStatements.insert(std::weak_ptr<MySQLPreparedStatement>(stmt));
             m_activeStatements.insert(stmt);
         }
 
-        void MySQLConnection::unregisterStatement(std::shared_ptr<MySQLPreparedStatement> stmt)
+        void MySQLDBConnection::unregisterStatement(std::shared_ptr<MySQLDBPreparedStatement> stmt)
         {
             std::lock_guard<std::mutex> lock(m_statementsMutex);
             // m_activeStatements.erase(std::weak_ptr<MySQLPreparedStatement>(stmt));
             m_activeStatements.erase(stmt);
         }
 
-        std::string MySQLConnection::getURL() const
+        std::string MySQLDBConnection::getURL() const
         {
             return m_url;
         }
 
-        // MySQLDriver implementation
-        MySQLDriver::MySQLDriver()
+        // MySQLDBDriver implementation
+        MySQLDBDriver::MySQLDBDriver()
         {
             // Initialize MySQL library
             mysql_library_init(0, nullptr, nullptr);
         }
 
-        MySQLDriver::~MySQLDriver()
+        MySQLDBDriver::~MySQLDBDriver()
         {
             // Cleanup MySQL library
             mysql_library_end();
         }
 
-        std::shared_ptr<Connection> MySQLDriver::connect(const std::string &url,
-                                                         const std::string &user,
-                                                         const std::string &password,
-                                                         const std::map<std::string, std::string> &options)
+        std::shared_ptr<RelationalDBConnection> MySQLDBDriver::connectRelational(const std::string &url,
+                                                                                 const std::string &user,
+                                                                                 const std::string &password,
+                                                                                 const std::map<std::string, std::string> &options)
         {
             std::string host;
             int port;
@@ -1682,18 +1690,18 @@ namespace cpp_dbc
                 throw DBException("5M6N7O8P9Q0R", "Invalid MySQL connection URL: " + url, system_utils::captureCallStack());
             }
 
-            return std::make_shared<MySQLConnection>(host, port, database, user, password, options);
+            return std::make_shared<MySQLDBConnection>(host, port, database, user, password, options);
         }
 
-        bool MySQLDriver::acceptsURL(const std::string &url)
+        bool MySQLDBDriver::acceptsURL(const std::string &url)
         {
             return url.substr(0, 16) == "cpp_dbc:mysql://";
         }
 
-        bool MySQLDriver::parseURL(const std::string &url,
-                                   std::string &host,
-                                   int &port,
-                                   std::string &database)
+        bool MySQLDBDriver::parseURL(const std::string &url,
+                                     std::string &host,
+                                     int &port,
+                                     std::string &database)
         {
             // Parse URL of format: cpp_dbc:mysql://host:port/database
             if (!acceptsURL(url))

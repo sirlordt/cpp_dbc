@@ -146,7 +146,7 @@ std::vector<std::tuple<int, int, int, std::string, int, double>> generateOrderDa
 }
 
 // Function to demonstrate basic batch insert
-void demonstrateBasicBatchInsert(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateBasicBatchInsert(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Basic Batch Insert Example ===\n"
               << std::endl;
@@ -211,7 +211,7 @@ void demonstrateBasicBatchInsert(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate batch insert with transactions
-void demonstrateBatchWithTransaction(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateBatchWithTransaction(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Batch Insert with Transaction Example ===\n"
               << std::endl;
@@ -309,7 +309,7 @@ void demonstrateBatchWithTransaction(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate batch update
-void demonstrateBatchUpdate(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateBatchUpdate(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Batch Update Example ===\n"
               << std::endl;
@@ -377,7 +377,7 @@ void demonstrateBatchUpdate(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate batch delete
-void demonstrateBatchDelete(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateBatchDelete(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Batch Delete Example ===\n"
               << std::endl;
@@ -437,7 +437,7 @@ void demonstrateBatchDelete(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate batch performance comparison
-void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Batch Performance Comparison ===\n"
               << std::endl;
@@ -625,14 +625,14 @@ int main()
     {
         // Register database drivers
 #if USE_MYSQL
-        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
         // Connect to MySQL
         std::cout << "Connecting to MySQL..." << std::endl;
-        auto mysqlConn = cpp_dbc::DriverManager::getConnection(
+        auto mysqlConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:mysql://localhost:3306/testdb",
             "username",
-            "password");
+            "password"));
 
         // Demonstrate batch operations
         demonstrateBasicBatchInsert(mysqlConn);
@@ -653,14 +653,14 @@ int main()
 #endif
 
 #if USE_POSTGRESQL
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Connect to PostgreSQL
         std::cout << "\nConnecting to PostgreSQL..." << std::endl;
-        auto pgConn = cpp_dbc::DriverManager::getConnection(
+        auto pgConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:postgresql://localhost:5432/testdb",
             "username",
-            "password");
+            "password"));
 
         // Demonstrate batch operations
         demonstrateBasicBatchInsert(pgConn);

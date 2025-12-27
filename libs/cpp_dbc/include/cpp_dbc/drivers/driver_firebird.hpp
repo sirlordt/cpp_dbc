@@ -60,8 +60,8 @@ namespace cpp_dbc
     namespace Firebird
     {
         // Forward declarations
-        class FirebirdConnection;
-        class FirebirdPreparedStatement;
+        class FirebirdDBConnection;
+        class FirebirdDBPreparedStatement;
 
         /**
          * @brief Helper function to interpret Firebird status vector
@@ -175,7 +175,7 @@ namespace cpp_dbc
         /**
          * @brief Firebird ResultSet implementation
          */
-        class FirebirdResultSet : public ResultSet
+        class FirebirdDBResultSet : public RelationalDBResultSet
         {
         private:
             FirebirdStmtHandle m_stmt;
@@ -188,7 +188,7 @@ namespace cpp_dbc
             bool m_hasData{false};
             bool m_closed{true};
             bool m_fetchedFirst{false};
-            std::weak_ptr<FirebirdConnection> m_connection;
+            std::weak_ptr<FirebirdDBConnection> m_connection;
 
             // Buffer for SQLDA data
             std::vector<std::vector<char>> m_dataBuffers;
@@ -214,9 +214,9 @@ namespace cpp_dbc
             isc_stmt_handle *getStmtPtr() { return m_stmt.get(); }
 
         public:
-            FirebirdResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement = true,
-                              std::shared_ptr<FirebirdConnection> conn = nullptr);
-            ~FirebirdResultSet() override;
+            FirebirdDBResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement = true,
+                                std::shared_ptr<FirebirdDBConnection> conn = nullptr);
+            ~FirebirdDBResultSet() override;
 
             bool next() override;
             bool isBeforeFirst() override;
@@ -244,6 +244,7 @@ namespace cpp_dbc
             std::vector<std::string> getColumnNames() override;
             size_t getColumnCount() override;
             void close() override;
+            bool isEmpty() override;
 
             // BLOB support methods
             std::shared_ptr<Blob> getBlob(size_t columnIndex) override;
@@ -260,16 +261,16 @@ namespace cpp_dbc
          * @brief Firebird PreparedStatement implementation
          */
         // Forward declaration
-        class FirebirdConnection;
+        class FirebirdDBConnection;
 
-        class FirebirdPreparedStatement : public PreparedStatement
+        class FirebirdDBPreparedStatement : public RelationalDBPreparedStatement
         {
-            friend class FirebirdConnection;
+            friend class FirebirdDBConnection;
 
         private:
             std::weak_ptr<isc_db_handle> m_dbHandle;
-            std::weak_ptr<FirebirdConnection> m_connection; // Reference to connection for autocommit
-            isc_tr_handle *m_trPtr{nullptr};                // Non-owning pointer to transaction handle (owned by Connection)
+            std::weak_ptr<FirebirdDBConnection> m_connection; // Reference to connection for autocommit
+            isc_tr_handle *m_trPtr{nullptr};                  // Non-owning pointer to transaction handle (owned by Connection)
             isc_stmt_handle m_stmt;
             std::string m_sql;
             XSQLDAHandle m_inputSqlda;
@@ -295,9 +296,9 @@ namespace cpp_dbc
             void setParameter(int parameterIndex, const void *data, size_t length, short sqlType);
 
         public:
-            FirebirdPreparedStatement(std::weak_ptr<isc_db_handle> db, isc_tr_handle *trPtr, const std::string &sql,
-                                      std::weak_ptr<FirebirdConnection> conn = std::weak_ptr<FirebirdConnection>());
-            ~FirebirdPreparedStatement() override;
+            FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db, isc_tr_handle *trPtr, const std::string &sql,
+                                        std::weak_ptr<FirebirdDBConnection> conn = std::weak_ptr<FirebirdDBConnection>());
+            ~FirebirdDBPreparedStatement() override;
 
             void setInt(int parameterIndex, int value) override;
             void setLong(int parameterIndex, long value) override;
@@ -315,7 +316,7 @@ namespace cpp_dbc
             void setBytes(int parameterIndex, const std::vector<uint8_t> &x) override;
             void setBytes(int parameterIndex, const uint8_t *x, size_t length) override;
 
-            std::shared_ptr<ResultSet> executeQuery() override;
+            std::shared_ptr<RelationalDBResultSet> executeQuery() override;
             uint64_t executeUpdate() override;
             bool execute() override;
             void close() override;
@@ -345,10 +346,10 @@ namespace cpp_dbc
         /**
          * @brief Firebird Connection implementation
          */
-        class FirebirdConnection : public Connection, public std::enable_shared_from_this<FirebirdConnection>
+        class FirebirdDBConnection : public RelationalDBConnection, public std::enable_shared_from_this<FirebirdDBConnection>
         {
-            friend class FirebirdPreparedStatement;
-            friend class FirebirdResultSet;
+            friend class FirebirdDBPreparedStatement;
+            friend class FirebirdDBResultSet;
             friend class FirebirdBlob;
 
         private:
@@ -361,15 +362,15 @@ namespace cpp_dbc
             std::string m_url;
 
             // Registry of active prepared statements
-            std::set<std::weak_ptr<FirebirdPreparedStatement>, std::owner_less<std::weak_ptr<FirebirdPreparedStatement>>> m_activeStatements;
+            std::set<std::weak_ptr<FirebirdDBPreparedStatement>, std::owner_less<std::weak_ptr<FirebirdDBPreparedStatement>>> m_activeStatements;
             std::mutex m_statementsMutex;
 
 #if DB_DRIVER_THREAD_SAFE
             mutable std::recursive_mutex m_connMutex;
 #endif
 
-            void registerStatement(std::weak_ptr<FirebirdPreparedStatement> stmt);
-            void unregisterStatement(std::weak_ptr<FirebirdPreparedStatement> stmt);
+            void registerStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt);
+            void unregisterStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt);
             void startTransaction();
             void endTransaction(bool commit);
 
@@ -381,21 +382,21 @@ namespace cpp_dbc
             uint64_t executeCreateDatabase(const std::string &sql);
 
         public:
-            FirebirdConnection(const std::string &host,
-                               int port,
-                               const std::string &database,
-                               const std::string &user,
-                               const std::string &password,
-                               const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
-            ~FirebirdConnection() override;
+            FirebirdDBConnection(const std::string &host,
+                                 int port,
+                                 const std::string &database,
+                                 const std::string &user,
+                                 const std::string &password,
+                                 const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+            ~FirebirdDBConnection() override;
 
             void close() override;
             bool isClosed() override;
             void returnToPool() override;
             bool isPooled() override;
 
-            std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
-            std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;
+            std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
+            std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
             uint64_t executeUpdate(const std::string &sql) override;
 
             void setAutoCommit(bool autoCommit) override;
@@ -418,20 +419,20 @@ namespace cpp_dbc
         /**
          * @brief Firebird Driver implementation
          */
-        class FirebirdDriver : public Driver
+        class FirebirdDBDriver : public RelationalDBDriver
         {
         private:
             static std::atomic<bool> s_initialized;
             static std::mutex s_initMutex;
 
         public:
-            FirebirdDriver();
-            ~FirebirdDriver() override;
+            FirebirdDBDriver();
+            ~FirebirdDBDriver() override;
 
-            std::shared_ptr<Connection> connect(const std::string &url,
-                                                const std::string &user,
-                                                const std::string &password,
-                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+                                                                      const std::string &user,
+                                                                      const std::string &password,
+                                                                      const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
             bool acceptsURL(const std::string &url) override;
 
@@ -515,19 +516,19 @@ namespace cpp_dbc
 {
     namespace Firebird
     {
-        class FirebirdDriver : public Driver
+        class FirebirdDBDriver : public RelationalDBDriver
         {
         public:
-            FirebirdDriver()
+            FirebirdDBDriver()
             {
                 throw DBException("R9T3U5V1W7X4", "Firebird support is not enabled in this build", system_utils::captureCallStack());
             }
-            ~FirebirdDriver() override = default;
+            ~FirebirdDBDriver() override = default;
 
-            std::shared_ptr<Connection> connect(const std::string &url,
-                                                const std::string &user,
-                                                const std::string &password,
-                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
+            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+                                                                      const std::string &user,
+                                                                      const std::string &password,
+                                                                      const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
             {
                 throw DBException("S0U4V6W2X8Y5", "Firebird support is not enabled in this build", system_utils::captureCallStack());
             }

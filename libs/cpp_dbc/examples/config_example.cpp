@@ -69,7 +69,7 @@ cpp_dbc::config::DatabaseConfigManager createConfigProgrammatically()
     configManager.addDatabaseConfig(postgresConfig);
 
     // Create a connection pool configuration
-    cpp_dbc::config::ConnectionPoolConfig poolConfig;
+    cpp_dbc::config::DBConnectionPoolConfig poolConfig;
     poolConfig.setName("default");
     poolConfig.setInitialSize(5);
     poolConfig.setMaxSize(20);
@@ -78,7 +78,7 @@ cpp_dbc::config::DatabaseConfigManager createConfigProgrammatically()
     poolConfig.setValidationInterval(30000);
 
     // Add the pool configuration to the manager
-    configManager.addConnectionPoolConfig(poolConfig);
+    configManager.addDBConnectionPoolConfig(poolConfig);
 
     // Create test queries
     cpp_dbc::config::TestQueries queries;
@@ -125,7 +125,7 @@ void printConnectionPoolConfigs(const cpp_dbc::config::DatabaseConfigManager &co
     std::cout << "Connection Pool Configurations:" << std::endl;
     std::cout << "==============================" << std::endl;
 
-    auto poolConfigOpt = configManager.getConnectionPoolConfig("default");
+    auto poolConfigOpt = configManager.getDBConnectionPoolConfig("default");
     if (poolConfigOpt)
     {
         const auto &poolConfig = poolConfigOpt->get();
@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
 
         // In a real application, you would use the connection string to create a connection
         // For example:
-        // auto conn = cpp_dbc::DriverManager::getConnection(
+        // auto conn = cpp_dbc::DriverManager::getDBConnection(
         //     dbConfig.createConnectionString(),
         //     dbConfig.getUsername(),
         //     dbConfig.getPassword()

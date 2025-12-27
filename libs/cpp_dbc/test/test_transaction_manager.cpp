@@ -72,7 +72,7 @@ TEST_CASE("TransactionManager basic tests", "[transaction_manager]")
         REQUIRE(manager.getActiveTransactionCount() == 1);
 
         // Get the connection associated with the transaction
-        auto conn = manager.getTransactionConnection(txId);
+        auto conn = manager.getTransactionDBConnection(txId);
         REQUIRE(conn != nullptr);
 
         // Check that autoCommit is disabled on the connection
@@ -101,7 +101,7 @@ TEST_CASE("TransactionManager basic tests", "[transaction_manager]")
         REQUIRE(!txId.empty());
 
         // Get the connection associated with the transaction
-        auto conn = manager.getTransactionConnection(txId);
+        auto conn = manager.getTransactionDBConnection(txId);
         REQUIRE(conn != nullptr);
 
         // Execute a query using the connection
@@ -130,9 +130,9 @@ TEST_CASE("TransactionManager basic tests", "[transaction_manager]")
         REQUIRE(manager.getActiveTransactionCount() == 3);
 
         // Get connections for each transaction
-        auto conn1 = manager.getTransactionConnection(txId1);
-        auto conn2 = manager.getTransactionConnection(txId2);
-        auto conn3 = manager.getTransactionConnection(txId3);
+        auto conn1 = manager.getTransactionDBConnection(txId1);
+        auto conn2 = manager.getTransactionDBConnection(txId2);
+        auto conn3 = manager.getTransactionDBConnection(txId3);
 
         REQUIRE(conn1 != nullptr);
         REQUIRE(conn2 != nullptr);
@@ -196,7 +196,7 @@ TEST_CASE("TransactionManager multi-threaded tests", "[transaction_manager]")
                         std::string txId = manager.beginTransaction();
 
                         // Get the connection
-                        auto conn = manager.getTransactionConnection(txId);
+                        auto conn = manager.getTransactionDBConnection(txId);
 
                         // Execute a query
                         auto rs = conn->executeQuery("SELECT 1");

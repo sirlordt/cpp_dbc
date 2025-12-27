@@ -25,9 +25,9 @@
 namespace cpp_dbc
 {
     // Initialize static variables
-    std::map<std::string, std::shared_ptr<Driver>> DriverManager::drivers;
+    std::map<std::string, std::shared_ptr<DBDriver>> DriverManager::drivers;
 
-    void DriverManager::registerDriver(const std::string &name, std::shared_ptr<Driver> driver)
+    void DriverManager::registerDriver(const std::string &name, std::shared_ptr<DBDriver> driver)
     {
         // std::cout << "Registering driver: " << name << std::endl;
         // Only register if not already registered to avoid conflicts
@@ -37,10 +37,10 @@ namespace cpp_dbc
         }
     }
 
-    std::shared_ptr<Connection> DriverManager::getConnection(const std::string &url,
-                                                             const std::string &user,
-                                                             const std::string &password,
-                                                             const std::map<std::string, std::string> &options)
+    std::shared_ptr<DBConnection> DriverManager::getDBConnection(const std::string &url,
+                                                                 const std::string &user,
+                                                                 const std::string &password,
+                                                                 const std::map<std::string, std::string> &options)
     {
         // std::cout << "Getting connection for URL: " << url << std::endl;
 
@@ -84,17 +84,17 @@ namespace cpp_dbc
         return it->second->connect(url, user, password, options);
     }
 
-    std::shared_ptr<Connection> DriverManager::getConnection(const config::DatabaseConfig &dbConfig)
+    std::shared_ptr<DBConnection> DriverManager::getDBConnection(const config::DatabaseConfig &dbConfig)
     {
-        return getConnection(
+        return getDBConnection(
             dbConfig.createConnectionString(),
             dbConfig.getUsername(),
             dbConfig.getPassword(),
             dbConfig.getOptions());
     }
 
-    std::shared_ptr<Connection> DriverManager::getConnection(const config::DatabaseConfigManager &configManager,
-                                                             const std::string &configName)
+    std::shared_ptr<DBConnection> DriverManager::getDBConnection(const config::DatabaseConfigManager &configManager,
+                                                                 const std::string &configName)
     {
         auto dbConfigOpt = configManager.getDatabaseByName(configName);
         if (!dbConfigOpt)
@@ -103,7 +103,7 @@ namespace cpp_dbc
         }
 
         const auto &dbConfig = dbConfigOpt->get();
-        return getConnection(
+        return getDBConnection(
             dbConfig.createConnectionString(),
             dbConfig.getUsername(),
             dbConfig.getPassword(),

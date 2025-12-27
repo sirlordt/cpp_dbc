@@ -43,7 +43,7 @@ TEST_CASE("PostgreSQL connection test", "[postgresql_connection]")
         std::string password = dbConfig.getPassword();
         std::string connStr = dbConfig.createConnectionString();
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         try
         {
@@ -51,7 +51,7 @@ TEST_CASE("PostgreSQL connection test", "[postgresql_connection]")
             std::cout << "Attempting to connect to PostgreSQL with connection string: " << connStr << std::endl;
             std::cout << "Username: " << username << ", Password: " << password << std::endl;
 
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // If we get here, the connection was successful
             std::cout << "PostgreSQL connection successful!" << std::endl;

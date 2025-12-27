@@ -66,7 +66,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
     SECTION("Basic transaction operations")
     {
         // Create a connection pool configuration
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -88,7 +88,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
         cpp_dbc::TransactionManager manager(pool);
 
         // Create a test table
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -100,7 +100,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
             REQUIRE(!txId.empty());
 
             // Get the connection associated with the transaction
-            auto txConn = manager.getTransactionConnection(txId);
+            auto txConn = manager.getTransactionDBConnection(txId);
             REQUIRE(txConn != nullptr);
 
             // Insert data within the transaction
@@ -117,7 +117,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was committed
-            auto verifyConn = pool.getConnection();
+            auto verifyConn = pool.getDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
@@ -131,7 +131,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
             REQUIRE(!txId.empty());
 
             // Get the connection associated with the transaction
-            auto txConn = manager.getTransactionConnection(txId);
+            auto txConn = manager.getTransactionDBConnection(txId);
             REQUIRE(txConn != nullptr);
 
             // Insert data within the transaction
@@ -148,7 +148,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was not committed
-            auto verifyConn = pool.getConnection();
+            auto verifyConn = pool.getDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             verifyConn->close();
@@ -166,9 +166,9 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
             REQUIRE(txId1 != txId3);
 
             // Get connections for each transaction
-            auto txConn1 = manager.getTransactionConnection(txId1);
-            auto txConn2 = manager.getTransactionConnection(txId2);
-            auto txConn3 = manager.getTransactionConnection(txId3);
+            auto txConn1 = manager.getTransactionDBConnection(txId1);
+            auto txConn2 = manager.getTransactionDBConnection(txId2);
+            auto txConn3 = manager.getTransactionDBConnection(txId3);
 
             REQUIRE(txConn1 != nullptr);
             REQUIRE(txConn2 != nullptr);
@@ -205,7 +205,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
             REQUIRE_FALSE(manager.isTransactionActive(txId3));
 
             // Verify the data from committed transactions
-            auto verifyConn = pool.getConnection();
+            auto verifyConn = pool.getDBConnection();
 
             // Transaction 1 (committed)
             auto rs1 = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 10");
@@ -228,7 +228,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
         {
             // Begin a transaction
             std::string txId = manager.beginTransaction();
-            auto txConn = manager.getTransactionConnection(txId);
+            auto txConn = manager.getTransactionDBConnection(txId);
 
             // Insert data within the transaction
             auto pstmt = txConn->prepareStatement(insertDataQuery);
@@ -237,7 +237,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
             pstmt->executeUpdate();
 
             // Get a separate connection (not in the transaction)
-            auto regularConn = pool.getConnection();
+            auto regularConn = pool.getDBConnection();
 
             // Verify the data is not visible outside the transaction
             auto rs = regularConn->executeQuery("SELECT * FROM test_table WHERE id = 100");
@@ -261,7 +261,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
 
             // Begin a transaction
             std::string txId = manager.beginTransaction();
-            auto txConn = manager.getTransactionConnection(txId);
+            auto txConn = manager.getTransactionDBConnection(txId);
 
             // Insert data within the transaction
             auto pstmt = txConn->prepareStatement(insertDataQuery);
@@ -276,7 +276,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was not committed
-            auto verifyConn = pool.getConnection();
+            auto verifyConn = pool.getDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 200");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             verifyConn->close();
@@ -286,7 +286,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
         }
 
         // Clean up
-        auto cleanupConn = pool.getConnection();
+        auto cleanupConn = pool.getDBConnection();
         cleanupConn->executeUpdate(dropTableQuery);
         cleanupConn->close();
 
@@ -324,7 +324,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
     SECTION("Basic transaction operations")
     {
         // Create a connection pool configuration
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -346,7 +346,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
         cpp_dbc::TransactionManager manager(pool);
 
         // Create a test table
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -358,7 +358,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
             REQUIRE(!txId.empty());
 
             // Get the connection associated with the transaction
-            auto txConn = manager.getTransactionConnection(txId);
+            auto txConn = manager.getTransactionDBConnection(txId);
             REQUIRE(txConn != nullptr);
 
             // Insert data within the transaction
@@ -375,7 +375,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was committed
-            auto verifyConn = pool.getConnection();
+            auto verifyConn = pool.getDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
@@ -389,7 +389,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
             REQUIRE(!txId.empty());
 
             // Get the connection associated with the transaction
-            auto txConn = manager.getTransactionConnection(txId);
+            auto txConn = manager.getTransactionDBConnection(txId);
             REQUIRE(txConn != nullptr);
 
             // Insert data within the transaction
@@ -406,7 +406,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was not committed
-            auto verifyConn = pool.getConnection();
+            auto verifyConn = pool.getDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             verifyConn->close();
@@ -417,7 +417,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
             // PostgreSQL supports different transaction isolation levels
 
             // Begin a transaction with READ COMMITTED isolation level
-            auto conn1 = pool.getConnection();
+            auto conn1 = pool.getDBConnection();
             conn1->executeUpdate("BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED");
 
             // Insert data
@@ -427,7 +427,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
             pstmt1->executeUpdate();
 
             // Begin another transaction with READ COMMITTED isolation level
-            auto conn2 = pool.getConnection();
+            auto conn2 = pool.getDBConnection();
             conn2->executeUpdate("BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED");
 
             // Try to update the same row
@@ -457,7 +457,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
             conn2->close();
 
             // Verify the update
-            auto verifyConn = pool.getConnection();
+            auto verifyConn = pool.getDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 300");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Updated Name");
@@ -465,7 +465,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
         }
 
         // Clean up
-        auto cleanupConn = pool.getConnection();
+        auto cleanupConn = pool.getDBConnection();
         cleanupConn->executeUpdate(dropTableQuery);
         cleanupConn->close();
 
@@ -503,7 +503,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
     SECTION("Basic transaction operations")
     {
         // Create a connection pool configuration
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -525,7 +525,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
         cpp_dbc::TransactionManager manager(pool);
 
         // Create a test table
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         try
         {
             conn->executeUpdate(dropTableQuery); // Drop table if it exists
@@ -544,7 +544,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
             REQUIRE(!txId.empty());
 
             // Get the connection associated with the transaction
-            auto txConn = manager.getTransactionConnection(txId);
+            auto txConn = manager.getTransactionDBConnection(txId);
             REQUIRE(txConn != nullptr);
 
             // Insert data within the transaction
@@ -561,7 +561,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was committed
-            auto verifyConn = pool.getConnection();
+            auto verifyConn = pool.getDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("NAME") == "Transaction Test"); // Firebird returns uppercase column names
@@ -575,7 +575,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
             REQUIRE(!txId.empty());
 
             // Get the connection associated with the transaction
-            auto txConn = manager.getTransactionConnection(txId);
+            auto txConn = manager.getTransactionDBConnection(txId);
             REQUIRE(txConn != nullptr);
 
             // Insert data within the transaction
@@ -592,7 +592,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was not committed
-            auto verifyConn = pool.getConnection();
+            auto verifyConn = pool.getDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             verifyConn->close();
@@ -610,9 +610,9 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
             REQUIRE(txId1 != txId3);
 
             // Get connections for each transaction
-            auto txConn1 = manager.getTransactionConnection(txId1);
-            auto txConn2 = manager.getTransactionConnection(txId2);
-            auto txConn3 = manager.getTransactionConnection(txId3);
+            auto txConn1 = manager.getTransactionDBConnection(txId1);
+            auto txConn2 = manager.getTransactionDBConnection(txId2);
+            auto txConn3 = manager.getTransactionDBConnection(txId3);
 
             REQUIRE(txConn1 != nullptr);
             REQUIRE(txConn2 != nullptr);
@@ -649,7 +649,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
             REQUIRE_FALSE(manager.isTransactionActive(txId3));
 
             // Verify the data from committed transactions
-            auto verifyConn = pool.getConnection();
+            auto verifyConn = pool.getDBConnection();
 
             // Transaction 1 (committed)
             auto rs1 = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 10");
@@ -672,7 +672,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
         {
             // Begin a transaction
             std::string txId = manager.beginTransaction();
-            auto txConn = manager.getTransactionConnection(txId);
+            auto txConn = manager.getTransactionDBConnection(txId);
 
             // Insert data within the transaction
             auto pstmt = txConn->prepareStatement(insertDataQuery);
@@ -681,7 +681,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
             pstmt->executeUpdate();
 
             // Get a separate connection (not in the transaction)
-            auto regularConn = pool.getConnection();
+            auto regularConn = pool.getDBConnection();
 
             // Verify the data is not visible outside the transaction
             auto rs = regularConn->executeQuery("SELECT * FROM test_table WHERE id = 100");
@@ -705,7 +705,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
 
             // Begin a transaction
             std::string txId = manager.beginTransaction();
-            auto txConn = manager.getTransactionConnection(txId);
+            auto txConn = manager.getTransactionDBConnection(txId);
 
             // Insert data within the transaction
             auto pstmt = txConn->prepareStatement(insertDataQuery);
@@ -720,7 +720,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was not committed
-            auto verifyConn = pool.getConnection();
+            auto verifyConn = pool.getDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 200");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             verifyConn->close();
@@ -734,17 +734,21 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
         pool.close();
 
         // Clean up using a direct connection (not from pool)
-        cpp_dbc::Firebird::FirebirdDriver driver;
-        auto cleanupConn = driver.connect(connStr, username, password);
-        try
+        cpp_dbc::Firebird::FirebirdDBDriver driver;
+        auto cleanupConnBase = driver.connect(connStr, username, password);
+        auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cleanupConnBase);
+        if (cleanupConn)
         {
-            cleanupConn->executeUpdate(dropTableQuery);
+            try
+            {
+                cleanupConn->executeUpdate(dropTableQuery);
+            }
+            catch (...)
+            {
+                // Ignore errors if table doesn't exist
+            }
+            cleanupConn->close();
         }
-        catch (...)
-        {
-            // Ignore errors if table doesn't exist
-        }
-        cleanupConn->close();
     }
 }
 #endif

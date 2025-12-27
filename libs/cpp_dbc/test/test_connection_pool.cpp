@@ -39,7 +39,7 @@ TEST_CASE("ConnectionPoolConfig tests", "[connection_pool]")
     SECTION("Default constructor sets default values")
     {
         INFO("Default constructor sets default values");
-        cpp_dbc::config::ConnectionPoolConfig config;
+        cpp_dbc::config::DBConnectionPoolConfig config;
 
         REQUIRE(config.getInitialSize() == 5);
         REQUIRE(config.getMaxSize() == 20);
@@ -56,7 +56,7 @@ TEST_CASE("ConnectionPoolConfig tests", "[connection_pool]")
     SECTION("Constructor with basic parameters")
     {
         INFO("Constructor with basic parameters");
-        cpp_dbc::config::ConnectionPoolConfig config(
+        cpp_dbc::config::DBConnectionPoolConfig config(
             "test_pool", 10, 50, 10000, 60000, 15000);
 
         REQUIRE(config.getName() == "test_pool");
@@ -77,7 +77,7 @@ TEST_CASE("ConnectionPoolConfig tests", "[connection_pool]")
     SECTION("Full constructor with all parameters")
     {
         INFO("Full constructor with all parameters");
-        cpp_dbc::config::ConnectionPoolConfig config(
+        cpp_dbc::config::DBConnectionPoolConfig config(
             "full_pool", "cpp_dbc:mysql://localhost:3306/test", "user", "pass",
             15, 100, 5, 20000, 120000, 30000, 3600000, false, true, "SELECT version()");
 
@@ -100,7 +100,7 @@ TEST_CASE("ConnectionPoolConfig tests", "[connection_pool]")
     SECTION("Setters and getters")
     {
         INFO("Setters and getters");
-        cpp_dbc::config::ConnectionPoolConfig config;
+        cpp_dbc::config::DBConnectionPoolConfig config;
 
         config.setName("setter_test");
         config.setUrl("cpp_dbc:postgresql://localhost:5432/test");
@@ -141,7 +141,7 @@ TEST_CASE("ConnectionPoolConfig tests", "[connection_pool]")
             "test_db", "mysql", "localhost", 3306, "testdb", "root", "password");
 
         // Create a connection pool config and apply the database config
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.withDatabaseConfig(dbConfig);
 
         // Check that the database config values were applied
@@ -163,16 +163,16 @@ TEST_CASE("ConnectionPool basic tests", "[connection_pool]")
         cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
 
         // Get the default connection pool configuration
-        auto poolConfigOpt = configManager.getConnectionPoolConfig("default");
+        auto poolConfigOpt = configManager.getDBConnectionPoolConfig("default");
         if (!poolConfigOpt.has_value())
         {
             FAIL("Default connection pool configuration not found in config file");
             return;
         }
-        const cpp_dbc::config::ConnectionPoolConfig &poolCfg = poolConfigOpt.value().get();
+        const cpp_dbc::config::DBConnectionPoolConfig &poolCfg = poolConfigOpt.value().get();
 
         // Create a ConnectionPoolConfig object
-        cpp_dbc::config::ConnectionPoolConfig cpConfig;
+        cpp_dbc::config::DBConnectionPoolConfig cpConfig;
         cpConfig.setInitialSize(poolCfg.getInitialSize());
         cpConfig.setMaxSize(poolCfg.getMaxSize());
         cpConfig.setConnectionTimeout(poolCfg.getConnectionTimeout());
@@ -180,7 +180,7 @@ TEST_CASE("ConnectionPool basic tests", "[connection_pool]")
         cpConfig.setValidationInterval(poolCfg.getValidationInterval());
 #else
         // Create a ConnectionPoolConfig object with hardcoded values
-        cpp_dbc::config::ConnectionPoolConfig cpConfig;
+        cpp_dbc::config::DBConnectionPoolConfig cpConfig;
         cpConfig.setInitialSize(5);
         cpConfig.setMaxSize(10);
         cpConfig.setConnectionTimeout(5000);
@@ -215,7 +215,7 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
     {
         INFO("Create and use ConnectionPool with mock driver");
         // Create a connection pool with mock driver
-        cpp_dbc::ConnectionPool pool(
+        cpp_dbc::RelationalDBConnectionPool pool(
             "cpp_dbc:mock://localhost:1234/mockdb",
             "mockuser",
             "mockpass",
@@ -233,7 +233,7 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
         );
 
         // Get a connection from the pool
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         REQUIRE(conn != nullptr);
 
         // Test that we can use the connection
@@ -247,17 +247,17 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
         conn->close();
 
         // Check pool statistics
-        REQUIRE(pool.getActiveConnectionCount() == 0);
-        REQUIRE(pool.getIdleConnectionCount() > 0);
+        REQUIRE(pool.getActiveDBConnectionCount() == 0);
+        REQUIRE(pool.getIdleDBConnectionCount() > 0);
 
         // Get multiple connections
-        std::vector<std::shared_ptr<cpp_dbc::Connection>> connections;
+        std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
         for (int i = 0; i < 5; i++)
         {
-            connections.push_back(pool.getConnection());
+            connections.push_back(pool.getDBConnection());
         }
 
-        REQUIRE(pool.getActiveConnectionCount() == 5);
+        REQUIRE(pool.getActiveDBConnectionCount() == 5);
 
         // Return connections to the pool
         for (auto &c : connections)
@@ -265,7 +265,7 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
             c->close();
         }
 
-        REQUIRE(pool.getActiveConnectionCount() == 0);
+        REQUIRE(pool.getActiveDBConnectionCount() == 0);
 
         // Close the pool
         pool.close();
@@ -275,7 +275,7 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
     {
         INFO("Test ConnectionPool with multiple threads");
         // Create a connection pool with mock driver
-        cpp_dbc::ConnectionPool pool(
+        cpp_dbc::RelationalDBConnectionPool pool(
             "cpp_dbc:mock://localhost:1234/mockdb",
             "mockuser",
             "mockpass",
@@ -308,7 +308,7 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn = pool.getConnection();
+                        auto conn = pool.getDBConnection();
                         
                         // Perform a simple query
                         auto rs = conn->executeQuery("SELECT 1");

@@ -149,7 +149,7 @@ TEST_CASE("Pooled connection transaction isolation tests", "[transaction][isolat
         auto pool = std::make_shared<cpp_dbc_test::MockConnectionPool>();
 
         // Get a connection from the pool
-        auto conn = pool->getConnection();
+        auto conn = pool->getDBConnection();
 
         // Set isolation level
         conn->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -173,7 +173,7 @@ TEST_CASE("Pooled connection transaction isolation tests", "[transaction][isolat
         mockPool->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
 
         // Get a connection from the pool
-        auto conn = mockPool->getConnection();
+        auto conn = mockPool->getDBConnection();
 
         // Check that the connection has the correct isolation level
         REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -182,7 +182,7 @@ TEST_CASE("Pooled connection transaction isolation tests", "[transaction][isolat
         mockPool->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
         // Get another connection from the pool
-        auto conn2 = mockPool->getConnection();
+        auto conn2 = mockPool->getDBConnection();
 
         // Check that the new connection has the updated isolation level
         REQUIRE(conn2->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
@@ -196,7 +196,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
     SECTION("MySQL driver default isolation level")
     {
         // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDriver driver;
+        cpp_dbc::MySQL::MySQLDBDriver driver;
 
         // We can't actually connect to a database in unit tests,
         // but we can verify that the driver correctly handles isolation levels
@@ -212,7 +212,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
             std::string password = dbConfig.getPassword();
 
             // Try to connect to a local MySQL server
-            auto conn = driver.connect(connStr, username, password);
+            auto conn = driver.connectRelational(connStr, username, password);
 
             // Check default isolation level (should be REPEATABLE_READ for MySQL)
             REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ);
@@ -245,7 +245,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
     SECTION("MySQL READ_UNCOMMITTED isolation behavior")
     {
         // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDriver driver;
+        cpp_dbc::MySQL::MySQLDBDriver driver;
 
         try
         {
@@ -258,15 +258,15 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
             std::string password = dbConfig.getPassword();
 
             // Create a test table
-            auto setupConn = driver.connect(connStr, username, password);
+            auto setupConn = driver.connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate("CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connect(connStr, username, password);
-            auto conn2 = driver.connect(connStr, username, password);
+            auto conn1 = driver.connectRelational(connStr, username, password);
+            auto conn2 = driver.connectRelational(connStr, username, password);
 
             // Set READ_UNCOMMITTED isolation level for both connections
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED);
@@ -304,7 +304,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
     SECTION("MySQL READ_COMMITTED isolation behavior")
     {
         // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDriver driver;
+        cpp_dbc::MySQL::MySQLDBDriver driver;
 
         try
         {
@@ -317,15 +317,15 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
             std::string password = dbConfig.getPassword();
 
             // Create a test table
-            auto setupConn = driver.connect(connStr, username, password);
+            auto setupConn = driver.connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate("CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connect(connStr, username, password);
-            auto conn2 = driver.connect(connStr, username, password);
+            auto conn1 = driver.connectRelational(connStr, username, password);
+            auto conn2 = driver.connectRelational(connStr, username, password);
 
             // Set READ_COMMITTED isolation level for both connections
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
@@ -370,7 +370,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
     SECTION("MySQL REPEATABLE_READ isolation behavior")
     {
         // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDriver driver;
+        cpp_dbc::MySQL::MySQLDBDriver driver;
 
         try
         {
@@ -383,15 +383,15 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
             std::string password = dbConfig.getPassword();
 
             // Create a test table
-            auto setupConn = driver.connect(connStr, username, password);
+            auto setupConn = driver.connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate("CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connect(connStr, username, password);
-            auto conn2 = driver.connect(connStr, username, password);
+            auto conn1 = driver.connectRelational(connStr, username, password);
+            auto conn2 = driver.connectRelational(connStr, username, password);
 
             // Set REPEATABLE_READ isolation level for both connections
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ);
@@ -429,7 +429,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
     SECTION("MySQL SERIALIZABLE isolation behavior")
     {
         // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDriver driver;
+        cpp_dbc::MySQL::MySQLDBDriver driver;
 
         try
         {
@@ -442,15 +442,15 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
             std::string password = dbConfig.getPassword();
 
             // Create a test table
-            auto setupConn = driver.connect(connStr, username, password);
+            auto setupConn = driver.connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate("CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connect(connStr, username, password);
-            auto conn2 = driver.connect(connStr, username, password);
+            auto conn1 = driver.connectRelational(connStr, username, password);
+            auto conn2 = driver.connectRelational(connStr, username, password);
 
             // Set SERIALIZABLE isolation level for both connections
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -471,7 +471,7 @@ TEST_CASE("MySQL transaction isolation tests", "[transaction][isolation][mysql][
                 conn1->commit();
 
                 // Start a new transaction with SERIALIZABLE isolation
-                auto conn3 = driver.connect(connStr, username, password);
+                auto conn3 = driver.connectRelational(connStr, username, password);
                 conn3->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
                 conn3->setAutoCommit(false);
 
@@ -511,7 +511,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
     SECTION("PostgreSQL driver default isolation level")
     {
         // Create a PostgreSQL driver
-        cpp_dbc::PostgreSQL::PostgreSQLDriver driver;
+        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
 
         // We can't actually connect to a database in unit tests,
         // but we can verify that the driver correctly handles isolation levels
@@ -527,7 +527,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             std::string password = dbConfig.getPassword();
 
             // Try to connect to a local PostgreSQL server
-            auto conn = driver.connect(connStr, username, password);
+            auto conn = driver.connectRelational(connStr, username, password);
 
             // Check default isolation level (should be READ_COMMITTED for PostgreSQL)
             REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
@@ -575,7 +575,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
     SECTION("PostgreSQL READ_COMMITTED isolation behavior")
     {
         // Create a PostgreSQL driver
-        cpp_dbc::PostgreSQL::PostgreSQLDriver driver;
+        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
 
         try
         {
@@ -588,15 +588,15 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             std::string password = dbConfig.getPassword();
 
             // Create a test table
-            auto setupConn = driver.connect(connStr, username, password);
+            auto setupConn = driver.connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate("CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connect(connStr, username, password);
-            auto conn2 = driver.connect(connStr, username, password);
+            auto conn1 = driver.connectRelational(connStr, username, password);
+            auto conn2 = driver.connectRelational(connStr, username, password);
 
             // Set READ_COMMITTED isolation level for both connections
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
@@ -641,7 +641,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
     SECTION("PostgreSQL REPEATABLE_READ isolation behavior")
     {
         // Create a PostgreSQL driver
-        cpp_dbc::PostgreSQL::PostgreSQLDriver driver;
+        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
 
         try
         {
@@ -654,15 +654,15 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             std::string password = dbConfig.getPassword();
 
             // Create a test table
-            auto setupConn = driver.connect(connStr, username, password);
+            auto setupConn = driver.connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate("CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connect(connStr, username, password);
-            auto conn2 = driver.connect(connStr, username, password);
+            auto conn1 = driver.connectRelational(connStr, username, password);
+            auto conn2 = driver.connectRelational(connStr, username, password);
 
             // Set REPEATABLE_READ isolation level for both connections
             conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ);
@@ -700,7 +700,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
     SECTION("PostgreSQL SERIALIZABLE isolation behavior")
     {
 
-        cpp_dbc::PostgreSQL::PostgreSQLDriver driver;
+        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
 
         try
         {
@@ -713,7 +713,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             std::string password = dbConfig.getPassword();
 
             // Create test table
-            auto setupConn = driver.connect(connStr, username, password);
+            auto setupConn = driver.connectRelational(connStr, username, password);
             setupConn->executeUpdate("DROP TABLE IF EXISTS isolation_test");
             setupConn->executeUpdate(
                 "CREATE TABLE isolation_test (id INT PRIMARY KEY, value VARCHAR(50))");
@@ -725,8 +725,8 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             // ========================================
             SECTION("Snapshot consistency - concurrent transaction isolation")
             {
-                auto conn1 = driver.connect(connStr, username, password);
-                auto conn2 = driver.connect(connStr, username, password);
+                auto conn1 = driver.connectRelational(connStr, username, password);
+                auto conn2 = driver.connectRelational(connStr, username, password);
 
                 conn1->setTransactionIsolation(
                     cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -785,13 +785,13 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             SECTION("Write-write conflict causes serialization error")
             {
                 // Reset table
-                setupConn = driver.connect(connStr, username, password);
+                setupConn = driver.connectRelational(connStr, username, password);
                 setupConn->executeUpdate(
                     "UPDATE isolation_test SET value = 'initial' WHERE id = 1");
                 setupConn->close();
 
-                auto conn1 = driver.connect(connStr, username, password);
-                auto conn2 = driver.connect(connStr, username, password);
+                auto conn1 = driver.connectRelational(connStr, username, password);
+                auto conn2 = driver.connectRelational(connStr, username, password);
 
                 conn1->setTransactionIsolation(
                     cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -857,14 +857,14 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             SECTION("Serialization anomaly detection (write skew)")
             {
                 // Reset table with two rows
-                setupConn = driver.connect(connStr, username, password);
+                setupConn = driver.connectRelational(connStr, username, password);
                 setupConn->executeUpdate("DELETE FROM isolation_test");
                 setupConn->executeUpdate(
                     "INSERT INTO isolation_test VALUES (1, 'initial'), (2, 'initial2')");
                 setupConn->close();
 
-                auto txn1 = driver.connect(connStr, username, password);
-                auto txn2 = driver.connect(connStr, username, password);
+                auto txn1 = driver.connectRelational(connStr, username, password);
+                auto txn2 = driver.connectRelational(connStr, username, password);
 
                 txn1->setTransactionIsolation(
                     cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -934,14 +934,14 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
             SECTION("Phantom read prevention")
             {
                 // Reset table
-                setupConn = driver.connect(connStr, username, password);
+                setupConn = driver.connectRelational(connStr, username, password);
                 setupConn->executeUpdate("DELETE FROM isolation_test");
                 setupConn->executeUpdate(
                     "INSERT INTO isolation_test VALUES (1, 'initial')");
                 setupConn->close();
 
-                auto conn1 = driver.connect(connStr, username, password);
-                auto conn2 = driver.connect(connStr, username, password);
+                auto conn1 = driver.connectRelational(connStr, username, password);
+                auto conn2 = driver.connectRelational(connStr, username, password);
 
                 conn1->setTransactionIsolation(
                     cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -997,7 +997,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[transaction][isolation][po
     SECTION("PostgreSQL SERIALIZABLE isolation behavior")
     {
         // Create a PostgreSQL driver
-        cpp_dbc::PostgreSQL::PostgreSQLDriver driver;
+        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
 
         try
         {
@@ -1193,7 +1193,7 @@ TEST_CASE("Firebird transaction isolation tests", "[transaction][isolation][fire
     SECTION("Firebird driver default isolation level")
     {
         // Create a Firebird driver
-        cpp_dbc::Firebird::FirebirdDriver driver;
+        cpp_dbc::Firebird::FirebirdDBDriver driver;
 
         // We can't actually connect to a database in unit tests,
         // but we can verify that the driver correctly handles isolation levels
@@ -1209,7 +1209,7 @@ TEST_CASE("Firebird transaction isolation tests", "[transaction][isolation][fire
             std::string password = dbConfig.getPassword();
 
             // Try to connect to a local Firebird server
-            auto conn = driver.connect(connStr, username, password);
+            auto conn = driver.connectRelational(connStr, username, password);
 
             // Check default isolation level (should be READ_COMMITTED for Firebird)
             REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
@@ -1240,7 +1240,7 @@ TEST_CASE("Firebird transaction isolation tests", "[transaction][isolation][fire
     SECTION("Firebird READ_COMMITTED isolation behavior")
     {
         // Create a Firebird driver
-        cpp_dbc::Firebird::FirebirdDriver driver;
+        cpp_dbc::Firebird::FirebirdDBDriver driver;
 
         try
         {
@@ -1254,15 +1254,15 @@ TEST_CASE("Firebird transaction isolation tests", "[transaction][isolation][fire
 
             // Create a test table using RECREATE TABLE (Firebird's equivalent of DROP IF EXISTS + CREATE)
             // Note: 'value' is a reserved word in Firebird, so we use 'val' instead
-            auto setupConn = driver.connect(connStr, username, password);
+            auto setupConn = driver.connectRelational(connStr, username, password);
             setupConn->executeUpdate("RECREATE TABLE isolation_test (id INT NOT NULL PRIMARY KEY, val VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->commit(); // Explicitly commit before closing (required for Firebird)
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connect(connStr, username, password);
-            auto conn2 = driver.connect(connStr, username, password);
+            auto conn1 = driver.connectRelational(connStr, username, password);
+            auto conn2 = driver.connectRelational(connStr, username, password);
 
             // Start transactions first, then set isolation level
             // For Firebird, we need to start the transaction before setting isolation level
@@ -1312,7 +1312,7 @@ TEST_CASE("Firebird transaction isolation tests", "[transaction][isolation][fire
             conn2->close();
 
             // Drop the test table
-            auto cleanupConn = driver.connect(connStr, username, password);
+            auto cleanupConn = driver.connectRelational(connStr, username, password);
             cleanupConn->executeUpdate("DROP TABLE isolation_test");
             cleanupConn->close();
         }
@@ -1325,7 +1325,7 @@ TEST_CASE("Firebird transaction isolation tests", "[transaction][isolation][fire
     SECTION("Firebird REPEATABLE_READ isolation behavior")
     {
         // Create a Firebird driver
-        cpp_dbc::Firebird::FirebirdDriver driver;
+        cpp_dbc::Firebird::FirebirdDBDriver driver;
 
         try
         {
@@ -1339,15 +1339,15 @@ TEST_CASE("Firebird transaction isolation tests", "[transaction][isolation][fire
 
             // Create a test table using RECREATE TABLE (Firebird's equivalent of DROP IF EXISTS + CREATE)
             // Note: 'value' is a reserved word in Firebird, so we use 'val' instead
-            auto setupConn = driver.connect(connStr, username, password);
+            auto setupConn = driver.connectRelational(connStr, username, password);
             setupConn->executeUpdate("RECREATE TABLE isolation_test (id INT NOT NULL PRIMARY KEY, val VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->commit(); // Explicitly commit before closing (required for Firebird)
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connect(connStr, username, password);
-            auto conn2 = driver.connect(connStr, username, password);
+            auto conn1 = driver.connectRelational(connStr, username, password);
+            auto conn2 = driver.connectRelational(connStr, username, password);
 
             // Start transactions first, then set isolation level
             // For Firebird, we need to start the transaction before setting isolation level
@@ -1387,7 +1387,7 @@ TEST_CASE("Firebird transaction isolation tests", "[transaction][isolation][fire
             conn2->close();
 
             // Drop the test table
-            auto cleanupConn = driver.connect(connStr, username, password);
+            auto cleanupConn = driver.connectRelational(connStr, username, password);
             cleanupConn->executeUpdate("DROP TABLE isolation_test");
             cleanupConn->close();
         }
@@ -1400,7 +1400,7 @@ TEST_CASE("Firebird transaction isolation tests", "[transaction][isolation][fire
     SECTION("Firebird SERIALIZABLE isolation behavior")
     {
         // Create a Firebird driver
-        cpp_dbc::Firebird::FirebirdDriver driver;
+        cpp_dbc::Firebird::FirebirdDBDriver driver;
 
         try
         {
@@ -1414,15 +1414,15 @@ TEST_CASE("Firebird transaction isolation tests", "[transaction][isolation][fire
 
             // Create a test table using RECREATE TABLE (Firebird's equivalent of DROP IF EXISTS + CREATE)
             // Note: 'value' is a reserved word in Firebird, so we use 'val' instead
-            auto setupConn = driver.connect(connStr, username, password);
+            auto setupConn = driver.connectRelational(connStr, username, password);
             setupConn->executeUpdate("RECREATE TABLE isolation_test (id INT NOT NULL PRIMARY KEY, val VARCHAR(50))");
             setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
             setupConn->commit(); // Explicitly commit before closing (required for Firebird)
             setupConn->close();
 
             // Create two connections
-            auto conn1 = driver.connect(connStr, username, password);
-            auto conn2 = driver.connect(connStr, username, password);
+            auto conn1 = driver.connectRelational(connStr, username, password);
+            auto conn2 = driver.connectRelational(connStr, username, password);
 
             // Test 1: Basic SERIALIZABLE behavior in Firebird
             {
@@ -1443,7 +1443,7 @@ TEST_CASE("Firebird transaction isolation tests", "[transaction][isolation][fire
                 conn1->commit();
 
                 // Start a new transaction with SERIALIZABLE isolation
-                auto conn3 = driver.connect(connStr, username, password);
+                auto conn3 = driver.connectRelational(connStr, username, password);
                 conn3->setAutoCommit(false);
                 conn3->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
                 conn3->beginTransaction();
@@ -1470,7 +1470,7 @@ TEST_CASE("Firebird transaction isolation tests", "[transaction][isolation][fire
             conn2->close();
 
             // Drop the test table
-            auto cleanupConn = driver.connect(connStr, username, password);
+            auto cleanupConn = driver.connectRelational(connStr, username, password);
             cleanupConn->executeUpdate("DROP TABLE isolation_test");
             cleanupConn->close();
         }
@@ -1491,7 +1491,7 @@ TEST_CASE("DriverManager transaction isolation tests", "[transaction][isolation]
         cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<cpp_dbc_test::MockDriver>());
 
         // Get a connection through the DriverManager
-        auto conn = cpp_dbc::DriverManager::getConnection("cpp_dbc:mock://localhost:1234/mockdb", "user", "pass");
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection("cpp_dbc:mock://localhost:1234/mockdb", "user", "pass"));
 
         // Check default isolation level
         REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);

@@ -39,13 +39,13 @@ namespace cpp_dbc
     // Structure to hold transaction state
     struct TransactionContext
     {
-        std::shared_ptr<Connection> connection;
+        std::shared_ptr<RelationalDBConnection> connection;
         std::chrono::steady_clock::time_point creationTime;
         std::chrono::steady_clock::time_point lastAccessTime;
         std::string transactionId;
         bool active{false};
 
-        TransactionContext(std::shared_ptr<Connection> conn, std::string id)
+        TransactionContext(std::shared_ptr<RelationalDBConnection> conn, std::string id)
             : connection(conn),
               creationTime(std::chrono::steady_clock::now()),
               lastAccessTime(std::chrono::steady_clock::now()),
@@ -55,35 +55,35 @@ namespace cpp_dbc
         }
     };
 
-    // Transaction manager class
+    // Transaction manager class for relational databases
     class TransactionManager
     {
     private:
-        ConnectionPool &pool;
+        RelationalDBConnectionPool &pool;
         std::map<std::string, std::shared_ptr<TransactionContext>> activeTransactions;
         std::mutex transactionMutex;
         std::thread cleanupThread;
-        std::atomic<bool> running{true};
+        std::atomic<bool> running{true}; // WARNING MUST BE TRUE. NOT Change to false
         std::condition_variable cleanupCondition;
         std::mutex cleanupMutex;
 
         // Configuration
-        long transactionTimeoutMillis = 300000; // 5 minutes by default
-        long cleanupIntervalMillis = 60000;     // 1 minute by default
+        long transactionTimeoutMillis{300000}; // 5 minutes by default
+        long cleanupIntervalMillis{60000};     // 1 minute by default
 
         // Helper methods
         void cleanupTask();
         std::string generateUUID() const;
 
     public:
-        TransactionManager(ConnectionPool &connectionPool);
+        TransactionManager(RelationalDBConnectionPool &connectionPool);
         ~TransactionManager();
 
         // Start a new transaction and return its ID
         std::string beginTransaction();
 
         // Get a connection associated with a transaction
-        std::shared_ptr<Connection> getTransactionConnection(const std::string &transactionId);
+        std::shared_ptr<RelationalDBConnection> getTransactionDBConnection(const std::string &transactionId);
 
         // Commit a transaction by its ID
         void commitTransaction(const std::string &transactionId);

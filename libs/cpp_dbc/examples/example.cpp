@@ -31,7 +31,7 @@
 #include <memory>
 
 // Function to demonstrate common usage with any database
-void performDatabaseOperations(std::shared_ptr<cpp_dbc::Connection> conn)
+void performDatabaseOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     try
     {
@@ -112,33 +112,47 @@ int main()
     {
         // Register database drivers
 #if USE_MYSQL
-        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 #endif
 #if USE_POSTGRESQL
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 #endif
 
         // Example with MySQL
+#if USE_MYSQL
         std::cout << "Connecting to MySQL..." << std::endl;
-        auto mysqlConn = cpp_dbc::DriverManager::getConnection(
+        auto mysqlConnBase = cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:mysql://localhost:3306/testdb",
             "username",
             "password");
+        auto mysqlConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(mysqlConnBase);
+        if (!mysqlConn)
+        {
+            throw cpp_dbc::DBException("9D325415CE02", "Failed to cast MySQL connection to RelationalDBConnection");
+        }
 
         std::cout << "MySQL Operations:" << std::endl;
         performDatabaseOperations(mysqlConn);
         mysqlConn->close();
+#endif
 
         // Example with PostgreSQL
+#if USE_POSTGRESQL
         std::cout << "\nConnecting to PostgreSQL..." << std::endl;
-        auto pgConn = cpp_dbc::DriverManager::getConnection(
+        auto pgConnBase = cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:postgresql://localhost:5432/testdb",
             "username",
             "password");
+        auto pgConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(pgConnBase);
+        if (!pgConn)
+        {
+            throw cpp_dbc::DBException("C426C50B86FB", "Failed to cast PostgreSQL connection to RelationalDBConnection");
+        }
 
         std::cout << "PostgreSQL Operations:" << std::endl;
         performDatabaseOperations(pgConn);
         pgConn->close();
+#endif
     }
     catch (const cpp_dbc::DBException &e)
     {

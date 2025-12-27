@@ -164,7 +164,7 @@ namespace cpp_dbc
                         std::string name = poolNode.first.as<std::string>();
                         YAML::Node poolConfig = poolNode.second;
 
-                        ConnectionPoolConfig poolCfg;
+                        DBConnectionPoolConfig poolCfg;
                         poolCfg.setName(name);
                         poolCfg.setInitialSize(poolConfig["initial_size"].as<int>());
                         poolCfg.setMaxSize(poolConfig["max_size"].as<int>());
@@ -211,7 +211,7 @@ namespace cpp_dbc
                         }
 
                         // Add pool config to manager
-                        configManager.addConnectionPoolConfig(poolCfg);
+                        configManager.addDBConnectionPoolConfig(poolCfg);
                     }
                 }
 

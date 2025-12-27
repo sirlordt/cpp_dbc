@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file driver_postgresql.hpp
- @brief Tests for PostgreSQL database operations
+ @brief PostgreSQL database driver implementation
 
 */
 
@@ -99,7 +99,7 @@ namespace cpp_dbc
          */
         using PGconnHandle = std::shared_ptr<PGconn>;
 
-        class PostgreSQLResultSet : public ResultSet
+        class PostgreSQLDBResultSet : public RelationalDBResultSet
         {
         private:
             /**
@@ -120,9 +120,14 @@ namespace cpp_dbc
 #endif
 
         public:
-            PostgreSQLResultSet(PGresult *res);
-            ~PostgreSQLResultSet() override;
+            PostgreSQLDBResultSet(PGresult *res);
+            ~PostgreSQLDBResultSet() override;
 
+            // DBResultSet interface
+            void close() override;
+            bool isEmpty() override;
+
+            // RelationalDBResultSet interface
             bool next() override;
             bool isBeforeFirst() override;
             bool isAfterLast() override;
@@ -148,7 +153,6 @@ namespace cpp_dbc
 
             std::vector<std::string> getColumnNames() override;
             size_t getColumnCount() override;
-            virtual void close() override;
 
             // BLOB support methods
             std::shared_ptr<Blob> getBlob(size_t columnIndex) override;
@@ -161,9 +165,9 @@ namespace cpp_dbc
             std::vector<uint8_t> getBytes(const std::string &columnName) override;
         };
 
-        class PostgreSQLPreparedStatement : public PreparedStatement
+        class PostgreSQLDBPreparedStatement : public RelationalDBPreparedStatement
         {
-            friend class PostgreSQLConnection;
+            friend class PostgreSQLDBConnection;
 
         private:
             std::weak_ptr<PGconn> m_conn; // Safe weak reference to connection - detects when connection is closed
@@ -193,8 +197,8 @@ namespace cpp_dbc
             PGconn *getPGConnection() const;
 
         public:
-            PostgreSQLPreparedStatement(std::weak_ptr<PGconn> conn, const std::string &sql, const std::string &stmt_name);
-            ~PostgreSQLPreparedStatement() override;
+            PostgreSQLDBPreparedStatement(std::weak_ptr<PGconn> conn, const std::string &sql, const std::string &stmt_name);
+            ~PostgreSQLDBPreparedStatement() override;
 
             void setInt(int parameterIndex, int value) override;
             void setLong(int parameterIndex, long value) override;
@@ -212,13 +216,13 @@ namespace cpp_dbc
             void setBytes(int parameterIndex, const std::vector<uint8_t> &x) override;
             void setBytes(int parameterIndex, const uint8_t *x, size_t length) override;
 
-            std::shared_ptr<ResultSet> executeQuery() override;
+            std::shared_ptr<RelationalDBResultSet> executeQuery() override;
             uint64_t executeUpdate() override;
             bool execute() override;
             void close() override;
         };
 
-        class PostgreSQLConnection : public Connection
+        class PostgreSQLDBConnection : public RelationalDBConnection
         {
         private:
             PGconnHandle m_conn; // shared_ptr allows PreparedStatements to use weak_ptr
@@ -232,7 +236,7 @@ namespace cpp_dbc
             std::string m_url;
 
             // Registry of active prepared statements
-            std::set<std::shared_ptr<PostgreSQLPreparedStatement>> m_activeStatements;
+            std::set<std::shared_ptr<PostgreSQLDBPreparedStatement>> m_activeStatements;
             std::mutex m_statementsMutex;
 
 #if DB_DRIVER_THREAD_SAFE
@@ -240,25 +244,28 @@ namespace cpp_dbc
 #endif
 
             // Internal methods for statement registry
-            void registerStatement(std::shared_ptr<PostgreSQLPreparedStatement> stmt);
-            void unregisterStatement(std::shared_ptr<PostgreSQLPreparedStatement> stmt);
+            void registerStatement(std::shared_ptr<PostgreSQLDBPreparedStatement> stmt);
+            void unregisterStatement(std::shared_ptr<PostgreSQLDBPreparedStatement> stmt);
 
         public:
-            PostgreSQLConnection(const std::string &host,
-                                 int port,
-                                 const std::string &database,
-                                 const std::string &user,
-                                 const std::string &password,
-                                 const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
-            ~PostgreSQLConnection() override;
+            PostgreSQLDBConnection(const std::string &host,
+                                   int port,
+                                   const std::string &database,
+                                   const std::string &user,
+                                   const std::string &password,
+                                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+            ~PostgreSQLDBConnection() override;
 
+            // DBConnection interface
             void close() override;
             bool isClosed() override;
             void returnToPool() override;
             bool isPooled() override;
+            std::string getURL() const override;
 
-            std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
-            std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;
+            // RelationalDBConnection interface
+            std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
+            std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
             uint64_t executeUpdate(const std::string &sql) override;
 
             void setAutoCommit(bool autoCommit) override;
@@ -274,23 +281,20 @@ namespace cpp_dbc
             void setTransactionIsolation(TransactionIsolationLevel level) override;
             TransactionIsolationLevel getTransactionIsolation() override;
 
-            // Get the connection URL
-            std::string getURL() const override;
-
             // Helper to generate unique statement names
             std::string generateStatementName();
         };
 
-        class PostgreSQLDriver : public Driver
+        class PostgreSQLDBDriver : public RelationalDBDriver
         {
         public:
-            PostgreSQLDriver();
-            ~PostgreSQLDriver() override;
+            PostgreSQLDBDriver();
+            ~PostgreSQLDBDriver() override;
 
-            std::shared_ptr<Connection> connect(const std::string &url,
-                                                const std::string &user,
-                                                const std::string &password,
-                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+                                                                      const std::string &user,
+                                                                      const std::string &password,
+                                                                      const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
             bool acceptsURL(const std::string &url) override;
 
@@ -312,24 +316,24 @@ namespace cpp_dbc
     namespace PostgreSQL
     {
         // Forward declarations only
-        class PostgreSQLDriver : public Driver
+        class PostgreSQLDBDriver : public RelationalDBDriver
         {
         public:
-            PostgreSQLDriver()
+            PostgreSQLDBDriver()
             {
-                throw SQLException("PostgreSQL support is not enabled in this build");
+                throw DBException("PGSQL_DISABLED", "PostgreSQL support is not enabled in this build");
             }
-            ~PostgreSQLDriver() override = default;
+            ~PostgreSQLDBDriver() override = default;
 
-            std::shared_ptr<Connection> connect(const std::string &url,
-                                                const std::string &user,
-                                                const std::string &password,
-                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
+            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
+                                                                      const std::string &,
+                                                                      const std::string &,
+                                                                      const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
             {
-                throw SQLException("PostgreSQL support is not enabled in this build");
+                throw DBException("PGSQL_DISABLED", "PostgreSQL support is not enabled in this build");
             }
 
-            bool acceptsURL(const std::string &url) override
+            bool acceptsURL(const std::string &) override
             {
                 return false;
             }

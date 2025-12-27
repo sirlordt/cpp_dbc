@@ -74,7 +74,7 @@ namespace common_benchmark_helpers
     }
 
     // Implementation of createBenchmarkTable function
-    void createBenchmarkTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName)
+    void createBenchmarkTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName)
     {
         // Drop table if it exists
         try
@@ -118,7 +118,7 @@ namespace common_benchmark_helpers
     }
 
     // Implementation of dropBenchmarkTable function
-    void dropBenchmarkTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName)
+    void dropBenchmarkTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName)
     {
         try
         {
@@ -131,7 +131,7 @@ namespace common_benchmark_helpers
     }
 
     // Implementation of populateTable function
-    void populateTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName, int rowCount)
+    void populateTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName, int rowCount)
     {
         // Prepare the insert statement
         auto pstmt = conn->prepareStatement(
@@ -212,12 +212,12 @@ namespace mysql_benchmark_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the MySQL driver
-            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
             // Attempt to connect to MySQL
             cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to MySQL with connection string: " + connStr);
 
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // If we get here, the connection was successful
             cpp_dbc::system_utils::logWithTimestampInfo("MySQL connection successful!");
@@ -239,7 +239,7 @@ namespace mysql_benchmark_helpers
     }
 
     // Implementation of setupMySQLConnection
-    std::shared_ptr<cpp_dbc::Connection> setupMySQLConnection(const std::string &tableName, int rowCount)
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> setupMySQLConnection(const std::string &tableName, int rowCount)
     {
         try
         {
@@ -264,8 +264,9 @@ namespace mysql_benchmark_helpers
             }
 
             // Register the MySQL driver and get a connection
-            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             if (needsInitialization)
             {
@@ -360,12 +361,13 @@ namespace postgresql_benchmark_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the PostgreSQL driver
-            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
             // Attempt to connect to PostgreSQL
             cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to PostgreSQL with connection string: " + connStr);
 
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // If we get here, the connection was successful
             cpp_dbc::system_utils::logWithTimestampInfo("PostgreSQL connection successful!");
@@ -387,7 +389,7 @@ namespace postgresql_benchmark_helpers
     }
 
     // Implementation of setupPostgreSQLConnection
-    std::shared_ptr<cpp_dbc::Connection> setupPostgreSQLConnection(const std::string &tableName, int rowCount)
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> setupPostgreSQLConnection(const std::string &tableName, int rowCount)
     {
         try
         {
@@ -412,8 +414,9 @@ namespace postgresql_benchmark_helpers
             }
 
             // Register the PostgreSQL driver and get a connection
-            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             if (needsInitialization)
             {
@@ -517,12 +520,13 @@ namespace sqlite_benchmark_helpers
             std::string connStr = dbConfig.createConnectionString();
 
             // Register the SQLite driver
-            cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+            cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
             // Attempt to connect to SQLite
             cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to SQLite with connection string: " + connStr);
 
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, "", "");
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
 
             // If we get here, the connection was successful
             cpp_dbc::system_utils::logWithTimestampInfo("SQLite connection successful!");
@@ -544,7 +548,7 @@ namespace sqlite_benchmark_helpers
     }
 
     // Helper function to setup SQLite connection
-    std::shared_ptr<cpp_dbc::Connection> setupSQLiteConnection(const std::string &tableName, int rowCount)
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> setupSQLiteConnection(const std::string &tableName, int rowCount)
     {
         try
         {
@@ -577,8 +581,9 @@ namespace sqlite_benchmark_helpers
             }
 
             // Register the SQLite driver and get a connection
-            cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, "", "");
+            cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
 
             if (needsInitialization)
             {
@@ -673,12 +678,13 @@ namespace firebird_benchmark_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the Firebird driver
-            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
+            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
             // Attempt to connect to Firebird
             cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to Firebird with connection string: " + connStr);
 
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // If we get here, the connection was successful
             cpp_dbc::system_utils::logWithTimestampInfo("Firebird connection successful!");
@@ -700,7 +706,7 @@ namespace firebird_benchmark_helpers
     }
 
     // Helper function to create Firebird-specific benchmark table
-    void createFirebirdBenchmarkTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName)
+    void createFirebirdBenchmarkTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName)
     {
         // Drop table if it exists - Firebird doesn't support IF EXISTS, so we need to handle the error
         try
@@ -743,7 +749,7 @@ namespace firebird_benchmark_helpers
     }
 
     // Helper function to populate Firebird table with test data
-    void populateFirebirdTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName, int rowCount)
+    void populateFirebirdTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName, int rowCount)
     {
         // Prepare the insert statement
         // Firebird uses CURRENT_TIMESTAMP for the current timestamp
@@ -765,7 +771,7 @@ namespace firebird_benchmark_helpers
     }
 
     // Implementation of setupFirebirdConnection
-    std::shared_ptr<cpp_dbc::Connection> setupFirebirdConnection(const std::string &tableName, int rowCount)
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> setupFirebirdConnection(const std::string &tableName, int rowCount)
     {
         try
         {
@@ -790,8 +796,9 @@ namespace firebird_benchmark_helpers
             }
 
             // Register the Firebird driver and get a connection
-            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             if (needsInitialization)
             {

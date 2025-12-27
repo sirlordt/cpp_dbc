@@ -181,7 +181,29 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **BLOB Memory Safety Improvements with Smart Pointers** (2025-12-22):
+1. **API Naming Convention Refactoring** (2025-12-26):
+   - Renamed classes and methods to use "DB" prefix for better clarity and consistency:
+     - **Driver Classes:**
+       - `MySQLDriver` → `MySQLDBDriver`
+       - `PostgreSQLDriver` → `PostgreSQLDBDriver`
+       - `SQLiteDriver` → `SQLiteDBDriver`
+       - `FirebirdDriver` → `FirebirdDBDriver`
+     - **Connection Classes:**
+       - `Connection` → `RelationalDBConnection` (for relational database connections)
+     - **Configuration Classes:**
+       - `ConnectionPoolConfig` → `DBConnectionPoolConfig`
+     - **DriverManager Methods:**
+       - `getConnection()` → `getDBConnection()`
+     - **TransactionManager Methods:**
+       - `getTransactionConnection()` → `getTransactionDBConnection()`
+     - **Driver Methods:**
+       - `connect()` → `connectRelational()` (for relational database connections)
+   - Updated all benchmark files to use new class and method names
+   - Updated all test files to use new class and method names
+   - Updated all example files to use new class and method names
+   - Updated main.cpp to use new driver class names
+
+2. **BLOB Memory Safety Improvements with Smart Pointers** (2025-12-22):
    - Migrated all BLOB implementations from raw pointers to smart pointers for improved memory safety:
      - **Firebird BLOB:**
        - Changed from raw `isc_db_handle*` and `isc_tr_handle*` to `std::weak_ptr<FirebirdConnection>`

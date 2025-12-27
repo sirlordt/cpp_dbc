@@ -48,12 +48,12 @@ const std::string FIREBIRD_PASSWORD = "dsystems";
  * @param url The database URL
  * @return true if database exists or was created successfully
  */
-bool tryCreateDatabase(std::shared_ptr<cpp_dbc::Driver> driver, const std::string &url)
+bool tryCreateDatabase(std::shared_ptr<cpp_dbc::DBDriver> driver, const std::string &url)
 {
     // First, try to connect to see if database already exists
     try
     {
-        auto conn = cpp_dbc::DriverManager::getConnection(url, FIREBIRD_USER, FIREBIRD_PASSWORD);
+        auto conn = cpp_dbc::DriverManager::getDBConnection(url, FIREBIRD_USER, FIREBIRD_PASSWORD);
         std::cout << "Database exists and connection successful!" << std::endl;
         conn->close();
         return true;
@@ -101,7 +101,7 @@ bool tryCreateDatabase(std::shared_ptr<cpp_dbc::Driver> driver, const std::strin
     }
 }
 
-void testReservedWordException(std::shared_ptr<cpp_dbc::Connection> conn)
+void testReservedWordException(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Test 1: CREATE TABLE with reserved word 'value' ===" << std::endl;
     std::cout << "SQL: CREATE TABLE test_reserved (id INTEGER PRIMARY KEY, value INTEGER)" << std::endl;
@@ -136,7 +136,7 @@ void testReservedWordException(std::shared_ptr<cpp_dbc::Connection> conn)
     }
 }
 
-void testReservedWordWithQuotes(std::shared_ptr<cpp_dbc::Connection> conn)
+void testReservedWordWithQuotes(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Test 2: CREATE TABLE with quoted 'value' (should work) ===" << std::endl;
     std::cout << "SQL: CREATE TABLE test_quoted (id INTEGER PRIMARY KEY, \"value\" INTEGER)" << std::endl;
@@ -193,7 +193,7 @@ void testReservedWordWithQuotes(std::shared_ptr<cpp_dbc::Connection> conn)
     }
 }
 
-void testOtherReservedWords(std::shared_ptr<cpp_dbc::Connection> conn)
+void testOtherReservedWords(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Test 3: Other reserved words ===" << std::endl;
 
@@ -240,7 +240,7 @@ int main()
         std::cout << "This example tests if exceptions are thrown when using reserved words." << std::endl;
 
         // Create and register Firebird driver
-        auto firebirdDriver = std::make_shared<cpp_dbc::Firebird::FirebirdDriver>();
+        auto firebirdDriver = std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>();
         cpp_dbc::DriverManager::registerDriver("firebird", firebirdDriver);
 
         // Build connection URL
@@ -258,7 +258,7 @@ int main()
             return 1;
         }
 
-        auto conn = cpp_dbc::DriverManager::getConnection(url, FIREBIRD_USER, FIREBIRD_PASSWORD);
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(url, FIREBIRD_USER, FIREBIRD_PASSWORD));
 
         std::cout << "Connected successfully!" << std::endl;
 

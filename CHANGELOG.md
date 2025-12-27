@@ -1,6 +1,30 @@
 # Changelog
 
-## 2025-12-22 08:15:09 PM PST [Current]
+## 2025-12-26 10:08:08 PM PST [Current]
+
+### API Naming Convention Refactoring
+* Renamed classes and methods to use "DB" prefix for better clarity and consistency:
+  * **Driver Classes:**
+    * `MySQLDriver` → `MySQLDBDriver`
+    * `PostgreSQLDriver` → `PostgreSQLDBDriver`
+    * `SQLiteDriver` → `SQLiteDBDriver`
+    * `FirebirdDriver` → `FirebirdDBDriver`
+  * **Connection Classes:**
+    * `Connection` → `RelationalDBConnection` (for relational database connections)
+  * **Configuration Classes:**
+    * `ConnectionPoolConfig` → `DBConnectionPoolConfig`
+  * **DriverManager Methods:**
+    * `getConnection()` → `getDBConnection()`
+  * **TransactionManager Methods:**
+    * `getTransactionConnection()` → `getTransactionDBConnection()`
+  * **Driver Methods:**
+    * `connect()` → `connectRelational()` (for relational database connections)
+* Updated all benchmark files to use new class and method names
+* Updated all test files to use new class and method names
+* Updated all example files to use new class and method names
+* Updated main.cpp to use new driver class names
+
+## 2025-12-22 08:15:09 PM PST
 
 ### BLOB Memory Safety Improvements with Smart Pointers
 * Migrated all BLOB implementations from raw pointers to smart pointers for improved memory safety:

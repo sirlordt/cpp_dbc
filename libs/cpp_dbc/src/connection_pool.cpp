@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file connection_pool.cpp
- @brief Tests for database connections
+ @brief Connection pool implementation for relational databases
 
 */
 
@@ -34,22 +34,22 @@
 namespace cpp_dbc
 {
 
-    // ConnectionPool implementation
-    ConnectionPool::ConnectionPool(const std::string &url,
-                                   const std::string &username,
-                                   const std::string &password,
-                                   const std::map<std::string, std::string> &options,
-                                   int initialSize,
-                                   int maxSize,
-                                   int minIdle,
-                                   long maxWaitMillis,
-                                   long validationTimeoutMillis,
-                                   long idleTimeoutMillis,
-                                   long maxLifetimeMillis,
-                                   bool testOnBorrow,
-                                   bool testOnReturn,
-                                   const std::string &validationQuery,
-                                   TransactionIsolationLevel transactionIsolation)
+    // RelationalDBConnectionPool implementation
+    RelationalDBConnectionPool::RelationalDBConnectionPool(const std::string &url,
+                                                           const std::string &username,
+                                                           const std::string &password,
+                                                           const std::map<std::string, std::string> &options,
+                                                           int initialSize,
+                                                           int maxSize,
+                                                           int minIdle,
+                                                           long maxWaitMillis,
+                                                           long validationTimeoutMillis,
+                                                           long idleTimeoutMillis,
+                                                           long maxLifetimeMillis,
+                                                           bool testOnBorrow,
+                                                           bool testOnReturn,
+                                                           const std::string &validationQuery,
+                                                           TransactionIsolationLevel transactionIsolation)
         : m_url(url),
           m_username(username),
           m_password(password),
@@ -74,16 +74,16 @@ namespace cpp_dbc
         // Create initial connections
         for (int i = 0; i < m_initialSize; i++)
         {
-            auto pooledConn = createPooledConnection();
+            auto pooledConn = createPooledDBConnection();
             m_idleConnections.push(pooledConn);
             m_allConnections.push_back(pooledConn);
         }
 
         // Start maintenance thread
-        m_maintenanceThread = std::thread(&ConnectionPool::maintenanceTask, this);
+        m_maintenanceThread = std::thread(&RelationalDBConnectionPool::maintenanceTask, this);
     }
 
-    ConnectionPool::ConnectionPool(const config::ConnectionPoolConfig &config)
+    RelationalDBConnectionPool::RelationalDBConnectionPool(const config::DBConnectionPoolConfig &config)
         : m_url(config.getUrl()),
           m_username(config.getUsername()),
           m_password(config.getPassword()),
@@ -106,56 +106,55 @@ namespace cpp_dbc
         m_allConnections.reserve(m_maxSize);
 
         // Create initial connections
-        // cpp_dbc::system_utils::safePrint("A1B2C3D4", "ConnectionPool: Creating " + std::to_string(m_initialSize) + " initial connections...");
         for (int i = 0; i < m_initialSize; i++)
         {
-            // cpp_dbc::system_utils::safePrint("E5F6A7B8", "ConnectionPool: Creating connection " + std::to_string(i + 1) + "/" + std::to_string(m_initialSize));
-            auto pooledConn = createPooledConnection();
-            // cpp_dbc::system_utils::safePrint("C9D0E1F2", "ConnectionPool: Connection " + std::to_string(i + 1) + " created successfully");
+            auto pooledConn = createPooledDBConnection();
             m_idleConnections.push(pooledConn);
             m_allConnections.push_back(pooledConn);
         }
-        // cpp_dbc::system_utils::safePrint("A3B4C5D6", "ConnectionPool: All initial connections created. Pool ready.");
 
-        m_maintenanceThread = std::thread(&ConnectionPool::maintenanceTask, this);
+        m_maintenanceThread = std::thread(&RelationalDBConnectionPool::maintenanceTask, this);
     }
 
-    std::shared_ptr<ConnectionPool> ConnectionPool::create(const config::ConnectionPoolConfig &config)
+    std::shared_ptr<RelationalDBConnectionPool> RelationalDBConnectionPool::create(const config::DBConnectionPoolConfig &config)
     {
-        return std::make_shared<ConnectionPool>(config);
+        return std::make_shared<RelationalDBConnectionPool>(config);
     }
 
-    ConnectionPool::~ConnectionPool()
+    RelationalDBConnectionPool::~RelationalDBConnectionPool()
     {
-        CP_DEBUG("ConnectionPool::~ConnectionPool - Starting destructor at "
+        CP_DEBUG("RelationalDBConnectionPool::~RelationalDBConnectionPool - Starting destructor at "
                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
         close();
 
-        CP_DEBUG("ConnectionPool::~ConnectionPool - Destructor completed at "
+        CP_DEBUG("RelationalDBConnectionPool::~RelationalDBConnectionPool - Destructor completed at "
                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
     }
 
-    std::shared_ptr<Connection> ConnectionPool::createConnection()
+    std::shared_ptr<RelationalDBConnection> RelationalDBConnectionPool::createDBConnection()
     {
-        return DriverManager::getConnection(m_url, m_username, m_password, m_options);
+        auto dbConn = DriverManager::getDBConnection(m_url, m_username, m_password, m_options);
+        auto relationalConn = std::dynamic_pointer_cast<RelationalDBConnection>(dbConn);
+        if (!relationalConn)
+        {
+            throw DBException("POOL_CONN_TYPE", "Connection pool only supports relational database connections", system_utils::captureCallStack());
+        }
+        return relationalConn;
     }
 
-    std::shared_ptr<PooledConnection> ConnectionPool::createPooledConnection()
+    std::shared_ptr<RelationalDBPooledConnection> RelationalDBConnectionPool::createPooledDBConnection()
     {
-        // cpp_dbc::system_utils::safePrint("A5B6C7D8", "createPooledConnection: Starting...");
-        auto conn = createConnection();
-        // cpp_dbc::system_utils::safePrint("E9F0A1B2", "createPooledConnection: Physical connection created");
+        auto conn = createDBConnection();
 
         // Set transaction isolation level on the new connection
         conn->setTransactionIsolation(m_transactionIsolation);
 
-        auto pooledConn = std::make_shared<PooledConnection>(conn, this);
-        // cpp_dbc::system_utils::safePrint("C3D4E5F6", "createPooledConnection: PooledConnection wrapper created");
+        auto pooledConn = std::make_shared<RelationalDBPooledConnection>(conn, this);
         return pooledConn;
     }
 
-    bool ConnectionPool::validateConnection(std::shared_ptr<Connection> conn)
+    bool RelationalDBConnectionPool::validateConnection(std::shared_ptr<RelationalDBConnection> conn)
     {
         try
         {
@@ -169,25 +168,19 @@ namespace cpp_dbc
         }
     }
 
-    void ConnectionPool::returnConnection(std::shared_ptr<PooledConnection> conn)
+    void RelationalDBConnectionPool::returnConnection(std::shared_ptr<RelationalDBPooledConnection> conn)
     {
         std::lock_guard<std::mutex> lock(m_mutexReturnConnection);
-        // cpp_dbc::system_utils::safePrint("A7B8C9D0", "ConnectionPool::returnConnection - Starting, Active: " + std::to_string(m_activeConnections) +
-        //                                                  ", Idle: " + std::to_string(m_idleConnections.size()) +
-        //                                                  ", Total: " + std::to_string(m_allConnections.size()) +
-        //                                                  ", Max: " + std::to_string(m_maxSize));
 
         if (!m_running.load())
         {
-            // cpp_dbc::system_utils::safePrint("E1F2A3B4", "ConnectionPool::returnConnection - Pool is closed, discarding connection");
-            //  If pool is shutting down, just discard the connection
+            // If pool is shutting down, just discard the connection
             return;
         }
 
         // Check if connection is already inactive (already returned to pool)
         if (!conn->isActive())
         {
-            // cpp_dbc::system_utils::safePrint("C5D6E7F8", "ConnectionPool::returnConnection - Connection already inactive, ignoring duplicate return");
             return;
         }
 
@@ -195,7 +188,6 @@ namespace cpp_dbc
         auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
         if (it == m_allConnections.end())
         {
-            // cpp_dbc::system_utils::safePrint("A9B0C1D2", "ConnectionPool::returnConnection - Connection not found in pool, ignoring");
             return;
         }
 
@@ -214,7 +206,7 @@ namespace cpp_dbc
                 // Replace with new connection if pool is running
                 if (m_running && m_allConnections.size() < m_minIdle)
                 {
-                    auto newConn = createPooledConnection();
+                    auto newConn = createPooledDBConnection();
                     m_idleConnections.push(newConn);
                     m_allConnections.push_back(newConn);
                 }
@@ -237,51 +229,26 @@ namespace cpp_dbc
             }
         }
         catch (...)
-        // catch (const cpp_dbc::DBException &e)
         {
-            // std::cerr << "SQL Error: " << e.what_s() << std::endl;
         }
 
         // Mark as inactive and update last used time
-        // cpp_dbc::system_utils::safePrint("E3F4A5B6", "ConnectionPool::returnConnection - Marking connection as inactive");
         conn->setActive(false);
 
-        /*
-        // Check if connection is already in idle set (prevent duplicates)
-        if (m_idleConnectionsSet.find(conn) != m_idleConnectionsSet.end())
-        {
-            cpp_dbc::system_utils::safePrint("C7D8E9F0", "ConnectionPool::returnConnection - Connection already in idle set, ignoring duplicate");
-            return;
-        }
-            */
-
         // Add to idle connections queue and tracking set
-        // cpp_dbc::system_utils::safePrint("A1B2C3D4", "ConnectionPool::returnConnection - Adding to idle queue");
         {
             std::lock_guard<std::mutex> lock_idle(m_mutexIdleConnections);
             m_idleConnections.push(conn);
             m_activeConnections--;
         }
-        // cpp_dbc::system_utils::safePrint("E5F6A7B8", "ConnectionPool::returnConnection - Connection returned to pool, now Active: " +
-        //                                                  std::to_string(m_activeConnections) + ", Idle: " + std::to_string(m_idleConnections.size()));
-
-        // Notify waiting threads
-        // cpp_dbc::system_utils::safePrint("C9D0E1F2", "ConnectionPool::returnConnection - Notifying waiting threads");
-        // m_condition.notify_one();
-        //     std::cout << "ConnectionPool::returnConnection - Notified waiting threads" << std::endl;
     }
 
-    std::shared_ptr<PooledConnection> ConnectionPool::getIdleConnection()
+    std::shared_ptr<RelationalDBPooledConnection> RelationalDBConnectionPool::getIdleDBConnection()
     {
-        // cpp_dbc::system_utils::safePrint("C1D2E3F4", "getIdleConnection: Checking idle connections. Count: " + std::to_string(m_idleConnections.size()));
         if (!m_idleConnections.empty())
         {
-            // cpp_dbc::system_utils::safePrint("A5B6C7D8", "getIdleConnection: Found idle connection, retrieving...");
             auto conn = m_idleConnections.front();
             m_idleConnections.pop();
-
-            // Remove from tracking set
-            // m_idleConnectionsSet.erase(conn);
 
             // Test connection before use if configured
             if (m_testOnBorrow)
@@ -296,150 +263,46 @@ namespace cpp_dbc
                     }
 
                     // Create new connection
-                    return createPooledConnection();
+                    return createPooledDBConnection();
                 }
             }
 
-            // cpp_dbc::system_utils::safePrint("E9F0A1B2", "getIdleConnection: Returning idle connection");
             return conn;
         }
         else if (m_allConnections.size() < m_maxSize)
         {
-            // cpp_dbc::system_utils::safePrint("C3D4E5F6", "getIdleConnection: No idle connections, need to create new one. Current: " +
-            //                                                  std::to_string(m_allConnections.size()) + ", Max: " + std::to_string(m_maxSize));
-            //  We need to create a new connection, but we'll do it outside the lambda
-            //  to avoid holding the lock too long
+            // We need to create a new connection, but we'll do it outside the lambda
+            // to avoid holding the lock too long
             return nullptr; // Signal that we need to create a new connection
         }
 
-        // cpp_dbc::system_utils::safePrint("A7B8C9D0", "getIdleConnection: No connections available, returning nullptr");
         return nullptr;
     };
 
-    std::shared_ptr<Connection> ConnectionPool::getConnection()
+    std::shared_ptr<RelationalDBConnection> RelationalDBConnectionPool::getDBConnection()
     {
-        // cpp_dbc::system_utils::safePrint("A3B4C5D6", "ConnectionPool::getConnection - Starting...");
         std::unique_lock<std::mutex> lock(m_mutexGetConnection);
-
-        // auto conn = createConnection();
-        // // cpp_dbc::system_utils::safePrint("E9F0A1B2", "createPooledConnection: Physical connection created");
-        // return std::make_shared<PooledConnection>(conn, this);
-
-        // std::lock_guard<std::mutex> lock(mutex);
-        // cpp_dbc::system_utils::safePrint("E7F8A9B0", "ConnectionPool::getConnection - Lock acquired. Active: " + std::to_string(m_activeConnections) +
-        //                                                 ", Idle: " + std::to_string(m_idleConnections.size()) +
-        //                                                 ", Total: " + std::to_string(m_allConnections.size()) +
-        //                                                 ", Max: " + std::to_string(m_maxSize));
 
         if (!m_running.load())
         {
-            // std::cout << "ConnectionPool::getConnection - Pool is closed" << std::endl;
             throw DBException("5Q6R7S8T9U0V", "Connection pool is closed", system_utils::captureCallStack());
         }
 
-        /*
-        // Try to get idle connection or create new one
-        auto getIdleConnection = [this]() -> std::shared_ptr<PooledConnection>
-        {
-            // cpp_dbc::system_utils::safePrint("C1D2E3F4", "getIdleConnection: Checking idle connections. Count: " + std::to_string(m_idleConnections.size()));
-            if (!m_idleConnections.empty())
-            {
-                // cpp_dbc::system_utils::safePrint("A5B6C7D8", "getIdleConnection: Found idle connection, retrieving...");
-                auto conn = m_idleConnections.front();
-                m_idleConnections.pop();
-
-                // Remove from tracking set
-                // m_idleConnectionsSet.erase(conn);
-
-                // Test connection before use if configured
-                if (m_testOnBorrow)
-                {
-                    if (!validateConnection(conn->getUnderlyingConnection()))
-                    {
-                        // Remove from allConnections
-                        auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
-                        if (it != m_allConnections.end())
-                        {
-                            m_allConnections.erase(it);
-                        }
-
-                        // Create new connection
-                        return createPooledConnection();
-                    }
-                }
-
-                // cpp_dbc::system_utils::safePrint("E9F0A1B2", "getIdleConnection: Returning idle connection");
-                return conn;
-            }
-            else if (m_allConnections.size() < m_maxSize)
-            {
-                // cpp_dbc::system_utils::safePrint("C3D4E5F6", "getIdleConnection: No idle connections, need to create new one. Current: " +
-                //                                                  std::to_string(m_allConnections.size()) + ", Max: " + std::to_string(m_maxSize));
-                //  We need to create a new connection, but we'll do it outside the lambda
-                //  to avoid holding the lock too long
-                return nullptr; // Signal that we need to create a new connection
-            }
-
-            // cpp_dbc::system_utils::safePrint("A7B8C9D0", "getIdleConnection: No connections available, returning nullptr");
-            return nullptr;
-        };
-        */
-
-        // cpp_dbc::system_utils::safePrint("E1F2A3B4", "ConnectionPool::getConnection - Calling getIdleConnection...");
-        std::shared_ptr<PooledConnection> result = this->getIdleConnection();
-        // cpp_dbc::system_utils::safePrint("C5D6E7F8", "ConnectionPool::getConnection - getIdleConnection returned: " +
-        //                                                  std::string(result ? "connection" : "nullptr"));
+        std::shared_ptr<RelationalDBPooledConnection> result = this->getIdleDBConnection();
 
         // If no connection available, check if we can create a new one
         if (result == nullptr && m_allConnections.size() < m_maxSize)
         {
-            // cpp_dbc::system_utils::safePrint("A9B0C1D2", "ConnectionPool::getConnection - Creating new connection outside lock...");
-            //  Release lock temporarily to create new connection
-            //  lock.unlock();
-
-            // try
-            // {
-            result = createPooledConnection();
+            result = createPooledDBConnection();
 
             {
                 std::lock_guard<std::mutex> lock_all(m_mutexAllConnections);
                 m_allConnections.push_back(result);
             }
-            // auto newConn = createPooledConnection();
-            //  // cpp_dbc::system_utils::safePrint("E3F4A5B6", "ConnectionPool::getConnection - New connection created, re-acquiring lock...");
-
-            // // Re-acquire lock and check size again (another thread might have added connections)
-            // // lock.lock();
-            // if (m_allConnections.size() < m_maxSize)
-            // {
-            //     m_allConnections.push_back(newConn);
-            //     result = newConn;
-            //     // cpp_dbc::system_utils::safePrint("C7D8E9F0", "ConnectionPool::getConnection - New connection added to pool");
-
-            //     // cpp_dbc::system_utils::safePrint("F7059E39E45F", "ConnectionPool::getConnection - Lock acquired. Active: " + std::to_string(m_activeConnections) +
-            //     //                                                      ", Idle: " + std::to_string(m_idleConnections.size()) +
-            //     //                                                      ", Total: " + std::to_string(m_allConnections.size()) +
-            //     //                                                      ", Max: " + std::to_string(m_maxSize));
-            // }
-            // else
-            // {
-            //     // cpp_dbc::system_utils::safePrint("A1B2C3E4", "ConnectionPool::getConnection - Pool full after re-acquiring lock, discarding new connection");
-            //     //  Pool is full, discard the new connection and try to get an idle one
-            //     result = getIdleConnection();
-            // }
-            // }
-            // catch (...)
-            // {
-            //     // Re-acquire lock even if creation failed
-            //     // lock.lock();
-            //     // throw;
-            // }
         }
         // If no connection available, wait until one becomes available
         else if (result == nullptr)
         {
-
-            // cpp_dbc::system_utils::safePrint("F5A6B7C8", "ConnectionPool::getConnection - No connection available, entering wait loop...");
             auto waitStart = std::chrono::steady_clock::now();
 
             // Wait until a connection is returned to the pool or timeout
@@ -447,8 +310,6 @@ namespace cpp_dbc
             {
                 auto now = std::chrono::steady_clock::now();
 
-                // auto waitStatus = m_condition.wait_for(lock,
-                //                                      std::chrono::milliseconds(m_maxWaitMillis)); //The condition create radom stop and seg fails
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
                 auto waitedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - waitStart).count();
@@ -458,51 +319,24 @@ namespace cpp_dbc
                     throw DBException("88D90026A76A", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
                 }
 
-                // if (waitStatus == std::cv_status::timeout)
-                // {
-                //     // std::cout << "ConnectionPool::getConnection - TIMEOUT waiting for connection! Active: "
-                //     //              << m_activeConnections << ", Idle: " << m_idleConnections.size()
-                //     //              << ", Total: " << m_allConnections.size() << ", Max: " << m_maxSize << std::endl;
-
-                //     throw DBException("DE04466AD05E", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
-                // }
-
                 if (!m_running.load())
                 {
                     throw DBException("58566A84D1A1", "Connection pool is closed", system_utils::captureCallStack());
                 }
 
-                // Check if we've waited too long
-                // now = std::chrono::steady_clock::now();
+                result = this->getIdleDBConnection();
 
-                // result = createPooledConnection(); // this->getIdleConnection();
-                result = this->getIdleConnection();
-
-                // waitedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - waitStart).count();
-
-                // if (result == nullptr && waitedMs >= m_maxWaitMillis)
-                // {
-                //     throw DBException("723F1992C1C7", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
-                // }
             } while (result == nullptr);
         }
-
-        // // Add connection to the pool if it's new
-        // if (std::find(m_allConnections.begin(), m_allConnections.end(), result) == m_allConnections.end())
-        // {
-        //     m_allConnections.push_back(result);
-        // }
 
         // Mark as active
         result->setActive(true);
         m_activeConnections++;
-        // std::cout << "ConnectionPool::getConnection - Connection obtained, now Active: "
-        //           << m_activeConnections << ", Idle: " << m_idleConnections.size() << std::endl;
 
         return result;
     }
 
-    void ConnectionPool::maintenanceTask()
+    void RelationalDBConnectionPool::maintenanceTask()
     {
         do
         {
@@ -551,7 +385,7 @@ namespace cpp_dbc
                 if (expired && m_allConnections.size() > m_minIdle)
                 {
                     // Remove from idle queue if present
-                    std::queue<std::shared_ptr<PooledConnection>> tempQueue;
+                    std::queue<std::shared_ptr<RelationalDBPooledConnection>> tempQueue;
                     while (!m_idleConnections.empty())
                     {
                         auto conn = m_idleConnections.front();
@@ -576,68 +410,66 @@ namespace cpp_dbc
             // Ensure we have at least minIdle connections
             while (m_running && m_allConnections.size() < m_minIdle)
             {
-                auto pooledConn = createPooledConnection();
+                auto pooledConn = createPooledDBConnection();
                 m_idleConnections.push(pooledConn);
                 m_allConnections.push_back(pooledConn);
             }
         } while (m_running);
     }
 
-    int ConnectionPool::getActiveConnectionCount() const
+    int RelationalDBConnectionPool::getActiveDBConnectionCount() const
     {
         return m_activeConnections;
     }
 
-    size_t ConnectionPool::getIdleConnectionCount() const
+    size_t RelationalDBConnectionPool::getIdleDBConnectionCount() const
     {
         std::lock_guard<std::mutex> lock(m_mutexIdleConnections);
         return m_idleConnections.size();
     }
 
-    size_t ConnectionPool::getTotalConnectionCount() const
+    size_t RelationalDBConnectionPool::getTotalDBConnectionCount() const
     {
         std::lock_guard<std::mutex> lock(m_mutexAllConnections);
         return m_allConnections.size();
     }
 
-    void ConnectionPool::close()
+    void RelationalDBConnectionPool::close()
     {
-        // time_t start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-        CP_DEBUG("ConnectionPool::close - Starting close operation at " << start_time);
+        CP_DEBUG("RelationalDBConnectionPool::close - Starting close operation");
 
         if (!m_running.exchange(false))
         {
-            CP_DEBUG("ConnectionPool::close - Already closed, returning");
+            CP_DEBUG("RelationalDBConnectionPool::close - Already closed, returning");
             return; // Already closed
         }
 
-        CP_DEBUG("ConnectionPool::close - Waiting for active operations to complete at "
+        CP_DEBUG("RelationalDBConnectionPool::close - Waiting for active operations to complete at "
                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
         // Wait for all active operations to complete
         {
             auto waitStart = std::chrono::steady_clock::now();
-            // int initialActiveConnections = m_activeConnections.load();
-            CP_DEBUG("ConnectionPool::close - Initial active connections: " << initialActiveConnections);
+            CP_DEBUG("RelationalDBConnectionPool::close - Initial active connections: " << m_activeConnections.load());
 
             while (m_activeConnections.load() > 0)
             {
-                CP_DEBUG("ConnectionPool::close - Waiting for " << m_activeConnections.load()
-                                                                << " active connections to finish at "
-                                                                << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+                CP_DEBUG("RelationalDBConnectionPool::close - Waiting for " << m_activeConnections.load()
+                                                                            << " active connections to finish at "
+                                                                            << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
                 auto elapsed = std::chrono::steady_clock::now() - waitStart;
                 auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
 
                 if (elapsed_seconds > 0 && elapsed_seconds % 1 == 0)
                 {
-                    CP_DEBUG("ConnectionPool::close - Waited " << elapsed_seconds
-                                                               << " seconds for active connections");
+                    CP_DEBUG("RelationalDBConnectionPool::close - Waited " << elapsed_seconds
+                                                                           << " seconds for active connections");
                 }
 
                 if (elapsed > std::chrono::seconds(10))
                 {
-                    CP_DEBUG("ConnectionPool::close - Timeout waiting for active connections, forcing close at "
+                    CP_DEBUG("RelationalDBConnectionPool::close - Timeout waiting for active connections, forcing close at "
                              << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
                     // Force active connections to be marked as inactive
@@ -647,31 +479,23 @@ namespace cpp_dbc
             }
         }
 
-        // cpp_dbc::system_utils::safePrint("F9A0B1C2", "ConnectionPool::close - Notifying waiting threads");
-        //  Notify all waiting threads
-        //  m_condition.notify_all();
+        // Notify all waiting threads
         m_maintenanceCondition.notify_all();
 
         // Join maintenance thread (only if it was started)
-        // cpp_dbc::system_utils::safePrint("D3E4F5A6", "ConnectionPool::close - Checking maintenance thread");
         if (m_maintenanceThread.joinable())
         {
-            // cpp_dbc::system_utils::safePrint("B7C8D9E0", "ConnectionPool::close - Joining maintenance thread");
             m_maintenanceThread.join();
-            // cpp_dbc::system_utils::safePrint("F1A2B3C4", "ConnectionPool::close - Maintenance thread joined");
         }
 
         // Close all connections
-        // cpp_dbc::system_utils::safePrint("D5E6F7A8", "ConnectionPool::close - Acquiring lock to close connections");
         std::lock_guard<std::mutex> lockAllConnections(m_mutexAllConnections);
         std::lock_guard<std::mutex> lockIdleConnections(m_mutexIdleConnections);
-        // cpp_dbc::system_utils::safePrint("B9C0D1E2", "ConnectionPool::close - Lock acquired, closing " + std::to_string(m_allConnections.size()) + " connections");
 
         for (size_t i = 0; i < m_allConnections.size(); ++i)
         {
             try
             {
-                // cpp_dbc::system_utils::safePrint("F3A4B5C6", "ConnectionPool::close - Closing connection " + std::to_string(i + 1) + "/" + std::to_string(m_allConnections.size()));
                 auto &conn = m_allConnections[i];
                 if (conn && conn->getUnderlyingConnection())
                 {
@@ -686,52 +510,37 @@ namespace cpp_dbc
                     {
                         conn->getUnderlyingConnection()->returnToPool();
                     }
-
-                    // cpp_dbc::system_utils::safePrint("D7E8F9A0", "ConnectionPool::close - Connection " + std::to_string(i + 1) + " closed successfully");
-                }
-                else
-                {
-                    // cpp_dbc::system_utils::safePrint("B1C2D3E4", "ConnectionPool::close - Connection " + std::to_string(i + 1) + " is null, skipping");
                 }
             }
             catch (...)
             {
-                // cpp_dbc::system_utils::safePrint("F5A6B7C8", "ConnectionPool::close - Exception closing connection " + std::to_string(i + 1) + ", ignoring");
-                //  Ignore errors during close
+                // Ignore errors during close
             }
         }
-        // cpp_dbc::system_utils::safePrint("D9E0F1A2", "ConnectionPool::close - All connections processed");
 
         // Clear collections
-        // cpp_dbc::system_utils::safePrint("B3C4D5E6", "ConnectionPool::close - Clearing idle connections queue");
         while (!m_idleConnections.empty())
         {
             m_idleConnections.pop();
         }
-        // cpp_dbc::system_utils::safePrint("F7A8B9C0", "ConnectionPool::close - Clearing idle connections set");
-        //  m_idleConnectionsSet.clear();
-        // cpp_dbc::system_utils::safePrint("D1E2F3A4", "ConnectionPool::close - Clearing all connections vector");
         m_allConnections.clear();
-        // cpp_dbc::system_utils::safePrint("B5C6D7E8", "ConnectionPool::close - Close operation completed successfully");
     }
 
-    bool ConnectionPool::isRunning() const
+    bool RelationalDBConnectionPool::isRunning() const
     {
         return m_running.load();
     }
 
-    // PooledConnection implementation
-    PooledConnection::PooledConnection(std::shared_ptr<Connection> connection, ConnectionPool *connectionPool)
+    // RelationalDBPooledConnection implementation
+    RelationalDBPooledConnection::RelationalDBPooledConnection(std::shared_ptr<RelationalDBConnection> connection, RelationalDBConnectionPool *connectionPool)
         : m_conn(connection), m_pool(connectionPool), m_active(false), m_closed(false)
     {
         m_creationTime = std::chrono::steady_clock::now();
         m_lastUsedTime = m_creationTime;
     }
 
-    PooledConnection::~PooledConnection()
+    RelationalDBPooledConnection::~RelationalDBPooledConnection()
     {
-        // cpp_dbc::system_utils::safePrint("F9A0B1C2", "PooledConnection::~PooledConnection - Starting destructor");
-
         // Mark as closed to prevent any further operations
         m_closed = true;
 
@@ -740,90 +549,58 @@ namespace cpp_dbc
         {
             try
             {
-                // cpp_dbc::system_utils::safePrint("D3E4F5A6", "PooledConnection::~PooledConnection - Closing underlying connection");
                 m_conn->close();
-                // cpp_dbc::system_utils::safePrint("B7C8D9E0", "PooledConnection::~PooledConnection - Underlying connection closed successfully");
             }
             catch (...)
             {
-                // cpp_dbc::system_utils::safePrint("F1A2B3C4", "PooledConnection::~PooledConnection - Exception during close, ignoring");
-                //  Ignore exceptions during destruction
+                // Ignore exceptions during destruction
             }
         }
-
-        // cpp_dbc::system_utils::safePrint("D5E6F7A8", "PooledConnection::~PooledConnection - Destructor completed");
     }
 
-    /*
-    void PooledConnection::close()
+    void RelationalDBPooledConnection::close()
     {
-        // safe fallback if someone uses conn->close()
-        close_(shared_from_this()); // ← aún la necesitas aquí, aunque idealmente se usará vía el pool
-    }
-    */
-    void PooledConnection::close()
-    {
-        // cpp_dbc::system_utils::safePrint("B9C0D1E2", "PooledConnection::close - Starting, closed=" + std::to_string(closed));
-
         // Use atomic exchange to ensure only one thread processes the close
         bool expected = false;
         if (!m_closed.compare_exchange_strong(expected, true))
         {
-            // cpp_dbc::system_utils::safePrint("F3A4B5C6", "PooledConnection::close - Already closed by another thread, ignoring");
             return;
         }
 
         try
         {
-            // cpp_dbc::system_utils::safePrint("D7E8F9A0", "PooledConnection::close - Updating last used time");
-            //  Return to pool instead of actually closing
+            // Return to pool instead of actually closing
             m_lastUsedTime = std::chrono::steady_clock::now();
-
-            // cpp_dbc::system_utils::safePrint("B1C2D3E4", "PooledConnection::close - Getting shared_from_this");
-            //  Check if we can safely use shared_from_this
-            //  auto self = shared_from_this();
-            // cpp_dbc::system_utils::safePrint("F5A6B7C8", "PooledConnection::close - shared_from_this successful");
 
             if (m_pool)
             {
-                // cpp_dbc::system_utils::safePrint("D9E0F1B2", "PooledConnection::close - Returning connection to pool");
-                m_pool->returnConnection(std::static_pointer_cast<PooledConnection>(shared_from_this()));
+                m_pool->returnConnection(std::static_pointer_cast<RelationalDBPooledConnection>(shared_from_this()));
                 m_closed.store(false);
-                //  cpp_dbc::system_utils::safePrint("B3C4D5F6", "PooledConnection::close - Connection returned to pool successfully");
-            }
-            else
-            {
-                // cpp_dbc::system_utils::safePrint("F7A8B9D0", "PooledConnection::close - Cannot return to pool, connection will be destroyed");
             }
         }
         catch (const std::bad_weak_ptr &e)
         {
-            // cpp_dbc::system_utils::safePrint("D1E2F3B4", "PooledConnection::close - bad_weak_ptr exception: " + std::string(e.what()));
-            //  shared_from_this failed, mark as closed
+            // shared_from_this failed, mark as closed
             m_closed = true;
         }
         catch (const std::exception &e)
         {
-            // cpp_dbc::system_utils::safePrint("B5C6D7F8", "PooledConnection::close - Exception: " + std::string(e.what()));
-            //  Any other exception, mark as closed
+            // Any other exception, mark as closed
             m_closed = true;
         }
         catch (...)
         {
-            // cpp_dbc::system_utils::safePrint("F9A0B1D2", "PooledConnection::close - Unknown exception");
-            //  Any other exception, mark as closed
+            // Any other exception, mark as closed
             m_closed = true;
         }
-
-        // cpp_dbc::system_utils::safePrint("D3E4F5B6", "PooledConnection::close - Completed");
     }
 
-    bool PooledConnection::isClosed()
+    bool RelationalDBPooledConnection::isClosed()
     {
         return m_closed || m_conn->isClosed();
     }
 
-    std::shared_ptr<PreparedStatement> PooledConnection::prepareStatement(const std::string &sql)
+    std::shared_ptr<RelationalDBPreparedStatement> RelationalDBPooledConnection::prepareStatement(const std::string &sql)
     {
         if (m_closed)
         {
@@ -833,7 +610,7 @@ namespace cpp_dbc
         return m_conn->prepareStatement(sql);
     }
 
-    std::shared_ptr<ResultSet> PooledConnection::executeQuery(const std::string &sql)
+    std::shared_ptr<RelationalDBResultSet> RelationalDBPooledConnection::executeQuery(const std::string &sql)
     {
         if (m_closed)
         {
@@ -843,7 +620,7 @@ namespace cpp_dbc
         return m_conn->executeQuery(sql);
     }
 
-    uint64_t PooledConnection::executeUpdate(const std::string &sql)
+    uint64_t RelationalDBPooledConnection::executeUpdate(const std::string &sql)
     {
         if (m_closed)
         {
@@ -853,7 +630,7 @@ namespace cpp_dbc
         return m_conn->executeUpdate(sql);
     }
 
-    void PooledConnection::setAutoCommit(bool autoCommit)
+    void RelationalDBPooledConnection::setAutoCommit(bool autoCommit)
     {
         if (m_closed)
         {
@@ -863,7 +640,7 @@ namespace cpp_dbc
         m_conn->setAutoCommit(autoCommit);
     }
 
-    bool PooledConnection::getAutoCommit()
+    bool RelationalDBPooledConnection::getAutoCommit()
     {
         if (m_closed)
         {
@@ -873,7 +650,7 @@ namespace cpp_dbc
         return m_conn->getAutoCommit();
     }
 
-    void PooledConnection::commit()
+    void RelationalDBPooledConnection::commit()
     {
         if (m_closed)
         {
@@ -883,7 +660,7 @@ namespace cpp_dbc
         m_conn->commit();
     }
 
-    void PooledConnection::rollback()
+    void RelationalDBPooledConnection::rollback()
     {
         if (m_closed)
         {
@@ -893,7 +670,7 @@ namespace cpp_dbc
         m_conn->rollback();
     }
 
-    bool PooledConnection::beginTransaction()
+    bool RelationalDBPooledConnection::beginTransaction()
     {
         if (m_closed)
         {
@@ -903,7 +680,7 @@ namespace cpp_dbc
         return m_conn->beginTransaction();
     }
 
-    bool PooledConnection::transactionActive()
+    bool RelationalDBPooledConnection::transactionActive()
     {
         if (m_closed)
         {
@@ -913,7 +690,7 @@ namespace cpp_dbc
         return m_conn->transactionActive();
     }
 
-    void PooledConnection::setTransactionIsolation(TransactionIsolationLevel level)
+    void RelationalDBPooledConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
         if (m_closed)
         {
@@ -923,7 +700,7 @@ namespace cpp_dbc
         m_conn->setTransactionIsolation(level);
     }
 
-    TransactionIsolationLevel PooledConnection::getTransactionIsolation()
+    TransactionIsolationLevel RelationalDBPooledConnection::getTransactionIsolation()
     {
         if (m_closed)
         {
@@ -933,7 +710,7 @@ namespace cpp_dbc
         return m_conn->getTransactionIsolation();
     }
 
-    std::string PooledConnection::getURL() const
+    std::string RelationalDBPooledConnection::getURL() const
     {
         if (m_closed)
         {
@@ -943,37 +720,37 @@ namespace cpp_dbc
         return m_conn->getURL();
     }
 
-    std::chrono::time_point<std::chrono::steady_clock> PooledConnection::getCreationTime() const
+    std::chrono::time_point<std::chrono::steady_clock> RelationalDBPooledConnection::getCreationTime() const
     {
         return m_creationTime;
     }
 
-    std::chrono::time_point<std::chrono::steady_clock> PooledConnection::getLastUsedTime() const
+    std::chrono::time_point<std::chrono::steady_clock> RelationalDBPooledConnection::getLastUsedTime() const
     {
         return m_lastUsedTime;
     }
 
-    void PooledConnection::setActive(bool isActive)
+    void RelationalDBPooledConnection::setActive(bool isActive)
     {
         m_active = isActive;
     }
 
-    bool PooledConnection::isActive() const
+    bool RelationalDBPooledConnection::isActive() const
     {
         return m_active;
     }
 
-    void PooledConnection::returnToPool()
+    void RelationalDBPooledConnection::returnToPool()
     {
         this->close();
     }
 
-    bool PooledConnection::isPooled()
+    bool RelationalDBPooledConnection::isPooled()
     {
         return this->m_active == false;
     }
 
-    std::shared_ptr<Connection> PooledConnection::getUnderlyingConnection()
+    std::shared_ptr<RelationalDBConnection> RelationalDBPooledConnection::getUnderlyingConnection()
     {
         return m_conn;
     }
@@ -984,13 +761,13 @@ namespace cpp_dbc
         MySQLConnectionPool::MySQLConnectionPool(const std::string &url,
                                                  const std::string &username,
                                                  const std::string &password)
-            : ConnectionPool(url, username, password)
+            : RelationalDBConnectionPool(url, username, password)
         {
             // MySQL-specific initialization if needed
         }
 
-        MySQLConnectionPool::MySQLConnectionPool(const config::ConnectionPoolConfig &config)
-            : ConnectionPool(config)
+        MySQLConnectionPool::MySQLConnectionPool(const config::DBConnectionPoolConfig &config)
+            : RelationalDBConnectionPool(config)
         {
             // MySQL-specific initialization if needed
         }
@@ -1002,13 +779,13 @@ namespace cpp_dbc
         PostgreSQLConnectionPool::PostgreSQLConnectionPool(const std::string &url,
                                                            const std::string &username,
                                                            const std::string &password)
-            : ConnectionPool(url, username, password)
+            : RelationalDBConnectionPool(url, username, password)
         {
             // PostgreSQL-specific initialization if needed
         }
 
-        PostgreSQLConnectionPool::PostgreSQLConnectionPool(const config::ConnectionPoolConfig &config)
-            : ConnectionPool(config)
+        PostgreSQLConnectionPool::PostgreSQLConnectionPool(const config::DBConnectionPoolConfig &config)
+            : RelationalDBConnectionPool(config)
         {
             // PostgreSQL-specific initialization if needed
         }
@@ -1020,15 +797,15 @@ namespace cpp_dbc
         SQLiteConnectionPool::SQLiteConnectionPool(const std::string &url,
                                                    const std::string &username,
                                                    const std::string &password)
-            : ConnectionPool(url, username, password)
+            : RelationalDBConnectionPool(url, username, password)
         {
             // SQLite only supports SERIALIZABLE isolation level
             // Override the isolation level from the constructor
             this->setPoolTransactionIsolation(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
         }
 
-        SQLiteConnectionPool::SQLiteConnectionPool(const config::ConnectionPoolConfig &config)
-            : ConnectionPool(config)
+        SQLiteConnectionPool::SQLiteConnectionPool(const config::DBConnectionPoolConfig &config)
+            : RelationalDBConnectionPool(config)
         {
             // SQLite only supports SERIALIZABLE isolation level
             // Override the isolation level from the config
@@ -1042,13 +819,13 @@ namespace cpp_dbc
         FirebirdConnectionPool::FirebirdConnectionPool(const std::string &url,
                                                        const std::string &username,
                                                        const std::string &password)
-            : ConnectionPool(url, username, password)
+            : RelationalDBConnectionPool(url, username, password)
         {
             // Firebird-specific initialization if needed
         }
 
-        FirebirdConnectionPool::FirebirdConnectionPool(const config::ConnectionPoolConfig &config)
-            : ConnectionPool(config)
+        FirebirdConnectionPool::FirebirdConnectionPool(const config::DBConnectionPoolConfig &config)
+            : RelationalDBConnectionPool(config)
         {
             // Firebird-specific initialization if needed
         }

@@ -46,13 +46,13 @@ TEST_CASE("DriverManager tests", "[driver][manager]")
         // This should not throw and return a valid connection
         REQUIRE_NOTHROW([&]()
                         {
-            auto conn = cpp_dbc::DriverManager::getConnection("cpp_dbc:mock://localhost:1234/mockdb", "user", "pass");
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection("cpp_dbc:mock://localhost:1234/mockdb", "user", "pass"));
             // The connection should be valid
             REQUIRE(conn != nullptr); }());
 
         // Try to get a connection with a non-existent driver
         REQUIRE_THROWS_AS(
-            cpp_dbc::DriverManager::getConnection("cpp_dbc:nonexistent://localhost:1234/db", "user", "pass"),
+            cpp_dbc::DriverManager::getDBConnection("cpp_dbc:nonexistent://localhost:1234/db", "user", "pass"),
             cpp_dbc::DBException);
     }
 }
@@ -64,7 +64,7 @@ TEST_CASE("MySQL driver tests", "[driver][mysql]")
     SECTION("MySQL driver URL acceptance")
     {
         // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDriver driver;
+        cpp_dbc::MySQL::MySQLDBDriver driver;
 
         // Check that it accepts MySQL URLs
         REQUIRE(driver.acceptsURL("cpp_dbc:mysql://localhost:3306/testdb"));
@@ -80,7 +80,7 @@ TEST_CASE("MySQL driver tests", "[driver][mysql]")
     SECTION("MySQL driver connection string parsing")
     {
         // Create a MySQL driver
-        cpp_dbc::MySQL::MySQLDriver driver;
+        cpp_dbc::MySQL::MySQLDBDriver driver;
 
         // We can't actually connect to a database in unit tests,
         // but we can verify that the driver correctly parses connection strings
@@ -101,7 +101,7 @@ TEST_CASE("PostgreSQL driver tests", "[driver][postgresql]")
     SECTION("PostgreSQL driver URL acceptance")
     {
         // Create a PostgreSQL driver
-        cpp_dbc::PostgreSQL::PostgreSQLDriver driver;
+        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
 
         // Check that it accepts PostgreSQL URLs
         REQUIRE(driver.acceptsURL("cpp_dbc:postgresql://localhost:5432/testdb"));
@@ -117,7 +117,7 @@ TEST_CASE("PostgreSQL driver tests", "[driver][postgresql]")
     SECTION("PostgreSQL driver connection string parsing")
     {
         // Create a PostgreSQL driver
-        cpp_dbc::PostgreSQL::PostgreSQLDriver driver;
+        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
 
         // We can't actually connect to a database in unit tests,
         // but we can verify that the driver correctly parses connection strings
@@ -138,7 +138,7 @@ TEST_CASE("Firebird driver tests", "[driver][firebird]")
     SECTION("Firebird driver URL acceptance")
     {
         // Create a Firebird driver
-        cpp_dbc::Firebird::FirebirdDriver driver;
+        cpp_dbc::Firebird::FirebirdDBDriver driver;
 
         // Check that it accepts Firebird URLs
         REQUIRE(driver.acceptsURL("cpp_dbc:firebird://localhost:3050/testdb"));
@@ -156,7 +156,7 @@ TEST_CASE("Firebird driver tests", "[driver][firebird]")
     SECTION("Firebird driver connection string parsing")
     {
         // Create a Firebird driver
-        cpp_dbc::Firebird::FirebirdDriver driver;
+        cpp_dbc::Firebird::FirebirdDBDriver driver;
 
         // We can't actually connect to a database in unit tests,
         // but we can verify that the driver correctly parses connection strings

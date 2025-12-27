@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file driver_mysql.hpp
- @brief Tests for MySQL database operations
+ @brief MySQL database driver implementation
 
 */
 
@@ -73,7 +73,7 @@ namespace cpp_dbc
          */
         using MySQLResHandle = std::unique_ptr<MYSQL_RES, MySQLResDeleter>;
 
-        class MySQLResultSet : public ResultSet
+        class MySQLDBResultSet : public RelationalDBResultSet
         {
         private:
             /**
@@ -130,9 +130,14 @@ namespace cpp_dbc
             void validateCurrentRow() const;
 
         public:
-            explicit MySQLResultSet(MYSQL_RES *res);
-            ~MySQLResultSet() override;
+            explicit MySQLDBResultSet(MYSQL_RES *res);
+            ~MySQLDBResultSet() override;
 
+            // DBResultSet interface
+            void close() override;
+            bool isEmpty() override;
+
+            // RelationalDBResultSet interface
             bool next() override;
             bool isBeforeFirst() override;
             bool isAfterLast() override;
@@ -158,7 +163,6 @@ namespace cpp_dbc
 
             std::vector<std::string> getColumnNames() override;
             size_t getColumnCount() override;
-            void close() override;
 
             // BLOB support methods
             std::shared_ptr<Blob> getBlob(size_t columnIndex) override;
@@ -186,9 +190,9 @@ namespace cpp_dbc
         // Type alias for the smart pointer managing MYSQL_STMT
         using MySQLStmtHandle = std::unique_ptr<MYSQL_STMT, MySQLStmtDeleter>;
 
-        class MySQLPreparedStatement : public PreparedStatement
+        class MySQLDBPreparedStatement : public RelationalDBPreparedStatement
         {
-            friend class MySQLConnection;
+            friend class MySQLDBConnection;
 
         private:
             std::weak_ptr<MYSQL> m_mysql; // Safe weak reference to connection - detects when connection is closed
@@ -216,8 +220,8 @@ namespace cpp_dbc
             MYSQL *getMySQLConnection() const;
 
         public:
-            MySQLPreparedStatement(std::weak_ptr<MYSQL> mysql, const std::string &sql);
-            ~MySQLPreparedStatement() override;
+            MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql, const std::string &sql);
+            ~MySQLDBPreparedStatement() override;
 
             void setInt(int parameterIndex, int value) override;
             void setLong(int parameterIndex, long value) override;
@@ -235,7 +239,7 @@ namespace cpp_dbc
             void setBytes(int parameterIndex, const std::vector<uint8_t> &x) override;
             void setBytes(int parameterIndex, const uint8_t *x, size_t length) override;
 
-            std::shared_ptr<ResultSet> executeQuery() override;
+            std::shared_ptr<RelationalDBResultSet> executeQuery() override;
             uint64_t executeUpdate() override;
             bool execute() override;
             void close() override;
@@ -257,7 +261,7 @@ namespace cpp_dbc
         // Note: The deleter is passed to the constructor, not as a template parameter
         using MySQLHandle = std::shared_ptr<MYSQL>;
 
-        class MySQLConnection : public Connection
+        class MySQLDBConnection : public RelationalDBConnection
         {
         private:
             MySQLHandle m_mysql; // shared_ptr allows PreparedStatements to use weak_ptr
@@ -270,8 +274,7 @@ namespace cpp_dbc
             std::string m_url;
 
             // Registry of active prepared statements
-            // std::set<std::weak_ptr<MySQLPreparedStatement>, std::owner_less<std::weak_ptr<MySQLPreparedStatement>>> m_activeStatements;
-            std::set<std::shared_ptr<MySQLPreparedStatement>> m_activeStatements;
+            std::set<std::shared_ptr<MySQLDBPreparedStatement>> m_activeStatements;
             std::mutex m_statementsMutex;
 
 #if DB_DRIVER_THREAD_SAFE
@@ -279,25 +282,28 @@ namespace cpp_dbc
 #endif
 
             // Internal methods for statement registry
-            void registerStatement(std::shared_ptr<MySQLPreparedStatement> stmt);
-            void unregisterStatement(std::shared_ptr<MySQLPreparedStatement> stmt);
+            void registerStatement(std::shared_ptr<MySQLDBPreparedStatement> stmt);
+            void unregisterStatement(std::shared_ptr<MySQLDBPreparedStatement> stmt);
 
         public:
-            MySQLConnection(const std::string &host,
-                            int port,
-                            const std::string &database,
-                            const std::string &user,
-                            const std::string &password,
-                            const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
-            ~MySQLConnection() override;
+            MySQLDBConnection(const std::string &host,
+                              int port,
+                              const std::string &database,
+                              const std::string &user,
+                              const std::string &password,
+                              const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+            ~MySQLDBConnection() override;
 
+            // DBConnection interface
             void close() override;
             bool isClosed() override;
             void returnToPool() override;
             bool isPooled() override;
+            std::string getURL() const override;
 
-            std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) override;
-            std::shared_ptr<ResultSet> executeQuery(const std::string &sql) override;
+            // RelationalDBConnection interface
+            std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
+            std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
             uint64_t executeUpdate(const std::string &sql) override;
 
             void setAutoCommit(bool autoCommit) override;
@@ -312,25 +318,22 @@ namespace cpp_dbc
             // Transaction isolation level methods
             void setTransactionIsolation(TransactionIsolationLevel level) override;
             TransactionIsolationLevel getTransactionIsolation() override;
-
-            // Get the connection URL
-            std::string getURL() const override;
         };
 
-        class MySQLDriver : public Driver
+        class MySQLDBDriver : public RelationalDBDriver
         {
         public:
-            MySQLDriver();
-            ~MySQLDriver() override;
+            MySQLDBDriver();
+            ~MySQLDBDriver() override;
 
-            std::shared_ptr<Connection> connect(const std::string &url,
-                                                const std::string &user,
-                                                const std::string &password,
-                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+                                                                      const std::string &user,
+                                                                      const std::string &password,
+                                                                      const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
             bool acceptsURL(const std::string &url) override;
 
-            // Parses a JDBC-like URL: jdbc:mysql://host:port/database
+            // Parses a JDBC-like URL: cpp_dbc:mysql://host:port/database
             bool parseURL(const std::string &url,
                           std::string &host,
                           int &port,
@@ -348,24 +351,24 @@ namespace cpp_dbc
     namespace MySQL
     {
         // Forward declarations only
-        class MySQLDriver : public Driver
+        class MySQLDBDriver : public RelationalDBDriver
         {
         public:
-            MySQLDriver()
+            MySQLDBDriver()
             {
-                throw SQLException("MySQL support is not enabled in this build");
+                throw DBException("MYSQL_DISABLED", "MySQL support is not enabled in this build");
             }
-            ~MySQLDriver() override = default;
+            ~MySQLDBDriver() override = default;
 
-            std::shared_ptr<Connection> connect(const std::string &url,
-                                                const std::string &user,
-                                                const std::string &password,
-                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
+            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
+                                                                      const std::string &,
+                                                                      const std::string &,
+                                                                      const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
             {
-                throw SQLException("MySQL support is not enabled in this build");
+                throw DBException("MYSQL_DISABLED", "MySQL support is not enabled in this build");
             }
 
-            bool acceptsURL(const std::string &url) override
+            bool acceptsURL(const std::string &) override
             {
                 return false;
             }

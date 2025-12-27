@@ -27,9 +27,9 @@ namespace cpp_dbc
     namespace config
     {
         // DatabaseConfig implementation
-        std::shared_ptr<Connection> DatabaseConfig::createConnection() const
+        std::shared_ptr<DBConnection> DatabaseConfig::createDBConnection() const
         {
-            return DriverManager::getConnection(
+            return DriverManager::getDBConnection(
                 createConnectionString(),
                 getUsername(),
                 getPassword(),
@@ -37,7 +37,7 @@ namespace cpp_dbc
         }
 
         // DatabaseConfigManager implementation
-        std::shared_ptr<Connection> DatabaseConfigManager::createConnection(const std::string &configName) const
+        std::shared_ptr<DBConnection> DatabaseConfigManager::createDBConnection(const std::string &configName) const
         {
             auto dbConfigOpt = getDatabaseByName(configName);
             if (!dbConfigOpt.has_value())
@@ -46,10 +46,10 @@ namespace cpp_dbc
             }
 
             const auto &dbConfig = dbConfigOpt->get();
-            return dbConfig.createConnection();
+            return dbConfig.createDBConnection();
         }
 
-        std::shared_ptr<ConnectionPool> DatabaseConfigManager::createConnectionPool(
+        std::shared_ptr<RelationalDBConnectionPool> DatabaseConfigManager::createDBConnectionPool(
             const std::string &dbConfigName,
             const std::string &poolConfigName) const
         {
@@ -59,22 +59,22 @@ namespace cpp_dbc
                 return nullptr;
             }
 
-            auto poolConfigOpt = getConnectionPoolConfig(poolConfigName);
+            auto poolConfigOpt = getDBConnectionPoolConfig(poolConfigName);
             if (!poolConfigOpt.has_value())
             {
                 return nullptr;
             }
 
-            // Create a ConnectionPoolConfig with database connection details
+            // Create a DBConnectionPoolConfig with database connection details
             const auto &dbConfig = dbConfigOpt->get();
             const auto &poolConfig = poolConfigOpt->get();
-            cpp_dbc::config::ConnectionPoolConfig config = poolConfig;
+            cpp_dbc::config::DBConnectionPoolConfig config = poolConfig;
             config.setUrl(dbConfig.createConnectionString());
             config.setUsername(dbConfig.getUsername());
             config.setPassword(dbConfig.getPassword());
 
             // Create the connection pool
-            return cpp_dbc::ConnectionPool::create(config);
+            return cpp_dbc::RelationalDBConnectionPool::create(config);
         }
     }
 }

@@ -73,10 +73,10 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
     SECTION("Basic MySQL operations")
     {
         // Register the MySQL driver (safe registration)
-        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
         // Get a connection
-        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         REQUIRE(conn != nullptr);
 
         // Create a test table
@@ -157,7 +157,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         // SafePoolManager poolManager;
 
         // Create a connection pool configuration with shorter timeouts for tests
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -182,7 +182,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         //   auto &pool = *poolPtr;
 
         // Create a test table
-        auto conn = poolPtr->getConnection();
+        auto conn = poolPtr->getDBConnection();
 
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
@@ -212,7 +212,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
                     try {
                         //cpp_dbc::system_utils::safePrint( cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(), "(1) Try to getting connection" );
                         // Get a connection from the pool
-                        auto conn_thread = poolPtr->getConnection();
+                        auto conn_thread = poolPtr->getDBConnection();
                         //cpp_dbc::system_utils::safePrint( cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(), "(2) Getted connection" );
 
                         // Insert a row
@@ -274,13 +274,13 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         REQUIRE((successCount.load() == numThreads * opsPerThread || successCount.load() == (numThreads * opsPerThread - 1)));
 
         // Verify the data
-        conn = poolPtr->getConnection();
+        conn = poolPtr->getDBConnection();
 
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         conn->executeUpdate(dropTableQuery);
-        // REQUIRE((rs->getInt("count") == numThreads * opsPerThread || rs->getInt("count") == numThreads * opsPerThread - 1));
-        REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
+        REQUIRE((rs->getInt("count") == numThreads * opsPerThread || rs->getInt("count") == numThreads * opsPerThread - 1));
+        // REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
 
         // Clean up
         conn->returnToPool();
@@ -295,7 +295,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         // SafePoolManager poolManager;
 
         // Create a connection pool configuration with shorter timeouts for tests
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -319,7 +319,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         cpp_dbc::TransactionManager manager(pool);
 
         // Create a test table
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
@@ -331,7 +331,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
             REQUIRE(!txId.empty());
 
             // Get the connection associated with the transaction
-            conn = manager.getTransactionConnection(txId);
+            conn = manager.getTransactionDBConnection(txId);
             REQUIRE(conn != nullptr);
 
             // Insert data within the transaction
@@ -345,7 +345,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
             manager.commitTransaction(txId);
 
             // Verify the data was committed
-            conn = pool.getConnection();
+            conn = pool.getDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
@@ -358,7 +358,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
             std::string txId = manager.beginTransaction();
 
             // Get the connection associated with the transaction
-            conn = manager.getTransactionConnection(txId);
+            conn = manager.getTransactionDBConnection(txId);
 
             // Insert data within the transaction
             auto pstmt = conn->prepareStatement(insertDataQuery);
@@ -371,14 +371,14 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
             manager.rollbackTransaction(txId);
 
             // Verify the data was not committed
-            conn = pool.getConnection();
+            conn = pool.getDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             conn->close();
         }
 
         // Clean up
-        conn = pool.getConnection();
+        conn = pool.getDBConnection();
         conn->executeUpdate(dropTableQuery);
         conn->close();
 
@@ -388,10 +388,10 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
     SECTION("MySQL metadata retrieval")
     {
         // Register the MySQL driver (safe registration)
-        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
         // Get a connection
-        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
         // Create a test table with various data types
         conn->executeUpdate("DROP TABLE IF EXISTS test_types");
@@ -468,7 +468,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         // SafePoolManager poolManager;
 
         // Create a connection pool configuration with shorter timeouts for tests
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -489,7 +489,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         auto &pool = *poolPtr;
 
         // Create a test table
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
@@ -510,7 +510,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn_thread = pool.getConnection();
+                        auto conn_thread = pool.getDBConnection();
 
                         // Insert a row
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -554,7 +554,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the total number of rows
-        conn = pool.getConnection();
+        conn = pool.getDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);

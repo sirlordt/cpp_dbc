@@ -72,13 +72,13 @@ namespace common_benchmark_helpers
     std::string generateRandomString(size_t length);
 
     // Helper function to create test tables for benchmarks
-    void createBenchmarkTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName);
+    void createBenchmarkTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName);
 
     // Helper function to drop test tables after benchmarks
-    void dropBenchmarkTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName);
+    void dropBenchmarkTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName);
 
     // Helper function to populate a table with a specific number of rows
-    void populateTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName, int rowCount);
+    void populateTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName, int rowCount);
 }
 
 namespace mysql_benchmark_helpers
@@ -91,7 +91,7 @@ namespace mysql_benchmark_helpers
     bool canConnectToMySQL();
 
     // Helper function to setup MySQL connection
-    std::shared_ptr<cpp_dbc::Connection> setupMySQLConnection(const std::string &tableName, int rowCount = 0);
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> setupMySQLConnection(const std::string &tableName, int rowCount = 0);
 #endif
 }
 
@@ -105,7 +105,7 @@ namespace postgresql_benchmark_helpers
     bool canConnectToPostgreSQL();
 
     // Helper function to setup PostgreSQL connection
-    std::shared_ptr<cpp_dbc::Connection> setupPostgreSQLConnection(const std::string &tableName, int rowCount = 0);
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> setupPostgreSQLConnection(const std::string &tableName, int rowCount = 0);
 #endif
 }
 
@@ -122,7 +122,7 @@ namespace sqlite_benchmark_helpers
     bool canConnectToSQLite();
 
     // Helper function to setup SQLite connection
-    std::shared_ptr<cpp_dbc::Connection> setupSQLiteConnection(const std::string &tableName, int rowCount = 0);
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> setupSQLiteConnection(const std::string &tableName, int rowCount = 0);
 #endif
 }
 
@@ -136,12 +136,12 @@ namespace firebird_benchmark_helpers
     bool canConnectToFirebird();
 
     // Helper function to setup Firebird connection
-    std::shared_ptr<cpp_dbc::Connection> setupFirebirdConnection(const std::string &tableName, int rowCount = 0);
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> setupFirebirdConnection(const std::string &tableName, int rowCount = 0);
 
     // Helper function to create Firebird-specific benchmark table
-    void createFirebirdBenchmarkTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName);
+    void createFirebirdBenchmarkTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName);
 
     // Helper function to populate Firebird table with test data
-    void populateFirebirdTable(std::shared_ptr<cpp_dbc::Connection> &conn, const std::string &tableName, int rowCount);
+    void populateFirebirdTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName, int rowCount);
 #endif
 }

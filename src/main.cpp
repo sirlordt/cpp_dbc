@@ -84,19 +84,19 @@ int main(int argc, char *argv[])
 #if USE_MYSQL
         std::cout << "Registering MySQL driver..." << std::endl;
         cpp_dbc::DriverManager::registerDriver("mysql",
-                                               std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+                                               std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 #endif
 
 #if USE_POSTGRESQL
         std::cout << "Registering PostgreSQL driver..." << std::endl;
         cpp_dbc::DriverManager::registerDriver("postgresql",
-                                               std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+                                               std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 #endif
 
 #if USE_SQLITE
         std::cout << "Registering SQLite driver..." << std::endl;
         cpp_dbc::DriverManager::registerDriver("sqlite",
-                                               std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+                                               std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 #endif
 
         std::cout << "Driver registration complete." << std::endl;

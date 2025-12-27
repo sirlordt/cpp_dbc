@@ -55,7 +55,7 @@ TEST_CASE("Database configuration loading", "[db_config]")
 
         // Verify that the configuration contains the expected sections
         REQUIRE(configManager.getAllDatabases().size() > 0);
-        REQUIRE(configManager.getConnectionPoolConfig("default").has_value());
+        REQUIRE(configManager.getDBConnectionPoolConfig("default").has_value());
         REQUIRE(!configManager.getTestQueries().getQueriesForType("mysql").empty());
 
         // Verify that we have at least one database configuration
@@ -328,7 +328,7 @@ TEST_CASE("Connection pool configurations", "[db_config]")
 
     SECTION("Verify default pool configuration")
     {
-        auto defaultPoolOpt = configManager.getConnectionPoolConfig("default");
+        auto defaultPoolOpt = configManager.getDBConnectionPoolConfig("default");
 
         // Check that the pool was found
         REQUIRE(defaultPoolOpt.has_value());
@@ -346,7 +346,7 @@ TEST_CASE("Connection pool configurations", "[db_config]")
 
     SECTION("Verify high_performance pool configuration")
     {
-        auto highPerfPoolOpt = configManager.getConnectionPoolConfig("high_performance");
+        auto highPerfPoolOpt = configManager.getDBConnectionPoolConfig("high_performance");
 
         // Check that the pool was found
         REQUIRE(highPerfPoolOpt.has_value());
@@ -477,7 +477,7 @@ TEST_CASE("Create connection strings from configuration", "[db_config]")
         //     auto dbConfigOpt = configManager.getDatabaseByName(dbName);
         //     if (dbConfigOpt.has_value()) {
         //         const auto& dbConfig = dbConfigOpt->get();
-        //         auto conn = cpp_dbc::DriverManager::getConnection(
+        //         auto conn = cpp_dbc::DriverManager::getDBConnection(
         //             connStr,
         //             dbConfig.getUsername(),
         //             dbConfig.getPassword()

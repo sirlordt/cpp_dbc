@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file cpp_dbc.hpp
- @brief Implementation for the cpp_dbc library
+ @brief Main header for the cpp_dbc library - Multi-paradigm database connectivity
 
 */
 
@@ -41,6 +41,21 @@
 #include <stdexcept>
 #include <cstdint>
 #include <any>
+
+// Core headers
+#include "cpp_dbc/core/db_types.hpp"
+#include "cpp_dbc/core/db_exception.hpp"
+#include "cpp_dbc/core/db_result_set.hpp"
+#include "cpp_dbc/core/db_connection.hpp"
+#include "cpp_dbc/core/db_driver.hpp"
+
+// Relational database headers
+#include "cpp_dbc/relational/relational_db_result_set.hpp"
+#include "cpp_dbc/relational/relational_db_prepared_statement.hpp"
+#include "cpp_dbc/relational/relational_db_connection.hpp"
+#include "cpp_dbc/relational/relational_db_driver.hpp"
+
+// Common utilities
 #include "cpp_dbc/backward.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 
@@ -57,95 +72,10 @@ namespace cpp_dbc
 namespace cpp_dbc
 {
 
-    // Forward declarations
-    class Blob;
+    // Forward declarations for stream classes
     class InputStream;
     class OutputStream;
-    class ResultSet;
-    class PreparedStatement;
-    class Connection;
-    class Driver;
-    class DriverManager;
-
-    // Custom exceptions
-    class DBException : public std::runtime_error
-    {
-    private:
-        std::string m_mark;
-        mutable std::string m_full_message;
-        std::vector<system_utils::StackFrame> m_callstack;
-
-    public:
-        explicit DBException(const std::string &mark, const std::string &message,
-                             const std::vector<system_utils::StackFrame> &callstack = {})
-            : std::runtime_error(message),
-              m_mark(mark),
-              m_callstack(callstack) {}
-
-        virtual ~DBException() = default;
-
-        [[deprecated("Use what_s() instead. It avoids the unsafe const char* pointer.")]]
-        const char *what() const noexcept override
-        {
-            if (m_mark.empty())
-            {
-                return std::runtime_error::what();
-            }
-
-            m_full_message = m_mark + ": " + std::runtime_error::what();
-            return m_full_message.c_str();
-        }
-
-        virtual const std::string &what_s() const noexcept
-        {
-            if (m_mark.empty())
-            {
-                m_full_message = std::runtime_error::what();
-                return m_full_message;
-            }
-
-            m_full_message = m_mark + ": " + std::runtime_error::what();
-            return m_full_message;
-        }
-
-        const std::string &getMark() const
-        {
-            return m_mark;
-        }
-
-        void printCallStack() const
-        {
-            system_utils::printCallStack(m_callstack);
-        }
-
-        const std::vector<system_utils::StackFrame> &getCallStack() const
-        {
-            return m_callstack;
-        }
-    };
-
-    // Represents a SQL parameter type
-    enum class Types
-    {
-        INTEGER,
-        FLOAT,
-        DOUBLE,
-        VARCHAR,
-        DATE,
-        TIMESTAMP,
-        BOOLEAN,
-        BLOB
-    };
-
-    // Transaction isolation levels (following JDBC standard)
-    enum class TransactionIsolationLevel
-    {
-        TRANSACTION_NONE = 0,
-        TRANSACTION_READ_UNCOMMITTED = 1,
-        TRANSACTION_READ_COMMITTED = 2,
-        TRANSACTION_REPEATABLE_READ = 4,
-        TRANSACTION_SERIALIZABLE = 8
-    };
+    class Blob;
 
     // Abstract base class for input streams
     class InputStream
@@ -211,171 +141,26 @@ namespace cpp_dbc
         virtual void free() = 0;
     };
 
-    // Abstract base class for result sets
-    class ResultSet
-    {
-    public:
-        virtual ~ResultSet() = default;
-
-        virtual bool next() = 0;
-        virtual bool isBeforeFirst() = 0;
-        virtual bool isAfterLast() = 0;
-        virtual uint64_t getRow() = 0;
-
-        virtual int getInt(size_t columnIndex) = 0;
-        virtual int getInt(const std::string &columnName) = 0;
-
-        virtual long getLong(size_t columnIndex) = 0;
-        virtual long getLong(const std::string &columnName) = 0;
-
-        virtual double getDouble(size_t columnIndex) = 0;
-        virtual double getDouble(const std::string &columnName) = 0;
-
-        virtual std::string getString(size_t columnIndex) = 0;
-        virtual std::string getString(const std::string &columnName) = 0;
-
-        virtual bool getBoolean(size_t columnIndex) = 0;
-        virtual bool getBoolean(const std::string &columnName) = 0;
-
-        virtual bool isNull(size_t columnIndex) = 0;
-        virtual bool isNull(const std::string &columnName) = 0;
-
-        virtual std::vector<std::string> getColumnNames() = 0;
-        virtual size_t getColumnCount() = 0;
-
-        // BLOB support methods
-        virtual std::shared_ptr<Blob> getBlob(size_t columnIndex) = 0;
-        virtual std::shared_ptr<Blob> getBlob(const std::string &columnName) = 0;
-
-        virtual std::shared_ptr<InputStream> getBinaryStream(size_t columnIndex) = 0;
-        virtual std::shared_ptr<InputStream> getBinaryStream(const std::string &columnName) = 0;
-
-        virtual std::vector<uint8_t> getBytes(size_t columnIndex) = 0;
-        virtual std::vector<uint8_t> getBytes(const std::string &columnName) = 0;
-
-        // Close the result set and free resources
-        virtual void close() = 0;
-    };
-
-    // Abstract base class for prepared statements
-    class PreparedStatement
-    {
-    public:
-        virtual ~PreparedStatement() = default;
-
-        virtual void setInt(int parameterIndex, int value) = 0;
-        virtual void setLong(int parameterIndex, long value) = 0;
-        virtual void setDouble(int parameterIndex, double value) = 0;
-        virtual void setString(int parameterIndex, const std::string &value) = 0;
-        virtual void setBoolean(int parameterIndex, bool value) = 0;
-        virtual void setNull(int parameterIndex, Types type) = 0;
-        virtual void setDate(int parameterIndex, const std::string &value) = 0;
-        virtual void setTimestamp(int parameterIndex, const std::string &value) = 0;
-
-        // BLOB support methods
-        virtual void setBlob(int parameterIndex, std::shared_ptr<Blob> x) = 0;
-        virtual void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x) = 0;
-        virtual void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length) = 0;
-        virtual void setBytes(int parameterIndex, const std::vector<uint8_t> &x) = 0;
-        virtual void setBytes(int parameterIndex, const uint8_t *x, size_t length) = 0;
-
-        virtual std::shared_ptr<ResultSet> executeQuery() = 0;
-        virtual uint64_t executeUpdate() = 0;
-        virtual bool execute() = 0;
-
-        // Close the prepared statement and release resources
-        virtual void close() = 0;
-    };
-
-    // Abstract base class for database connections
-    class Connection
-    {
-    public:
-        virtual ~Connection() = default;
-
-        virtual void close() = 0;
-        virtual bool isClosed() = 0;
-        virtual void returnToPool() = 0;
-        virtual bool isPooled() = 0;
-
-        virtual std::shared_ptr<PreparedStatement> prepareStatement(const std::string &sql) = 0;
-        virtual std::shared_ptr<ResultSet> executeQuery(const std::string &sql) = 0;
-        virtual uint64_t executeUpdate(const std::string &sql) = 0;
-
-        virtual void setAutoCommit(bool autoCommit) = 0;
-        virtual bool getAutoCommit() = 0;
-
-        virtual bool beginTransaction() = 0;
-        virtual bool transactionActive() = 0;
-
-        virtual void commit() = 0;
-        virtual void rollback() = 0;
-
-        // Transaction isolation level methods
-        virtual void setTransactionIsolation(TransactionIsolationLevel level) = 0;
-        virtual TransactionIsolationLevel getTransactionIsolation() = 0;
-
-        // Get the connection URL with connection type and parameters
-        virtual std::string getURL() const = 0;
-    };
-
-    // Abstract driver class
-    class Driver
-    {
-    public:
-        virtual ~Driver() = default;
-
-        virtual std::shared_ptr<Connection> connect(const std::string &url,
-                                                    const std::string &user,
-                                                    const std::string &password,
-                                                    const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
-
-        virtual bool acceptsURL(const std::string &url) = 0;
-
-        /**
-         * @brief Execute a driver-specific command
-         *
-         * This method allows executing driver-specific operations that don't require
-         * an existing connection, such as creating a database.
-         *
-         * Supported commands vary by driver:
-         * - Firebird: "create_database" - Creates a new database file
-         *
-         * @param params A map of parameters for the command:
-         *               - "command": The command name (e.g., "create_database")
-         *               - "url": The database URL
-         *               - "user": The username
-         *               - "password": The password
-         *               - Additional driver-specific options
-         * @return Result code (0 for success, non-zero for errors)
-         * @throws DBException if the command fails
-         */
-        virtual int command([[maybe_unused]] const std::map<std::string, std::any> &)
-        {
-            // Default implementation does nothing - override in specific drivers
-            return 0;
-        }
-    };
-
     // Manager class to retrieve driver instances
     class DriverManager
     {
     private:
-        static std::map<std::string, std::shared_ptr<Driver>> drivers;
+        static std::map<std::string, std::shared_ptr<DBDriver>> drivers;
 
     public:
-        static void registerDriver(const std::string &name, std::shared_ptr<Driver> driver);
+        static void registerDriver(const std::string &name, std::shared_ptr<DBDriver> driver);
 
-        static std::shared_ptr<Connection> getConnection(const std::string &url,
-                                                         const std::string &user,
-                                                         const std::string &password,
-                                                         const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+        // Generic connection method - returns base DBConnection
+        static std::shared_ptr<DBConnection> getDBConnection(const std::string &url,
+                                                             const std::string &user,
+                                                             const std::string &password,
+                                                             const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
 
-        // New methods for integration with configuration classes
-        static std::shared_ptr<Connection> getConnection(const config::DatabaseConfig &dbConfig);
+        // Methods for integration with configuration classes
+        static std::shared_ptr<DBConnection> getDBConnection(const config::DatabaseConfig &dbConfig);
 
-        static std::shared_ptr<Connection> getConnection(const config::DatabaseConfigManager &configManager,
-                                                         const std::string &configName);
+        static std::shared_ptr<DBConnection> getDBConnection(const config::DatabaseConfigManager &configManager,
+                                                             const std::string &configName);
 
         // Get list of registered driver names
         static std::vector<std::string> getRegisteredDrivers();
@@ -386,48 +171,6 @@ namespace cpp_dbc
         // Unregister a specific driver
         static void unregisterDriver(const std::string &name);
     };
-
-#if USE_MYSQL
-    // MySQL specific implementation declarations
-    namespace MySQL
-    {
-        class MySQLDriver;
-        class MySQLConnection;
-        class MySQLPreparedStatement;
-        class MySQLResultSet;
-        class MySQLBlob;
-        class MySQLInputStream;
-        class MySQLOutputStream;
-    }
-#endif
-
-#if USE_POSTGRESQL
-    // PostgreSQL specific implementation declarations
-    namespace PostgreSQL
-    {
-        class PostgreSQLDriver;
-        class PostgreSQLConnection;
-        class PostgreSQLPreparedStatement;
-        class PostgreSQLResultSet;
-        class PostgreSQLBlob;
-        class PostgreSQLInputStream;
-        class PostgreSQLOutputStream;
-    }
-#endif
-
-#if USE_SQLITE
-    // SQLite specific implementation declarations
-    namespace SQLite
-    {
-        class SQLiteDriver;
-        class SQLiteConnection;
-        class SQLitePreparedStatement;
-        class SQLiteResultSet;
-        class SQLiteBlob;
-        class SQLiteInputStream;
-        class SQLiteOutputStream;
-    }
-#endif
 
 } // namespace cpp_dbc
 

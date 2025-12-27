@@ -107,7 +107,7 @@ std::string getConfigFilePath()
 }
 
 // Function to set up the test database
-void setupDatabase(std::shared_ptr<cpp_dbc::Connection> conn)
+void setupDatabase(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     executeWithErrorHandling("Setup Database", [&conn]()
                              {
@@ -177,7 +177,7 @@ void setupDatabase(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate handling syntax errors
-void demonstrateSyntaxErrors(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateSyntaxErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     executeWithErrorHandling("Syntax Error Example", [&conn]()
                              {
@@ -186,7 +186,7 @@ void demonstrateSyntaxErrors(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate handling constraint violations
-void demonstrateConstraintViolations(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateConstraintViolations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     // Primary key violation
     executeWithErrorHandling("Primary Key Violation", [&conn]()
@@ -266,7 +266,7 @@ void demonstrateConstraintViolations(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate handling data type errors
-void demonstrateDataTypeErrors(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateDataTypeErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     // Type conversion error
     executeWithErrorHandling("Type Conversion Error", [&conn]()
@@ -290,7 +290,7 @@ void demonstrateDataTypeErrors(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate handling transaction errors
-void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     // Transaction rollback example
     executeWithErrorHandling("Transaction Rollback", [&conn]()
@@ -360,7 +360,7 @@ void demonstrateConnectionErrors()
     executeWithErrorHandling("Connection Error", []()
                              {
         // Try to connect with invalid credentials
-        auto conn = cpp_dbc::DriverManager::getConnection(
+        auto conn = cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:mysql://localhost:3306/nonexistent_db",
             "invalid_user",
             "invalid_password"
@@ -369,7 +369,7 @@ void demonstrateConnectionErrors()
     executeWithErrorHandling("Invalid Connection URL", []()
                              {
         // Try to connect with an invalid URL format
-        auto conn = cpp_dbc::DriverManager::getConnection(
+        auto conn = cpp_dbc::DriverManager::getDBConnection(
             "invalid:url:format",
             "user",
             "password"
@@ -377,7 +377,7 @@ void demonstrateConnectionErrors()
 }
 
 // Function to demonstrate handling prepared statement errors
-void demonstratePreparedStatementErrors(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstratePreparedStatementErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     // Invalid parameter index
     executeWithErrorHandling("Invalid Parameter Index", [&conn]()
@@ -414,7 +414,7 @@ void demonstratePreparedStatementErrors(std::shared_ptr<cpp_dbc::Connection> con
 }
 
 // Function to demonstrate handling result set errors
-void demonstrateResultSetErrors(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateResultSetErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     // Invalid column name
     executeWithErrorHandling("Invalid Column Name", [&conn]()
@@ -446,7 +446,7 @@ void demonstrateResultSetErrors(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate proper error recovery
-void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Error Recovery Example ===" << std::endl;
 
@@ -498,7 +498,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate custom error handling and logging
-void demonstrateCustomErrorHandling(std::shared_ptr<cpp_dbc::Connection> conn)
+void demonstrateCustomErrorHandling(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
     std::cout << "\n=== Custom Error Handling Example ===" << std::endl;
 
@@ -568,7 +568,7 @@ void demonstrateCustomErrorHandling(std::shared_ptr<cpp_dbc::Connection> conn)
 }
 
 // Function to demonstrate handling database-specific errors
-void demonstrateDatabaseSpecificErrors(std::shared_ptr<cpp_dbc::Connection> conn, const std::string &dbType)
+void demonstrateDatabaseSpecificErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn, const std::string &dbType)
 {
     std::cout << "\n=== Database-Specific Error Handling for " << dbType << " ===" << std::endl;
 
@@ -625,13 +625,13 @@ int main()
     {
         // Register database drivers
 #if USE_MYSQL
-        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 #endif
 #if USE_POSTGRESQL
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 #endif
 #if USE_SQLITE
-        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 #endif
 
         // Load configuration from YAML file
@@ -687,10 +687,10 @@ int main()
             std::cout << "Connecting to MySQL..." << std::endl;
             std::cout << "Connection String: " << connectionString << std::endl;
 
-            auto mysqlConn = cpp_dbc::DriverManager::getConnection(
+            auto mysqlConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(
                 connectionString,
                 username,
-                password);
+                password));
 
             // Set up the test database
             setupDatabase(mysqlConn);
@@ -752,10 +752,10 @@ int main()
             std::cout << "\nConnecting to PostgreSQL..." << std::endl;
             std::cout << "Connection String: " << connectionString << std::endl;
 
-            auto pgConn = cpp_dbc::DriverManager::getConnection(
+            auto pgConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(
                 connectionString,
                 username,
-                password);
+                password));
 
             // Set up the test database
             setupDatabase(pgConn);

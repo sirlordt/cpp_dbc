@@ -45,14 +45,14 @@ TEST_CASE("SQLite connection test", "[sqlite_connection]")
         std::string connStr = dbConfig.createConnectionString();
 
         // Register the SQLite driver
-        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
         try
         {
             // Attempt to connect to SQLite
             std::cout << "Attempting to connect to SQLite with connection string: " << connStr << std::endl;
 
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, "", "");
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
 
             // Execute a simple query to verify the connection
             auto resultSet = conn->executeQuery("SELECT 1 as test_value");
@@ -139,12 +139,12 @@ TEST_CASE("SQLite in-memory database test", "[sqlite_memory]")
     SECTION("Test SQLite in-memory database")
     {
         // Register the SQLite driver
-        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
         try
         {
             // Connect to an in-memory database
-            auto conn = cpp_dbc::DriverManager::getConnection("cpp_dbc:sqlite://:memory:", "", "");
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection("cpp_dbc:sqlite://:memory:", "", ""));
 
             // Create a table
             conn->executeUpdate("CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT)");

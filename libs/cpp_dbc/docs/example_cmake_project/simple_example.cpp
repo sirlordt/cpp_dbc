@@ -9,7 +9,7 @@ int main()
         std::cout << "cpp_dbc example application" << std::endl;
 
         // Create a ConnectionPool instance
-        cpp_dbc::ConnectionPool pool(
+        cpp_dbc::RelationalDBConnectionPool pool(
             "mysql://localhost:3306/testdb", // URL
             "username",                      // Username
             "password",                      // Password
@@ -22,11 +22,11 @@ int main()
         // Print library information
         std::cout << "cpp_dbc library successfully linked!" << std::endl;
         std::cout << "Connection pool created with "
-                  << pool.getTotalConnectionCount() << " connections" << std::endl;
+                  << pool.getTotalDBConnectionCount() << " connections" << std::endl;
 
         // You would normally connect to a database here
         // For example:
-        // auto conn = pool.getConnection();
+        // auto conn = pool.getDBConnection();
 
         std::cout << "Example completed successfully" << std::endl;
     }

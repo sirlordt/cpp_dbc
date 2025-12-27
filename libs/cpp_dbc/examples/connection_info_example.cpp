@@ -22,24 +22,24 @@ int main()
 // Initialize the necessary drivers
 #if USE_MYSQL
     {
-        auto mysqlDriver = std::make_shared<MySQL::MySQLDriver>();
-        std::shared_ptr<Driver> driver = std::static_pointer_cast<Driver>(mysqlDriver);
+        auto mysqlDriver = std::make_shared<MySQL::MySQLDBDriver>();
+        std::shared_ptr<DBDriver> driver = std::static_pointer_cast<DBDriver>(mysqlDriver);
         DriverManager::registerDriver("mysql", driver);
     }
 #endif
 
 #if USE_POSTGRESQL
     {
-        auto pgDriver = std::make_shared<PostgreSQL::PostgreSQLDriver>();
-        std::shared_ptr<Driver> driver = std::static_pointer_cast<Driver>(pgDriver);
+        auto pgDriver = std::make_shared<PostgreSQL::PostgreSQLDBDriver>();
+        std::shared_ptr<DBDriver> driver = std::static_pointer_cast<DBDriver>(pgDriver);
         DriverManager::registerDriver("postgresql", driver);
     }
 #endif
 
 #if USE_SQLITE
     {
-        auto sqliteDriver = std::make_shared<SQLite::SQLiteDriver>();
-        std::shared_ptr<Driver> driver = std::static_pointer_cast<Driver>(sqliteDriver);
+        auto sqliteDriver = std::make_shared<SQLite::SQLiteDBDriver>();
+        std::shared_ptr<DBDriver> driver = std::static_pointer_cast<DBDriver>(sqliteDriver);
         DriverManager::registerDriver("sqlite", driver);
     }
 #endif
@@ -51,7 +51,7 @@ int main()
     {
 #if USE_MYSQL
         // Create a MySQL connection
-        auto mysqlConn = DriverManager::getConnection(
+        auto mysqlConn = DriverManager::getDBConnection(
             "cpp_dbc:mysql://localhost:3306/test_db",
             "user", "password");
 
@@ -62,7 +62,7 @@ int main()
 
 #if USE_POSTGRESQL
         // Create a PostgreSQL connection
-        auto pgConn = DriverManager::getConnection(
+        auto pgConn = DriverManager::getDBConnection(
             "cpp_dbc:postgresql://localhost:5432/test_db",
             "user", "password");
 
@@ -73,14 +73,14 @@ int main()
 
 #if USE_SQLITE
         // Create a SQLite connection
-        auto sqliteConn = DriverManager::getConnection(
+        auto sqliteConn = DriverManager::getDBConnection(
             "cpp_dbc:sqlite:///tmp/test.db",
             "", "");
 
         std::cout << "SQLite Connection URL: " << sqliteConn->getURL() << std::endl;
 
         // Also test with in-memory database
-        auto sqliteMemConn = DriverManager::getConnection(
+        auto sqliteMemConn = DriverManager::getDBConnection(
             "cpp_dbc:sqlite://:memory:",
             "", "");
 

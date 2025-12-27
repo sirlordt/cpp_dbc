@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file driver_postgresql.cpp
- @brief Tests for PostgreSQL database operations
+ @brief PostgreSQL database driver implementation
 
 */
 
@@ -39,8 +39,8 @@ namespace cpp_dbc
     namespace PostgreSQL
     {
 
-        // PostgreSQLResultSet implementation
-        PostgreSQLResultSet::PostgreSQLResultSet(PGresult *res) : m_result(res)
+        // PostgreSQLDBResultSet implementation
+        PostgreSQLDBResultSet::PostgreSQLDBResultSet(PGresult *res) : m_result(res)
         {
             if (m_result)
             {
@@ -62,12 +62,12 @@ namespace cpp_dbc
             }
         }
 
-        PostgreSQLResultSet::~PostgreSQLResultSet()
+        PostgreSQLDBResultSet::~PostgreSQLDBResultSet()
         {
             this->close();
         }
 
-        bool PostgreSQLResultSet::next()
+        bool PostgreSQLDBResultSet::next()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -81,22 +81,22 @@ namespace cpp_dbc
             return true;
         }
 
-        bool PostgreSQLResultSet::isBeforeFirst()
+        bool PostgreSQLDBResultSet::isBeforeFirst()
         {
             return m_rowPosition == 0;
         }
 
-        bool PostgreSQLResultSet::isAfterLast()
+        bool PostgreSQLDBResultSet::isAfterLast()
         {
             return m_result && m_rowPosition > m_rowCount;
         }
 
-        uint64_t PostgreSQLResultSet::getRow()
+        uint64_t PostgreSQLDBResultSet::getRow()
         {
             return m_rowPosition;
         }
 
-        int PostgreSQLResultSet::getInt(size_t columnIndex)
+        int PostgreSQLDBResultSet::getInt(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -126,7 +126,7 @@ namespace cpp_dbc
             }
         }
 
-        int PostgreSQLResultSet::getInt(const std::string &columnName)
+        int PostgreSQLDBResultSet::getInt(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -137,7 +137,7 @@ namespace cpp_dbc
             return getInt(it->second + 1); // +1 because getInt(int) is 1-based
         }
 
-        long PostgreSQLResultSet::getLong(size_t columnIndex)
+        long PostgreSQLDBResultSet::getLong(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -166,7 +166,7 @@ namespace cpp_dbc
             }
         }
 
-        long PostgreSQLResultSet::getLong(const std::string &columnName)
+        long PostgreSQLDBResultSet::getLong(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -177,7 +177,7 @@ namespace cpp_dbc
             return getLong(it->second + 1);
         }
 
-        double PostgreSQLResultSet::getDouble(size_t columnIndex)
+        double PostgreSQLDBResultSet::getDouble(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -206,7 +206,7 @@ namespace cpp_dbc
             }
         }
 
-        double PostgreSQLResultSet::getDouble(const std::string &columnName)
+        double PostgreSQLDBResultSet::getDouble(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -217,7 +217,7 @@ namespace cpp_dbc
             return getDouble(it->second + 1);
         }
 
-        std::string PostgreSQLResultSet::getString(size_t columnIndex)
+        std::string PostgreSQLDBResultSet::getString(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -238,7 +238,7 @@ namespace cpp_dbc
             return std::string(PQgetvalue(m_result.get(), row, idx));
         }
 
-        std::string PostgreSQLResultSet::getString(const std::string &columnName)
+        std::string PostgreSQLDBResultSet::getString(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -249,7 +249,7 @@ namespace cpp_dbc
             return getString(it->second + 1);
         }
 
-        bool PostgreSQLResultSet::getBoolean(size_t columnIndex)
+        bool PostgreSQLDBResultSet::getBoolean(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -272,7 +272,7 @@ namespace cpp_dbc
             return (value == "t" || value == "true" || value == "1" || value == "TRUE" || value == "True");
         }
 
-        bool PostgreSQLResultSet::getBoolean(const std::string &columnName)
+        bool PostgreSQLDBResultSet::getBoolean(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -283,7 +283,7 @@ namespace cpp_dbc
             return getBoolean(it->second + 1);
         }
 
-        bool PostgreSQLResultSet::isNull(size_t columnIndex)
+        bool PostgreSQLDBResultSet::isNull(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -299,7 +299,7 @@ namespace cpp_dbc
             return PQgetisnull(m_result.get(), row, idx);
         }
 
-        bool PostgreSQLResultSet::isNull(const std::string &columnName)
+        bool PostgreSQLDBResultSet::isNull(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -310,17 +310,17 @@ namespace cpp_dbc
             return isNull(it->second + 1);
         }
 
-        std::vector<std::string> PostgreSQLResultSet::getColumnNames()
+        std::vector<std::string> PostgreSQLDBResultSet::getColumnNames()
         {
             return m_columnNames;
         }
 
-        size_t PostgreSQLResultSet::getColumnCount()
+        size_t PostgreSQLDBResultSet::getColumnCount()
         {
             return m_fieldCount;
         }
 
-        void PostgreSQLResultSet::close()
+        void PostgreSQLDBResultSet::close()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -335,9 +335,17 @@ namespace cpp_dbc
             }
         }
 
-        // PostgreSQLPreparedStatement implementation
+        bool PostgreSQLDBResultSet::isEmpty()
+        {
+#if DB_DRIVER_THREAD_SAFE
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+#endif
+            return m_rowCount == 0;
+        }
+
+        // PostgreSQLDBPreparedStatement implementation
         // Helper method to get PGconn* safely, throws if connection is closed
-        PGconn *PostgreSQLPreparedStatement::getPGConnection() const
+        PGconn *PostgreSQLDBPreparedStatement::getPGConnection() const
         {
             auto conn = m_conn.lock();
             if (!conn)
@@ -348,7 +356,7 @@ namespace cpp_dbc
         }
 
         // Helper method to process SQL and count parameters
-        int PostgreSQLPreparedStatement::processSQL(std::string &sqlQuery) const
+        int PostgreSQLDBPreparedStatement::processSQL(std::string &sqlQuery) const
         {
             // Count parameters (using $1, $2, etc. or ? placeholders)
             int paramCount = 0;
@@ -416,7 +424,7 @@ namespace cpp_dbc
             return paramCount;
         }
 
-        PostgreSQLPreparedStatement::PostgreSQLPreparedStatement(std::weak_ptr<PGconn> conn_handle, const std::string &sql_stmt, const std::string &stmt_name)
+        PostgreSQLDBPreparedStatement::PostgreSQLDBPreparedStatement(std::weak_ptr<PGconn> conn_handle, const std::string &sql_stmt, const std::string &stmt_name)
             : m_conn(conn_handle), m_sql(sql_stmt), m_stmtName(stmt_name)
         {
             // Verify connection is valid by trying to lock it
@@ -450,12 +458,12 @@ namespace cpp_dbc
             }
         }
 
-        PostgreSQLPreparedStatement::~PostgreSQLPreparedStatement()
+        PostgreSQLDBPreparedStatement::~PostgreSQLDBPreparedStatement()
         {
             close();
         }
 
-        void PostgreSQLPreparedStatement::close()
+        void PostgreSQLDBPreparedStatement::close()
         {
             if (m_prepared)
             {
@@ -474,14 +482,14 @@ namespace cpp_dbc
             }
         }
 
-        void PostgreSQLPreparedStatement::notifyConnClosing()
+        void PostgreSQLDBPreparedStatement::notifyConnClosing()
         {
             // Connection is closing, invalidate the statement without calling mysql_stmt_close
             // since the connection is already being destroyed
             this->close();
         }
 
-        void PostgreSQLPreparedStatement::setInt(int parameterIndex, int value)
+        void PostgreSQLDBPreparedStatement::setInt(int parameterIndex, int value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -498,7 +506,7 @@ namespace cpp_dbc
             m_paramTypes[idx] = 23;  // INT4OID
         }
 
-        void PostgreSQLPreparedStatement::setLong(int parameterIndex, long value)
+        void PostgreSQLDBPreparedStatement::setLong(int parameterIndex, long value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -515,7 +523,7 @@ namespace cpp_dbc
             m_paramTypes[idx] = 20;  // INT8OID
         }
 
-        void PostgreSQLPreparedStatement::setDouble(int parameterIndex, double value)
+        void PostgreSQLDBPreparedStatement::setDouble(int parameterIndex, double value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -532,7 +540,7 @@ namespace cpp_dbc
             m_paramTypes[idx] = 701; // FLOAT8OID
         }
 
-        void PostgreSQLPreparedStatement::setString(int parameterIndex, const std::string &value)
+        void PostgreSQLDBPreparedStatement::setString(int parameterIndex, const std::string &value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -549,7 +557,7 @@ namespace cpp_dbc
             m_paramTypes[idx] = 25;  // TEXTOID
         }
 
-        void PostgreSQLPreparedStatement::setBoolean(int parameterIndex, bool value)
+        void PostgreSQLDBPreparedStatement::setBoolean(int parameterIndex, bool value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -566,7 +574,7 @@ namespace cpp_dbc
             m_paramTypes[idx] = 16;  // BOOLOID
         }
 
-        void PostgreSQLPreparedStatement::setNull(int parameterIndex, Types type)
+        void PostgreSQLDBPreparedStatement::setNull(int parameterIndex, Types type)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -618,7 +626,7 @@ namespace cpp_dbc
             m_paramFormats[idx] = 0; // Text format
         }
 
-        void PostgreSQLPreparedStatement::setDate(int parameterIndex, const std::string &value)
+        void PostgreSQLDBPreparedStatement::setDate(int parameterIndex, const std::string &value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -635,7 +643,7 @@ namespace cpp_dbc
             m_paramTypes[idx] = 1082; // DATEOID
         }
 
-        void PostgreSQLPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
+        void PostgreSQLDBPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -652,7 +660,7 @@ namespace cpp_dbc
             m_paramTypes[idx] = 1114; // TIMESTAMPOID
         }
 
-        std::shared_ptr<ResultSet> PostgreSQLPreparedStatement::executeQuery()
+        std::shared_ptr<RelationalDBResultSet> PostgreSQLDBPreparedStatement::executeQuery()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -702,7 +710,7 @@ namespace cpp_dbc
                 throw DBException("9A0B1C2D3E4F", "Failed to execute query: " + error, system_utils::captureCallStack());
             }
 
-            auto resultSet = std::make_shared<PostgreSQLResultSet>(result);
+            auto resultSet = std::make_shared<PostgreSQLDBResultSet>(result);
 
             // Close the statement after execution (single-use)
             // This is safe because PQexecPrepared() copies all data to the PGresult
@@ -711,7 +719,7 @@ namespace cpp_dbc
             return resultSet;
         }
 
-        uint64_t PostgreSQLPreparedStatement::executeUpdate()
+        uint64_t PostgreSQLDBPreparedStatement::executeUpdate()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -777,7 +785,7 @@ namespace cpp_dbc
             return rowCount;
         }
 
-        bool PostgreSQLPreparedStatement::execute()
+        bool PostgreSQLDBPreparedStatement::execute()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -835,8 +843,8 @@ namespace cpp_dbc
             return hasResultSet;
         }
 
-        // BLOB support methods for PostgreSQLResultSet
-        std::shared_ptr<Blob> PostgreSQLResultSet::getBlob(size_t columnIndex)
+        // BLOB support methods for PostgreSQLDBResultSet
+        std::shared_ptr<Blob> PostgreSQLDBResultSet::getBlob(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -877,7 +885,7 @@ namespace cpp_dbc
             return std::make_shared<PostgreSQLBlob>(std::shared_ptr<PGconn>(), data);
         }
 
-        std::shared_ptr<Blob> PostgreSQLResultSet::getBlob(const std::string &columnName)
+        std::shared_ptr<Blob> PostgreSQLDBResultSet::getBlob(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -888,7 +896,7 @@ namespace cpp_dbc
             return getBlob(it->second + 1); // +1 because getBlob(int) is 1-based
         }
 
-        std::shared_ptr<InputStream> PostgreSQLResultSet::getBinaryStream(size_t columnIndex)
+        std::shared_ptr<InputStream> PostgreSQLDBResultSet::getBinaryStream(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -925,7 +933,7 @@ namespace cpp_dbc
             }
         }
 
-        std::shared_ptr<InputStream> PostgreSQLResultSet::getBinaryStream(const std::string &columnName)
+        std::shared_ptr<InputStream> PostgreSQLDBResultSet::getBinaryStream(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -936,7 +944,7 @@ namespace cpp_dbc
             return getBinaryStream(it->second + 1); // +1 because getBinaryStream(int) is 1-based
         }
 
-        std::vector<uint8_t> PostgreSQLResultSet::getBytes(size_t columnIndex)
+        std::vector<uint8_t> PostgreSQLDBResultSet::getBytes(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1016,7 +1024,7 @@ namespace cpp_dbc
             return data;
         }
 
-        std::vector<uint8_t> PostgreSQLResultSet::getBytes(const std::string &columnName)
+        std::vector<uint8_t> PostgreSQLDBResultSet::getBytes(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -1027,8 +1035,8 @@ namespace cpp_dbc
             return getBytes(it->second + 1); // +1 because getBytes(int) is 1-based
         }
 
-        // BLOB support methods for PostgreSQLPreparedStatement
-        void PostgreSQLPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
+        // BLOB support methods for PostgreSQLDBPreparedStatement
+        void PostgreSQLDBPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1068,7 +1076,7 @@ namespace cpp_dbc
             m_paramTypes[idx] = 17;  // BYTEAOID
         }
 
-        void PostgreSQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
+        void PostgreSQLDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1114,7 +1122,7 @@ namespace cpp_dbc
             m_paramTypes[idx] = 17;  // BYTEAOID
         }
 
-        void PostgreSQLPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
+        void PostgreSQLDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1163,7 +1171,7 @@ namespace cpp_dbc
             m_paramTypes[idx] = 17;  // BYTEAOID
         }
 
-        void PostgreSQLPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
+        void PostgreSQLDBPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1187,7 +1195,7 @@ namespace cpp_dbc
             m_paramTypes[idx] = 17;  // BYTEAOID
         }
 
-        void PostgreSQLPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
+        void PostgreSQLDBPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1222,13 +1230,13 @@ namespace cpp_dbc
             m_paramTypes[idx] = 17;  // BYTEAOID
         }
 
-        // PostgreSQLConnection implementation
-        PostgreSQLConnection::PostgreSQLConnection(const std::string &host,
-                                                   int port,
-                                                   const std::string &database,
-                                                   const std::string &user,
-                                                   const std::string &password,
-                                                   const std::map<std::string, std::string> &options)
+        // PostgreSQLDBConnection implementation
+        PostgreSQLDBConnection::PostgreSQLDBConnection(const std::string &host,
+                                                       int port,
+                                                       const std::string &database,
+                                                       const std::string &user,
+                                                       const std::string &password,
+                                                       const std::map<std::string, std::string> &options)
             : m_closed(false), m_autoCommit(true), m_transactionActive(false), m_statementCounter(0),
               m_isolationLevel(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) // PostgreSQL default
         {
@@ -1285,12 +1293,12 @@ namespace cpp_dbc
             m_url = urlBuilder.str();
         }
 
-        PostgreSQLConnection::~PostgreSQLConnection()
+        PostgreSQLDBConnection::~PostgreSQLDBConnection()
         {
             close();
         }
 
-        void PostgreSQLConnection::close()
+        void PostgreSQLDBConnection::close()
         {
             if (!m_closed && m_conn)
             {
@@ -1317,12 +1325,12 @@ namespace cpp_dbc
             }
         }
 
-        bool PostgreSQLConnection::isClosed()
+        bool PostgreSQLDBConnection::isClosed()
         {
             return m_closed;
         }
 
-        void PostgreSQLConnection::returnToPool()
+        void PostgreSQLDBConnection::returnToPool()
         {
             // Don't physically close the connection, just mark it as available
             // so it can be reused by the pool
@@ -1345,12 +1353,12 @@ namespace cpp_dbc
             }
         }
 
-        bool PostgreSQLConnection::isPooled()
+        bool PostgreSQLDBConnection::isPooled()
         {
             return false;
         }
 
-        std::shared_ptr<PreparedStatement> PostgreSQLConnection::prepareStatement(const std::string &sql)
+        std::shared_ptr<RelationalDBPreparedStatement> PostgreSQLDBConnection::prepareStatement(const std::string &sql)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1363,14 +1371,14 @@ namespace cpp_dbc
             // Generate a unique statement name and pass weak_ptr to the prepared statement
             // so it can safely detect when connection is closed
             std::string stmtName = generateStatementName();
-            auto stmt = std::make_shared<PostgreSQLPreparedStatement>(std::weak_ptr<PGconn>(m_conn), sql, stmtName);
+            auto stmt = std::make_shared<PostgreSQLDBPreparedStatement>(std::weak_ptr<PGconn>(m_conn), sql, stmtName);
 
             registerStatement(stmt);
 
             return stmt;
         }
 
-        std::shared_ptr<ResultSet> PostgreSQLConnection::executeQuery(const std::string &sql)
+        std::shared_ptr<RelationalDBResultSet> PostgreSQLDBConnection::executeQuery(const std::string &sql)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1388,10 +1396,10 @@ namespace cpp_dbc
                 throw DBException("9I0J1K2L3M4N", "Query failed: " + error, system_utils::captureCallStack());
             }
 
-            return std::make_shared<PostgreSQLResultSet>(result);
+            return std::make_shared<PostgreSQLDBResultSet>(result);
         }
 
-        uint64_t PostgreSQLConnection::executeUpdate(const std::string &sql)
+        uint64_t PostgreSQLDBConnection::executeUpdate(const std::string &sql)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1421,7 +1429,7 @@ namespace cpp_dbc
             return rowCount;
         }
 
-        bool PostgreSQLConnection::beginTransaction()
+        bool PostgreSQLDBConnection::beginTransaction()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1483,12 +1491,12 @@ namespace cpp_dbc
             return true;
         }
 
-        bool PostgreSQLConnection::transactionActive()
+        bool PostgreSQLDBConnection::transactionActive()
         {
             return m_transactionActive;
         }
 
-        void PostgreSQLConnection::setAutoCommit(bool autoCommitFlag)
+        void PostgreSQLDBConnection::setAutoCommit(bool autoCommitFlag)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1529,12 +1537,12 @@ namespace cpp_dbc
             }
         }
 
-        bool PostgreSQLConnection::getAutoCommit()
+        bool PostgreSQLDBConnection::getAutoCommit()
         {
             return m_autoCommit;
         }
 
-        void PostgreSQLConnection::commit()
+        void PostgreSQLDBConnection::commit()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1563,7 +1571,7 @@ namespace cpp_dbc
             m_autoCommit = true;
         }
 
-        void PostgreSQLConnection::rollback()
+        void PostgreSQLDBConnection::rollback()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1592,7 +1600,7 @@ namespace cpp_dbc
             m_autoCommit = true;
         }
 
-        void PostgreSQLConnection::setTransactionIsolation(TransactionIsolationLevel level)
+        void PostgreSQLDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1684,7 +1692,7 @@ namespace cpp_dbc
             }
         }
 
-        TransactionIsolationLevel PostgreSQLConnection::getTransactionIsolation()
+        TransactionIsolationLevel PostgreSQLDBConnection::getTransactionIsolation()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1731,48 +1739,48 @@ namespace cpp_dbc
                 return TransactionIsolationLevel::TRANSACTION_NONE;
         }
 
-        std::string PostgreSQLConnection::generateStatementName()
+        std::string PostgreSQLDBConnection::generateStatementName()
         {
             std::stringstream ss;
             ss << "stmt_" << m_statementCounter++;
             return ss.str();
         }
 
-        void PostgreSQLConnection::registerStatement(std::shared_ptr<PostgreSQLPreparedStatement> stmt)
+        void PostgreSQLDBConnection::registerStatement(std::shared_ptr<PostgreSQLDBPreparedStatement> stmt)
         {
             std::lock_guard<std::mutex> lock(m_statementsMutex);
             // m_activeStatements.insert(std::weak_ptr<MySQLPreparedStatement>(stmt));
             m_activeStatements.insert(stmt);
         }
 
-        void PostgreSQLConnection::unregisterStatement(std::shared_ptr<PostgreSQLPreparedStatement> stmt)
+        void PostgreSQLDBConnection::unregisterStatement(std::shared_ptr<PostgreSQLDBPreparedStatement> stmt)
         {
             std::lock_guard<std::mutex> lock(m_statementsMutex);
             // m_activeStatements.erase(std::weak_ptr<MySQLPreparedStatement>(stmt));
             m_activeStatements.erase(stmt);
         }
 
-        std::string PostgreSQLConnection::getURL() const
+        std::string PostgreSQLDBConnection::getURL() const
         {
             return m_url;
         }
 
-        // PostgreSQLDriver implementation
-        PostgreSQLDriver::PostgreSQLDriver()
+        // PostgreSQLDBDriver implementation
+        PostgreSQLDBDriver::PostgreSQLDBDriver()
         {
             // PostgreSQL doesn't require explicit initialization like MySQL
         }
 
-        PostgreSQLDriver::~PostgreSQLDriver()
+        PostgreSQLDBDriver::~PostgreSQLDBDriver()
         {
             // Sleep a bit to ensure all resources are properly released
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
 
-        std::shared_ptr<Connection> PostgreSQLDriver::connect(const std::string &url,
-                                                              const std::string &user,
-                                                              const std::string &password,
-                                                              const std::map<std::string, std::string> &options)
+        std::shared_ptr<RelationalDBConnection> PostgreSQLDBDriver::connectRelational(const std::string &url,
+                                                                                      const std::string &user,
+                                                                                      const std::string &password,
+                                                                                      const std::map<std::string, std::string> &options)
         {
             std::string host;
             int port;
@@ -1840,18 +1848,18 @@ namespace cpp_dbc
                 }
             }
 
-            return std::make_shared<PostgreSQLConnection>(host, port, database, user, password, options);
+            return std::make_shared<PostgreSQLDBConnection>(host, port, database, user, password, options);
         }
 
-        bool PostgreSQLDriver::acceptsURL(const std::string &url)
+        bool PostgreSQLDBDriver::acceptsURL(const std::string &url)
         {
             return url.substr(0, 21) == "cpp_dbc:postgresql://";
         }
 
-        bool PostgreSQLDriver::parseURL(const std::string &url,
-                                        std::string &host,
-                                        int &port,
-                                        std::string &database)
+        bool PostgreSQLDBDriver::parseURL(const std::string &url,
+                                          std::string &host,
+                                          int &port,
+                                          std::string &database)
         {
             // Parse URL of format: cpp_dbc:postgresql://host:port/database
             if (!acceptsURL(url))

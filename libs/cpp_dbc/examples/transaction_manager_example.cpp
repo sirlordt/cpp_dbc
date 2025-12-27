@@ -133,7 +133,7 @@ int main()
     {
 #if USE_MYSQL
         // Initialize MySQL driver and connection pool
-        cpp_dbc::config::ConnectionPoolConfig config;
+        cpp_dbc::config::DBConnectionPoolConfig config;
         config.setUrl("cpp_dbc:mysql://localhost:3306/testdb");
         config.setUsername("username");
         config.setPassword("password");
@@ -172,7 +172,7 @@ int main()
             taskQueue.push(WorkflowTask(txnId, 1, [&txnManager, txnId]()
                                         {
                 try {
-                    auto conn = txnManager.getTransactionConnection(txnId);
+                    auto conn = txnManager.getTransactionDBConnection(txnId);
                     
                     // Perform some database operations in this transaction
                     conn->executeUpdate("INSERT INTO transaction_test (id, data) VALUES (1, 'Task 1 Data')");
@@ -193,7 +193,7 @@ int main()
             taskQueue.push(WorkflowTask(txnId, 2, [&txnManager, txnId]()
                                         {
                 try {
-                    auto conn = txnManager.getTransactionConnection(txnId);
+                    auto conn = txnManager.getTransactionDBConnection(txnId);
                     
                     // Perform more database operations in this transaction
                     conn->executeUpdate("UPDATE transaction_test SET data = 'Task 2 Updated' WHERE id = 1");

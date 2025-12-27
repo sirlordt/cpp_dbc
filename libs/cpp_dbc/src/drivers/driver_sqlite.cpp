@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file driver_sqlite.cpp
- @brief Tests for SQLite database operations
+ @brief SQLite database driver implementation
 
 */
 
@@ -47,8 +47,8 @@ namespace cpp_dbc
     {
         // No static members needed - connection tracking is done via weak_ptr in PreparedStatement
 
-        // SQLiteResultSet implementation
-        SQLiteResultSet::SQLiteResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteConnection> conn)
+        // SQLiteDBResultSet implementation
+        SQLiteDBResultSet::SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteDBConnection> conn)
             : m_stmt(stmt), m_ownStatement(ownStatement), m_rowPosition(0), m_rowCount(0), m_fieldCount(0),
               m_columnNames(), m_columnMap(), m_hasData(false), m_closed(false), m_connection(conn)
         {
@@ -67,7 +67,7 @@ namespace cpp_dbc
             }
         }
 
-        SQLiteResultSet::~SQLiteResultSet()
+        SQLiteDBResultSet::~SQLiteDBResultSet()
         {
             try
             {
@@ -86,7 +86,7 @@ namespace cpp_dbc
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
-        bool SQLiteResultSet::next()
+        bool SQLiteDBResultSet::next()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -119,22 +119,22 @@ namespace cpp_dbc
             }
         }
 
-        bool SQLiteResultSet::isBeforeFirst()
+        bool SQLiteDBResultSet::isBeforeFirst()
         {
             return m_rowPosition == 0;
         }
 
-        bool SQLiteResultSet::isAfterLast()
+        bool SQLiteDBResultSet::isAfterLast()
         {
             return m_rowPosition > 0 && !m_hasData;
         }
 
-        uint64_t SQLiteResultSet::getRow()
+        uint64_t SQLiteDBResultSet::getRow()
         {
             return m_rowPosition;
         }
 
-        int SQLiteResultSet::getInt(size_t columnIndex)
+        int SQLiteDBResultSet::getInt(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -157,7 +157,7 @@ namespace cpp_dbc
             return sqlite3_column_int(stmt, idx);
         }
 
-        int SQLiteResultSet::getInt(const std::string &columnName)
+        int SQLiteDBResultSet::getInt(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -169,7 +169,7 @@ namespace cpp_dbc
             return getInt(it->second + 1); // +1 because getInt(int) is 1-based
         }
 
-        long SQLiteResultSet::getLong(size_t columnIndex)
+        long SQLiteDBResultSet::getLong(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -191,7 +191,7 @@ namespace cpp_dbc
             return sqlite3_column_int64(stmt, idx);
         }
 
-        long SQLiteResultSet::getLong(const std::string &columnName)
+        long SQLiteDBResultSet::getLong(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -203,7 +203,7 @@ namespace cpp_dbc
             return getLong(it->second + 1);
         }
 
-        double SQLiteResultSet::getDouble(size_t columnIndex)
+        double SQLiteDBResultSet::getDouble(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -225,7 +225,7 @@ namespace cpp_dbc
             return sqlite3_column_double(stmt, idx);
         }
 
-        double SQLiteResultSet::getDouble(const std::string &columnName)
+        double SQLiteDBResultSet::getDouble(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -237,7 +237,7 @@ namespace cpp_dbc
             return getDouble(it->second + 1);
         }
 
-        std::string SQLiteResultSet::getString(size_t columnIndex)
+        std::string SQLiteDBResultSet::getString(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -260,7 +260,7 @@ namespace cpp_dbc
             return text ? std::string(text) : "";
         }
 
-        std::string SQLiteResultSet::getString(const std::string &columnName)
+        std::string SQLiteDBResultSet::getString(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -272,7 +272,7 @@ namespace cpp_dbc
             return getString(it->second + 1);
         }
 
-        bool SQLiteResultSet::getBoolean(size_t columnIndex)
+        bool SQLiteDBResultSet::getBoolean(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -295,12 +295,12 @@ namespace cpp_dbc
             return sqlite3_column_int(stmt, idx) != 0;
         }
 
-        bool SQLiteResultSet::getBoolean(const std::string &columnName)
+        bool SQLiteDBResultSet::getBoolean(const std::string &columnName)
         {
             return getInt(columnName) != 0;
         }
 
-        bool SQLiteResultSet::isNull(size_t columnIndex)
+        bool SQLiteDBResultSet::isNull(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -316,7 +316,7 @@ namespace cpp_dbc
             return sqlite3_column_type(stmt, idx) == SQLITE_NULL;
         }
 
-        bool SQLiteResultSet::isNull(const std::string &columnName)
+        bool SQLiteDBResultSet::isNull(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -328,17 +328,17 @@ namespace cpp_dbc
             return isNull(it->second + 1);
         }
 
-        std::vector<std::string> SQLiteResultSet::getColumnNames()
+        std::vector<std::string> SQLiteDBResultSet::getColumnNames()
         {
             return m_columnNames;
         }
 
-        size_t SQLiteResultSet::getColumnCount()
+        size_t SQLiteDBResultSet::getColumnCount()
         {
             return m_fieldCount;
         }
 
-        void SQLiteResultSet::close()
+        void SQLiteDBResultSet::close()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -409,8 +409,16 @@ namespace cpp_dbc
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
-        // SQLitePreparedStatement implementation
-        sqlite3 *SQLitePreparedStatement::getSQLiteConnection() const
+        bool SQLiteDBResultSet::isEmpty()
+        {
+#if DB_DRIVER_THREAD_SAFE
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+#endif
+            return m_rowPosition == 0 && !m_hasData;
+        }
+
+        // SQLiteDBPreparedStatement implementation
+        sqlite3 *SQLiteDBPreparedStatement::getSQLiteConnection() const
         {
             auto conn = m_db.lock();
             if (!conn)
@@ -420,7 +428,7 @@ namespace cpp_dbc
             return conn.get();
         }
 
-        SQLitePreparedStatement::SQLitePreparedStatement(std::weak_ptr<sqlite3> db, const std::string &sql)
+        SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, const std::string &sql)
             : m_db(db), m_sql(sql), m_stmt(nullptr), m_closed(false), m_blobValues(), m_blobObjects(), m_streamObjects()
         {
             sqlite3 *dbPtr = getSQLiteConnection();
@@ -443,7 +451,7 @@ namespace cpp_dbc
             m_streamObjects.resize(paramCount);
         }
 
-        SQLitePreparedStatement::~SQLitePreparedStatement()
+        SQLiteDBPreparedStatement::~SQLiteDBPreparedStatement()
         {
             try
             {
@@ -468,7 +476,7 @@ namespace cpp_dbc
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
-        void SQLitePreparedStatement::close()
+        void SQLiteDBPreparedStatement::close()
         {
             if (!m_closed && m_stmt)
             {
@@ -507,7 +515,7 @@ namespace cpp_dbc
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
-        void SQLitePreparedStatement::notifyConnClosing()
+        void SQLiteDBPreparedStatement::notifyConnClosing()
         {
             // Connection is closing, release the statement pointer without calling sqlite3_finalize
             // since the connection is already being destroyed and will clean up all statements
@@ -515,7 +523,7 @@ namespace cpp_dbc
             m_closed = true;
         }
 
-        void SQLitePreparedStatement::setInt(int parameterIndex, int value)
+        void SQLiteDBPreparedStatement::setInt(int parameterIndex, int value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -560,7 +568,7 @@ namespace cpp_dbc
             }
         }
 
-        void SQLitePreparedStatement::setLong(int parameterIndex, long value)
+        void SQLiteDBPreparedStatement::setLong(int parameterIndex, long value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -590,7 +598,7 @@ namespace cpp_dbc
             }
         }
 
-        void SQLitePreparedStatement::setDouble(int parameterIndex, double value)
+        void SQLiteDBPreparedStatement::setDouble(int parameterIndex, double value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -635,7 +643,7 @@ namespace cpp_dbc
             }
         }
 
-        void SQLitePreparedStatement::setString(int parameterIndex, const std::string &value)
+        void SQLiteDBPreparedStatement::setString(int parameterIndex, const std::string &value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -681,7 +689,7 @@ namespace cpp_dbc
             }
         }
 
-        void SQLitePreparedStatement::setBoolean(int parameterIndex, bool value)
+        void SQLiteDBPreparedStatement::setBoolean(int parameterIndex, bool value)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -727,7 +735,7 @@ namespace cpp_dbc
             }
         }
 
-        void SQLitePreparedStatement::setNull(int parameterIndex, [[maybe_unused]] Types type)
+        void SQLiteDBPreparedStatement::setNull(int parameterIndex, [[maybe_unused]] Types type)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -757,19 +765,19 @@ namespace cpp_dbc
             }
         }
 
-        void SQLitePreparedStatement::setDate(int parameterIndex, const std::string &value)
+        void SQLiteDBPreparedStatement::setDate(int parameterIndex, const std::string &value)
         {
             // SQLite doesn't have a specific date type, so we store it as text
             setString(parameterIndex, value);
         }
 
-        void SQLitePreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
+        void SQLiteDBPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
         {
             // SQLite doesn't have a specific timestamp type, so we store it as text
             setString(parameterIndex, value);
         }
 
-        std::shared_ptr<ResultSet> SQLitePreparedStatement::executeQuery()
+        std::shared_ptr<RelationalDBResultSet> SQLiteDBPreparedStatement::executeQuery()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -803,7 +811,7 @@ namespace cpp_dbc
             // We don't execute the first step here - let the ResultSet do it when next() is called
             // Note: We pass nullptr for connection since this ResultSet doesn't own the statement
             // and doesn't need to check connection validity for finalization
-            auto resultSet = std::make_shared<SQLiteResultSet>(m_stmt.get(), false, nullptr);
+            auto resultSet = std::make_shared<SQLiteDBResultSet>(m_stmt.get(), false, nullptr);
 
             // Note: We don't clear bindings here because the ResultSet needs them
             // The bindings will be cleared when the statement is reset for the next use
@@ -811,7 +819,7 @@ namespace cpp_dbc
             return resultSet;
         }
 
-        uint64_t SQLitePreparedStatement::executeUpdate()
+        uint64_t SQLiteDBPreparedStatement::executeUpdate()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -858,7 +866,7 @@ namespace cpp_dbc
             return changes;
         }
 
-        bool SQLitePreparedStatement::execute()
+        bool SQLiteDBPreparedStatement::execute()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -896,10 +904,10 @@ namespace cpp_dbc
             }
         }
 
-        // SQLiteConnection implementation
+        // SQLiteDBConnection implementation
 
-        SQLiteConnection::SQLiteConnection(const std::string &database,
-                                           const std::map<std::string, std::string> &options)
+        SQLiteDBConnection::SQLiteDBConnection(const std::string &database,
+                                               const std::map<std::string, std::string> &options)
             : m_db(nullptr), m_closed(false), m_autoCommit(true), m_transactionActive(false),
               m_isolationLevel(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE), // SQLite default
               m_url("cpp_dbc:sqlite://" + database)
@@ -999,7 +1007,7 @@ namespace cpp_dbc
             }
         }
 
-        SQLiteConnection::~SQLiteConnection()
+        SQLiteDBConnection::~SQLiteDBConnection()
         {
             // Make sure to close the connection and clean up resources
             try
@@ -1012,7 +1020,7 @@ namespace cpp_dbc
             }
         }
 
-        void SQLiteConnection::close()
+        void SQLiteDBConnection::close()
         {
             if (!m_closed && m_db)
             {
@@ -1068,12 +1076,12 @@ namespace cpp_dbc
             }
         }
 
-        bool SQLiteConnection::isClosed()
+        bool SQLiteDBConnection::isClosed()
         {
             return m_closed;
         }
 
-        void SQLiteConnection::returnToPool()
+        void SQLiteDBConnection::returnToPool()
         {
             // Don't physically close the connection, just mark it as available
             // so it can be reused by the pool
@@ -1096,12 +1104,12 @@ namespace cpp_dbc
             }
         }
 
-        bool SQLiteConnection::isPooled()
+        bool SQLiteDBConnection::isPooled()
         {
             return false;
         }
 
-        std::shared_ptr<PreparedStatement> SQLiteConnection::prepareStatement(const std::string &sql)
+        std::shared_ptr<RelationalDBPreparedStatement> SQLiteDBConnection::prepareStatement(const std::string &sql)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1113,12 +1121,12 @@ namespace cpp_dbc
             }
 
             // Pass weak_ptr to the PreparedStatement so it can safely detect when connection is closed
-            auto stmt = std::make_shared<SQLitePreparedStatement>(std::weak_ptr<sqlite3>(m_db), sql);
-            registerStatement(std::weak_ptr<SQLitePreparedStatement>(stmt));
+            auto stmt = std::make_shared<SQLiteDBPreparedStatement>(std::weak_ptr<sqlite3>(m_db), sql);
+            registerStatement(std::weak_ptr<SQLiteDBPreparedStatement>(stmt));
             return stmt;
         }
 
-        std::shared_ptr<ResultSet> SQLiteConnection::executeQuery(const std::string &sql)
+        std::shared_ptr<RelationalDBResultSet> SQLiteDBConnection::executeQuery(const std::string &sql)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1157,8 +1165,8 @@ namespace cpp_dbc
                 SQLITE_DEBUG("SQLiteConnection::executeQuery - Creating SQLiteResultSet");
                 // Pass a shared_ptr to this connection to the result set
                 // The ResultSet will check if connection is still valid before finalizing
-                auto self = std::dynamic_pointer_cast<SQLiteConnection>(shared_from_this());
-                auto resultSet = std::make_shared<SQLiteResultSet>(stmt, true, self);
+                auto self = std::dynamic_pointer_cast<SQLiteDBConnection>(shared_from_this());
+                auto resultSet = std::make_shared<SQLiteDBResultSet>(stmt, true, self);
                 SQLITE_DEBUG("SQLiteConnection::executeQuery - SQLiteResultSet created successfully");
 
                 return resultSet;
@@ -1182,7 +1190,7 @@ namespace cpp_dbc
             }
         }
 
-        uint64_t SQLiteConnection::executeUpdate(const std::string &sql)
+        uint64_t SQLiteDBConnection::executeUpdate(const std::string &sql)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1207,7 +1215,7 @@ namespace cpp_dbc
             return static_cast<uint64_t>(sqlite3_changes(m_db.get()));
         }
 
-        void SQLiteConnection::setAutoCommit(bool autoCommit)
+        void SQLiteDBConnection::setAutoCommit(bool autoCommit)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1233,7 +1241,7 @@ namespace cpp_dbc
             }
         }
 
-        bool SQLiteConnection::beginTransaction()
+        bool SQLiteDBConnection::beginTransaction()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1267,17 +1275,17 @@ namespace cpp_dbc
             }
         }
 
-        bool SQLiteConnection::transactionActive()
+        bool SQLiteDBConnection::transactionActive()
         {
             return m_transactionActive;
         }
 
-        bool SQLiteConnection::getAutoCommit()
+        bool SQLiteDBConnection::getAutoCommit()
         {
             return m_autoCommit;
         }
 
-        void SQLiteConnection::commit()
+        void SQLiteDBConnection::commit()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1294,7 +1302,7 @@ namespace cpp_dbc
             m_autoCommit = true;
         }
 
-        void SQLiteConnection::rollback()
+        void SQLiteDBConnection::rollback()
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1311,7 +1319,7 @@ namespace cpp_dbc
             m_autoCommit = true;
         }
 
-        void SQLiteConnection::setTransactionIsolation(TransactionIsolationLevel level)
+        void SQLiteDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_connMutex);
@@ -1332,23 +1340,23 @@ namespace cpp_dbc
             this->m_isolationLevel = level;
         }
 
-        TransactionIsolationLevel SQLiteConnection::getTransactionIsolation()
+        TransactionIsolationLevel SQLiteDBConnection::getTransactionIsolation()
         {
             return m_isolationLevel;
         }
 
-        std::string SQLiteConnection::getURL() const
+        std::string SQLiteDBConnection::getURL() const
         {
             return m_url;
         }
 
-        void SQLiteConnection::registerStatement(std::weak_ptr<SQLitePreparedStatement> stmt)
+        void SQLiteDBConnection::registerStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt)
         {
             std::lock_guard<std::mutex> lock(m_statementsMutex);
             m_activeStatements.insert(stmt);
         }
 
-        void SQLiteConnection::unregisterStatement(std::weak_ptr<SQLitePreparedStatement> stmt)
+        void SQLiteDBConnection::unregisterStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt)
         {
             std::lock_guard<std::mutex> lock(m_statementsMutex);
             // Remove expired weak_ptrs and the specified one
@@ -1367,12 +1375,12 @@ namespace cpp_dbc
             }
         }
 
-        // SQLiteDriver implementation
+        // SQLiteDBDriver implementation
         // Static member variables to ensure SQLite is configured once
-        std::atomic<bool> SQLiteDriver::s_initialized{false};
-        std::mutex SQLiteDriver::s_initMutex;
+        std::atomic<bool> SQLiteDBDriver::s_initialized{false};
+        std::mutex SQLiteDBDriver::s_initMutex;
 
-        SQLiteDriver::SQLiteDriver()
+        SQLiteDBDriver::SQLiteDBDriver()
         {
             // Thread-safe single initialization pattern
             bool alreadyInitialized = s_initialized.load(std::memory_order_acquire);
@@ -1410,7 +1418,7 @@ namespace cpp_dbc
             sqlite3_soft_heap_limit64(8 * 1024 * 1024); // 8MB soft limit
         }
 
-        SQLiteDriver::~SQLiteDriver()
+        SQLiteDBDriver::~SQLiteDBDriver()
         {
             try
             {
@@ -1436,10 +1444,10 @@ namespace cpp_dbc
             }
         }
 
-        std::shared_ptr<Connection> SQLiteDriver::connect(const std::string &url,
-                                                          [[maybe_unused]] const std::string &,
-                                                          [[maybe_unused]] const std::string &,
-                                                          const std::map<std::string, std::string> &options)
+        std::shared_ptr<RelationalDBConnection> SQLiteDBDriver::connectRelational(const std::string &url,
+                                                                                  [[maybe_unused]] const std::string &,
+                                                                                  [[maybe_unused]] const std::string &,
+                                                                                  const std::map<std::string, std::string> &options)
         {
             try
             {
@@ -1502,7 +1510,7 @@ namespace cpp_dbc
 
                 // It's crucial to use make_shared for shared_from_this() to work properly
                 SQLITE_DEBUG("SQLiteDriver::connect - Creating SQLiteConnection object");
-                auto connection = std::make_shared<SQLiteConnection>(database, options);
+                auto connection = std::make_shared<SQLiteDBConnection>(database, options);
                 SQLITE_DEBUG("SQLiteDriver::connect - SQLiteConnection object created successfully");
                 return connection;
             }
@@ -1518,12 +1526,12 @@ namespace cpp_dbc
             }
         }
 
-        bool SQLiteDriver::acceptsURL(const std::string &url)
+        bool SQLiteDBDriver::acceptsURL(const std::string &url)
         {
             return url.substr(0, 18) == "cpp_dbc:sqlite://";
         }
 
-        bool SQLiteDriver::parseURL(const std::string &url, std::string &database)
+        bool SQLiteDBDriver::parseURL(const std::string &url, std::string &database)
         {
             // Parse URL of format: cpp_dbc:sqlite:/path/to/database.db or cpp_dbc:sqlite::memory:
             if (!acceptsURL(url))
@@ -1536,8 +1544,8 @@ namespace cpp_dbc
             return true;
         }
 
-        // BLOB support methods for SQLiteResultSet
-        std::shared_ptr<Blob> SQLiteResultSet::getBlob(size_t columnIndex)
+        // BLOB support methods for SQLiteDBResultSet
+        std::shared_ptr<Blob> SQLiteDBResultSet::getBlob(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1588,7 +1596,7 @@ namespace cpp_dbc
             return std::make_shared<SQLite::SQLiteBlob>(conn->m_db, data);
         }
 
-        std::shared_ptr<Blob> SQLiteResultSet::getBlob(const std::string &columnName)
+        std::shared_ptr<Blob> SQLiteDBResultSet::getBlob(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -1600,7 +1608,7 @@ namespace cpp_dbc
             return getBlob(it->second + 1); // +1 because getBlob(int) is 1-based
         }
 
-        std::shared_ptr<InputStream> SQLiteResultSet::getBinaryStream(size_t columnIndex)
+        std::shared_ptr<InputStream> SQLiteDBResultSet::getBinaryStream(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1629,7 +1637,7 @@ namespace cpp_dbc
             return std::make_shared<SQLite::SQLiteInputStream>(blobData, blobSize);
         }
 
-        std::shared_ptr<InputStream> SQLiteResultSet::getBinaryStream(const std::string &columnName)
+        std::shared_ptr<InputStream> SQLiteDBResultSet::getBinaryStream(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -1641,7 +1649,7 @@ namespace cpp_dbc
             return getBinaryStream(it->second + 1); // +1 because getBinaryStream(int) is 1-based
         }
 
-        std::vector<uint8_t> SQLiteResultSet::getBytes(size_t columnIndex)
+        std::vector<uint8_t> SQLiteDBResultSet::getBytes(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1676,7 +1684,7 @@ namespace cpp_dbc
             return data;
         }
 
-        std::vector<uint8_t> SQLiteResultSet::getBytes(const std::string &columnName)
+        std::vector<uint8_t> SQLiteDBResultSet::getBytes(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -1688,8 +1696,8 @@ namespace cpp_dbc
             return getBytes(it->second + 1); // +1 because getBytes(int) is 1-based
         }
 
-        // BLOB support methods for SQLitePreparedStatement
-        void SQLitePreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
+        // BLOB support methods for SQLiteDBPreparedStatement
+        void SQLiteDBPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1751,7 +1759,7 @@ namespace cpp_dbc
             }
         }
 
-        void SQLitePreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
+        void SQLiteDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1819,7 +1827,7 @@ namespace cpp_dbc
             }
         }
 
-        void SQLitePreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
+        void SQLiteDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1890,7 +1898,7 @@ namespace cpp_dbc
             }
         }
 
-        void SQLitePreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
+        void SQLiteDBPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -1934,7 +1942,7 @@ namespace cpp_dbc
             }
         }
 
-        void SQLitePreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
+        void SQLiteDBPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
         {
 #if DB_DRIVER_THREAD_SAFE
             std::lock_guard<std::recursive_mutex> lock(m_mutex);

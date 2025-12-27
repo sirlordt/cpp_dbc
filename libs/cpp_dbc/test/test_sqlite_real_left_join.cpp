@@ -45,14 +45,14 @@ TEST_CASE("SQLite LEFT JOIN operations", "[sqlite_real_left_join]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the SQLite driver
-    cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+    cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
     try
     {
         // Attempt to connect to SQLite
         std::cout << "Attempting to connect to SQLite with connection string: " << connStr << std::endl;
 
-        auto conn = cpp_dbc::DriverManager::getConnection(connStr, "", "");
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
 
         // Create test tables
         conn->executeUpdate("DROP TABLE IF EXISTS test_orders");

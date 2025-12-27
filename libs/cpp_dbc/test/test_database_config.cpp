@@ -26,18 +26,18 @@
 #include <vector>
 #include <memory>
 
-// Test case for ConnectionOptions
-TEST_CASE("ConnectionOptions tests", "[database_config]")
+// Test case for DBConnectionOptions
+TEST_CASE("DBConnectionOptions tests", "[database_config]")
 {
     SECTION("Default constructor creates empty options")
     {
-        cpp_dbc::config::ConnectionOptions options;
+        cpp_dbc::config::DBConnectionOptions options;
         REQUIRE(options.getAllOptions().empty());
     }
 
     SECTION("Set and get options")
     {
-        cpp_dbc::config::ConnectionOptions options;
+        cpp_dbc::config::DBConnectionOptions options;
 
         // Set some options
         options.setOption("connect_timeout", "5");
@@ -69,7 +69,7 @@ TEST_CASE("ConnectionOptions tests", "[database_config]")
 
     SECTION("Overwrite existing option")
     {
-        cpp_dbc::config::ConnectionOptions options;
+        cpp_dbc::config::DBConnectionOptions options;
 
         // Set an option
         options.setOption("connect_timeout", "5");
@@ -330,40 +330,40 @@ TEST_CASE("DatabaseConfigManager tests", "[database_config]")
         cpp_dbc::config::DatabaseConfigManager manager;
 
         // Create some connection pool configurations
-        cpp_dbc::config::ConnectionPoolConfig defaultPoolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig defaultPoolConfig;
         defaultPoolConfig.setName("default");
         defaultPoolConfig.setInitialSize(5);
         defaultPoolConfig.setMaxSize(10);
 
-        cpp_dbc::config::ConnectionPoolConfig highPerfPoolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig highPerfPoolConfig;
         highPerfPoolConfig.setName("high_performance");
         highPerfPoolConfig.setInitialSize(10);
         highPerfPoolConfig.setMaxSize(50);
 
         // Add the configurations to the manager
-        manager.addConnectionPoolConfig(defaultPoolConfig);
-        manager.addConnectionPoolConfig(highPerfPoolConfig);
+        manager.addDBConnectionPoolConfig(defaultPoolConfig);
+        manager.addDBConnectionPoolConfig(highPerfPoolConfig);
 
         // Check getConnectionPoolConfig
-        auto defaultPoolOpt = manager.getConnectionPoolConfig("default");
+        auto defaultPoolOpt = manager.getDBConnectionPoolConfig("default");
         REQUIRE(defaultPoolOpt.has_value());
         const auto &defaultPool = defaultPoolOpt->get();
         REQUIRE(defaultPool.getName() == "default");
         REQUIRE(defaultPool.getInitialSize() == 5);
         REQUIRE(defaultPool.getMaxSize() == 10);
 
-        auto highPerfPoolOpt = manager.getConnectionPoolConfig("high_performance");
+        auto highPerfPoolOpt = manager.getDBConnectionPoolConfig("high_performance");
         REQUIRE(highPerfPoolOpt.has_value());
         const auto &highPerfPool = highPerfPoolOpt->get();
         REQUIRE(highPerfPool.getName() == "high_performance");
         REQUIRE(highPerfPool.getInitialSize() == 10);
         REQUIRE(highPerfPool.getMaxSize() == 50);
 
-        auto nonExistentPoolOpt = manager.getConnectionPoolConfig("non_existent");
+        auto nonExistentPoolOpt = manager.getDBConnectionPoolConfig("non_existent");
         REQUIRE_FALSE(nonExistentPoolOpt.has_value());
 
         // Check default parameter
-        auto defaultPoolOpt2 = manager.getConnectionPoolConfig();
+        auto defaultPoolOpt2 = manager.getDBConnectionPoolConfig();
         REQUIRE(defaultPoolOpt2.has_value());
         const auto &defaultPool2 = defaultPoolOpt2->get();
         REQUIRE(defaultPool2.getName() == "default");

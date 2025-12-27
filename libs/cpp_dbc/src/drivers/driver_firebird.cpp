@@ -46,15 +46,15 @@ namespace cpp_dbc
     namespace Firebird
     {
         // Static member initialization
-        std::atomic<bool> FirebirdDriver::s_initialized{false};
-        std::mutex FirebirdDriver::s_initMutex;
+        std::atomic<bool> FirebirdDBDriver::s_initialized{false};
+        std::mutex FirebirdDBDriver::s_initMutex;
 
         // ============================================================================
-        // FirebirdResultSet Implementation
+        // FirebirdDBResultSet Implementation
         // ============================================================================
 
-        FirebirdResultSet::FirebirdResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement,
-                                             std::shared_ptr<FirebirdConnection> conn)
+        FirebirdDBResultSet::FirebirdDBResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement,
+                                                 std::shared_ptr<FirebirdDBConnection> conn)
             : m_stmt(std::move(stmt)), m_sqlda(std::move(sqlda)), m_ownStatement(ownStatement), m_connection(conn)
         {
             FIREBIRD_DEBUG("FirebirdResultSet::constructor - Creating ResultSet");
@@ -76,14 +76,14 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("FirebirdResultSet::constructor - Done");
         }
 
-        FirebirdResultSet::~FirebirdResultSet()
+        FirebirdDBResultSet::~FirebirdDBResultSet()
         {
             FIREBIRD_DEBUG("FirebirdResultSet::destructor - Destroying ResultSet");
             close();
             FIREBIRD_DEBUG("FirebirdResultSet::destructor - Done");
         }
 
-        void FirebirdResultSet::initializeColumns()
+        void FirebirdDBResultSet::initializeColumns()
         {
             FIREBIRD_DEBUG("FirebirdResultSet::initializeColumns - Starting");
             if (!m_sqlda)
@@ -135,7 +135,7 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("FirebirdResultSet::initializeColumns - Done");
         }
 
-        std::string FirebirdResultSet::getColumnValue(size_t columnIndex) const
+        std::string FirebirdDBResultSet::getColumnValue(size_t columnIndex) const
         {
             FIREBIRD_DEBUG("getColumnValue: columnIndex=" << columnIndex << ", m_fieldCount=" << m_fieldCount);
             if (columnIndex >= m_fieldCount)
@@ -268,7 +268,7 @@ namespace cpp_dbc
             }
         }
 
-        bool FirebirdResultSet::next()
+        bool FirebirdDBResultSet::next()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -336,7 +336,7 @@ namespace cpp_dbc
             }
         }
 
-        bool FirebirdResultSet::isBeforeFirst()
+        bool FirebirdDBResultSet::isBeforeFirst()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -344,7 +344,7 @@ namespace cpp_dbc
             return m_rowPosition == 0 && !m_hasData;
         }
 
-        bool FirebirdResultSet::isAfterLast()
+        bool FirebirdDBResultSet::isAfterLast()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -352,7 +352,7 @@ namespace cpp_dbc
             return !m_hasData && m_rowPosition > 0;
         }
 
-        uint64_t FirebirdResultSet::getRow()
+        uint64_t FirebirdDBResultSet::getRow()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -360,7 +360,7 @@ namespace cpp_dbc
             return m_rowPosition;
         }
 
-        int FirebirdResultSet::getInt(size_t columnIndex)
+        int FirebirdDBResultSet::getInt(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -369,7 +369,7 @@ namespace cpp_dbc
             return value.empty() ? 0 : std::stoi(value);
         }
 
-        int FirebirdResultSet::getInt(const std::string &columnName)
+        int FirebirdDBResultSet::getInt(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -379,7 +379,7 @@ namespace cpp_dbc
             return getInt(it->second);
         }
 
-        long FirebirdResultSet::getLong(size_t columnIndex)
+        long FirebirdDBResultSet::getLong(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -388,7 +388,7 @@ namespace cpp_dbc
             return value.empty() ? 0L : std::stol(value);
         }
 
-        long FirebirdResultSet::getLong(const std::string &columnName)
+        long FirebirdDBResultSet::getLong(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -398,7 +398,7 @@ namespace cpp_dbc
             return getLong(it->second);
         }
 
-        double FirebirdResultSet::getDouble(size_t columnIndex)
+        double FirebirdDBResultSet::getDouble(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -409,7 +409,7 @@ namespace cpp_dbc
             return value.empty() ? 0.0 : std::stod(value);
         }
 
-        double FirebirdResultSet::getDouble(const std::string &columnName)
+        double FirebirdDBResultSet::getDouble(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -419,7 +419,7 @@ namespace cpp_dbc
             return getDouble(it->second);
         }
 
-        std::string FirebirdResultSet::getString(size_t columnIndex)
+        std::string FirebirdDBResultSet::getString(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -427,7 +427,7 @@ namespace cpp_dbc
             return getColumnValue(columnIndex);
         }
 
-        std::string FirebirdResultSet::getString(const std::string &columnName)
+        std::string FirebirdDBResultSet::getString(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -437,7 +437,7 @@ namespace cpp_dbc
             return getString(it->second);
         }
 
-        bool FirebirdResultSet::getBoolean(size_t columnIndex)
+        bool FirebirdDBResultSet::getBoolean(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -451,7 +451,7 @@ namespace cpp_dbc
             return false;
         }
 
-        bool FirebirdResultSet::getBoolean(const std::string &columnName)
+        bool FirebirdDBResultSet::getBoolean(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -461,7 +461,7 @@ namespace cpp_dbc
             return getBoolean(it->second);
         }
 
-        bool FirebirdResultSet::isNull(size_t columnIndex)
+        bool FirebirdDBResultSet::isNull(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -474,7 +474,7 @@ namespace cpp_dbc
             return m_nullIndicators[columnIndex] < 0;
         }
 
-        bool FirebirdResultSet::isNull(const std::string &columnName)
+        bool FirebirdDBResultSet::isNull(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -484,7 +484,7 @@ namespace cpp_dbc
             return isNull(it->second);
         }
 
-        std::vector<std::string> FirebirdResultSet::getColumnNames()
+        std::vector<std::string> FirebirdDBResultSet::getColumnNames()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -492,7 +492,7 @@ namespace cpp_dbc
             return m_columnNames;
         }
 
-        size_t FirebirdResultSet::getColumnCount()
+        size_t FirebirdDBResultSet::getColumnCount()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -500,7 +500,7 @@ namespace cpp_dbc
             return m_fieldCount;
         }
 
-        void FirebirdResultSet::close()
+        void FirebirdDBResultSet::close()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -535,7 +535,15 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("FirebirdResultSet::close - Done");
         }
 
-        std::shared_ptr<Blob> FirebirdResultSet::getBlob(size_t columnIndex)
+        bool FirebirdDBResultSet::isEmpty()
+        {
+#if DB_DRIVER_THREAD_SAFE
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+#endif
+            return !m_hasData && m_rowPosition == 0;
+        }
+
+        std::shared_ptr<Blob> FirebirdDBResultSet::getBlob(size_t columnIndex)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -568,7 +576,7 @@ namespace cpp_dbc
             return std::make_shared<FirebirdBlob>(conn, *blobId);
         }
 
-        std::shared_ptr<Blob> FirebirdResultSet::getBlob(const std::string &columnName)
+        std::shared_ptr<Blob> FirebirdDBResultSet::getBlob(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -578,7 +586,7 @@ namespace cpp_dbc
             return getBlob(it->second);
         }
 
-        std::shared_ptr<InputStream> FirebirdResultSet::getBinaryStream(size_t columnIndex)
+        std::shared_ptr<InputStream> FirebirdDBResultSet::getBinaryStream(size_t columnIndex)
         {
             auto blob = getBlob(columnIndex);
             if (!blob)
@@ -586,7 +594,7 @@ namespace cpp_dbc
             return blob->getBinaryStream();
         }
 
-        std::shared_ptr<InputStream> FirebirdResultSet::getBinaryStream(const std::string &columnName)
+        std::shared_ptr<InputStream> FirebirdDBResultSet::getBinaryStream(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -596,7 +604,7 @@ namespace cpp_dbc
             return getBinaryStream(it->second);
         }
 
-        std::vector<uint8_t> FirebirdResultSet::getBytes(size_t columnIndex)
+        std::vector<uint8_t> FirebirdDBResultSet::getBytes(size_t columnIndex)
         {
             auto blob = getBlob(columnIndex);
             if (!blob)
@@ -604,7 +612,7 @@ namespace cpp_dbc
             return blob->getBytes(0, blob->length());
         }
 
-        std::vector<uint8_t> FirebirdResultSet::getBytes(const std::string &columnName)
+        std::vector<uint8_t> FirebirdDBResultSet::getBytes(const std::string &columnName)
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
@@ -615,13 +623,13 @@ namespace cpp_dbc
         }
 
         // ============================================================================
-        // FirebirdPreparedStatement Implementation
+        // FirebirdDBPreparedStatement Implementation
         // ============================================================================
 
-        FirebirdPreparedStatement::FirebirdPreparedStatement(std::weak_ptr<isc_db_handle> db,
-                                                             isc_tr_handle *trPtr,
-                                                             const std::string &sql,
-                                                             std::weak_ptr<FirebirdConnection> conn)
+        FirebirdDBPreparedStatement::FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db,
+                                                                 isc_tr_handle *trPtr,
+                                                                 const std::string &sql,
+                                                                 std::weak_ptr<FirebirdDBConnection> conn)
             : m_dbHandle(db), m_connection(conn), m_trPtr(trPtr), m_stmt(0), m_sql(sql),
               m_inputSqlda(nullptr), m_outputSqlda(nullptr)
         {
@@ -633,14 +641,14 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Done, m_stmt=" << m_stmt);
         }
 
-        FirebirdPreparedStatement::~FirebirdPreparedStatement()
+        FirebirdDBPreparedStatement::~FirebirdDBPreparedStatement()
         {
             FIREBIRD_DEBUG("FirebirdPreparedStatement::destructor - Destroying statement, m_stmt=" << m_stmt);
             close();
             FIREBIRD_DEBUG("FirebirdPreparedStatement::destructor - Done");
         }
 
-        isc_db_handle *FirebirdPreparedStatement::getFirebirdConnection() const
+        isc_db_handle *FirebirdDBPreparedStatement::getFirebirdConnection() const
         {
             auto db = m_dbHandle.lock();
             if (!db)
@@ -650,7 +658,7 @@ namespace cpp_dbc
             return db.get();
         }
 
-        void FirebirdPreparedStatement::prepareStatement()
+        void FirebirdDBPreparedStatement::prepareStatement()
         {
             FIREBIRD_DEBUG("FirebirdPreparedStatement::prepareStatement - Starting");
             ISC_STATUS_ARRAY status;
@@ -717,7 +725,7 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("FirebirdPreparedStatement::prepareStatement - Done, m_stmt=" << m_stmt);
         }
 
-        void FirebirdPreparedStatement::allocateInputSqlda()
+        void FirebirdDBPreparedStatement::allocateInputSqlda()
         {
             ISC_STATUS_ARRAY status;
 
@@ -775,7 +783,7 @@ namespace cpp_dbc
             }
         }
 
-        void FirebirdPreparedStatement::setParameter(int parameterIndex, const void *data, size_t length, [[maybe_unused]] short sqlType)
+        void FirebirdDBPreparedStatement::setParameter(int parameterIndex, const void *data, size_t length, [[maybe_unused]] short sqlType)
         {
             if (parameterIndex < 1 || parameterIndex > m_inputSqlda->sqld)
             {
@@ -798,7 +806,7 @@ namespace cpp_dbc
             m_paramNullIndicators[idx] = 0;
         }
 
-        void FirebirdPreparedStatement::notifyConnClosing()
+        void FirebirdDBPreparedStatement::notifyConnClosing()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -806,7 +814,7 @@ namespace cpp_dbc
             m_closed = true;
         }
 
-        void FirebirdPreparedStatement::setInt(int parameterIndex, int value)
+        void FirebirdDBPreparedStatement::setInt(int parameterIndex, int value)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -815,7 +823,7 @@ namespace cpp_dbc
             setParameter(parameterIndex, &val, sizeof(ISC_LONG), SQL_LONG);
         }
 
-        void FirebirdPreparedStatement::setLong(int parameterIndex, long value)
+        void FirebirdDBPreparedStatement::setLong(int parameterIndex, long value)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -824,7 +832,7 @@ namespace cpp_dbc
             setParameter(parameterIndex, &val, sizeof(ISC_INT64), SQL_INT64);
         }
 
-        void FirebirdPreparedStatement::setDouble(int parameterIndex, double value)
+        void FirebirdDBPreparedStatement::setDouble(int parameterIndex, double value)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -909,7 +917,7 @@ namespace cpp_dbc
             }
         }
 
-        void FirebirdPreparedStatement::setString(int parameterIndex, const std::string &value)
+        void FirebirdDBPreparedStatement::setString(int parameterIndex, const std::string &value)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -975,7 +983,7 @@ namespace cpp_dbc
             m_paramNullIndicators[idx] = 0;
         }
 
-        void FirebirdPreparedStatement::setBoolean(int parameterIndex, bool value)
+        void FirebirdDBPreparedStatement::setBoolean(int parameterIndex, bool value)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -984,7 +992,7 @@ namespace cpp_dbc
             setParameter(parameterIndex, &val, sizeof(short), SQL_SHORT);
         }
 
-        void FirebirdPreparedStatement::setNull(int parameterIndex, [[maybe_unused]] Types type)
+        void FirebirdDBPreparedStatement::setNull(int parameterIndex, [[maybe_unused]] Types type)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -999,7 +1007,7 @@ namespace cpp_dbc
             m_paramNullIndicators[idx] = -1;
         }
 
-        void FirebirdPreparedStatement::setDate(int parameterIndex, const std::string &value)
+        void FirebirdDBPreparedStatement::setDate(int parameterIndex, const std::string &value)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -1018,7 +1026,7 @@ namespace cpp_dbc
             setParameter(parameterIndex, &date, sizeof(ISC_DATE), SQL_TYPE_DATE);
         }
 
-        void FirebirdPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
+        void FirebirdDBPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -1039,7 +1047,7 @@ namespace cpp_dbc
             setParameter(parameterIndex, &ts, sizeof(ISC_TIMESTAMP), SQL_TIMESTAMP);
         }
 
-        void FirebirdPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
+        void FirebirdDBPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -1055,7 +1063,7 @@ namespace cpp_dbc
             setBytes(parameterIndex, data);
         }
 
-        void FirebirdPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
+        void FirebirdDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -1080,7 +1088,7 @@ namespace cpp_dbc
             setBytes(parameterIndex, data);
         }
 
-        void FirebirdPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
+        void FirebirdDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -1108,12 +1116,12 @@ namespace cpp_dbc
             setBytes(parameterIndex, data);
         }
 
-        void FirebirdPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
+        void FirebirdDBPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
         {
             setBytes(parameterIndex, x.data(), x.size());
         }
 
-        void FirebirdPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
+        void FirebirdDBPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -1167,7 +1175,7 @@ namespace cpp_dbc
             }
         }
 
-        std::shared_ptr<ResultSet> FirebirdPreparedStatement::executeQuery()
+        std::shared_ptr<RelationalDBResultSet> FirebirdDBPreparedStatement::executeQuery()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -1256,12 +1264,12 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("  Creating FirebirdResultSet with ownStatement=true");
             // Pass the connection to the ResultSet so it can read BLOBs
             auto conn = m_connection.lock();
-            auto resultSet = std::make_shared<FirebirdResultSet>(std::move(stmtHandle), std::move(sqldaHandle), true, conn);
+            auto resultSet = std::make_shared<FirebirdDBResultSet>(std::move(stmtHandle), std::move(sqldaHandle), true, conn);
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeQuery - Done");
             return resultSet;
         }
 
-        uint64_t FirebirdPreparedStatement::executeUpdate()
+        uint64_t FirebirdDBPreparedStatement::executeUpdate()
         {
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate - Starting");
 #if DB_DRIVER_THREAD_SAFE
@@ -1388,7 +1396,7 @@ namespace cpp_dbc
             return count;
         }
 
-        bool FirebirdPreparedStatement::execute()
+        bool FirebirdDBPreparedStatement::execute()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -1409,7 +1417,7 @@ namespace cpp_dbc
             return m_outputSqlda->sqld > 0; // Returns true if there are result columns
         }
 
-        void FirebirdPreparedStatement::close()
+        void FirebirdDBPreparedStatement::close()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -1444,15 +1452,15 @@ namespace cpp_dbc
         }
 
         // ============================================================================
-        // FirebirdConnection Implementation
+        // FirebirdDBConnection Implementation
         // ============================================================================
 
-        FirebirdConnection::FirebirdConnection(const std::string &host,
-                                               int port,
-                                               const std::string &database,
-                                               const std::string &user,
-                                               const std::string &password,
-                                               const std::map<std::string, std::string> &options)
+        FirebirdDBConnection::FirebirdDBConnection(const std::string &host,
+                                                   int port,
+                                                   const std::string &database,
+                                                   const std::string &user,
+                                                   const std::string &password,
+                                                   const std::map<std::string, std::string> &options)
             : m_tr(0), m_isolationLevel(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
         {
             FIREBIRD_DEBUG("FirebirdConnection::constructor - Starting");
@@ -1545,12 +1553,12 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("FirebirdConnection::constructor - Done");
         }
 
-        FirebirdConnection::~FirebirdConnection()
+        FirebirdDBConnection::~FirebirdDBConnection()
         {
             close();
         }
 
-        void FirebirdConnection::startTransaction()
+        void FirebirdDBConnection::startTransaction()
         {
             FIREBIRD_DEBUG("FirebirdConnection::startTransaction - Starting");
             FIREBIRD_DEBUG("  m_tr: " << m_tr);
@@ -1607,7 +1615,7 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("FirebirdConnection::startTransaction - Done, m_tr=" << m_tr);
         }
 
-        void FirebirdConnection::endTransaction(bool commit)
+        void FirebirdDBConnection::endTransaction(bool commit)
         {
             FIREBIRD_DEBUG("FirebirdConnection::endTransaction - Starting, commit=" << (commit ? "true" : "false"));
             if (!m_tr)
@@ -1646,19 +1654,19 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("FirebirdConnection::endTransaction - Done");
         }
 
-        void FirebirdConnection::registerStatement(std::weak_ptr<FirebirdPreparedStatement> stmt)
+        void FirebirdDBConnection::registerStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt)
         {
             std::lock_guard<std::mutex> lock(m_statementsMutex);
             m_activeStatements.insert(stmt);
         }
 
-        void FirebirdConnection::unregisterStatement(std::weak_ptr<FirebirdPreparedStatement> stmt)
+        void FirebirdDBConnection::unregisterStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt)
         {
             std::lock_guard<std::mutex> lock(m_statementsMutex);
             m_activeStatements.erase(stmt);
         }
 
-        void FirebirdConnection::close()
+        void FirebirdDBConnection::close()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_connMutex);
@@ -1696,7 +1704,7 @@ namespace cpp_dbc
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
 
-        bool FirebirdConnection::isClosed()
+        bool FirebirdDBConnection::isClosed()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_connMutex);
@@ -1704,7 +1712,7 @@ namespace cpp_dbc
             return m_closed;
         }
 
-        void FirebirdConnection::returnToPool()
+        void FirebirdDBConnection::returnToPool()
         {
             FIREBIRD_DEBUG("FirebirdConnection::returnToPool - Starting");
             FIREBIRD_DEBUG("  m_transactionActive: " << (m_transactionActive ? "true" : "false"));
@@ -1770,12 +1778,12 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("FirebirdConnection::returnToPool - Done, m_tr=" << m_tr);
         }
 
-        bool FirebirdConnection::isPooled()
+        bool FirebirdDBConnection::isPooled()
         {
             return false; // Not pooled by default
         }
 
-        std::shared_ptr<PreparedStatement> FirebirdConnection::prepareStatement(const std::string &sql)
+        std::shared_ptr<RelationalDBPreparedStatement> FirebirdDBConnection::prepareStatement(const std::string &sql)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_connMutex);
@@ -1797,17 +1805,17 @@ namespace cpp_dbc
                 startTransaction();
             }
 
-            FIREBIRD_DEBUG("  Creating FirebirdPreparedStatement...");
+            FIREBIRD_DEBUG("  Creating FirebirdDBPreparedStatement...");
             FIREBIRD_DEBUG("    m_db.get()=" << m_db.get() << ", *m_db.get()=" << (m_db.get() ? *m_db.get() : 0));
             FIREBIRD_DEBUG("    &m_tr=" << &m_tr << ", m_tr=" << m_tr);
-            auto stmt = std::make_shared<FirebirdPreparedStatement>(
+            auto stmt = std::make_shared<FirebirdDBPreparedStatement>(
                 std::weak_ptr<isc_db_handle>(m_db), &m_tr, sql, shared_from_this());
 
             FIREBIRD_DEBUG("FirebirdConnection::prepareStatement - Done");
             return stmt;
         }
 
-        std::shared_ptr<ResultSet> FirebirdConnection::executeQuery(const std::string &sql)
+        std::shared_ptr<RelationalDBResultSet> FirebirdDBConnection::executeQuery(const std::string &sql)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_connMutex);
@@ -1816,7 +1824,7 @@ namespace cpp_dbc
             return stmt->executeQuery();
         }
 
-        uint64_t FirebirdConnection::executeUpdate(const std::string &sql)
+        uint64_t FirebirdDBConnection::executeUpdate(const std::string &sql)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_connMutex);
@@ -1844,7 +1852,7 @@ namespace cpp_dbc
             return stmt->executeUpdate();
         }
 
-        void FirebirdConnection::setAutoCommit(bool autoCommit)
+        void FirebirdDBConnection::setAutoCommit(bool autoCommit)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_connMutex);
@@ -1870,7 +1878,7 @@ namespace cpp_dbc
             }
         }
 
-        bool FirebirdConnection::getAutoCommit()
+        bool FirebirdDBConnection::getAutoCommit()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_connMutex);
@@ -1878,7 +1886,7 @@ namespace cpp_dbc
             return m_autoCommit;
         }
 
-        bool FirebirdConnection::beginTransaction()
+        bool FirebirdDBConnection::beginTransaction()
         {
             FIREBIRD_DEBUG("FirebirdConnection::beginTransaction - Starting");
             FIREBIRD_DEBUG("  m_autoCommit before: " << (m_autoCommit ? "true" : "false"));
@@ -1905,7 +1913,7 @@ namespace cpp_dbc
             return true;
         }
 
-        bool FirebirdConnection::transactionActive()
+        bool FirebirdDBConnection::transactionActive()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_connMutex);
@@ -1913,7 +1921,7 @@ namespace cpp_dbc
             return m_transactionActive;
         }
 
-        void FirebirdConnection::commit()
+        void FirebirdDBConnection::commit()
         {
             FIREBIRD_DEBUG("FirebirdConnection::commit - Starting");
 #if DB_DRIVER_THREAD_SAFE
@@ -1934,7 +1942,7 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("FirebirdConnection::commit - Done");
         }
 
-        void FirebirdConnection::rollback()
+        void FirebirdDBConnection::rollback()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_connMutex);
@@ -1947,7 +1955,7 @@ namespace cpp_dbc
             }
         }
 
-        void FirebirdConnection::setTransactionIsolation(TransactionIsolationLevel level)
+        void FirebirdDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_connMutex);
@@ -1983,7 +1991,7 @@ namespace cpp_dbc
             }
         }
 
-        TransactionIsolationLevel FirebirdConnection::getTransactionIsolation()
+        TransactionIsolationLevel FirebirdDBConnection::getTransactionIsolation()
         {
 #if DB_DRIVER_THREAD_SAFE
             DB_DRIVER_LOCK_GUARD(m_connMutex);
@@ -1991,12 +1999,12 @@ namespace cpp_dbc
             return m_isolationLevel;
         }
 
-        std::string FirebirdConnection::getURL() const
+        std::string FirebirdDBConnection::getURL() const
         {
             return m_url;
         }
 
-        uint64_t FirebirdConnection::executeCreateDatabase(const std::string &sql)
+        uint64_t FirebirdDBConnection::executeCreateDatabase(const std::string &sql)
         {
             FIREBIRD_DEBUG("FirebirdConnection::executeCreateDatabase - Starting");
             FIREBIRD_DEBUG("  SQL: " << sql);
@@ -2027,10 +2035,10 @@ namespace cpp_dbc
         }
 
         // ============================================================================
-        // FirebirdDriver Implementation
+        // FirebirdDBDriver Implementation
         // ============================================================================
 
-        FirebirdDriver::FirebirdDriver()
+        FirebirdDBDriver::FirebirdDBDriver()
         {
             std::lock_guard<std::mutex> lock(s_initMutex);
             if (!s_initialized)
@@ -2040,15 +2048,15 @@ namespace cpp_dbc
             }
         }
 
-        FirebirdDriver::~FirebirdDriver()
+        FirebirdDBDriver::~FirebirdDBDriver()
         {
             // Firebird doesn't require explicit cleanup
         }
 
-        std::shared_ptr<Connection> FirebirdDriver::connect(const std::string &url,
-                                                            const std::string &user,
-                                                            const std::string &password,
-                                                            const std::map<std::string, std::string> &options)
+        std::shared_ptr<RelationalDBConnection> FirebirdDBDriver::connectRelational(const std::string &url,
+                                                                                    const std::string &user,
+                                                                                    const std::string &password,
+                                                                                    const std::map<std::string, std::string> &options)
         {
             std::string host;
             int port;
@@ -2059,15 +2067,15 @@ namespace cpp_dbc
                 throw DBException("D6E2F8A4B1C7", "Invalid Firebird URL: " + url, system_utils::captureCallStack());
             }
 
-            return std::make_shared<FirebirdConnection>(host, port, database, user, password, options);
+            return std::make_shared<FirebirdDBConnection>(host, port, database, user, password, options);
         }
 
-        bool FirebirdDriver::acceptsURL(const std::string &url)
+        bool FirebirdDBDriver::acceptsURL(const std::string &url)
         {
             return url.find("cpp_dbc:firebird:") == 0;
         }
 
-        int FirebirdDriver::command(const std::map<std::string, std::any> &params)
+        int FirebirdDBDriver::command(const std::map<std::string, std::any> &params)
         {
             FIREBIRD_DEBUG("FirebirdDriver::command - Starting");
 
@@ -2177,10 +2185,10 @@ namespace cpp_dbc
             }
         }
 
-        bool FirebirdDriver::createDatabase(const std::string &url,
-                                            const std::string &user,
-                                            const std::string &password,
-                                            const std::map<std::string, std::string> &options)
+        bool FirebirdDBDriver::createDatabase(const std::string &url,
+                                              const std::string &user,
+                                              const std::string &password,
+                                              const std::map<std::string, std::string> &options)
         {
             std::string host;
             int port;
@@ -2257,7 +2265,7 @@ namespace cpp_dbc
             return true;
         }
 
-        bool FirebirdDriver::parseURL(const std::string &url, std::string &host, int &port, std::string &database)
+        bool FirebirdDBDriver::parseURL(const std::string &url, std::string &host, int &port, std::string &database)
         {
             // Expected formats:
             // cpp_dbc:firebird://host:port/path/to/database.fdb

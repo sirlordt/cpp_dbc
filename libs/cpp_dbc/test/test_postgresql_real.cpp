@@ -71,10 +71,10 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
     SECTION("Basic PostgreSQL operations")
     {
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Get a connection
-        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         REQUIRE(conn != nullptr);
 
         // Create a test table
@@ -153,7 +153,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
     SECTION("PostgreSQL connection pool")
     {
         // Create a connection pool configuration
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -172,7 +172,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pool(poolConfig);
 
         // Create a test table
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -191,7 +191,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn_thread = pool.getConnection();
+                        auto conn_thread = pool.getDBConnection();
 
                         // Insert a row
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -222,7 +222,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the data
-        conn = pool.getConnection();
+        conn = pool.getDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
@@ -238,7 +238,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
     SECTION("PostgreSQL transaction management")
     {
         // Create a connection pool configuration
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -260,7 +260,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         cpp_dbc::TransactionManager manager(pool);
 
         // Create a test table
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -272,7 +272,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
             REQUIRE(!txId.empty());
 
             // Get the connection associated with the transaction
-            conn = manager.getTransactionConnection(txId);
+            conn = manager.getTransactionDBConnection(txId);
             REQUIRE(conn != nullptr);
 
             // Insert data within the transaction
@@ -286,7 +286,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
             manager.commitTransaction(txId);
 
             // Verify the data was committed
-            conn = pool.getConnection();
+            conn = pool.getDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
@@ -299,7 +299,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
             std::string txId = manager.beginTransaction();
 
             // Get the connection associated with the transaction
-            conn = manager.getTransactionConnection(txId);
+            conn = manager.getTransactionDBConnection(txId);
 
             // Insert data within the transaction
             auto pstmt = conn->prepareStatement(insertDataQuery);
@@ -312,14 +312,14 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
             manager.rollbackTransaction(txId);
 
             // Verify the data was not committed
-            conn = pool.getConnection();
+            conn = pool.getDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             conn->close();
         }
 
         // Clean up
-        conn = pool.getConnection();
+        conn = pool.getDBConnection();
         conn->executeUpdate(dropTableQuery);
         conn->close();
 
@@ -330,10 +330,10 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
     SECTION("PostgreSQL metadata retrieval")
     {
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Get a connection
-        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
         // Create a test table with various data types
         conn->executeUpdate("DROP TABLE IF EXISTS test_types");
@@ -407,7 +407,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
     SECTION("PostgreSQL stress test")
     {
         // Create a connection pool configuration
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -426,7 +426,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pool(poolConfig);
 
         // Create a test table
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -447,7 +447,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn_thread = pool.getConnection();
+                        auto conn_thread = pool.getDBConnection();
 
                         // Insert a row
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -491,7 +491,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the total number of rows
-        conn = pool.getConnection();
+        conn = pool.getDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
@@ -507,10 +507,10 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
     SECTION("PostgreSQL specific features")
     {
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Get a connection
-        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
         // Test JSON data type
         conn->executeUpdate("DROP TABLE IF EXISTS test_json");

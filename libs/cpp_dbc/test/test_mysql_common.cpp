@@ -138,11 +138,11 @@ namespace mysql_test_helpers
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/mysql";
 
             // Register the MySQL driver
-            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
             // Attempt to connect to MySQL server
             std::cout << "Attempting to connect to MySQL server to create database..." << std::endl;
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // Execute the create database query
             std::cout << "Executing: " << createDatabaseQuery << std::endl;
@@ -180,13 +180,13 @@ namespace mysql_test_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the MySQL driver
-            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
             // Attempt to connect to MySQL
             std::cout << "Attempting to connect to MySQL with connection string: " << connStr << std::endl;
             std::cout << "Username: " << username << ", Password: " << password << std::endl;
 
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // If we get here, the connection was successful
             std::cout << "MySQL connection successful!" << std::endl;

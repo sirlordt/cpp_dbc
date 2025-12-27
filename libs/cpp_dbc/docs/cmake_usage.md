@@ -95,10 +95,10 @@ int main() {
     try {
 #if USE_FIREBIRD
         // Register the Firebird driver
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::FirebirdDriver>());
+        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::FirebirdDBDriver>());
         
         // Connect to a Firebird database
-        auto conn = cpp_dbc::DriverManager::getConnection(
+        auto conn = cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:firebird://localhost:3050/path/to/database.fdb",
             "SYSDBA",
             "masterkey"

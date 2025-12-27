@@ -694,30 +694,31 @@ int main() {
     // Register available drivers
 #if USE_MYSQL
     cpp_dbc::DriverManager::registerDriver("mysql",
-        std::make_shared<cpp_dbc::MySQL::MySQLDriver>());
+        std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 #endif
 
 #if USE_POSTGRESQL
     cpp_dbc::DriverManager::registerDriver("postgresql",
-        std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+        std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 #endif
 
 #if USE_SQLITE
     cpp_dbc::DriverManager::registerDriver("sqlite",
-        std::make_shared<cpp_dbc::SQLite::SQLiteDriver>());
+        std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 #endif
 
 #if USE_FIREBIRD
     cpp_dbc::DriverManager::registerDriver("firebird",
-        std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
+        std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 #endif
 
     // Get a connection (will use whichever driver is available)
-    auto conn = cpp_dbc::DriverManager::getConnection(
-        "cpp_dbc:mysql://localhost:3306/testdb",
-        "username",
-        "password"
-    );
+    auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+        cpp_dbc::DriverManager::getDBConnection(
+            "cpp_dbc:mysql://localhost:3306/testdb",
+            "username",
+            "password"
+        ));
 
     // Use the connection
     auto resultSet = conn->executeQuery("SELECT * FROM users");

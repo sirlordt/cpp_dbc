@@ -135,7 +135,7 @@ namespace firebird_test_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the Firebird driver
-            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
+            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
             // Build connection string for cpp_dbc
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
@@ -143,7 +143,7 @@ namespace firebird_test_helpers
             // First, try to connect to see if database already exists
             try
             {
-                auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+                auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
                 std::cout << "Firebird database exists and connection successful!" << std::endl;
                 conn->close();
                 return true;
@@ -241,13 +241,13 @@ namespace firebird_test_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the Firebird driver
-            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
+            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
             // Attempt to connect to Firebird
             std::cout << "Attempting to connect to Firebird with connection string: " << connStr << std::endl;
             std::cout << "Username: " << username << ", Password: " << password << std::endl;
 
-            auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // If we get here, the connection was successful
             std::cout << "Firebird connection successful!" << std::endl;

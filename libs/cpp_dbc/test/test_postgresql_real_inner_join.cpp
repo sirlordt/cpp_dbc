@@ -56,10 +56,10 @@ TEST_CASE("PostgreSQL INNER JOIN operations", "[postgresql_real_inner_join]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the PostgreSQL driver
-    cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+    cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
     // Get a connection
-    auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+    auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
     REQUIRE(conn != nullptr);
 
     // Create test tables

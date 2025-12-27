@@ -105,7 +105,7 @@ namespace cpp_dbc_test
     };
 
     // Improved mock implementation of ResultSet with in-memory data storage
-    class MockResultSet : public cpp_dbc::ResultSet
+    class MockResultSet : public cpp_dbc::RelationalDBResultSet
     {
     private:
         // Column definitions
@@ -311,6 +311,11 @@ namespace cpp_dbc_test
             isClosed = true;
         }
 
+        bool isEmpty() override
+        {
+            return rows.empty();
+        }
+
         // BLOB support methods
         std::shared_ptr<cpp_dbc::Blob> getBlob(size_t /*columnIndex*/) override
         {
@@ -350,7 +355,7 @@ namespace cpp_dbc_test
     };
 
     // Basic mock implementation of PreparedStatement
-    class MockPreparedStatement : public cpp_dbc::PreparedStatement
+    class MockPreparedStatement : public cpp_dbc::RelationalDBPreparedStatement
     {
     private:
         std::map<int, std::string> parameters;
@@ -398,7 +403,7 @@ namespace cpp_dbc_test
             parameters[parameterIndex] = value;
         }
 
-        std::shared_ptr<cpp_dbc::ResultSet> executeQuery() override
+        std::shared_ptr<cpp_dbc::RelationalDBResultSet> executeQuery() override
         {
             // Create a result set with appropriate data based on the prepared statement
             auto rs = std::make_shared<MockResultSet>();
@@ -471,7 +476,7 @@ namespace cpp_dbc_test
     };
 
     // Basic mock implementation of Connection
-    class MockConnection : public cpp_dbc::Connection
+    class MockConnection : public cpp_dbc::RelationalDBConnection
     {
     private:
         bool closed = false;
@@ -493,12 +498,12 @@ namespace cpp_dbc_test
         };
         bool isPooled() override { return true; };
 
-        std::shared_ptr<cpp_dbc::PreparedStatement> prepareStatement(const std::string &) override
+        std::shared_ptr<cpp_dbc::RelationalDBPreparedStatement> prepareStatement(const std::string &) override
         {
             return std::make_shared<MockPreparedStatement>();
         }
 
-        std::shared_ptr<cpp_dbc::ResultSet> executeQuery(const std::string &sql) override
+        std::shared_ptr<cpp_dbc::RelationalDBResultSet> executeQuery(const std::string &sql) override
         {
             auto rs = std::make_shared<MockResultSet>();
 
@@ -607,11 +612,11 @@ namespace cpp_dbc_test
     };
 
     // Basic mock implementation of Driver
-    class MockDriver : public cpp_dbc::Driver
+    class MockDriver : public cpp_dbc::RelationalDBDriver
     {
     public:
-        std::shared_ptr<cpp_dbc::Connection> connect(const std::string &, const std::string &, const std::string &,
-                                                     const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
+        std::shared_ptr<cpp_dbc::RelationalDBConnection> connectRelational(const std::string &, const std::string &, const std::string &,
+                                                                           const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
         {
             return std::make_shared<MockConnection>();
         }
@@ -623,7 +628,7 @@ namespace cpp_dbc_test
     };
 
     // Mock ConnectionPool that can handle unlimited connections
-    class MockConnectionPool : public cpp_dbc::ConnectionPool
+    class MockConnectionPool : public cpp_dbc::RelationalDBConnectionPool
     {
     private:
         mutable std::mutex poolMutex;
@@ -631,7 +636,7 @@ namespace cpp_dbc_test
         cpp_dbc::TransactionIsolationLevel transactionIsolation = cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED;
 
     public:
-        MockConnectionPool() : cpp_dbc::ConnectionPool(
+        MockConnectionPool() : cpp_dbc::RelationalDBConnectionPool(
                                    "cpp_dbc:mock://localhost:1234/mockdb",
                                    "mockuser",
                                    "mockpass",
@@ -660,11 +665,11 @@ namespace cpp_dbc_test
             }
 
             // Close the parent pool immediately to avoid any maintenance threads
-            cpp_dbc::ConnectionPool::close();
+            cpp_dbc::RelationalDBConnectionPool::close();
         }
 
-        // Override getConnection to always return a new mock connection
-        std::shared_ptr<cpp_dbc::Connection> getConnection() override
+        // Override getDBConnection to always return a new mock connection
+        std::shared_ptr<cpp_dbc::RelationalDBConnection> getDBConnection() override
         {
             std::lock_guard<std::mutex> lock(poolMutex);
             activeCount++;
@@ -692,15 +697,15 @@ namespace cpp_dbc_test
 
     private:
         // Custom connection wrapper that tracks when connections are returned
-        class MockPooledConnection : public cpp_dbc::Connection
+        class MockPooledConnection : public cpp_dbc::RelationalDBConnection
         {
         private:
-            std::shared_ptr<cpp_dbc::Connection> underlying;
+            std::shared_ptr<cpp_dbc::RelationalDBConnection> underlying;
             MockConnectionPool *pool;
             bool closed = false;
 
         public:
-            MockPooledConnection(std::shared_ptr<cpp_dbc::Connection> conn, MockConnectionPool *p)
+            MockPooledConnection(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn, MockConnectionPool *p)
                 : underlying(conn), pool(p) {}
 
             ~MockPooledConnection()
@@ -731,11 +736,11 @@ namespace cpp_dbc_test
             bool isPooled() override { return true; };
 
             bool isClosed() override { return closed || underlying->isClosed(); }
-            std::shared_ptr<cpp_dbc::PreparedStatement> prepareStatement(const std::string &sql) override
+            std::shared_ptr<cpp_dbc::RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override
             {
                 return underlying->prepareStatement(sql);
             }
-            std::shared_ptr<cpp_dbc::ResultSet> executeQuery(const std::string &sql) override
+            std::shared_ptr<cpp_dbc::RelationalDBResultSet> executeQuery(const std::string &sql) override
             {
                 return underlying->executeQuery(sql);
             }

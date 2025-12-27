@@ -33,7 +33,7 @@
 namespace cpp_dbc
 {
 
-    TransactionManager::TransactionManager(ConnectionPool &connectionPool)
+    TransactionManager::TransactionManager(RelationalDBConnectionPool &connectionPool)
         : pool(connectionPool) //, running(true)
     {
 
@@ -63,7 +63,7 @@ namespace cpp_dbc
     std::string TransactionManager::beginTransaction()
     {
         // Get a connection from the pool
-        std::shared_ptr<Connection> conn = pool.getConnection();
+        std::shared_ptr<RelationalDBConnection> conn = pool.getDBConnection();
 
         // Iniciar transacción usando el nuevo método
         conn->beginTransaction();
@@ -83,7 +83,7 @@ namespace cpp_dbc
         return transactionId;
     }
 
-    std::shared_ptr<Connection> TransactionManager::getTransactionConnection(const std::string &transactionId)
+    std::shared_ptr<RelationalDBConnection> TransactionManager::getTransactionDBConnection(const std::string &transactionId)
     {
         std::lock_guard<std::mutex> lockTrans(transactionMutex);
 

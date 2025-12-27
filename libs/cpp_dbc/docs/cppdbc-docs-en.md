@@ -115,6 +115,7 @@ An abstract base class representing a database driver.
 
 **Methods:**
 - `connect(string, string, string, map<string, string>)`: Establishes a connection to the database with optional connection options.
+- `connectRelational(string, string, string, map<string, string>)`: Establishes a relational database connection with optional connection options.
 - `acceptsURL(string)`: Returns true if the driver can connect to the given URL.
 
 ### DriverManager
@@ -122,8 +123,8 @@ A manager class to register and retrieve driver instances.
 
 **Methods:**
 - `registerDriver(string, Driver)`: Registers a driver with the given name.
-- `getConnection(string, string, string, map<string, string>)`: Gets a connection to the database specified by the URL with optional connection options.
-- `getConnection(DatabaseConfig)`: Gets a connection using a database configuration object.
+- `getDBConnection(string, string, string, map<string, string>)`: Gets a connection to the database specified by the URL with optional connection options.
+- `getDBConnection(DatabaseConfig)`: Gets a connection using a database configuration object.
 
 ---
 
@@ -153,12 +154,12 @@ Same as Connection, plus:
 - `setTransactionIsolation(TransactionIsolationLevel)`: Sets the transaction isolation level for MySQL (default: REPEATABLE READ).
 - `getTransactionIsolation()`: Returns the current transaction isolation level.
 
-### MySQLDriver
+### MySQLDBDriver
 Implementation of Driver for MySQL.
 
 **Methods:**
 Same as Driver, plus:
-- `MySQLDriver()`: Constructor that initializes the MySQL library.
+- `MySQLDBDriver()`: Constructor that initializes the MySQL library.
 - `parseURL(string, string&, int&, string&)`: Parses a connection URL.
 
 ---
@@ -190,12 +191,12 @@ Same as Connection, plus:
 - `setTransactionIsolation(TransactionIsolationLevel)`: Sets the transaction isolation level for PostgreSQL (default: READ COMMITTED).
 - `getTransactionIsolation()`: Returns the current transaction isolation level.
 
-### PostgreSQLDriver
+### PostgreSQLDBDriver
 Implementation of Driver for PostgreSQL.
 
 **Methods:**
 Same as Driver, plus:
-- `PostgreSQLDriver()`: Constructor.
+- `PostgreSQLDBDriver()`: Constructor.
 - `parseURL(string, string&, int&, string&)`: Parses a connection URL.
 
 ---
@@ -236,12 +237,12 @@ Same as Connection, plus:
 - PreparedStatements use `weak_ptr<sqlite3>` to safely detect when connection is closed
 - Active statements tracked via `set<weak_ptr<SQLitePreparedStatement>>` to avoid preventing destruction
 
-### SQLiteDriver
+### SQLiteDBDriver
 Implementation of Driver for SQLite.
 
 **Methods:**
 Same as Driver, plus:
-- `SQLiteDriver()`: Constructor.
+- `SQLiteDBDriver()`: Constructor.
 - `parseURL(string, string&)`: Parses a connection URL.
 
 ---
@@ -278,12 +279,12 @@ Same as Connection, plus:
 - PreparedStatements use `weak_ptr<isc_db_handle>` to safely detect when connection is closed
 - SQLDA structures managed with proper memory allocation/deallocation
 
-### FirebirdDriver
+### FirebirdDBDriver
 Implementation of Driver for Firebird SQL.
 
 **Methods:**
 Same as Driver, plus:
-- `FirebirdDriver()`: Constructor.
+- `FirebirdDBDriver()`: Constructor.
 - `parseURL(string, string&, int&, string&)`: Parses a connection URL.
 - `acceptsURL(string)`: Returns true only for `cpp_dbc:firebird://` URLs.
 - `command(map<string, any>)`: Executes driver-specific commands (e.g., "create_database").
@@ -293,7 +294,7 @@ Same as Driver, plus:
 The Firebird driver supports creating new databases programmatically:
 
 ```cpp
-auto driver = std::make_shared<cpp_dbc::Firebird::FirebirdDriver>();
+auto driver = std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>();
 
 // Using the command method
 std::map<std::string, std::any> params = {
@@ -334,7 +335,7 @@ Implementation of ConnectionPool for SQLite databases.
 - `SQLiteConnectionPool(string, string, string)`: Constructor that takes a URL, username, and password.
 - `SQLiteConnectionPool(ConnectionPoolConfig)`: Constructor that takes a pool configuration.
 
-### ConnectionPoolConfig
+### DBConnectionPoolConfig
 Configuration structure for connection pools.
 
 **Properties:**
@@ -405,7 +406,7 @@ Manages transactions across different threads.
 **Methods:**
 - `TransactionManager(ConnectionPool&)`: Constructor that takes a connection pool.
 - `beginTransaction()`: Starts a new transaction and returns its ID.
-- `getTransactionConnection(string)`: Gets the connection for a transaction.
+- `getTransactionDBConnection(string)`: Gets the connection for a transaction.
 - `commitTransaction(string)`: Commits a transaction by its ID.
 - `rollbackTransaction(string)`: Rolls back a transaction by its ID.
 - `isTransactionActive(string)`: Returns whether a transaction is active.
@@ -824,7 +825,7 @@ if (dbConfigOpt) {
     // Use the configuration to create a connection
     const auto& dbConfig = dbConfigOpt->get();
     std::string connStr = dbConfig.createConnectionString();
-    auto conn = cpp_dbc::DriverManager::getConnection(
+    auto conn = cpp_dbc::DriverManager::getDBConnection(
         connStr, dbConfig.getUsername(), dbConfig.getPassword()
     );
     

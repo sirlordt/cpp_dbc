@@ -73,12 +73,12 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the PostgreSQL driver
-    cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDriver>());
+    cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
     SECTION("Multiple threads with individual connections")
     {
         // Setup: create test table using a single connection
-        auto setupConn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto setupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         REQUIRE(setupConn != nullptr);
         setupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         setupConn->executeUpdate("CREATE TABLE thread_test (id INT PRIMARY KEY, value VARCHAR(100))");
@@ -108,7 +108,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
                 try
                 {
                     // Each thread gets its own connection
-                    auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+                    auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
                     
                     for (int j = 0; j < opsPerThread; j++)
                     {
@@ -164,7 +164,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
         std::cout << "Multiple threads with individual connections: " << successCount << " successes, " << errorCount << " errors" << std::endl;
 
         // Clean up
-        auto cleanupConn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         cleanupConn->close();
 
@@ -175,7 +175,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
     SECTION("Connection pool concurrent access")
     {
         // Create connection pool
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -190,7 +190,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
         auto pool = std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLConnectionPool>(poolConfig);
 
         // Setup: create test table
-        auto setupConn = pool->getConnection();
+        auto setupConn = pool->getDBConnection();
         setupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         setupConn->executeUpdate("CREATE TABLE thread_test (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE PRECISION)");
         setupConn->returnToPool();
@@ -210,7 +210,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
                 {
                     try
                     {
-                        auto conn = pool->getConnection();
+                        auto conn = pool->getDBConnection();
                         int id = idCounter.fetch_add(1);
                         
                         // Insert with prepared statement
@@ -239,7 +239,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
         std::cout << "Connection pool concurrent access: " << successCount << " successes, " << errorCount << " errors" << std::endl;
 
         // Clean up
-        auto cleanupConn = pool->getConnection();
+        auto cleanupConn = pool->getDBConnection();
         cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         cleanupConn->returnToPool();
 
@@ -249,7 +249,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
     SECTION("Concurrent read operations with connection pool")
     {
         // Create connection pool
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -264,7 +264,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
         auto pool = std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLConnectionPool>(poolConfig);
 
         // Setup: create and populate test table
-        auto setupConn = pool->getConnection();
+        auto setupConn = pool->getDBConnection();
         setupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         setupConn->executeUpdate("CREATE TABLE thread_test (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE PRECISION)");
 
@@ -297,7 +297,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
                 {
                     try
                     {
-                        auto conn = pool->getConnection();
+                        auto conn = pool->getDBConnection();
                         int targetId = idDist(gen);
                         
                         auto pstmt = conn->prepareStatement("SELECT * FROM thread_test WHERE id = $1");
@@ -331,7 +331,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
         std::cout << "Concurrent read operations: " << readCount << " reads, " << errorCount << " errors" << std::endl;
 
         // Clean up
-        auto cleanupConn = pool->getConnection();
+        auto cleanupConn = pool->getDBConnection();
         cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         cleanupConn->returnToPool();
 
@@ -342,7 +342,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
     SECTION("High concurrency stress test")
     {
         // Create connection pool for stress test
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -357,7 +357,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
         auto pool = std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLConnectionPool>(poolConfig);
 
         // Create test table
-        auto setupConn = pool->getConnection();
+        auto setupConn = pool->getDBConnection();
         setupConn->executeUpdate("DROP TABLE IF EXISTS thread_stress_test");
         setupConn->executeUpdate("CREATE TABLE thread_stress_test (id SERIAL PRIMARY KEY, thread_id INT, op_id INT, data VARCHAR(255))");
         setupConn->returnToPool();
@@ -384,7 +384,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
                 {
                     try
                     {
-                        auto conn = pool->getConnection();
+                        auto conn = pool->getDBConnection();
                         int op = opDist(gen);
 
                         switch (op)
@@ -446,7 +446,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
         }
 
         // Clean up
-        auto cleanupConn = pool->getConnection();
+        auto cleanupConn = pool->getDBConnection();
         cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_stress_test");
         cleanupConn->returnToPool();
 
@@ -471,7 +471,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
                 {
                     try
                     {
-                        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+                        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
                         
                         // Do a simple operation
                         auto rs = conn->executeQuery("SELECT 1 as test");

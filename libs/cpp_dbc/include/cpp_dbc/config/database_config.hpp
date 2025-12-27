@@ -31,8 +31,8 @@
 // Forward declarations
 namespace cpp_dbc
 {
-    class Connection;
-    class ConnectionPool;
+    class DBConnection;
+    class RelationalDBConnectionPool;
 }
 
 namespace cpp_dbc
@@ -43,13 +43,13 @@ namespace cpp_dbc
         /**
          * @brief Class representing database connection options
          */
-        class ConnectionOptions
+        class DBConnectionOptions
         {
         private:
             std::map<std::string, std::string> options;
 
         public:
-            ConnectionOptions() = default;
+            DBConnectionOptions() = default;
 
             /**
              * @brief Set an option value
@@ -110,7 +110,7 @@ namespace cpp_dbc
             std::string m_database;
             std::string m_username;
             std::string m_password;
-            ConnectionOptions m_options;
+            DBConnectionOptions m_options;
 
         public:
             DatabaseConfig() : m_port(0) {}
@@ -143,7 +143,7 @@ namespace cpp_dbc
             const std::string &getDatabase() const { return m_database; }
             const std::string &getUsername() const { return m_username; }
             const std::string &getPassword() const { return m_password; }
-            const ConnectionOptions &getOptionsObj() const { return m_options; }
+            const DBConnectionOptions &getOptionsObj() const { return m_options; }
 
             /**
              * @brief Get all connection options as a map
@@ -200,15 +200,15 @@ namespace cpp_dbc
 
             /**
              * @brief Create a connection using this configuration
-             * @return A shared pointer to a Connection object
+             * @return A shared pointer to a DBConnection object
              */
-            std::shared_ptr<Connection> createConnection() const;
+            std::shared_ptr<DBConnection> createDBConnection() const;
         };
 
         /**
          * @brief Class representing connection pool configuration
          */
-        class ConnectionPoolConfig
+        class DBConnectionPoolConfig
         {
         private:
             std::string m_name;
@@ -229,7 +229,7 @@ namespace cpp_dbc
             TransactionIsolationLevel m_transactionIsolation;
 
         public:
-            ConnectionPoolConfig() : /*initialSize(5),
+            DBConnectionPoolConfig() : /*initialSize(5),
                                      maxSize(20),
                                      minIdle(3),
                                      connectionTimeout(30000),
@@ -238,8 +238,8 @@ namespace cpp_dbc
                                      maxLifetimeMillis(1800000),
                                      testOnBorrow(true),
                                      testOnReturn(false),*/
-                                     m_validationQuery("SELECT 1"),
-                                     m_transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
+                                       m_validationQuery("SELECT 1"),
+                                       m_transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
             {
             }
 
@@ -252,7 +252,7 @@ namespace cpp_dbc
              * @param idleTimeout Idle timeout in milliseconds
              * @param validationInterval Validation interval in milliseconds
              */
-            ConnectionPoolConfig(
+            DBConnectionPoolConfig(
                 const std::string &name,
                 unsigned int initialSize,
                 unsigned int maxSize,
@@ -276,7 +276,7 @@ namespace cpp_dbc
             /**
              * @brief Full constructor with all parameters
              */
-            ConnectionPoolConfig(
+            DBConnectionPoolConfig(
                 const std::string &name,
                 const std::string &url,
                 const std::string &username,
@@ -348,7 +348,7 @@ namespace cpp_dbc
              * @param dbConfig The database configuration to use
              * @return Reference to this object for method chaining
              */
-            ConnectionPoolConfig &withDatabaseConfig(const DatabaseConfig &dbConfig)
+            DBConnectionPoolConfig &withDatabaseConfig(const DatabaseConfig &dbConfig)
             {
                 m_url = dbConfig.createConnectionString();
                 m_username = dbConfig.getUsername();
@@ -443,7 +443,7 @@ namespace cpp_dbc
         {
         private:
             std::vector<DatabaseConfig> m_databases;
-            std::map<std::string, ConnectionPoolConfig> m_connectionPools;
+            std::map<std::string, DBConnectionPoolConfig> m_connectionPools;
             TestQueries m_testQueries;
 
         public:
@@ -506,7 +506,7 @@ namespace cpp_dbc
              * @brief Add a connection pool configuration
              * @param config Connection pool configuration
              */
-            void addConnectionPoolConfig(const ConnectionPoolConfig &config)
+            void addDBConnectionPoolConfig(const DBConnectionPoolConfig &config)
             {
                 m_connectionPools[config.getName()] = config;
             }
@@ -516,7 +516,7 @@ namespace cpp_dbc
              * @param name Connection pool configuration name
              * @return Optional reference to connection pool configuration, empty if not found
              */
-            std::optional<std::reference_wrapper<const ConnectionPoolConfig>> getConnectionPoolConfig(const std::string &name = "default") const
+            std::optional<std::reference_wrapper<const DBConnectionPoolConfig>> getDBConnectionPoolConfig(const std::string &name = "default") const
             {
                 auto it = m_connectionPools.find(name);
                 if (it != m_connectionPools.end())
@@ -547,18 +547,18 @@ namespace cpp_dbc
             /**
              * @brief Create a connection using a named database configuration
              * @param configName Name of the database configuration
-             * @return A shared pointer to a Connection object, or nullptr if the configuration doesn't exist
+             * @return A shared pointer to a DBConnection object, or nullptr if the configuration doesn't exist
              */
-            std::shared_ptr<Connection> createConnection(const std::string &configName) const;
+            std::shared_ptr<DBConnection> createDBConnection(const std::string &configName) const;
 
             /**
              * @brief Create a connection pool using a named database configuration and pool configuration
              * @param dbConfigName Name of the database configuration
              * @param poolConfigName Name of the pool configuration (default: "default")
-             * @return A shared pointer to a ConnectionPool object, or nullptr if any configuration doesn't exist
+             * @return A shared pointer to a RelationalDBConnectionPool object, or nullptr if any configuration doesn't exist
              */
-            std::shared_ptr<ConnectionPool> createConnectionPool(const std::string &dbConfigName,
-                                                                 const std::string &poolConfigName = "default") const;
+            std::shared_ptr<RelationalDBConnectionPool> createDBConnectionPool(const std::string &dbConfigName,
+                                                                               const std::string &poolConfigName = "default") const;
         };
 
     } // namespace config

@@ -75,10 +75,10 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
     SECTION("Basic Firebird operations")
     {
         // Register the Firebird driver (safe registration)
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
+        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
         // Get a connection
-        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         REQUIRE(conn != nullptr);
 
         // Use RECREATE TABLE - no need to drop first, it handles both cases
@@ -163,7 +163,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
     SECTION("Firebird connection pool")
     {
         // Create a connection pool configuration with shorter timeouts for tests
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -182,7 +182,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
         auto poolPtr = std::make_shared<cpp_dbc::Firebird::FirebirdConnectionPool>(poolConfig);
 
         // Create a test table using RECREATE TABLE
-        auto conn = poolPtr->getConnection();
+        auto conn = poolPtr->getDBConnection();
         conn->executeUpdate(createTableQuery);
 
         conn->returnToPool();
@@ -201,7 +201,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn_thread = poolPtr->getConnection();
+                        auto conn_thread = poolPtr->getDBConnection();
 
                         // Insert a row
                         int id = i * 100 + j;
@@ -232,7 +232,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
         REQUIRE((successCount.load() == numThreads * opsPerThread || successCount.load() == (numThreads * opsPerThread - 1)));
 
         // Verify the data
-        conn = poolPtr->getConnection();
+        conn = poolPtr->getDBConnection();
 
         auto rs = conn->executeQuery("SELECT COUNT(*) as cnt FROM test_table");
         REQUIRE(rs->next());
@@ -248,7 +248,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
     SECTION("Firebird transaction management")
     {
         // Create a connection pool configuration with shorter timeouts for tests
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -271,7 +271,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
         cpp_dbc::TransactionManager manager(pool);
 
         // Create a test table using RECREATE TABLE
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
 
@@ -282,7 +282,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
             REQUIRE(!txId.empty());
 
             // Get the connection associated with the transaction
-            conn = manager.getTransactionConnection(txId);
+            conn = manager.getTransactionDBConnection(txId);
             REQUIRE(conn != nullptr);
 
             // Insert data within the transaction
@@ -297,7 +297,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
             manager.commitTransaction(txId);
 
             // Verify the data was committed
-            conn = pool.getConnection();
+            conn = pool.getDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("NAME") == "Transaction Test");
@@ -311,7 +311,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
             std::string txId = manager.beginTransaction();
 
             // Get the connection associated with the transaction
-            conn = manager.getTransactionConnection(txId);
+            conn = manager.getTransactionDBConnection(txId);
 
             // Insert data within the transaction
             auto pstmt = conn->prepareStatement(insertDataQuery);
@@ -325,7 +325,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
             manager.rollbackTransaction(txId);
 
             // Verify the data was not committed
-            conn = pool.getConnection();
+            conn = pool.getDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             rs->close();               // Close ResultSet before closing connection (required for Firebird)
@@ -336,7 +336,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
         pool.close();
 
         // Clean up - use a direct connection to drop the table
-        auto directConn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto directConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         directConn->executeUpdate(dropTableQuery);
         directConn->close();
     }
@@ -344,10 +344,10 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
     SECTION("Firebird metadata retrieval")
     {
         // Register the Firebird driver (safe registration)
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDriver>());
+        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
         // Get a connection
-        auto conn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
         // Use RECREATE TABLE - Firebird's equivalent of DROP TABLE IF EXISTS + CREATE TABLE
         conn->executeUpdate(
@@ -415,7 +415,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
     SECTION("Firebird stress test")
     {
         // Create a connection pool configuration with shorter timeouts for tests
-        cpp_dbc::config::ConnectionPoolConfig poolConfig;
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
@@ -435,7 +435,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
         auto &pool = *poolPtr;
 
         // Create a test table using RECREATE TABLE
-        auto conn = pool.getConnection();
+        auto conn = pool.getDBConnection();
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
 
@@ -455,7 +455,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn_thread = pool.getConnection();
+                        auto conn_thread = pool.getDBConnection();
 
                         // Insert a row
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -500,7 +500,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the total number of rows
-        conn = pool.getConnection();
+        conn = pool.getDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as cnt FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt(0) == numThreads * opsPerThread); // Use column index for Firebird
@@ -512,7 +512,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
         poolPtr->close();
 
         // Create a new direct connection to drop the table
-        auto directConn = cpp_dbc::DriverManager::getConnection(connStr, username, password);
+        auto directConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         directConn->executeUpdate(dropTableQuery);
         directConn->close();
     }
