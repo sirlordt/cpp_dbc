@@ -1,6 +1,27 @@
 # Changelog
 
-## 2025-12-26 10:08:08 PM PST [Current]
+## 2025-12-27 12:09:26 AM PST [Current]
+
+### Connection Pool Memory Safety Improvements
+* Enhanced connection pool with smart pointer-based pool lifetime tracking:
+  * **RelationalDBConnectionPool Changes:**
+    * Added `m_poolAlive` shared atomic flag (`std::shared_ptr<std::atomic<bool>>`) to track pool lifetime
+    * Pool sets `m_poolAlive` to `false` in `close()` method before cleanup
+    * Prevents pooled connections from attempting to return to a destroyed pool
+  * **RelationalDBPooledConnection Changes:**
+    * Changed `m_pool` from raw pointer to `std::weak_ptr<RelationalDBConnectionPool>`
+    * Added `m_poolAlive` shared atomic flag for safe pool lifetime checking
+    * Added `m_poolPtr` raw pointer for pool access (only used when `m_poolAlive` is true)
+    * Added `isPoolValid()` helper method to check if pool is still alive
+    * Updated constructor to accept weak_ptr, poolAlive flag, and raw pointer
+    * Updated `close()` method to check `isPoolValid()` before returning connection to pool
+* Benefits of connection pool smart pointer migration:
+  * Prevention of use-after-free when pool is destroyed while connections are in use
+  * Safe detection of pool destruction via shared atomic flag
+  * Graceful handling of connection return when pool is already closed
+  * Clear ownership semantics with weak_ptr for non-owning references
+
+## 2025-12-26 10:08:08 PM PST
 
 ### API Naming Convention Refactoring
 * Renamed classes and methods to use "DB" prefix for better clarity and consistency:

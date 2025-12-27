@@ -32,7 +32,22 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **API Naming Convention Refactoring** (2025-12-26):
+1. **Connection Pool Memory Safety Improvements** (2025-12-27):
+   - Enhanced connection pool with smart pointer-based pool lifetime tracking:
+     - **RelationalDBConnectionPool Changes:**
+       - Added `m_poolAlive` shared atomic flag (`std::shared_ptr<std::atomic<bool>>`) to track pool lifetime
+       - Pool sets `m_poolAlive` to `false` in `close()` method before cleanup
+       - Prevents pooled connections from attempting to return to a destroyed pool
+     - **RelationalDBPooledConnection Changes:**
+       - Changed `m_pool` from raw pointer to `std::weak_ptr<RelationalDBConnectionPool>`
+       - Added `m_poolAlive` shared atomic flag for safe pool lifetime checking
+       - Added `m_poolPtr` raw pointer for pool access (only used when `m_poolAlive` is true)
+       - Added `isPoolValid()` helper method to check if pool is still alive
+       - Updated constructor to accept weak_ptr, poolAlive flag, and raw pointer
+       - Updated `close()` method to check `isPoolValid()` before returning connection to pool
+   - Benefits: Prevention of use-after-free when pool is destroyed while connections are in use
+
+2. **API Naming Convention Refactoring** (2025-12-26):
    - Renamed classes and methods to use "DB" prefix for better clarity and consistency:
      - **Driver Classes:** `MySQLDriver` → `MySQLDBDriver`, `PostgreSQLDriver` → `PostgreSQLDBDriver`, `SQLiteDriver` → `SQLiteDBDriver`, `FirebirdDriver` → `FirebirdDBDriver`
      - **Connection Classes:** `Connection` → `RelationalDBConnection`

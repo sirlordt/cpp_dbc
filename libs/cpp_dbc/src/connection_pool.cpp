@@ -50,7 +50,8 @@ namespace cpp_dbc
                                                            bool testOnReturn,
                                                            const std::string &validationQuery,
                                                            TransactionIsolationLevel transactionIsolation)
-        : m_url(url),
+        : m_poolAlive(std::make_shared<std::atomic<bool>>(true)),
+          m_url(url),
           m_username(username),
           m_password(password),
           m_options(options),
@@ -84,7 +85,8 @@ namespace cpp_dbc
     }
 
     RelationalDBConnectionPool::RelationalDBConnectionPool(const config::DBConnectionPoolConfig &config)
-        : m_url(config.getUrl()),
+        : m_poolAlive(std::make_shared<std::atomic<bool>>(true)),
+          m_url(config.getUrl()),
           m_username(config.getUsername()),
           m_password(config.getPassword()),
           m_options(config.getOptions()),
@@ -150,7 +152,12 @@ namespace cpp_dbc
         // Set transaction isolation level on the new connection
         conn->setTransactionIsolation(m_transactionIsolation);
 
-        auto pooledConn = std::make_shared<RelationalDBPooledConnection>(conn, this);
+        // Create pooled connection with weak_ptr (may be empty if pool is stack-allocated),
+        // shared poolAlive flag, and raw pointer for pool access
+        std::weak_ptr<RelationalDBConnectionPool> weakPool;
+        // Note: weak_from_this() would throw if not managed by shared_ptr, so we don't use it
+
+        auto pooledConn = std::make_shared<RelationalDBPooledConnection>(conn, weakPool, m_poolAlive, this);
         return pooledConn;
     }
 
@@ -444,6 +451,12 @@ namespace cpp_dbc
             return; // Already closed
         }
 
+        // Mark pool as no longer alive - this prevents pooled connections from trying to return
+        if (m_poolAlive)
+        {
+            m_poolAlive->store(false);
+        }
+
         CP_DEBUG("RelationalDBConnectionPool::close - Waiting for active operations to complete at "
                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
@@ -532,11 +545,20 @@ namespace cpp_dbc
     }
 
     // RelationalDBPooledConnection implementation
-    RelationalDBPooledConnection::RelationalDBPooledConnection(std::shared_ptr<RelationalDBConnection> connection, RelationalDBConnectionPool *connectionPool)
-        : m_conn(connection), m_pool(connectionPool), m_active(false), m_closed(false)
+    RelationalDBPooledConnection::RelationalDBPooledConnection(
+        std::shared_ptr<RelationalDBConnection> connection,
+        std::weak_ptr<RelationalDBConnectionPool> connectionPool,
+        std::shared_ptr<std::atomic<bool>> poolAlive,
+        RelationalDBConnectionPool *poolPtr)
+        : m_conn(connection), m_pool(connectionPool), m_poolAlive(poolAlive), m_poolPtr(poolPtr), m_active(false), m_closed(false)
     {
         m_creationTime = std::chrono::steady_clock::now();
         m_lastUsedTime = m_creationTime;
+    }
+
+    bool RelationalDBPooledConnection::isPoolValid() const
+    {
+        return m_poolAlive && m_poolAlive->load();
     }
 
     RelationalDBPooledConnection::~RelationalDBPooledConnection()
@@ -572,9 +594,10 @@ namespace cpp_dbc
             // Return to pool instead of actually closing
             m_lastUsedTime = std::chrono::steady_clock::now();
 
-            if (m_pool)
+            // Check if pool is still alive using the shared atomic flag
+            if (isPoolValid() && m_poolPtr)
             {
-                m_pool->returnConnection(std::static_pointer_cast<RelationalDBPooledConnection>(shared_from_this()));
+                m_poolPtr->returnConnection(std::static_pointer_cast<RelationalDBPooledConnection>(shared_from_this()));
                 m_closed.store(false);
             }
         }

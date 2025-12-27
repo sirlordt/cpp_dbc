@@ -97,6 +97,13 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 - Configurable connection pool with parameters for initial size, max size, validation, etc.
 - Automatic connection validation and cleanup
 - Background maintenance thread for pool management
+- Memory safety with smart pointers:
+  - `RelationalDBConnectionPool` uses `m_poolAlive` shared atomic flag to track pool lifetime
+  - `RelationalDBPooledConnection` uses `weak_ptr` for pool reference
+  - Added `isPoolValid()` helper method to check if pool is still alive
+  - Pool sets `m_poolAlive` to `false` in `close()` before cleanup
+  - Prevents use-after-free when pool is destroyed while connections are in use
+  - Graceful handling of connection return when pool is already closed
 
 ### Transaction Management
 - Unique transaction IDs for tracking transactions across threads

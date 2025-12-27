@@ -184,6 +184,7 @@ cmake --build .
 12. Full BLOB support for all database drivers including Firebird
 13. JOIN operations support (INNER, LEFT, RIGHT, FULL OUTER) for all drivers
 14. JSON operations support for databases that support it
+15. Connection pool memory safety with smart pointers for pool lifetime tracking
 
 ### Code Quality Features
 

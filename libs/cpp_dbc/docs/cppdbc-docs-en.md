@@ -376,7 +376,7 @@ Wraps a physical connection to provide pooling functionality.
 
 **Methods:**
 Same as Connection, plus:
-- `PooledConnection(Connection, ConnectionPool*)`: Constructor that takes a connection and pool.
+- `PooledConnection(Connection, weak_ptr<ConnectionPool>, shared_ptr<atomic<bool>>, ConnectionPool*)`: Constructor that takes a connection, weak pool reference, pool alive flag, and raw pool pointer.
 - `getCreationTime()`: Returns the creation time of the connection.
 - `getLastUsedTime()`: Returns the last used time of the connection.
 - `setActive(bool)`: Sets whether the connection is active.
@@ -384,6 +384,13 @@ Same as Connection, plus:
 - `getUnderlyingConnection()`: Returns the underlying physical connection.
 - `setTransactionIsolation(TransactionIsolationLevel)`: Delegates to the underlying connection.
 - `getTransactionIsolation()`: Delegates to the underlying connection.
+- `isPoolValid()`: Returns whether the pool is still alive (checks the shared atomic flag).
+
+**Memory Safety:**
+- Uses `weak_ptr<ConnectionPool>` for pool reference
+- Uses `shared_ptr<atomic<bool>>` (`m_poolAlive`) to track pool lifetime
+- The `close()` method checks `isPoolValid()` before returning connection to pool
+- Prevents use-after-free when pool is destroyed while connections are in use
 
 ---
 

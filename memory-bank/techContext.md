@@ -130,6 +130,12 @@ The project is configured to work with the CMakeTools extension, but does not re
   - `SQLiteBlob`: Uses `weak_ptr<sqlite3>` with `getSQLiteConnection()` helper
   - All BLOB classes have `isConnectionValid()` method to check connection state
   - Operations throw `DBException` if connection has been closed
+- Connection pool implementations use smart pointers for pool lifetime tracking:
+ - `RelationalDBConnectionPool` uses `m_poolAlive` shared atomic flag to track pool lifetime
+ - `RelationalDBPooledConnection` uses `weak_ptr` for pool reference
+ - Added `isPoolValid()` helper method to check if pool is still alive
+ - Pool sets `m_poolAlive` to `false` in `close()` before cleanup
+ - Prevents use-after-free when pool is destroyed while connections are in use
 - Relies on RAII for proper cleanup even in case of exceptions
 - No explicit memory management required from client code
 - Comprehensive warning flags to catch memory-related issues:

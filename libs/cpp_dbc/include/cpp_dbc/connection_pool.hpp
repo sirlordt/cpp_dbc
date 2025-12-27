@@ -55,6 +55,9 @@ namespace cpp_dbc
     private:
         friend class RelationalDBPooledConnection;
 
+        // Shared flag to indicate if the pool is still alive (shared with all pooled connections)
+        std::shared_ptr<std::atomic<bool>> m_poolAlive;
+
         // Connection parameters
         std::string m_url;
         std::string m_username;
@@ -155,7 +158,9 @@ namespace cpp_dbc
     {
     private:
         std::shared_ptr<RelationalDBConnection> m_conn;
-        RelationalDBConnectionPool *m_pool;
+        std::weak_ptr<RelationalDBConnectionPool> m_pool;
+        std::shared_ptr<std::atomic<bool>> m_poolAlive; // Shared flag to check if pool is still alive
+        RelationalDBConnectionPool *m_poolPtr;          // Raw pointer for pool access (only used when m_poolAlive is true)
         std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
         std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
         std::atomic<bool> m_active;
@@ -163,8 +168,14 @@ namespace cpp_dbc
 
         friend class RelationalDBConnectionPool;
 
+        // Helper method to check if pool is still valid
+        bool isPoolValid() const;
+
     public:
-        RelationalDBPooledConnection(std::shared_ptr<RelationalDBConnection> conn, RelationalDBConnectionPool *pool);
+        RelationalDBPooledConnection(std::shared_ptr<RelationalDBConnection> conn,
+                                     std::weak_ptr<RelationalDBConnectionPool> pool,
+                                     std::shared_ptr<std::atomic<bool>> poolAlive,
+                                     RelationalDBConnectionPool *poolPtr);
         ~RelationalDBPooledConnection() override;
 
         // Overridden DBConnection interface methods

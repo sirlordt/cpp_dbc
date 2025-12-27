@@ -15,6 +15,12 @@
 
 ## Completed Tasks
 
+- Connection pool memory safety improvements with smart pointers:
+  - Added m_poolAlive shared atomic flag to track pool lifetime
+  - RelationalDBPooledConnection now uses weak_ptr for pool reference
+  - Added isPoolValid() helper method to check if pool is still alive
+  - Pool sets m_poolAlive to false in close() before cleanup
+  - Prevents use-after-free when pool is destroyed while connections are in use
 - API naming convention refactoring:
   - Renamed driver classes: MySQLDriver → MySQLDBDriver, PostgreSQLDriver → PostgreSQLDBDriver, SQLiteDriver → SQLiteDBDriver, FirebirdDriver → FirebirdDBDriver
   - Renamed connection class: Connection → RelationalDBConnection

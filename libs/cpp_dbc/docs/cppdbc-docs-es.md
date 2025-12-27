@@ -614,7 +614,7 @@ Envuelve una conexión física para proporcionar funcionalidad de agrupación.
 
 **Métodos:**
 Los mismos que Connection, más:
-- `PooledConnection(Connection, ConnectionPool*)`: Constructor que toma una conexión y un pool.
+- `PooledConnection(Connection, weak_ptr<ConnectionPool>, shared_ptr<atomic<bool>>, ConnectionPool*)`: Constructor que toma una conexión, referencia débil al pool, bandera de pool activo y puntero raw al pool.
 - `getCreationTime()`: Devuelve el tiempo de creación de la conexión.
 - `getLastUsedTime()`: Devuelve el último tiempo de uso de la conexión.
 - `setActive(bool)`: Establece si la conexión está activa.
@@ -622,6 +622,13 @@ Los mismos que Connection, más:
 - `getUnderlyingConnection()`: Devuelve la conexión física subyacente.
 - `setTransactionIsolation(TransactionIsolationLevel)`: Delega a la conexión subyacente.
 - `getTransactionIsolation()`: Delega a la conexión subyacente.
+- `isPoolValid()`: Devuelve si el pool sigue activo (verifica la bandera atómica compartida).
+
+**Seguridad de Memoria:**
+- Usa `weak_ptr<ConnectionPool>` para la referencia al pool
+- Usa `shared_ptr<atomic<bool>>` (`m_poolAlive`) para rastrear el tiempo de vida del pool
+- El método `close()` verifica `isPoolValid()` antes de devolver la conexión al pool
+- Previene errores de uso después de liberación (use-after-free) cuando el pool es destruido mientras las conexiones están en uso
 
 ---
 

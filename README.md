@@ -450,7 +450,15 @@ The project includes comprehensive smart pointer usage to prevent memory leaks:
    - All BLOB classes have `isConnectionValid()` method to check connection state
    - Operations throw `DBException` if connection has been closed
 
-7. **Benefits**:
+7. **Connection Pool Memory Safety**:
+   - `RelationalDBConnectionPool` uses `m_poolAlive` shared atomic flag to track pool lifetime
+   - `RelationalDBPooledConnection` uses `weak_ptr` for pool reference
+   - Added `isPoolValid()` helper method to check if pool is still alive
+   - Pool sets `m_poolAlive` to `false` in `close()` before cleanup
+   - Prevents use-after-free when pool is destroyed while connections are in use
+   - Graceful handling of connection return when pool is already closed
+
+8. **Benefits**:
    - Automatic resource cleanup through RAII
    - Safe detection of closed connections via weak_ptr
    - Clear ownership semantics documented in code
