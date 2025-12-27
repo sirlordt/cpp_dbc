@@ -31,8 +31,8 @@
 #include "test_main.hpp"
 
 #if USE_FIREBIRD
-#include <cpp_dbc/drivers/driver_firebird.hpp>
-#include <cpp_dbc/drivers/firebird_blob.hpp>
+#include <cpp_dbc/drivers/relational/driver_firebird.hpp>
+#include <cpp_dbc/drivers/relational/firebird_blob.hpp>
 #endif
 
 namespace firebird_test_helpers

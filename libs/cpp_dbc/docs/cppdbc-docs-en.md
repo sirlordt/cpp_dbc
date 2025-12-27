@@ -129,7 +129,7 @@ A manager class to register and retrieve driver instances.
 ---
 
 ## MySQL Implementation
-*Components defined in drivers/driver_mysql.hpp and drivers/driver_mysql.cpp*
+*Components defined in drivers/relational/driver_mysql.hpp and src/drivers/relational/driver_mysql.cpp*
 
 ### MySQLResultSet
 Implementation of ResultSet for MySQL.
@@ -165,7 +165,7 @@ Same as Driver, plus:
 ---
 
 ## PostgreSQL Implementation
-*Components defined in drivers/driver_postgresql.hpp and drivers/driver_postgresql.cpp*
+*Components defined in drivers/relational/driver_postgresql.hpp and src/drivers/relational/driver_postgresql.cpp*
 
 ### PostgreSQLResultSet
 Implementation of ResultSet for PostgreSQL.
@@ -202,7 +202,7 @@ Same as Driver, plus:
 ---
 
 ## SQLite Implementation
-*Components defined in drivers/driver_sqlite.hpp and drivers/driver_sqlite.cpp*
+*Components defined in drivers/relational/driver_sqlite.hpp and src/drivers/relational/driver_sqlite.cpp*
 
 ### SQLiteResultSet
 Implementation of ResultSet for SQLite.
@@ -248,7 +248,7 @@ Same as Driver, plus:
 ---
 
 ## Firebird Implementation
-*Components defined in drivers/driver_firebird.hpp and drivers/driver_firebird.cpp*
+*Components defined in drivers/relational/driver_firebird.hpp and src/drivers/relational/driver_firebird.cpp*
 
 ### FirebirdResultSet
 Implementation of ResultSet for Firebird SQL.
@@ -806,13 +806,16 @@ In your C++ code:
 ```cpp
 #include <cpp_dbc/cpp_dbc.hpp>
 #if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
+#include <cpp_dbc/drivers/relational/driver_mysql.hpp>
 #endif
 #if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
+#include <cpp_dbc/drivers/relational/driver_postgresql.hpp>
+#endif
+#if USE_SQLITE
+#include <cpp_dbc/drivers/relational/driver_sqlite.hpp>
 #endif
 #if USE_FIREBIRD
-#include <cpp_dbc/drivers/driver_firebird.hpp>
+#include <cpp_dbc/drivers/relational/driver_firebird.hpp>
 #endif
 
 // Use the library...

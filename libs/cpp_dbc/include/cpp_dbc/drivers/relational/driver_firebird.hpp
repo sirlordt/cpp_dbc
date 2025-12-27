@@ -24,7 +24,7 @@
 #ifndef CPP_DBC_DRIVER_FIREBIRD_HPP
 #define CPP_DBC_DRIVER_FIREBIRD_HPP
 
-#include "../cpp_dbc.hpp"
+#include "../../cpp_dbc.hpp"
 #include "firebird_blob.hpp"
 
 #ifndef USE_FIREBIRD

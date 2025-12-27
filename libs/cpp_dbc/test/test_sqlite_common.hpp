@@ -31,8 +31,8 @@
 #include "test_main.hpp"
 
 #if USE_SQLITE
-#include <cpp_dbc/drivers/driver_sqlite.hpp>
-#include <cpp_dbc/drivers/sqlite_blob.hpp>
+#include <cpp_dbc/drivers/relational/driver_sqlite.hpp>
+#include <cpp_dbc/drivers/relational/sqlite_blob.hpp>
 #endif
 
 namespace sqlite_test_helpers

@@ -54,11 +54,19 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - `include/cpp_dbc/config/database_config.hpp`: Database configuration classes
   - `include/cpp_dbc/config/yaml_config_loader.hpp` & `src/config/yaml_config_loader.cpp`: YAML configuration loader
 
-- **Database Drivers**:
-  - `include/cpp_dbc/drivers/driver_mysql.hpp` & `src/drivers/driver_mysql.cpp`: MySQL implementation
-  - `include/cpp_dbc/drivers/driver_postgresql.hpp` & `src/drivers/driver_postgresql.cpp`: PostgreSQL implementation
-  - `include/cpp_dbc/drivers/driver_sqlite.hpp` & `src/drivers/driver_sqlite.cpp`: SQLite implementation
-  - `include/cpp_dbc/drivers/driver_firebird.hpp` & `src/drivers/driver_firebird.cpp`: Firebird SQL implementation
+- **Database Drivers** (Relational):
+  - `include/cpp_dbc/drivers/relational/driver_mysql.hpp` & `src/drivers/relational/driver_mysql.cpp`: MySQL implementation
+  - `include/cpp_dbc/drivers/relational/driver_postgresql.hpp` & `src/drivers/relational/driver_postgresql.cpp`: PostgreSQL implementation
+  - `include/cpp_dbc/drivers/relational/driver_sqlite.hpp` & `src/drivers/relational/driver_sqlite.cpp`: SQLite implementation
+  - `include/cpp_dbc/drivers/relational/driver_firebird.hpp` & `src/drivers/relational/driver_firebird.cpp`: Firebird SQL implementation
+
+- **Core Interfaces**:
+  - `include/cpp_dbc/core/relational/`: Relational database interfaces
+  - `include/cpp_dbc/core/columnar/`: Columnar database interfaces (placeholder)
+  - `include/cpp_dbc/core/document/`: Document database interfaces (placeholder)
+  - `include/cpp_dbc/core/graph/`: Graph database interfaces (placeholder)
+  - `include/cpp_dbc/core/kv/`: Key-Value database interfaces (placeholder)
+  - `include/cpp_dbc/core/timeseries/`: Time-series database interfaces (placeholder)
 
 - **Examples**:
   - `examples/example.cpp`: Basic usage example
@@ -664,16 +672,16 @@ When using the library as an external dependency, include the headers as follows
 ```cpp
 #include <cpp_dbc/cpp_dbc.hpp>
 #if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
+#include <cpp_dbc/drivers/relational/driver_mysql.hpp>
 #endif
 #if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
+#include <cpp_dbc/drivers/relational/driver_postgresql.hpp>
 #endif
 #if USE_SQLITE
-#include <cpp_dbc/drivers/driver_sqlite.hpp>
+#include <cpp_dbc/drivers/relational/driver_sqlite.hpp>
 #endif
 #if USE_FIREBIRD
-#include <cpp_dbc/drivers/driver_firebird.hpp>
+#include <cpp_dbc/drivers/relational/driver_firebird.hpp>
 #endif
 ```
 
@@ -683,19 +691,19 @@ When using the library as an external dependency, include the headers as follows
 #include "cpp_dbc/cpp_dbc.hpp"
 
 #if USE_MYSQL
-#include "cpp_dbc/drivers/driver_mysql.hpp"
+#include "cpp_dbc/drivers/relational/driver_mysql.hpp"
 #endif
 
 #if USE_POSTGRESQL
-#include "cpp_dbc/drivers/driver_postgresql.hpp"
+#include "cpp_dbc/drivers/relational/driver_postgresql.hpp"
 #endif
 
 #if USE_SQLITE
-#include "cpp_dbc/drivers/driver_sqlite.hpp"
+#include "cpp_dbc/drivers/relational/driver_sqlite.hpp"
 #endif
 
 #if USE_FIREBIRD
-#include "cpp_dbc/drivers/driver_firebird.hpp"
+#include "cpp_dbc/drivers/relational/driver_firebird.hpp"
 #endif
 
 int main() {

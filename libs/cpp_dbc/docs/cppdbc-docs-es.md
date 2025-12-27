@@ -267,7 +267,7 @@ Para trabajar con BLOB en CPP_DBC, se pueden utilizar los siguientes patrones:
 ---
 
 ## Implementación MySQL
-*Componentes definidos en drivers/driver_mysql.hpp, drivers/driver_mysql.cpp y drivers/mysql_blob.hpp*
+*Componentes definidos en drivers/relational/driver_mysql.hpp, src/drivers/relational/driver_mysql.cpp y drivers/relational/mysql_blob.hpp*
 
 ### MySQLInputStream
 Implementación de InputStream para MySQL.
@@ -321,7 +321,7 @@ Los mismos que Driver, más:
 ---
 
 ## Implementación PostgreSQL
-*Componentes definidos en drivers/driver_postgresql.hpp, drivers/driver_postgresql.cpp y drivers/postgresql_blob.hpp*
+*Componentes definidos en drivers/relational/driver_postgresql.hpp, src/drivers/relational/driver_postgresql.cpp y drivers/relational/postgresql_blob.hpp*
 
 ### PostgreSQLInputStream
 Implementación de InputStream para PostgreSQL.
@@ -377,7 +377,7 @@ Los mismos que Driver, más:
 ---
 
 ## Implementación SQLite
-*Componentes definidos en drivers/driver_sqlite.hpp, drivers/driver_sqlite.cpp y drivers/sqlite_blob.hpp*
+*Componentes definidos en drivers/relational/driver_sqlite.hpp, src/drivers/relational/driver_sqlite.cpp y drivers/relational/sqlite_blob.hpp*
 
 ### SQLiteInputStream
 Implementación de InputStream para SQLite.
@@ -441,7 +441,7 @@ Los mismos que Driver, más:
 ---
 
 ## Implementación Firebird
-*Componentes definidos en drivers/driver_firebird.hpp, drivers/driver_firebird.cpp y drivers/firebird_blob.hpp*
+*Componentes definidos en drivers/relational/driver_firebird.hpp, src/drivers/relational/driver_firebird.cpp y drivers/relational/firebird_blob.hpp*
 
 ### FirebirdInputStream
 Implementación de InputStream para Firebird.
@@ -1037,13 +1037,13 @@ En tu código C++:
 ```cpp
 #include <cpp_dbc/cpp_dbc.hpp>
 #if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
+#include <cpp_dbc/drivers/relational/driver_mysql.hpp>
 #endif
 #if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
+#include <cpp_dbc/drivers/relational/driver_postgresql.hpp>
 #endif
 #if USE_FIREBIRD
-#include <cpp_dbc/drivers/driver_firebird.hpp>
+#include <cpp_dbc/drivers/relational/driver_firebird.hpp>
 #endif
 
 // Usar la biblioteca...

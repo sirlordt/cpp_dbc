@@ -18,8 +18,8 @@
 
 */
 
-#include "cpp_dbc/drivers/driver_sqlite.hpp"
-#include "cpp_dbc/drivers/sqlite_blob.hpp"
+#include "cpp_dbc/drivers/relational/driver_sqlite.hpp"
+#include "cpp_dbc/drivers/relational/sqlite_blob.hpp"
 #include <cstring>
 #include <sstream>
 #include <iostream>

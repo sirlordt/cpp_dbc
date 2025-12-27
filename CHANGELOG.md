@@ -1,6 +1,33 @@
 # Changelog
 
-## 2025-12-27 12:09:26 AM PST [Current]
+## 2025-12-27 01:22:58 AM PST [Current]
+
+### Directory Restructuring for Multi-Database Type Support
+* Reorganized project directory structure to support multiple database types:
+  * **Core Interfaces Moved:**
+    * Moved `relational/` → `core/relational/`
+    * Files: `relational_db_connection.hpp`, `relational_db_driver.hpp`, `relational_db_prepared_statement.hpp`, `relational_db_result_set.hpp`
+  * **Driver Files Moved:**
+    * Moved `drivers/` → `drivers/relational/`
+    * Files: `driver_firebird.hpp/cpp`, `driver_mysql.hpp/cpp`, `driver_postgresql.hpp/cpp`, `driver_sqlite.hpp/cpp`
+    * BLOB headers: `firebird_blob.hpp`, `mysql_blob.hpp`, `postgresql_blob.hpp`, `sqlite_blob.hpp`
+  * **New Placeholder Directories Created:**
+    * Core interfaces: `core/columnar/`, `core/document/`, `core/graph/`, `core/kv/`, `core/timeseries/`
+    * Driver implementations: `drivers/columnar/`, `drivers/document/`, `drivers/graph/`, `drivers/kv/`, `drivers/timeseries/`
+    * Source files: `src/drivers/columnar/`, `src/drivers/document/`, `src/drivers/graph/`, `src/drivers/kv/`, `src/drivers/timeseries/`
+  * **Updated Include Paths:**
+    * Updated all include paths in source files to reflect new directory structure
+    * Updated `cpp_dbc.hpp` main header with new paths
+    * Updated `connection_pool.hpp` with new paths
+    * Updated all example files, test files, and benchmark files
+    * Updated `CMakeLists.txt` with new source file paths
+* Benefits of directory restructuring:
+  * Clear separation between database types (relational, document, graph, etc.)
+  * Prepared for future database driver implementations
+  * Better code organization following industry standards
+  * Easier navigation and maintenance of codebase
+
+## 2025-12-27 12:09:26 AM PST
 
 ### Connection Pool Memory Safety Improvements
 * Enhanced connection pool with smart pointer-based pool lifetime tracking:

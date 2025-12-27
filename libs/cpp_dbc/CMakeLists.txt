@@ -106,7 +106,7 @@ target_compile_definitions(cpp_dbc PUBLIC
 # Conditionally add MySQL driver files and dependencies
 if(USE_MYSQL)
     target_sources(cpp_dbc PRIVATE
-        src/drivers/driver_mysql.cpp
+        src/drivers/relational/driver_mysql.cpp
     )
 
     # Find MySQL package
@@ -118,7 +118,7 @@ endif()
 # Conditionally add PostgreSQL driver files and dependencies
 if(USE_POSTGRESQL)
     target_sources(cpp_dbc PRIVATE
-        src/drivers/driver_postgresql.cpp
+        src/drivers/relational/driver_postgresql.cpp
     )
 
     # Find PostgreSQL package
@@ -130,7 +130,7 @@ endif()
 # Conditionally add SQLite driver files and dependencies
 if(USE_SQLITE)
     target_sources(cpp_dbc PRIVATE
-        src/drivers/driver_sqlite.cpp
+        src/drivers/relational/driver_sqlite.cpp
     )
 
     # Find SQLite package
@@ -142,7 +142,7 @@ endif()
 # Conditionally add Firebird driver files and dependencies
 if(USE_FIREBIRD)
     target_sources(cpp_dbc PRIVATE
-        src/drivers/driver_firebird.cpp
+        src/drivers/relational/driver_firebird.cpp
     )
 
     # Find Firebird package

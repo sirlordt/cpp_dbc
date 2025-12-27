@@ -39,9 +39,13 @@ CPP_DBC is a C++ Database Connectivity library inspired by Java's JDBC (Java Dat
 ## Project Structure
 
 - Core interfaces and classes in `cpp_dbc.hpp`
+- Core relational interfaces in `core/relational/` directory
 - BLOB support in `blob.hpp`
-- Database-specific implementations in the `drivers/` directory
-- Database-specific BLOB implementations in the `drivers/` directory
+- Database-specific implementations in the `drivers/relational/` directory
+- Database-specific BLOB implementations in the `drivers/relational/` directory
+- Placeholder directories for future database types:
+  - `core/columnar/`, `core/document/`, `core/graph/`, `core/kv/`, `core/timeseries/`
+  - `drivers/columnar/`, `drivers/document/`, `drivers/graph/`, `drivers/kv/`, `drivers/timeseries/`
 - Connection pooling implementation in `connection_pool.hpp` and `connection_pool.cpp`
 - Transaction management in `transaction_manager.hpp` and `transaction_manager.cpp`
 - Example code in the `examples/` directory

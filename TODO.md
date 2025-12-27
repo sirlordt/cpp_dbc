@@ -15,6 +15,12 @@
 
 ## Completed Tasks
 
+- Directory restructuring for multi-database type support:
+  - Moved core interfaces from `relational/` to `core/relational/`
+  - Moved driver files from `drivers/` to `drivers/relational/`
+  - Created placeholder directories for future database types: columnar, document, graph, kv, timeseries
+  - Updated all include paths in source files, tests, benchmarks, and examples
+  - Updated CMakeLists.txt with new source file paths
 - Connection pool memory safety improvements with smart pointers:
   - Added m_poolAlive shared atomic flag to track pool lifetime
   - RelationalDBPooledConnection now uses weak_ptr for pool reference

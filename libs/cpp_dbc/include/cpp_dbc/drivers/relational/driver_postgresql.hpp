@@ -21,7 +21,7 @@
 #ifndef CPP_DBC_DRIVER_POSTGRESQL_HPP
 #define CPP_DBC_DRIVER_POSTGRESQL_HPP
 
-#include "../cpp_dbc.hpp"
+#include "../../cpp_dbc.hpp"
 #include "postgresql_blob.hpp"
 
 #if USE_POSTGRESQL

@@ -21,16 +21,16 @@
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/blob.hpp>
 #if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
-#include <cpp_dbc/drivers/mysql_blob.hpp>
+#include <cpp_dbc/drivers/relational/driver_mysql.hpp>
+#include <cpp_dbc/drivers/relational/mysql_blob.hpp>
 #endif
 #if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
-#include <cpp_dbc/drivers/postgresql_blob.hpp>
+#include <cpp_dbc/drivers/relational/driver_postgresql.hpp>
+#include <cpp_dbc/drivers/relational/postgresql_blob.hpp>
 #endif
 #if USE_SQLITE
-#include <cpp_dbc/drivers/driver_sqlite.hpp>
-#include <cpp_dbc/drivers/sqlite_blob.hpp>
+#include <cpp_dbc/drivers/relational/driver_sqlite.hpp>
+#include <cpp_dbc/drivers/relational/sqlite_blob.hpp>
 #endif
 #include <iostream>
 #include <fstream>

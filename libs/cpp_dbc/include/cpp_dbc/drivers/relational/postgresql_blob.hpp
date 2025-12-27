@@ -21,8 +21,8 @@
 #ifndef CPP_DBC_POSTGRESQL_BLOB_HPP
 #define CPP_DBC_POSTGRESQL_BLOB_HPP
 
-#include "../cpp_dbc.hpp"
-#include "../blob.hpp"
+#include "../../cpp_dbc.hpp"
+#include "../../blob.hpp"
 
 #if USE_POSTGRESQL
 #include <libpq-fe.h>

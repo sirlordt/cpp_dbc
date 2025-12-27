@@ -31,8 +31,8 @@
 #include "test_main.hpp"
 
 #if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
-#include <cpp_dbc/drivers/mysql_blob.hpp>
+#include <cpp_dbc/drivers/relational/driver_mysql.hpp>
+#include <cpp_dbc/drivers/relational/mysql_blob.hpp>
 #endif
 
 namespace mysql_test_helpers

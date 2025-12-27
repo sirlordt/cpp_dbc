@@ -32,7 +32,28 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Connection Pool Memory Safety Improvements** (2025-12-27):
+1. **Directory Restructuring for Multi-Database Type Support** (2025-12-27):
+   - Reorganized project directory structure to support multiple database types:
+     - **Core Interfaces Moved:**
+       - Moved `relational/` → `core/relational/`
+       - Files: `relational_db_connection.hpp`, `relational_db_driver.hpp`, `relational_db_prepared_statement.hpp`, `relational_db_result_set.hpp`
+     - **Driver Files Moved:**
+       - Moved `drivers/` → `drivers/relational/`
+       - Files: `driver_firebird.hpp/cpp`, `driver_mysql.hpp/cpp`, `driver_postgresql.hpp/cpp`, `driver_sqlite.hpp/cpp`
+       - BLOB headers: `firebird_blob.hpp`, `mysql_blob.hpp`, `postgresql_blob.hpp`, `sqlite_blob.hpp`
+     - **New Placeholder Directories Created:**
+       - Core interfaces: `core/columnar/`, `core/document/`, `core/graph/`, `core/kv/`, `core/timeseries/`
+       - Driver implementations: `drivers/columnar/`, `drivers/document/`, `drivers/graph/`, `drivers/kv/`, `drivers/timeseries/`
+       - Source files: `src/drivers/columnar/`, `src/drivers/document/`, `src/drivers/graph/`, `src/drivers/kv/`, `src/drivers/timeseries/`
+     - **Updated Include Paths:**
+       - Updated all include paths in source files to reflect new directory structure
+       - Updated `cpp_dbc.hpp` main header with new paths
+       - Updated `connection_pool.hpp` with new paths
+       - Updated all example files, test files, and benchmark files
+       - Updated `CMakeLists.txt` with new source file paths
+   - Benefits: Clear separation between database types, prepared for future database driver implementations, better code organization
+
+2. **Connection Pool Memory Safety Improvements** (2025-12-27):
    - Enhanced connection pool with smart pointer-based pool lifetime tracking:
      - **RelationalDBConnectionPool Changes:**
        - Added `m_poolAlive` shared atomic flag (`std::shared_ptr<std::atomic<bool>>`) to track pool lifetime

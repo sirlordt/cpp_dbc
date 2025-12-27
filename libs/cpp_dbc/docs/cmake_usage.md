@@ -87,7 +87,7 @@ The CMake configuration file will automatically handle these dependencies.
 ```cpp
 #include <cpp_dbc/cpp_dbc.hpp>
 #if USE_FIREBIRD
-#include <cpp_dbc/drivers/driver_firebird.hpp>
+#include <cpp_dbc/drivers/relational/driver_firebird.hpp>
 #endif
 #include <iostream>
 

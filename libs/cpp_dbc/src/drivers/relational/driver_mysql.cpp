@@ -18,8 +18,8 @@
 
 */
 
-#include "cpp_dbc/drivers/driver_mysql.hpp"
-#include "cpp_dbc/drivers/mysql_blob.hpp"
+#include "cpp_dbc/drivers/relational/driver_mysql.hpp"
+#include "cpp_dbc/drivers/relational/mysql_blob.hpp"
 #include <cstring>
 #include <sstream>
 #include <iostream>

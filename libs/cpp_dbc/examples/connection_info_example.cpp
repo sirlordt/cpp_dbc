@@ -4,15 +4,15 @@
 #include <cpp_dbc/cpp_dbc.hpp>
 
 #if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
+#include <cpp_dbc/drivers/relational/driver_mysql.hpp>
 #endif
 
 #if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
+#include <cpp_dbc/drivers/relational/driver_postgresql.hpp>
 #endif
 
 #if USE_SQLITE
-#include <cpp_dbc/drivers/driver_sqlite.hpp>
+#include <cpp_dbc/drivers/relational/driver_sqlite.hpp>
 #endif
 
 using namespace cpp_dbc;

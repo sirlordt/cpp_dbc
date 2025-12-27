@@ -50,10 +50,10 @@
 #include "cpp_dbc/core/db_driver.hpp"
 
 // Relational database headers
-#include "cpp_dbc/relational/relational_db_result_set.hpp"
-#include "cpp_dbc/relational/relational_db_prepared_statement.hpp"
-#include "cpp_dbc/relational/relational_db_connection.hpp"
-#include "cpp_dbc/relational/relational_db_driver.hpp"
+#include "cpp_dbc/core/relational/relational_db_result_set.hpp"
+#include "cpp_dbc/core/relational/relational_db_prepared_statement.hpp"
+#include "cpp_dbc/core/relational/relational_db_connection.hpp"
+#include "cpp_dbc/core/relational/relational_db_driver.hpp"
 
 // Common utilities
 #include "cpp_dbc/backward.hpp"

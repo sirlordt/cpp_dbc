@@ -21,7 +21,7 @@
 
 */
 
-#include "cpp_dbc/drivers/driver_firebird.hpp"
+#include "cpp_dbc/drivers/relational/driver_firebird.hpp"
 
 #if USE_FIREBIRD
 

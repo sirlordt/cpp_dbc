@@ -22,10 +22,10 @@
 
 #include <cpp_dbc/cpp_dbc.hpp>
 #if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
+#include <cpp_dbc/drivers/relational/driver_mysql.hpp>
 #endif
 #if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
+#include <cpp_dbc/drivers/relational/driver_postgresql.hpp>
 #endif
 #include "cpp_dbc/connection_pool.hpp"
 #include "cpp_dbc/transaction_manager.hpp"

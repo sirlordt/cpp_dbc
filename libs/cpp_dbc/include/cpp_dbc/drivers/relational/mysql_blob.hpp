@@ -21,8 +21,8 @@
 #ifndef CPP_DBC_MYSQL_BLOB_HPP
 #define CPP_DBC_MYSQL_BLOB_HPP
 
-#include "../cpp_dbc.hpp"
-#include "../blob.hpp"
+#include "../../cpp_dbc.hpp"
+#include "../../blob.hpp"
 
 #if USE_MYSQL
 #include <mysql/mysql.h>

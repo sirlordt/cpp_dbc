@@ -11,13 +11,13 @@
 // For convenience
 using json = nlohmann::json;
 #if USE_MYSQL
-#include <cpp_dbc/drivers/driver_mysql.hpp>
+#include <cpp_dbc/drivers/relational/driver_mysql.hpp>
 #endif
 #if USE_POSTGRESQL
-#include <cpp_dbc/drivers/driver_postgresql.hpp>
+#include <cpp_dbc/drivers/relational/driver_postgresql.hpp>
 #endif
 #if USE_SQLITE
-#include <cpp_dbc/drivers/driver_sqlite.hpp>
+#include <cpp_dbc/drivers/relational/driver_sqlite.hpp>
 #endif
 
 // Include backward.hpp to check if libdw is enabled

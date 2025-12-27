@@ -13,23 +13,30 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
 
- @file driver_mysql.hpp
- @brief MySQL database driver implementation
+ @file driver_sqlite.hpp
+ @brief SQLite database driver implementation
 
 */
 
-#ifndef CPP_DBC_DRIVER_MYSQL_HPP
-#define CPP_DBC_DRIVER_MYSQL_HPP
+#ifndef CPP_DBC_DRIVER_SQLITE_HPP
+#define CPP_DBC_DRIVER_SQLITE_HPP
 
-#include "../cpp_dbc.hpp"
-#include "mysql_blob.hpp"
+#include "../../cpp_dbc.hpp"
+#include "sqlite_blob.hpp"
 
-#if USE_MYSQL
-#include <mysql/mysql.h>
+#ifndef USE_SQLITE
+#define USE_SQLITE 0 // Default to disabled
+#endif
+
+#if USE_SQLITE
+#include <sqlite3.h>
 #include <map>
 #include <memory>
 #include <set>
 #include <mutex>
+#include <vector>
+#include <string>
+#include <atomic>
 
 // Thread-safety macros for conditional mutex locking
 // Using recursive_mutex to allow the same thread to acquire the lock multiple times
@@ -46,98 +53,118 @@
 
 namespace cpp_dbc
 {
-    namespace MySQL
+    namespace SQLite
     {
         /**
-         * @brief Custom deleter for MYSQL_RES* to use with unique_ptr
+         * @brief Custom deleter for sqlite3_stmt* to use with unique_ptr
          *
-         * This deleter ensures that mysql_free_result() is called automatically
+         * This deleter ensures that sqlite3_finalize() is called automatically
          * when the unique_ptr goes out of scope, preventing memory leaks.
          */
-        struct MySQLResDeleter
+        struct SQLiteStmtDeleter
         {
-            void operator()(MYSQL_RES *res) const noexcept
+            void operator()(sqlite3_stmt *stmt) const noexcept
             {
-                if (res)
+                if (stmt)
                 {
-                    mysql_free_result(res);
+                    sqlite3_finalize(stmt);
                 }
             }
         };
 
         /**
-         * @brief Type alias for the smart pointer managing MYSQL_RES
+         * @brief Type alias for the smart pointer managing sqlite3_stmt
          *
          * Uses unique_ptr with custom deleter to ensure automatic cleanup
-         * of MySQL result sets, even in case of exceptions.
+         * of SQLite statements, even in case of exceptions.
          */
-        using MySQLResHandle = std::unique_ptr<MYSQL_RES, MySQLResDeleter>;
+        using SQLiteStmtHandle = std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter>;
 
-        class MySQLDBResultSet : public RelationalDBResultSet
+        /**
+         * @brief Custom deleter for sqlite3* to use with shared_ptr
+         *
+         * This deleter ensures that sqlite3_close_v2() is called automatically
+         * when the shared_ptr reference count reaches zero, preventing resource leaks.
+         */
+        struct SQLiteDbDeleter
+        {
+            void operator()(sqlite3 *db) const noexcept
+            {
+                if (db)
+                {
+                    // Finalize all remaining statements before closing
+                    sqlite3_stmt *stmt;
+                    while ((stmt = sqlite3_next_stmt(db, nullptr)) != nullptr)
+                    {
+                        sqlite3_finalize(stmt);
+                    }
+                    sqlite3_close_v2(db);
+                }
+            }
+        };
+
+        // Forward declaration
+        class SQLiteDBConnection;
+
+        /**
+         * @brief Type alias for the smart pointer managing sqlite3 connection (shared_ptr for weak_ptr support)
+         *
+         * Uses shared_ptr to allow PreparedStatements to use weak_ptr for safe connection detection.
+         * Note: The deleter is passed to the constructor, not as a template parameter.
+         */
+        using SQLiteDbHandle = std::shared_ptr<sqlite3>;
+
+        class SQLiteDBResultSet : public RelationalDBResultSet
         {
         private:
             /**
-             * @brief Smart pointer for MYSQL_RES - automatically calls mysql_free_result
-             *
-             * This is an OWNING pointer that manages the lifecycle of the MySQL result set.
-             * When this pointer is reset or destroyed, mysql_free_result() is called automatically.
-             */
-            MySQLResHandle m_result;
-
-            /**
-             * @brief Non-owning pointer to internal data within m_result
+             * @brief Raw pointer to sqlite3_stmt
              *
              * IMPORTANT: This is intentionally a raw pointer, NOT a smart pointer, because:
              *
-             * 1. MYSQL_ROW is a typedef for char** - it points to internal memory managed
-             *    by the MYSQL_RES structure, not separately allocated memory.
+             * 1. When m_ownStatement is true, we own the statement and must finalize it
+             *    BUT only if the connection is still valid (not closed).
              *
-             * 2. This memory is automatically managed by the MySQL library:
-             *    - It is invalidated when mysql_fetch_row() is called again
-             *    - It is freed automatically when mysql_free_result() is called on m_result
+             * 2. When m_ownStatement is false, the statement is owned by a PreparedStatement
+             *    and should not be finalized by the ResultSet.
              *
-             * 3. Using a smart pointer here would cause DOUBLE-FREE errors because:
-             *    - The smart pointer would try to free memory it doesn't own
-             *    - mysql_free_result() would also try to free the same memory
+             * 3. The connection's close() method uses sqlite3_next_stmt() to finalize ALL
+             *    statements, so if we try to finalize after connection close, we get double-free.
              *
              * 4. Protection is provided through:
-             *    - validateCurrentRow() method that checks both m_result and m_currentRow
-             *    - Explicit nullification in close() and next() when appropriate
-             *    - Exception throwing when accessing invalid state
+             *    - m_ownStatement flag that determines ownership
+             *    - m_connection weak_ptr to check if connection is still valid
+             *    - Only finalize if we own AND connection is still valid
              */
-            MYSQL_ROW m_currentRow{nullptr};
+            sqlite3_stmt *m_stmt{nullptr};
 
+            bool m_ownStatement;
             size_t m_rowPosition{0};
             size_t m_rowCount{0};
             size_t m_fieldCount{0};
             std::vector<std::string> m_columnNames;
             std::map<std::string, size_t> m_columnMap;
+            bool m_hasData{false};
+            bool m_closed{true};
+            std::weak_ptr<SQLiteDBConnection> m_connection; // Weak reference to the connection
 
 #if DB_DRIVER_THREAD_SAFE
             mutable std::recursive_mutex m_mutex; // Mutex for thread-safe ResultSet operations
 #endif
 
             /**
-             * @brief Validates that the result set is still valid (not closed)
-             * @throws DBException if m_result is nullptr
+             * @brief Helper method to get the active statement pointer
+             * @return The active statement pointer
              */
-            void validateResultState() const;
-
-            /**
-             * @brief Validates that there is a current row to read from
-             * @throws DBException if m_result is nullptr or m_currentRow is nullptr
-             */
-            void validateCurrentRow() const;
+            sqlite3_stmt *getStmt() const
+            {
+                return m_stmt;
+            }
 
         public:
-            explicit MySQLDBResultSet(MYSQL_RES *res);
-            ~MySQLDBResultSet() override;
+            SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement = true, std::shared_ptr<SQLiteDBConnection> conn = nullptr);
+            ~SQLiteDBResultSet() override;
 
-            // DBResultSet interface
-            void close() override;
-            bool isEmpty() override;
-
-            // RelationalDBResultSet interface
             bool next() override;
             bool isBeforeFirst() override;
             bool isAfterLast() override;
@@ -163,6 +190,8 @@ namespace cpp_dbc
 
             std::vector<std::string> getColumnNames() override;
             size_t getColumnCount() override;
+            void close() override;
+            bool isEmpty() override;
 
             // BLOB support methods
             std::shared_ptr<Blob> getBlob(size_t columnIndex) override;
@@ -175,36 +204,30 @@ namespace cpp_dbc
             std::vector<uint8_t> getBytes(const std::string &columnName) override;
         };
 
-        // Custom deleter for MYSQL_STMT* to use with unique_ptr
-        struct MySQLStmtDeleter
+        class SQLiteDBPreparedStatement : public RelationalDBPreparedStatement
         {
-            void operator()(MYSQL_STMT *stmt) const noexcept
-            {
-                if (stmt)
-                {
-                    mysql_stmt_close(stmt);
-                }
-            }
-        };
-
-        // Type alias for the smart pointer managing MYSQL_STMT
-        using MySQLStmtHandle = std::unique_ptr<MYSQL_STMT, MySQLStmtDeleter>;
-
-        class MySQLDBPreparedStatement : public RelationalDBPreparedStatement
-        {
-            friend class MySQLDBConnection;
+            friend class SQLiteDBConnection;
 
         private:
-            std::weak_ptr<MYSQL> m_mysql; // Safe weak reference to connection - detects when connection is closed
+            /**
+             * @brief Safe weak reference to connection - detects when connection is closed
+             *
+             * Uses weak_ptr to safely detect when the connection has been closed,
+             * preventing use-after-free errors.
+             */
+            std::weak_ptr<sqlite3> m_db;
+
             std::string m_sql;
-            MySQLStmtHandle m_stmt; // Smart pointer for MYSQL_STMT - automatically calls mysql_stmt_close
-            std::vector<MYSQL_BIND> m_binds;
-            std::vector<std::string> m_stringValues;                   // To keep string values alive
-            std::vector<std::string> m_parameterValues;                // To store parameter values for query reconstruction
-            std::vector<int> m_intValues;                              // To keep int values alive
-            std::vector<long> m_longValues;                            // To keep long values alive
-            std::vector<double> m_doubleValues;                        // To keep double values alive
-            std::vector<char> m_nullFlags;                             // To keep null flags alive (char instead of bool for pointer access)
+
+            /**
+             * @brief Smart pointer for sqlite3_stmt - automatically calls sqlite3_finalize
+             *
+             * This is an OWNING pointer that manages the lifecycle of the SQLite statement.
+             * When this pointer is reset or destroyed, sqlite3_finalize() is called automatically.
+             */
+            SQLiteStmtHandle m_stmt;
+
+            bool m_closed{true};
             std::vector<std::vector<uint8_t>> m_blobValues;            // To keep blob values alive
             std::vector<std::shared_ptr<Blob>> m_blobObjects;          // To keep blob objects alive
             std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
@@ -216,12 +239,12 @@ namespace cpp_dbc
             // Internal method called by connection when closing
             void notifyConnClosing();
 
-            // Helper method to get MYSQL* safely, throws if connection is closed
-            MYSQL *getMySQLConnection() const;
+            // Helper method to get sqlite3* safely, throws if connection is closed
+            sqlite3 *getSQLiteConnection() const;
 
         public:
-            MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql, const std::string &sql);
-            ~MySQLDBPreparedStatement() override;
+            SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, const std::string &sql);
+            ~SQLiteDBPreparedStatement() override;
 
             void setInt(int parameterIndex, int value) override;
             void setLong(int parameterIndex, long value) override;
@@ -245,36 +268,30 @@ namespace cpp_dbc
             void close() override;
         };
 
-        // Custom deleter for MYSQL* to use with shared_ptr
-        struct MySQLDeleter
+        class SQLiteDBConnection : public RelationalDBConnection, public std::enable_shared_from_this<SQLiteDBConnection>
         {
-            void operator()(MYSQL *mysql) const noexcept
-            {
-                if (mysql)
-                {
-                    mysql_close(mysql);
-                }
-            }
-        };
+            friend class SQLiteDBPreparedStatement;
+            friend class SQLiteDBResultSet;
 
-        // Type alias for the smart pointer managing MYSQL connection (shared_ptr for weak_ptr support)
-        // Note: The deleter is passed to the constructor, not as a template parameter
-        using MySQLHandle = std::shared_ptr<MYSQL>;
-
-        class MySQLDBConnection : public RelationalDBConnection
-        {
         private:
-            MySQLHandle m_mysql; // shared_ptr allows PreparedStatements to use weak_ptr
+            /**
+             * @brief Smart pointer for sqlite3 connection - shared_ptr allows weak_ptr support
+             *
+             * Uses shared_ptr to allow PreparedStatements to use weak_ptr for safe
+             * connection detection. The custom deleter ensures sqlite3_close_v2() is called.
+             */
+            SQLiteDbHandle m_db;
+
             bool m_closed{true};
             bool m_autoCommit{true};
             bool m_transactionActive{false};
             TransactionIsolationLevel m_isolationLevel;
 
-            // Cached URL string
+            // Cached URL
             std::string m_url;
 
-            // Registry of active prepared statements
-            std::set<std::shared_ptr<MySQLDBPreparedStatement>> m_activeStatements;
+            // Registry of active prepared statements (weak pointers to avoid preventing destruction)
+            std::set<std::weak_ptr<SQLiteDBPreparedStatement>, std::owner_less<std::weak_ptr<SQLiteDBPreparedStatement>>> m_activeStatements;
             std::mutex m_statementsMutex;
 
 #if DB_DRIVER_THREAD_SAFE
@@ -282,26 +299,19 @@ namespace cpp_dbc
 #endif
 
             // Internal methods for statement registry
-            void registerStatement(std::shared_ptr<MySQLDBPreparedStatement> stmt);
-            void unregisterStatement(std::shared_ptr<MySQLDBPreparedStatement> stmt);
+            void registerStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
+            void unregisterStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
 
         public:
-            MySQLDBConnection(const std::string &host,
-                              int port,
-                              const std::string &database,
-                              const std::string &user,
-                              const std::string &password,
-                              const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
-            ~MySQLDBConnection() override;
+            SQLiteDBConnection(const std::string &database,
+                               const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+            ~SQLiteDBConnection() override;
 
-            // DBConnection interface
             void close() override;
             bool isClosed() override;
             void returnToPool() override;
             bool isPooled() override;
-            std::string getURL() const override;
 
-            // RelationalDBConnection interface
             std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
             std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
             uint64_t executeUpdate(const std::string &sql) override;
@@ -318,13 +328,21 @@ namespace cpp_dbc
             // Transaction isolation level methods
             void setTransactionIsolation(TransactionIsolationLevel level) override;
             TransactionIsolationLevel getTransactionIsolation() override;
+
+            // Get the connection URL
+            std::string getURL() const override;
         };
 
-        class MySQLDBDriver : public RelationalDBDriver
+        class SQLiteDBDriver : public RelationalDBDriver
         {
+        private:
+            // Static members to ensure SQLite is configured only once
+            static std::atomic<bool> s_initialized;
+            static std::mutex s_initMutex;
+
         public:
-            MySQLDBDriver();
-            ~MySQLDBDriver() override;
+            SQLiteDBDriver();
+            ~SQLiteDBDriver() override;
 
             std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                       const std::string &user,
@@ -333,49 +351,46 @@ namespace cpp_dbc
 
             bool acceptsURL(const std::string &url) override;
 
-            // Parses a JDBC-like URL: cpp_dbc:mysql://host:port/database
-            bool parseURL(const std::string &url,
-                          std::string &host,
-                          int &port,
-                          std::string &database);
+            // Parses a URL: cpp_dbc:sqlite:/path/to/database.db or cpp_dbc:sqlite::memory:
+            bool parseURL(const std::string &url, std::string &database);
         };
 
-    } // namespace MySQL
+    } // namespace SQLite
 } // namespace cpp_dbc
 
-#else // USE_MYSQL
+#else // USE_SQLITE
 
-// Stub implementations when MySQL is disabled
+// Stub implementations when SQLite is disabled
 namespace cpp_dbc
 {
-    namespace MySQL
+    namespace SQLite
     {
         // Forward declarations only
-        class MySQLDBDriver : public RelationalDBDriver
+        class SQLiteDBDriver : public RelationalDBDriver
         {
         public:
-            MySQLDBDriver()
+            SQLiteDBDriver()
             {
-                throw DBException("MYSQL_DISABLED", "MySQL support is not enabled in this build");
+                throw DBException("C27AD46A860B", "SQLite support is not enabled in this build", system_utils::captureCallStack());
             }
-            ~MySQLDBDriver() override = default;
+            ~SQLiteDBDriver() override = default;
 
-            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
-                                                                      const std::string &,
-                                                                      const std::string &,
-                                                                      const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
+            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+                                                                      const std::string &user,
+                                                                      const std::string &password,
+                                                                      const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
             {
-                throw DBException("MYSQL_DISABLED", "MySQL support is not enabled in this build");
+                throw DBException("269CC140F035", "SQLite support is not enabled in this build", system_utils::captureCallStack());
             }
 
-            bool acceptsURL(const std::string &) override
+            bool acceptsURL(const std::string &url) override
             {
                 return false;
             }
         };
-    } // namespace MySQL
+    } // namespace SQLite
 } // namespace cpp_dbc
 
-#endif // USE_MYSQL
+#endif // USE_SQLITE
 
-#endif // CPP_DBC_DRIVER_MYSQL_HPP
+#endif // CPP_DBC_DRIVER_SQLITE_HPP

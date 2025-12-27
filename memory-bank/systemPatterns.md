@@ -4,11 +4,23 @@
 
 CPP_DBC follows a layered architecture with clear separation of concerns:
 
-1. **Interface Layer**: Abstract base classes defining the API (`Connection`, `PreparedStatement`, `ResultSet`, etc.) in the `include/cpp_dbc/` directory
-2. **Driver Layer**: Database-specific implementations of the interfaces in the `src/drivers/` directory
+1. **Core Interface Layer**: Abstract base classes defining the API in the `include/cpp_dbc/core/` directory
+   - `core/relational/`: Relational database interfaces (`RelationalDBConnection`, `RelationalDBPreparedStatement`, `RelationalDBResultSet`, etc.)
+   - `core/columnar/`: Columnar database interfaces (placeholder for future)
+   - `core/document/`: Document database interfaces (placeholder for future)
+   - `core/graph/`: Graph database interfaces (placeholder for future)
+   - `core/kv/`: Key-Value database interfaces (placeholder for future)
+   - `core/timeseries/`: Time-series database interfaces (placeholder for future)
+2. **Driver Layer**: Database-specific implementations in the `src/drivers/` and `include/cpp_dbc/drivers/` directories
+   - `drivers/relational/`: Relational database drivers (MySQL, PostgreSQL, SQLite, Firebird)
+   - `drivers/columnar/`: Columnar database drivers (placeholder for future)
+   - `drivers/document/`: Document database drivers (placeholder for future)
+   - `drivers/graph/`: Graph database drivers (placeholder for future)
+   - `drivers/kv/`: Key-Value database drivers (placeholder for future)
+   - `drivers/timeseries/`: Time-series database drivers (placeholder for future)
 3. **Connection Management Layer**: Connection pooling and transaction management in the `src/` directory
-4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/` directory and database-specific implementations in the `drivers/` directory
-5. **JSON Layer**: JSON data type support in database-specific implementations in the `drivers/` directory
+4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/` directory and database-specific implementations in the `drivers/relational/` directory
+5. **JSON Layer**: JSON data type support in database-specific implementations in the `drivers/relational/` directory
 6. **Configuration Layer**: Database configuration management in the `include/cpp_dbc/config/` and `src/config/` directories
 7. **Code Quality Layer**: Comprehensive warning flags and compile-time checks across all components
 8. **Client Application Layer**: User code that interacts with the library

@@ -18,7 +18,7 @@
 
 */
 
-#include "cpp_dbc/drivers/driver_postgresql.hpp"
+#include "cpp_dbc/drivers/relational/driver_postgresql.hpp"
 #include <cstring>
 #include <sstream>
 #include <iostream>

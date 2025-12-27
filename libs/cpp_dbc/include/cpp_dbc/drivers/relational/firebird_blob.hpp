@@ -21,8 +21,8 @@
 #ifndef CPP_DBC_FIREBIRD_BLOB_HPP
 #define CPP_DBC_FIREBIRD_BLOB_HPP
 
-#include "../cpp_dbc.hpp"
-#include "../blob.hpp"
+#include "../../cpp_dbc.hpp"
+#include "../../blob.hpp"
 
 #ifndef USE_FIREBIRD
 #define USE_FIREBIRD 0 // Default to disabled

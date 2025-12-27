@@ -6,10 +6,18 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 
 ### Header Files
 - `include/cpp_dbc/cpp_dbc.hpp` - Main library interfaces and classes
-- `include/cpp_dbc/drivers/driver_mysql.hpp` - MySQL-specific definitions
-- `include/cpp_dbc/drivers/driver_postgresql.hpp` - PostgreSQL-specific definitions
-- `include/cpp_dbc/drivers/driver_sqlite.hpp` - SQLite-specific definitions
-- `include/cpp_dbc/drivers/driver_firebird.hpp` - Firebird-specific definitions
+- `include/cpp_dbc/core/relational/relational_db_connection.hpp` - Relational database connection interface
+- `include/cpp_dbc/core/relational/relational_db_driver.hpp` - Relational database driver interface
+- `include/cpp_dbc/core/relational/relational_db_prepared_statement.hpp` - Relational prepared statement interface
+- `include/cpp_dbc/core/relational/relational_db_result_set.hpp` - Relational result set interface
+- `include/cpp_dbc/drivers/relational/driver_mysql.hpp` - MySQL-specific definitions
+- `include/cpp_dbc/drivers/relational/driver_postgresql.hpp` - PostgreSQL-specific definitions
+- `include/cpp_dbc/drivers/relational/driver_sqlite.hpp` - SQLite-specific definitions
+- `include/cpp_dbc/drivers/relational/driver_firebird.hpp` - Firebird-specific definitions
+- `include/cpp_dbc/drivers/relational/mysql_blob.hpp` - MySQL BLOB implementation
+- `include/cpp_dbc/drivers/relational/postgresql_blob.hpp` - PostgreSQL BLOB implementation
+- `include/cpp_dbc/drivers/relational/sqlite_blob.hpp` - SQLite BLOB implementation
+- `include/cpp_dbc/drivers/relational/firebird_blob.hpp` - Firebird BLOB implementation
 - `include/cpp_dbc/connection_pool.hpp` - Connection pool with thread-safety support
 - `include/cpp_dbc/transaction_manager.hpp` - Transaction manager for cross-thread transactions
 - `include/cpp_dbc/backward.hpp` - Stack trace capture and analysis
@@ -18,10 +26,10 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `include/cpp_dbc/config/yaml_config_loader.hpp` - YAML configuration loader
 
 ### Implementation Files
-- `src/drivers/driver_mysql.cpp` - MySQL implementation using libmysqlclient
-- `src/drivers/driver_postgresql.cpp` - PostgreSQL implementation using libpq
-- `src/drivers/driver_sqlite.cpp` - SQLite implementation using libsqlite3
-- `src/drivers/driver_firebird.cpp` - Firebird implementation using libfbclient
+- `src/drivers/relational/driver_mysql.cpp` - MySQL implementation using libmysqlclient
+- `src/drivers/relational/driver_postgresql.cpp` - PostgreSQL implementation using libpq
+- `src/drivers/relational/driver_sqlite.cpp` - SQLite implementation using libsqlite3
+- `src/drivers/relational/driver_firebird.cpp` - Firebird implementation using libfbclient
 - `src/connection_pool.cpp` - Connection pool implementation
 - `src/transaction_manager.cpp` - Transaction manager implementation
 - `src/driver_manager.cpp` - Driver manager implementation
@@ -242,14 +250,41 @@ cpp_dbc/
 │       │       ├── cpp_dbc.hpp
 │       │       ├── connection_pool.hpp
 │       │       ├── transaction_manager.hpp
+│       │       ├── blob.hpp
 │       │       ├── config/
 │       │       │   ├── database_config.hpp
 │       │       │   └── yaml_config_loader.hpp
+│       │       ├── core/
+│       │       │   ├── db_connection.hpp
+│       │       │   ├── db_driver.hpp
+│       │       │   ├── db_exception.hpp
+│       │       │   ├── db_result_set.hpp
+│       │       │   ├── db_types.hpp
+│       │       │   ├── relational/
+│       │       │   │   ├── relational_db_connection.hpp
+│       │       │   │   ├── relational_db_driver.hpp
+│       │       │   │   ├── relational_db_prepared_statement.hpp
+│       │       │   │   └── relational_db_result_set.hpp
+│       │       │   ├── columnar/
+│       │       │   ├── document/
+│       │       │   ├── graph/
+│       │       │   ├── kv/
+│       │       │   └── timeseries/
 │       │       └── drivers/
-│       │           ├── driver_mysql.hpp
-│       │           ├── driver_postgresql.hpp
-│       │           ├── driver_sqlite.hpp
-│       │           └── driver_firebird.hpp
+│       │           ├── relational/
+│       │           │   ├── driver_mysql.hpp
+│       │           │   ├── driver_postgresql.hpp
+│       │           │   ├── driver_sqlite.hpp
+│       │           │   ├── driver_firebird.hpp
+│       │           │   ├── mysql_blob.hpp
+│       │           │   ├── postgresql_blob.hpp
+│       │           │   ├── sqlite_blob.hpp
+│       │           │   └── firebird_blob.hpp
+│       │           ├── columnar/
+│       │           ├── document/
+│       │           ├── graph/
+│       │           ├── kv/
+│       │           └── timeseries/
 │       ├── src/
 │       │   ├── connection_pool.cpp
 │       │   ├── transaction_manager.cpp
@@ -257,10 +292,11 @@ cpp_dbc/
 │       │   ├── config/
 │       │   │   └── yaml_config_loader.cpp
 │       │   └── drivers/
-│       │       ├── driver_mysql.cpp
-│       │       ├── driver_postgresql.cpp
-│       │       ├── driver_sqlite.cpp
-│       │       └── driver_firebird.cpp
+│       │       └── relational/
+│       │           ├── driver_mysql.cpp
+│       │           ├── driver_postgresql.cpp
+│       │           ├── driver_sqlite.cpp
+│       │           └── driver_firebird.cpp
 │       ├── examples/
 │       │   ├── example.cpp
 │       │   ├── connection_pool_example.cpp

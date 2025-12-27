@@ -251,7 +251,6 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
 #endif
 
 #if USE_SQLITE
-#include <cpp_dbc/drivers/driver_sqlite.hpp>
 
 // Test case for real SQLite connection pool
 TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")

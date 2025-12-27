@@ -22,9 +22,9 @@
 #define CPP_DBC_CONNECTION_POOL_HPP
 
 #include "cpp_dbc.hpp"
-#include "cpp_dbc/relational/relational_db_connection.hpp"
-#include "cpp_dbc/relational/relational_db_prepared_statement.hpp"
-#include "cpp_dbc/relational/relational_db_result_set.hpp"
+#include "cpp_dbc/core/relational/relational_db_connection.hpp"
+#include "cpp_dbc/core/relational/relational_db_prepared_statement.hpp"
+#include "cpp_dbc/core/relational/relational_db_result_set.hpp"
 
 #include <queue>
 #include <vector>
