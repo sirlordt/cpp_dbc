@@ -6,7 +6,7 @@ This document explains how to use the cpp_dbc library in your CMake project.
 
 - CMake 3.15 or higher
 - C++ compiler with C++23 support
-- Dependencies based on enabled options (MySQL, PostgreSQL, SQLite, Firebird, yaml-cpp)
+- Dependencies based on enabled options (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, yaml-cpp)
 
 ## Basic Usage with find_package
 
@@ -78,6 +78,7 @@ The cpp_dbc library may have been compiled with different options. Depending on 
 - PostgreSQL: Requires libpq
 - SQLite: Requires libsqlite3
 - Firebird: Requires libfbclient
+- MongoDB: Requires libmongoc, libbson, libmongocxx, libbsoncxx
 - YAML: Requires libyaml-cpp
 
 The CMake configuration file will automatically handle these dependencies.
@@ -116,6 +117,56 @@ int main() {
         conn->close();
 #else
         std::cerr << "Firebird support not enabled" << std::endl;
+#endif
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+    
+    return 0;
+}
+```
+
+## MongoDB Connection Example
+
+```cpp
+#include <cpp_dbc/cpp_dbc.hpp>
+#if USE_MONGODB
+#include <cpp_dbc/drivers/document/driver_mongodb.hpp>
+#endif
+#include <iostream>
+
+int main() {
+    try {
+#if USE_MONGODB
+        // Register the MongoDB driver
+        cpp_dbc::DriverManager::registerDriver("mongodb",
+            std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+        
+        // Connect to a MongoDB database
+        auto conn = cpp_dbc::DriverManager::getDocumentDBConnection(
+            "mongodb://localhost:27017/mydatabase",
+            "username",
+            "password"
+        );
+        
+        // Get a collection
+        auto collection = conn->getCollection("users");
+        
+        // Insert a document
+        collection->insertOne(R"({"name": "John Doe", "age": 30})");
+        
+        // Find documents
+        auto cursor = collection->find(R"({"age": {"$gte": 25}})");
+        while (cursor->next()) {
+            auto data = cursor->getData();
+            std::cout << "Document: " << data->toJson() << std::endl;
+        }
+        
+        conn->close();
+#else
+        std::cerr << "MongoDB support not enabled" << std::endl;
 #endif
     }
     catch (const std::exception& e) {
