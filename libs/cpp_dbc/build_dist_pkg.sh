@@ -18,14 +18,17 @@ function show_usage {
     echo "                      Default: ubuntu:24.04"
     echo "                      Example: --distro=ubuntu:24.04+fedora:42+debian:12"
     echo "  --build=OPTIONS     Comma-separated build options."
-    echo "                      Supported values: yaml, mysql, postgres, sqlite, debug, dw, examples, thread-safe-off"
+    echo "                      Supported values: yaml, mysql, postgres, sqlite, firebird, mongodb,"
+    echo "                                        debug, release, dw, examples, thread-safe-off,"
+    echo "                                        debug-pool, debug-txmgr, debug-sqlite, debug-firebird,"
+    echo "                                        debug-mongodb, debug-all"
     echo "                      Default: yaml,mysql,postgres,sqlite,debug,dw"
     echo "  --version=VERSION   Specify a version string to use instead of timestamp."
     echo "                      Example: --version=1.0.1 or --version=2-0-1"
     echo "  --help              Display this help message and exit"
     echo ""
     echo "Examples:"
-    echo "  $0 --distro=ubuntu:24.04+debian:12 --build=yaml,mysql,postgres,sqlite,debug,dw,examples"
+    echo "  $0 --distro=ubuntu:24.04+debian:12 --build=yaml,mysql,postgres,sqlite,firebird,debug,dw,examples"
     echo "  $0 --distro=ubuntu:24.04+ubuntu:22.04 --build=mysql,postgres,sqlite,debug,dw,yaml --version=1.0.1"
     exit 1
 }
@@ -78,12 +81,16 @@ function get_distro_packages() {
             MYSQL_DEV_PKG="default-libmysqlclient-dev"
             POSTGRESQL_DEV_PKG="libpq-dev"
             SQLITE_DEV_PKG="libsqlite3-dev"
+            FIREBIRD_DEV_PKG="firebird-dev"
+            MONGODB_DEV_PKG="libmongoc-dev"
             LIBDW_DEV_PKG="libdw-dev"
             ;;
         fedora:42|fedora:43)
             MYSQL_DEV_PKG="mysql-devel"
             POSTGRESQL_DEV_PKG="libpq-devel"
             SQLITE_DEV_PKG="sqlite-devel"
+            FIREBIRD_DEV_PKG="firebird-devel"
+            MONGODB_DEV_PKG="mongo-c-driver-devel"
             LIBDW_DEV_PKG="elfutils-devel"
             ;;
         *)
@@ -128,6 +135,8 @@ CMAKE_YAML_OPTION="-DCPP_DBC_WITH_YAML=OFF"
 CMAKE_MYSQL_OPTION="-DCPP_DBC_WITH_MYSQL=OFF"
 CMAKE_POSTGRESQL_OPTION="-DCPP_DBC_WITH_POSTGRESQL=OFF"
 CMAKE_SQLITE_OPTION="-DCPP_DBC_WITH_SQLITE=OFF"
+CMAKE_FIREBIRD_OPTION="-DCPP_DBC_WITH_FIREBIRD=OFF"
+CMAKE_MONGODB_OPTION="-DCPP_DBC_WITH_MONGODB=OFF"
 CMAKE_DW_OPTION="-DBACKWARD_HAS_DW=OFF"
 
 DEB_DEPENDENCIES="libc6"
@@ -136,15 +145,25 @@ DEB_DEPENDENCIES="libc6"
 MYSQL_CONTROL_DEP=""
 POSTGRESQL_CONTROL_DEP=""
 SQLITE_CONTROL_DEP=""
+FIREBIRD_CONTROL_DEP=""
+MONGODB_CONTROL_DEP=""
 LIBDW_CONTROL_DEP=""
 USE_MYSQL="OFF"
 USE_POSTGRESQL="OFF"
 USE_SQLITE="OFF"
+USE_FIREBIRD="OFF"
+USE_MONGODB="OFF"
 USE_CPP_YAML="OFF"
 USE_DW="OFF"
 BUILD_TYPE="Debug"
 BUILD_EXAMPLES="OFF"
 DB_DRIVER_THREAD_SAFE="ON"
+DEBUG_CONNECTION_POOL="OFF"
+DEBUG_TRANSACTION_MANAGER="OFF"
+DEBUG_SQLITE="OFF"
+DEBUG_FIREBIRD="OFF"
+DEBUG_MONGODB="OFF"
+DEBUG_ALL="OFF"
 # Create a variable to store the build flags for the Debian package
 BUILD_FLAGS=""
 
@@ -178,9 +197,27 @@ for option in "${OPTIONS[@]}"; do
             USE_SQLITE="ON"
             BUILD_FLAGS="$BUILD_FLAGS --sqlite"
             ;;
+        firebird)
+            CMAKE_FIREBIRD_OPTION="-DCPP_DBC_WITH_FIREBIRD=ON"
+            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $FIREBIRD_DEV_PKG"
+            FIREBIRD_CONTROL_DEP=", $FIREBIRD_DEV_PKG"
+            USE_FIREBIRD="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --firebird"
+            ;;
+        mongodb)
+            CMAKE_MONGODB_OPTION="-DCPP_DBC_WITH_MONGODB=ON"
+            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $MONGODB_DEV_PKG"
+            MONGODB_CONTROL_DEP=", $MONGODB_DEV_PKG"
+            USE_MONGODB="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --mongodb"
+            ;;
         debug)
             BUILD_TYPE="Debug"
             BUILD_FLAGS="$BUILD_FLAGS --debug"
+            ;;
+        release)
+            BUILD_TYPE="Release"
+            BUILD_FLAGS="$BUILD_FLAGS --release"
             ;;
         dw)
             USE_DW="ON"
@@ -194,6 +231,35 @@ for option in "${OPTIONS[@]}"; do
         thread-safe-off)
             DB_DRIVER_THREAD_SAFE="OFF"
             BUILD_FLAGS="$BUILD_FLAGS --db-driver-thread-safe-off"
+            ;;
+        debug-pool)
+            DEBUG_CONNECTION_POOL="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-pool"
+            ;;
+        debug-txmgr)
+            DEBUG_TRANSACTION_MANAGER="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-txmgr"
+            ;;
+        debug-sqlite)
+            DEBUG_SQLITE="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-sqlite"
+            ;;
+        debug-firebird)
+            DEBUG_FIREBIRD="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-firebird"
+            ;;
+        debug-mongodb)
+            DEBUG_MONGODB="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-mongodb"
+            ;;
+        debug-all)
+            DEBUG_CONNECTION_POOL="ON"
+            DEBUG_TRANSACTION_MANAGER="ON"
+            DEBUG_SQLITE="ON"
+            DEBUG_FIREBIRD="ON"
+            DEBUG_MONGODB="ON"
+            DEBUG_ALL="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-all"
             ;;
         *)
             echo "Unknown build option: $option"
@@ -232,6 +298,8 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__MYSQL_DEV_PKG__/$MYSQL_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__POSTGRESQL_DEV_PKG__/$POSTGRESQL_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__SQLITE_DEV_PKG__/$SQLITE_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
+    sed -i "s/__FIREBIRD_DEV_PKG__/$FIREBIRD_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
+    sed -i "s/__MONGODB_DEV_PKG__/$MONGODB_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__LIBDW_DEV_PKG__/$LIBDW_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     
     # Replace placeholders in build script
@@ -239,6 +307,8 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__CMAKE_MYSQL_OPTION__/$CMAKE_MYSQL_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__CMAKE_POSTGRESQL_OPTION__/$CMAKE_POSTGRESQL_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__CMAKE_SQLITE_OPTION__/$CMAKE_SQLITE_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__CMAKE_FIREBIRD_OPTION__/$CMAKE_FIREBIRD_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__CMAKE_MONGODB_OPTION__/$CMAKE_MONGODB_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__CMAKE_DW_OPTION__/$CMAKE_DW_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__DEB_DEPENDENCIES__/$DEB_DEPENDENCIES/g" "$TEMP_BUILD_DIR/build_script.sh"
     
@@ -246,15 +316,25 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__MYSQL_CONTROL_DEP__/$MYSQL_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__POSTGRESQL_CONTROL_DEP__/$POSTGRESQL_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__SQLITE_CONTROL_DEP__/$SQLITE_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__FIREBIRD_CONTROL_DEP__/$FIREBIRD_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__MONGODB_CONTROL_DEP__/$MONGODB_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__LIBDW_CONTROL_DEP__/$LIBDW_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_MYSQL__/$USE_MYSQL/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_POSTGRESQL__/$USE_POSTGRESQL/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_SQLITE__/$USE_SQLITE/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__USE_FIREBIRD__/$USE_FIREBIRD/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__USE_MONGODB__/$USE_MONGODB/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_CPP_YAML__/$USE_CPP_YAML/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_DW__/$USE_DW/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__BUILD_TYPE__/$BUILD_TYPE/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__BUILD_EXAMPLES__/$BUILD_EXAMPLES/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__DB_DRIVER_THREAD_SAFE__/$DB_DRIVER_THREAD_SAFE/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__DEBUG_CONNECTION_POOL__/$DEBUG_CONNECTION_POOL/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__DEBUG_TRANSACTION_MANAGER__/$DEBUG_TRANSACTION_MANAGER/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__DEBUG_SQLITE__/$DEBUG_SQLITE/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__DEBUG_FIREBIRD__/$DEBUG_FIREBIRD/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__DEBUG_MONGODB__/$DEBUG_MONGODB/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__DEBUG_ALL__/$DEBUG_ALL/g" "$TEMP_BUILD_DIR/build_script.sh"
     # Pass the build flags to the build script
     sed -i "s/__BUILD_FLAGS__/$BUILD_FLAGS/g" "$TEMP_BUILD_DIR/build_script.sh"
     

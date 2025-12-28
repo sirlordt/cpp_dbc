@@ -16,15 +16,17 @@ These files contain critical information for understanding the project structure
 
 The current focus appears to be on maintaining and potentially extending the CPP_DBC library. The library provides a C++ database connectivity framework inspired by Java's JDBC, with support for:
 
-1. MySQL, PostgreSQL, SQLite, and Firebird SQL databases
-2. Connection pooling for all supported databases
-3. Transaction management with isolation levels
-4. Prepared statements and result sets
-5. BLOB (Binary Large Object) support for all database drivers
-6. YAML configuration for database connections and pools
-7. Comprehensive testing for JOIN operations and BLOB handling
-8. Debug output options for troubleshooting
-9. Benchmark system for database operations performance testing
+1. MySQL, PostgreSQL, SQLite, and Firebird SQL relational databases
+2. MongoDB document database
+3. Connection pooling for all supported relational databases
+4. Transaction management with isolation levels
+5. Prepared statements and result sets
+6. BLOB (Binary Large Object) support for all relational database drivers
+7. Document database operations (CRUD) for MongoDB
+8. YAML configuration for database connections and pools
+9. Comprehensive testing for JOIN operations and BLOB handling
+10. Debug output options for troubleshooting
+11. Benchmark system for database operations performance testing
 
 The code is organized in a modular fashion with clear separation between interfaces and implementations, following object-oriented design principles.
 
@@ -32,7 +34,42 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Directory Restructuring for Multi-Database Type Support** (2025-12-27):
+1. **MongoDB Document Database Driver Support** (2025-12-27):
+   - Added complete MongoDB document database driver implementation:
+     - **Core Document Database Interfaces:**
+       - `DocumentDBConnection`: Base interface for document database connections
+       - `DocumentDBDriver`: Base interface for document database drivers
+       - `DocumentDBCollection`: Interface for collection operations
+       - `DocumentDBCursor`: Interface for cursor-based result iteration
+       - `DocumentDBData`: Interface for document data representation
+     - **MongoDB Driver Implementation:**
+       - `MongoDBDriver`: Driver class for MongoDB connections
+       - `MongoDBConnection`: Connection management with proper resource cleanup
+       - `MongoDBCollection`: Collection operations (CRUD, indexing)
+       - `MongoDBCursor`: Cursor-based document iteration
+       - `MongoDBData`: BSON document wrapper
+     - **Features:**
+       - Document insertion (single and batch)
+       - Document querying with filters
+       - Document updates with operators ($set, $inc, etc.)
+       - Document deletion (single and multiple)
+       - Collection management (create, drop, list)
+       - Index management
+       - Cursor-based result iteration
+       - BSON data type support
+       - Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+     - **Build System Updates:**
+       - Added `USE_MONGODB` CMake option
+       - Added `--mongodb` and `--mongodb-off` build script options
+       - Added `--debug-mongodb` option for debug output
+       - Added `FindMongoDB.cmake` for MongoDB C++ driver detection
+       - Updated all distribution Dockerfiles with MongoDB support
+     - **Test Coverage:**
+       - Added `test_mongodb_common.cpp` with helper functions
+       - Added `test_mongodb_real.cpp` with comprehensive tests
+   - Connection URL format: `mongodb://host:port/database` or `mongodb://username:password@host:port/database?authSource=admin`
+
+2. **Directory Restructuring for Multi-Database Type Support** (2025-12-27):
    - Reorganized project directory structure to support multiple database types:
      - **Core Interfaces Moved:**
        - Moved `relational/` → `core/relational/`

@@ -17,7 +17,17 @@ If you're in a hurry and want to get started quickly, check out the [Quick Start
 
 ---
 
-This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, SQLite, and Firebird SQL databases. The library includes connection pooling, transaction management, support for different transaction isolation levels, and comprehensive BLOB handling with image file support.
+This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, SQLite, Firebird SQL, and MongoDB databases. The library includes connection pooling, transaction management, support for different transaction isolation levels, comprehensive BLOB handling with image file support, and document database operations for MongoDB.
+
+## GOALS
+1. Safe and Stable. Using the best C++ practices.
+2. The prority is the memory safe and security of the code. 
+3. Ergonomic, flexible and easy to use.
+4. Easy to learn. Especially with Java/Go Lang/NodeJS backgrounds
+5. Keep a "Consistent" DEX across diferent DB families, where is posible.
+
+## NO GOALS
+- Be the more fast and memory eficient DB access library from C++ eco system.
 
 ## Features
 
@@ -37,10 +47,14 @@ This project provides a C++ Database Connectivity library inspired by JDBC, with
 
 The library currently supports:
 
+### Relational Databases
 - **MySQL**: Full support for MySQL databases (enabled by default)
 - **PostgreSQL**: Full support for PostgreSQL databases (disabled by default)
 - **SQLite**: Full support for SQLite databases (disabled by default)
 - **Firebird SQL**: Full support for Firebird SQL databases (disabled by default)
+
+### Document Databases
+- **MongoDB**: Full support for MongoDB document databases (disabled by default)
 
 Each database driver can be enabled or disabled at compile time to reduce dependencies. By default, only MySQL support is enabled.
 
@@ -60,10 +74,13 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - `include/cpp_dbc/drivers/relational/driver_sqlite.hpp` & `src/drivers/relational/driver_sqlite.cpp`: SQLite implementation
   - `include/cpp_dbc/drivers/relational/driver_firebird.hpp` & `src/drivers/relational/driver_firebird.cpp`: Firebird SQL implementation
 
+- **Database Drivers** (Document):
+  - `include/cpp_dbc/drivers/document/driver_mongodb.hpp` & `src/drivers/document/driver_mongodb.cpp`: MongoDB implementation
+
 - **Core Interfaces**:
   - `include/cpp_dbc/core/relational/`: Relational database interfaces
   - `include/cpp_dbc/core/columnar/`: Columnar database interfaces (placeholder)
-  - `include/cpp_dbc/core/document/`: Document database interfaces (placeholder)
+  - `include/cpp_dbc/core/document/`: Document database interfaces (MongoDB connection, collection, cursor, data)
   - `include/cpp_dbc/core/graph/`: Graph database interfaces (placeholder)
   - `include/cpp_dbc/core/kv/`: Key-Value database interfaces (placeholder)
   - `include/cpp_dbc/core/timeseries/`: Time-series database interfaces (placeholder)
@@ -86,6 +103,7 @@ Depending on which database drivers you enable, you'll need:
 - For PostgreSQL support: PostgreSQL development libraries (`libpq-dev` on Debian/Ubuntu, `postgresql-devel` on RHEL/CentOS)
 - For SQLite support: SQLite development libraries (`libsqlite3-dev` on Debian/Ubuntu, `sqlite-devel` on RHEL/CentOS)
 - For Firebird support: Firebird development libraries (`firebird-dev libfbclient2` on Debian/Ubuntu, `firebird-devel libfbclient2` on RHEL/CentOS/Fedora)
+- For MongoDB support: MongoDB C++ driver libraries (`libmongoc-dev libbson-dev libmongocxx-dev libbsoncxx-dev` on Debian/Ubuntu, `mongo-c-driver-devel libbson-devel mongo-cxx-driver-devel` on RHEL/CentOS/Fedora)
 
 The build script will automatically check for and install these dependencies if needed.
 
@@ -97,12 +115,14 @@ The library supports conditional compilation of database drivers and features:
 - `USE_POSTGRESQL`: Enable/disable PostgreSQL support (OFF by default)
 - `USE_SQLITE`: Enable/disable SQLite support (OFF by default)
 - `USE_FIREBIRD`: Enable/disable Firebird SQL support (OFF by default)
+- `USE_MONGODB`: Enable/disable MongoDB support (OFF by default)
 - `USE_CPP_YAML`: Enable/disable YAML configuration support (OFF by default)
 - `CPP_DBC_BUILD_EXAMPLES`: Enable/disable building examples (OFF by default)
 - `CPP_DBC_BUILD_BENCHMARKS`: Enable/disable building benchmarks (OFF by default)
 - `DEBUG_CONNECTION_POOL`: Enable debug output for ConnectionPool (OFF by default)
 - `DEBUG_TRANSACTION_MANAGER`: Enable debug output for TransactionManager (OFF by default)
 - `DEBUG_SQLITE`: Enable debug output for SQLite driver (OFF by default)
+- `DEBUG_MONGODB`: Enable debug output for MongoDB driver (OFF by default)
 - `DEBUG_ALL`: Enable all debug output at once (OFF by default)
 - `BACKWARD_HAS_DW`: Enable libdw support for enhanced stack traces (ON by default)
 - `DB_DRIVER_THREAD_SAFE`: Enable thread-safe database driver operations (ON by default)
@@ -145,8 +165,11 @@ The `libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the c
 # Enable Firebird SQL support
 ./libs/cpp_dbc/build_cpp_dbc.sh --firebird
 
+# Enable MongoDB support
+./libs/cpp_dbc/build_cpp_dbc.sh --mongodb
+
 # Enable all database drivers
-./libs/cpp_dbc/build_cpp_dbc.sh --mysql --postgres --sqlite --firebird
+./libs/cpp_dbc/build_cpp_dbc.sh --mysql --postgres --sqlite --firebird --mongodb
 
 # Disable MySQL support
 ./libs/cpp_dbc/build_cpp_dbc.sh --mysql-off
@@ -168,6 +191,9 @@ The `libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the c
 
 # Enable debug output for SQLite driver
 ./libs/cpp_dbc/build_cpp_dbc.sh --debug-sqlite
+
+# Enable debug output for MongoDB driver
+./libs/cpp_dbc/build_cpp_dbc.sh --debug-mongodb
 
 # Enable all debug output
 ./libs/cpp_dbc/build_cpp_dbc.sh --debug-all
@@ -210,8 +236,11 @@ The `build.sh` script builds the main application, passing all parameters to the
 # Enable Firebird SQL support
 ./build.sh --firebird
 
+# Enable MongoDB support
+./build.sh --mongodb
+
 # Enable all database drivers
-./build.sh --mysql --postgres --sqlite --firebird
+./build.sh --mysql --postgres --sqlite --firebird --mongodb
 
 # Disable MySQL support
 ./build.sh --mysql-off
@@ -239,6 +268,9 @@ The `build.sh` script builds the main application, passing all parameters to the
 
 # Enable debug output for SQLite driver
 ./build.sh --debug-sqlite
+
+# Enable debug output for MongoDB driver
+./build.sh --debug-mongodb
 
 # Enable all debug output
 ./build.sh --debug-all
@@ -283,6 +315,7 @@ The project includes scripts for building and running tests:
 ./run_test.sh --debug-pool  # Enable debug output for ConnectionPool
 ./run_test.sh --debug-txmgr  # Enable debug output for TransactionManager
 ./run_test.sh --debug-sqlite  # Enable debug output for SQLite driver
+./run_test.sh --debug-mongodb  # Enable debug output for MongoDB driver
 ./run_test.sh --debug-all  # Enable all debug output
 ./run_test.sh --db-driver-thread-safe-off  # Disable thread-safe driver operations
 ```
@@ -635,6 +668,8 @@ target_compile_definitions(your_app PRIVATE
     $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
     $<$<BOOL:${USE_FIREBIRD}>:USE_FIREBIRD=1>
     $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
+    $<$<BOOL:${USE_MONGODB}>:USE_MONGODB=1>
+    $<$<NOT:$<BOOL:${USE_MONGODB}>>:USE_MONGODB=0>
 )
 ```
 
@@ -644,6 +679,7 @@ The library exports the following CMake variables that you can use to check whic
 - `CPP_DBC_USE_POSTGRESQL`: Set to ON if PostgreSQL support is enabled
 - `CPP_DBC_USE_SQLITE`: Set to ON if SQLite support is enabled
 - `CPP_DBC_USE_FIREBIRD`: Set to ON if Firebird SQL support is enabled
+- `CPP_DBC_USE_MONGODB`: Set to ON if MongoDB support is enabled
 
 You can use these variables to conditionally include code in your project:
 
@@ -662,6 +698,10 @@ endif()
 
 if(CPP_DBC_USE_FIREBIRD)
     # Firebird-specific code
+endif()
+
+if(CPP_DBC_USE_MONGODB)
+    # MongoDB-specific code
 endif()
 ```
 
@@ -682,6 +722,9 @@ When using the library as an external dependency, include the headers as follows
 #endif
 #if USE_FIREBIRD
 #include <cpp_dbc/drivers/relational/driver_firebird.hpp>
+#endif
+#if USE_MONGODB
+#include <cpp_dbc/drivers/document/driver_mongodb.hpp>
 #endif
 ```
 
@@ -706,6 +749,10 @@ When using the library as an external dependency, include the headers as follows
 #include "cpp_dbc/drivers/relational/driver_firebird.hpp"
 #endif
 
+#if USE_MONGODB
+#include "cpp_dbc/drivers/document/driver_mongodb.hpp"
+#endif
+
 int main() {
     // Register available drivers
 #if USE_MYSQL
@@ -728,7 +775,12 @@ int main() {
         std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 #endif
 
-    // Get a connection (will use whichever driver is available)
+#if USE_MONGODB
+    cpp_dbc::DriverManager::registerDriver("mongodb",
+        std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+#endif
+
+    // Get a relational database connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
         cpp_dbc::DriverManager::getDBConnection(
             "cpp_dbc:mysql://localhost:3306/testdb",
@@ -745,6 +797,33 @@ int main() {
     }
     
     conn->close();
+
+#if USE_MONGODB
+    // Get a MongoDB document database connection
+    auto mongoDriver = std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>();
+    auto mongoConn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
+        mongoDriver->connectDocument(
+            "mongodb://localhost:27017/testdb",
+            "username",
+            "password"
+        ));
+
+    // Use the MongoDB connection
+    auto collection = mongoConn->getCollection("users");
+    
+    // Insert a document
+    collection->insertOne(R"({"name": "John", "age": 30})");
+    
+    // Find documents
+    auto cursor = collection->find(R"({"age": {"$gte": 18}})");
+    while (cursor->next()) {
+        auto doc = cursor->current();
+        std::cout << doc->getString("name") << ": "
+                  << doc->getInt("age") << std::endl;
+    }
+    
+    mongoConn->close();
+#endif
     
     return 0;
 }
@@ -826,6 +905,19 @@ databases:
       application_name: cpp_dbc_prod
       client_encoding: UTF8
       sslmode: require
+
+  - name: dev_mongodb
+    type: mongodb
+    host: localhost
+    port: 27017
+    database: TestDB
+    username: root
+    password: password
+    options:
+      connect_timeout: 5000
+      server_selection_timeout: 5000
+      auth_source: admin
+      direct_connection: true
 
 # Connection pool configurations
 connection_pool:

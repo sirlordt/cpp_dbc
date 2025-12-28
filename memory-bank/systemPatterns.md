@@ -6,15 +6,15 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
 
 1. **Core Interface Layer**: Abstract base classes defining the API in the `include/cpp_dbc/core/` directory
    - `core/relational/`: Relational database interfaces (`RelationalDBConnection`, `RelationalDBPreparedStatement`, `RelationalDBResultSet`, etc.)
+   - `core/document/`: Document database interfaces (`DocumentDBConnection`, `DocumentDBDriver`, `DocumentDBCollection`, `DocumentDBCursor`, `DocumentDBData`)
    - `core/columnar/`: Columnar database interfaces (placeholder for future)
-   - `core/document/`: Document database interfaces (placeholder for future)
    - `core/graph/`: Graph database interfaces (placeholder for future)
    - `core/kv/`: Key-Value database interfaces (placeholder for future)
    - `core/timeseries/`: Time-series database interfaces (placeholder for future)
 2. **Driver Layer**: Database-specific implementations in the `src/drivers/` and `include/cpp_dbc/drivers/` directories
    - `drivers/relational/`: Relational database drivers (MySQL, PostgreSQL, SQLite, Firebird)
+   - `drivers/document/`: Document database drivers (MongoDB)
    - `drivers/columnar/`: Columnar database drivers (placeholder for future)
-   - `drivers/document/`: Document database drivers (placeholder for future)
    - `drivers/graph/`: Graph database drivers (placeholder for future)
    - `drivers/kv/`: Key-Value database drivers (placeholder for future)
    - `drivers/timeseries/`: Time-series database drivers (placeholder for future)
@@ -27,12 +27,19 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
 
 The architecture follows this flow:
 ```
-Client Application → DriverManager → Driver → Connection → PreparedStatement/ResultSet
-                   → ConnectionPool → PooledConnection → Connection
-                   → TransactionManager → Connection
+Relational Databases:
+Client Application → DriverManager → Driver → RelationalDBConnection → RelationalDBPreparedStatement/RelationalDBResultSet
+                   → RelationalDBConnectionPool → PooledRelationalDBConnection → RelationalDBConnection
+                   → TransactionManager → RelationalDBConnection
                    → Blob → InputStream/OutputStream
                    → JSON Operations → Database-specific JSON functions
-                   → DatabaseConfigManager → DatabaseConfig → Connection
+                   → DatabaseConfigManager → DatabaseConfig → RelationalDBConnection
+                   → Code Quality Checks → All Components
+
+Document Databases:
+Client Application → DriverManager → DocumentDBDriver → DocumentDBConnection → DocumentDBCollection
+                   → DocumentDBCollection → DocumentDBCursor → DocumentDBData
+                   → DatabaseConfigManager → DatabaseConfig → DocumentDBConnection
                    → Code Quality Checks → All Components
 ```
 
@@ -180,29 +187,40 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 
 ## Component Relationships
 
-### Driver Components
-- `Driver` → Creates → `Connection`
-- `Connection` → Creates → `PreparedStatement`
-- `Connection` → Creates → `ResultSet` (via direct query)
-- `PreparedStatement` → Creates → `ResultSet` (via prepared query)
-- `ResultSet` → Creates → `Blob` (via getBlob method)
-- `ResultSet` → Creates → `InputStream` (via getBinaryStream method)
+### Relational Driver Components
+- `RelationalDBDriver` → Creates → `RelationalDBConnection`
+- `RelationalDBConnection` → Creates → `RelationalDBPreparedStatement`
+- `RelationalDBConnection` → Creates → `RelationalDBResultSet` (via direct query)
+- `RelationalDBPreparedStatement` → Creates → `RelationalDBResultSet` (via prepared query)
+- `RelationalDBResultSet` → Creates → `Blob` (via getBlob method)
+- `RelationalDBResultSet` → Creates → `InputStream` (via getBinaryStream method)
+
+### Document Driver Components
+- `DocumentDBDriver` → Creates → `DocumentDBConnection`
+- `DocumentDBConnection` → Creates → `DocumentDBCollection`
+- `DocumentDBCollection` → Creates → `DocumentDBCursor` (via find operations)
+- `DocumentDBCursor` → Returns → `DocumentDBData` (via iteration)
+- `MongoDBDriver` → Implements → `DocumentDBDriver`
+- `MongoDBConnection` → Implements → `DocumentDBConnection`
+- `MongoDBCollection` → Implements → `DocumentDBCollection`
+- `MongoDBCursor` → Implements → `DocumentDBCursor`
+- `MongoDBData` → Implements → `DocumentDBData`
 
 ### Connection Pool Components
-- `ConnectionPool` → Manages → `PooledConnection`
-- `PooledConnection` → Wraps → `Connection`
-- `ConnectionPool` → Creates → Physical `Connection` (via Driver)
+- `RelationalDBConnectionPool` → Manages → `PooledRelationalDBConnection`
+- `PooledRelationalDBConnection` → Wraps → `RelationalDBConnection`
+- `RelationalDBConnectionPool` → Creates → Physical `RelationalDBConnection` (via Driver)
 
 ### Transaction Components
 - `TransactionManager` → Manages → `TransactionContext`
-- `TransactionContext` → Contains → `Connection`
-- `TransactionManager` → Uses → `ConnectionPool` (to obtain connections)
+- `TransactionContext` → Contains → `RelationalDBConnection`
+- `TransactionManager` → Uses → `RelationalDBConnectionPool` (to obtain connections)
 
 ### Configuration Components
 - `DatabaseConfigManager` → Manages → `DatabaseConfig`
 - `DatabaseConfig` → Contains → Connection parameters
 - `YamlConfigLoader` → Creates → `DatabaseConfigManager` (from YAML file)
-- `ConnectionPoolConfig` → Configures → `ConnectionPool`
+- `DBConnectionPoolConfig` → Configures → `RelationalDBConnectionPool`
 
 ### BLOB Components
 - `Blob` → Uses → `InputStream` (for reading)
@@ -255,6 +273,18 @@ Client Application → DriverManager → Driver → Connection → PreparedState
 4. Client retrieves JSON data from a `ResultSet` using `getString()`
 5. Client can use database-specific JSON functions and operators in SQL queries
 6. Client processes the JSON data using standard JSON parsing techniques
+
+### Document Database Operation Flow (MongoDB)
+1. Client obtains a `DocumentDBConnection` via `DriverManager` using MongoDB URL
+2. Client gets a `DocumentDBCollection` from the connection
+3. Client performs CRUD operations on the collection:
+   - **Insert**: `insertOne()` or `insertMany()` with BSON documents
+   - **Find**: `find()` with filter to get a `DocumentDBCursor`
+   - **Update**: `updateOne()` or `updateMany()` with filter and update operators
+   - **Delete**: `deleteOne()` or `deleteMany()` with filter
+4. For find operations, client iterates through `DocumentDBCursor` to get `DocumentDBData` objects
+5. Client extracts data from `DocumentDBData` using type-specific getters
+6. Resources are cleaned up (automatically with smart pointers)
 
 ### Configuration Flow
 1. Client loads configuration from a YAML file using `YamlConfigLoader`

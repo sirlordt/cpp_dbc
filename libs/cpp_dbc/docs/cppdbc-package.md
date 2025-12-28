@@ -1,6 +1,6 @@
 # CPPDBC - C++ Database Connectivity Library
 
-This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, SQLite, and Firebird databases using a unified interface. The library includes connection pooling, transaction management with different isolation levels, support for YAML configuration, and enhanced stack trace capabilities with libdw.
+This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, SQLite, Firebird, and MongoDB databases using a unified interface. The library includes connection pooling, transaction management with different isolation levels, support for YAML configuration, and enhanced stack trace capabilities with libdw.
 
 ## File Structure
 
@@ -10,10 +10,16 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `include/cpp_dbc/core/relational/relational_db_driver.hpp` - Relational database driver interface
 - `include/cpp_dbc/core/relational/relational_db_prepared_statement.hpp` - Relational prepared statement interface
 - `include/cpp_dbc/core/relational/relational_db_result_set.hpp` - Relational result set interface
+- `include/cpp_dbc/core/document/document_db_connection.hpp` - Document database connection interface
+- `include/cpp_dbc/core/document/document_db_driver.hpp` - Document database driver interface
+- `include/cpp_dbc/core/document/document_db_collection.hpp` - Document database collection interface
+- `include/cpp_dbc/core/document/document_db_cursor.hpp` - Document database cursor interface
+- `include/cpp_dbc/core/document/document_db_data.hpp` - Document database data interface
 - `include/cpp_dbc/drivers/relational/driver_mysql.hpp` - MySQL-specific definitions
 - `include/cpp_dbc/drivers/relational/driver_postgresql.hpp` - PostgreSQL-specific definitions
 - `include/cpp_dbc/drivers/relational/driver_sqlite.hpp` - SQLite-specific definitions
 - `include/cpp_dbc/drivers/relational/driver_firebird.hpp` - Firebird-specific definitions
+- `include/cpp_dbc/drivers/document/driver_mongodb.hpp` - MongoDB-specific definitions
 - `include/cpp_dbc/drivers/relational/mysql_blob.hpp` - MySQL BLOB implementation
 - `include/cpp_dbc/drivers/relational/postgresql_blob.hpp` - PostgreSQL BLOB implementation
 - `include/cpp_dbc/drivers/relational/sqlite_blob.hpp` - SQLite BLOB implementation
@@ -30,6 +36,7 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `src/drivers/relational/driver_postgresql.cpp` - PostgreSQL implementation using libpq
 - `src/drivers/relational/driver_sqlite.cpp` - SQLite implementation using libsqlite3
 - `src/drivers/relational/driver_firebird.cpp` - Firebird implementation using libfbclient
+- `src/drivers/document/driver_mongodb.cpp` - MongoDB implementation using libmongocxx
 - `src/connection_pool.cpp` - Connection pool implementation
 - `src/transaction_manager.cpp` - Transaction manager implementation
 - `src/driver_manager.cpp` - Driver manager implementation
@@ -53,10 +60,11 @@ To build the library and examples, you'll need:
 3. PostgreSQL development libraries (libpq-dev) (optional)
 4. SQLite development libraries (libsqlite3-dev) (optional)
 5. Firebird development libraries (libfbclient2, firebird-dev) (optional)
-6. yaml-cpp development libraries (optional)
-7. libdw development libraries (part of elfutils, optional)
-8. CMake 3.15 or later
-9. Conan for dependency management
+6. MongoDB C++ Driver (libmongoc-dev, libbson-dev, libmongocxx-dev, libbsoncxx-dev) (optional)
+7. yaml-cpp development libraries (optional)
+8. libdw development libraries (part of elfutils, optional)
+9. CMake 3.15 or later
+10. Conan for dependency management
 
 ### Using the Build Scripts
 
@@ -76,8 +84,11 @@ To build the library and examples, you'll need:
 # Build with Firebird support
 ./build.sh --firebird
 
+# Build with MongoDB support
+./build.sh --mongodb
+
 # Build with all database drivers
-./build.sh --mysql --postgres --sqlite --firebird
+./build.sh --mysql --postgres --sqlite --firebird --mongodb
 
 # Build with YAML configuration support
 ./build.sh --yaml
@@ -106,8 +117,11 @@ To build the library and examples, you'll need:
 # Build Docker image with Firebird support
 ./build.dist.sh --firebird
 
+# Build Docker image with MongoDB support
+./build.dist.sh --mongodb
+
 # Build Docker image with all database drivers
-./build.dist.sh --mysql --postgres --sqlite --firebird --yaml
+./build.dist.sh --mysql --postgres --sqlite --firebird --mongodb --yaml
 
 # Build Docker image without libdw support
 ./build.dist.sh --dw-off
@@ -178,7 +192,7 @@ cmake --build .
 
 ## Main Features
 
-1. Unified interface for MySQL, PostgreSQL, SQLite, and Firebird
+1. Unified interface for MySQL, PostgreSQL, SQLite, Firebird, and MongoDB
 2. Connection, query, and result set management
 3. Prepared statement support
 4. Thread-safe connection pool
@@ -189,10 +203,11 @@ cmake --build .
 9. Docker container generation with automatic dependency detection
 10. Comprehensive warning flags and compile-time checks for code quality
 11. Smart pointer-based resource management with custom deleters for all database drivers
-12. Full BLOB support for all database drivers including Firebird
-13. JOIN operations support (INNER, LEFT, RIGHT, FULL OUTER) for all drivers
+12. Full BLOB support for all relational database drivers including Firebird
+13. JOIN operations support (INNER, LEFT, RIGHT, FULL OUTER) for all relational drivers
 14. JSON operations support for databases that support it
 15. Connection pool memory safety with smart pointers for pool lifetime tracking
+16. Document database support with MongoDB driver (CRUD operations, collection management, cursor-based iteration)
 
 ### Code Quality Features
 
@@ -233,6 +248,7 @@ Code quality improvements include:
 - libpq for PostgreSQL connections (optional)
 - libsqlite3 for SQLite connections (optional)
 - libfbclient for Firebird connections (optional)
+- libmongocxx/libbsoncxx for MongoDB connections (optional)
 - yaml-cpp for YAML configuration support (optional)
 - libdw (part of elfutils) for enhanced stack traces (optional)
 - C++23 standard library for threads, mutexes, and condition variables
@@ -267,6 +283,11 @@ cpp_dbc/
 │       │       │   │   └── relational_db_result_set.hpp
 │       │       │   ├── columnar/
 │       │       │   ├── document/
+│       │       │   │   ├── document_db_collection.hpp
+│       │       │   │   ├── document_db_connection.hpp
+│       │       │   │   ├── document_db_cursor.hpp
+│       │       │   │   ├── document_db_data.hpp
+│       │       │   │   └── document_db_driver.hpp
 │       │       │   ├── graph/
 │       │       │   ├── kv/
 │       │       │   └── timeseries/
@@ -282,6 +303,7 @@ cpp_dbc/
 │       │           │   └── firebird_blob.hpp
 │       │           ├── columnar/
 │       │           ├── document/
+│       │           │   └── driver_mongodb.hpp
 │       │           ├── graph/
 │       │           ├── kv/
 │       │           └── timeseries/
@@ -292,11 +314,13 @@ cpp_dbc/
 │       │   ├── config/
 │       │   │   └── yaml_config_loader.cpp
 │       │   └── drivers/
-│       │       └── relational/
-│       │           ├── driver_mysql.cpp
-│       │           ├── driver_postgresql.cpp
-│       │           ├── driver_sqlite.cpp
-│       │           └── driver_firebird.cpp
+│       │       ├── relational/
+│       │       │   ├── driver_mysql.cpp
+│       │       │   ├── driver_postgresql.cpp
+│       │       │   ├── driver_sqlite.cpp
+│       │       │   └── driver_firebird.cpp
+│       │       └── document/
+│       │           └── driver_mongodb.cpp
 │       ├── examples/
 │       │   ├── example.cpp
 │       │   ├── connection_pool_example.cpp

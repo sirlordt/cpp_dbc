@@ -1,6 +1,6 @@
- Documentación de la Biblioteca CPP_DBC
+# Documentación de la Biblioteca CPP_DBC
 
-Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL, SQLite y Firebird.
+Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL, SQLite, Firebird y MongoDB.
 
 ## Tabla de Contenidos
 - [Componentes Principales](#componentes-principales)
@@ -9,6 +9,7 @@ Este documento proporciona una guía completa de la biblioteca CPP_DBC, una bibl
 - [Implementación PostgreSQL](#implementación-postgresql)
 - [Implementación SQLite](#implementación-sqlite)
 - [Implementación Firebird](#implementación-firebird)
+- [Implementación MongoDB](#implementación-mongodb)
 - [Pool de Conexiones](#pool-de-conexiones)
 - [Gestor de Transacciones](#gestor-de-transacciones)
 - [Sistema de Configuración](#sistema-de-configuración)
@@ -563,6 +564,156 @@ conn->close();
 
 ---
 
+## Implementación MongoDB
+*Componentes definidos en drivers/document/driver_mongodb.hpp y src/drivers/document/driver_mongodb.cpp*
+
+MongoDB es una base de datos de documentos que almacena datos en documentos flexibles similares a JSON. La biblioteca CPP_DBC proporciona una implementación completa del controlador MongoDB con soporte para operaciones CRUD, gestión de colecciones e iteración basada en cursores.
+
+### DocumentDBData
+Una clase base abstracta que representa datos de documentos.
+
+**Métodos:**
+- `toJson()`: Devuelve el documento como una cadena JSON.
+- `getString(string)`: Obtiene un valor de cadena por clave.
+- `getInt(string)`: Obtiene un valor entero por clave.
+- `getDouble(string)`: Obtiene un valor double por clave.
+- `getBool(string)`: Obtiene un valor booleano por clave.
+- `hasField(string)`: Devuelve true si el documento tiene el campo especificado.
+
+### DocumentDBCursor
+Una clase base abstracta que representa un cursor para iterar sobre documentos.
+
+**Métodos:**
+- `next()`: Avanza al siguiente documento, devuelve true si tiene éxito.
+- `getData()`: Devuelve los datos del documento actual.
+- `hasNext()`: Devuelve true si hay más documentos.
+
+### DocumentDBCollection
+Una clase base abstracta que representa una colección de documentos.
+
+**Métodos:**
+- `insertOne(string)`: Inserta un solo documento (cadena JSON).
+- `insertMany(vector<string>)`: Inserta múltiples documentos.
+- `find(string)`: Encuentra documentos que coinciden con el filtro, devuelve un cursor.
+- `findOne(string)`: Encuentra un solo documento que coincide con el filtro.
+- `updateOne(string, string)`: Actualiza un solo documento que coincide con el filtro.
+- `updateMany(string, string)`: Actualiza múltiples documentos que coinciden con el filtro.
+- `deleteOne(string)`: Elimina un solo documento que coincide con el filtro.
+- `deleteMany(string)`: Elimina múltiples documentos que coinciden con el filtro.
+- `countDocuments(string)`: Cuenta documentos que coinciden con el filtro.
+- `createIndex(string)`: Crea un índice en la colección.
+- `dropIndex(string)`: Elimina un índice de la colección.
+
+### DocumentDBConnection
+Una clase base abstracta que representa una conexión a una base de datos de documentos.
+
+**Métodos:**
+- `close()`: Cierra la conexión.
+- `isClosed()`: Devuelve true si la conexión está cerrada.
+- `getCollection(string)`: Obtiene una colección por nombre.
+- `createCollection(string)`: Crea una nueva colección.
+- `dropCollection(string)`: Elimina una colección.
+- `listCollections()`: Lista todas las colecciones en la base de datos.
+
+### DocumentDBDriver
+Una clase base abstracta que representa un controlador de base de datos de documentos.
+
+**Métodos:**
+- `connectDocument(string, string, string, map<string, string>)`: Establece una conexión a la base de datos de documentos.
+- `acceptsURL(string)`: Devuelve true si el controlador puede conectarse a la URL dada.
+
+### MongoDBData
+Implementación de DocumentDBData para MongoDB.
+
+**Métodos:**
+Los mismos que DocumentDBData, más:
+- `MongoDBData(bsoncxx::document::value)`: Constructor que toma un documento BSON.
+- `getDocument()`: Devuelve el documento BSON subyacente.
+
+### MongoDBCursor
+Implementación de DocumentDBCursor para MongoDB.
+
+**Métodos:**
+Los mismos que DocumentDBCursor, más:
+- `MongoDBCursor(mongocxx::cursor)`: Constructor que toma un cursor MongoDB.
+
+### MongoDBCollection
+Implementación de DocumentDBCollection para MongoDB.
+
+**Métodos:**
+Los mismos que DocumentDBCollection, más:
+- `MongoDBCollection(mongocxx::collection)`: Constructor que toma una colección MongoDB.
+
+### MongoDBConnection
+Implementación de DocumentDBConnection para MongoDB.
+
+**Métodos:**
+Los mismos que DocumentDBConnection, más:
+- `MongoDBConnection(string, int, string, string, string, map<string, string>)`: Constructor que toma host, puerto, base de datos, usuario, contraseña y opciones de conexión opcionales.
+- `getURL()`: Devuelve la URL de conexión.
+
+**Uso de Punteros Inteligentes:**
+- Usa punteros inteligentes para una gestión adecuada de recursos
+- Operaciones thread-safe (compiladas condicionalmente con `DB_DRIVER_THREAD_SAFE`)
+
+### MongoDBDriver
+Implementación de DocumentDBDriver para MongoDB.
+
+**Métodos:**
+Los mismos que DocumentDBDriver, más:
+- `MongoDBDriver()`: Constructor.
+- `parseURL(string, string&, int&, string&)`: Analiza una URL de conexión.
+- `acceptsURL(string)`: Devuelve true solo para URLs `mongodb://`.
+
+**Formato de URL de Conexión:**
+```
+mongodb://host:puerto/base_de_datos
+mongodb://usuario:contraseña@host:puerto/base_de_datos?authSource=admin
+```
+
+**Ejemplo de Uso:**
+```cpp
+#include <cpp_dbc/cpp_dbc.hpp>
+#if USE_MONGODB
+#include <cpp_dbc/drivers/document/driver_mongodb.hpp>
+
+// Registrar el controlador MongoDB
+cpp_dbc::DriverManager::registerDriver("mongodb",
+    std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+
+// Conectar a MongoDB
+auto conn = cpp_dbc::DriverManager::getDocumentDBConnection(
+    "mongodb://localhost:27017/mydb", "usuario", "contraseña");
+
+// Obtener una colección
+auto collection = conn->getCollection("usuarios");
+
+// Insertar un documento
+collection->insertOne(R"({"nombre": "Juan", "edad": 30})");
+
+// Buscar documentos
+auto cursor = collection->find(R"({"edad": {"$gte": 25}})");
+while (cursor->next()) {
+    auto data = cursor->getData();
+    std::cout << data->toJson() << std::endl;
+}
+
+// Actualizar un documento
+collection->updateOne(
+    R"({"nombre": "Juan"})",
+    R"({"$set": {"edad": 31}})"
+);
+
+// Eliminar un documento
+collection->deleteOne(R"({"nombre": "Juan"})");
+
+// Cerrar la conexión
+conn->close();
+#endif
+```
+
+---
+
 ## Pool de Conexiones
 *Componentes definidos en connection_pool.hpp y connection_pool.cpp*
 
@@ -753,6 +904,8 @@ Carga configuraciones de bases de datos desde archivos YAML.
 - Bibliotecas de desarrollo de MySQL (para soporte MySQL)
 - Bibliotecas de desarrollo de PostgreSQL (para soporte PostgreSQL, opcional)
 - Bibliotecas de desarrollo de SQLite (para soporte SQLite, opcional)
+- Bibliotecas de desarrollo de Firebird (para soporte Firebird SQL, opcional)
+- Controlador C++ de MongoDB (libmongoc-dev, libbson-dev, libmongocxx-dev, libbsoncxx-dev para soporte MongoDB, opcional)
 - Biblioteca yaml-cpp (para soporte de configuración YAML, opcional)
 - Biblioteca libdw (parte de elfutils, para trazas de pila mejoradas, opcional)
 - CMake 3.15 o posterior
@@ -826,8 +979,11 @@ La biblioteca proporciona scripts de compilación para simplificar el proceso:
 # Compilar con soporte para Firebird
 ./build.sh --firebird
 
-# Compilar con soporte para MySQL, PostgreSQL, SQLite y Firebird
-./build.sh --mysql --postgres --sqlite --firebird
+# Compilar con soporte para MongoDB
+./build.sh --mongodb
+
+# Compilar con soporte para MySQL, PostgreSQL, SQLite, Firebird y MongoDB
+./build.sh --mysql --postgres --sqlite --firebird --mongodb
 
 # Habilitar soporte de configuración YAML
 ./build.sh --yaml
@@ -859,8 +1015,11 @@ La biblioteca proporciona scripts de compilación para simplificar el proceso:
 # Compilar contenedor Docker con soporte SQLite
 ./build.dist.sh --sqlite
 
+# Compilar contenedor Docker con soporte MongoDB
+./build.dist.sh --mongodb
+
 # Compilar contenedor Docker con todos los controladores de bases de datos
-./build.dist.sh --postgres --sqlite --yaml
+./build.dist.sh --postgres --sqlite --firebird --mongodb --yaml
 
 # Compilar contenedor Docker sin soporte libdw
 ./build.dist.sh --dw-off
@@ -1023,6 +1182,8 @@ target_compile_definitions(tu_app PRIVATE
     $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
     $<$<BOOL:${USE_FIREBIRD}>:USE_FIREBIRD=1>
     $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
+    $<$<BOOL:${USE_MONGODB}>:USE_MONGODB=1>
+    $<$<NOT:$<BOOL:${USE_MONGODB}>>:USE_MONGODB=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
     $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
@@ -1044,6 +1205,9 @@ En tu código C++:
 #endif
 #if USE_FIREBIRD
 #include <cpp_dbc/drivers/relational/driver_firebird.hpp>
+#endif
+#if USE_MONGODB
+#include <cpp_dbc/drivers/document/driver_mongodb.hpp>
 #endif
 
 // Usar la biblioteca...

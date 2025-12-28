@@ -52,6 +52,7 @@ add_executable(cpp_dbc_tests
     test_postgresql_common.cpp
     test_sqlite_common.cpp
     test_firebird_common.cpp
+    test_mongodb_common.cpp
     test_mysql_real.cpp
     test_mysql_real_inner_join.cpp
     test_mysql_real_left_join.cpp
@@ -85,6 +86,7 @@ add_executable(cpp_dbc_tests
     test_mysql_thread_safe.cpp
     test_postgresql_thread_safe.cpp
     test_sqlite_thread_safe.cpp
+    test_mongodb_real.cpp
 )
 
 # Link against Catch2 and cpp_dbc
@@ -110,6 +112,8 @@ target_compile_definitions(cpp_dbc_tests PUBLIC
     $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
     $<$<BOOL:${USE_FIREBIRD}>:USE_FIREBIRD=1>
     $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
+    $<$<BOOL:${USE_MONGODB}>:USE_MONGODB=1>
+    $<$<NOT:$<BOOL:${USE_MONGODB}>>:USE_MONGODB=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
     $<$<BOOL:${DB_DRIVER_THREAD_SAFE}>:DB_DRIVER_THREAD_SAFE=1>

@@ -65,14 +65,17 @@ This will display the full usage information with all available options.
 # Enable Firebird support
 ./helper.sh --run-build=firebird
 
+# Enable MongoDB support
+./helper.sh --run-build=mongodb
+
 # Enable all database drivers
-./helper.sh --run-build=mysql,postgres,sqlite,firebird
+./helper.sh --run-build=mysql,postgres,sqlite,firebird,mongodb
 
 # Build in Release mode with all drivers and YAML support
-./helper.sh --run-build=release,mysql,postgres,sqlite,firebird,yaml
+./helper.sh --run-build=release,mysql,postgres,sqlite,firebird,mongodb,yaml
 
 # Clean build and rebuild with all features
-./helper.sh --run-build=clean,mysql,postgres,sqlite,firebird,yaml,test,examples
+./helper.sh --run-build=clean,mysql,postgres,sqlite,firebird,mongodb,yaml,test,examples
 ```
 
 All build output is now automatically logged to files in the `logs/build/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
@@ -90,10 +93,13 @@ All build output is now automatically logged to files in the `logs/build/` direc
 ./helper.sh --run-test=postgres
 
 # Run tests with all database drivers
-./helper.sh --run-test=sqlite,postgres,mysql,firebird
+./helper.sh --run-test=sqlite,postgres,mysql,firebird,mongodb
 
 # Run Firebird-specific tests
 ./helper.sh --run-test=firebird,test=firebird_real+firebird_thread_safe
+
+# Run MongoDB-specific tests
+./helper.sh --run-test=mongodb,test=mongodb_real
 
 # Run tests with Valgrind memory checking
 ./helper.sh --run-test=valgrind
@@ -127,6 +133,9 @@ All build output is now automatically logged to files in the `logs/build/` direc
 
 # Run tests with debug output for SQLite driver
 ./helper.sh --run-test=debug-sqlite
+
+# Run tests with debug output for MongoDB driver
+./helper.sh --run-test=debug-mongodb
 
 # Run tests with all debug output enabled
 ./helper.sh --run-test=debug-all
@@ -258,7 +267,7 @@ All benchmark output is automatically logged to files in the `logs/benchmark/` d
 
 ```bash
 # Clean everything and set up a full development environment
-./helper.sh --clean-conan-cache --run-build=clean,mysql,postgres,sqlite,firebird,yaml,test,examples
+./helper.sh --clean-conan-cache --run-build=clean,mysql,postgres,sqlite,firebird,mongodb,yaml,test,examples
 ```
 
 ### Quick Test Run
@@ -282,10 +291,10 @@ All benchmark output is automatically logged to files in the `logs/benchmark/` d
 
 ```bash
 # Create a production-ready build
-./helper.sh --run-build=clean,release,mysql,postgres,sqlite,firebird,yaml
+./helper.sh --run-build=clean,release,mysql,postgres,sqlite,firebird,mongodb,yaml
 
 # Create a production-ready build without libdw support
-./helper.sh --run-build=clean,release,mysql,postgres,sqlite,firebird,yaml,dw-off
+./helper.sh --run-build=clean,release,mysql,postgres,sqlite,firebird,mongodb,yaml,dw-off
 ```
 
 ### Container Deployment
@@ -308,7 +317,7 @@ All benchmark output is automatically logged to files in the `logs/benchmark/` d
 ./libs/cpp_dbc/build_dist_pkg.sh --distro=fedora:42+fedora:43
 
 # Specify build options
-./libs/cpp_dbc/build_dist_pkg.sh --build=yaml,mysql,postgres,sqlite,firebird,debug,dw,examples
+./libs/cpp_dbc/build_dist_pkg.sh --build=yaml,mysql,postgres,sqlite,firebird,mongodb,debug,dw,examples
 
 # Specify a version instead of using a timestamp
 ./libs/cpp_dbc/build_dist_pkg.sh --version=1.0.1

@@ -16,41 +16,45 @@ CPP_DBC solves these problems by providing:
 
 1. **Unified API**: A consistent interface for database operations regardless of the underlying database system
 2. **Driver Architecture**: Database-specific implementations encapsulated behind common interfaces
-3. **Connection Pooling**: Efficient management of database connections to improve performance
-4. **Transaction Management**: Simplified transaction handling across threads with JDBC-compatible isolation levels
-5. **Prepared Statements**: Support for parameterized queries to prevent SQL injection
-6. **BLOB Support**: Comprehensive handling of Binary Large Objects across all database drivers
-7. **JSON Support**: Native handling of JSON data types in MySQL and PostgreSQL
-8. **Code Quality**: Strict warning flags and compile-time checks to ensure robust, reliable code
+3. **Multi-Database Type Support**: Support for both relational (MySQL, PostgreSQL, SQLite, Firebird) and document (MongoDB) databases
+4. **Connection Pooling**: Efficient management of database connections to improve performance
+5. **Transaction Management**: Simplified transaction handling across threads with JDBC-compatible isolation levels
+6. **Prepared Statements**: Support for parameterized queries to prevent SQL injection
+7. **BLOB Support**: Comprehensive handling of Binary Large Objects across all relational database drivers
+8. **Document Operations**: Full CRUD operations for document databases with cursor-based iteration
+9. **JSON Support**: Native handling of JSON data types in MySQL and PostgreSQL
+10. **Code Quality**: Strict warning flags and compile-time checks to ensure robust, reliable code
 
 ## Target Users
 
-- C++ developers working with relational databases
+- C++ developers working with relational and document databases
 - Applications that need to support multiple database systems
 - Systems requiring efficient connection management
 - Multi-threaded applications with complex transaction requirements
 
 ## Use Cases
 
-1. **Cross-Database Applications**: Systems that need to work with MySQL, PostgreSQL, SQLite, and Firebird
+1. **Cross-Database Applications**: Systems that need to work with MySQL, PostgreSQL, SQLite, Firebird, and MongoDB
 2. **High-Performance Applications**: Applications that benefit from connection pooling
 3. **Distributed Systems**: Applications with complex transaction requirements across multiple components
 4. **Concurrent Data Access**: Applications requiring fine-grained control over transaction isolation levels
 5. **Security-Critical Applications**: Systems that need protection against SQL injection through prepared statements
 6. **Media-Rich Applications**: Systems that need to store and retrieve binary data like images, documents, or other files
 7. **Data-Intensive Applications**: Systems that work with complex, hierarchical data structures using JSON
+8. **Document-Oriented Applications**: Systems that need flexible schema design with MongoDB document storage
 
 ## Comparison with Alternatives
 
 Unlike other C++ database libraries, CPP_DBC:
 
 1. **Focuses on JDBC-like API**: Familiar to developers with Java background
-2. **Provides Built-in Connection Pooling**: Many libraries require separate connection pool implementations
-3. **Includes Transaction Management**: Simplifies complex transaction scenarios
-4. **Offers Comprehensive BLOB Support**: Unified API for binary data across all database systems
-5. **Provides Native JSON Support**: Unified interface for working with JSON data types
-6. **Maintains Lightweight Design**: Minimal dependencies beyond the database client libraries
-7. **Enforces High Code Quality**: Comprehensive warning flags and compile-time checks
+2. **Supports Multiple Database Types**: Both relational and document databases through unified interfaces
+3. **Provides Built-in Connection Pooling**: Many libraries require separate connection pool implementations
+4. **Includes Transaction Management**: Simplifies complex transaction scenarios
+5. **Offers Comprehensive BLOB Support**: Unified API for binary data across all relational database systems
+6. **Provides Native JSON Support**: Unified interface for working with JSON data types
+7. **Maintains Lightweight Design**: Minimal dependencies beyond the database client libraries
+8. **Enforces High Code Quality**: Comprehensive warning flags and compile-time checks
 
 ## Design Philosophy
 

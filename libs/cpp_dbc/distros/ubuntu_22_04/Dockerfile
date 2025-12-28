@@ -27,10 +27,12 @@ RUN python3 -m venv /opt/venv && \
 
 # Install database development libraries
 RUN apt-get install -y \
-    default-libmysqlclient-dev \
-    libsqlite3-dev \
-    libpq-dev \
-    libdw-dev
+    __MYSQL_DEV_PKG__ \
+    __SQLITE_DEV_PKG__ \
+    __POSTGRESQL_DEV_PKG__ \
+    __FIREBIRD_DEV_PKG__ \
+    __MONGODB_DEV_PKG__ \
+    __LIBDW_DEV_PKG__
 
 # Create working directory
 WORKDIR /app

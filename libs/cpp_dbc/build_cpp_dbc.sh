@@ -10,6 +10,7 @@ USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
+USE_MONGODB=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
@@ -19,6 +20,7 @@ DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
+DEBUG_MONGODB=OFF
 DEBUG_ALL=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
@@ -57,6 +59,14 @@ do
         ;;
         --firebird-off)
         USE_FIREBIRD=OFF
+        shift
+        ;;
+        --mongodb|--mongodb-on)
+        USE_MONGODB=ON
+        shift
+        ;;
+        --mongodb-off)
+        USE_MONGODB=OFF
         shift
         ;;
         --yaml|--yaml-on)
@@ -103,11 +113,16 @@ do
         DEBUG_FIREBIRD=ON
         shift
         ;;
+        --debug-mongodb)
+        DEBUG_MONGODB=ON
+        shift
+        ;;
         --debug-all)
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
         DEBUG_SQLITE=ON
         DEBUG_FIREBIRD=ON
+        DEBUG_MONGODB=ON
         DEBUG_ALL=ON
         shift
         ;;
@@ -130,6 +145,8 @@ do
         echo "  --sqlite-off           Disable SQLite support"
         echo "  --firebird, --firebird-on  Enable Firebird SQL support"
         echo "  --firebird-off         Disable Firebird SQL support"
+        echo "  --mongodb, --mongodb-on  Enable MongoDB support"
+        echo "  --mongodb-off          Disable MongoDB support"
         echo "  --yaml, --yaml-on      Enable YAML configuration support"
         echo "  --debug                Build in Debug mode (default)"
         echo "  --release              Build in Release mode"
@@ -140,6 +157,7 @@ do
         echo "  --debug-txmgr          Enable debug output for TransactionManager"
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
         echo "  --debug-firebird       Enable debug output for Firebird driver"
+        echo "  --debug-mongodb        Enable debug output for MongoDB driver"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
         echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -155,6 +173,7 @@ echo "  MySQL support: $USE_MYSQL"
 echo "  PostgreSQL support: $USE_POSTGRESQL"
 echo "  SQLite support: $USE_SQLITE"
 echo "  Firebird support: $USE_FIREBIRD"
+echo "  MongoDB support: $USE_MONGODB"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
@@ -164,6 +183,7 @@ echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
+echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
@@ -310,6 +330,43 @@ if [ "$USE_FIREBIRD" = "ON" ]; then
     fi
 fi
 
+# Check for MongoDB dependencies
+if [ "$USE_MONGODB" = "ON" ]; then
+    echo "Checking for MongoDB C driver development libraries..."
+    
+    # Detect package manager
+    if command -v apt-get &> /dev/null; then
+        # Debian/Ubuntu
+        if ! dpkg -l | grep -q libmongoc-dev; then
+            echo "MongoDB C driver development libraries not found. Installing..."
+            sudo apt-get update
+            sudo apt-get install -y libmongoc-dev libbson-dev
+        else
+            echo "MongoDB C driver development libraries already installed."
+        fi
+    elif command -v dnf &> /dev/null; then
+        # Fedora/RHEL/CentOS
+        if ! rpm -q mongo-c-driver-devel &> /dev/null; then
+            echo "MongoDB C driver development libraries not found. Installing..."
+            sudo dnf install -y mongo-c-driver-devel libbson-devel
+        else
+            echo "MongoDB C driver development libraries already installed."
+        fi
+    elif command -v yum &> /dev/null; then
+        # Older RHEL/CentOS
+        if ! rpm -q mongo-c-driver-devel &> /dev/null; then
+            echo "MongoDB C driver development libraries not found. Installing..."
+            sudo yum install -y mongo-c-driver-devel libbson-devel
+        else
+            echo "MongoDB C driver development libraries already installed."
+        fi
+    else
+        echo "Warning: Could not detect package manager. Please install MongoDB C driver development libraries manually."
+        echo "  Debian/Ubuntu: sudo apt-get install libmongoc-dev libbson-dev"
+        echo "  Fedora/RHEL: sudo dnf install mongo-c-driver-devel libbson-devel"
+    fi
+fi
+
 # Check for libdw dependencies if enabled
 if [ "$BACKWARD_HAS_DW" = "ON" ]; then
     echo "Checking for libdw development libraries..."
@@ -387,6 +444,7 @@ cmake "${SCRIPT_DIR}" \
       -DUSE_POSTGRESQL=$USE_POSTGRESQL \
       -DUSE_SQLITE=$USE_SQLITE \
       -DUSE_FIREBIRD=$USE_FIREBIRD \
+      -DUSE_MONGODB=$USE_MONGODB \
       -DUSE_CPP_YAML=$USE_CPP_YAML \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DCPP_DBC_BUILD_TESTS=$BUILD_TESTS \
@@ -396,6 +454,7 @@ cmake "${SCRIPT_DIR}" \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
       -DDEBUG_FIREBIRD=$DEBUG_FIREBIRD \
+      -DDEBUG_MONGODB=$DEBUG_MONGODB \
       -DDEBUG_ALL=$DEBUG_ALL \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
@@ -447,6 +506,11 @@ if [ "$BUILD_TESTS" = "ON" ]; then
         TEST_PARAMS="$TEST_PARAMS --firebird"
     fi
     
+    # Pass MongoDB configuration
+    if [ "$USE_MONGODB" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --mongodb"
+    fi
+    
     # Pass build type
     if [ "$BUILD_TYPE" = "Release" ]; then
         TEST_PARAMS="$TEST_PARAMS --release"
@@ -469,6 +533,10 @@ if [ "$BUILD_TESTS" = "ON" ]; then
         TEST_PARAMS="$TEST_PARAMS --debug-firebird"
     fi
     
+    if [ "$DEBUG_MONGODB" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --debug-mongodb"
+    fi
+    
     if [ "$DEBUG_ALL" = "ON" ]; then
         TEST_PARAMS="$TEST_PARAMS --debug-all"
     fi
@@ -483,6 +551,7 @@ echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
 echo "  SQLite: $USE_SQLITE"
 echo "  Firebird: $USE_FIREBIRD"
+echo "  MongoDB: $USE_MONGODB"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
@@ -492,6 +561,7 @@ echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
+echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"

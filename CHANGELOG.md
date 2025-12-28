@@ -1,6 +1,73 @@
 # Changelog
 
-## 2025-12-27 01:22:58 AM PST [Current]
+## 2025-12-27 08:34:18 PM PST [Current]
+
+### MongoDB Document Database Driver Support
+* Added complete MongoDB document database driver implementation:
+  * **New Core Document Database Interfaces:**
+    * Added `core/document/document_db_connection.hpp` - Base connection interface for document databases
+    * Added `core/document/document_db_driver.hpp` - Base driver interface for document databases
+    * Added `core/document/document_db_collection.hpp` - Collection interface for document operations
+    * Added `core/document/document_db_cursor.hpp` - Cursor interface for iterating query results
+    * Added `core/document/document_db_data.hpp` - Document data interface for BSON/JSON handling
+  * **MongoDB Driver Implementation:**
+    * Added `drivers/document/driver_mongodb.hpp` - MongoDB driver class declarations
+    * Added `src/drivers/document/driver_mongodb.cpp` - Full MongoDB driver implementation
+    * Added `cmake/FindMongoDB.cmake` - CMake module for MongoDB C++ driver detection
+  * **Driver Features:**
+    * Full support for MongoDB databases (version 4.0+)
+    * Connection management with proper resource cleanup using smart pointers
+    * Collection operations: create, drop, list collections
+    * Document CRUD operations: insertOne, insertMany, findOne, find, updateOne, updateMany, replaceOne, deleteOne, deleteMany
+    * Aggregation pipeline support
+    * Index management: createIndex, dropIndex, listIndexes
+    * Cursor-based iteration for query results
+    * Document data type handling: strings, integers, doubles, booleans, arrays, nested objects, null values
+    * Upsert support for update operations
+    * Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+  * **Build System Updates:**
+    * Added `USE_MONGODB` option to CMakeLists.txt (default: OFF)
+    * Added `--mongodb` and `--mongodb-off` options to build.sh
+    * Added `--mongodb` and `--mongodb-off` options to build_cpp_dbc.sh
+    * Added `--debug-mongodb` option for MongoDB driver debug output
+    * Added `mongodb` option to helper.sh for --run-build, --run-test, and --run-benchmarks
+    * Automatic detection of MongoDB C++ driver libraries
+  * **Required System Packages:**
+    * Debian/Ubuntu: `sudo apt-get install libmongoc-dev libbson-dev libmongocxx-dev libbsoncxx-dev`
+    * RHEL/CentOS/Fedora: `sudo dnf install mongo-c-driver-devel libbson-devel mongo-cxx-driver-devel`
+  * **Connection URL Format:**
+    * `mongodb://host:port/database`
+    * `mongodb://username:password@host:port/database?authSource=admin`
+    * Default port: 27017
+  * **Smart Pointer Implementation:**
+    * `shared_ptr` for connection and collection management
+    * Custom deleters for proper MongoDB resource cleanup
+    * `weak_ptr` in cursors for safe connection reference
+* Added comprehensive MongoDB test suite:
+  * **New Test Files:**
+    * Added `test_mongodb_common.hpp` - MongoDB test helper declarations
+    * Added `test_mongodb_common.cpp` - MongoDB test helper implementations
+    * Added `test_mongodb_real.cpp` - Comprehensive MongoDB integration tests
+  * **Test Coverage:**
+    * Basic CRUD operations (insert, find, update, delete)
+    * Document data types (strings, integers, doubles, booleans, arrays, nested objects)
+    * Aggregation pipeline operations
+    * Index creation and management
+    * Concurrent operations with multiple threads
+    * Find with projection
+    * Replace and upsert operations
+* Updated build scripts with MongoDB support:
+  * Updated `build.sh` with `--mongodb`, `--mongodb-off`, `--debug-mongodb` options
+  * Updated `run_test.sh` with MongoDB options
+  * Updated `helper.sh` with MongoDB options for all commands
+  * Updated `build_cpp_dbc.sh` with MongoDB build configuration
+  * Updated `run_test_cpp_dbc.sh` with MongoDB test options
+  * Updated `build_test_cpp_dbc.sh` with MongoDB test build options
+* Updated configuration files:
+  * Added MongoDB database configurations to `test_db_connections.yml`
+  * Added MongoDB connection pool configuration options
+
+## 2025-12-27 01:22:58 AM PST
 
 ### Directory Restructuring for Multi-Database Type Support
 * Reorganized project directory structure to support multiple database types:

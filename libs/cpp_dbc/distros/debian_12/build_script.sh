@@ -22,11 +22,19 @@ echo "Building cpp_dbc library with specified options..."
 MYSQL_PARAM="--mysql-off"
 POSTGRES_PARAM="--postgres-off"
 SQLITE_PARAM="--sqlite-off"
+FIREBIRD_PARAM="--firebird-off"
+MONGODB_PARAM="--mongodb-off"
 YAML_PARAM="--yaml-off"
 DEBUG_PARAM="--debug"
 DW_PARAM="--dw-off"
 EXAMPLES_PARAM=""
 DB_DRIVER_THREAD_SAFE_PARAM=""
+DEBUG_POOL_PARAM=""
+DEBUG_TXMGR_PARAM=""
+DEBUG_SQLITE_PARAM=""
+DEBUG_FIREBIRD_PARAM=""
+DEBUG_MONGODB_PARAM=""
+DEBUG_ALL_PARAM=""
 
 # Check environment variables set by build_dist_deb.sh
 if [ "__USE_MYSQL__" = "ON" ]; then
@@ -45,6 +53,18 @@ if [ "__USE_SQLITE__" = "ON" ]; then
     SQLITE_PARAM="--sqlite"
 else
     SQLITE_PARAM="--sqlite-off"
+fi
+
+if [ "__USE_FIREBIRD__" = "ON" ]; then
+    FIREBIRD_PARAM="--firebird"
+else
+    FIREBIRD_PARAM="--firebird-off"
+fi
+
+if [ "__USE_MONGODB__" = "ON" ]; then
+    MONGODB_PARAM="--mongodb"
+else
+    MONGODB_PARAM="--mongodb-off"
 fi
 
 if [ "__USE_CPP_YAML__" = "ON" ]; then
@@ -76,8 +96,33 @@ if [ "__DB_DRIVER_THREAD_SAFE__" = "OFF" ]; then
     DB_DRIVER_THREAD_SAFE_PARAM="--db-driver-thread-safe-off"
 fi
 
-echo "Using parameters: $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM $DB_DRIVER_THREAD_SAFE_PARAM"
-./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM $DB_DRIVER_THREAD_SAFE_PARAM
+# Set debug options
+if [ "__DEBUG_CONNECTION_POOL__" = "ON" ]; then
+    DEBUG_POOL_PARAM="--debug-pool"
+fi
+
+if [ "__DEBUG_TRANSACTION_MANAGER__" = "ON" ]; then
+    DEBUG_TXMGR_PARAM="--debug-txmgr"
+fi
+
+if [ "__DEBUG_SQLITE__" = "ON" ]; then
+    DEBUG_SQLITE_PARAM="--debug-sqlite"
+fi
+
+if [ "__DEBUG_FIREBIRD__" = "ON" ]; then
+    DEBUG_FIREBIRD_PARAM="--debug-firebird"
+fi
+
+if [ "__DEBUG_MONGODB__" = "ON" ]; then
+    DEBUG_MONGODB_PARAM="--debug-mongodb"
+fi
+
+if [ "__DEBUG_ALL__" = "ON" ]; then
+    DEBUG_ALL_PARAM="--debug-all"
+fi
+
+echo "Using parameters: $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $FIREBIRD_PARAM $MONGODB_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM $DB_DRIVER_THREAD_SAFE_PARAM $DEBUG_POOL_PARAM $DEBUG_TXMGR_PARAM $DEBUG_SQLITE_PARAM $DEBUG_FIREBIRD_PARAM $DEBUG_MONGODB_PARAM $DEBUG_ALL_PARAM"
+./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $FIREBIRD_PARAM $MONGODB_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM $DB_DRIVER_THREAD_SAFE_PARAM $DEBUG_POOL_PARAM $DEBUG_TXMGR_PARAM $DEBUG_SQLITE_PARAM $DEBUG_FIREBIRD_PARAM $DEBUG_MONGODB_PARAM $DEBUG_ALL_PARAM
 
 # Now create the debian package
 
@@ -94,13 +139,13 @@ Source: cpp-dbc-dev
 Section: libs
 Priority: optional
 Maintainer: Tomas R Moreno P <tomasr.morenop@gmail.com>
-Build-Depends: debhelper (>= 10), cmake, g++__MYSQL_CONTROL_DEP____POSTGRESQL_CONTROL_DEP____SQLITE_CONTROL_DEP____LIBDW_CONTROL_DEP__
+Build-Depends: debhelper (>= 10), cmake, g++__MYSQL_CONTROL_DEP____POSTGRESQL_CONTROL_DEP____SQLITE_CONTROL_DEP____FIREBIRD_CONTROL_DEP____MONGODB_CONTROL_DEP____LIBDW_CONTROL_DEP__
 Standards-Version: 4.5.0
 Homepage: https://github.com/sirlordt/cpp_dbc
 
 Package: cpp-dbc-dev
 Architecture: amd64
-Depends: \${shlibs:Depends}, \${misc:Depends}__MYSQL_CONTROL_DEP____POSTGRESQL_CONTROL_DEP____SQLITE_CONTROL_DEP____LIBDW_CONTROL_DEP__
+Depends: \${shlibs:Depends}, \${misc:Depends}__MYSQL_CONTROL_DEP____POSTGRESQL_CONTROL_DEP____SQLITE_CONTROL_DEP____FIREBIRD_CONTROL_DEP____MONGODB_CONTROL_DEP____LIBDW_CONTROL_DEP__
 Description: C++ Database Connectivity Library - Development files
  A C++ library for database connectivity inspired by JDBC.
  .
@@ -157,6 +202,8 @@ override_dh_auto_install:
 	sed -i "s/@USE_MYSQL@/__USE_MYSQL__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
 	sed -i "s/@USE_POSTGRESQL@/__USE_POSTGRESQL__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
 	sed -i "s/@USE_SQLITE@/__USE_SQLITE__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
+	sed -i "s/@USE_FIREBIRD@/__USE_FIREBIRD__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
+	sed -i "s/@USE_MONGODB@/__USE_MONGODB__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
 	sed -i "s/@USE_CPP_YAML@/__USE_CPP_YAML__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
 	sed -i "s/@BACKWARD_HAS_DW@/__USE_DW__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
 EOL

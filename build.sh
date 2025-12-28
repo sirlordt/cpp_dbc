@@ -15,6 +15,7 @@ USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
+USE_MONGODB=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
@@ -24,6 +25,7 @@ DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
+DEBUG_MONGODB=OFF
 DEBUG_ALL=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
@@ -54,6 +56,12 @@ do
         ;;
         --firebird-off)
         USE_FIREBIRD=OFF
+        ;;
+        --mongodb|--mongodb-on)
+        USE_MONGODB=ON
+        ;;
+        --mongodb-off)
+        USE_MONGODB=OFF
         ;;
         --yaml|--yaml-on)
         USE_CPP_YAML=ON
@@ -88,11 +96,15 @@ do
         --debug-firebird)
         DEBUG_FIREBIRD=ON
         ;;
+        --debug-mongodb)
+        DEBUG_MONGODB=ON
+        ;;
         --debug-all)
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
         DEBUG_SQLITE=ON
         DEBUG_FIREBIRD=ON
+        DEBUG_MONGODB=ON
         DEBUG_ALL=ON
         ;;
         --dw-off)
@@ -112,6 +124,8 @@ do
         echo "  --sqlite-off           Disable SQLite support"
         echo "  --firebird, --firebird-on  Enable Firebird SQL support"
         echo "  --firebird-off         Disable Firebird SQL support"
+        echo "  --mongodb, --mongodb-on  Enable MongoDB support"
+        echo "  --mongodb-off          Disable MongoDB support"
         echo "  --yaml, --yaml-on      Enable YAML configuration support"
         echo "  --clean                Clean build directories before building"
         echo "  --release              Build in Release mode (default: Debug)"
@@ -122,6 +136,7 @@ do
         echo "  --debug-txmgr          Enable debug output for TransactionManager"
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
         echo "  --debug-firebird       Enable debug output for Firebird driver"
+        echo "  --debug-mongodb        Enable debug output for MongoDB driver"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
         echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -136,6 +151,7 @@ export USE_MYSQL
 export USE_POSTGRESQL
 export USE_SQLITE
 export USE_FIREBIRD
+export USE_MONGODB
 export USE_CPP_YAML
 export BUILD_TYPE
 export BUILD_TESTS
@@ -145,6 +161,7 @@ export DEBUG_CONNECTION_POOL
 export DEBUG_TRANSACTION_MANAGER
 export DEBUG_SQLITE
 export DEBUG_FIREBIRD
+export DEBUG_MONGODB
 export DEBUG_ALL
 export BACKWARD_HAS_DW
 export DB_DRIVER_THREAD_SAFE
@@ -172,6 +189,12 @@ if [ "$USE_FIREBIRD" = "ON" ]; then
     FIREBIRD_PARAM="--firebird"
 else
     FIREBIRD_PARAM="--firebird-off"
+fi
+
+if [ "$USE_MONGODB" = "ON" ]; then
+    MONGODB_PARAM="--mongodb"
+else
+    MONGODB_PARAM="--mongodb-off"
 fi
 
 # Pass the build type to the cpp_dbc build script
@@ -227,6 +250,10 @@ if [ "$DEBUG_FIREBIRD" = "ON" ]; then
     DEBUG_PARAMS="$DEBUG_PARAMS --debug-firebird"
 fi
 
+if [ "$DEBUG_MONGODB" = "ON" ]; then
+    DEBUG_PARAMS="$DEBUG_PARAMS --debug-mongodb"
+fi
+
 if [ "$DEBUG_ALL" = "ON" ]; then
     DEBUG_PARAMS="$DEBUG_PARAMS --debug-all"
 fi
@@ -243,7 +270,7 @@ fi
 
 echo "$0 >= Running ./libs/cpp_dbc/build_cpp_dbc.sh "
 # Build the cpp_dbc library
-./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $FIREBIRD_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM $BUILD_BENCHMARKS_PARAM $DEBUG_PARAMS
+./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $FIREBIRD_PARAM $MONGODB_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM $BUILD_BENCHMARKS_PARAM $DEBUG_PARAMS
 
 # If the cpp_dbc build script fails, stop the build process
 if [ $? -ne 0 ]; then
@@ -278,6 +305,7 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
          -DUSE_POSTGRESQL=$USE_POSTGRESQL \
          -DUSE_SQLITE=$USE_SQLITE \
          -DUSE_FIREBIRD=$USE_FIREBIRD \
+         -DUSE_MONGODB=$USE_MONGODB \
          -DUSE_CPP_YAML=$USE_CPP_YAML \
          -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc \
          -Wno-dev
@@ -301,6 +329,7 @@ echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
 echo "  SQLite: $USE_SQLITE"
 echo "  Firebird: $USE_FIREBIRD"
+echo "  MongoDB: $USE_MONGODB"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
@@ -310,6 +339,7 @@ echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
+echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"

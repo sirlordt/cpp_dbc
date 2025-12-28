@@ -19,10 +19,12 @@ RUN python3 -m pip install conan && \
 
 # Install database development libraries
 RUN dnf -y install \
-    mysql-devel \
-    sqlite-devel \
-    libpq-devel \
-    elfutils-devel
+    __MYSQL_DEV_PKG__ \
+    __SQLITE_DEV_PKG__ \
+    __POSTGRESQL_DEV_PKG__ \
+    __FIREBIRD_DEV_PKG__ \
+    __MONGODB_DEV_PKG__ \
+    __LIBDW_DEV_PKG__
 
 # Create working directory
 WORKDIR /app

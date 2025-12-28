@@ -36,6 +36,17 @@
   - Database creation support via `createDatabase()` method
   - Driver-specific commands via `command()` method
 
+- **MongoDB C++ Driver**: For MongoDB document database connectivity
+  - Uses the MongoDB C++ driver API (`mongocxx/client.hpp`, `bsoncxx/json.hpp`)
+  - Requires libmongoc-dev, libbson-dev, libmongocxx-dev, libbsoncxx-dev packages (Debian/Ubuntu)
+  - Requires mongo-c-driver-devel, libbson-devel, mongo-cxx-driver-devel packages (RHEL/Fedora)
+  - Default port: 27017
+  - URL format: `mongodb://host:port/database` or `mongodb://username:password@host:port/database?authSource=admin`
+  - Document database operations: insertOne, insertMany, findOne, find, updateOne, updateMany, replaceOne, deleteOne, deleteMany
+  - Aggregation pipeline support
+  - Index management: createIndex, dropIndex, listIndexes
+  - Collection management: createCollection, dropCollection, listCollections
+
 - **YAML-CPP Library**: For YAML configuration support (optional)
   - Used for parsing YAML configuration files
   - Included via Conan dependency management
@@ -72,6 +83,7 @@ The project uses:
   - `--debug-pool`: Enable debug output for ConnectionPool
   - `--debug-txmgr`: Enable debug output for TransactionManager
   - `--debug-sqlite`: Enable debug output for SQLite driver
+  - `--debug-mongodb`: Enable debug output for MongoDB driver
   - `--debug-all`: Enable all debug output at once (simplifies debugging across multiple components)
   - `--db-driver-thread-safe-off`: Disable thread-safe database driver operations (for single-threaded performance)
   - `--asan`: Enable AddressSanitizer (with known issues, see asan_issues.md)
@@ -101,8 +113,9 @@ The project is configured to work with the CMakeTools extension, but does not re
 ## Technical Constraints
 
 ### Database Support
-- Currently supports MySQL, PostgreSQL, SQLite, and Firebird SQL
+- Currently supports MySQL, PostgreSQL, SQLite, Firebird SQL (relational), and MongoDB (document)
 - Adding support for other databases requires implementing new driver classes
+- Document database interfaces are separate from relational database interfaces
 
 ### Thread Safety
 - Connection objects can be made thread-safe with the `DB_DRIVER_THREAD_SAFE` option (default: ON)

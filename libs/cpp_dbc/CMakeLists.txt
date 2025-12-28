@@ -6,6 +6,7 @@ option(USE_MYSQL "Enable MySQL support" ON)
 option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
 option(USE_SQLITE "Enable SQLite support" OFF)
 option(USE_FIREBIRD "Enable Firebird SQL support" OFF)
+option(USE_MONGODB "Enable MongoDB support" OFF)
 option(USE_CPP_YAML "Enable YAML configuration support" OFF)
 option(BACKWARD_HAS_DW "Enable libdw support for stack traces" ON)
 
@@ -18,6 +19,7 @@ option(DEBUG_CONNECTION_POOL "Enable debug output for ConnectionPool" OFF)
 option(DEBUG_TRANSACTION_MANAGER "Enable debug output for TransactionManager" OFF)
 option(DEBUG_SQLITE "Enable debug output for SQLite driver" OFF)
 option(DEBUG_FIREBIRD "Enable debug output for Firebird driver" OFF)
+option(DEBUG_MONGODB "Enable debug output for MongoDB driver" OFF)
 option(DEBUG_ALL "Enable debug output for all drivers and components" OFF)
 
 # Set C++ standard
@@ -61,6 +63,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
     $<$<BOOL:${USE_FIREBIRD}>:USE_FIREBIRD=1>
     $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
+    $<$<BOOL:${USE_MONGODB}>:USE_MONGODB=1>
+    $<$<NOT:$<BOOL:${USE_MONGODB}>>:USE_MONGODB=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
     $<$<BOOL:${DB_DRIVER_THREAD_SAFE}>:DB_DRIVER_THREAD_SAFE=1>
@@ -69,6 +73,7 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<BOOL:${DEBUG_TRANSACTION_MANAGER}>:DEBUG_TRANSACTION_MANAGER=1>
     $<$<BOOL:${DEBUG_SQLITE}>:DEBUG_SQLITE=1>
     $<$<BOOL:${DEBUG_FIREBIRD}>:DEBUG_FIREBIRD=1>
+    $<$<BOOL:${DEBUG_MONGODB}>:DEBUG_MONGODB=1>
     $<$<BOOL:${DEBUG_ALL}>:DEBUG_ALL=1>
     $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
     $<$<NOT:$<BOOL:${BACKWARD_HAS_DW}>>:BACKWARD_HAS_DW=0>
@@ -151,6 +156,20 @@ if(USE_FIREBIRD)
     find_package(Firebird REQUIRED)
     target_include_directories(cpp_dbc PUBLIC ${FIREBIRD_INCLUDE_DIRS})
     target_link_libraries(cpp_dbc PUBLIC ${FIREBIRD_LIBRARIES})
+endif()
+
+# Conditionally add MongoDB driver files and dependencies
+if(USE_MONGODB)
+    target_sources(cpp_dbc PRIVATE
+        src/drivers/document/driver_mongodb.cpp
+    )
+
+    # Find MongoDB C driver package
+    # Required system package: libmongoc-dev libbson-dev (Debian/Ubuntu) or mongo-c-driver-devel (RHEL/Fedora)
+    # Install with: sudo apt-get install libmongoc-dev libbson-dev
+    find_package(MongoDB REQUIRED)
+    target_include_directories(cpp_dbc PUBLIC ${MONGODB_INCLUDE_DIRS})
+    target_link_libraries(cpp_dbc PUBLIC ${MONGODB_LIBRARIES})
 endif()
 
 # Conditionally add YAML-CPP dependencies
@@ -237,6 +256,7 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindPostgreSQL.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSQLite3.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindFirebird.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindMongoDB.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/cpp_dbc
 )
 

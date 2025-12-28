@@ -41,6 +41,7 @@ USE_CPP_YAML=OFF
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
+USE_MONGODB=OFF
 BUILD_TYPE=Debug
 ASAN_OPTIONS=""
 ENABLE_ASAN=false
@@ -56,6 +57,7 @@ DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
+DEBUG_MONGODB=OFF
 RUN_COUNT=1
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
@@ -101,6 +103,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --firebird-off)
             USE_FIREBIRD=OFF
+            shift
+            ;;
+        --mongodb|--mongodb-on)
+            USE_MONGODB=ON
+            shift
+            ;;
+        --mongodb-off)
+            USE_MONGODB=OFF
             shift
             ;;
         --release)
@@ -169,11 +179,16 @@ while [[ $# -gt 0 ]]; do
             DEBUG_FIREBIRD=ON
             shift
             ;;
+        --debug-mongodb)
+            DEBUG_MONGODB=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
             DEBUG_FIREBIRD=ON
+            DEBUG_MONGODB=ON
             shift
             ;;
         --dw-off)
@@ -195,6 +210,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --sqlite-off           Disable SQLite support"
             echo "  --firebird, --firebird-on  Enable Firebird support"
             echo "  --firebird-off         Disable Firebird support"
+            echo "  --mongodb, --mongodb-on  Enable MongoDB support"
+            echo "  --mongodb-off          Disable MongoDB support"
             echo "  --release              Run in Release mode (default: Debug)"
             echo "  --asan                 Enable Address Sanitizer"
             echo "  --valgrind             Run tests with Valgrind"
@@ -210,6 +227,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
+            echo "  --debug-mongodb        Enable debug output for MongoDB driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -353,6 +371,12 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
         BUILD_CMD="$BUILD_CMD --firebird-off"
     fi
     
+    if [ "$USE_MONGODB" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --mongodb"
+    else
+        BUILD_CMD="$BUILD_CMD --mongodb-off"
+    fi
+    
     if [ "$BUILD_TYPE" = "Release" ]; then
         BUILD_CMD="$BUILD_CMD --release"
     else
@@ -374,6 +398,10 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
 
     if [ "$DEBUG_FIREBIRD" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --debug-firebird"
+    fi
+    
+    if [ "$DEBUG_MONGODB" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --debug-mongodb"
     fi
     
     # Add dw-off option if specified

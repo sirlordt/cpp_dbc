@@ -9,16 +9,17 @@ The CPP_DBC library appears to be in a functional state with the following compo
 3. **PostgreSQL Implementation**: Complete implementation of PostgreSQL driver with optional thread-safety
 4. **SQLite Implementation**: Complete implementation of SQLite driver with optional thread-safety
 5. **Firebird Implementation**: Complete implementation of Firebird SQL driver with optional thread-safety
-6. **Connection Pool**: Fully implemented with configuration options for MySQL, PostgreSQL, SQLite, and Firebird
-6. **Transaction Manager**: Fully implemented with transaction tracking, timeout, and improved resource management
-7. **Connection Options**: Support for database-specific connection options in all drivers
-8. **BLOB Support**: Complete implementation of Binary Large Object (BLOB) support for all database drivers
-9. **Logging System**: Structured logging system with dedicated log directories and automatic rotation
-10. **VSCode Integration**: Complete VSCode configuration with build tasks and extension management
-11. **JSON Support**: Complete implementation of JSON data type support for MySQL and PostgreSQL
-12. **Code Quality**: Comprehensive warning flags and compile-time checks with improved variable naming
-13. **Benchmark System**: Comprehensive benchmark system for database operations with different data sizes
-14. **Thread-Safe Drivers**: Optional thread-safety support for all database drivers with mutex protection
+6. **MongoDB Implementation**: Complete implementation of MongoDB document database driver with optional thread-safety
+7. **Connection Pool**: Fully implemented with configuration options for MySQL, PostgreSQL, SQLite, and Firebird
+8. **Transaction Manager**: Fully implemented with transaction tracking, timeout, and improved resource management
+9. **Connection Options**: Support for database-specific connection options in all drivers
+10. **BLOB Support**: Complete implementation of Binary Large Object (BLOB) support for all relational database drivers
+11. **Logging System**: Structured logging system with dedicated log directories and automatic rotation
+12. **VSCode Integration**: Complete VSCode configuration with build tasks and extension management
+13. **JSON Support**: Complete implementation of JSON data type support for MySQL and PostgreSQL
+14. **Code Quality**: Comprehensive warning flags and compile-time checks with improved variable naming
+15. **Benchmark System**: Comprehensive benchmark system for database operations with different data sizes
+16. **Thread-Safe Drivers**: Optional thread-safety support for all database drivers with mutex protection
 
 The project includes example code demonstrating:
 - Basic database operations
@@ -109,6 +110,21 @@ The project includes example code demonstrating:
 - BLOB data handling with SQLiteBlob implementation
 - Comprehensive test cases for BLOB operations
 
+### MongoDB Support
+- Connection to MongoDB databases (version 4.0+)
+- Document database operations (CRUD)
+- Collection management (create, drop, list)
+- Document insertion (single and batch)
+- Document querying with filters
+- Document updates with operators
+- Document deletion
+- Cursor-based result iteration
+- BSON data type support
+- Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+- Connection URL format: `mongodb://host:port/database` or `mongodb://username:password@host:port/database?authSource=admin`
+- Build system integration with `USE_MONGODB` option
+- Debug output option with `--debug-mongodb` flag
+
 ### Transaction Management
 - Transaction creation and tracking
 - Cross-thread transaction coordination
@@ -181,7 +197,44 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **Directory Restructuring for Multi-Database Type Support** (2025-12-27):
+1. **MongoDB Document Database Driver Support** (2025-12-27):
+   - Added complete MongoDB document database driver implementation:
+     - **Core Document Database Interfaces:**
+       - `DocumentDBConnection`: Base interface for document database connections
+       - `DocumentDBDriver`: Base interface for document database drivers
+       - `DocumentDBCollection`: Interface for collection operations
+       - `DocumentDBCursor`: Interface for cursor-based result iteration
+       - `DocumentDBData`: Interface for document data representation
+     - **MongoDB Driver Implementation:**
+       - `MongoDBDriver`: Driver class for MongoDB connections
+       - `MongoDBConnection`: Connection management with proper resource cleanup
+       - `MongoDBCollection`: Collection operations (CRUD, indexing)
+       - `MongoDBCursor`: Cursor-based document iteration
+       - `MongoDBData`: BSON document wrapper
+     - **Features:**
+       - Document insertion (single and batch)
+       - Document querying with filters
+       - Document updates with operators ($set, $inc, etc.)
+       - Document deletion (single and multiple)
+       - Collection management (create, drop, list)
+       - Index management
+       - Cursor-based result iteration
+       - BSON data type support
+       - Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+     - **Build System Updates:**
+       - Added `USE_MONGODB` CMake option
+       - Added `--mongodb` and `--mongodb-off` build script options
+       - Added `--debug-mongodb` option for debug output
+       - Added `FindMongoDB.cmake` for MongoDB C++ driver detection
+       - Updated all distribution Dockerfiles with MongoDB support
+     - **Test Coverage:**
+       - Added `test_mongodb_common.cpp` with helper functions
+       - Added `test_mongodb_real.cpp` with comprehensive tests
+       - Tests for connection, CRUD operations, and collection management
+   - Connection URL format: `mongodb://host:port/database` or `mongodb://username:password@host:port/database?authSource=admin`
+   - Required packages: libmongoc-dev, libbson-dev, libmongocxx-dev, libbsoncxx-dev (Debian/Ubuntu)
+
+2. **Directory Restructuring for Multi-Database Type Support** (2025-12-27):
    - Reorganized project directory structure to support multiple database types:
      - **Core Interfaces Moved:**
        - Moved `relational/` → `core/relational/`
