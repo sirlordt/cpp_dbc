@@ -20,6 +20,14 @@
 
 #include <benchmark/benchmark.h>
 
+// Define BENCHMARK_CHECK macro (not provided by Google Benchmark)
+#define BENCHMARK_CHECK(condition)                        \
+    if (!(condition))                                     \
+    {                                                     \
+        state.SkipWithError("CHECK failed: " #condition); \
+        return;                                           \
+    }
+
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
@@ -40,6 +48,10 @@
 
 #if USE_FIREBIRD
 #include <cpp_dbc/drivers/relational/driver_firebird.hpp>
+#endif
+
+#if USE_MONGODB
+#include <cpp_dbc/drivers/document/driver_mongodb.hpp>
 #endif
 
 #include <string>
@@ -70,6 +82,9 @@ namespace common_benchmark_helpers
 
     // Helper function to generate random string data
     std::string generateRandomString(size_t length);
+
+    // Helper function to generate random IDs
+    std::vector<int> generateRandomIds(int maxId, int count);
 
     // Helper function to create test tables for benchmarks
     void createBenchmarkTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName);
@@ -143,5 +158,40 @@ namespace firebird_benchmark_helpers
 
     // Helper function to populate Firebird table with test data
     void populateFirebirdTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName, int rowCount);
+#endif
+}
+
+namespace mongodb_benchmark_helpers
+{
+#if USE_MONGODB
+    // Get a MongoDB database configuration based on the given name
+    cpp_dbc::config::DatabaseConfig getMongoDBConfig(const std::string &databaseName = "dev_mongodb");
+
+    // Build a MongoDB connection string from a DatabaseConfig
+    std::string buildMongoDBConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig);
+
+    // Check if a connection to MongoDB can be established
+    bool canConnectToMongoDB();
+
+    // Helper function to get a MongoDB driver instance
+    std::shared_ptr<cpp_dbc::MongoDB::MongoDBDriver> getMongoDBDriver();
+
+    // Helper function to setup MongoDB connection
+    std::shared_ptr<cpp_dbc::MongoDB::MongoDBConnection> setupMongoDBConnection(const std::string &collectionName, int docCount = 0);
+
+    // Helper function to create a collection for benchmarking
+    void createBenchmarkCollection(std::shared_ptr<cpp_dbc::MongoDB::MongoDBConnection> &conn, const std::string &collectionName);
+
+    // Helper function to drop a collection after benchmarking
+    void dropBenchmarkCollection(std::shared_ptr<cpp_dbc::MongoDB::MongoDBConnection> &conn, const std::string &collectionName);
+
+    // Helper function to populate a collection with test documents
+    void populateCollection(std::shared_ptr<cpp_dbc::MongoDB::MongoDBConnection> &conn, const std::string &collectionName, int docCount);
+
+    // Helper function to generate a test document
+    std::string generateTestDocument(int id, const std::string &name, double value, const std::string &description);
+
+    // Helper function to generate a random collection name
+    std::string generateRandomCollectionName();
 #endif
 }

@@ -84,6 +84,7 @@ show_usage() {
   echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Example: --run-benchmarks=mysql,postgresql"
   echo "                           Example: --run-benchmarks=benchmark=update+postgresql"
+  echo "                           Example: --run-benchmarks=rebuild,mongodb,yaml,benchmark=mongodb+delete"
   echo "                           Example: --run-benchmarks=clean,rebuild,sqlite,mysql,postgres,yaml,memory-usage"
   echo "                           Example: --run-benchmarks=mysql,postgresql,base-line"
   echo "                           Note: Multiple benchmark tags can be specified using + as separator after benchmark="
@@ -92,12 +93,18 @@ show_usage() {
   echo "  --run-build-bin          Run the final local build/ executable"
   echo "  --bk-combo-01            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,valgrind,auto,run=1"
   echo "  --bk-combo-02            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,auto,run=1"
-  echo "  --bk-combo-03            Equivalent to --run-test=sqlite,postgres,mysql,yaml,valgrind,auto,run=1"
-  echo "  --bk-combo-04            Equivalent to --run-test=sqlite,postgres,mysql,yaml,auto,run=1"
+  echo "  --bk-combo-03            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,valgrind,auto,run=5"
+  echo "  --bk-combo-04            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,auto,run=5"
+  echo "  --bk-combo-05            Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,valgrind,auto,run=1"
+  echo "  --bk-combo-06            Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,auto,run=1"
+  echo "  --bk-combo-07            Equivalent to --run-test=sqlite,postgres,mysql,firebird,mongodb,yaml,valgrind,auto,run=1"
+  echo "  --bk-combo-08            Equivalent to --run-test=sqlite,postgres,mysql,firebird,mongodb,yaml,auto,run=1"
   echo "  --mc-combo-01            Equivalent to --run-build=clean,postgres,mysql,sqlite,firebird,mongodb,yaml,test,examples"
   echo "  --mc-combo-02            Equivalent to --run-build=postgres,sqlite,mysql,yaml,test,examples"
-  echo "  --kfc-combo-01           Equivalent to --run-build-dist=clean,postgres,mysql,sqlite,yaml,test,examples"
-  echo "  --kfc-combo-02           Equivalent to --run-build-dist=postgres,sqlite,mysql,yaml,test,examples"
+  echo "  --kfc-combo-01           Equivalent to --run-build-dist=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,test,examples"
+  echo "  --kfc-combo-02           Equivalent to --run-build-dist=rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,test,examples"
+  echo "  --dk-combo-01            Equivalent to --run-benchmarks=rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,memory-usage,base-line"
+  echo "  --dk-combo-02            Equivalent to --run-benchmarks=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,memory-usage,base-line"
   echo ""
   echo "Multiple commands can be combined, e.g.:"
   echo "  $(basename "$0") --clean-conan-cache --run-build"
@@ -1350,24 +1357,54 @@ while [ $i -lt ${#args[@]} ]; do
       cmd_run_test
       ;;
     --bk-combo-03)
-      # Equivalent to --run-test=sqlite,postgres,mysql,yaml,valgrind,auto,run=1
-      TEST_OPTIONS="sqlite,postgres,mysql,yaml,valgrind,auto,run=1"
+      # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,valgrind,auto,run=5
+      TEST_OPTIONS="clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,valgrind,auto,run=5"
       cmd_run_test
       ;;
     --bk-combo-04)
+      # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,auto,run=5
+      TEST_OPTIONS="clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,auto,run=5"
+      cmd_run_test
+      ;;
+    --bk-combo-05)
+      # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,valgrind,auto,run=1
+      TEST_OPTIONS="clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,valgrind,auto,run=1"
+      cmd_run_test
+      ;;
+    --bk-combo-06)
+      # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,auto,run=1
+      TEST_OPTIONS="clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,auto,run=1"
+      cmd_run_test
+      ;;
+    --bk-combo-07)
+      # Equivalent to --run-test=sqlite,postgres,mysql,yaml,valgrind,auto,run=1
+      TEST_OPTIONS="sqlite,postgres,mysql,firebird,mongodb,yaml,valgrind,auto,run=1"
+      cmd_run_test
+      ;;
+    --bk-combo-08)
       # Equivalent to --run-test=sqlite,postgres,mysql,yaml,auto,run=1
-      TEST_OPTIONS="sqlite,postgres,mysql,yaml,auto,run=1"
+      TEST_OPTIONS="sqlite,postgres,mysql,firebird,mongodb,yaml,auto,run=1"
       cmd_run_test
       ;;
     --kfc-combo-01)
       # Equivalent to --run-build-dist=clean,postgres,mysql,sqlite,yaml,test,examples
-      BUILD_DIST_OPTIONS="clean,postgres,mysql,sqlite,yaml,test,examples"
+      BUILD_DIST_OPTIONS="clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,test,examples"
       cmd_run_build_dist
       ;;
     --kfc-combo-02)
       # Equivalent to --run-build-dist=postgres,sqlite,mysql,yaml,test,examples
-      BUILD_DIST_OPTIONS="postgres,sqlite,mysql,yaml,test,examples"
+      BUILD_DIST_OPTIONS="rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,test,examples"
       cmd_run_build_dist
+      ;;
+    --dk-combo-01)
+      # Equivalent to --run-benchmarks=rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,memory-usage,base-line
+      BENCHMARK_OPTIONS="rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,memory-usage,base-line"
+      cmd_run_benchmarks
+      ;;
+    --dk-combo-02)
+      # Equivalent to --run-benchmarks=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,memory-usage,base-line
+      BENCHMARK_OPTIONS="clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,yaml,memory-usage,base-line"
+      cmd_run_benchmarks
       ;;
     --check-test-log=*)
       log_file="${args[$i]#*=}"

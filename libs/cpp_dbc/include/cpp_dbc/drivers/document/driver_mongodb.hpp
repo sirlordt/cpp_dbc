@@ -464,6 +464,14 @@ namespace cpp_dbc
             std::weak_ptr<mongoc_client_t> m_client;
 
             /**
+             * @brief Weak pointer to the connection for registration/unregistration
+             *
+             * Using weak_ptr prevents circular references and allows safe
+             * detection of connection closure.
+             */
+            std::weak_ptr<MongoDBConnection> m_connection;
+
+            /**
              * @brief The underlying MongoDB cursor
              */
             MongoCursorHandle m_cursor;
@@ -536,8 +544,9 @@ namespace cpp_dbc
              * @brief Construct a cursor from a MongoDB cursor
              * @param client Weak reference to the MongoDB client
              * @param cursor The MongoDB cursor (ownership is transferred)
+             * @param connection Weak pointer to the connection for registration (optional)
              */
-            MongoDBCursor(std::weak_ptr<mongoc_client_t> client, mongoc_cursor_t *cursor);
+            MongoDBCursor(std::weak_ptr<mongoc_client_t> client, mongoc_cursor_t *cursor, std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>());
 
             ~MongoDBCursor() override;
 
@@ -611,6 +620,14 @@ namespace cpp_dbc
             std::weak_ptr<mongoc_client_t> m_client;
 
             /**
+             * @brief Weak pointer to the connection for cursor registration
+             *
+             * Using weak_ptr prevents circular references and allows safe
+             * detection of connection closure.
+             */
+            std::weak_ptr<MongoDBConnection> m_connection;
+
+            /**
              * @brief The underlying MongoDB collection
              */
             MongoCollectionHandle m_collection;
@@ -665,11 +682,13 @@ namespace cpp_dbc
              * @param collection The MongoDB collection (ownership is transferred)
              * @param name The collection name
              * @param databaseName The database name
+             * @param connection Weak pointer to the connection for cursor registration (optional)
              */
             MongoDBCollection(std::weak_ptr<mongoc_client_t> client,
                               mongoc_collection_t *collection,
                               const std::string &name,
-                              const std::string &databaseName);
+                              const std::string &databaseName,
+                              std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>());
 
             ~MongoDBCollection() override = default;
 
@@ -762,11 +781,12 @@ namespace cpp_dbc
          *
          * Key safety features:
          * - Uses shared_ptr for client to allow weak_ptr references
+         * - Inherits from enable_shared_from_this to allow weak_ptr to connection
          * - Thread-safe operations when DB_DRIVER_THREAD_SAFE is enabled
          * - Proper cleanup of all resources on close
          * - Session management for transactions
          */
-        class MongoDBConnection : public DocumentDBConnection
+        class MongoDBConnection : public DocumentDBConnection, public std::enable_shared_from_this<MongoDBConnection>
         {
         private:
             /**
@@ -819,6 +839,17 @@ namespace cpp_dbc
              */
             std::mutex m_collectionsMutex;
 
+            /**
+             * @brief Active cursors (raw pointers for cleanup tracking)
+             * We use raw pointers because cursors hold weak_ptr to client
+             */
+            std::set<MongoDBCursor *> m_activeCursors;
+
+            /**
+             * @brief Mutex for cursor tracking
+             */
+            std::mutex m_cursorsMutex;
+
 #if DB_DRIVER_THREAD_SAFE
             mutable std::recursive_mutex m_connMutex;
 #endif
@@ -836,6 +867,18 @@ namespace cpp_dbc
             std::string generateSessionId();
 
         public:
+            /**
+             * @brief Register a cursor for cleanup tracking
+             * @param cursor Pointer to the cursor to register
+             */
+            void registerCursor(MongoDBCursor *cursor);
+
+            /**
+             * @brief Unregister a cursor from cleanup tracking
+             * @param cursor Pointer to the cursor to unregister
+             */
+            void unregisterCursor(MongoDBCursor *cursor);
+
             /**
              * @brief Construct a MongoDB connection
              * @param uri The MongoDB connection URI

@@ -87,6 +87,11 @@ add_executable(cpp_dbc_tests
     test_postgresql_thread_safe.cpp
     test_sqlite_thread_safe.cpp
     test_mongodb_real.cpp
+    test_mongodb_connection.cpp
+    test_mongodb_thread_safe.cpp
+    test_mongodb_real_blob.cpp
+    test_mongodb_real_json.cpp
+    test_mongodb_real_join.cpp
 )
 
 # Link against Catch2 and cpp_dbc

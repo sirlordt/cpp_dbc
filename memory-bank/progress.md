@@ -124,6 +124,20 @@ The project includes example code demonstrating:
 - Connection URL format: `mongodb://host:port/database` or `mongodb://username:password@host:port/database?authSource=admin`
 - Build system integration with `USE_MONGODB` option
 - Debug output option with `--debug-mongodb` flag
+- Comprehensive benchmark suite:
+  - `benchmark_mongodb_select.cpp` with SELECT operations benchmarks
+  - `benchmark_mongodb_insert.cpp` with INSERT operations benchmarks
+  - `benchmark_mongodb_update.cpp` with UPDATE operations benchmarks
+  - `benchmark_mongodb_delete.cpp` with DELETE operations benchmarks
+  - Memory usage tracking in benchmark baselines
+  - Performance comparison with relational databases
+- Extended test coverage:
+  - `test_mongodb_real_json.cpp` with JSON operations tests
+  - `test_mongodb_thread_safe.cpp` with thread safety stress tests
+  - `test_mongodb_real_join.cpp` with join operations (aggregation pipeline)
+  - JSON operations (basic, nested, arrays, query operators, updates, aggregation)
+  - Thread safety with multiple connections and shared connections
+  - Join operations using $lookup and other MongoDB aggregation pipeline operations
 
 ### Transaction Management
 - Transaction creation and tracking

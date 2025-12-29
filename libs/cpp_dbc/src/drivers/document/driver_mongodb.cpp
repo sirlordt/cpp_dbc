@@ -983,8 +983,9 @@ namespace cpp_dbc
         // MongoDBCursor Implementation
         // ============================================================================
 
-        MongoDBCursor::MongoDBCursor(std::weak_ptr<mongoc_client_t> client, mongoc_cursor_t *cursor)
+        MongoDBCursor::MongoDBCursor(std::weak_ptr<mongoc_client_t> client, mongoc_cursor_t *cursor, std::weak_ptr<MongoDBConnection> connection)
             : m_client(std::move(client)),
+              m_connection(std::move(connection)),
               m_cursor(cursor)
         {
             MONGODB_DEBUG("MongoDBCursor::constructor - Creating cursor");
@@ -992,22 +993,39 @@ namespace cpp_dbc
             {
                 throw DBException("C9D5E4F3A7B8", "Cannot create cursor from null pointer", system_utils::captureCallStack());
             }
+
+            // Register with connection for cleanup tracking
+            if (auto conn = m_connection.lock())
+            {
+                conn->registerCursor(this);
+            }
+
             MONGODB_DEBUG("MongoDBCursor::constructor - Done");
         }
 
         MongoDBCursor::~MongoDBCursor()
         {
             MONGODB_DEBUG("MongoDBCursor::destructor - Destroying cursor");
+
+            // Unregister from connection
+            if (auto conn = m_connection.lock())
+            {
+                conn->unregisterCursor(this);
+            }
+
+            MONGODB_DEBUG("MongoDBCursor::destructor - Done");
         }
 
         MongoDBCursor::MongoDBCursor(MongoDBCursor &&other) noexcept
             : m_client(std::move(other.m_client)),
+              m_connection(std::move(other.m_connection)),
               m_cursor(std::move(other.m_cursor)),
               m_currentDoc(std::move(other.m_currentDoc)),
               m_position(other.m_position),
               m_iterationStarted(other.m_iterationStarted),
               m_exhausted(other.m_exhausted)
         {
+            other.m_connection.reset();
             other.m_exhausted = true;
         }
 
@@ -1015,12 +1033,21 @@ namespace cpp_dbc
         {
             if (this != &other)
             {
+                // Unregister from old connection
+                if (auto conn = m_connection.lock())
+                {
+                    conn->unregisterCursor(this);
+                }
+
                 m_client = std::move(other.m_client);
+                m_connection = std::move(other.m_connection);
                 m_cursor = std::move(other.m_cursor);
                 m_currentDoc = std::move(other.m_currentDoc);
                 m_position = other.m_position;
                 m_iterationStarted = other.m_iterationStarted;
                 m_exhausted = other.m_exhausted;
+
+                other.m_connection.reset();
                 other.m_exhausted = true;
             }
             return *this;
@@ -1267,8 +1294,10 @@ namespace cpp_dbc
         MongoDBCollection::MongoDBCollection(std::weak_ptr<mongoc_client_t> client,
                                              mongoc_collection_t *collection,
                                              const std::string &name,
-                                             const std::string &databaseName)
+                                             const std::string &databaseName,
+                                             std::weak_ptr<MongoDBConnection> connection)
             : m_client(std::move(client)),
+              m_connection(std::move(connection)),
               m_collection(collection),
               m_name(name),
               m_databaseName(databaseName)
@@ -1566,7 +1595,7 @@ namespace cpp_dbc
                 throw DBException("A1B7C6D5E0F9", "Failed to create cursor for find", system_utils::captureCallStack());
             }
 
-            return std::make_shared<MongoDBCursor>(m_client, cursor);
+            return std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
         }
 
         std::shared_ptr<DocumentDBCursor> MongoDBCollection::find(
@@ -1591,7 +1620,7 @@ namespace cpp_dbc
                 throw DBException("B2C8D7E6F1A0", "Failed to create cursor for find with projection", system_utils::captureCallStack());
             }
 
-            return std::make_shared<MongoDBCursor>(m_client, cursor);
+            return std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
         }
 
         DocumentUpdateResult MongoDBCollection::updateOne(
@@ -1875,7 +1904,7 @@ namespace cpp_dbc
             bson_free(generatedName);
 
             bson_error_t error;
-            
+
             // Suppress deprecation warning for mongoc_collection_create_index
             // We use this older API for broader compatibility with different libmongoc versions
 #if defined(__GNUC__) || defined(__clang__)
@@ -2022,7 +2051,7 @@ namespace cpp_dbc
                 throw DBException("I3J4K5L6M7N8", "Failed to create cursor for aggregate", system_utils::captureCallStack());
             }
 
-            return std::make_shared<MongoDBCursor>(m_client, cursor);
+            return std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
         }
 
         std::vector<std::string> MongoDBCollection::distinct(
@@ -2266,12 +2295,61 @@ namespace cpp_dbc
             return oss.str();
         }
 
+        void MongoDBConnection::registerCursor(MongoDBCursor *cursor)
+        {
+            if (cursor)
+            {
+                std::lock_guard<std::mutex> lock(m_cursorsMutex);
+                m_activeCursors.insert(cursor);
+                MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: " << m_activeCursors.size());
+            }
+        }
+
+        void MongoDBConnection::unregisterCursor(MongoDBCursor *cursor)
+        {
+            if (cursor)
+            {
+                std::lock_guard<std::mutex> lock(m_cursorsMutex);
+                m_activeCursors.erase(cursor);
+                MONGODB_DEBUG("MongoDBConnection::unregisterCursor - Unregistered cursor, remaining: " << m_activeCursors.size());
+            }
+        }
+
         void MongoDBConnection::close()
         {
             MONGODB_LOCK_GUARD(m_connMutex);
 
             if (m_closed)
                 return;
+
+            MONGODB_DEBUG("MongoDBConnection::close - Closing connection");
+
+            // Close all active cursors BEFORE destroying the client
+            // This is critical: cursors must be destroyed before the client
+            {
+                std::lock_guard<std::mutex> cursorsLock(m_cursorsMutex);
+                MONGODB_DEBUG("MongoDBConnection::close - Closing " << m_activeCursors.size() << " active cursors");
+
+                // Make a copy of the set to avoid iterator invalidation
+                std::vector<MongoDBCursor *> cursorsToClose(m_activeCursors.begin(), m_activeCursors.end());
+
+                for (auto *cursor : cursorsToClose)
+                {
+                    if (cursor)
+                    {
+                        try
+                        {
+                            cursor->close();
+                        }
+                        catch (...)
+                        {
+                            // Ignore errors during cleanup
+                        }
+                    }
+                }
+
+                m_activeCursors.clear();
+            }
 
             // End all active sessions
             {
@@ -2285,8 +2363,11 @@ namespace cpp_dbc
                 m_activeCollections.clear();
             }
 
+            // Now it's safe to destroy the client
             m_client.reset();
             m_closed = true;
+
+            MONGODB_DEBUG("MongoDBConnection::close - Connection closed");
         }
 
         bool MongoDBConnection::isClosed()
@@ -2392,7 +2473,7 @@ namespace cpp_dbc
             }
 
             return std::make_shared<MongoDBCollection>(
-                std::weak_ptr<mongoc_client_t>(m_client), coll, collectionName, m_databaseName);
+                std::weak_ptr<mongoc_client_t>(m_client), coll, collectionName, m_databaseName, weak_from_this());
         }
 
         std::vector<std::string> MongoDBConnection::listCollections()
@@ -2473,7 +2554,7 @@ namespace cpp_dbc
             }
 
             return std::make_shared<MongoDBCollection>(
-                std::weak_ptr<mongoc_client_t>(m_client), coll, collectionName, m_databaseName);
+                std::weak_ptr<mongoc_client_t>(m_client), coll, collectionName, m_databaseName, weak_from_this());
         }
 
         void MongoDBConnection::dropCollection(const std::string &collectionName)
@@ -2739,7 +2820,7 @@ namespace cpp_dbc
 
         bool MongoDBDriver::acceptsURL(const std::string &url)
         {
-            return url.find("mongodb://") == 0 || url.find("mongodb+srv://") == 0;
+            return url.substr(0, 18) == "cpp_dbc:mongodb://";
         }
 
         std::shared_ptr<DocumentDBConnection> MongoDBDriver::connectDocument(
@@ -2756,7 +2837,14 @@ namespace cpp_dbc
                 throw DBException("I9J0K1L2M3N4", "Invalid MongoDB URL: " + url, system_utils::captureCallStack());
             }
 
-            auto conn = std::make_shared<MongoDBConnection>(url, user, password, options);
+            // Strip the 'cpp_dbc:' prefix if present
+            std::string mongoUrl = url;
+            if (url.substr(0, 8) == "cpp_dbc:")
+            {
+                mongoUrl = url.substr(8); // Remove "cpp_dbc:" prefix
+            }
+
+            auto conn = std::make_shared<MongoDBConnection>(mongoUrl, user, password, options);
             MONGODB_DEBUG("MongoDBDriver::connectDocument - Connection established");
             return conn;
         }

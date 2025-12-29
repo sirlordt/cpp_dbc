@@ -78,7 +78,7 @@ TEST_CASE("Database configurations", "[db_config]")
         const auto &allDatabases = configManager.getAllDatabases();
 
         // Check that we have the expected number of databases
-        REQUIRE(allDatabases.size() == 11); // 3 MySQL + 3 PostgreSQL + 3 SQLite + 2 Firebird
+        REQUIRE(allDatabases.size() == 13); // 3 MySQL + 3 PostgreSQL + 3 SQLite + 2 Firebird + 2 MongoDB
 
         // Check that each database has the required fields
         for (const auto &db : allDatabases)

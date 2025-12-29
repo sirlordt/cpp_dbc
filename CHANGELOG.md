@@ -1,6 +1,41 @@
 # Changelog
 
-## 2025-12-27 08:34:18 PM PST [Current]
+## 2025-12-29 03:44:32 PM PST [Current]
+
+### MongoDB Benchmark and Test Improvements
+* Added comprehensive MongoDB benchmark suite:
+  * **New Benchmark Files:**
+    * Added `benchmark_mongodb_select.cpp` with SELECT operations benchmarks
+    * Added `benchmark_mongodb_insert.cpp` with INSERT operations benchmarks
+    * Added `benchmark_mongodb_update.cpp` with UPDATE operations benchmarks
+    * Added `benchmark_mongodb_delete.cpp` with DELETE operations benchmarks
+  * **Benchmark Infrastructure Updates:**
+    * Updated `benchmark/CMakeLists.txt` to include MongoDB benchmark files
+    * Added `USE_MONGODB` compile definition for conditional compilation
+    * Added MongoDB helper functions to `benchmark_common.hpp`
+    * Updated benchmark scripts with MongoDB-specific options
+  * **New Benchmark Options:**
+    * Added `--mongodb` parameter to run MongoDB benchmarks
+    * Added MongoDB memory usage tracking to baseline creation
+* Added comprehensive MongoDB test coverage:
+  * **New Test Files:**
+    * Added `test_mongodb_real_json.cpp` with JSON operations tests
+    * Added `test_mongodb_thread_safe.cpp` with thread-safety stress tests
+    * Added `test_mongodb_real_join.cpp` with join operations tests (aggregation pipeline)
+  * **Test Coverage:**
+    * Document JSON operations (basic, nested, arrays)
+    * JSON query operators ($eq, $gt, $lt, etc.)
+    * JSON updates and modifications
+    * JSON aggregation operations
+    * Thread safety with multiple connections
+    * Thread safety with shared connection
+    * Join operations using MongoDB aggregation pipeline
+* Enhanced helper script with MongoDB support:
+  * Added new command combinations for MongoDB testing and benchmarks
+  * Added example command combinations for different scenarios
+  * Updated usage information with MongoDB examples
+
+## 2025-12-27 08:34:18 PM PST
 
 ### MongoDB Document Database Driver Support
 * Added complete MongoDB document database driver implementation:

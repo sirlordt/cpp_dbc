@@ -1,6 +1,6 @@
 # CPPDBC - C++ Database Connectivity Library
 
-This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, SQLite, Firebird, and MongoDB databases using a unified interface. The library includes connection pooling, transaction management with different isolation levels, support for YAML configuration, and enhanced stack trace capabilities with libdw.
+This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, SQLite, Firebird, and MongoDB databases using a unified interface. The library includes connection pooling, transaction management with different isolation levels, support for YAML configuration, enhanced stack trace capabilities with libdw, and comprehensive benchmarking capabilities for all supported database types.
 
 ## File Structure
 
@@ -37,6 +37,15 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `src/drivers/relational/driver_sqlite.cpp` - SQLite implementation using libsqlite3
 - `src/drivers/relational/driver_firebird.cpp` - Firebird implementation using libfbclient
 - `src/drivers/document/driver_mongodb.cpp` - MongoDB implementation using libmongocxx
+- `benchmark/benchmark_mongodb_select.cpp` - MongoDB select operation benchmarks
+- `benchmark/benchmark_mongodb_insert.cpp` - MongoDB insert operation benchmarks
+- `benchmark/benchmark_mongodb_update.cpp` - MongoDB update operation benchmarks
+- `benchmark/benchmark_mongodb_delete.cpp` - MongoDB delete operation benchmarks
+- `test/test_mongodb_real.cpp` - MongoDB integration tests
+- `test/test_mongodb_real_blob.cpp` - MongoDB BLOB handling tests
+- `test/test_mongodb_real_json.cpp` - MongoDB JSON operation tests
+- `test/test_mongodb_real_join.cpp` - MongoDB join operation tests
+- `test/test_mongodb_thread_safe.cpp` - MongoDB thread safety tests
 - `src/connection_pool.cpp` - Connection pool implementation
 - `src/transaction_manager.cpp` - Transaction manager implementation
 - `src/driver_manager.cpp` - Driver manager implementation
@@ -208,6 +217,10 @@ cmake --build .
 14. JSON operations support for databases that support it
 15. Connection pool memory safety with smart pointers for pool lifetime tracking
 16. Document database support with MongoDB driver (CRUD operations, collection management, cursor-based iteration)
+17. Comprehensive benchmarking infrastructure for performance testing of all database operations
+18. MongoDB benchmark support for select, insert, update, and delete operations with detailed performance metrics
+19. Extensive testing suite for MongoDB including JSON operations, BLOB handling, joins, and thread safety
+20. Memory usage tracking for all database operations in benchmarks
 
 ### Code Quality Features
 

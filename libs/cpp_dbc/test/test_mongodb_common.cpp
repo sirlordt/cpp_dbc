@@ -104,7 +104,7 @@ namespace mongodb_test_helpers
 
         // Build connection string for MongoDB
         // Format: mongodb://[username:password@]host:port/database?options
-        std::string connStr = "mongodb://";
+        std::string connStr = "cpp_dbc:mongodb://";
         if (!username.empty() && !password.empty())
         {
             connStr += username + ":" + password + "@";

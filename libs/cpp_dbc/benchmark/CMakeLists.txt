@@ -44,6 +44,12 @@ add_executable(cpp_dbc_benchmarks
     benchmark_firebird_insert.cpp
     benchmark_firebird_update.cpp
     benchmark_firebird_delete.cpp
+
+    # MongoDB benchmarks
+    benchmark_mongodb_select.cpp
+    benchmark_mongodb_insert.cpp
+    benchmark_mongodb_update.cpp
+    benchmark_mongodb_delete.cpp
 )
 
 # Link against Google Benchmark, cpp_dbc and yaml-cpp
@@ -64,6 +70,8 @@ target_compile_definitions(cpp_dbc_benchmarks PUBLIC
     $<$<NOT:$<BOOL:${USE_SQLITE}>>:USE_SQLITE=0>
     $<$<BOOL:${USE_FIREBIRD}>:USE_FIREBIRD=1>
     $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
+    $<$<BOOL:${USE_MONGODB}>:USE_MONGODB=1>
+    $<$<NOT:$<BOOL:${USE_MONGODB}>>:USE_MONGODB=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
 )

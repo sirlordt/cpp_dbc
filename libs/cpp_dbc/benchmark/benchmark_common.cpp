@@ -73,6 +73,32 @@ namespace common_benchmark_helpers
         return result;
     }
 
+    // Helper function to generate random IDs
+    std::vector<int> generateRandomIds(int maxId, int count)
+    {
+        // Initialize vector and random number generator
+        std::vector<int> result;
+        result.reserve(count);
+
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
+        std::uniform_int_distribution<int> dist(1, maxId);
+
+        // Generate unique random IDs
+        std::unordered_set<int> usedIds;
+        while (usedIds.size() < static_cast<size_t>(count) && usedIds.size() < static_cast<size_t>(maxId))
+        {
+            int id = dist(gen);
+            if (usedIds.find(id) == usedIds.end())
+            {
+                usedIds.insert(id);
+                result.push_back(id);
+            }
+        }
+
+        return result;
+    }
+
     // Implementation of createBenchmarkTable function
     void createBenchmarkTable(std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn, const std::string &tableName)
     {
@@ -829,3 +855,318 @@ namespace firebird_benchmark_helpers
 #endif // USE_FIREBIRD
 
 } // namespace firebird_benchmark_helpers
+
+namespace mongodb_benchmark_helpers
+{
+
+#if USE_MONGODB
+    // Track which collections have been initialized to avoid recreating them
+    static std::unordered_map<std::string, bool> collectionInitialized;
+    static std::mutex collectionMutex;
+
+    cpp_dbc::config::DatabaseConfig getMongoDBConfig(const std::string &databaseName)
+    {
+        cpp_dbc::config::DatabaseConfig dbConfig;
+
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+        // Load the configuration using DatabaseConfigManager
+        std::string config_path = common_benchmark_helpers::getConfigFilePath();
+        cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+        // Find the requested database configuration
+        auto dbConfigOpt = configManager.getDatabaseByName(databaseName);
+
+        if (dbConfigOpt.has_value())
+        {
+            // Use the configuration from the YAML file
+            dbConfig = dbConfigOpt.value().get();
+        }
+        else
+        {
+            // Fallback to default values if configuration not found
+            dbConfig.setName(databaseName);
+            dbConfig.setType("mongodb");
+            dbConfig.setHost("localhost");
+            dbConfig.setPort(27017);
+            dbConfig.setDatabase("test01db");
+            dbConfig.setUsername("");
+            dbConfig.setPassword("");
+        }
+#else
+        // Hardcoded values when YAML is not available
+        dbConfig.setName(databaseName);
+        dbConfig.setType("mongodb");
+        dbConfig.setHost("localhost");
+        dbConfig.setPort(27017);
+        dbConfig.setDatabase("test01db");
+        dbConfig.setUsername("");
+        dbConfig.setPassword("");
+#endif
+
+        return dbConfig;
+    }
+
+    // Build a MongoDB connection string from a DatabaseConfig
+    std::string buildMongoDBConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig)
+    {
+        // Format: mongodb://[username:password@]host:port/database?options
+        // Use the cpp_dbc: prefix for consistency with other database drivers
+        std::string connStr = "cpp_dbc:mongodb://";
+
+        if (!dbConfig.getUsername().empty() && !dbConfig.getPassword().empty())
+        {
+            connStr += dbConfig.getUsername() + ":" + dbConfig.getPassword() + "@";
+        }
+
+        connStr += dbConfig.getHost() + ":" + std::to_string(dbConfig.getPort());
+        connStr += "/" + dbConfig.getDatabase();
+
+        // Add query parameters from options
+        std::string queryParams;
+
+        // Check for auth_source option
+        auto authSource = dbConfig.getOption("auth_source");
+        if (!authSource.empty())
+        {
+            if (!queryParams.empty())
+                queryParams += "&";
+            queryParams += "authSource=" + authSource;
+        }
+
+        // Check for direct_connection option
+        auto directConnection = dbConfig.getOption("direct_connection");
+        if (!directConnection.empty() && directConnection == "true")
+        {
+            if (!queryParams.empty())
+                queryParams += "&";
+            queryParams += "directConnection=true";
+        }
+
+        // Check for connect_timeout option
+        auto connectTimeout = dbConfig.getOption("connect_timeout");
+        if (!connectTimeout.empty())
+        {
+            if (!queryParams.empty())
+                queryParams += "&";
+            queryParams += "connectTimeoutMS=" + connectTimeout;
+        }
+
+        // Check for server_selection_timeout option
+        auto serverSelectionTimeout = dbConfig.getOption("server_selection_timeout");
+        if (!serverSelectionTimeout.empty())
+        {
+            if (!queryParams.empty())
+                queryParams += "&";
+            queryParams += "serverSelectionTimeoutMS=" + serverSelectionTimeout;
+        }
+
+        // Append query parameters if any
+        if (!queryParams.empty())
+        {
+            connStr += "?" + queryParams;
+        }
+
+        return connStr;
+    }
+
+    bool canConnectToMongoDB()
+    {
+        try
+        {
+            // Get database configuration
+            auto dbConfig = getMongoDBConfig("dev_mongodb");
+
+            // Get connection parameters
+            std::string connStr = buildMongoDBConnectionString(dbConfig);
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            // Register the MongoDB driver
+            cpp_dbc::DriverManager::registerDriver("mongodb", std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+
+            // Attempt to connect to MongoDB
+            cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to MongoDB with connection string: " + connStr);
+
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+
+            // If we get here, the connection was successful
+            cpp_dbc::system_utils::logWithTimestampInfo("MongoDB connection successful!");
+
+            // Execute a simple query to verify the connection
+            bool success = true;
+            try
+            {
+                auto collection = conn->getCollection("system.version");
+                auto cursor = collection->find("{}");
+                success = (cursor != nullptr);
+            }
+            catch (const std::exception &e)
+            {
+                cpp_dbc::system_utils::logWithTimestampException(e.what());
+                success = false;
+            }
+
+            // Close the connection
+            conn->close();
+
+            return success;
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
+            return false;
+        }
+    }
+
+    // Helper function to get a MongoDB driver instance
+    std::shared_ptr<cpp_dbc::MongoDB::MongoDBDriver> getMongoDBDriver()
+    {
+        // Create and return a MongoDB driver
+        return std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>();
+    }
+
+    // Helper function to create a test document
+    std::string generateTestDocument(int id, const std::string &name, double value, const std::string &description)
+    {
+        return "{"
+               "\"id\": " +
+               std::to_string(id) + ", "
+                                    "\"name\": \"" +
+               name + "\", "
+                      "\"value\": " +
+               std::to_string(value) + ", "
+                                       "\"description\": \"" +
+               description + "\", "
+                             "\"created_at\": { \"$date\": \"" +
+               [&]()
+        {
+            auto now = std::chrono::system_clock::now();
+            auto now_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(now);
+            auto timestamp_ms = now_ms.time_since_epoch().count();
+
+            // Format as ISO 8601 date
+            std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+            std::tm *now_tm = std::gmtime(&now_c);
+
+            std::stringstream ss;
+            ss << std::put_time(now_tm, "%Y-%m-%dT%H:%M:%S") << "."
+               << std::setfill('0') << std::setw(3) << (timestamp_ms % 1000) << "Z";
+            return ss.str();
+        }() + "\" }"
+              "}";
+    }
+
+    // Helper function to generate a random collection name
+    std::string generateRandomCollectionName()
+    {
+        return "benchmark_" + common_benchmark_helpers::generateRandomString(8);
+    }
+
+    // Helper function to create a collection for benchmarking
+    void createBenchmarkCollection(std::shared_ptr<cpp_dbc::MongoDB::MongoDBConnection> &conn, const std::string &collectionName)
+    {
+        try
+        {
+            // Drop collection if it exists
+            conn->dropCollection(collectionName);
+
+            // Create the collection
+            conn->createCollection(collectionName);
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
+            throw; // Re-throw to fail the benchmark
+        }
+    }
+
+    // Helper function to drop a collection after benchmarking
+    void dropBenchmarkCollection(std::shared_ptr<cpp_dbc::MongoDB::MongoDBConnection> &conn, const std::string &collectionName)
+    {
+        try
+        {
+            conn->dropCollection(collectionName);
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampError("Error dropping collection: " + std::string(e.what()));
+        }
+    }
+
+    // Helper function to populate a collection with test documents
+    void populateCollection(std::shared_ptr<cpp_dbc::MongoDB::MongoDBConnection> &conn, const std::string &collectionName, int docCount)
+    {
+        auto collection = conn->getCollection(collectionName);
+
+        // Insert the specified number of documents
+        for (int i = 1; i <= docCount; ++i)
+        {
+            std::string name = "Name " + std::to_string(i);
+            double value = i * 1.5;
+            std::string description = common_benchmark_helpers::generateRandomString(50);
+
+            std::string doc = generateTestDocument(i, name, value, description);
+            collection->insertOne(doc);
+        }
+    }
+
+    // Implementation of setupMongoDBConnection
+    std::shared_ptr<cpp_dbc::MongoDB::MongoDBConnection> setupMongoDBConnection(const std::string &collectionName, int docCount)
+    {
+        try
+        {
+            // Get database configuration
+            auto dbConfig = getMongoDBConfig("dev_mongodb");
+
+            // Get connection parameters
+            std::string connStr = buildMongoDBConnectionString(dbConfig);
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            // Check if this collection has already been initialized
+            bool needsInitialization = false;
+            {
+                std::lock_guard<std::mutex> lock(collectionMutex);
+                auto it = collectionInitialized.find(collectionName);
+                if (it == collectionInitialized.end() || !it->second)
+                {
+                    needsInitialization = true;
+                    collectionInitialized[collectionName] = true;
+                }
+            }
+
+            // Register the MongoDB driver and get a connection
+            cpp_dbc::DriverManager::registerDriver("mongodb", std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+
+            if (needsInitialization)
+            {
+                // Create benchmark collection
+                cpp_dbc::system_utils::logWithTimestampInfo("Creating and populating collection '" + collectionName + "' for the first time...");
+                createBenchmarkCollection(conn, collectionName);
+
+                // Populate collection with specified documents if docCount > 0
+                if (docCount > 0)
+                {
+                    populateCollection(conn, collectionName, docCount);
+                }
+            }
+            else
+            {
+                cpp_dbc::system_utils::logWithTimestampInfo("Reusing existing collection '" + collectionName + "'");
+            }
+
+            return conn;
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
+            return nullptr;
+        }
+    }
+
+#endif // USE_MONGODB
+
+} // namespace mongodb_benchmark_helpers

@@ -8,6 +8,7 @@ USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
+USE_MONGODB=OFF
 USE_CPP_YAML=OFF
 BENCHMARK_MIN_TIME="0.5"  # Minimum time per iteration for Google Benchmark
 BENCHMARK_REPETITIONS=3   # Number of repetitions for Google Benchmark
@@ -18,6 +19,8 @@ RELEASE_BUILD=false
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_FIREBIRD=OFF
+DEBUG_MONGODB=OFF
 BACKWARD_HAS_DW=ON
 USE_MEMORY_USAGE=false    # Whether to use /usr/bin/time for memory usage tracking
 DB_DRIVER_THREAD_SAFE=ON
@@ -57,6 +60,14 @@ while [[ $# -gt 0 ]]; do
             USE_FIREBIRD=OFF
             shift
             ;;
+        --mongodb|--mongodb-on)
+            USE_MONGODB=ON
+            shift
+            ;;
+        --mongodb-off)
+            USE_MONGODB=OFF
+            shift
+            ;;
         --min-time=*)
             BENCHMARK_MIN_TIME="${1#*=}"
             shift
@@ -81,10 +92,20 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             shift
             ;;
+        --debug-firebird)
+            DEBUG_FIREBIRD=ON
+            shift
+            ;;
+        --debug-mongodb)
+            DEBUG_MONGODB=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
+            DEBUG_FIREBIRD=ON
+            DEBUG_MONGODB=ON
             shift
             ;;
         --dw-off)
@@ -130,6 +151,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --sqlite-off           Disable SQLite support"
             echo "  --firebird, --firebird-on  Enable Firebird support"
             echo "  --firebird-off         Disable Firebird support"
+            echo "  --mongodb, --mongodb-on  Enable MongoDB support"
+            echo "  --mongodb-off         Disable MongoDB support"
             echo "  --yaml, --yaml-on      Enable YAML support"
             echo "  --yaml-off             Disable YAML support"
             echo "  --min-time=N           Set minimum time per iteration in seconds (default: 0.5)"
@@ -141,6 +164,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
+            echo "  --debug-firebird       Enable debug output for Firebird driver"
+            echo "  --debug-mongodb        Enable debug output for MongoDB driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -175,6 +200,7 @@ echo "  MySQL support: $USE_MYSQL"
 echo "  PostgreSQL support: $USE_POSTGRESQL"
 echo "  SQLite support: $USE_SQLITE"
 echo "  Firebird support: $USE_FIREBIRD"
+echo "  MongoDB support: $USE_MONGODB"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Clean build: $CLEAN_BUILD"
@@ -184,6 +210,8 @@ echo "  Benchmark repetitions: $BENCHMARK_REPETITIONS"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  Debug Firebird: $DEBUG_FIREBIRD"
+echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
 echo "  Memory usage tracking: $USE_MEMORY_USAGE"
@@ -225,6 +253,12 @@ if [ "$CLEAN_BUILD" = true ] || [ "$REBUILD" = true ]; then
         USE_FIREBIRD=ON
     fi
     
+    # Check if benchmark tags contain "mongodb" and enable MongoDB support if needed
+    if [ -n "$BENCHMARK_TAGS" ] && [[ "$BENCHMARK_TAGS" == *"mongodb"* ]]; then
+        echo "MongoDB benchmark tag detected, ensuring MongoDB support is enabled"
+        USE_MONGODB=ON
+    fi
+    
     # Add database options
     if [ "$USE_MYSQL" = "ON" ]; then
         BUILD_OPTIONS="$BUILD_OPTIONS --mysql"
@@ -250,6 +284,12 @@ if [ "$CLEAN_BUILD" = true ] || [ "$REBUILD" = true ]; then
         BUILD_OPTIONS="$BUILD_OPTIONS --firebird-off"
     fi
     
+    if [ "$USE_MONGODB" = "ON" ]; then
+        BUILD_OPTIONS="$BUILD_OPTIONS --mongodb"
+    else
+        BUILD_OPTIONS="$BUILD_OPTIONS --mongodb-off"
+    fi
+    
     if [ "$USE_CPP_YAML" = "ON" ]; then
         BUILD_OPTIONS="$BUILD_OPTIONS --yaml"
     fi
@@ -265,6 +305,14 @@ if [ "$CLEAN_BUILD" = true ] || [ "$REBUILD" = true ]; then
     
     if [ "$DEBUG_SQLITE" = "ON" ]; then
         BUILD_OPTIONS="$BUILD_OPTIONS --debug-sqlite"
+    fi
+    
+    if [ "$DEBUG_FIREBIRD" = "ON" ]; then
+        BUILD_OPTIONS="$BUILD_OPTIONS --debug-firebird"
+    fi
+    
+    if [ "$DEBUG_MONGODB" = "ON" ]; then
+        BUILD_OPTIONS="$BUILD_OPTIONS --debug-mongodb"
     fi
     
     if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
@@ -335,45 +383,73 @@ BENCHMARK_OPTIONS="--benchmark_min_time=${BENCHMARK_MIN_TIME}s --benchmark_repet
 if [ -n "$BENCHMARK_TAGS" ]; then
     echo "Running benchmarks with tags: $BENCHMARK_TAGS"
     
-    # Map tag formats from the previous Catch2 format to Google Benchmark format
-    # Convert formats like "update+postgresql" to regex patterns like "BM.*Update.*PostgreSQL"
-    # This is an approximate conversion
-    FILTER=""
+    # Split the benchmark tags by "+" and build a regex pattern that requires ALL conditions
+    IFS='+' read -ra TAG_PARTS <<< "$BENCHMARK_TAGS"
     
-    if [[ "$BENCHMARK_TAGS" == *"mysql"* ]]; then
-        FILTER="${FILTER}MySQL|"
-    fi
+    # Start with an empty filter
+    FILTER="^BM_"
     
-    if [[ "$BENCHMARK_TAGS" == *"postgresql"* ]]; then
-        FILTER="${FILTER}PostgreSQL|"
-    fi
+    # Process each tag part and add it to the filter
+    for part in "${TAG_PARTS[@]}"; do
+        # Convert the part to lowercase for case-insensitive comparison
+        lower_part=$(echo "$part" | tr '[:upper:]' '[:lower:]')
+        
+        case "$lower_part" in
+            "mysql")
+                FILTER="${FILTER}.*MySQL"
+                ;;
+            "postgresql")
+                FILTER="${FILTER}.*PostgreSQL"
+                ;;
+            "sqlite")
+                FILTER="${FILTER}.*SQLite"
+                ;;
+            "firebird")
+                FILTER="${FILTER}.*Firebird"
+                ;;
+            "mongodb")
+                FILTER="${FILTER}.*MongoDB"
+                ;;
+            "insert")
+                FILTER="${FILTER}.*Insert"
+                ;;
+            "update")
+                FILTER="${FILTER}.*Update"
+                ;;
+            "delete")
+                FILTER="${FILTER}.*Delete"
+                ;;
+            "select")
+                FILTER="${FILTER}.*Select"
+                ;;
+            "small")
+                FILTER="${FILTER}.*Small"
+                ;;
+            "large")
+                FILTER="${FILTER}.*Large"
+                ;;
+            "findone")
+                FILTER="${FILTER}.*FindOne"
+                ;;
+            "find")
+                # Only add this if it's not part of FindOne
+                if [[ "$BENCHMARK_TAGS" != *"findone"* ]]; then
+                    FILTER="${FILTER}.*Find"
+                fi
+                ;;
+            *)
+                # Handle any other specific tag by capitalizing first letter
+                capitalized=$(echo "$part" | sed 's/\<./\u&/g')
+                FILTER="${FILTER}.*$capitalized"
+                ;;
+        esac
+    done
     
-    if [[ "$BENCHMARK_TAGS" == *"sqlite"* ]]; then
-        FILTER="${FILTER}SQLite|"
-    fi
+    # Add the end of the regex pattern
+    FILTER="${FILTER}.*\$"
     
-    if [[ "$BENCHMARK_TAGS" == *"firebird"* ]]; then
-        FILTER="${FILTER}Firebird|"
-    fi
-    
-    if [[ "$BENCHMARK_TAGS" == *"insert"* ]]; then
-        FILTER="${FILTER}.*Insert.*|"
-    fi
-    
-    if [[ "$BENCHMARK_TAGS" == *"update"* ]]; then
-        FILTER="${FILTER}.*Update.*|"
-    fi
-    
-    if [[ "$BENCHMARK_TAGS" == *"delete"* ]]; then
-        FILTER="${FILTER}.*Delete.*|"
-    fi
-    
-    if [[ "$BENCHMARK_TAGS" == *"select"* ]]; then
-        FILTER="${FILTER}.*Select.*|"
-    fi
-    
-    # Remove trailing pipe if it exists
-    FILTER=${FILTER%|}
+    # Print the final filter for debugging
+    echo "DEBUG: Final benchmark filter regex: \"$FILTER\""
     
     echo "Using benchmark filter: $FILTER"
     if [ "$USE_MEMORY_USAGE" = true ]; then
@@ -436,6 +512,20 @@ else
             /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_Firebird" $BENCHMARK_OPTIONS
         else
             ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_Firebird" $BENCHMARK_OPTIONS
+        fi
+        echo ""
+        echo "=============================="
+    fi
+    
+    # MongoDB benchmarks
+    if [ "$USE_MONGODB" = "ON" ]; then
+        echo "Running MongoDB benchmarks..."
+        # Pattern to match the standard BM_MongoDB_* benchmark names
+        if [ "$USE_MEMORY_USAGE" = true ]; then
+            echo "Running with memory usage tracking..."
+            /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_MongoDB" $BENCHMARK_OPTIONS
+        else
+            ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_MongoDB" $BENCHMARK_OPTIONS
         fi
         echo ""
         echo "=============================="

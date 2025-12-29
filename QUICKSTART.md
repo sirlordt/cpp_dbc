@@ -188,11 +188,23 @@ The test log analysis feature checks for:
 # Run only Firebird benchmarks
 ./helper.sh --run-benchmarks=firebird
 
+# Run only MongoDB benchmarks
+./helper.sh --run-benchmarks=mongodb
+
 # Run MySQL and PostgreSQL benchmarks
 ./helper.sh --run-benchmarks=mysql+postgresql
 
 # Run all database benchmarks
-./helper.sh --run-benchmarks=mysql+postgresql+sqlite+firebird
+./helper.sh --run-benchmarks=mysql+postgresql+sqlite+firebird+mongodb
+
+# Run MongoDB JSON operation tests
+./helper.sh --run-test=mongodb,test=mongodb_real_json
+
+# Run MongoDB thread safety tests
+./helper.sh --run-test=mongodb,test=mongodb_thread_safe
+
+# Run MongoDB join operation tests
+./helper.sh --run-test=mongodb,test=mongodb_real_join
 
 # Run specific benchmark tags
 ./helper.sh --run-benchmarks=benchmark=update+postgresql
