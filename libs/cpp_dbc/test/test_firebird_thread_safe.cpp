@@ -35,7 +35,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
 
@@ -196,7 +196,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
         auto pool = std::make_shared<cpp_dbc::Firebird::FirebirdConnectionPool>(poolConfig);
 
         // Setup: create test table using RECREATE TABLE
-        auto setupConn = pool->getDBConnection();
+        auto setupConn = pool->getRelationalDBConnection();
         setupConn->executeUpdate("RECREATE TABLE thread_test (id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(100), val_data DOUBLE PRECISION)");
         setupConn->returnToPool();
 
@@ -215,7 +215,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
                 {
                     try
                     {
-                        auto conn = pool->getDBConnection();
+                        auto conn = pool->getRelationalDBConnection();
                         int id = idCounter.fetch_add(1);
                         
                         // Insert with prepared statement
@@ -278,7 +278,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
         auto pool = std::make_shared<cpp_dbc::Firebird::FirebirdConnectionPool>(poolConfig);
 
         // Setup: create and populate test table using RECREATE TABLE
-        auto setupConn = pool->getDBConnection();
+        auto setupConn = pool->getRelationalDBConnection();
         setupConn->executeUpdate("RECREATE TABLE thread_test (id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(100), val_data DOUBLE PRECISION)");
 
         // Insert test data
@@ -310,7 +310,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
                 {
                     try
                     {
-                        auto conn = pool->getDBConnection();
+                        auto conn = pool->getRelationalDBConnection();
                         int targetId = idDist(gen);
                         
                         auto pstmt = conn->prepareStatement("SELECT * FROM thread_test WHERE id = ?");
@@ -380,7 +380,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
 
         // Create test table using RECREATE TABLE
         // Note: Firebird doesn't have AUTO_INCREMENT, we use manual ID management
-        auto setupConn = pool->getDBConnection();
+        auto setupConn = pool->getRelationalDBConnection();
         setupConn->executeUpdate("RECREATE TABLE thread_stress_test (id INTEGER NOT NULL PRIMARY KEY, thread_id INTEGER, op_id INTEGER, data VARCHAR(255))");
         setupConn->returnToPool();
 
@@ -407,7 +407,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[firebird_thread_safe]")
                 {
                     try
                     {
-                        auto conn = pool->getDBConnection();
+                        auto conn = pool->getRelationalDBConnection();
                         int op = opDist(gen);
 
                         switch (op)

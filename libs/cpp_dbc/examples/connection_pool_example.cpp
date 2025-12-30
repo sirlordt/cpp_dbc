@@ -27,7 +27,7 @@
 #if USE_POSTGRESQL
 #include <cpp_dbc/drivers/relational/driver_postgresql.hpp>
 #endif
-#include "cpp_dbc/connection_pool.hpp"
+#include "cpp_dbc/core/relational/relational_db_connection_pool.hpp"
 #include "cpp_dbc/config/database_config.hpp"
 #include <iostream>
 #include <vector>
@@ -47,7 +47,7 @@ void performDatabaseOperation(cpp_dbc::RelationalDBConnectionPool &pool, int thr
         std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 500));
 
         // Get connection from pool
-        auto conn = pool.getDBConnection();
+        auto conn = pool.getRelationalDBConnection();
 
         {
             std::lock_guard<std::mutex> lock(consoleMutex);

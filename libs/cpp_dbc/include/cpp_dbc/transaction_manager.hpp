@@ -22,7 +22,7 @@
 #define CPP_DBC_TRANSACTION_MANAGER_HPP
 
 #include "cpp_dbc.hpp"
-#include "connection_pool.hpp"
+#include "core/relational/relational_db_connection_pool.hpp"
 #include <map>
 #include <mutex>
 #include <string>

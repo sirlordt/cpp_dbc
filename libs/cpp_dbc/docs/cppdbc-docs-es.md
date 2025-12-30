@@ -715,14 +715,33 @@ conn->close();
 ---
 
 ## Pool de Conexiones
-*Componentes definidos en connection_pool.hpp y connection_pool.cpp*
+*Componentes definidos en core/db_connection_pool.hpp, core/pooled_db_connection.hpp, core/relational/relational_db_connection_pool.hpp y src/relational_db_connection_pool.cpp*
 
-### SQLiteConnectionPool
-Implementación de ConnectionPool para bases de datos SQLite.
+### DBConnectionPool
+Clase abstracta que define la interfaz común para todos los pools de conexiones, independientemente del tipo específico de base de datos.
 
 **Métodos:**
-- `SQLiteConnectionPool(string, string, string)`: Constructor que toma una URL, nombre de usuario y contraseña.
-- `SQLiteConnectionPool(ConnectionPoolConfig)`: Constructor que toma una configuración de pool.
+- `getDBConnection()`: Obtiene una conexión de la base de datos desde el pool.
+- `getActiveDBConnectionCount()`: Devuelve el número de conexiones actualmente en uso.
+- `getIdleDBConnectionCount()`: Devuelve el número de conexiones actualmente inactivas en el pool.
+- `getTotalDBConnectionCount()`: Devuelve el número total de conexiones gestionadas por este pool.
+- `close()`: Cierra el pool de conexiones y todas sus conexiones.
+- `isRunning()`: Devuelve true si el pool está en funcionamiento y puede proporcionar conexiones.
+
+### PooledDBConnection
+Clase abstracta que extiende DBConnection con métodos específicos para conexiones agrupadas.
+
+**Métodos:**
+- `isPoolValid()`: Verifica si el pool de conexiones sigue siendo válido.
+- Hereda todos los métodos de DBConnection.
+
+### RelationalDBConnectionPool
+Implementación concreta de DBConnectionPool para bases de datos relacionales.
+
+**Métodos:**
+- `RelationalDBConnectionPool(string, string, string)`: Constructor que toma una URL, nombre de usuario y contraseña.
+- `RelationalDBConnectionPool(ConnectionPoolConfig)`: Constructor que toma una configuración de pool.
+- `getRelationalDBConnection()`: Obtiene una conexión relacional del pool.
 
 ### DBConnectionPoolConfig
 Estructura de configuración para pools de conexiones.
@@ -743,16 +762,21 @@ Estructura de configuración para pools de conexiones.
 - `testOnReturn`: Si se deben probar las conexiones al devolverlas al pool (predeterminado false)
 - `validationQuery`: Consulta utilizada para validar conexiones (predeterminado "SELECT 1")
 
-### ConnectionPool
-Gestiona un pool de conexiones de base de datos.
+### Implementaciones específicas de ConnectionPool
+Las implementaciones específicas de cada base de datos relacionales heredan de RelationalDBConnectionPool:
 
-**Métodos:**
-- `ConnectionPool(string, string, string, map<string, string>, int, int, int, int, int, int, int, bool, bool, string)`: Constructor que toma parámetros de configuración individuales.
-- `ConnectionPool(ConnectionPoolConfig)`: Constructor que toma una configuración de pool.
-- `getConnection()`: Obtiene una conexión del pool.
-- `getActiveConnectionCount()`: Devuelve el número de conexiones activas.
-- `getIdleConnectionCount()`: Devuelve el número de conexiones inactivas.
-- `getTotalConnectionCount()`: Devuelve el número total de conexiones.
+- **MySQLConnectionPool**: Implementación para MySQL
+- **PostgreSQLConnectionPool**: Implementación para PostgreSQL
+- **SQLiteConnectionPool**: Implementación para SQLite
+- **FirebirdConnectionPool**: Implementación para Firebird SQL
+
+**Métodos comunes:**
+- `RelationalDBConnectionPool(string, string, string, map<string, string>, int, int, int, int, int, int, int, bool, bool, string)`: Constructor que toma parámetros de configuración individuales.
+- `RelationalDBConnectionPool(ConnectionPoolConfig)`: Constructor que toma una configuración de pool.
+- `getRelationalDBConnection()`: Obtiene una conexión relacional del pool.
+- `getActiveDBConnectionCount()`: Devuelve el número de conexiones activas.
+- `getIdleDBConnectionCount()`: Devuelve el número de conexiones inactivas.
+- `getTotalDBConnectionCount()`: Devuelve el número total de conexiones.
 - `close()`: Cierra el pool y todas las conexiones.
 - `createConnection()`: Crea una nueva conexión física (interno).
 - `createPooledConnection()`: Crea un nuevo envoltorio de conexión agrupada (interno).
@@ -760,12 +784,12 @@ Gestiona un pool de conexiones de base de datos.
 - `returnConnection(PooledConnection)`: Devuelve una conexión al pool (interno).
 - `maintenanceTask()`: Función de hilo de mantenimiento (interno).
 
-### PooledConnection
-Envuelve una conexión física para proporcionar funcionalidad de agrupación.
+### RelationalPooledConnection
+Implementación concreta de PooledDBConnection para conexiones de bases de datos relacionales.
 
 **Métodos:**
-Los mismos que Connection, más:
-- `PooledConnection(Connection, weak_ptr<ConnectionPool>, shared_ptr<atomic<bool>>, ConnectionPool*)`: Constructor que toma una conexión, referencia débil al pool, bandera de pool activo y puntero raw al pool.
+Los mismos que PooledDBConnection y RelationalDBConnection, más:
+- `RelationalPooledConnection(RelationalDBConnection, weak_ptr<RelationalDBConnectionPool>, shared_ptr<atomic<bool>>, RelationalDBConnectionPool*)`: Constructor que toma una conexión, referencia débil al pool, bandera de pool activo y puntero raw al pool.
 - `getCreationTime()`: Devuelve el tiempo de creación de la conexión.
 - `getLastUsedTime()`: Devuelve el último tiempo de uso de la conexión.
 - `setActive(bool)`: Establece si la conexión está activa.

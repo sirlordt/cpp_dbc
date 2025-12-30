@@ -30,7 +30,7 @@
 #include <mutex>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/blob.hpp>
 
 namespace cpp_dbc_test
@@ -669,7 +669,13 @@ namespace cpp_dbc_test
         }
 
         // Override getDBConnection to always return a new mock connection
-        std::shared_ptr<cpp_dbc::RelationalDBConnection> getDBConnection() override
+        std::shared_ptr<cpp_dbc::DBConnection> getDBConnection() override
+        {
+            return getRelationalDBConnection();
+        }
+
+        // Specialized method to get a relational connection
+        std::shared_ptr<cpp_dbc::RelationalDBConnection> getRelationalDBConnection()
         {
             std::lock_guard<std::mutex> lock(poolMutex);
             activeCount++;

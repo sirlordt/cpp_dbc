@@ -30,7 +30,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 
@@ -172,7 +172,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pool(poolConfig);
 
         // Create a test table
-        auto conn = pool.getDBConnection();
+        auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -191,7 +191,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn_thread = pool.getDBConnection();
+                        auto conn_thread = pool.getRelationalDBConnection();
 
                         // Insert a row
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -222,7 +222,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the data
-        conn = pool.getDBConnection();
+        conn = pool.getRelationalDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
@@ -260,7 +260,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         cpp_dbc::TransactionManager manager(pool);
 
         // Create a test table
-        auto conn = pool.getDBConnection();
+        auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -286,7 +286,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
             manager.commitTransaction(txId);
 
             // Verify the data was committed
-            conn = pool.getDBConnection();
+            conn = pool.getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
@@ -312,14 +312,14 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
             manager.rollbackTransaction(txId);
 
             // Verify the data was not committed
-            conn = pool.getDBConnection();
+            conn = pool.getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             conn->close();
         }
 
         // Clean up
-        conn = pool.getDBConnection();
+        conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery);
         conn->close();
 
@@ -426,7 +426,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pool(poolConfig);
 
         // Create a test table
-        auto conn = pool.getDBConnection();
+        auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -447,7 +447,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn_thread = pool.getDBConnection();
+                        auto conn_thread = pool.getRelationalDBConnection();
 
                         // Insert a row
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -491,7 +491,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the total number of rows
-        conn = pool.getDBConnection();
+        conn = pool.getRelationalDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);

@@ -30,7 +30,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 
@@ -229,7 +229,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
         );
 
         // Get a connection from the pool
-        auto conn = pool.getDBConnection();
+        auto conn = pool.getRelationalDBConnection();
         REQUIRE(conn != nullptr);
 
         // Execute a query
@@ -251,7 +251,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
         std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
         for (int i = 0; i < 5; i++)
         {
-            connections.push_back(pool.getDBConnection());
+            connections.push_back(pool.getRelationalDBConnection());
         }
 
         REQUIRE(pool.getActiveDBConnectionCount() == 5);

@@ -63,7 +63,7 @@ namespace cpp_dbc
     std::string TransactionManager::beginTransaction()
     {
         // Get a connection from the pool
-        std::shared_ptr<RelationalDBConnection> conn = pool.getDBConnection();
+        std::shared_ptr<RelationalDBConnection> conn = pool.getRelationalDBConnection();
 
         // Iniciar transacción usando el nuevo método
         conn->beginTransaction();

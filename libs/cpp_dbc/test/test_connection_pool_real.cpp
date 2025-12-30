@@ -30,7 +30,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 
 #include "test_mysql_common.hpp"
@@ -94,7 +94,7 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
         cpp_dbc::MySQL::MySQLConnectionPool pool(poolConfig);
 
         // Create a test table
-        auto conn = pool.getDBConnection();
+        auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -135,7 +135,7 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
         }
 
         // Clean up
-        auto cleanupConn = pool.getDBConnection();
+        auto cleanupConn = pool.getRelationalDBConnection();
         cleanupConn->executeUpdate(dropTableQuery);
         cleanupConn->close();
 
@@ -200,7 +200,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
         cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pool(poolConfig);
 
         // Create a test table
-        auto conn = pool.getDBConnection();
+        auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -241,7 +241,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
         }
 
         // Clean up
-        auto cleanupConn = pool.getDBConnection();
+        auto cleanupConn = pool.getRelationalDBConnection();
         cleanupConn->executeUpdate(dropTableQuery);
         cleanupConn->close();
 
@@ -331,7 +331,7 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
         cpp_dbc::SQLite::SQLiteConnectionPool pool(poolConfig);
 
         // Create a test table
-        auto conn = pool.getDBConnection();
+        auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -372,7 +372,7 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
         }
 
         // Clean up
-        auto cleanupConn = pool.getDBConnection();
+        auto cleanupConn = pool.getRelationalDBConnection();
         cleanupConn->executeUpdate(dropTableQuery);
         cleanupConn->close();
 
@@ -438,7 +438,7 @@ TEST_CASE("Real Firebird connection pool tests", "[firebird_connection_pool_real
         cpp_dbc::Firebird::FirebirdConnectionPool pool(poolConfig);
 
         // Create a test table (drop first if exists using exception handling)
-        auto conn = pool.getDBConnection();
+        auto conn = pool.getRelationalDBConnection();
         try
         {
             conn->executeUpdate(dropTableQuery);
@@ -486,7 +486,7 @@ TEST_CASE("Real Firebird connection pool tests", "[firebird_connection_pool_real
         }
 
         // Clean up
-        auto cleanupConn = pool.getDBConnection();
+        auto cleanupConn = pool.getRelationalDBConnection();
         try
         {
             cleanupConn->executeUpdate(dropTableQuery);

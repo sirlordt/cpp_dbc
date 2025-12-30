@@ -18,10 +18,12 @@
 
 */
 
-#ifndef CPP_DBC_CONNECTION_POOL_HPP
-#define CPP_DBC_CONNECTION_POOL_HPP
+#ifndef CPP_DBC_RELATIONAL_DB_CONNECTION_POOL_HPP
+#define CPP_DBC_RELATIONAL_DB_CONNECTION_POOL_HPP
 
-#include "cpp_dbc.hpp"
+#include "../../cpp_dbc.hpp"
+#include "cpp_dbc/core/db_connection_pool.hpp"
+#include "cpp_dbc/core/pooled_db_connection.hpp"
 #include "cpp_dbc/core/relational/relational_db_connection.hpp"
 #include "cpp_dbc/core/relational/relational_db_prepared_statement.hpp"
 #include "cpp_dbc/core/relational/relational_db_result_set.hpp"
@@ -40,7 +42,7 @@ namespace cpp_dbc
 {
 
     // Forward declaration
-    class RelationalDBPooledConnection;
+    class RelationalPooledDBConnection;
 
     // Forward declaration of configuration classes
     namespace config
@@ -50,10 +52,10 @@ namespace cpp_dbc
     }
 
     // Relational Database Connection Pool class
-    class RelationalDBConnectionPool
+    class RelationalDBConnectionPool : public DBConnectionPool
     {
     private:
-        friend class RelationalDBPooledConnection;
+        friend class RelationalPooledDBConnection;
 
         // Shared flag to indicate if the pool is still alive (shared with all pooled connections)
         std::shared_ptr<std::atomic<bool>> m_poolAlive;
@@ -74,9 +76,9 @@ namespace cpp_dbc
         bool m_testOnReturn{false};                       // Test connection when returning to pool
         std::string m_validationQuery;                    // Query used to validate connections
         TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
-        std::vector<std::shared_ptr<RelationalDBPooledConnection>> m_allConnections;
-        std::queue<std::shared_ptr<RelationalDBPooledConnection>> m_idleConnections;
-        // std::unordered_set<std::shared_ptr<RelationalDBPooledConnection>> m_idleConnectionsSet; // Track what's in the queue
+        std::vector<std::shared_ptr<RelationalPooledDBConnection>> m_allConnections;
+        std::queue<std::shared_ptr<RelationalPooledDBConnection>> m_idleConnections;
+        // std::unordered_set<std::shared_ptr<RelationalPooledDBConnection>> m_idleConnectionsSet; // Track what's in the queue
         mutable std::mutex m_mutexGetConnection;
         mutable std::mutex m_mutexReturnConnection;
         mutable std::mutex m_mutexAllConnections;
@@ -92,22 +94,22 @@ namespace cpp_dbc
         std::shared_ptr<RelationalDBConnection> createDBConnection();
 
         // Creates a new pooled connection wrapper
-        std::shared_ptr<RelationalDBPooledConnection> createPooledDBConnection();
+        std::shared_ptr<RelationalPooledDBConnection> createPooledDBConnection();
 
         // Validates a connection
         bool validateConnection(std::shared_ptr<RelationalDBConnection> conn);
 
         // Returns a connection to the pool
-        void returnConnection(std::shared_ptr<RelationalDBPooledConnection> conn);
+        void returnConnection(std::shared_ptr<RelationalPooledDBConnection> conn);
 
         // Maintenance thread function
         void maintenanceTask();
 
-        std::shared_ptr<RelationalDBPooledConnection> getIdleDBConnection();
+        std::shared_ptr<RelationalPooledDBConnection> getIdleDBConnection();
 
     protected:
         // Sets the transaction isolation level for the pool
-        void setPoolTransactionIsolation(TransactionIsolationLevel level)
+        void setPoolTransactionIsolation(TransactionIsolationLevel level) override
         {
             m_transactionIsolation = level;
         }
@@ -138,23 +140,26 @@ namespace cpp_dbc
 
         ~RelationalDBConnectionPool();
 
-        // Borrows a connection from the pool
-        virtual std::shared_ptr<RelationalDBConnection> getDBConnection();
+        // DBConnectionPool interface implementation
+        std::shared_ptr<DBConnection> getDBConnection() override;
+
+        // Specialized method for relational databases
+        virtual std::shared_ptr<RelationalDBConnection> getRelationalDBConnection();
 
         // Gets current pool statistics
-        int getActiveDBConnectionCount() const;
-        size_t getIdleDBConnectionCount() const;
-        size_t getTotalDBConnectionCount() const;
+        size_t getActiveDBConnectionCount() const override;
+        size_t getIdleDBConnectionCount() const override;
+        size_t getTotalDBConnectionCount() const override;
 
         // Closes the pool and all connections
-        void close();
+        void close() override;
 
         // Check if pool is running
-        bool isRunning() const;
+        bool isRunning() const override;
     };
 
-    // RelationalDBPooledConnection wraps a physical relational database connection
-    class RelationalDBPooledConnection : public RelationalDBConnection, public std::enable_shared_from_this<RelationalDBPooledConnection>
+    // RelationalPooledDBConnection wraps a physical relational database connection
+    class RelationalPooledDBConnection : public PooledDBConnection, public RelationalDBConnection, public std::enable_shared_from_this<RelationalPooledDBConnection>
     {
     private:
         std::shared_ptr<RelationalDBConnection> m_conn;
@@ -169,16 +174,17 @@ namespace cpp_dbc
         friend class RelationalDBConnectionPool;
 
         // Helper method to check if pool is still valid
-        bool isPoolValid() const;
+        bool isPoolValid() const override;
 
     public:
-        RelationalDBPooledConnection(std::shared_ptr<RelationalDBConnection> conn,
+        RelationalPooledDBConnection(std::shared_ptr<RelationalDBConnection> conn,
                                      std::weak_ptr<RelationalDBConnectionPool> pool,
                                      std::shared_ptr<std::atomic<bool>> poolAlive,
                                      RelationalDBConnectionPool *poolPtr);
-        ~RelationalDBPooledConnection() override;
+        ~RelationalPooledDBConnection() override;
 
         // Overridden DBConnection interface methods
+        // DBConnection interface methods
         void close() override;
         bool isClosed() override;
         void returnToPool() override;
@@ -204,14 +210,17 @@ namespace cpp_dbc
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
-        // RelationalDBPooledConnection specific methods
-        std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const;
-        std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime() const;
-        void setActive(bool active);
-        bool isActive() const;
+        // PooledDBConnection interface methods
+        std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const override;
+        std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime() const override;
+        void setActive(bool active) override;
+        bool isActive() const override;
 
-        // Returns the underlying physical connection
-        std::shared_ptr<RelationalDBConnection> getUnderlyingConnection();
+        // Implementation of PooledDBConnection interface
+        std::shared_ptr<DBConnection> getUnderlyingConnection() override;
+
+        // RelationalPooledDBConnection specific method
+        std::shared_ptr<RelationalDBConnection> getUnderlyingRelationalConnection();
     };
 
     // Specialized connection pools for MySQL, PostgreSQL, SQLite, and Firebird
@@ -269,4 +278,4 @@ namespace cpp_dbc
 
 } // namespace cpp_dbc
 
-#endif // CPP_DBC_CONNECTION_POOL_HPP
+#endif // CPP_DBC_RELATIONAL_DB_CONNECTION_POOL_HPP

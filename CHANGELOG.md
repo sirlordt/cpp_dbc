@@ -1,6 +1,28 @@
 # Changelog
 
-## 2025-12-29 04:28:15 PM PST [Current]
+## 2025-12-29 10:09:31 PM PST [Current]
+
+### Connection Pool Architecture Refactoring
+* Reorganized connection pool implementation for multi-database paradigm support:
+  * **New Abstract Interfaces:**
+    * Added `core/db_connection_pool.hpp` - Generic connection pool interface for all database types
+    * Added `core/pooled_db_connection.hpp` - Generic pooled connection interface for all database types
+  * **Renamed Files:**
+    * Renamed `connection_pool.cpp` → `relational_db_connection_pool.cpp` for relational-specific implementation
+    * Updated CMakeLists.txt to use the new source file name
+  * **API Changes:**
+    * Renamed `getDBConnection()` → `getRelationalDBConnection()` for relational database specific access
+    * Updated all examples, tests, and benchmarks with the new method name
+  * **Include Path Updates:**
+    * Changed include path from `<cpp_dbc/connection_pool.hpp>` → `<cpp_dbc/core/relational/relational_db_connection_pool.hpp>`
+    * Updated all source files, examples, tests, and benchmarks with the new path
+* Benefits of connection pool architecture refactoring:
+  * Clear separation between different database paradigms (relational, document, etc.)
+  * Generic interfaces for consistent connection pool behavior across all database types
+  * Specialized implementations for paradigm-specific features
+  * Improved code organization following industry standards
+
+## 2025-12-29 04:28:15 PM PST
 
 ### MongoDB Benchmark and Test Improvements
 * Added comprehensive MongoDB benchmark suite:

@@ -27,7 +27,7 @@
 #if USE_POSTGRESQL
 #include <cpp_dbc/drivers/relational/driver_postgresql.hpp>
 #endif
-#include "cpp_dbc/connection_pool.hpp"
+#include "cpp_dbc/core/relational/relational_db_connection_pool.hpp"
 #include "cpp_dbc/transaction_manager.hpp"
 #include "cpp_dbc/config/database_config.hpp"
 #include <iostream>

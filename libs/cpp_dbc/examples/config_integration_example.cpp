@@ -20,7 +20,7 @@
 
 #include "cpp_dbc/cpp_dbc.hpp"
 #include "cpp_dbc/config/database_config.hpp"
-#include "cpp_dbc/connection_pool.hpp"
+#include "cpp_dbc/core/relational/relational_db_connection_pool.hpp"
 #include <iostream>
 #include <memory>
 
@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
 
             // Get a connection from the pool
             std::cout << "Getting connection from pool" << std::endl;
-            auto conn = pool->getDBConnection();
+            auto conn = pool->getRelationalDBConnection();
             std::cout << "Connection obtained from pool" << std::endl;
 
             // Use the connection

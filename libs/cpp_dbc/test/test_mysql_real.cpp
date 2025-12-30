@@ -30,7 +30,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
@@ -182,7 +182,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         //   auto &pool = *poolPtr;
 
         // Create a test table
-        auto conn = poolPtr->getDBConnection();
+        auto conn = poolPtr->getRelationalDBConnection();
 
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
@@ -212,7 +212,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
                     try {
                         //cpp_dbc::system_utils::safePrint( cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(), "(1) Try to getting connection" );
                         // Get a connection from the pool
-                        auto conn_thread = poolPtr->getDBConnection();
+                        auto conn_thread = poolPtr->getRelationalDBConnection();
                         //cpp_dbc::system_utils::safePrint( cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(), "(2) Getted connection" );
 
                         // Insert a row
@@ -274,7 +274,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         REQUIRE((successCount.load() == numThreads * opsPerThread || successCount.load() == (numThreads * opsPerThread - 1)));
 
         // Verify the data
-        conn = poolPtr->getDBConnection();
+        conn = poolPtr->getRelationalDBConnection();
 
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
@@ -319,7 +319,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         cpp_dbc::TransactionManager manager(pool);
 
         // Create a test table
-        auto conn = pool.getDBConnection();
+        auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
@@ -345,7 +345,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
             manager.commitTransaction(txId);
 
             // Verify the data was committed
-            conn = pool.getDBConnection();
+            conn = pool.getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
@@ -371,14 +371,14 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
             manager.rollbackTransaction(txId);
 
             // Verify the data was not committed
-            conn = pool.getDBConnection();
+            conn = pool.getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             conn->close();
         }
 
         // Clean up
-        conn = pool.getDBConnection();
+        conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery);
         conn->close();
 
@@ -489,7 +489,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         auto &pool = *poolPtr;
 
         // Create a test table
-        auto conn = pool.getDBConnection();
+        auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
@@ -510,7 +510,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn_thread = pool.getDBConnection();
+                        auto conn_thread = pool.getRelationalDBConnection();
 
                         // Insert a row
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -554,7 +554,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the total number of rows
-        conn = pool.getDBConnection();
+        conn = pool.getRelationalDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);

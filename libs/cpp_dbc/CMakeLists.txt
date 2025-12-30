@@ -32,7 +32,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Define the library
 add_library(cpp_dbc
-    src/connection_pool.cpp
+    src/relational_db_connection_pool.cpp
     src/transaction_manager.cpp
     src/driver_manager.cpp
     src/config/database_config.cpp

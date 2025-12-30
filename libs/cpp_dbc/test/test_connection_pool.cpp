@@ -28,7 +28,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 
 #include "test_main.hpp"
@@ -233,7 +233,7 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
         );
 
         // Get a connection from the pool
-        auto conn = pool.getDBConnection();
+        auto conn = pool.getRelationalDBConnection();
         REQUIRE(conn != nullptr);
 
         // Test that we can use the connection
@@ -254,7 +254,7 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
         std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
         for (int i = 0; i < 5; i++)
         {
-            connections.push_back(pool.getDBConnection());
+            connections.push_back(pool.getRelationalDBConnection());
         }
 
         REQUIRE(pool.getActiveDBConnectionCount() == 5);
@@ -308,7 +308,7 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn = pool.getDBConnection();
+                        auto conn = pool.getRelationalDBConnection();
                         
                         // Perform a simple query
                         auto rs = conn->executeQuery("SELECT 1");

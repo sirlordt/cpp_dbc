@@ -36,7 +36,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
-#include <cpp_dbc/connection_pool.hpp>
+#include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 
 #include "test_sqlite_common.hpp"
 
@@ -207,7 +207,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[sqlite_thread_safe]")
         auto pool = std::make_shared<cpp_dbc::SQLite::SQLiteConnectionPool>(poolConfig);
 
         // Setup: create test table
-        auto setupConn = pool->getDBConnection();
+        auto setupConn = pool->getRelationalDBConnection();
         setupConn->executeUpdate("PRAGMA journal_mode=WAL");
         setupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         setupConn->executeUpdate("CREATE TABLE thread_test (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
@@ -228,7 +228,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[sqlite_thread_safe]")
                 {
                     try
                     {
-                        auto conn = pool->getDBConnection();
+                        auto conn = pool->getRelationalDBConnection();
                         int id = idCounter.fetch_add(1);
                         
                         // Insert with prepared statement and retry
@@ -277,7 +277,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[sqlite_thread_safe]")
         std::cout << "Connection pool concurrent access: " << successCount << " successes, " << errorCount << " errors" << std::endl;
 
         // Clean up
-        auto cleanupConn = pool->getDBConnection();
+        auto cleanupConn = pool->getRelationalDBConnection();
         cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         cleanupConn->returnToPool();
 
@@ -304,7 +304,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[sqlite_thread_safe]")
         auto pool = std::make_shared<cpp_dbc::SQLite::SQLiteConnectionPool>(poolConfig);
 
         // Setup: create and populate test table
-        auto setupConn = pool->getDBConnection();
+        auto setupConn = pool->getRelationalDBConnection();
         setupConn->executeUpdate("PRAGMA journal_mode=WAL");
         setupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         setupConn->executeUpdate("CREATE TABLE thread_test (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
@@ -338,7 +338,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[sqlite_thread_safe]")
                 {
                     try
                     {
-                        auto conn = pool->getDBConnection();
+                        auto conn = pool->getRelationalDBConnection();
                         int targetId = idDist(gen);
                         
                         auto pstmt = conn->prepareStatement("SELECT * FROM thread_test WHERE id = ?");
@@ -372,7 +372,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[sqlite_thread_safe]")
         std::cout << "Concurrent read operations: " << readCount << " reads, " << errorCount << " errors" << std::endl;
 
         // Clean up
-        auto cleanupConn = pool->getDBConnection();
+        auto cleanupConn = pool->getRelationalDBConnection();
         cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         cleanupConn->returnToPool();
 
@@ -400,7 +400,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[sqlite_thread_safe]")
         auto pool = std::make_shared<cpp_dbc::SQLite::SQLiteConnectionPool>(poolConfig);
 
         // Create test table
-        auto setupConn = pool->getDBConnection();
+        auto setupConn = pool->getRelationalDBConnection();
         setupConn->executeUpdate("PRAGMA journal_mode=WAL");
         setupConn->executeUpdate("DROP TABLE IF EXISTS thread_stress_test");
         setupConn->executeUpdate("CREATE TABLE thread_stress_test (id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id INTEGER, op_id INTEGER, data TEXT)");
@@ -428,7 +428,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[sqlite_thread_safe]")
                 {
                     try
                     {
-                        auto conn = pool->getDBConnection();
+                        auto conn = pool->getRelationalDBConnection();
                         int op = opDist(gen);
 
                         bool success = false;
@@ -509,7 +509,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[sqlite_thread_safe]")
         }
 
         // Clean up
-        auto cleanupConn = pool->getDBConnection();
+        auto cleanupConn = pool->getRelationalDBConnection();
         cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_stress_test");
         cleanupConn->returnToPool();
 

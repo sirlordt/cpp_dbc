@@ -149,7 +149,7 @@ TEST_CASE("Pooled connection transaction isolation tests", "[transaction][isolat
         auto pool = std::make_shared<cpp_dbc_test::MockConnectionPool>();
 
         // Get a connection from the pool
-        auto conn = pool->getDBConnection();
+        auto conn = pool->getRelationalDBConnection();
 
         // Set isolation level
         conn->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -173,7 +173,7 @@ TEST_CASE("Pooled connection transaction isolation tests", "[transaction][isolat
         mockPool->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
 
         // Get a connection from the pool
-        auto conn = mockPool->getDBConnection();
+        auto conn = mockPool->getRelationalDBConnection();
 
         // Check that the connection has the correct isolation level
         REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -182,7 +182,7 @@ TEST_CASE("Pooled connection transaction isolation tests", "[transaction][isolat
         mockPool->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
         // Get another connection from the pool
-        auto conn2 = mockPool->getDBConnection();
+        auto conn2 = mockPool->getRelationalDBConnection();
 
         // Check that the new connection has the updated isolation level
         REQUIRE(conn2->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);

@@ -24,7 +24,9 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `include/cpp_dbc/drivers/relational/postgresql_blob.hpp` - PostgreSQL BLOB implementation
 - `include/cpp_dbc/drivers/relational/sqlite_blob.hpp` - SQLite BLOB implementation
 - `include/cpp_dbc/drivers/relational/firebird_blob.hpp` - Firebird BLOB implementation
-- `include/cpp_dbc/connection_pool.hpp` - Connection pool with thread-safety support
+- `include/cpp_dbc/core/db_connection_pool.hpp` - Generic connection pool interface for all database types
+- `include/cpp_dbc/core/pooled_db_connection.hpp` - Generic pooled connection interface for all database types
+- `include/cpp_dbc/core/relational/relational_db_connection_pool.hpp` - Relational database connection pool implementation
 - `include/cpp_dbc/transaction_manager.hpp` - Transaction manager for cross-thread transactions
 - `include/cpp_dbc/backward.hpp` - Stack trace capture and analysis
 - `include/cpp_dbc/common/system_utils.hpp` - System utilities including stack trace functions
@@ -46,7 +48,7 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `test/test_mongodb_real_json.cpp` - MongoDB JSON operation tests
 - `test/test_mongodb_real_join.cpp` - MongoDB join operation tests
 - `test/test_mongodb_thread_safe.cpp` - MongoDB thread safety tests
-- `src/connection_pool.cpp` - Connection pool implementation
+- `src/relational_db_connection_pool.cpp` - Relational database connection pool implementation
 - `src/transaction_manager.cpp` - Transaction manager implementation
 - `src/driver_manager.cpp` - Driver manager implementation
 - `src/common/system_utils.cpp` - System utilities implementation including stack trace functions
