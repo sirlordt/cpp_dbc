@@ -28,7 +28,7 @@
 namespace cpp_dbc
 {
     // Forward declarations
-    class PooledDBConnection;
+    class DBConnectionPooled;
 
     namespace config
     {

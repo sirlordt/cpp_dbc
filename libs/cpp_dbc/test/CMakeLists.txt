@@ -92,6 +92,7 @@ add_executable(cpp_dbc_tests
     test_mongodb_real_blob.cpp
     test_mongodb_real_json.cpp
     test_mongodb_real_join.cpp
+    test_mongodb_connection_pool.cpp
 )
 
 # Link against Catch2 and cpp_dbc

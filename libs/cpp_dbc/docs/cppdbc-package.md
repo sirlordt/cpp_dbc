@@ -13,6 +13,7 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `include/cpp_dbc/core/document/document_db_connection.hpp` - Document database connection interface
 - `include/cpp_dbc/core/document/document_db_driver.hpp` - Document database driver interface
 - `include/cpp_dbc/core/document/document_db_collection.hpp` - Document database collection interface
+- `include/cpp_dbc/core/document/document_db_connection_pool.hpp` - Document database connection pool interface
 - `include/cpp_dbc/core/document/document_db_cursor.hpp` - Document database cursor interface
 - `include/cpp_dbc/core/document/document_db_data.hpp` - Document database data interface
 - `include/cpp_dbc/drivers/relational/driver_mysql.hpp` - MySQL-specific definitions
@@ -39,6 +40,7 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `src/drivers/relational/driver_sqlite.cpp` - SQLite implementation using libsqlite3
 - `src/drivers/relational/driver_firebird.cpp` - Firebird implementation using libfbclient
 - `src/drivers/document/driver_mongodb.cpp` - MongoDB implementation using libmongocxx
+- `src/core/document/document_db_connection_pool.cpp` - Document database connection pool implementation
 - `benchmark/benchmark_mongodb_select.cpp` - MongoDB select operation benchmarks
 - `benchmark/benchmark_mongodb_insert.cpp` - MongoDB insert operation benchmarks
 - `benchmark/benchmark_mongodb_update.cpp` - MongoDB update operation benchmarks
@@ -48,7 +50,7 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `test/test_mongodb_real_json.cpp` - MongoDB JSON operation tests
 - `test/test_mongodb_real_join.cpp` - MongoDB join operation tests
 - `test/test_mongodb_thread_safe.cpp` - MongoDB thread safety tests
-- `src/relational_db_connection_pool.cpp` - Relational database connection pool implementation
+- `src/core/relational/relational_db_connection_pool.cpp` - Relational database connection pool implementation
 - `src/transaction_manager.cpp` - Transaction manager implementation
 - `src/driver_manager.cpp` - Driver manager implementation
 - `src/common/system_utils.cpp` - System utilities implementation including stack trace functions
@@ -56,7 +58,8 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 
 ### Examples
 - `examples/example.cpp` - Basic usage example with MySQL, PostgreSQL, and SQLite
-- `examples/connection_pool_example.cpp` - Connection pool usage example
+- `examples/connection_pool_example.cpp` - Relational database connection pool usage example
+- `examples/document_connection_pool_example.cpp` - Document database connection pool usage example with MongoDB
 - `examples/transaction_manager_example.cpp` - Cross-thread transaction example
 - `examples/config_example.cpp` - YAML configuration example
 - `examples/config_integration_example.cpp` - Database configuration integration example
@@ -220,7 +223,16 @@ cmake --build .
 15. Connection pool memory safety with smart pointers for pool lifetime tracking
 16. Document database support with MongoDB driver (CRUD operations, collection management, cursor-based iteration)
 17. Comprehensive benchmarking infrastructure for performance testing of all database operations
-18. MongoDB benchmark support for select, insert, update, and delete operations with detailed performance metrics:
+18. Document database connection pool implementation:
+    - Document database connection pooling for MongoDB
+    - Thread-safe connection acquisition and release
+    - Smart pointer-based pool lifetime tracking for memory safety
+    - Connection validation with MongoDB ping command
+    - Configurable pool parameters (initial size, max size, min idle, etc.)
+    - Background maintenance thread for connection cleanup
+    - Comprehensive example in document_connection_pool_example.cpp
+    - Thorough test coverage for all pool operations
+19. MongoDB benchmark support for select, insert, update, and delete operations with detailed performance metrics:
     - Document insert benchmarks (single and batch operations)
     - Document query benchmarks with different filter complexities
     - Document update benchmarks with various update operators
@@ -228,7 +240,7 @@ cmake --build .
     - Memory usage tracking for MongoDB operations
     - Performance comparison against baseline measurements
     - Support for different document sizes and collection scales
-19. Extensive testing suite for MongoDB including:
+20. Extensive testing suite for MongoDB including:
     - JSON operations (basic, nested, arrays)
     - JSON query operators ($eq, $gt, $lt, etc.)
     - JSON updates and modifications

@@ -223,11 +223,18 @@ The test log analysis feature checks for:
 # Run MongoDB join operation tests
 ./helper.sh --run-test=mongodb,test=mongodb_real_join
 
+# Run MongoDB connection pool tests
+./helper.sh --run-test=mongodb,test=mongodb_connection_pool
+
 # Run comprehensive MongoDB test suite
-./helper.sh --run-test=mongodb,test=mongodb_real+mongodb_real_json+mongodb_thread_safe+mongodb_real_join
+./helper.sh --run-test=mongodb,test=mongodb_real+mongodb_real_json+mongodb_thread_safe+mongodb_real_join+mongodb_connection_pool
 
 # Run MongoDB tests with debug output
 ./helper.sh --run-test=mongodb,debug-mongodb
+
+# Build and run the MongoDB connection pool example
+./helper.sh --run-build=mongodb,examples
+./build/libs/cpp_dbc/examples/document_connection_pool_example
 
 # Run specific benchmark tags
 ./helper.sh --run-benchmarks=benchmark=update+postgresql

@@ -34,7 +34,7 @@ namespace cpp_dbc
      * Implementations of this interface (e.g., RelationalPooledDBConnection, DocumentPooledDBConnection)
      * will provide the concrete behavior for connection pooling in their specific database paradigm.
      */
-    class PooledDBConnection : public DBConnection
+    class DBConnectionPooled : public DBConnection
     {
     protected:
         /**
@@ -45,7 +45,7 @@ namespace cpp_dbc
         virtual bool isPoolValid() const = 0;
 
     public:
-        virtual ~PooledDBConnection() = default;
+        virtual ~DBConnectionPooled() = default;
 
         // The following methods are already defined in DBConnection and must be implemented
         // virtual void close() override = 0;

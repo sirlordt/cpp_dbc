@@ -64,7 +64,7 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - `include/cpp_dbc/cpp_dbc.hpp`: Core interfaces and types
   - `include/cpp_dbc/core/db_connection_pool.hpp`: Generic connection pool interface for all database types
   - `include/cpp_dbc/core/pooled_db_connection.hpp`: Generic pooled connection interface
-  - `include/cpp_dbc/core/relational/relational_db_connection_pool.hpp` & `src/relational_db_connection_pool.cpp`: Relational database connection pooling implementation
+  - `include/cpp_dbc/core/relational/relational_db_connection_pool.hpp` & `src/core/relational/relational_db_connection_pool.cpp`: Relational database connection pooling implementation
   - `include/cpp_dbc/transaction_manager.hpp` & `src/transaction_manager.cpp`: Transaction management implementation
   - `src/driver_manager.cpp`: Driver management implementation
   - `include/cpp_dbc/config/database_config.hpp`: Database configuration classes

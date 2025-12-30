@@ -23,7 +23,7 @@
 
 #include "../../cpp_dbc.hpp"
 #include "cpp_dbc/core/db_connection_pool.hpp"
-#include "cpp_dbc/core/pooled_db_connection.hpp"
+#include "cpp_dbc/core/db_connection_pooled.hpp"
 #include "cpp_dbc/core/relational/relational_db_connection.hpp"
 #include "cpp_dbc/core/relational/relational_db_prepared_statement.hpp"
 #include "cpp_dbc/core/relational/relational_db_result_set.hpp"
@@ -159,7 +159,7 @@ namespace cpp_dbc
     };
 
     // RelationalPooledDBConnection wraps a physical relational database connection
-    class RelationalPooledDBConnection : public PooledDBConnection, public RelationalDBConnection, public std::enable_shared_from_this<RelationalPooledDBConnection>
+    class RelationalPooledDBConnection : public DBConnectionPooled, public RelationalDBConnection, public std::enable_shared_from_this<RelationalPooledDBConnection>
     {
     private:
         std::shared_ptr<RelationalDBConnection> m_conn;
@@ -210,13 +210,13 @@ namespace cpp_dbc
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
-        // PooledDBConnection interface methods
+        // DBConnectionPooled interface methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const override;
         std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime() const override;
         void setActive(bool active) override;
         bool isActive() const override;
 
-        // Implementation of PooledDBConnection interface
+        // Implementation of DBConnectionPooled interface
         std::shared_ptr<DBConnection> getUnderlyingConnection() override;
 
         // RelationalPooledDBConnection specific method

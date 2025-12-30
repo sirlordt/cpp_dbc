@@ -32,7 +32,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Define the library
 add_library(cpp_dbc
-    src/relational_db_connection_pool.cpp
+    src/core/relational/relational_db_connection_pool.cpp
+    src/core/document/document_db_connection_pool.cpp
     src/transaction_manager.cpp
     src/driver_manager.cpp
     src/config/database_config.cpp
@@ -332,10 +333,14 @@ if(CPP_DBC_BUILD_EXAMPLES)
         target_link_libraries(firebird_example PRIVATE cpp_dbc)
     endif()
 
-    # MongoDB example (only if MongoDB is enabled)
+    # MongoDB examples (only if MongoDB is enabled)
     if(USE_MONGODB)
         add_executable(mongodb_example examples/mongodb_example.cpp)
         target_link_libraries(mongodb_example PRIVATE cpp_dbc)
+
+        # Document database connection pool example
+        add_executable(document_connection_pool_example examples/document_connection_pool_example.cpp)
+        target_link_libraries(document_connection_pool_example PRIVATE cpp_dbc)
     endif()
 
     # Copy necessary files for examples
