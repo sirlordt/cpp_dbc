@@ -34,7 +34,7 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **MongoDB Benchmark and Test Improvements** (2025-12-29):
+1. **MongoDB Benchmark and Test Improvements** (2025-12-29 04:28:15 PM PST):
    - Added comprehensive MongoDB benchmark suite:
      - **New Benchmark Files:**
        - `benchmark_mongodb_select.cpp` with SELECT operations benchmarks
@@ -49,6 +49,13 @@ Recent changes to the codebase include:
      - **New Benchmark Options:**
        - Added `--mongodb` parameter to run MongoDB benchmarks
        - Added MongoDB memory usage tracking to baseline creation
+     - **Performance Metrics:**
+       - Document insertion throughput (documents/sec)
+       - Query response times with varying collection sizes
+       - Update operation performance with different operators
+       - Delete operation efficiency metrics
+       - Memory consumption during operations
+       - Comparison against baseline measurements
    - Added comprehensive MongoDB test coverage:
      - **New Test Files:**
        - `test_mongodb_real_json.cpp` with JSON operations tests
@@ -62,10 +69,13 @@ Recent changes to the codebase include:
        - Thread safety with multiple connections
        - Thread safety with shared connection
        - Join operations using MongoDB aggregation pipeline
+       - Error handling and recovery scenarios
    - Enhanced helper script with MongoDB support:
      - Added new command combinations for MongoDB testing and benchmarks
      - Added example command combinations for different scenarios
      - Updated usage information with MongoDB examples
+     - Added memory usage tracking support for MongoDB operations
+     - Added baseline creation and comparison functionality
 
 2. **MongoDB Document Database Driver Support** (2025-12-27):
    - Added complete MongoDB document database driver implementation:

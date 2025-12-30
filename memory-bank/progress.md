@@ -126,15 +126,49 @@ The project includes example code demonstrating:
 - Debug output option with `--debug-mongodb` flag
 - Comprehensive benchmark suite:
   - `benchmark_mongodb_select.cpp` with SELECT operations benchmarks
+    - Document query benchmarks with different filter complexities
+    - Performance testing for simple queries, complex queries, and aggregations
+    - Benchmarks for different result set sizes (small, medium, large datasets)
   - `benchmark_mongodb_insert.cpp` with INSERT operations benchmarks
+    - Single document insertion performance
+    - Batch document insertion for various batch sizes
+    - Performance testing with different document complexities
   - `benchmark_mongodb_update.cpp` with UPDATE operations benchmarks
+    - Performance testing for different update operators ($set, $inc, $push, etc.)
+    - Single document update vs. multi-document update performance
+    - Update performance with different document complexities
   - `benchmark_mongodb_delete.cpp` with DELETE operations benchmarks
+    - Single document deletion performance
+    - Bulk document deletion performance
+    - Performance comparison for different deletion strategies
   - Memory usage tracking in benchmark baselines
+    - Collection of heap memory usage metrics during operations
+    - Peak memory usage analysis for different operation types
+    - Comparison of memory efficiency across operations
   - Performance comparison with relational databases
+    - Side-by-side performance metrics for equivalent operations
+    - Analysis of strengths and weaknesses compared to relational databases
+  - Baseline creation and comparison functionality
+    - Storing benchmark results for different system configurations
+    - Comparing results against established baseline measurements
+    - Tracking performance changes over time
 - Extended test coverage:
   - `test_mongodb_real_json.cpp` with JSON operations tests
+    - Testing of basic JSON document structures
+    - Nested JSON object handling
+    - Array operations in JSON documents
+    - JSON query operators ($eq, $gt, $lt, $in, $nin, etc.)
+    - JSON update operations and modifications
+    - Complex JSON aggregation operations
   - `test_mongodb_thread_safe.cpp` with thread safety stress tests
+    - Concurrent operations from multiple threads
+    - Connection sharing across threads
+    - Thread safety with high contention scenarios
+    - Resource management under concurrent load
   - `test_mongodb_real_join.cpp` with join operations (aggregation pipeline)
+    - $lookup operator for joining collections
+    - Complex multi-stage aggregation pipelines
+    - Testing of different join types (equivalent to SQL inner, left, etc.)
   - JSON operations (basic, nested, arrays, query operators, updates, aggregation)
   - Thread safety with multiple connections and shared connections
   - Join operations using $lookup and other MongoDB aggregation pipeline operations

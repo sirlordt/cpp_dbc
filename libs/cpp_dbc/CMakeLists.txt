@@ -323,10 +323,19 @@ if(CPP_DBC_BUILD_EXAMPLES)
     add_executable(connection_info_example examples/connection_info_example.cpp)
     target_link_libraries(connection_info_example PRIVATE cpp_dbc)
 
-    # Firebird reserved word example (only if Firebird is enabled)
+    # Firebird examples (only if Firebird is enabled)
     if(USE_FIREBIRD)
         add_executable(firebird_reserved_word_example examples/firebird_reserved_word_example.cpp)
         target_link_libraries(firebird_reserved_word_example PRIVATE cpp_dbc)
+
+        add_executable(firebird_example examples/firebird_example.cpp)
+        target_link_libraries(firebird_example PRIVATE cpp_dbc)
+    endif()
+
+    # MongoDB example (only if MongoDB is enabled)
+    if(USE_MONGODB)
+        add_executable(mongodb_example examples/mongodb_example.cpp)
+        target_link_libraries(mongodb_example PRIVATE cpp_dbc)
     endif()
 
     # Copy necessary files for examples

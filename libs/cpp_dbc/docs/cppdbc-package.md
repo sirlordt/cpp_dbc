@@ -218,8 +218,22 @@ cmake --build .
 15. Connection pool memory safety with smart pointers for pool lifetime tracking
 16. Document database support with MongoDB driver (CRUD operations, collection management, cursor-based iteration)
 17. Comprehensive benchmarking infrastructure for performance testing of all database operations
-18. MongoDB benchmark support for select, insert, update, and delete operations with detailed performance metrics
-19. Extensive testing suite for MongoDB including JSON operations, BLOB handling, joins, and thread safety
+18. MongoDB benchmark support for select, insert, update, and delete operations with detailed performance metrics:
+    - Document insert benchmarks (single and batch operations)
+    - Document query benchmarks with different filter complexities
+    - Document update benchmarks with various update operators
+    - Document delete benchmarks (single and multiple document operations)
+    - Memory usage tracking for MongoDB operations
+    - Performance comparison against baseline measurements
+    - Support for different document sizes and collection scales
+19. Extensive testing suite for MongoDB including:
+    - JSON operations (basic, nested, arrays)
+    - JSON query operators ($eq, $gt, $lt, etc.)
+    - JSON updates and modifications
+    - JSON aggregation operations
+    - Thread safety with multiple connections
+    - Thread safety with shared connection
+    - Join operations using MongoDB aggregation pipeline
 20. Memory usage tracking for all database operations in benchmarks
 
 ### Code Quality Features

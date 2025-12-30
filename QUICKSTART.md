@@ -197,6 +197,23 @@ The test log analysis feature checks for:
 # Run all database benchmarks
 ./helper.sh --run-benchmarks=mysql+postgresql+sqlite+firebird+mongodb
 
+# MongoDB Specific Benchmark Examples
+# Run MongoDB benchmarks with memory usage tracking
+./helper.sh --run-benchmarks=mongodb,memory-usage
+
+# Run MongoDB benchmarks and create a baseline
+./helper.sh --run-benchmarks=mongodb,base-line
+
+# Compare MongoDB benchmarks against baseline
+./libs/cpp_dbc/compare_benchmark_cpp_dbc_base_line.sh --filter=MongoDB
+
+# Run specific MongoDB benchmark operations
+./helper.sh --run-benchmarks=mongodb,benchmark=insert
+./helper.sh --run-benchmarks=mongodb,benchmark=select
+./helper.sh --run-benchmarks=mongodb,benchmark=update
+./helper.sh --run-benchmarks=mongodb,benchmark=delete
+
+# MongoDB Testing Examples
 # Run MongoDB JSON operation tests
 ./helper.sh --run-test=mongodb,test=mongodb_real_json
 
@@ -205,6 +222,12 @@ The test log analysis feature checks for:
 
 # Run MongoDB join operation tests
 ./helper.sh --run-test=mongodb,test=mongodb_real_join
+
+# Run comprehensive MongoDB test suite
+./helper.sh --run-test=mongodb,test=mongodb_real+mongodb_real_json+mongodb_thread_safe+mongodb_real_join
+
+# Run MongoDB tests with debug output
+./helper.sh --run-test=mongodb,debug-mongodb
 
 # Run specific benchmark tags
 ./helper.sh --run-benchmarks=benchmark=update+postgresql

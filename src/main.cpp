@@ -19,6 +19,12 @@ using json = nlohmann::json;
 #if USE_SQLITE
 #include <cpp_dbc/drivers/relational/driver_sqlite.hpp>
 #endif
+#if USE_FIREBIRD
+#include <cpp_dbc/drivers/relational/driver_firebird.hpp>
+#endif
+#if USE_MONGODB
+#include <cpp_dbc/drivers/document/driver_mongodb.hpp>
+#endif
 
 // Include backward.hpp to check if libdw is enabled
 #include <cpp_dbc/backward.hpp>
@@ -66,8 +72,19 @@ int main(int argc, char *argv[])
 #else
     std::cout << "- SQLITE (disabled)" << std::endl;
 #endif
+#if USE_FIREBIRD
+    std::cout << "- Firebird" << std::endl;
+#else
+    std::cout << "- Firebird (disabled)" << std::endl;
+#endif
 
-    // Display libdw support status
+#if USE_MONGODB
+    std::cout << "- MongoDB" << std::endl;
+#else
+    std::cout << "- MongoDB (disabled)" << std::endl;
+#endif
+
+// Display libdw support status
 #if BACKWARD_HAS_DW
     std::cout << "- libdw support: ENABLED" << std::endl;
 #else
@@ -97,6 +114,18 @@ int main(int argc, char *argv[])
         std::cout << "Registering SQLite driver..." << std::endl;
         cpp_dbc::DriverManager::registerDriver("sqlite",
                                                std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+#endif
+
+#if USE_FIREBIRD
+        std::cout << "Registering Firebird driver..." << std::endl;
+        cpp_dbc::DriverManager::registerDriver("firebird",
+                                               std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+#endif
+
+#if USE_MONGODB
+        std::cout << "Registering MongoDB driver..." << std::endl;
+        cpp_dbc::DriverManager::registerDriver("mongodb",
+                                               std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
 #endif
 
         std::cout << "Driver registration complete." << std::endl;
@@ -149,6 +178,25 @@ int main(int argc, char *argv[])
         {"database", "local.db"}};
     db_config["connections"].push_back(new_connection);
 
+    // Add Firebird connection
+    json firebird_connection = {
+        {"name", "firebird_local"},
+        {"type", "firebird"},
+        {"host", "localhost"},
+        {"port", 3050},
+        {"database", "/data/firebird/test.fdb"},
+        {"user", "SYSDBA"},
+        {"password", "masterkey"}};
+    db_config["connections"].push_back(firebird_connection);
+
+    // Add MongoDB connection
+    json mongodb_connection = {
+        {"name", "mongodb_local"},
+        {"type", "mongodb"},
+        {"connection_string", "mongodb://localhost:27017"},
+        {"database", "test_db"}};
+    db_config["connections"].push_back(mongodb_connection);
+
     // Print the modified JSON
     std::cout << "\nModified database configuration:" << std::endl;
     std::cout << db_config.dump(4) << std::endl;
@@ -199,6 +247,25 @@ int main(int argc, char *argv[])
     sqlite_conn["type"] = "sqlite";
     sqlite_conn["database"] = "local.db";
     yaml_config["connections"].push_back(sqlite_conn);
+
+    // Add Firebird connection
+    YAML::Node firebird_conn;
+    firebird_conn["name"] = "firebird_local";
+    firebird_conn["type"] = "firebird";
+    firebird_conn["host"] = "localhost";
+    firebird_conn["port"] = 3050;
+    firebird_conn["database"] = "/data/firebird/test.fdb";
+    firebird_conn["user"] = "SYSDBA";
+    firebird_conn["password"] = "masterkey";
+    yaml_config["connections"].push_back(firebird_conn);
+
+    // Add MongoDB connection
+    YAML::Node mongodb_conn;
+    mongodb_conn["name"] = "mongodb_local";
+    mongodb_conn["type"] = "mongodb";
+    mongodb_conn["connection_string"] = "mongodb://localhost:27017";
+    mongodb_conn["database"] = "test_db";
+    yaml_config["connections"].push_back(mongodb_conn);
 
     // Print the modified YAML
     std::cout << "\nModified database configuration:" << std::endl;
