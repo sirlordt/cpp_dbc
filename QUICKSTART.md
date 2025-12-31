@@ -236,6 +236,32 @@ The test log analysis feature checks for:
 ./helper.sh --run-build=mongodb,examples
 ./build/libs/cpp_dbc/examples/document_connection_pool_example
 
+# MongoDB Connection Pool Factory Pattern Examples
+# Create MongoDB connection pool using factory method with configuration
+./libs/cpp_dbc/examples/document_connection_pool_example --factory-config
+
+# Create MongoDB connection pool using factory method with direct parameters
+./libs/cpp_dbc/examples/document_connection_pool_example --factory-direct
+
+# Create MongoDB connection pool using factory method with custom options
+./libs/cpp_dbc/examples/document_connection_pool_example --factory-options
+
+# Code examples for creating MongoDB connection pools:
+# Using configuration object:
+#   auto config = cpp_dbc::config::DBConnectionPoolConfig();
+#   config.setUrl("mongodb://localhost:27017/test");
+#   auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(config);
+#
+# Using direct parameters:
+#   auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(
+#       "mongodb://localhost:27017/test", "username", "password");
+#
+# Getting and using connections:
+#   auto conn = pool->getDocumentDBConnection();
+#   auto collection = conn->getCollection("test_collection");
+#   // Use collection...
+#   conn->close(); // Return to pool
+
 # Connection Pool Factory Pattern Examples
 
 # Run relational connection pool tests to verify factory pattern

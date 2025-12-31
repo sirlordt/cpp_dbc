@@ -68,17 +68,8 @@ namespace cpp_dbc
           m_activeConnections(0)
     {
         m_allConnections.reserve(m_maxSize);
-
-        // Create initial connections
-        for (int i = 0; i < m_initialSize; i++)
-        {
-            auto pooledConn = createPooledDBConnection();
-            m_idleConnections.push(pooledConn);
-            m_allConnections.push_back(pooledConn);
-        }
-
-        // Start maintenance thread
-        m_maintenanceThread = std::thread(&DocumentDBConnectionPool::maintenanceTask, this);
+        // Note: Initial connections are created in the factory method after construction
+        // to ensure shared_from_this() works correctly
     }
 
     DocumentDBConnectionPool::DocumentDBConnectionPool(const config::DBConnectionPoolConfig &config)
@@ -102,7 +93,12 @@ namespace cpp_dbc
           m_activeConnections(0)
     {
         m_allConnections.reserve(m_maxSize);
+        // Note: Initial connections are created in the factory method after construction
+        // to ensure shared_from_this() works correctly
+    }
 
+    void DocumentDBConnectionPool::initializePool()
+    {
         // Create initial connections
         for (int i = 0; i < m_initialSize; i++)
         {
@@ -111,12 +107,45 @@ namespace cpp_dbc
             m_allConnections.push_back(pooledConn);
         }
 
+        // Start maintenance thread
         m_maintenanceThread = std::thread(&DocumentDBConnectionPool::maintenanceTask, this);
+    }
+
+    std::shared_ptr<DocumentDBConnectionPool> DocumentDBConnectionPool::create(const std::string &url,
+                                                                               const std::string &username,
+                                                                               const std::string &password,
+                                                                               const std::map<std::string, std::string> &options,
+                                                                               int initialSize,
+                                                                               int maxSize,
+                                                                               int minIdle,
+                                                                               long maxWaitMillis,
+                                                                               long validationTimeoutMillis,
+                                                                               long idleTimeoutMillis,
+                                                                               long maxLifetimeMillis,
+                                                                               bool testOnBorrow,
+                                                                               bool testOnReturn,
+                                                                               const std::string &validationQuery,
+                                                                               TransactionIsolationLevel transactionIsolation)
+    {
+        auto pool = std::shared_ptr<DocumentDBConnectionPool>(new DocumentDBConnectionPool(
+            url, username, password, options, initialSize, maxSize, minIdle,
+            maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
+            testOnBorrow, testOnReturn, validationQuery, transactionIsolation));
+
+        // Initialize the pool after construction (creates connections and starts maintenance thread)
+        pool->initializePool();
+
+        return pool;
     }
 
     std::shared_ptr<DocumentDBConnectionPool> DocumentDBConnectionPool::create(const config::DBConnectionPoolConfig &config)
     {
-        return std::make_shared<DocumentDBConnectionPool>(config);
+        auto pool = std::shared_ptr<DocumentDBConnectionPool>(new DocumentDBConnectionPool(config));
+
+        // Initialize the pool after construction (creates connections and starts maintenance thread)
+        pool->initializePool();
+
+        return pool;
     }
 
     DocumentDBConnectionPool::~DocumentDBConnectionPool()
@@ -145,12 +174,22 @@ namespace cpp_dbc
     {
         auto conn = createDBConnection();
 
-        // Create pooled connection with weak_ptr (may be empty if pool is stack-allocated),
-        // shared poolAlive flag, and raw pointer for pool access
+        // Create pooled connection with weak_ptr
         std::weak_ptr<DocumentDBConnectionPool> weakPool;
-        // Note: weak_from_this() would throw if not managed by shared_ptr, so we don't use it
+        try
+        {
+            // Try to create a weak_ptr from this pool using shared_from_this
+            // This works if the pool is managed by a shared_ptr
+            weakPool = shared_from_this();
+        }
+        catch (const std::bad_weak_ptr &)
+        {
+            // Pool is not managed by shared_ptr, weakPool remains empty
+            // This can happen if the pool is stack-allocated
+        }
 
-        auto pooledConn = std::make_shared<DocumentPooledDBConnection>(conn, weakPool, m_poolAlive, this);
+        // Create the pooled connection
+        auto pooledConn = std::make_shared<DocumentPooledDBConnection>(conn, weakPool, m_poolAlive);
         return pooledConn;
     }
 
@@ -527,9 +566,8 @@ namespace cpp_dbc
     DocumentPooledDBConnection::DocumentPooledDBConnection(
         std::shared_ptr<DocumentDBConnection> connection,
         std::weak_ptr<DocumentDBConnectionPool> connectionPool,
-        std::shared_ptr<std::atomic<bool>> poolAlive,
-        DocumentDBConnectionPool *poolPtr)
-        : m_conn(connection), m_pool(connectionPool), m_poolAlive(poolAlive), m_poolPtr(poolPtr), m_active(false), m_closed(false)
+        std::shared_ptr<std::atomic<bool>> poolAlive)
+        : m_conn(connection), m_pool(connectionPool), m_poolAlive(poolAlive), m_active(false), m_closed(false)
     {
         m_creationTime = std::chrono::steady_clock::now();
         m_lastUsedTime = m_creationTime;
@@ -574,10 +612,14 @@ namespace cpp_dbc
             m_lastUsedTime = std::chrono::steady_clock::now();
 
             // Check if pool is still alive using the shared atomic flag
-            if (isPoolValid() && m_poolPtr)
+            if (isPoolValid())
             {
-                m_poolPtr->returnConnection(std::static_pointer_cast<DocumentPooledDBConnection>(this->shared_from_this()));
-                m_closed.store(false);
+                // Try to obtain a shared_ptr from the weak_ptr
+                if (auto poolShared = m_pool.lock())
+                {
+                    poolShared->returnConnection(std::static_pointer_cast<DocumentPooledDBConnection>(this->shared_from_this()));
+                    m_closed.store(false);
+                }
             }
         }
         catch (const std::bad_weak_ptr &e)
@@ -889,6 +931,22 @@ namespace cpp_dbc
             : DocumentDBConnectionPool(config)
         {
             // MongoDB-specific initialization if needed
+        }
+
+        std::shared_ptr<MongoDBConnectionPool> MongoDBConnectionPool::create(const std::string &url,
+                                                                             const std::string &username,
+                                                                             const std::string &password)
+        {
+            auto pool = std::shared_ptr<MongoDBConnectionPool>(new MongoDBConnectionPool(url, username, password));
+            pool->initializePool();
+            return pool;
+        }
+
+        std::shared_ptr<MongoDBConnectionPool> MongoDBConnectionPool::create(const config::DBConnectionPoolConfig &config)
+        {
+            auto pool = std::shared_ptr<MongoDBConnectionPool>(new MongoDBConnectionPool(config));
+            pool->initializePool();
+            return pool;
         }
     }
 

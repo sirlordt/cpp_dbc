@@ -1,6 +1,27 @@
 # Changelog
 
-## 2025-12-30 04:28:19 PM PST [Current]
+## 2025-12-30 11:38:13 PM PST [Current]
+
+### Document Database Connection Pool Factory Pattern Implementation
+* Implemented factory pattern for MongoDB connection pool creation:
+  * **API Changes:**
+    * Added `create` static factory methods to `DocumentDBConnectionPool` and `MongoDBConnectionPool`
+    * Made constructors protected to enforce factory method usage
+    * Added `std::enable_shared_from_this` inheritance to `DocumentDBConnectionPool`
+    * Added `initializePool` method for initialization after shared_ptr construction
+    * Updated all code to use factory methods instead of direct instantiation
+  * **Memory Safety Improvements:**
+    * Improved connection lifetime management with weak_ptr reference tracking
+    * Removed unnecessary raw pointer references in pooled connections
+    * Simplified pooled connection constructor interface
+    * Enhanced resource cleanup with proper initialization sequence
+  * **Test Updates:**
+    * Updated MongoDB connection pool tests to use the factory methods
+    * Fixed thread safety tests to use shared_ptr for pool access
+    * Improved test readability with auto type deduction
+    * Added comprehensive validation in connection pool tests
+
+## 2025-12-30 04:28:19 PM PST
 
 ### Connection Pool Factory Pattern Implementation
 * Implemented factory pattern for connection pool creation:

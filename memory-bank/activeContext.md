@@ -34,8 +34,33 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Connection Pool Factory Pattern Implementation** (2025-12-30 04:28:19 PM PST):
-   - Implemented factory pattern for connection pool creation:
+1. **Document Database Connection Pool Factory Pattern Implementation** (2025-12-30 11:38:13 PM PST):
+   - Implemented factory pattern for MongoDB connection pool creation:
+     - **API Changes:**
+       - Added `create` static factory methods to `DocumentDBConnectionPool` and `MongoDBConnectionPool`
+       - Made constructors protected to enforce factory method usage
+       - Added `std::enable_shared_from_this` inheritance to `DocumentDBConnectionPool`
+       - Added `initializePool` method for initialization after shared_ptr construction
+       - Updated all code to use factory methods instead of direct instantiation
+     - **Memory Safety Improvements:**
+       - Improved connection lifetime management with weak_ptr reference tracking
+       - Removed unnecessary raw pointer references in pooled connections
+       - Simplified pooled connection constructor interface
+       - Enhanced resource cleanup with proper initialization sequence
+     - **Test Updates:**
+       - Updated MongoDB connection pool tests to use the factory methods
+       - Fixed thread safety tests to use shared_ptr for pool access
+       - Improved test readability with auto type deduction
+       - Added comprehensive validation in connection pool tests
+     - **Benefits:**
+       - Better resource management with clearer ownership semantics
+       - Avoids potential use-after-free issues with pool and connection lifetimes
+       - Safer handling of self-referencing in document database connection pools
+       - More consistent API across different pool implementations
+       - Improved thread safety in concurrent environments
+
+2. **Connection Pool Factory Pattern Implementation** (2025-12-30 04:28:19 PM PST):
+   - Implemented factory pattern for relational connection pool creation:
      - **API Changes:**
        - Added `create` static factory methods to `RelationalDBConnectionPool` and all specific pools
        - Made constructors protected to enforce factory method usage

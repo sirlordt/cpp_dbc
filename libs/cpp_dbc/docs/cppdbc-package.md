@@ -224,22 +224,50 @@ cmake --build .
 16. Document database support with MongoDB driver (CRUD operations, collection management, cursor-based iteration)
 17. Comprehensive benchmarking infrastructure for performance testing of all database operations
 18. Connection Pool Factory Pattern implementation:
-    - Factory methods for all connection pool types (both relational and document-based)
-    - Protected constructors to enforce creation via factory methods
-    - std::enable_shared_from_this inheritance for safe self-reference
-    - Improved initialization sequence with separate initializePool() method
-    - Safer resource management with weak_ptr reference tracking
-    - Better thread safety in multi-threaded environments
-    - Prevents use-after-free issues with pool and connection lifetimes
+    - **Factory Methods:**
+      - Static `create` methods for all connection pool types (both relational and document-based)
+      - Multiple overloads accepting configuration objects or direct parameters
+      - Protected constructors to enforce creation via factory methods
+    - **Memory Safety Improvements:**
+      - `std::enable_shared_from_this` inheritance for safe self-reference
+      - Two-phase initialization with separate `initializePool()` method called after construction
+      - Safer resource management with weak_ptr reference tracking
+      - Removal of raw pointer references in pooled connections
+    - **API Benefits:**
+      - Cleaner client code with explicit ownership semantics
+      - Better thread safety in multi-threaded environments
+      - Prevents use-after-free issues with pool and connection lifetimes
+      - Consistent creation pattern across all database types
+    - **Example Usage:**
+      ```cpp
+      // Using factory method with configuration
+      auto config = cpp_dbc::config::DBConnectionPoolConfig();
+      config.setUrl("mongodb://localhost:27017/test");
+      auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(config);
+      
+      // Using factory method with direct parameters
+      auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(
+          "mongodb://localhost:27017/test", "username", "password");
+      ```
 19. Document database connection pool implementation:
-    - Document database connection pooling for MongoDB
-    - Thread-safe connection acquisition and release
-    - Smart pointer-based pool lifetime tracking for memory safety
-    - Connection validation with MongoDB ping command
-    - Configurable pool parameters (initial size, max size, min idle, etc.)
-    - Background maintenance thread for connection cleanup
-    - Comprehensive example in document_connection_pool_example.cpp
-    - Thorough test coverage for all pool operations
+    - **MongoDB-Specific Pool Implementation:**
+      - `DocumentDBConnectionPool` base class with MongoDB-specific `MongoDBConnectionPool` implementation
+      - Thread-safe connection acquisition and release with mutex protection
+      - Connection pooling with minimum idle connections and maximum size limits
+    - **Resource Management:**
+      - Smart pointer-based pool lifetime tracking for memory safety
+      - Automatic connection validation on borrow with ping command
+      - Connection cleanup with proper resource release
+      - Background maintenance thread for removing idle and expired connections
+    - **Configuration Options:**
+      - Configurable initial size, maximum size, and minimum idle connections
+      - Adjustable timeout settings (max wait, validation, idle, lifetime)
+      - Connection validation options (on borrow, on return)
+      - Custom validation query support
+    - **Documentation and Testing:**
+      - Comprehensive example in `document_connection_pool_example.cpp`
+      - Thorough test coverage in `test_mongodb_connection_pool.cpp`
+      - Performance testing in MongoDB benchmarks
 19. MongoDB benchmark support for select, insert, update, and delete operations with detailed performance metrics:
     - Document insert benchmarks (single and batch operations)
     - Document query benchmarks with different filter complexities

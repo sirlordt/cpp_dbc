@@ -85,10 +85,10 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
         poolConfig.setValidationQuery("{\"ping\": 1}"); // MongoDB ping command
 
         // Create a connection pool
-        cpp_dbc::MongoDB::MongoDBConnectionPool pool(poolConfig);
+        auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(poolConfig);
 
         // Create a test collection
-        auto conn = pool.getDocumentDBConnection();
+        auto conn = pool->getDocumentDBConnection();
 
         // Drop collection if it exists (cleanup from previous test runs)
         if (conn->collectionExists(testPoolCollectionName))
@@ -104,42 +104,42 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
         SECTION("Get and return connections")
         {
             // Get initial pool statistics
-            auto initialIdleCount = pool.getIdleDBConnectionCount();
-            auto initialActiveCount = pool.getActiveDBConnectionCount();
-            auto initialTotalCount = pool.getTotalDBConnectionCount();
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialActiveCount = pool->getActiveDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
 
             REQUIRE(initialActiveCount == 0);
             REQUIRE(initialIdleCount >= 3);  // minIdle
             REQUIRE(initialTotalCount >= 3); // minIdle
 
             // Get a connection
-            auto conn1 = pool.getDBConnection();
+            auto conn1 = pool->getDBConnection();
             REQUIRE(conn1 != nullptr);
-            REQUIRE(pool.getActiveDBConnectionCount() == 1);
-            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount - 1);
+            REQUIRE(pool->getActiveDBConnectionCount() == 1);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 1);
 
             // Get another connection
-            auto conn2 = pool.getDBConnection();
+            auto conn2 = pool->getDBConnection();
             REQUIRE(conn2 != nullptr);
-            REQUIRE(pool.getActiveDBConnectionCount() == 2);
-            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount - 2);
+            REQUIRE(pool->getActiveDBConnectionCount() == 2);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 2);
 
             // Return the first connection
             conn1->close();
-            REQUIRE(pool.getActiveDBConnectionCount() == 1);
-            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount - 1);
+            REQUIRE(pool->getActiveDBConnectionCount() == 1);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 1);
 
             // Return the second connection
             conn2->close();
-            REQUIRE(pool.getActiveDBConnectionCount() == 0);
-            REQUIRE(pool.getIdleDBConnectionCount() == initialIdleCount);
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
         }
 
         // Test document operations through pooled connections
         SECTION("Document operations with pooled connections")
         {
             // Get a connection from the pool
-            auto conn1 = pool.getDocumentDBConnection();
+            auto conn1 = pool->getDocumentDBConnection();
             REQUIRE(conn1 != nullptr);
 
             // Get the test collection
@@ -169,7 +169,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
             conn->close();
 
             // Get another connection and verify documents
-            auto conn2 = pool.getDocumentDBConnection();
+            auto conn2 = pool->getDocumentDBConnection();
             REQUIRE(conn2 != nullptr);
 
             auto collection2 = conn2->getCollection(testPoolCollectionName);
@@ -191,7 +191,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
         SECTION("Concurrent connections")
         {
             // Get initial document count before adding more
-            auto initialConn = pool.getDocumentDBConnection();
+            auto initialConn = pool->getDocumentDBConnection();
             auto initialCollection = initialConn->getCollection(testPoolCollectionName);
             auto initialCount = initialCollection->countDocuments();
             initialConn->close();
@@ -206,7 +206,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
                                               {
                     try {
                         // Get connection from pool
-                        auto threadConn = pool.getDocumentDBConnection();
+                        auto threadConn = pool->getDocumentDBConnection();
                         
                         // Get collection
                         auto threadCollection = threadConn->getCollection(testPoolCollectionName);
@@ -244,7 +244,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
             REQUIRE(successCount == numThreads);
 
             // Get connection and verify document count
-            auto verifyConn = pool.getDocumentDBConnection();
+            auto verifyConn = pool->getDocumentDBConnection();
             auto verifyCollection = verifyConn->getCollection(testPoolCollectionName);
             auto totalCount = verifyCollection->countDocuments();
 
@@ -267,7 +267,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
                                               {
                     try {
                         // Get connection from pool (may block if pool is exhausted)
-                        auto loadConn = pool.getDocumentDBConnection();
+                        auto loadConn = pool->getDocumentDBConnection();
                         
                         // Do some quick work
                         bool isAlive = loadConn->ping();
@@ -300,14 +300,14 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
             REQUIRE(successCount == numOperations);
 
             // Verify pool returned to initial state
-            REQUIRE(pool.getActiveDBConnectionCount() == 0);
-            auto idleCount = pool.getIdleDBConnectionCount();
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            auto idleCount = pool->getIdleDBConnectionCount();
             REQUIRE(idleCount >= 3);  // At least minIdle connections
             REQUIRE(idleCount <= 10); // No more than maxSize connections
         }
 
         // Clean up
-        auto cleanupConn = pool.getDocumentDBConnection();
+        auto cleanupConn = pool->getDocumentDBConnection();
         try
         {
             if (cleanupConn->collectionExists(testPoolCollectionName))
@@ -322,7 +322,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
         cleanupConn->close();
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 
     // Test advanced pool features
@@ -348,13 +348,13 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
         poolConfig.setValidationQuery("{\"ping\": 1}"); // MongoDB ping command
 
         // Create a connection pool
-        cpp_dbc::MongoDB::MongoDBConnectionPool pool(poolConfig);
+        auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(poolConfig);
 
         // Test connection validation
         SECTION("Connection validation")
         {
             // Get a connection
-            auto conn = pool.getDocumentDBConnection();
+            auto conn = pool->getDocumentDBConnection();
             REQUIRE(conn != nullptr);
 
             // Verify connection works
@@ -364,29 +364,29 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
             conn->close();
 
             // Pool stats should reflect the return
-            REQUIRE(pool.getActiveDBConnectionCount() == 0);
-            REQUIRE(pool.getIdleDBConnectionCount() >= 1);
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getIdleDBConnectionCount() >= 1);
         }
 
         // Test pool growth
         SECTION("Pool growth")
         {
             // Get initial stats
-            auto initialIdleCount = pool.getIdleDBConnectionCount();
-            auto initialTotalCount = pool.getTotalDBConnectionCount();
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
 
             std::vector<std::shared_ptr<cpp_dbc::DocumentDBConnection>> connections;
 
             // Get more connections than initialSize (should cause pool to grow)
             for (int i = 0; i < 4; i++)
             {
-                connections.push_back(pool.getDocumentDBConnection());
+                connections.push_back(pool->getDocumentDBConnection());
                 REQUIRE(connections.back() != nullptr);
             }
 
             // Verify pool grew
-            REQUIRE(pool.getActiveDBConnectionCount() == 4);
-            REQUIRE(pool.getTotalDBConnectionCount() > initialTotalCount);
+            REQUIRE(pool->getActiveDBConnectionCount() == 4);
+            REQUIRE(pool->getTotalDBConnectionCount() > initialTotalCount);
 
             // Return all connections
             for (auto &conn : connections)
@@ -395,15 +395,15 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
             }
 
             // Verify all returned
-            REQUIRE(pool.getActiveDBConnectionCount() == 0);
-            REQUIRE(pool.getIdleDBConnectionCount() >= initialIdleCount);
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getIdleDBConnectionCount() >= initialIdleCount);
         }
 
         // Close the pool
-        pool.close();
+        pool->close();
 
         // Verify pool is no longer running
-        REQUIRE_FALSE(pool.isRunning());
+        REQUIRE_FALSE(pool->isRunning());
     }
 }
 #endif

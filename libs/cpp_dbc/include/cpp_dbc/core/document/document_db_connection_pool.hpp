@@ -59,7 +59,7 @@ namespace cpp_dbc
      * - Automatic maintenance of pool health
      * - Statistics tracking
      */
-    class DocumentDBConnectionPool : public DBConnectionPool
+    class DocumentDBConnectionPool : public DBConnectionPool, public std::enable_shared_from_this<DocumentDBConnectionPool>
     {
     private:
         friend class DocumentPooledDBConnection;
@@ -119,7 +119,12 @@ namespace cpp_dbc
             m_transactionIsolation = level;
         }
 
-    public:
+        // Initialize the pool after construction (creates initial connections and starts maintenance thread)
+        // This must be called after the pool is managed by a shared_ptr
+        void initializePool();
+
+    protected:
+        // Protected constructors - pools must be created via factory methods
         // Constructor that takes individual parameters
         DocumentDBConnectionPool(const std::string &url,
                                  const std::string &username,
@@ -140,7 +145,24 @@ namespace cpp_dbc
         // Constructor that accepts a configuration object
         DocumentDBConnectionPool(const config::DBConnectionPoolConfig &config);
 
-        // Static factory method
+    public:
+        // Static factory methods - use these to create pools
+        static std::shared_ptr<DocumentDBConnectionPool> create(const std::string &url,
+                                                                const std::string &username,
+                                                                const std::string &password,
+                                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
+                                                                int initialSize = 5,
+                                                                int maxSize = 20,
+                                                                int minIdle = 3,
+                                                                long maxWaitMillis = 5000,
+                                                                long validationTimeoutMillis = 5000,
+                                                                long idleTimeoutMillis = 300000,
+                                                                long maxLifetimeMillis = 1800000,
+                                                                bool testOnBorrow = true,
+                                                                bool testOnReturn = false,
+                                                                const std::string &validationQuery = "{\"ping\": 1}",
+                                                                TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
+
         static std::shared_ptr<DocumentDBConnectionPool> create(const config::DBConnectionPoolConfig &config);
 
         ~DocumentDBConnectionPool();
@@ -176,7 +198,6 @@ namespace cpp_dbc
         std::shared_ptr<DocumentDBConnection> m_conn;
         std::weak_ptr<DocumentDBConnectionPool> m_pool;
         std::shared_ptr<std::atomic<bool>> m_poolAlive; // Shared flag to check if pool is still alive
-        DocumentDBConnectionPool *m_poolPtr;            // Raw pointer for pool access (only used when m_poolAlive is true)
         std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
         std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
         std::atomic<bool> m_active;
@@ -190,8 +211,7 @@ namespace cpp_dbc
     public:
         DocumentPooledDBConnection(std::shared_ptr<DocumentDBConnection> conn,
                                    std::weak_ptr<DocumentDBConnectionPool> pool,
-                                   std::shared_ptr<std::atomic<bool>> poolAlive,
-                                   DocumentDBConnectionPool *poolPtr);
+                                   std::shared_ptr<std::atomic<bool>> poolAlive);
         ~DocumentPooledDBConnection() override;
 
         // Overridden DBConnection interface methods
@@ -252,12 +272,19 @@ namespace cpp_dbc
          */
         class MongoDBConnectionPool : public DocumentDBConnectionPool
         {
-        public:
+        protected:
             MongoDBConnectionPool(const std::string &url,
                                   const std::string &username,
                                   const std::string &password);
 
             MongoDBConnectionPool(const config::DBConnectionPoolConfig &config);
+
+        public:
+            static std::shared_ptr<MongoDBConnectionPool> create(const std::string &url,
+                                                                 const std::string &username,
+                                                                 const std::string &password);
+
+            static std::shared_ptr<MongoDBConnectionPool> create(const config::DBConnectionPoolConfig &config);
         };
     }
 
