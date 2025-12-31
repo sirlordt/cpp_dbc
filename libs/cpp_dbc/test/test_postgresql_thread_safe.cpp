@@ -187,7 +187,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLConnectionPool>(poolConfig);
+        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
 
         // Setup: create test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -261,7 +261,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLConnectionPool>(poolConfig);
+        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
 
         // Setup: create and populate test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -354,7 +354,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[postgresql_thread_safe]")
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLConnectionPool>(poolConfig);
+        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
 
         // Create test table
         auto setupConn = pool->getRelationalDBConnection();

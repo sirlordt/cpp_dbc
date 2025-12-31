@@ -52,7 +52,7 @@ namespace cpp_dbc
     }
 
     // Relational Database Connection Pool class
-    class RelationalDBConnectionPool : public DBConnectionPool
+    class RelationalDBConnectionPool : public DBConnectionPool, public std::enable_shared_from_this<RelationalDBConnectionPool>
     {
     private:
         friend class RelationalPooledDBConnection;
@@ -114,7 +114,11 @@ namespace cpp_dbc
             m_transactionIsolation = level;
         }
 
-    public:
+        // Initialize the pool after construction (creates initial connections and starts maintenance thread)
+        // This must be called after the pool is managed by a shared_ptr
+        void initializePool();
+
+        // Protected constructors - pools must be created via factory methods
         // Constructor that takes individual parameters
         RelationalDBConnectionPool(const std::string &url,
                                    const std::string &username,
@@ -135,7 +139,24 @@ namespace cpp_dbc
         // Constructor that accepts a configuration object
         RelationalDBConnectionPool(const config::DBConnectionPoolConfig &config);
 
-        // Static factory method
+    public:
+        // Static factory methods - use these to create pools
+        static std::shared_ptr<RelationalDBConnectionPool> create(const std::string &url,
+                                                                  const std::string &username,
+                                                                  const std::string &password,
+                                                                  const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
+                                                                  int initialSize = 5,
+                                                                  int maxSize = 20,
+                                                                  int minIdle = 3,
+                                                                  long maxWaitMillis = 5000,
+                                                                  long validationTimeoutMillis = 5000,
+                                                                  long idleTimeoutMillis = 300000,
+                                                                  long maxLifetimeMillis = 1800000,
+                                                                  bool testOnBorrow = true,
+                                                                  bool testOnReturn = false,
+                                                                  const std::string &validationQuery = "SELECT 1",
+                                                                  TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
+
         static std::shared_ptr<RelationalDBConnectionPool> create(const config::DBConnectionPoolConfig &config);
 
         ~RelationalDBConnectionPool();
@@ -163,9 +184,8 @@ namespace cpp_dbc
     {
     private:
         std::shared_ptr<RelationalDBConnection> m_conn;
-        std::weak_ptr<RelationalDBConnectionPool> m_pool;
-        std::shared_ptr<std::atomic<bool>> m_poolAlive; // Shared flag to check if pool is still alive
-        RelationalDBConnectionPool *m_poolPtr;          // Raw pointer for pool access (only used when m_poolAlive is true)
+        std::weak_ptr<RelationalDBConnectionPool> m_pool; // Weak pointer to connection pool
+        std::shared_ptr<std::atomic<bool>> m_poolAlive;   // Shared flag to check if pool is still alive
         std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
         std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
         std::atomic<bool> m_active;
@@ -179,8 +199,7 @@ namespace cpp_dbc
     public:
         RelationalPooledDBConnection(std::shared_ptr<RelationalDBConnection> conn,
                                      std::weak_ptr<RelationalDBConnectionPool> pool,
-                                     std::shared_ptr<std::atomic<bool>> poolAlive,
-                                     RelationalDBConnectionPool *poolPtr);
+                                     std::shared_ptr<std::atomic<bool>> poolAlive);
         ~RelationalPooledDBConnection() override;
 
         // Overridden DBConnection interface methods
@@ -228,12 +247,19 @@ namespace cpp_dbc
     {
         class MySQLConnectionPool : public RelationalDBConnectionPool
         {
-        public:
+        protected:
             MySQLConnectionPool(const std::string &url,
                                 const std::string &username,
                                 const std::string &password);
 
             MySQLConnectionPool(const config::DBConnectionPoolConfig &config);
+
+        public:
+            static std::shared_ptr<MySQLConnectionPool> create(const std::string &url,
+                                                               const std::string &username,
+                                                               const std::string &password);
+
+            static std::shared_ptr<MySQLConnectionPool> create(const config::DBConnectionPoolConfig &config);
         };
     }
 
@@ -241,12 +267,19 @@ namespace cpp_dbc
     {
         class PostgreSQLConnectionPool : public RelationalDBConnectionPool
         {
-        public:
+        protected:
             PostgreSQLConnectionPool(const std::string &url,
                                      const std::string &username,
                                      const std::string &password);
 
             PostgreSQLConnectionPool(const config::DBConnectionPoolConfig &config);
+
+        public:
+            static std::shared_ptr<PostgreSQLConnectionPool> create(const std::string &url,
+                                                                    const std::string &username,
+                                                                    const std::string &password);
+
+            static std::shared_ptr<PostgreSQLConnectionPool> create(const config::DBConnectionPoolConfig &config);
         };
     }
 
@@ -254,12 +287,19 @@ namespace cpp_dbc
     {
         class SQLiteConnectionPool : public RelationalDBConnectionPool
         {
-        public:
+        protected:
             SQLiteConnectionPool(const std::string &url,
                                  const std::string &username,
                                  const std::string &password);
 
             SQLiteConnectionPool(const config::DBConnectionPoolConfig &config);
+
+        public:
+            static std::shared_ptr<SQLiteConnectionPool> create(const std::string &url,
+                                                                const std::string &username,
+                                                                const std::string &password);
+
+            static std::shared_ptr<SQLiteConnectionPool> create(const config::DBConnectionPoolConfig &config);
         };
     }
 
@@ -267,12 +307,19 @@ namespace cpp_dbc
     {
         class FirebirdConnectionPool : public RelationalDBConnectionPool
         {
-        public:
+        protected:
             FirebirdConnectionPool(const std::string &url,
                                    const std::string &username,
                                    const std::string &password);
 
             FirebirdConnectionPool(const config::DBConnectionPoolConfig &config);
+
+        public:
+            static std::shared_ptr<FirebirdConnectionPool> create(const std::string &url,
+                                                                  const std::string &username,
+                                                                  const std::string &password);
+
+            static std::shared_ptr<FirebirdConnectionPool> create(const config::DBConnectionPoolConfig &config);
         };
     }
 

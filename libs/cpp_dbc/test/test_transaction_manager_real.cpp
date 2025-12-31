@@ -81,8 +81,9 @@ TEST_CASE("Real MySQL transaction manager tests", "[transaction_manager_real]")
         poolConfig.setTestOnReturn(false);
         poolConfig.setValidationQuery("SELECT 1");
 
-        // Create a connection pool
-        cpp_dbc::MySQL::MySQLConnectionPool pool(poolConfig);
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
+        auto &pool = *poolPtr;
 
         // Create a transaction manager
         cpp_dbc::TransactionManager manager(pool);
@@ -339,8 +340,9 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[transaction_manager_rea
         poolConfig.setTestOnReturn(false);
         poolConfig.setValidationQuery("SELECT 1");
 
-        // Create a connection pool
-        cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pool(poolConfig);
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
+        auto &pool = *poolPtr;
 
         // Create a transaction manager
         cpp_dbc::TransactionManager manager(pool);
@@ -518,8 +520,9 @@ TEST_CASE("Real Firebird transaction manager tests", "[transaction_manager_real]
         poolConfig.setTestOnReturn(false);
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
-        // Create a connection pool
-        cpp_dbc::Firebird::FirebirdConnectionPool pool(poolConfig);
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
+        auto &pool = *poolPtr;
 
         // Create a transaction manager
         cpp_dbc::TransactionManager manager(pool);

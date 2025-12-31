@@ -187,7 +187,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[mysql_thread_safe]")
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = std::make_shared<cpp_dbc::MySQL::MySQLConnectionPool>(poolConfig);
+        auto pool = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
 
         // Setup: create test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -261,7 +261,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[mysql_thread_safe]")
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = std::make_shared<cpp_dbc::MySQL::MySQLConnectionPool>(poolConfig);
+        auto pool = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
 
         // Setup: create and populate test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -354,7 +354,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[mysql_thread_safe]")
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = std::make_shared<cpp_dbc::MySQL::MySQLConnectionPool>(poolConfig);
+        auto pool = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
 
         // Create test table
         auto setupConn = pool->getRelationalDBConnection();

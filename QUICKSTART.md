@@ -236,6 +236,17 @@ The test log analysis feature checks for:
 ./helper.sh --run-build=mongodb,examples
 ./build/libs/cpp_dbc/examples/document_connection_pool_example
 
+# Connection Pool Factory Pattern Examples
+
+# Run relational connection pool tests to verify factory pattern
+./helper.sh --run-test=test=connection_pool_real
+
+# Run connection pool tests for all supported databases
+./helper.sh --run-test=test=connection_pool+mysql_real+postgresql_real+sqlite_real+firebird_real+mongodb_real
+
+# Run thread safety tests to verify factory pattern with concurrency
+./helper.sh --run-test=test=mysql_thread_safe+postgresql_thread_safe+sqlite_thread_safe+firebird_thread_safe
+
 # Run specific benchmark tags
 ./helper.sh --run-benchmarks=benchmark=update+postgresql
 

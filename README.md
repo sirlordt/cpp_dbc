@@ -493,9 +493,13 @@ The project includes comprehensive smart pointer usage to prevent memory leaks:
    - All BLOB classes have `isConnectionValid()` method to check connection state
    - Operations throw `DBException` if connection has been closed
 
-7. **Connection Pool Memory Safety**:
-   - `RelationalDBConnectionPool` uses `m_poolAlive` shared atomic flag to track pool lifetime
+7. **Connection Pool Memory Safety and Factory Pattern**:
+   - `RelationalDBConnectionPool` uses `std::enable_shared_from_this<RelationalDBConnectionPool>` for safe self-reference
+   - Added factory pattern with static `create()` methods for all connection pools
+   - Made constructors protected to enforce creation via factory methods
+   - Added `initializePool()` method that's called after shared_ptr construction
    - `RelationalDBPooledConnection` uses `weak_ptr` for pool reference
+   - Uses `m_poolAlive` shared atomic flag to track pool lifetime
    - Added `isPoolValid()` helper method to check if pool is still alive
    - Pool sets `m_poolAlive` to `false` in `close()` before cleanup
    - Prevents use-after-free when pool is destroyed while connections are in use

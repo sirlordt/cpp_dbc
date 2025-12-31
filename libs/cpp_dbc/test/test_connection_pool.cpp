@@ -214,8 +214,8 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
     SECTION("Create and use ConnectionPool with mock driver")
     {
         INFO("Create and use ConnectionPool with mock driver");
-        // Create a connection pool with mock driver
-        cpp_dbc::RelationalDBConnectionPool pool(
+        // Create a connection pool with mock driver using factory method
+        auto pool = cpp_dbc::RelationalDBConnectionPool::create(
             "cpp_dbc:mock://localhost:1234/mockdb",
             "mockuser",
             "mockpass",
@@ -233,7 +233,7 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
         );
 
         // Get a connection from the pool
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         REQUIRE(conn != nullptr);
 
         // Test that we can use the connection
@@ -247,17 +247,17 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
         conn->close();
 
         // Check pool statistics
-        REQUIRE(pool.getActiveDBConnectionCount() == 0);
-        REQUIRE(pool.getIdleDBConnectionCount() > 0);
+        REQUIRE(pool->getActiveDBConnectionCount() == 0);
+        REQUIRE(pool->getIdleDBConnectionCount() > 0);
 
         // Get multiple connections
         std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
         for (int i = 0; i < 5; i++)
         {
-            connections.push_back(pool.getRelationalDBConnection());
+            connections.push_back(pool->getRelationalDBConnection());
         }
 
-        REQUIRE(pool.getActiveDBConnectionCount() == 5);
+        REQUIRE(pool->getActiveDBConnectionCount() == 5);
 
         // Return connections to the pool
         for (auto &c : connections)
@@ -265,17 +265,17 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
             c->close();
         }
 
-        REQUIRE(pool.getActiveDBConnectionCount() == 0);
+        REQUIRE(pool->getActiveDBConnectionCount() == 0);
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 
     SECTION("Test ConnectionPool with multiple threads")
     {
         INFO("Test ConnectionPool with multiple threads");
-        // Create a connection pool with mock driver
-        cpp_dbc::RelationalDBConnectionPool pool(
+        // Create a connection pool with mock driver using factory method
+        auto pool = cpp_dbc::RelationalDBConnectionPool::create(
             "cpp_dbc:mock://localhost:1234/mockdb",
             "mockuser",
             "mockpass",
@@ -303,12 +303,12 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
         std::vector<std::thread> threads;
         for (int i = 0; i < numThreads; i++)
         {
-            threads.push_back(std::thread([&pool, opsPerThread, &successCount]()
+            threads.push_back(std::thread([pool, opsPerThread, &successCount]()
                                           {
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn = pool.getRelationalDBConnection();
+                        auto conn = pool->getRelationalDBConnection();
                         
                         // Perform a simple query
                         auto rs = conn->executeQuery("SELECT 1");
@@ -335,6 +335,6 @@ TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 }

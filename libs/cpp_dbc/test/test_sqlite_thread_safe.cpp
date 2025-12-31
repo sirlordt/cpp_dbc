@@ -204,7 +204,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[sqlite_thread_safe]")
         // SQLite only supports SERIALIZABLE isolation level
         poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
 
-        auto pool = std::make_shared<cpp_dbc::SQLite::SQLiteConnectionPool>(poolConfig);
+        auto pool = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
 
         // Setup: create test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -301,7 +301,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[sqlite_thread_safe]")
         // SQLite only supports SERIALIZABLE isolation level
         poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
 
-        auto pool = std::make_shared<cpp_dbc::SQLite::SQLiteConnectionPool>(poolConfig);
+        auto pool = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
 
         // Setup: create and populate test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -397,7 +397,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[sqlite_thread_safe]")
         // SQLite only supports SERIALIZABLE isolation level
         poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
 
-        auto pool = std::make_shared<cpp_dbc::SQLite::SQLiteConnectionPool>(poolConfig);
+        auto pool = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
 
         // Create test table
         auto setupConn = pool->getRelationalDBConnection();

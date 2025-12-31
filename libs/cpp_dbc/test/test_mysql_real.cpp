@@ -174,12 +174,8 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
 
         // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis(), "Creating the pool");
 
-        // Create a connection pool using safe manager
-        // auto poolPtr = poolManager.createPool(poolConfig);
-        auto poolPtr = std::make_shared<cpp_dbc::MySQL::MySQLConnectionPool>(poolConfig);
-        // auto poolPtr = std::make_shared<cpp_dbc_test::MockConnectionPool>();
-        //  auto *poolPtr = new cpp_dbc::MySQL::MySQLConnectionPool(poolConfig);
-        //   auto &pool = *poolPtr;
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
 
         // Create a test table
         auto conn = poolPtr->getRelationalDBConnection();
@@ -310,9 +306,8 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         poolConfig.setTestOnReturn(false);
         poolConfig.setValidationQuery("SELECT 1");
 
-        // Create a connection pool using safe manager
-        // auto poolPtr = poolManager.createPool(poolConfig);
-        auto poolPtr = std::make_shared<cpp_dbc::MySQL::MySQLConnectionPool>(poolConfig);
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
         auto &pool = *poolPtr;
 
         // Create a transaction manager
@@ -483,9 +478,8 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
         poolConfig.setTestOnReturn(false);
         poolConfig.setValidationQuery("SELECT 1");
 
-        // Create a connection pool using safe manager
-        // auto poolPtr = poolManager.createPool(poolConfig);
-        auto poolPtr = std::make_shared<cpp_dbc::MySQL::MySQLConnectionPool>(poolConfig);
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
         auto &pool = *poolPtr;
 
         // Create a test table

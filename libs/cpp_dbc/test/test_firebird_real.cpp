@@ -178,8 +178,8 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
         poolConfig.setTestOnReturn(true);
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
-        // Create a connection pool
-        auto poolPtr = std::make_shared<cpp_dbc::Firebird::FirebirdConnectionPool>(poolConfig);
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
 
         // Create a test table using RECREATE TABLE
         auto conn = poolPtr->getRelationalDBConnection();
@@ -263,8 +263,8 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
         poolConfig.setTestOnReturn(false);
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
-        // Create a connection pool
-        auto poolPtr = std::make_shared<cpp_dbc::Firebird::FirebirdConnectionPool>(poolConfig);
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
         auto &pool = *poolPtr;
 
         // Create a transaction manager
@@ -430,8 +430,8 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
         poolConfig.setTestOnReturn(false);
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
-        // Create a connection pool
-        auto poolPtr = std::make_shared<cpp_dbc::Firebird::FirebirdConnectionPool>(poolConfig);
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
         auto &pool = *poolPtr;
 
         // Create a test table using RECREATE TABLE

@@ -168,8 +168,9 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         poolConfig.setTestOnReturn(false);
         poolConfig.setValidationQuery("SELECT 1");
 
-        // Create a connection pool
-        cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pool(poolConfig);
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
+        auto &pool = *poolPtr;
 
         // Create a test table
         auto conn = pool.getRelationalDBConnection();
@@ -253,8 +254,9 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         poolConfig.setTestOnReturn(false);
         poolConfig.setValidationQuery("SELECT 1");
 
-        // Create a connection pool
-        cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pool(poolConfig);
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
+        auto &pool = *poolPtr;
 
         // Create a transaction manager
         cpp_dbc::TransactionManager manager(pool);
@@ -422,8 +424,9 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
         poolConfig.setTestOnReturn(false);
         poolConfig.setValidationQuery("SELECT 1");
 
-        // Create a connection pool
-        cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pool(poolConfig);
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
+        auto &pool = *poolPtr;
 
         // Create a test table
         auto conn = pool.getRelationalDBConnection();

@@ -223,7 +223,15 @@ cmake --build .
 15. Connection pool memory safety with smart pointers for pool lifetime tracking
 16. Document database support with MongoDB driver (CRUD operations, collection management, cursor-based iteration)
 17. Comprehensive benchmarking infrastructure for performance testing of all database operations
-18. Document database connection pool implementation:
+18. Connection Pool Factory Pattern implementation:
+    - Factory methods for all connection pool types (both relational and document-based)
+    - Protected constructors to enforce creation via factory methods
+    - std::enable_shared_from_this inheritance for safe self-reference
+    - Improved initialization sequence with separate initializePool() method
+    - Safer resource management with weak_ptr reference tracking
+    - Better thread safety in multi-threaded environments
+    - Prevents use-after-free issues with pool and connection lifetimes
+19. Document database connection pool implementation:
     - Document database connection pooling for MongoDB
     - Thread-safe connection acquisition and release
     - Smart pointer-based pool lifetime tracking for memory safety

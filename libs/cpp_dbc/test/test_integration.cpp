@@ -210,8 +210,8 @@ TEST_CASE("Integration test with mock database", "[integration]")
 
     SECTION("Integration test with connection pool")
     {
-        // Create a connection pool
-        cpp_dbc::RelationalDBConnectionPool pool(
+        // Create a connection pool using factory method
+        auto pool = cpp_dbc::RelationalDBConnectionPool::create(
             "cpp_dbc:mock://localhost:1234/mockdb",
             "mockuser",
             "mockpass",
@@ -229,7 +229,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
         );
 
         // Get a connection from the pool
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         REQUIRE(conn != nullptr);
 
         // Execute a query
@@ -251,10 +251,10 @@ TEST_CASE("Integration test with mock database", "[integration]")
         std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
         for (int i = 0; i < 5; i++)
         {
-            connections.push_back(pool.getRelationalDBConnection());
+            connections.push_back(pool->getRelationalDBConnection());
         }
 
-        REQUIRE(pool.getActiveDBConnectionCount() == 5);
+        REQUIRE(pool->getActiveDBConnectionCount() == 5);
 
         // Return connections to the pool
         for (auto &c : connections)
@@ -262,16 +262,16 @@ TEST_CASE("Integration test with mock database", "[integration]")
             c->close();
         }
 
-        REQUIRE(pool.getActiveDBConnectionCount() == 0);
+        REQUIRE(pool->getActiveDBConnectionCount() == 0);
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 
     SECTION("Integration test with transaction manager")
     {
-        // Create a connection pool
-        cpp_dbc::RelationalDBConnectionPool pool(
+        // Create a connection pool using factory method
+        auto pool = cpp_dbc::RelationalDBConnectionPool::create(
             "cpp_dbc:mock://localhost:1234/mockdb",
             "mockuser",
             "mockpass",
@@ -289,7 +289,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
         );
 
         // Create a transaction manager
-        cpp_dbc::TransactionManager manager(pool);
+        cpp_dbc::TransactionManager manager(*pool);
 
         // Begin a transaction
         std::string txId = manager.beginTransaction();
