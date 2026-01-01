@@ -54,6 +54,10 @@
 #include <cpp_dbc/drivers/document/driver_mongodb.hpp>
 #endif
 
+#if USE_REDIS
+#include <cpp_dbc/drivers/kv/driver_redis.hpp>
+#endif
+
 #include <string>
 #include <memory>
 #include <vector>
@@ -193,5 +197,34 @@ namespace mongodb_benchmark_helpers
 
     // Helper function to generate a random collection name
     std::string generateRandomCollectionName();
+#endif
+}
+
+namespace redis_benchmark_helpers
+{
+#if USE_REDIS
+    // Get a Redis database configuration based on the given name
+    cpp_dbc::config::DatabaseConfig getRedisConfig(const std::string &databaseName = "dev_redis");
+
+    // Build a Redis connection string from a DatabaseConfig
+    std::string buildRedisConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig);
+
+    // Check if a connection to Redis can be established
+    bool canConnectToRedis();
+
+    // Helper function to get a Redis driver instance
+    std::shared_ptr<cpp_dbc::Redis::RedisDriver> getRedisDriver();
+
+    // Helper function to setup Redis connection
+    std::shared_ptr<cpp_dbc::KVDBConnection> setupRedisConnection(const std::string &keyPrefix, int itemCount = 0);
+
+    // Helper function to generate a random key
+    std::string generateRandomKey(const std::string &prefix);
+
+    // Helper function to populate Redis with test data
+    void populateRedis(std::shared_ptr<cpp_dbc::KVDBConnection> &conn, const std::string &keyPrefix, int itemCount);
+
+    // Helper function to clean up Redis keys
+    void cleanupRedisKeys(std::shared_ptr<cpp_dbc::KVDBConnection> &conn, const std::string &keyPrefix);
 #endif
 }

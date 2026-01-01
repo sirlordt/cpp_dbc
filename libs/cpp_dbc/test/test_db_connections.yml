@@ -168,6 +168,32 @@ databases:
       auth_source: admin
       direct_connection: true
 
+  # Redis development database
+  - name: dev_redis
+    type: redis
+    host: localhost
+    port: 6379
+    database: 0
+    username: ""
+    password: "dsystems"
+    options:
+      connect_timeout: 3000
+      read_timeout: 3000
+      write_timeout: 3000
+
+  # Redis testing database
+  - name: test_redis
+    type: redis
+    host: localhost
+    port: 6379
+    database: 0
+    username: ""
+    password: "dsystems"
+    options:
+      connect_timeout: 3000
+      read_timeout: 3000
+      write_timeout: 3000
+
 # Connection pool configuration for tests
 connection_pool:
   default:
@@ -228,3 +254,10 @@ test_queries:
     insert_data: "INSERT INTO test_table (id, name, num_value) VALUES (?, ?, ?)"
     select_data: "SELECT * FROM test_table WHERE id = ?"
     drop_table: "DROP TABLE test_table"
+    
+  # Redis specific test commands
+  redis:
+    connection_test: "PING"
+    set_key: "SET test:key \"Hello Redis\""
+    get_key: "GET test:key"
+    delete_key: "DEL test:key"

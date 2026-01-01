@@ -1170,3 +1170,222 @@ namespace mongodb_benchmark_helpers
 #endif // USE_MONGODB
 
 } // namespace mongodb_benchmark_helpers
+
+namespace redis_benchmark_helpers
+{
+
+#if USE_REDIS
+    // Track which key prefixes have been initialized to avoid recreating them
+    static std::unordered_map<std::string, bool> keyPrefixInitialized;
+    static std::mutex keyMutex;
+
+    cpp_dbc::config::DatabaseConfig getRedisConfig(const std::string &databaseName)
+    {
+        cpp_dbc::config::DatabaseConfig dbConfig;
+
+#if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+        // Load the configuration using DatabaseConfigManager
+        std::string config_path = common_benchmark_helpers::getConfigFilePath();
+        cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(config_path);
+
+        // Find the requested database configuration
+        auto dbConfigOpt = configManager.getDatabaseByName(databaseName);
+
+        if (dbConfigOpt.has_value())
+        {
+            // Use the configuration from the YAML file
+            dbConfig = dbConfigOpt.value().get();
+        }
+        else
+        {
+            // Fallback to default values if configuration not found
+            dbConfig.setName(databaseName);
+            dbConfig.setType("redis");
+            dbConfig.setHost("localhost");
+            dbConfig.setPort(6379);
+            dbConfig.setDatabase("0");        // Redis uses database numbers
+            dbConfig.setUsername("");         // Redis authentication
+            dbConfig.setPassword("dsystems"); // Redis password
+        }
+#else
+        // Hardcoded values when YAML is not available
+        dbConfig.setName(databaseName);
+        dbConfig.setType("redis");
+        dbConfig.setHost("localhost");
+        dbConfig.setPort(6379);
+        dbConfig.setDatabase("0");        // Redis uses database numbers
+        dbConfig.setUsername("");         // Redis authentication
+        dbConfig.setPassword("dsystems"); // Redis password
+#endif
+
+        return dbConfig;
+    }
+
+    // Build a Redis connection string from a DatabaseConfig
+    std::string buildRedisConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig)
+    {
+        std::string host = dbConfig.getHost();
+        int port = dbConfig.getPort();
+        std::string database = dbConfig.getDatabase();
+
+        // Build connection string for Redis
+        // Format: cpp_dbc:redis://host:port/database
+        std::string connStr = "cpp_dbc:redis://" + host + ":" + std::to_string(port) + "/" + database;
+
+        return connStr;
+    }
+
+    bool canConnectToRedis()
+    {
+        try
+        {
+            // Get database configuration
+            auto dbConfig = getRedisConfig("dev_redis");
+
+            // Get connection parameters
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            // Build connection string for Redis
+            std::string connStr = buildRedisConnectionString(dbConfig);
+
+            // Attempt to connect to Redis
+            cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to Redis with connection string: " + connStr);
+
+            // Register the Redis driver
+            cpp_dbc::DriverManager::registerDriver("redis", std::make_shared<cpp_dbc::Redis::RedisDriver>());
+
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+
+            if (!conn)
+            {
+                cpp_dbc::system_utils::logWithTimestampError("Redis connection returned null");
+                return false;
+            }
+
+            // If we get here, the connection was successful
+            cpp_dbc::system_utils::logWithTimestampInfo("Redis connection successful!");
+
+            // Try to ping the server
+            std::string pingResult = conn->ping();
+            cpp_dbc::system_utils::logWithTimestampInfo("Redis ping result: " + pingResult);
+
+            // Close the connection
+            conn->close();
+
+            return true;
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
+            return false;
+        }
+    }
+
+    // Helper function to get a Redis driver instance
+    std::shared_ptr<cpp_dbc::Redis::RedisDriver> getRedisDriver()
+    {
+        return std::make_shared<cpp_dbc::Redis::RedisDriver>();
+    }
+
+    // Helper function to generate a random key
+    std::string generateRandomKey(const std::string &prefix)
+    {
+        std::string randomPart = common_benchmark_helpers::generateRandomString(10);
+        return prefix + ":" + randomPart;
+    }
+
+    // Helper function to populate Redis with test data
+    void populateRedis(std::shared_ptr<cpp_dbc::KVDBConnection> &conn, const std::string &keyPrefix, int itemCount)
+    {
+        for (int i = 1; i <= itemCount; ++i)
+        {
+            // Create key name based on index and prefix
+            std::string key = keyPrefix + ":" + std::to_string(i);
+
+            // Generate a random value for the key
+            std::string value = "Value-" + std::to_string(i) + "-" + common_benchmark_helpers::generateRandomString(20);
+
+            // Store the key-value pair
+            conn->setString(key, value);
+        }
+    }
+
+    // Helper function to clean up Redis keys
+    void cleanupRedisKeys(std::shared_ptr<cpp_dbc::KVDBConnection> &conn, const std::string &keyPrefix)
+    {
+        try
+        {
+            // Scan for keys with the given prefix and delete them
+            std::vector<std::string> keys = conn->scanKeys(keyPrefix + ":*");
+            for (const auto &key : keys)
+            {
+                conn->deleteKey(key);
+            }
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
+        }
+    }
+
+    // Helper function to setup Redis connection
+    std::shared_ptr<cpp_dbc::KVDBConnection> setupRedisConnection(const std::string &keyPrefix, int itemCount)
+    {
+        try
+        {
+            // Get database configuration
+            auto dbConfig = getRedisConfig("dev_redis");
+
+            // Get connection parameters
+            std::string connStr = buildRedisConnectionString(dbConfig);
+            std::string username = dbConfig.getUsername();
+            std::string password = dbConfig.getPassword();
+
+            // Check if this key prefix has already been initialized
+            bool needsInitialization = false;
+            {
+                std::lock_guard<std::mutex> lock(keyMutex);
+                auto it = keyPrefixInitialized.find(keyPrefix);
+                if (it == keyPrefixInitialized.end() || !it->second)
+                {
+                    needsInitialization = true;
+                    keyPrefixInitialized[keyPrefix] = true;
+                }
+            }
+
+            // Register the Redis driver and get a connection
+            cpp_dbc::DriverManager::registerDriver("redis", std::make_shared<cpp_dbc::Redis::RedisDriver>());
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+
+            if (needsInitialization)
+            {
+                // Clean up any existing keys with this prefix
+                cpp_dbc::system_utils::logWithTimestampInfo("Creating and populating Redis with prefix '" + keyPrefix + "' for the first time...");
+                cleanupRedisKeys(conn, keyPrefix);
+
+                // Populate Redis with specified number of items if itemCount > 0
+                if (itemCount > 0)
+                {
+                    populateRedis(conn, keyPrefix, itemCount);
+                }
+            }
+            else
+            {
+                cpp_dbc::system_utils::logWithTimestampInfo("Reusing existing Redis keys with prefix '" + keyPrefix + "'");
+            }
+
+            return conn;
+        }
+        catch (const std::exception &e)
+        {
+            cpp_dbc::system_utils::logWithTimestampException(e.what());
+            return nullptr;
+        }
+    }
+
+#endif // USE_REDIS
+
+} // namespace redis_benchmark_helpers

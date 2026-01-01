@@ -1,6 +1,81 @@
 # Changelog
 
-## 2025-12-30 11:38:13 PM PST [Current]
+## 2025-12-31 08:34:52 PM PST [Current]
+
+### Redis KV Database Driver Support
+* Added complete Redis key-value database driver implementation:
+  * **New Core KV Database Interfaces:**
+    * Added `core/kv/kv_db_connection.hpp` - Base connection interface for key-value databases
+    * Added `core/kv/kv_db_driver.hpp` - Base driver interface for key-value databases
+  * **Redis Driver Implementation:**
+    * Added `drivers/kv/driver_redis.hpp` - Redis driver class declarations
+    * Added `src/drivers/kv/driver_redis.cpp` - Full Redis driver implementation
+  * **Driver Features:**
+    * Full support for Redis databases
+    * Connection management with proper resource cleanup using smart pointers
+    * Key-Value operations: get, set, delete
+    * String operations with TTL support
+    * List operations (push, pop, range)
+    * Hash operations (set, get, delete)
+    * Set operations (add, remove, members)
+    * Sorted Set operations (add, remove, range)
+    * Counter operations (increment, decrement)
+    * Scan operations for key pattern matching
+    * Server operations (ping, info, flush)
+    * Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+  * **Build System Updates:**
+    * Added `USE_REDIS` option to CMakeLists.txt (default: OFF)
+    * Added `--redis` and `--redis-off` options to build.sh
+    * Added `--redis` and `--redis-off` options to build_cpp_dbc.sh
+    * Added `--debug-redis` option for Redis driver debug output
+    * Added `redis` option to helper.sh for --run-build, --run-test, and --run-benchmarks
+  * **Required System Packages:**
+    * Debian/Ubuntu: `sudo apt-get install libhiredis-dev`
+    * RHEL/CentOS/Fedora: `sudo dnf install hiredis-devel`
+  * **Connection URL Format:**
+    * `cpp_dbc:redis://host:port/database`
+    * `cpp_dbc:redis://username:password@host:port/database`
+    * Default port: 6379
+  * **Smart Pointer Implementation:**
+    * `shared_ptr<redisContext>` for connection management
+    * Custom deleters for proper Redis resource cleanup
+    * Thread-safe connection operations with mutex protection
+* Added comprehensive Redis test suite:
+  * **New Test Files:**
+    * Added `test_redis_common.hpp` - Redis test helper declarations
+    * Added `test_redis_common.cpp` - Redis test helper implementations
+    * Added `test_redis_connection.cpp` - Comprehensive Redis connection and operations tests
+  * **Test Coverage:**
+    * Basic connection and authentication
+    * String operations with and without TTL
+    * List operations (push, pop, range)
+    * Hash operations (set, get, delete)
+    * Set operations (add, remove, membership)
+    * Sorted Set operations with score handling
+    * Counter operations (increment, decrement)
+    * Scan operations with pattern matching
+    * Server info and command execution
+    * Database selection and management
+* Added Redis benchmark suite:
+  * **New Benchmark Files:**
+    * Added `benchmark_redis_select.cpp` - Key-value retrieval benchmarks
+    * Added `benchmark_redis_insert.cpp` - Key-value insertion benchmarks
+    * Added `benchmark_redis_update.cpp` - Key-value update benchmarks
+    * Added `benchmark_redis_delete.cpp` - Key-value deletion benchmarks
+  * **Benchmark Infrastructure Updates:**
+    * Updated benchmark scripts with Redis support
+    * Added Redis configuration to benchmark_db_connections.yml
+* Updated build scripts with Redis support:
+  * Updated `build.sh` with `--redis`, `--redis-off`, `--debug-redis` options
+  * Updated `run_test.sh` with Redis options
+  * Updated `helper.sh` with Redis options for all commands
+  * Updated `build_cpp_dbc.sh` with Redis build configuration
+  * Updated `run_test_cpp_dbc.sh` with Redis test options
+  * Updated `build_test_cpp_dbc.sh` with Redis test build options
+* Updated configuration files:
+  * Added Redis database configurations to `test_db_connections.yml`
+
+## 2025-12-30 11:38:13 PM PST
 
 ### Document Database Connection Pool Factory Pattern Implementation
 * Implemented factory pattern for MongoDB connection pool creation:

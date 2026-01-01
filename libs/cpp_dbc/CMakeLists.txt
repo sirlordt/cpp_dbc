@@ -7,6 +7,7 @@ option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
 option(USE_SQLITE "Enable SQLite support" OFF)
 option(USE_FIREBIRD "Enable Firebird SQL support" OFF)
 option(USE_MONGODB "Enable MongoDB support" OFF)
+option(USE_REDIS "Enable Redis support" OFF)
 option(USE_CPP_YAML "Enable YAML configuration support" OFF)
 option(BACKWARD_HAS_DW "Enable libdw support for stack traces" ON)
 
@@ -20,6 +21,7 @@ option(DEBUG_TRANSACTION_MANAGER "Enable debug output for TransactionManager" OF
 option(DEBUG_SQLITE "Enable debug output for SQLite driver" OFF)
 option(DEBUG_FIREBIRD "Enable debug output for Firebird driver" OFF)
 option(DEBUG_MONGODB "Enable debug output for MongoDB driver" OFF)
+option(DEBUG_REDIS "Enable debug output for Redis driver" OFF)
 option(DEBUG_ALL "Enable debug output for all drivers and components" OFF)
 
 # Set C++ standard
@@ -66,6 +68,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
     $<$<BOOL:${USE_MONGODB}>:USE_MONGODB=1>
     $<$<NOT:$<BOOL:${USE_MONGODB}>>:USE_MONGODB=0>
+    $<$<BOOL:${USE_REDIS}>:USE_REDIS=1>
+    $<$<NOT:$<BOOL:${USE_REDIS}>>:USE_REDIS=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
     $<$<BOOL:${DB_DRIVER_THREAD_SAFE}>:DB_DRIVER_THREAD_SAFE=1>
@@ -75,6 +79,7 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<BOOL:${DEBUG_SQLITE}>:DEBUG_SQLITE=1>
     $<$<BOOL:${DEBUG_FIREBIRD}>:DEBUG_FIREBIRD=1>
     $<$<BOOL:${DEBUG_MONGODB}>:DEBUG_MONGODB=1>
+    $<$<BOOL:${DEBUG_REDIS}>:DEBUG_REDIS=1>
     $<$<BOOL:${DEBUG_ALL}>:DEBUG_ALL=1>
     $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
     $<$<NOT:$<BOOL:${BACKWARD_HAS_DW}>>:BACKWARD_HAS_DW=0>
@@ -173,6 +178,22 @@ if(USE_MONGODB)
     target_link_libraries(cpp_dbc PUBLIC ${MONGODB_LIBRARIES})
 endif()
 
+# Conditionally add Redis driver files and dependencies
+if(USE_REDIS)
+    target_sources(cpp_dbc PRIVATE
+        src/drivers/kv/driver_redis.cpp
+    )
+
+    # Find Redis package (hiredis)
+    # Required system package: libhiredis-dev (Debian/Ubuntu) or hiredis-devel (RHEL/Fedora)
+    # Install with: sudo apt-get install libhiredis-dev
+    # Force the use of our custom FindHiredis.cmake module
+    set(CMAKE_FIND_PACKAGE_PREFER_CONFIG OFF)
+    find_package(Hiredis REQUIRED MODULE)
+    target_include_directories(cpp_dbc PUBLIC ${HIREDIS_INCLUDE_DIRS})
+    target_link_libraries(cpp_dbc PUBLIC ${HIREDIS_LIBRARIES})
+endif()
+
 # Conditionally add YAML-CPP dependencies
 if(USE_CPP_YAML)
     # Find YAML-CPP package
@@ -258,6 +279,7 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSQLite3.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindFirebird.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindMongoDB.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindHiredis.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/cpp_dbc
 )
 

@@ -32,6 +32,7 @@ RUN apt-get install -y \
     __POSTGRESQL_DEV_PKG__ \
     __FIREBIRD_DEV_PKG__ \
     __MONGODB_DEV_PKG__ \
+    __REDIS_DEV_PKG__ \
     __LIBDW_DEV_PKG__
 
 # Create working directory

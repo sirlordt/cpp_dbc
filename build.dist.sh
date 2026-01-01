@@ -146,6 +146,7 @@ fi
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
+USE_REDIS=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
@@ -153,6 +154,7 @@ BUILD_EXAMPLES=OFF
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_REDIS=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
 
@@ -176,6 +178,12 @@ do
         ;;
         --sqlite-off)
         USE_SQLITE=OFF
+        ;;
+        --redis|--redis-on)
+        USE_REDIS=ON
+        ;;
+        --redis-off)
+        USE_REDIS=OFF
         ;;
         --yaml|--yaml-on)
         USE_CPP_YAML=ON
@@ -204,10 +212,14 @@ do
         --debug-sqlite)
         DEBUG_SQLITE=ON
         ;;
+        --debug-redis)
+        DEBUG_REDIS=ON
+        ;;
         --debug-all)
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
         DEBUG_SQLITE=ON
+        DEBUG_REDIS=ON
         ;;
         --dw-off)
         BACKWARD_HAS_DW=OFF
@@ -224,6 +236,8 @@ do
         echo "  --postgres-off         Disable PostgreSQL support"
         echo "  --sqlite, --sqlite-on  Enable SQLite support"
         echo "  --sqlite-off           Disable SQLite support"
+        echo "  --redis, --redis-on    Enable Redis support"
+        echo "  --redis-off            Disable Redis support"
         echo "  --yaml, --yaml-on      Enable YAML configuration support"
         echo "  --clean                Clean build directories before building"
         echo "  --release              Build in Release mode (default: Debug)"
@@ -258,6 +272,10 @@ if [ "$USE_SQLITE" = "ON" ]; then
     BUILD_CMD="$BUILD_CMD --sqlite"
 fi
 
+if [ "$USE_REDIS" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --redis"
+fi
+
 if [ "$USE_CPP_YAML" = "ON" ]; then
     BUILD_CMD="$BUILD_CMD --yaml"
 fi
@@ -285,6 +303,10 @@ fi
 
 if [ "$DEBUG_SQLITE" = "ON" ]; then
     BUILD_CMD="$BUILD_CMD --debug-sqlite"
+fi
+
+if [ "$DEBUG_REDIS" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --debug-redis"
 fi
 
 if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
@@ -516,6 +538,7 @@ echo "Build options used:"
 echo "  MySQL: $USE_MYSQL"
 echo "  PostgreSQL: $USE_POSTGRESQL"
 echo "  SQLite: $USE_SQLITE"
+echo "  Redis: $USE_REDIS"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"

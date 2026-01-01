@@ -68,14 +68,17 @@ This will display the full usage information with all available options.
 # Enable MongoDB support
 ./helper.sh --run-build=mongodb
 
+# Enable Redis support
+./helper.sh --run-build=redis
+
 # Enable all database drivers
-./helper.sh --run-build=mysql,postgres,sqlite,firebird,mongodb
+./helper.sh --run-build=mysql,postgres,sqlite,firebird,mongodb,redis
 
 # Build in Release mode with all drivers and YAML support
-./helper.sh --run-build=release,mysql,postgres,sqlite,firebird,mongodb,yaml
+./helper.sh --run-build=release,mysql,postgres,sqlite,firebird,mongodb,redis,yaml
 
 # Clean build and rebuild with all features
-./helper.sh --run-build=clean,mysql,postgres,sqlite,firebird,mongodb,yaml,test,examples
+./helper.sh --run-build=clean,mysql,postgres,sqlite,firebird,mongodb,redis,yaml,test,examples
 ```
 
 All build output is now automatically logged to files in the `logs/build/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
@@ -93,7 +96,7 @@ All build output is now automatically logged to files in the `logs/build/` direc
 ./helper.sh --run-test=postgres
 
 # Run tests with all database drivers
-./helper.sh --run-test=sqlite,postgres,mysql,firebird,mongodb
+./helper.sh --run-test=sqlite,postgres,mysql,firebird,mongodb,redis
 
 # Run Firebird-specific tests
 ./helper.sh --run-test=firebird,test=firebird_real+firebird_thread_safe
@@ -136,6 +139,9 @@ All build output is now automatically logged to files in the `logs/build/` direc
 
 # Run tests with debug output for MongoDB driver
 ./helper.sh --run-test=debug-mongodb
+
+# Run tests with debug output for Redis driver
+./helper.sh --run-test=debug-redis
 
 # Run tests with all debug output enabled
 ./helper.sh --run-test=debug-all
@@ -195,7 +201,33 @@ The test log analysis feature checks for:
 ./helper.sh --run-benchmarks=mysql+postgresql
 
 # Run all database benchmarks
-./helper.sh --run-benchmarks=mysql+postgresql+sqlite+firebird+mongodb
+./helper.sh --run-benchmarks=mysql+postgresql+sqlite+firebird+mongodb+redis
+
+# Run only Redis benchmarks
+./helper.sh --run-benchmarks=redis
+
+# Redis Specific Benchmark Examples
+# Run Redis benchmarks with memory usage tracking
+./helper.sh --run-benchmarks=redis,memory-usage
+
+# Run Redis benchmarks and create a baseline
+./helper.sh --run-benchmarks=redis,base-line
+
+# Compare Redis benchmarks against baseline
+./libs/cpp_dbc/compare_benchmark_cpp_dbc_base_line.sh --filter=Redis
+
+# Run specific Redis benchmark operations
+./helper.sh --run-benchmarks=redis,benchmark=insert
+./helper.sh --run-benchmarks=redis,benchmark=select
+./helper.sh --run-benchmarks=redis,benchmark=update
+./helper.sh --run-benchmarks=redis,benchmark=delete
+
+# Redis Testing Examples
+# Run Redis connection tests
+./helper.sh --run-test=redis,test=redis_connection
+
+# Run Redis tests with debug output
+./helper.sh --run-test=redis,debug-redis
 
 # MongoDB Specific Benchmark Examples
 # Run MongoDB benchmarks with memory usage tracking
@@ -346,7 +378,7 @@ All benchmark output is automatically logged to files in the `logs/benchmark/` d
 
 ```bash
 # Clean everything and set up a full development environment
-./helper.sh --clean-conan-cache --run-build=clean,mysql,postgres,sqlite,firebird,mongodb,yaml,test,examples
+./helper.sh --clean-conan-cache --run-build=clean,mysql,postgres,sqlite,firebird,mongodb,redis,yaml,test,examples
 ```
 
 ### Quick Test Run
@@ -370,10 +402,10 @@ All benchmark output is automatically logged to files in the `logs/benchmark/` d
 
 ```bash
 # Create a production-ready build
-./helper.sh --run-build=clean,release,mysql,postgres,sqlite,firebird,mongodb,yaml
+./helper.sh --run-build=clean,release,mysql,postgres,sqlite,firebird,mongodb,redis,yaml
 
 # Create a production-ready build without libdw support
-./helper.sh --run-build=clean,release,mysql,postgres,sqlite,firebird,mongodb,yaml,dw-off
+./helper.sh --run-build=clean,release,mysql,postgres,sqlite,firebird,mongodb,redis,yaml,dw-off
 ```
 
 ### Container Deployment

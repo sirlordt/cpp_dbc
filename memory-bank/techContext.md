@@ -47,6 +47,22 @@
   - Index management: createIndex, dropIndex, listIndexes
   - Collection management: createCollection, dropCollection, listCollections
 
+- **Redis Client Library**: For Redis key-value database connectivity
+  - Uses the Hiredis C library API (`hiredis/hiredis.h`)
+  - Requires libhiredis-dev package (Debian/Ubuntu)
+  - Requires hiredis-devel package (RHEL/Fedora)
+  - Default port: 6379
+  - URL format: `cpp_dbc:redis://host:port/database` or `cpp_dbc:redis://username:password@host:port/database`
+  - Key-value operations: get, set, delete, exists
+  - String operations with TTL support
+  - List operations: push, pop, length, range
+  - Hash operations: set, get, delete, getAll
+  - Set operations: add, remove, members, isMember
+  - Sorted set operations with score handling
+  - Counter operations: increment, decrement
+  - Scan operations for pattern-based key discovery
+  - Server operations: ping, info, flushDB
+
 - **YAML-CPP Library**: For YAML configuration support (optional)
   - Used for parsing YAML configuration files
   - Included via Conan dependency management
@@ -84,6 +100,7 @@ The project uses:
   - `--debug-txmgr`: Enable debug output for TransactionManager
   - `--debug-sqlite`: Enable debug output for SQLite driver
   - `--debug-mongodb`: Enable debug output for MongoDB driver
+  - `--debug-redis`: Enable debug output for Redis driver
   - `--debug-all`: Enable all debug output at once (simplifies debugging across multiple components)
   - `--db-driver-thread-safe-off`: Disable thread-safe database driver operations (for single-threaded performance)
   - `--asan`: Enable AddressSanitizer (with known issues, see asan_issues.md)
@@ -113,9 +130,12 @@ The project is configured to work with the CMakeTools extension, but does not re
 ## Technical Constraints
 
 ### Database Support
-- Currently supports MySQL, PostgreSQL, SQLite, Firebird SQL (relational), and MongoDB (document)
+- Currently supports MySQL, PostgreSQL, SQLite, Firebird SQL (relational), MongoDB (document), and Redis (key-value)
 - Adding support for other databases requires implementing new driver classes
-- Document database interfaces are separate from relational database interfaces
+- Different database paradigms use separate interfaces:
+  - Relational database interfaces (MySQL, PostgreSQL, SQLite, Firebird SQL)
+  - Document database interfaces (MongoDB)
+  - Key-value database interfaces (Redis)
 
 ### Thread Safety
 - Connection objects can be made thread-safe with the `DB_DRIVER_THREAD_SAFE` option (default: ON)
@@ -136,6 +156,7 @@ The project is configured to work with the CMakeTools extension, but does not re
   - `PGconnDeleter`, `PGresultDeleter` for PostgreSQL
   - `SQLiteDbDeleter`, `SQLiteStmtDeleter` for SQLite
   - `FirebirdDbDeleter`, `FirebirdStmtDeleter` for Firebird
+  - `RedisDeleter`, `RedisReplyDeleter` for Redis
 - BLOB implementations use `weak_ptr` for safe connection references:
   - `FirebirdBlob`: Uses `weak_ptr<FirebirdConnection>` with `getConnection()` helper
   - `MySQLBlob`: Uses `weak_ptr<MYSQL>` with `getMySQLConnection()` helper

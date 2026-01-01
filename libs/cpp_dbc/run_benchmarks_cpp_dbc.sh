@@ -9,9 +9,11 @@ USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
+USE_REDIS=OFF
 USE_CPP_YAML=OFF
 BENCHMARK_MIN_TIME="0.5"  # Minimum time per iteration for Google Benchmark
 BENCHMARK_REPETITIONS=3   # Number of repetitions for Google Benchmark
+BENCHMARK_ITERATIONS=1000 # Number of iterations for Google Benchmark
 BENCHMARK_TAGS=""         # Preserved for compatibility
 CLEAN_BUILD=false
 REBUILD=false
@@ -68,12 +70,24 @@ while [[ $# -gt 0 ]]; do
             USE_MONGODB=OFF
             shift
             ;;
+        --redis|--redis-on)
+            USE_REDIS=ON
+            shift
+            ;;
+        --redis-off)
+            USE_REDIS=OFF
+            shift
+            ;;
         --min-time=*)
             BENCHMARK_MIN_TIME="${1#*=}"
             shift
             ;;
         --repetitions=*)
             BENCHMARK_REPETITIONS="${1#*=}"
+            shift
+            ;;
+        --iterations=*)
+            BENCHMARK_ITERATIONS="${1#*=}"
             shift
             ;;
         --run-benchmark=*)
@@ -153,10 +167,13 @@ while [[ $# -gt 0 ]]; do
             echo "  --firebird-off         Disable Firebird support"
             echo "  --mongodb, --mongodb-on  Enable MongoDB support"
             echo "  --mongodb-off         Disable MongoDB support"
+            echo "  --redis, --redis-on    Enable Redis support"
+            echo "  --redis-off           Disable Redis support"
             echo "  --yaml, --yaml-on      Enable YAML support"
             echo "  --yaml-off             Disable YAML support"
             echo "  --min-time=N           Set minimum time per iteration in seconds (default: 0.5)"
-            echo "  --repetitions=N        Set number of benchmark repetitions (default: 5)"
+            echo "  --repetitions=N        Set number of benchmark repetitions (default: 3)"
+            echo "  --iterations=N         Set number of benchmark iterations (default: 1000)"
             echo "  --run-benchmark=TAGS   Run only benchmarks with specified tags (e.g. update+postgresql)"
             echo "  --clean                Clean build directories before building"
             echo "  --rebuild              Force rebuild of benchmarks"
@@ -201,6 +218,7 @@ echo "  PostgreSQL support: $USE_POSTGRESQL"
 echo "  SQLite support: $USE_SQLITE"
 echo "  Firebird support: $USE_FIREBIRD"
 echo "  MongoDB support: $USE_MONGODB"
+echo "  Redis support: $USE_REDIS"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Clean build: $CLEAN_BUILD"
@@ -259,6 +277,12 @@ if [ "$CLEAN_BUILD" = true ] || [ "$REBUILD" = true ]; then
         USE_MONGODB=ON
     fi
     
+    # Check if benchmark tags contain "redis" and enable Redis support if needed
+    if [ -n "$BENCHMARK_TAGS" ] && [[ "$BENCHMARK_TAGS" == *"redis"* ]]; then
+        echo "Redis benchmark tag detected, ensuring Redis support is enabled"
+        USE_REDIS=ON
+    fi
+    
     # Add database options
     if [ "$USE_MYSQL" = "ON" ]; then
         BUILD_OPTIONS="$BUILD_OPTIONS --mysql"
@@ -288,6 +312,12 @@ if [ "$CLEAN_BUILD" = true ] || [ "$REBUILD" = true ]; then
         BUILD_OPTIONS="$BUILD_OPTIONS --mongodb"
     else
         BUILD_OPTIONS="$BUILD_OPTIONS --mongodb-off"
+    fi
+    
+    if [ "$USE_REDIS" = "ON" ]; then
+        BUILD_OPTIONS="$BUILD_OPTIONS --redis"
+    else
+        BUILD_OPTIONS="$BUILD_OPTIONS --redis-off"
     fi
     
     if [ "$USE_CPP_YAML" = "ON" ]; then
@@ -376,8 +406,11 @@ fi
 echo "Running cpp_dbc benchmarks..."
 echo "=============================="
 
+#--benchmark_min_time=${BENCHMARK_MIN_TIME}s
 # Prepare benchmark options
-BENCHMARK_OPTIONS="--benchmark_min_time=${BENCHMARK_MIN_TIME}s --benchmark_repetitions=${BENCHMARK_REPETITIONS}"
+# Note: Google Benchmark doesn't support setting iterations directly via command line
+# We use minimum time and repetitions instead
+BENCHMARK_OPTIONS="--benchmark_repetitions=${BENCHMARK_REPETITIONS} --benchmark_min_time=${BENCHMARK_MIN_TIME}s"
 
 # If benchmark tags are specified, use them directly
 if [ -n "$BENCHMARK_TAGS" ]; then
@@ -410,6 +443,9 @@ if [ -n "$BENCHMARK_TAGS" ]; then
             "mongodb")
                 FILTER="${FILTER}.*MongoDB"
                 ;;
+            "redis")
+                FILTER="${FILTER}.*Redis"
+                ;;
             "insert")
                 FILTER="${FILTER}.*Insert"
                 ;;
@@ -425,8 +461,17 @@ if [ -n "$BENCHMARK_TAGS" ]; then
             "small")
                 FILTER="${FILTER}.*Small"
                 ;;
+            "medium")
+                FILTER="${FILTER}.*Medium"
+                ;;
             "large")
                 FILTER="${FILTER}.*Large"
+                ;;
+            "get_string")
+                FILTER="${FILTER}.*Get_String"
+                ;;
+            "set_string")
+                FILTER="${FILTER}.*Set_String"
                 ;;
             "findone")
                 FILTER="${FILTER}.*FindOne"
@@ -454,8 +499,10 @@ if [ -n "$BENCHMARK_TAGS" ]; then
     echo "Using benchmark filter: $FILTER"
     if [ "$USE_MEMORY_USAGE" = true ]; then
         echo "Running with memory usage tracking..."
+        echo "DEBUG: Executing command: /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter=\"$FILTER\" $BENCHMARK_OPTIONS"
         /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="$FILTER" $BENCHMARK_OPTIONS
     else
+        echo "DEBUG: Executing command: ${BENCHMARK_EXECUTABLE} --benchmark_filter=\"$FILTER\" $BENCHMARK_OPTIONS"
         ${BENCHMARK_EXECUTABLE} --benchmark_filter="$FILTER" $BENCHMARK_OPTIONS
     fi
     echo ""
@@ -526,6 +573,20 @@ else
             /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_MongoDB" $BENCHMARK_OPTIONS
         else
             ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_MongoDB" $BENCHMARK_OPTIONS
+        fi
+        echo ""
+        echo "=============================="
+    fi
+    
+    # Redis benchmarks
+    if [ "$USE_REDIS" = "ON" ]; then
+        echo "Running Redis benchmarks..."
+        # Pattern to match the standard BM_Redis_* benchmark names
+        if [ "$USE_MEMORY_USAGE" = true ]; then
+            echo "Running with memory usage tracking..."
+            /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_Redis" $BENCHMARK_OPTIONS
+        else
+            ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_Redis" $BENCHMARK_OPTIONS
         fi
         echo ""
         echo "=============================="

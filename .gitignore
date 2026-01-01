@@ -27,7 +27,7 @@ external/**
 *.exe
 *.out
 *.app
-*.cmake
+
 # CMake generated files
 CMakeFiles/
 CMakeCache.txt

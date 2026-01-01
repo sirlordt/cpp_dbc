@@ -15,6 +15,8 @@ set -e  # Exit on error
 #   --firebird-off         Disable Firebird support
 #   --mongodb, --mongodb-on  Enable MongoDB support
 #   --mongodb-off          Disable MongoDB support
+#   --redis, --redis-on    Enable Redis support
+#   --redis-off            Disable Redis support
 #   --yaml, --yaml-on      Enable YAML configuration support
 #   --yaml-off             Disable YAML configuration support
 #   --auto                 Automatically run tests without user interaction
@@ -30,6 +32,7 @@ set -e  # Exit on error
 #   --debug-txmgr          Enable debug output for TransactionManager
 #   --debug-sqlite         Enable debug output for SQLite driver
 #   --debug-mongodb        Enable debug output for MongoDB driver
+#   --debug-redis          Enable debug output for Redis driver
 #   --debug-all            Enable all debug output
 #   --dw-off               Disable libdw support for stack traces
 #   --db-driver-thread-safe-off  Disable thread-safe database driver operations
@@ -41,6 +44,7 @@ USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
+USE_REDIS=OFF
 USE_YAML=ON
 BUILD_TYPE=Debug
 ASAN_OPTIONS=""
@@ -57,6 +61,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
+DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
 DW_OFF=false
 DB_DRIVER_THREAD_SAFE_OFF=false
@@ -102,6 +107,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --mongodb-off)
             USE_MONGODB=OFF
+            shift
+            ;;
+        --redis|--redis-on)
+            USE_REDIS=ON
+            shift
+            ;;
+        --redis-off)
+            USE_REDIS=OFF
             shift
             ;;
         --yaml|--yaml-on)
@@ -182,12 +195,17 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             shift
             ;;
+        --debug-redis)
+            DEBUG_REDIS=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
             DEBUG_FIREBIRD=ON
             DEBUG_MONGODB=ON
+            DEBUG_REDIS=ON
             DEBUG_ALL=ON
             shift
             ;;
@@ -212,6 +230,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --firebird-off         Disable Firebird support"
             echo "  --mongodb, --mongodb-on  Enable MongoDB support"
             echo "  --mongodb-off          Disable MongoDB support"
+            echo "  --redis, --redis-on    Enable Redis support"
+            echo "  --redis-off            Disable Redis support"
             echo "  --yaml, --yaml-on      Enable YAML configuration support"
             echo "  --yaml-off             Disable YAML configuration support"
             echo "  --auto                 Automatically run tests without user interaction"
@@ -229,6 +249,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
+            echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -280,6 +301,10 @@ if [ ! -f "$MAIN_EXECUTABLE" ]; then
     
     if [ "$USE_MONGODB" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --mongodb"
+    fi
+    
+    if [ "$USE_REDIS" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --redis"
     fi
     
     if [ "$USE_YAML" = "ON" ]; then
@@ -352,6 +377,10 @@ if [ "$USE_MONGODB" = "ON" ]; then
     CMD="$CMD --mongodb-on"
 fi
 
+if [ "$USE_REDIS" = "ON" ]; then
+    CMD="$CMD --redis-on"
+fi
+
 if [ "$USE_YAML" = "ON" ]; then
     CMD="$CMD --yaml-on"
 else
@@ -417,6 +446,10 @@ fi
 
 if [ "$DEBUG_MONGODB" = "ON" ]; then
     CMD="$CMD --debug-mongodb"
+fi
+
+if [ "$DEBUG_REDIS" = "ON" ]; then
+    CMD="$CMD --debug-redis"
 fi
 
 if [ "$DEBUG_ALL" = "ON" ]; then

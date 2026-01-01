@@ -16,6 +16,7 @@ USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
+USE_REDIS=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
@@ -26,6 +27,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
+DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
@@ -63,6 +65,12 @@ do
         --mongodb-off)
         USE_MONGODB=OFF
         ;;
+        --redis|--redis-on)
+        USE_REDIS=ON
+        ;;
+        --redis-off)
+        USE_REDIS=OFF
+        ;;
         --yaml|--yaml-on)
         USE_CPP_YAML=ON
         ;;
@@ -99,12 +107,16 @@ do
         --debug-mongodb)
         DEBUG_MONGODB=ON
         ;;
+        --debug-redis)
+        DEBUG_REDIS=ON
+        ;;
         --debug-all)
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
         DEBUG_SQLITE=ON
         DEBUG_FIREBIRD=ON
         DEBUG_MONGODB=ON
+        DEBUG_REDIS=ON
         DEBUG_ALL=ON
         ;;
         --dw-off)
@@ -137,6 +149,7 @@ do
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
         echo "  --debug-firebird       Enable debug output for Firebird driver"
         echo "  --debug-mongodb        Enable debug output for MongoDB driver"
+        echo "  --debug-redis          Enable debug output for Redis driver"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
         echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -152,6 +165,7 @@ export USE_POSTGRESQL
 export USE_SQLITE
 export USE_FIREBIRD
 export USE_MONGODB
+export USE_REDIS
 export USE_CPP_YAML
 export BUILD_TYPE
 export BUILD_TESTS
@@ -195,6 +209,12 @@ if [ "$USE_MONGODB" = "ON" ]; then
     MONGODB_PARAM="--mongodb"
 else
     MONGODB_PARAM="--mongodb-off"
+fi
+
+if [ "$USE_REDIS" = "ON" ]; then
+    REDIS_PARAM="--redis"
+else
+    REDIS_PARAM="--redis-off"
 fi
 
 # Pass the build type to the cpp_dbc build script
@@ -270,7 +290,7 @@ fi
 
 echo "$0 >= Running ./libs/cpp_dbc/build_cpp_dbc.sh "
 # Build the cpp_dbc library
-./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $FIREBIRD_PARAM $MONGODB_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM $BUILD_BENCHMARKS_PARAM $DEBUG_PARAMS
+./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $FIREBIRD_PARAM $MONGODB_PARAM $REDIS_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM $BUILD_BENCHMARKS_PARAM $DEBUG_PARAMS
 
 # If the cpp_dbc build script fails, stop the build process
 if [ $? -ne 0 ]; then
@@ -330,6 +350,7 @@ echo "  PostgreSQL: $USE_POSTGRESQL"
 echo "  SQLite: $USE_SQLITE"
 echo "  Firebird: $USE_FIREBIRD"
 echo "  MongoDB: $USE_MONGODB"
+echo "  Redis: $USE_REDIS"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
@@ -340,6 +361,7 @@ echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
+echo "  Debug Redis: $DEBUG_REDIS"
 echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"

@@ -50,6 +50,12 @@ add_executable(cpp_dbc_benchmarks
     benchmark_mongodb_insert.cpp
     benchmark_mongodb_update.cpp
     benchmark_mongodb_delete.cpp
+
+    # Redis benchmarks
+    benchmark_redis_select.cpp
+    benchmark_redis_insert.cpp
+    benchmark_redis_update.cpp
+    benchmark_redis_delete.cpp
 )
 
 # Link against Google Benchmark, cpp_dbc and yaml-cpp
@@ -72,6 +78,8 @@ target_compile_definitions(cpp_dbc_benchmarks PUBLIC
     $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
     $<$<BOOL:${USE_MONGODB}>:USE_MONGODB=1>
     $<$<NOT:$<BOOL:${USE_MONGODB}>>:USE_MONGODB=0>
+    $<$<BOOL:${USE_REDIS}>:USE_REDIS=1>
+    $<$<NOT:$<BOOL:${USE_REDIS}>>:USE_REDIS=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
 )

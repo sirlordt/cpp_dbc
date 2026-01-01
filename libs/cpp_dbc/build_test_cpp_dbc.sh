@@ -28,6 +28,7 @@ USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
+USE_REDIS=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 ENABLE_ASAN=OFF
@@ -37,6 +38,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
+DEBUG_REDIS=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
 
@@ -91,6 +93,14 @@ while [[ $# -gt 0 ]]; do
             USE_MONGODB=OFF
             shift
             ;;
+        --redis|--redis-on)
+            USE_REDIS=ON
+            shift
+            ;;
+        --redis-off)
+            USE_REDIS=OFF
+            shift
+            ;;
         --release)
             BUILD_TYPE=Release
             shift
@@ -123,12 +133,17 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             shift
             ;;
+        --debug-redis)
+            DEBUG_REDIS=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
             DEBUG_FIREBIRD=ON
             DEBUG_MONGODB=ON
+            DEBUG_REDIS=ON
             shift
             ;;
         --dw-off)
@@ -158,6 +173,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --firebird-off         Disable Firebird support"
             echo "  --mongodb, --mongodb-on  Enable MongoDB support"
             echo "  --mongodb-off          Disable MongoDB support"
+            echo "  --redis, --redis-on    Enable Redis support"
+            echo "  --redis-off            Disable Redis support"
             echo "  --release              Build in Release mode (default: Debug)"
             echo "  --debug                Build in Debug mode (default)"
             echo "  --asan                 Enable Address Sanitizer"
@@ -166,6 +183,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
+            echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -248,6 +266,7 @@ echo "  PostgreSQL support: $USE_POSTGRESQL"
 echo "  SQLite support: $USE_SQLITE"
 echo "  Firebird support: $USE_FIREBIRD"
 echo "  MongoDB support: $USE_MONGODB"
+echo "  Redis support: $USE_REDIS"
 echo "  Build type: $BUILD_TYPE"
 echo "  Address Sanitizer: $ENABLE_ASAN"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
@@ -255,6 +274,7 @@ echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
+echo "  Debug Redis: $DEBUG_REDIS"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
 
@@ -305,6 +325,7 @@ cmake "${CPP_DBC_DIR}" \
       -DUSE_SQLITE=$USE_SQLITE \
       -DUSE_FIREBIRD=$USE_FIREBIRD \
       -DUSE_MONGODB=$USE_MONGODB \
+      -DUSE_REDIS=$USE_REDIS \
       -DCPP_DBC_BUILD_TESTS=ON \
       -DENABLE_ASAN=$ENABLE_ASAN \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
@@ -312,6 +333,7 @@ cmake "${CPP_DBC_DIR}" \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
       -DDEBUG_FIREBIRD=$DEBUG_FIREBIRD \
       -DDEBUG_MONGODB=$DEBUG_MONGODB \
+      -DDEBUG_REDIS=$DEBUG_REDIS \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
       -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align" \

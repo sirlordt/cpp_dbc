@@ -18,7 +18,8 @@ The current focus appears to be on maintaining and potentially extending the CPP
 
 1. MySQL, PostgreSQL, SQLite, and Firebird SQL relational databases
 2. MongoDB document database
-3. Connection pooling for all supported relational databases
+3. Redis key-value database
+4. Connection pooling for all supported relational databases
 4. Transaction management with isolation levels
 5. Prepared statements and result sets
 6. BLOB (Binary Large Object) support for all relational database drivers

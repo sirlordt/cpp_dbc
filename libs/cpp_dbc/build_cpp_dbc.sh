@@ -11,6 +11,7 @@ USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
+USE_REDIS=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
@@ -21,6 +22,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
+DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
@@ -67,6 +69,14 @@ do
         ;;
         --mongodb-off)
         USE_MONGODB=OFF
+        shift
+        ;;
+        --redis|--redis-on)
+        USE_REDIS=ON
+        shift
+        ;;
+        --redis-off)
+        USE_REDIS=OFF
         shift
         ;;
         --yaml|--yaml-on)
@@ -117,12 +127,17 @@ do
         DEBUG_MONGODB=ON
         shift
         ;;
+        --debug-redis)
+        DEBUG_REDIS=ON
+        shift
+        ;;
         --debug-all)
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
         DEBUG_SQLITE=ON
         DEBUG_FIREBIRD=ON
         DEBUG_MONGODB=ON
+        DEBUG_REDIS=ON
         DEBUG_ALL=ON
         shift
         ;;
@@ -147,6 +162,8 @@ do
         echo "  --firebird-off         Disable Firebird SQL support"
         echo "  --mongodb, --mongodb-on  Enable MongoDB support"
         echo "  --mongodb-off          Disable MongoDB support"
+        echo "  --redis, --redis-on    Enable Redis support"
+        echo "  --redis-off            Disable Redis support"
         echo "  --yaml, --yaml-on      Enable YAML configuration support"
         echo "  --debug                Build in Debug mode (default)"
         echo "  --release              Build in Release mode"
@@ -158,6 +175,7 @@ do
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
         echo "  --debug-firebird       Enable debug output for Firebird driver"
         echo "  --debug-mongodb        Enable debug output for MongoDB driver"
+        echo "  --debug-redis          Enable debug output for Redis driver"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
         echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -367,6 +385,43 @@ if [ "$USE_MONGODB" = "ON" ]; then
     fi
 fi
 
+# Check for Redis dependencies
+if [ "$USE_REDIS" = "ON" ]; then
+    echo "Checking for Redis development libraries..."
+    
+    # Detect package manager
+    if command -v apt-get &> /dev/null; then
+        # Debian/Ubuntu
+        if ! dpkg -l | grep -q libhiredis-dev; then
+            echo "Redis development libraries not found. Installing..."
+            sudo apt-get update
+            sudo apt-get install -y libhiredis-dev
+        else
+            echo "Redis development libraries already installed."
+        fi
+    elif command -v dnf &> /dev/null; then
+        # Fedora/RHEL/CentOS
+        if ! rpm -q hiredis-devel &> /dev/null; then
+            echo "Redis development libraries not found. Installing..."
+            sudo dnf install -y hiredis-devel
+        else
+            echo "Redis development libraries already installed."
+        fi
+    elif command -v yum &> /dev/null; then
+        # Older RHEL/CentOS
+        if ! rpm -q hiredis-devel &> /dev/null; then
+            echo "Redis development libraries not found. Installing..."
+            sudo yum install -y hiredis-devel
+        else
+            echo "Redis development libraries already installed."
+        fi
+    else
+        echo "Warning: Could not detect package manager. Please install Redis development libraries manually."
+        echo "  Debian/Ubuntu: sudo apt-get install libhiredis-dev"
+        echo "  Fedora/RHEL: sudo dnf install hiredis-devel"
+    fi
+fi
+
 # Check for libdw dependencies if enabled
 if [ "$BACKWARD_HAS_DW" = "ON" ]; then
     echo "Checking for libdw development libraries..."
@@ -445,6 +500,7 @@ cmake "${SCRIPT_DIR}" \
       -DUSE_SQLITE=$USE_SQLITE \
       -DUSE_FIREBIRD=$USE_FIREBIRD \
       -DUSE_MONGODB=$USE_MONGODB \
+      -DUSE_REDIS=$USE_REDIS \
       -DUSE_CPP_YAML=$USE_CPP_YAML \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DCPP_DBC_BUILD_TESTS=$BUILD_TESTS \
@@ -455,6 +511,7 @@ cmake "${SCRIPT_DIR}" \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
       -DDEBUG_FIREBIRD=$DEBUG_FIREBIRD \
       -DDEBUG_MONGODB=$DEBUG_MONGODB \
+      -DDEBUG_REDIS=$DEBUG_REDIS \
       -DDEBUG_ALL=$DEBUG_ALL \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
@@ -511,6 +568,11 @@ if [ "$BUILD_TESTS" = "ON" ]; then
         TEST_PARAMS="$TEST_PARAMS --mongodb"
     fi
     
+    # Pass Redis configuration
+    if [ "$USE_REDIS" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --redis"
+    fi
+    
     # Pass build type
     if [ "$BUILD_TYPE" = "Release" ]; then
         TEST_PARAMS="$TEST_PARAMS --release"
@@ -535,6 +597,10 @@ if [ "$BUILD_TESTS" = "ON" ]; then
     
     if [ "$DEBUG_MONGODB" = "ON" ]; then
         TEST_PARAMS="$TEST_PARAMS --debug-mongodb"
+    fi
+    
+    if [ "$DEBUG_REDIS" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --debug-redis"
     fi
     
     if [ "$DEBUG_ALL" = "ON" ]; then
@@ -562,6 +628,7 @@ echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
+echo "  Debug Redis: $DEBUG_REDIS"
 echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"

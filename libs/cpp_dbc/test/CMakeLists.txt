@@ -53,6 +53,7 @@ add_executable(cpp_dbc_tests
     test_sqlite_common.cpp
     test_firebird_common.cpp
     test_mongodb_common.cpp
+    test_redis_common.cpp
     test_mysql_real.cpp
     test_mysql_real_inner_join.cpp
     test_mysql_real_left_join.cpp
@@ -93,6 +94,7 @@ add_executable(cpp_dbc_tests
     test_mongodb_real_json.cpp
     test_mongodb_real_join.cpp
     test_mongodb_connection_pool.cpp
+    test_redis_connection.cpp
 )
 
 # Link against Catch2 and cpp_dbc
@@ -108,6 +110,16 @@ if(USE_CPP_YAML)
     )
 endif()
 
+# Conditionally link against Hiredis for Redis tests
+if(USE_REDIS)
+    target_link_libraries(cpp_dbc_tests PRIVATE
+        ${HIREDIS_LIBRARIES}
+    )
+    target_include_directories(cpp_dbc_tests PRIVATE
+        ${HIREDIS_INCLUDE_DIRS}
+    )
+endif()
+
 # Add compile definitions based on options
 target_compile_definitions(cpp_dbc_tests PUBLIC
     $<$<BOOL:${USE_MYSQL}>:USE_MYSQL=1>
@@ -120,6 +132,8 @@ target_compile_definitions(cpp_dbc_tests PUBLIC
     $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
     $<$<BOOL:${USE_MONGODB}>:USE_MONGODB=1>
     $<$<NOT:$<BOOL:${USE_MONGODB}>>:USE_MONGODB=0>
+    $<$<BOOL:${USE_REDIS}>:USE_REDIS=1>
+    $<$<NOT:$<BOOL:${USE_REDIS}>>:USE_REDIS=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
     $<$<NOT:$<BOOL:${USE_CPP_YAML}>>:USE_CPP_YAML=0>
     $<$<BOOL:${DB_DRIVER_THREAD_SAFE}>:DB_DRIVER_THREAD_SAFE=1>

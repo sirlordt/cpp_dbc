@@ -42,6 +42,7 @@ USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
+USE_REDIS=OFF
 BUILD_TYPE=Debug
 ASAN_OPTIONS=""
 ENABLE_ASAN=false
@@ -58,6 +59,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
+DEBUG_REDIS=OFF
 RUN_COUNT=1
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
@@ -111,6 +113,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --mongodb-off)
             USE_MONGODB=OFF
+            shift
+            ;;
+        --redis|--redis-on)
+            USE_REDIS=ON
+            shift
+            ;;
+        --redis-off)
+            USE_REDIS=OFF
             shift
             ;;
         --release)
@@ -183,12 +193,17 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             shift
             ;;
+        --debug-redis)
+            DEBUG_REDIS=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
             DEBUG_FIREBIRD=ON
             DEBUG_MONGODB=ON
+            DEBUG_REDIS=ON
             shift
             ;;
         --dw-off)
@@ -212,6 +227,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --firebird-off         Disable Firebird support"
             echo "  --mongodb, --mongodb-on  Enable MongoDB support"
             echo "  --mongodb-off          Disable MongoDB support"
+            echo "  --redis, --redis-on    Enable Redis support"
+            echo "  --redis-off            Disable Redis support"
             echo "  --release              Run in Release mode (default: Debug)"
             echo "  --asan                 Enable Address Sanitizer"
             echo "  --valgrind             Run tests with Valgrind"
@@ -228,6 +245,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
+            echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -377,6 +395,12 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
         BUILD_CMD="$BUILD_CMD --mongodb-off"
     fi
     
+    if [ "$USE_REDIS" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --redis"
+    else
+        BUILD_CMD="$BUILD_CMD --redis-off"
+    fi
+    
     if [ "$BUILD_TYPE" = "Release" ]; then
         BUILD_CMD="$BUILD_CMD --release"
     else
@@ -402,6 +426,10 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
     
     if [ "$DEBUG_MONGODB" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --debug-mongodb"
+    fi
+    
+    if [ "$DEBUG_REDIS" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --debug-redis"
     fi
     
     # Add dw-off option if specified
