@@ -226,8 +226,49 @@ The test log analysis feature checks for:
 # Run Redis connection tests
 ./helper.sh --run-test=redis,test=redis_connection
 
+# Run Redis connection pool tests
+./helper.sh --run-test=redis,test=redis_connection_pool
+
+# Run all Redis tests
+./helper.sh --run-test=redis,test=redis_connection+redis_connection_pool
+
 # Run Redis tests with debug output
 ./helper.sh --run-test=redis,debug-redis
+
+# Build and run the Redis KV connection pool example
+./helper.sh --run-build=redis,examples
+./build/libs/cpp_dbc/examples/kv_connection_pool_example
+
+# Redis Connection Pool Factory Pattern Examples
+# Create Redis connection pool using factory method with configuration
+./libs/cpp_dbc/examples/kv_connection_pool_example --factory-config
+
+# Create Redis connection pool using factory method with direct parameters
+./libs/cpp_dbc/examples/kv_connection_pool_example --factory-direct
+
+# Create Redis connection pool using factory method with custom options
+./libs/cpp_dbc/examples/kv_connection_pool_example --factory-options
+
+# Code examples for creating Redis connection pools:
+# Using configuration object:
+#   auto config = cpp_dbc::config::DBConnectionPoolConfig();
+#   config.setUrl("redis://localhost:6379");
+#   config.setUsername(""); // Optional
+#   config.setPassword(""); // Optional
+#   config.setInitialSize(5);
+#   config.setMaxSize(20);
+#   auto pool = cpp_dbc::Redis::RedisConnectionPool::create(config);
+#
+# Using direct parameters:
+#   auto pool = cpp_dbc::Redis::RedisConnectionPool::create(
+#       "redis://localhost:6379", "", ""); // URL, username, password
+#
+# Getting and using connections:
+#   auto conn = pool->getKVDBConnection();
+#   // Use Redis operations
+#   conn->setString("key", "value");
+#   std::string value = conn->getString("key");
+#   conn->close(); // Return to pool
 
 # MongoDB Specific Benchmark Examples
 # Run MongoDB benchmarks with memory usage tracking

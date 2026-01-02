@@ -9,18 +9,19 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
    - `core/document/`: Document database interfaces (`DocumentDBConnection`, `DocumentDBDriver`, `DocumentDBCollection`, `DocumentDBCursor`, `DocumentDBData`)
    - `core/columnar/`: Columnar database interfaces (placeholder for future)
    - `core/graph/`: Graph database interfaces (placeholder for future)
-   - `core/kv/`: Key-Value database interfaces (placeholder for future)
+   - `core/kv/`: Key-Value database interfaces (`KVDBConnection`, `KVDBDriver`, `KVDBConnectionPool`)
    - `core/timeseries/`: Time-series database interfaces (placeholder for future)
 2. **Driver Layer**: Database-specific implementations in the `src/drivers/` and `include/cpp_dbc/drivers/` directories
    - `drivers/relational/`: Relational database drivers (MySQL, PostgreSQL, SQLite, Firebird)
    - `drivers/document/`: Document database drivers (MongoDB)
    - `drivers/columnar/`: Columnar database drivers (placeholder for future)
    - `drivers/graph/`: Graph database drivers (placeholder for future)
-   - `drivers/kv/`: Key-Value database drivers (placeholder for future)
+   - `drivers/kv/`: Key-Value database drivers (Redis)
    - `drivers/timeseries/`: Time-series database drivers (placeholder for future)
 3. **Connection Management Layer**: Connection pooling and transaction management in the `src/` directory
 4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/` directory and database-specific implementations in the `drivers/relational/` directory
-5. **JSON Layer**: JSON data type support in database-specific implementations in the `drivers/relational/` directory
+5. **Key-Value Layer**: Key-Value operations support in `drivers/kv/` directory
+6. **JSON Layer**: JSON data type support in database-specific implementations in the `drivers/relational/` directory
 6. **Configuration Layer**: Database configuration management in the `include/cpp_dbc/config/` and `src/config/` directories
 7. **Code Quality Layer**: Comprehensive warning flags and compile-time checks across all components
 8. **Client Application Layer**: User code that interacts with the library
@@ -38,9 +39,17 @@ Client Application → DriverManager → Driver → RelationalDBConnection → R
 
 Document Databases:
 Client Application → DriverManager → DocumentDBDriver → DocumentDBConnection → DocumentDBCollection
-                   → DocumentDBCollection → DocumentDBCursor → DocumentDBData
-                   → DatabaseConfigManager → DatabaseConfig → DocumentDBConnection
-                   → Code Quality Checks → All Components
+                    → DocumentDBCollection → DocumentDBCursor → DocumentDBData
+                    → DocumentDBConnectionPool → DocumentPooledDBConnection → DocumentDBConnection
+                    → DatabaseConfigManager → DatabaseConfig → DocumentDBConnection
+                    → Code Quality Checks → All Components
+
+Key-Value Databases:
+Client Application → DriverManager → KVDBDriver → KVDBConnection
+                    → KVDBConnection → Key-Value Operations (get, set, hash, list, set, etc.)
+                    → KVDBConnectionPool → KVPooledDBConnection → KVDBConnection
+                    → DatabaseConfigManager → DatabaseConfig → KVDBConnection
+                    → Code Quality Checks → All Components
 ```
 
 ## Design Patterns
@@ -123,6 +132,18 @@ Client Application → DriverManager → DocumentDBDriver → DocumentDBConnecti
   - Pool sets `m_poolAlive` to `false` in `close()` before cleanup
   - Prevents use-after-free when pool is destroyed while connections are in use
   - Graceful handling of connection return when pool is already closed
+
+### Connection Pooling (continued)
+- Connection pool implementations for different database types:
+  - `RelationalDBConnectionPool` for relational databases with factory pattern
+  - `DocumentDBConnectionPool` for document databases with factory pattern
+  - `KVDBConnectionPool` for key-value databases with factory pattern
+- Each connection pool implementation follows the same architecture:
+  - Abstract base class defining the pool interface
+  - Concrete implementations for specific database types (PostgreSQLConnectionPool, MongoDBConnectionPool, RedisConnectionPool, etc.)
+  - Factory methods (`create`) for creating pool instances with shared_ptr ownership
+  - Protected constructors to enforce factory method usage
+  - Resource cleanup with proper exception handling
 
 ### Transaction Management
 - Unique transaction IDs for tracking transactions across threads
@@ -210,6 +231,12 @@ Client Application → DriverManager → DocumentDBDriver → DocumentDBConnecti
 - `RelationalDBConnectionPool` → Manages → `PooledRelationalDBConnection`
 - `PooledRelationalDBConnection` → Wraps → `RelationalDBConnection`
 - `RelationalDBConnectionPool` → Creates → Physical `RelationalDBConnection` (via Driver)
+- `DocumentDBConnectionPool` → Manages → `DocumentPooledDBConnection`
+- `DocumentPooledDBConnection` → Wraps → `DocumentDBConnection`
+- `DocumentDBConnectionPool` → Creates → Physical `DocumentDBConnection` (via Driver)
+- `KVDBConnectionPool` → Manages → `KVPooledDBConnection`
+- `KVPooledDBConnection` → Wraps → `KVDBConnection`
+- `KVDBConnectionPool` → Creates → Physical `KVDBConnection` (via Driver)
 
 ### Transaction Components
 - `TransactionManager` → Manages → `TransactionContext`
@@ -230,6 +257,14 @@ Client Application → DriverManager → DocumentDBDriver → DocumentDBConnecti
 - `PostgreSQLBlob` → Implements → `Blob` (for PostgreSQL BLOBs)
 - `SQLiteBlob` → Implements → `Blob` (for SQLite BLOBs)
 - `FirebirdBlob` → Implements → `Blob` (for Firebird BLOBs)
+
+### Key-Value Driver Components
+- `KVDBDriver` → Creates → `KVDBConnection`
+- `KVDBConnection` → Performs → Key-Value Operations (get, set, list, hash, etc.)
+- `RedisDriver` → Implements → `KVDBDriver`
+- `RedisConnection` → Implements → `KVDBConnection`
+- `KVDBConnectionPool` → Manages → `KVPooledDBConnection`
+- `KVPooledDBConnection` → Wraps → `KVDBConnection`
 
 ## Critical Implementation Paths
 
@@ -293,3 +328,40 @@ Client Application → DriverManager → DocumentDBDriver → DocumentDBConnecti
 4. Client retrieves a specific `DatabaseConfig` by name
 5. Client uses the `DatabaseConfig` to create a connection string
 6. Connection string is used with `DriverManager` to create a connection
+
+### Key-Value Database Operation Flow (Redis)
+1. Client obtains a `KVDBConnection` via `DriverManager` using Redis URL
+2. Client performs key-value operations on the connection:
+   - **String Operations**: `setString()`, `getString()`, `expire()`, etc.
+   - **List Operations**: `listPushLeft()`, `listPushRight()`, `listPopLeft()`, `listPopRight()`, `listRange()`, etc.
+   - **Hash Operations**: `hashSet()`, `hashGet()`, `hashGetAll()`, `hashDelete()`, etc.
+   - **Set Operations**: `setAdd()`, `setRemove()`, `setIsMember()`, `setMembers()`, etc.
+   - **Sorted Set Operations**: `sortedSetAdd()`, `sortedSetRemove()`, `sortedSetScore()`, `sortedSetRange()`, etc.
+   - **Counter Operations**: `increment()`, `decrement()`
+   - **Key Operations**: `deleteKey()`, `deleteKeys()`, `exists()`, `expire()`, `getTTL()`, etc.
+   - **Server Operations**: `ping()`, `getServerInfo()`, `flushDB()`, etc.
+3. Client can execute arbitrary Redis commands using `executeCommand()`
+4. Resources are cleaned up (automatically with smart pointers)
+
+### Connection Pooling with Key-Value Databases Flow
+1. Client creates a connection pool using the factory method:
+   ```cpp
+   auto pool = cpp_dbc::Redis::RedisConnectionPool::create(url, username, password);
+   ```
+   or with a configuration object:
+   ```cpp
+   config::DBConnectionPoolConfig config;
+   config.setUrl("redis://localhost:6379");
+   // Set other configuration options...
+   auto pool = cpp_dbc::Redis::RedisConnectionPool::create(config);
+   ```
+2. Client requests a connection from the pool:
+   ```cpp
+   auto conn = pool->getKVDBConnection();
+   ```
+3. Client uses the connection for Redis operations
+4. Client returns the connection to the pool when done:
+   ```cpp
+   conn->close(); // Returns to pool instead of closing
+   ```
+5. Pool maintains connections and automatically cleans up resources when closed

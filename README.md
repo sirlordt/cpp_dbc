@@ -17,7 +17,7 @@ If you're in a hurry and want to get started quickly, check out the [Quick Start
 
 ---
 
-This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, SQLite, Firebird SQL, and MongoDB databases. The library includes connection pooling, transaction management, support for different transaction isolation levels, comprehensive BLOB handling with image file support, and document database operations for MongoDB.
+This project provides a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, SQLite, Firebird SQL, MongoDB document databases, and Redis key-value databases. The library includes connection pooling, transaction management, support for different transaction isolation levels, comprehensive BLOB handling with image file support, document database operations for MongoDB, and key-value operations for Redis.
 
 ## GOALS
 1. Safe and Stable. Using the best C++ practices.
@@ -56,6 +56,9 @@ The library currently supports:
 ### Document Databases
 - **MongoDB**: Full support for MongoDB document databases (disabled by default)
 
+### Key-Value Databases
+- **Redis**: Full support for Redis key-value databases (disabled by default)
+
 Each database driver can be enabled or disabled at compile time to reduce dependencies. By default, only MySQL support is enabled.
 
 ## Project Structure
@@ -79,12 +82,15 @@ Each database driver can be enabled or disabled at compile time to reduce depend
 - **Database Drivers** (Document):
   - `include/cpp_dbc/drivers/document/driver_mongodb.hpp` & `src/drivers/document/driver_mongodb.cpp`: MongoDB implementation
 
+- **Database Drivers** (Key-Value):
+  - `include/cpp_dbc/drivers/kv/driver_redis.hpp` & `src/drivers/kv/driver_redis.cpp`: Redis implementation
+
 - **Core Interfaces**:
   - `include/cpp_dbc/core/relational/`: Relational database interfaces
   - `include/cpp_dbc/core/columnar/`: Columnar database interfaces (placeholder)
   - `include/cpp_dbc/core/document/`: Document database interfaces (MongoDB connection, collection, cursor, data)
   - `include/cpp_dbc/core/graph/`: Graph database interfaces (placeholder)
-  - `include/cpp_dbc/core/kv/`: Key-Value database interfaces (placeholder)
+  - `include/cpp_dbc/core/kv/`: Key-Value database interfaces (Redis connection, driver, connection pool)
   - `include/cpp_dbc/core/timeseries/`: Time-series database interfaces (placeholder)
 
 - **Examples**:
@@ -106,6 +112,7 @@ Depending on which database drivers you enable, you'll need:
 - For SQLite support: SQLite development libraries (`libsqlite3-dev` on Debian/Ubuntu, `sqlite-devel` on RHEL/CentOS)
 - For Firebird support: Firebird development libraries (`firebird-dev libfbclient2` on Debian/Ubuntu, `firebird-devel libfbclient2` on RHEL/CentOS/Fedora)
 - For MongoDB support: MongoDB C++ driver libraries (`libmongoc-dev libbson-dev libmongocxx-dev libbsoncxx-dev` on Debian/Ubuntu, `mongo-c-driver-devel libbson-devel mongo-cxx-driver-devel` on RHEL/CentOS/Fedora)
+- For Redis support: Hiredis development libraries (`libhiredis-dev` on Debian/Ubuntu, `hiredis-devel` on RHEL/CentOS/Fedora)
 
 The build script will automatically check for and install these dependencies if needed.
 
@@ -118,6 +125,7 @@ The library supports conditional compilation of database drivers and features:
 - `USE_SQLITE`: Enable/disable SQLite support (OFF by default)
 - `USE_FIREBIRD`: Enable/disable Firebird SQL support (OFF by default)
 - `USE_MONGODB`: Enable/disable MongoDB support (OFF by default)
+- `USE_REDIS`: Enable/disable Redis support (OFF by default)
 - `USE_CPP_YAML`: Enable/disable YAML configuration support (OFF by default)
 - `CPP_DBC_BUILD_EXAMPLES`: Enable/disable building examples (OFF by default)
 - `CPP_DBC_BUILD_BENCHMARKS`: Enable/disable building benchmarks (OFF by default)
@@ -125,6 +133,7 @@ The library supports conditional compilation of database drivers and features:
 - `DEBUG_TRANSACTION_MANAGER`: Enable debug output for TransactionManager (OFF by default)
 - `DEBUG_SQLITE`: Enable debug output for SQLite driver (OFF by default)
 - `DEBUG_MONGODB`: Enable debug output for MongoDB driver (OFF by default)
+- `DEBUG_REDIS`: Enable debug output for Redis driver (OFF by default)
 - `DEBUG_ALL`: Enable all debug output at once (OFF by default)
 - `BACKWARD_HAS_DW`: Enable libdw support for enhanced stack traces (ON by default)
 - `DB_DRIVER_THREAD_SAFE`: Enable thread-safe database driver operations (ON by default)
@@ -170,8 +179,11 @@ The `libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the c
 # Enable MongoDB support
 ./libs/cpp_dbc/build_cpp_dbc.sh --mongodb
 
+# Enable Redis support
+./libs/cpp_dbc/build_cpp_dbc.sh --redis
+
 # Enable all database drivers
-./libs/cpp_dbc/build_cpp_dbc.sh --mysql --postgres --sqlite --firebird --mongodb
+./libs/cpp_dbc/build_cpp_dbc.sh --mysql --postgres --sqlite --firebird --mongodb --redis
 
 # Disable MySQL support
 ./libs/cpp_dbc/build_cpp_dbc.sh --mysql-off
@@ -196,6 +208,9 @@ The `libs/cpp_dbc/build_cpp_dbc.sh` script handles dependencies and builds the c
 
 # Enable debug output for MongoDB driver
 ./libs/cpp_dbc/build_cpp_dbc.sh --debug-mongodb
+
+# Enable debug output for Redis driver
+./libs/cpp_dbc/build_cpp_dbc.sh --debug-redis
 
 # Enable all debug output
 ./libs/cpp_dbc/build_cpp_dbc.sh --debug-all
@@ -241,8 +256,11 @@ The `build.sh` script builds the main application, passing all parameters to the
 # Enable MongoDB support
 ./build.sh --mongodb
 
+# Enable Redis support
+./build.sh --redis
+
 # Enable all database drivers
-./build.sh --mysql --postgres --sqlite --firebird --mongodb
+./build.sh --mysql --postgres --sqlite --firebird --mongodb --redis
 
 # Disable MySQL support
 ./build.sh --mysql-off
@@ -273,6 +291,9 @@ The `build.sh` script builds the main application, passing all parameters to the
 
 # Enable debug output for MongoDB driver
 ./build.sh --debug-mongodb
+
+# Enable debug output for Redis driver
+./build.sh --debug-redis
 
 # Enable all debug output
 ./build.sh --debug-all
@@ -759,6 +780,10 @@ When using the library as an external dependency, include the headers as follows
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
 #endif
 
+#if USE_REDIS
+#include "cpp_dbc/drivers/kv/driver_redis.hpp"
+#endif
+
 int main() {
     // Register available drivers
 #if USE_MYSQL
@@ -784,6 +809,11 @@ int main() {
 #if USE_MONGODB
     cpp_dbc::DriverManager::registerDriver("mongodb",
         std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+#endif
+
+#if USE_REDIS
+    cpp_dbc::DriverManager::registerDriver("redis",
+        std::make_shared<cpp_dbc::Redis::RedisDriver>());
 #endif
 
     // Get a relational database connection
@@ -829,6 +859,33 @@ int main() {
     }
     
     mongoConn->close();
+#endif
+
+#if USE_REDIS
+    // Get a Redis key-value database connection
+    auto redisDriver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+    auto redisConn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(
+        redisDriver->connectKV(
+            "cpp_dbc:redis://localhost:6379",
+            "",
+            ""
+        ));
+
+    // Use the Redis connection
+    redisConn->setString("greeting", "Hello, Redis!");
+    std::string greeting = redisConn->getString("greeting");
+    std::cout << "Redis greeting: " << greeting << std::endl;
+
+    // Use Redis list operations
+    redisConn->listPushRight("mylist", "item1");
+    redisConn->listPushRight("mylist", "item2");
+    std::cout << "List length: " << redisConn->listLength("mylist") << std::endl;
+
+    // Use Redis hash operations
+    redisConn->hashSet("myhash", "field1", "value1");
+    std::cout << "Hash value: " << redisConn->hashGet("myhash", "field1") << std::endl;
+
+    redisConn->close();
 #endif
     
     return 0;
@@ -924,6 +981,17 @@ databases:
       server_selection_timeout: 5000
       auth_source: admin
       direct_connection: true
+
+  - name: dev_redis
+    type: redis
+    host: localhost
+    port: 6379
+    database: 0
+    username:
+    password:
+    options:
+      connect_timeout: 5000
+      tcp_keepalive: true
 
 # Connection pool configurations
 connection_pool:

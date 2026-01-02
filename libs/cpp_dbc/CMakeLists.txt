@@ -36,6 +36,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 add_library(cpp_dbc
     src/core/relational/relational_db_connection_pool.cpp
     src/core/document/document_db_connection_pool.cpp
+    src/core/kv/kv_db_connection_pool.cpp
     src/transaction_manager.cpp
     src/driver_manager.cpp
     src/config/database_config.cpp
@@ -363,6 +364,16 @@ if(CPP_DBC_BUILD_EXAMPLES)
         # Document database connection pool example
         add_executable(document_connection_pool_example examples/document_connection_pool_example.cpp)
         target_link_libraries(document_connection_pool_example PRIVATE cpp_dbc)
+    endif()
+
+    # Redis examples (only if Redis is enabled)
+    if(USE_REDIS)
+        add_executable(redis_example examples/redis_example.cpp)
+        target_link_libraries(redis_example PRIVATE cpp_dbc)
+
+        # Key-value database connection pool example
+        add_executable(kv_connection_pool_example examples/kv_connection_pool_example.cpp)
+        target_link_libraries(kv_connection_pool_example PRIVATE cpp_dbc)
     endif()
 
     # Copy necessary files for examples

@@ -1,6 +1,35 @@
 # Changelog
 
-## 2025-12-31 08:34:52 PM PST [Current]
+## 2026-01-01 07:48:12 PM PST [Current]
+
+### Redis KV Connection Pool Implementation
+* Added key-value database connection pool implementation:
+  * **New Files:**
+    * Added `include/cpp_dbc/core/kv/kv_db_connection_pool.hpp` - Key-value database connection pool interfaces
+    * Added `src/core/kv/kv_db_connection_pool.cpp` - Key-value database connection pool implementation
+    * Added `examples/kv_connection_pool_example.cpp` - Example for Redis connection pool usage
+    * Added `test/test_redis_connection_pool.cpp` - Comprehensive tests for Redis connection pool
+  * **Pool Features:**
+    * Factory pattern with `create` static methods for Redis connection pool creation
+    * Smart pointer-based pool lifetime tracking for memory safety
+    * Connection validation with Redis ping command
+    * Configurable pool size, connection timeout, and idle timeout
+    * Support for Redis authentication
+    * Background maintenance thread for connection cleanup
+    * Thread-safe connection management
+  * **Build System Updates:**
+    * Updated CMakeLists.txt to include the new source files
+    * Added key-value connection pool example to build configuration
+    * Added Redis connection pool tests to test suite
+  * **Test Coverage:**
+    * Basic connection pool operations (get/return connections)
+    * Redis operations through pooled connections
+    * Concurrent connections stress testing
+    * Connection pool behavior under load
+    * Connection validation and cleanup
+    * Pool growth and scaling tests
+
+## 2025-12-31 08:34:52 PM PST
 
 ### Redis KV Database Driver Support
 * Added complete Redis key-value database driver implementation:

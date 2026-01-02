@@ -19,7 +19,7 @@ The current focus appears to be on maintaining and potentially extending the CPP
 1. MySQL, PostgreSQL, SQLite, and Firebird SQL relational databases
 2. MongoDB document database
 3. Redis key-value database
-4. Connection pooling for all supported relational databases
+4. Connection pooling for all supported databases (relational, document, and key-value)
 4. Transaction management with isolation levels
 5. Prepared statements and result sets
 6. BLOB (Binary Large Object) support for all relational database drivers
@@ -34,6 +34,70 @@ The code is organized in a modular fashion with clear separation between interfa
 ## Recent Changes
 
 Recent changes to the codebase include:
+
+1. **Redis KV Connection Pool Implementation** (2026-01-01 07:48:12 PM PST):
+   - Added key-value database connection pool implementation:
+     - **New Files:**
+       - Added `include/cpp_dbc/core/kv/kv_db_connection_pool.hpp` - Key-value database connection pool interfaces
+       - Added `src/core/kv/kv_db_connection_pool.cpp` - Key-value database connection pool implementation
+       - Added `examples/kv_connection_pool_example.cpp` - Example for Redis connection pool usage
+       - Added `test/test_redis_connection_pool.cpp` - Comprehensive tests for Redis connection pool
+     - **Pool Architecture:**
+       - `KVDBConnectionPool` abstract base class for all key-value database pools
+       - `KVPooledDBConnection` wrapper class for pooled key-value connections
+       - Smart pointer-based pool lifetime tracking for memory safety
+       - Connection validation with Redis ping command
+       - Configurable pool parameters (initial size, max size, min idle, etc.)
+     - **Redis Implementation:**
+       - `RedisConnectionPool` concrete implementation for Redis
+       - Factory pattern with `create` static methods for pool creation
+       - Protected constructors to enforce factory method usage
+       - Support for Redis authentication and custom connection options
+       - Connection string format: `cpp_dbc:redis://host:port/database`
+       - Background maintenance thread for connection cleanup and idle connection management
+     - **Test Coverage:**
+       - Basic connection pool operations (get/return connections)
+       - Redis operations through pooled connections
+       - Concurrent connections stress testing
+       - Connection pool behavior under load
+       - Connection validation and cleanup
+       - Pool growth and scaling tests
+     - **Benefits:**
+       - Better resource management with clearer ownership semantics
+       - Thread-safe connection pooling for Redis databases
+       - Automatic connection validation and cleanup
+       - Consistent API with other database type connection pools
+       - Improved performance through connection reuse
+
+2. **Redis KV Database Driver Support** (2025-12-31 08:34:52 PM PST):
+   - Added complete Redis key-value database driver implementation:
+     - **Core Key-Value Database Interfaces:**
+       - `KVDBConnection`: Base interface for key-value database connections
+       - `KVDBDriver`: Base interface for key-value database drivers
+     - **Redis Driver Implementation:**
+       - `RedisDriver`: Driver class for Redis connections
+       - `RedisConnection`: Connection management with proper resource cleanup
+     - **Features:**
+       - String operations with TTL support
+       - List operations (push, pop, range)
+       - Hash operations (set, get, delete)
+       - Set operations (add, remove, members)
+       - Sorted Set operations (add, remove, range)
+       - Counter operations (increment, decrement)
+       - Scan operations for key pattern matching
+       - Server operations (ping, info, flush)
+       - Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+     - **Build System Updates:**
+       - Added `USE_REDIS` CMake option
+       - Added `--redis` and `--redis-off` build script options
+       - Added `--debug-redis` option for debug output
+       - Added `FindHiredis.cmake` for Hiredis library detection
+     - **Test Coverage:**
+       - Basic connection and authentication
+       - Key-value operations (set, get, delete)
+       - List, hash, set, and sorted set operations
+       - Expiration and TTL handling
+       - Server commands and information
 
 1. **Document Database Connection Pool Factory Pattern Implementation** (2025-12-30 11:38:13 PM PST):
    - Implemented factory pattern for MongoDB connection pool creation:
