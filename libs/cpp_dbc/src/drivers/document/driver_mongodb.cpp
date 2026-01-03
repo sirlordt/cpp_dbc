@@ -979,6 +979,508 @@ namespace cpp_dbc
             return std::make_shared<MongoDBDocument>(copy);
         }
 
+        // ====================================================================
+        // MongoDBDocument NOTHROW VERSIONS
+        // ====================================================================
+
+        expected<std::string, DBException> MongoDBDocument::getString(std::nothrow_t, const std::string &fieldPath) const noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                bson_iter_t iter;
+                if (!navigateToField(fieldPath, iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "7A8B9C0D1E2F",
+                        "Field not found: " + fieldPath));
+                }
+
+                if (!BSON_ITER_HOLDS_UTF8(&iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "8B9C0D1E2F3A",
+                        "Field is not a string: " + fieldPath));
+                }
+
+                uint32_t length = 0;
+                const char *str = bson_iter_utf8(&iter, &length);
+                return std::string(str, length);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "9C0D1E2F3A4B",
+                    std::string("Error in getString: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "0D1E2F3A4B5C",
+                    "Unknown error in getString"));
+            }
+        }
+
+        expected<int64_t, DBException> MongoDBDocument::getInt(std::nothrow_t, const std::string &fieldPath) const noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                bson_iter_t iter;
+                if (!navigateToField(fieldPath, iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "1E2F3A4B5C6D",
+                        "Field not found: " + fieldPath));
+                }
+
+                if (BSON_ITER_HOLDS_INT32(&iter))
+                {
+                    return bson_iter_int32(&iter);
+                }
+                else if (BSON_ITER_HOLDS_INT64(&iter))
+                {
+                    return bson_iter_int64(&iter);
+                }
+                else
+                {
+                    return unexpected<DBException>(DBException(
+                        "2F3A4B5C6D7E",
+                        "Field is not an integer: " + fieldPath));
+                }
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "3A4B5C6D7E8F",
+                    std::string("Error in getInt: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "4B5C6D7E8F9A",
+                    "Unknown error in getInt"));
+            }
+        }
+
+        expected<double, DBException> MongoDBDocument::getDouble(std::nothrow_t, const std::string &fieldPath) const noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                bson_iter_t iter;
+                if (!navigateToField(fieldPath, iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "5C6D7E8F9A0B",
+                        "Field not found: " + fieldPath));
+                }
+
+                if (BSON_ITER_HOLDS_DOUBLE(&iter))
+                {
+                    return bson_iter_double(&iter);
+                }
+                else if (BSON_ITER_HOLDS_INT32(&iter))
+                {
+                    return static_cast<double>(bson_iter_int32(&iter));
+                }
+                else if (BSON_ITER_HOLDS_INT64(&iter))
+                {
+                    return static_cast<double>(bson_iter_int64(&iter));
+                }
+                else
+                {
+                    return unexpected<DBException>(DBException(
+                        "6D7E8F9A0B1C",
+                        "Field is not a number: " + fieldPath));
+                }
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "7E8F9A0B1C2D",
+                    std::string("Error in getDouble: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "8F9A0B1C2D3E",
+                    "Unknown error in getDouble"));
+            }
+        }
+
+        expected<bool, DBException> MongoDBDocument::getBool(std::nothrow_t, const std::string &fieldPath) const noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                bson_iter_t iter;
+                if (!navigateToField(fieldPath, iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "9A0B1C2D3E4F",
+                        "Field not found: " + fieldPath));
+                }
+
+                if (!BSON_ITER_HOLDS_BOOL(&iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "0B1C2D3E4F5A",
+                        "Field is not a boolean: " + fieldPath));
+                }
+
+                return bson_iter_bool(&iter);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "1C2D3E4F5A6B",
+                    std::string("Error in getBool: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "2D3E4F5A6B7C",
+                    "Unknown error in getBool"));
+            }
+        }
+
+        expected<std::vector<uint8_t>, DBException> MongoDBDocument::getBinary(std::nothrow_t, const std::string &fieldPath) const noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                bson_iter_t iter;
+                if (!navigateToField(fieldPath, iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "3E4F5A6B7C8D",
+                        "Field not found: " + fieldPath));
+                }
+
+                if (!BSON_ITER_HOLDS_BINARY(&iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "4F5A6B7C8D9E",
+                        "Field is not binary: " + fieldPath));
+                }
+
+                bson_subtype_t subtype;
+                uint32_t length = 0;
+                const uint8_t *data = nullptr;
+                bson_iter_binary(&iter, &subtype, &length, &data);
+
+                return std::vector<uint8_t>(data, data + length);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "5A6B7C8D9E0F",
+                    "Memory allocation failed in getBinary"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "6B7C8D9E0F1A",
+                    std::string("Error in getBinary: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "7C8D9E0F1A2B",
+                    "Unknown error in getBinary"));
+            }
+        }
+
+        expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBDocument::getDocument(std::nothrow_t, const std::string &fieldPath) const noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                bson_iter_t iter;
+                if (!navigateToField(fieldPath, iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "8D9E0F1A2B3C",
+                        "Field not found: " + fieldPath));
+                }
+
+                if (!BSON_ITER_HOLDS_DOCUMENT(&iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "9E0F1A2B3C4D",
+                        "Field is not a document: " + fieldPath));
+                }
+
+                const uint8_t *data = nullptr;
+                uint32_t length = 0;
+                bson_iter_document(&iter, &length, &data);
+
+                bson_t *subdoc = bson_new_from_data(data, length);
+                if (!subdoc)
+                {
+                    return unexpected<DBException>(DBException(
+                        "0F1A2B3C4D5E",
+                        "Failed to extract subdocument"));
+                }
+
+                auto doc = std::make_shared<MongoDBDocument>(subdoc);
+                return std::static_pointer_cast<DocumentDBData>(doc);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "1A2B3C4D5E6F",
+                    "Memory allocation failed in getDocument"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "2B3C4D5E6F7A",
+                    std::string("Error in getDocument: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "3C4D5E6F7A8B",
+                    "Unknown error in getDocument"));
+            }
+        }
+
+        expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> MongoDBDocument::getDocumentArray(std::nothrow_t, const std::string &fieldPath) const noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                bson_iter_t iter;
+                if (!navigateToField(fieldPath, iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "4D5E6F7A8B9C",
+                        "Field not found: " + fieldPath));
+                }
+
+                if (!BSON_ITER_HOLDS_ARRAY(&iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "5E6F7A8B9C0D",
+                        "Field is not an array: " + fieldPath));
+                }
+
+                std::vector<std::shared_ptr<DocumentDBData>> result;
+
+                bson_iter_t arrayIter;
+                const uint8_t *data = nullptr;
+                uint32_t length = 0;
+                bson_iter_array(&iter, &length, &data);
+
+                bson_t arrayBson;
+                if (!bson_init_static(&arrayBson, data, length))
+                {
+                    return unexpected<DBException>(DBException(
+                        "6F7A8B9C0D1E",
+                        "Failed to initialize array BSON"));
+                }
+
+                if (bson_iter_init(&arrayIter, &arrayBson))
+                {
+                    while (bson_iter_next(&arrayIter))
+                    {
+                        if (BSON_ITER_HOLDS_DOCUMENT(&arrayIter))
+                        {
+                            const uint8_t *docData = nullptr;
+                            uint32_t docLength = 0;
+                            bson_iter_document(&arrayIter, &docLength, &docData);
+
+                            bson_t *subdoc = bson_new_from_data(docData, docLength);
+                            if (subdoc)
+                            {
+                                result.push_back(std::make_shared<MongoDBDocument>(subdoc));
+                            }
+                        }
+                    }
+                }
+
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "7A8B9C0D1E2F",
+                    "Memory allocation failed in getDocumentArray"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "8B9C0D1E2F3A",
+                    std::string("Error in getDocumentArray: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "9C0D1E2F3A4B",
+                    "Unknown error in getDocumentArray"));
+            }
+        }
+
+        expected<std::vector<std::string>, DBException> MongoDBDocument::getStringArray(std::nothrow_t, const std::string &fieldPath) const noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                bson_iter_t iter;
+                if (!navigateToField(fieldPath, iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "0D1E2F3A4B5C",
+                        "Field not found: " + fieldPath));
+                }
+
+                if (!BSON_ITER_HOLDS_ARRAY(&iter))
+                {
+                    return unexpected<DBException>(DBException(
+                        "1E2F3A4B5C6D",
+                        "Field is not an array: " + fieldPath));
+                }
+
+                std::vector<std::string> result;
+
+                bson_iter_t arrayIter;
+                const uint8_t *data = nullptr;
+                uint32_t length = 0;
+                bson_iter_array(&iter, &length, &data);
+
+                bson_t arrayBson;
+                if (!bson_init_static(&arrayBson, data, length))
+                {
+                    return unexpected<DBException>(DBException(
+                        "2F3A4B5C6D7E",
+                        "Failed to initialize array BSON"));
+                }
+
+                if (bson_iter_init(&arrayIter, &arrayBson))
+                {
+                    while (bson_iter_next(&arrayIter))
+                    {
+                        if (BSON_ITER_HOLDS_UTF8(&arrayIter))
+                        {
+                            uint32_t strLength = 0;
+                            const char *str = bson_iter_utf8(&arrayIter, &strLength);
+                            result.emplace_back(str, strLength);
+                        }
+                    }
+                }
+
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "3A4B5C6D7E8F",
+                    "Memory allocation failed in getStringArray"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "4B5C6D7E8F9A",
+                    std::string("Error in getStringArray: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "5C6D7E8F9A0B",
+                    "Unknown error in getStringArray"));
+            }
+        }
+
+        expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBDocument::clone(std::nothrow_t) const noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (!m_bson)
+                {
+                    return unexpected<DBException>(DBException(
+                        "6D7E8F9A0B1C",
+                        "Document is not initialized"));
+                }
+
+                bson_t *copy = bson_copy(m_bson.get());
+                if (!copy)
+                {
+                    return unexpected<DBException>(DBException(
+                        "7E8F9A0B1C2D",
+                        "Failed to clone document"));
+                }
+
+                auto doc = std::make_shared<MongoDBDocument>(copy);
+                return std::static_pointer_cast<DocumentDBData>(doc);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "8F9A0B1C2D3E",
+                    "Memory allocation failed in clone"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "9A0B1C2D3E4F",
+                    std::string("Error in clone: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "0B1C2D3E4F5A",
+                    "Unknown error in clone"));
+            }
+        }
+
         // ============================================================================
         // MongoDBCursor Implementation
         // ============================================================================
@@ -1287,6 +1789,222 @@ namespace cpp_dbc
             return "";
         }
 
+        // ====================================================================
+        // MongoDBCursor NOTHROW VERSIONS
+        // ====================================================================
+
+        expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBCursor::current(std::nothrow_t) noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (!m_cursor)
+                {
+                    return unexpected<DBException>(DBException(
+                        "8F9A0B1C2D3E",
+                        "Cursor is not initialized"));
+                }
+
+                if (!m_currentDoc)
+                {
+                    return unexpected<DBException>(DBException(
+                        "9A0B1C2D3E4F",
+                        "No current document - call next() first"));
+                }
+
+                return std::static_pointer_cast<DocumentDBData>(m_currentDoc);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "0B1C2D3E4F5A",
+                    std::string("Error in current: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "1C2D3E4F5A6B",
+                    "Unknown error in current"));
+            }
+        }
+
+        expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBCursor::nextDocument(std::nothrow_t) noexcept
+        {
+            try
+            {
+                if (!next())
+                {
+                    return unexpected<DBException>(DBException(
+                        "2D3E4F5A6B7C",
+                        "No more documents in cursor"));
+                }
+                return std::static_pointer_cast<DocumentDBData>(m_currentDoc);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "3E4F5A6B7C8D",
+                    std::string("Error in nextDocument: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "4F5A6B7C8D9E",
+                    "Unknown error in nextDocument"));
+            }
+        }
+
+        expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> MongoDBCursor::toVector(std::nothrow_t) noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "5A6B7C8D9E0F",
+                        "Connection has been closed"));
+                }
+
+                if (!m_cursor)
+                {
+                    return unexpected<DBException>(DBException(
+                        "6B7C8D9E0F1A",
+                        "Cursor is not initialized"));
+                }
+
+                std::vector<std::shared_ptr<DocumentDBData>> result;
+                const bson_t *doc = nullptr;
+                while (mongoc_cursor_next(m_cursor.get(), &doc))
+                {
+                    bson_t *docCopy = bson_copy(doc);
+                    if (docCopy)
+                    {
+                        result.push_back(std::make_shared<MongoDBDocument>(docCopy));
+                    }
+                }
+
+                bson_error_t error;
+                if (mongoc_cursor_error(m_cursor.get(), &error))
+                {
+                    return unexpected<DBException>(DBException(
+                        "7C8D9E0F1A2B",
+                        std::string("Cursor error: ") + error.message));
+                }
+
+                m_exhausted = true;
+                m_currentDoc.reset();
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "8D9E0F1A2B3C",
+                    "Memory allocation failed in toVector"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "9E0F1A2B3C4D",
+                    std::string("Error in toVector: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "0F1A2B3C4D5E",
+                    "Unknown error in toVector"));
+            }
+        }
+
+        expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> MongoDBCursor::getBatch(
+            std::nothrow_t, size_t batchSize) noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "1A2B3C4D5E6F",
+                        "Connection has been closed"));
+                }
+
+                if (!m_cursor)
+                {
+                    return unexpected<DBException>(DBException(
+                        "2B3C4D5E6F7A",
+                        "Cursor is not initialized"));
+                }
+
+                std::vector<std::shared_ptr<DocumentDBData>> result;
+                result.reserve(batchSize);
+
+                const bson_t *doc = nullptr;
+                size_t count = 0;
+
+                while (count < batchSize && mongoc_cursor_next(m_cursor.get(), &doc))
+                {
+                    bson_t *docCopy = bson_copy(doc);
+                    if (docCopy)
+                    {
+                        result.push_back(std::make_shared<MongoDBDocument>(docCopy));
+                        count++;
+                        m_position++;
+                    }
+                }
+
+                bson_error_t error;
+                if (mongoc_cursor_error(m_cursor.get(), &error))
+                {
+                    return unexpected<DBException>(DBException(
+                        "3C4D5E6F7A8B",
+                        std::string("Cursor error: ") + error.message));
+                }
+
+                if (count < batchSize)
+                    m_exhausted = true;
+
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "4D5E6F7A8B9C",
+                    "Memory allocation failed in getBatch"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "5E6F7A8B9C0D",
+                    std::string("Error in getBatch: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "6F7A8B9C0D1E",
+                    "Unknown error in getBatch"));
+            }
+        }
+
         // ============================================================================
         // MongoDBCollection Implementation
         // ============================================================================
@@ -1386,96 +2104,36 @@ namespace cpp_dbc
             return static_cast<uint64_t>(count);
         }
 
-        DocumentInsertResult MongoDBCollection::insertOne(
+        // ====================================================================
+        // INSERT OPERATIONS - nothrow version (REAL IMPLEMENTATION)
+        // ====================================================================
+
+        expected<DocumentInsertResult, DBException> MongoDBCollection::insertOne(
+            std::nothrow_t,
             std::shared_ptr<DocumentDBData> document,
-            const DocumentWriteOptions &options)
+            const DocumentWriteOptions &options) noexcept
         {
-            MONGODB_DEBUG("MongoDBCollection::insertOne - Inserting document into: " << m_name);
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(document);
-            if (!mongoDoc)
+            try
             {
-                throw DBException("C7D3E2F1A6B5", "Document must be a MongoDBDocument", system_utils::captureCallStack());
-            }
+                MONGODB_DEBUG("MongoDBCollection::insertOne(nothrow) - Inserting document into: " << m_name);
+                MONGODB_LOCK_GUARD(m_mutex);
 
-            bson_t *bson = mongoDoc->getBsonMutable();
-            bson_iter_t iter;
-            if (!bson_iter_init_find(&iter, bson, "_id"))
-            {
-                bson_oid_t oid;
-                bson_oid_init(&oid, nullptr);
-                BSON_APPEND_OID(bson, "_id", &oid);
-            }
+                // Validate connection (inline check - no throwing helper)
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "A1B2C3D4E5F6",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
 
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_insert_one(
-                m_collection.get(), bson, nullptr, &reply, &error);
-
-            DocumentInsertResult result;
-            result.acknowledged = success;
-
-            if (success)
-            {
-                result.insertedId = mongoDoc->getId();
-                result.insertedCount = 1;
-            }
-            else
-            {
-                bson_destroy(&reply);
-                if (options.ordered)
-                    throwMongoError(error, "insertOne");
-                result.insertedCount = 0;
-            }
-
-            bson_destroy(&reply);
-            return result;
-        }
-
-        DocumentInsertResult MongoDBCollection::insertOne(
-            const std::string &jsonDocument,
-            const DocumentWriteOptions &options)
-        {
-            auto doc = std::make_shared<MongoDBDocument>(jsonDocument);
-            return insertOne(doc, options);
-        }
-
-        DocumentInsertResult MongoDBCollection::insertMany(
-            const std::vector<std::shared_ptr<DocumentDBData>> &documents,
-            const DocumentWriteOptions &options)
-        {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            if (documents.empty())
-            {
-                DocumentInsertResult result;
-                result.acknowledged = true;
-                result.insertedCount = 0;
-                return result;
-            }
-
-            // Suppress -Wignored-attributes warning for bson_t pointer vector
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wignored-attributes"
-#endif
-            std::vector<const bson_t *> bsonDocs;
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-            bsonDocs.reserve(documents.size());
-
-            for (const auto &doc : documents)
-            {
-                auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(doc);
+                auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(document);
                 if (!mongoDoc)
                 {
-                    throw DBException("D8E4F3A2B7C6", "All documents must be MongoDBDocument instances", system_utils::captureCallStack());
+                    return unexpected<DBException>(DBException(
+                        "C7D3E2F1A6B5",
+                        "Document must be a MongoDBDocument",
+                        system_utils::captureCallStack()));
                 }
 
                 bson_t *bson = mongoDoc->getBsonMutable();
@@ -1486,141 +2144,646 @@ namespace cpp_dbc
                     bson_oid_init(&oid, nullptr);
                     BSON_APPEND_OID(bson, "_id", &oid);
                 }
-                bsonDocs.push_back(mongoDoc->getBson());
+
+                bson_error_t error;
+                bson_t reply;
+                bson_init(&reply);
+
+                bool success = mongoc_collection_insert_one(
+                    m_collection.get(), bson, nullptr, &reply, &error);
+
+                DocumentInsertResult result;
+                result.acknowledged = success;
+
+                if (success)
+                {
+                    result.insertedId = mongoDoc->getId();
+                    result.insertedCount = 1;
+                }
+                else
+                {
+                    bson_destroy(&reply);
+                    if (options.ordered)
+                    {
+                        return unexpected<DBException>(DBException(
+                            "F7G8H9I0J1K2",
+                            std::string("Insert failed: ") + error.message,
+                            system_utils::captureCallStack()));
+                    }
+                    result.insertedCount = 0;
+                }
+
+                bson_destroy(&reply);
+                return result;
             }
-
-            bson_t opts = BSON_INITIALIZER;
-            BSON_APPEND_BOOL(&opts, "ordered", options.ordered);
-            if (options.bypassValidation)
+            catch (const DBException &e)
             {
-                BSON_APPEND_BOOL(&opts, "bypassDocumentValidation", true);
+                return unexpected<DBException>(e);
             }
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_insert_many(
-                m_collection.get(), bsonDocs.data(), bsonDocs.size(), &opts, &reply, &error);
-
-            bson_destroy(&opts);
-
-            DocumentInsertResult result;
-            result.acknowledged = success;
-
-            if (success)
+            catch (const std::bad_alloc &e)
             {
-                result.insertedCount = documents.size();
+                return unexpected<DBException>(DBException(
+                    "46F76AEC33F1",
+                    "Memory allocation failed in insertOne",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "74B74B69CF86",
+                    std::string("Unexpected error in insertOne: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "A8C0D480F03C",
+                    "Unknown error in insertOne",
+                    system_utils::captureCallStack()));
+            }
+        }
+
+        // ====================================================================
+        // INSERT OPERATIONS - exception version (WRAPPER)
+        // ====================================================================
+
+        DocumentInsertResult MongoDBCollection::insertOne(
+            std::shared_ptr<DocumentDBData> document,
+            const DocumentWriteOptions &options)
+        {
+            auto result = insertOne(std::nothrow, document, options);
+            if (!result)
+            {
+                throw result.error();
+            }
+            return *result;
+        }
+
+        expected<DocumentInsertResult, DBException> MongoDBCollection::insertOne(
+            std::nothrow_t,
+            const std::string &jsonDocument,
+            const DocumentWriteOptions &options) noexcept
+        {
+            try
+            {
+                auto doc = std::make_shared<MongoDBDocument>(jsonDocument);
+                return insertOne(std::nothrow, doc, options);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "B7C8D9E0F1A2",
+                    std::string("Failed to parse JSON document: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "C8D9E0F1A2B3",
+                    "Unknown error parsing JSON document",
+                    system_utils::captureCallStack()));
+            }
+        }
+
+        DocumentInsertResult MongoDBCollection::insertOne(
+            const std::string &jsonDocument,
+            const DocumentWriteOptions &options)
+        {
+            auto result = insertOne(std::nothrow, jsonDocument, options);
+            if (!result)
+            {
+                throw result.error();
+            }
+            return *result;
+        }
+
+        expected<DocumentInsertResult, DBException> MongoDBCollection::insertMany(
+            std::nothrow_t,
+            const std::vector<std::shared_ptr<DocumentDBData>> &documents,
+            const DocumentWriteOptions &options) noexcept
+        {
+            try
+            {
+                MONGODB_DEBUG("MongoDBCollection::insertMany(nothrow) - Inserting " << documents.size() << " documents");
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "D9E0F1A2B3C4",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                if (documents.empty())
+                {
+                    DocumentInsertResult result;
+                    result.acknowledged = true;
+                    result.insertedCount = 0;
+                    return result;
+                }
+
+                // Suppress -Wignored-attributes warning for bson_t pointer vector
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wignored-attributes"
+#endif
+                std::vector<const bson_t *> bsonDocs;
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+                bsonDocs.reserve(documents.size());
+
                 for (const auto &doc : documents)
                 {
                     auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(doc);
-                    if (mongoDoc)
-                        result.insertedIds.push_back(mongoDoc->getId());
-                }
-            }
-            else
-            {
-                bson_destroy(&reply);
-                throwMongoError(error, "insertMany");
-            }
+                    if (!mongoDoc)
+                    {
+                        return unexpected<DBException>(DBException(
+                            "D8E4F3A2B7C6",
+                            "All documents must be MongoDBDocument instances",
+                            system_utils::captureCallStack()));
+                    }
 
-            bson_destroy(&reply);
-            return result;
+                    bson_t *bson = mongoDoc->getBsonMutable();
+                    bson_iter_t iter;
+                    if (!bson_iter_init_find(&iter, bson, "_id"))
+                    {
+                        bson_oid_t oid;
+                        bson_oid_init(&oid, nullptr);
+                        BSON_APPEND_OID(bson, "_id", &oid);
+                    }
+                    bsonDocs.push_back(mongoDoc->getBson());
+                }
+
+                bson_t opts = BSON_INITIALIZER;
+                BSON_APPEND_BOOL(&opts, "ordered", options.ordered);
+                if (options.bypassValidation)
+                {
+                    BSON_APPEND_BOOL(&opts, "bypassDocumentValidation", true);
+                }
+
+                bson_error_t error;
+                bson_t reply;
+                bson_init(&reply);
+
+                bool success = mongoc_collection_insert_many(
+                    m_collection.get(), bsonDocs.data(), bsonDocs.size(), &opts, &reply, &error);
+
+                bson_destroy(&opts);
+
+                DocumentInsertResult result;
+                result.acknowledged = success;
+
+                if (success)
+                {
+                    result.insertedCount = documents.size();
+                    for (const auto &doc : documents)
+                    {
+                        auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(doc);
+                        if (mongoDoc)
+                            result.insertedIds.push_back(mongoDoc->getId());
+                    }
+                }
+                else
+                {
+                    bson_destroy(&reply);
+                    return unexpected<DBException>(DBException(
+                        "E0F1A2B3C4D5",
+                        std::string("insertMany failed: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
+                bson_destroy(&reply);
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "F1A2B3C4D5E6",
+                    "Memory allocation failed in insertMany",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "A2B3C4D5E6F7",
+                    std::string("Unexpected error in insertMany: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "B3C4D5E6F7A8",
+                    "Unknown error in insertMany",
+                    system_utils::captureCallStack()));
+            }
+        }
+
+        DocumentInsertResult MongoDBCollection::insertMany(
+            const std::vector<std::shared_ptr<DocumentDBData>> &documents,
+            const DocumentWriteOptions &options)
+        {
+            auto result = insertMany(std::nothrow, documents, options);
+            if (!result)
+            {
+                throw result.error();
+            }
+            return *result;
+        }
+
+        // ====================================================================
+        // FIND OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+        // ====================================================================
+
+        expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBCollection::findOne(
+            std::nothrow_t,
+            const std::string &filter) noexcept
+        {
+            try
+            {
+                MONGODB_DEBUG("MongoDBCollection::findOne(nothrow) - Finding in: " << m_name);
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "C4D5E6F7A8B9",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                BsonHandle filterBson = parseFilter(filter);
+                bson_t opts = BSON_INITIALIZER;
+                BSON_APPEND_INT64(&opts, "limit", 1);
+
+                mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(
+                    m_collection.get(), filterBson.get(), &opts, nullptr);
+                bson_destroy(&opts);
+
+                if (!cursor)
+                {
+                    return unexpected<DBException>(DBException(
+                        "E9F5A4B3C8D7",
+                        "Failed to create cursor for findOne",
+                        system_utils::captureCallStack()));
+                }
+
+                const bson_t *doc = nullptr;
+                std::shared_ptr<DocumentDBData> result;
+
+                if (mongoc_cursor_next(cursor, &doc))
+                {
+                    bson_t *docCopy = bson_copy(doc);
+                    if (docCopy)
+                        result = std::make_shared<MongoDBDocument>(docCopy);
+                }
+
+                bson_error_t error;
+                if (mongoc_cursor_error(cursor, &error))
+                {
+                    mongoc_cursor_destroy(cursor);
+                    return unexpected<DBException>(DBException(
+                        "F0A6B5C4D9E8",
+                        std::string("findOne error: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
+                mongoc_cursor_destroy(cursor);
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "D5E6F7A8B9C0",
+                    "Memory allocation failed in findOne",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "E6F7A8B9C0D1",
+                    std::string("Unexpected error in findOne: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "F7A8B9C0D1E2",
+                    "Unknown error in findOne",
+                    system_utils::captureCallStack()));
+            }
         }
 
         std::shared_ptr<DocumentDBData> MongoDBCollection::findOne(const std::string &filter)
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            BsonHandle filterBson = parseFilter(filter);
-            bson_t opts = BSON_INITIALIZER;
-            BSON_APPEND_INT64(&opts, "limit", 1);
-
-            mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(
-                m_collection.get(), filterBson.get(), &opts, nullptr);
-            bson_destroy(&opts);
-
-            if (!cursor)
+            auto result = findOne(std::nothrow, filter);
+            if (!result)
             {
-                throw DBException("E9F5A4B3C8D7", "Failed to create cursor for findOne", system_utils::captureCallStack());
+                throw result.error();
             }
+            return *result;
+        }
 
-            const bson_t *doc = nullptr;
-            std::shared_ptr<DocumentDBData> result;
-
-            if (mongoc_cursor_next(cursor, &doc))
+        expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBCollection::findById(
+            std::nothrow_t,
+            const std::string &id) noexcept
+        {
+            try
             {
-                bson_t *docCopy = bson_copy(doc);
-                if (docCopy)
-                    result = std::make_shared<MongoDBDocument>(docCopy);
+                std::string filter;
+                if (bson_oid_is_valid(id.c_str(), id.length()))
+                {
+                    filter = "{\"_id\": {\"$oid\": \"" + id + "\"}}";
+                }
+                else
+                {
+                    filter = "{\"_id\": \"" + id + "\"}";
+                }
+                return findOne(std::nothrow, filter);
             }
-
-            bson_error_t error;
-            if (mongoc_cursor_error(cursor, &error))
+            catch (const DBException &e)
             {
-                mongoc_cursor_destroy(cursor);
-                throw DBException("F0A6B5C4D9E8", std::string("findOne error: ") + error.message, system_utils::captureCallStack());
+                return unexpected<DBException>(e);
             }
-
-            mongoc_cursor_destroy(cursor);
-            return result;
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "A8B9C0D1E2F3",
+                    std::string("Error in findById: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "B9C0D1E2F3A4",
+                    "Unknown error in findById",
+                    system_utils::captureCallStack()));
+            }
         }
 
         std::shared_ptr<DocumentDBData> MongoDBCollection::findById(const std::string &id)
         {
-            std::string filter;
-            if (bson_oid_is_valid(id.c_str(), id.length()))
+            auto result = findById(std::nothrow, id);
+            if (!result)
             {
-                filter = "{\"_id\": {\"$oid\": \"" + id + "\"}}";
+                throw result.error();
             }
-            else
+            return *result;
+        }
+
+        expected<std::shared_ptr<DocumentDBCursor>, DBException> MongoDBCollection::find(
+            std::nothrow_t,
+            const std::string &filter) noexcept
+        {
+            try
             {
-                filter = "{\"_id\": \"" + id + "\"}";
+                MONGODB_DEBUG("MongoDBCollection::find(nothrow) - Finding in: " << m_name);
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "C0D1E2F3A4B5",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                BsonHandle filterBson = parseFilter(filter);
+                mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(
+                    m_collection.get(), filterBson.get(), nullptr, nullptr);
+
+                if (!cursor)
+                {
+                    return unexpected<DBException>(DBException(
+                        "A1B7C6D5E0F9",
+                        "Failed to create cursor for find",
+                        system_utils::captureCallStack()));
+                }
+
+                std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
+                return result;
             }
-            return findOne(filter);
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "D1E2F3A4B5C6",
+                    "Memory allocation failed in find",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "E2F3A4B5C6D7",
+                    std::string("Unexpected error in find: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "F3A4B5C6D7E8",
+                    "Unknown error in find",
+                    system_utils::captureCallStack()));
+            }
         }
 
         std::shared_ptr<DocumentDBCursor> MongoDBCollection::find(const std::string &filter)
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            BsonHandle filterBson = parseFilter(filter);
-            mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(
-                m_collection.get(), filterBson.get(), nullptr, nullptr);
-
-            if (!cursor)
+            auto result = find(std::nothrow, filter);
+            if (!result)
             {
-                throw DBException("A1B7C6D5E0F9", "Failed to create cursor for find", system_utils::captureCallStack());
+                throw result.error();
             }
+            return *result;
+        }
 
-            return std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
+        expected<std::shared_ptr<DocumentDBCursor>, DBException> MongoDBCollection::find(
+            std::nothrow_t,
+            const std::string &filter,
+            const std::string &projection) noexcept
+        {
+            try
+            {
+                MONGODB_DEBUG("MongoDBCollection::find(nothrow) with projection - Finding in: " << m_name);
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "A4B5C6D7E8F9",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                BsonHandle filterBson = parseFilter(filter);
+                BsonHandle projBson = parseFilter(projection);
+
+                bson_t opts = BSON_INITIALIZER;
+                BSON_APPEND_DOCUMENT(&opts, "projection", projBson.get());
+
+                mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(
+                    m_collection.get(), filterBson.get(), &opts, nullptr);
+                bson_destroy(&opts);
+
+                if (!cursor)
+                {
+                    return unexpected<DBException>(DBException(
+                        "B2C8D7E6F1A0",
+                        "Failed to create cursor for find with projection",
+                        system_utils::captureCallStack()));
+                }
+
+                std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "B5C6D7E8F9A0",
+                    "Memory allocation failed in find",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "C6D7E8F9A0B1",
+                    std::string("Unexpected error in find: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "D7E8F9A0B1C2",
+                    "Unknown error in find",
+                    system_utils::captureCallStack()));
+            }
         }
 
         std::shared_ptr<DocumentDBCursor> MongoDBCollection::find(
             const std::string &filter,
             const std::string &projection)
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            BsonHandle filterBson = parseFilter(filter);
-            BsonHandle projBson = parseFilter(projection);
-
-            bson_t opts = BSON_INITIALIZER;
-            BSON_APPEND_DOCUMENT(&opts, "projection", projBson.get());
-
-            mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(
-                m_collection.get(), filterBson.get(), &opts, nullptr);
-            bson_destroy(&opts);
-
-            if (!cursor)
+            auto result = find(std::nothrow, filter, projection);
+            if (!result)
             {
-                throw DBException("B2C8D7E6F1A0", "Failed to create cursor for find with projection", system_utils::captureCallStack());
+                throw result.error();
             }
+            return *result;
+        }
 
-            return std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
+        // ====================================================================
+        // UPDATE OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+        // ====================================================================
+
+        expected<DocumentUpdateResult, DBException> MongoDBCollection::updateOne(
+            std::nothrow_t,
+            const std::string &filter,
+            const std::string &update,
+            const DocumentUpdateOptions &options) noexcept
+        {
+            try
+            {
+                MONGODB_DEBUG("MongoDBCollection::updateOne(nothrow) - Updating in: " << m_name);
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "E8F9A0B1C2D3",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                BsonHandle filterBson = parseFilter(filter);
+                BsonHandle updateBson = makeBsonHandleFromJson(update);
+
+                bson_t opts = BSON_INITIALIZER;
+                if (options.upsert)
+                    BSON_APPEND_BOOL(&opts, "upsert", true);
+
+                bson_error_t error;
+                bson_t reply;
+                bson_init(&reply);
+
+                bool success = mongoc_collection_update_one(
+                    m_collection.get(), filterBson.get(), updateBson.get(), &opts, &reply, &error);
+                bson_destroy(&opts);
+
+                DocumentUpdateResult result;
+                result.acknowledged = success;
+
+                if (success)
+                {
+                    bson_iter_t iter;
+                    if (bson_iter_init_find(&iter, &reply, "matchedCount"))
+                        result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                    if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
+                        result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                    if (bson_iter_init_find(&iter, &reply, "upsertedId") && BSON_ITER_HOLDS_OID(&iter))
+                    {
+                        const bson_oid_t *oid = bson_iter_oid(&iter);
+                        char oidStr[25];
+                        bson_oid_to_string(oid, oidStr);
+                        result.upsertedId = oidStr;
+                    }
+                }
+                else
+                {
+                    bson_destroy(&reply);
+                    return unexpected<DBException>(DBException(
+                        "F9A0B1C2D3E4",
+                        std::string("updateOne failed: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
+                bson_destroy(&reply);
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "A0B1C2D3E4F5",
+                    "Memory allocation failed in updateOne",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "B1C2D3E4F5A6",
+                    std::string("Unexpected error in updateOne: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "C2D3E4F5A6B7",
+                    "Unknown error in updateOne",
+                    system_utils::captureCallStack()));
+            }
         }
 
         DocumentUpdateResult MongoDBCollection::updateOne(
@@ -1628,50 +2791,96 @@ namespace cpp_dbc
             const std::string &update,
             const DocumentUpdateOptions &options)
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            BsonHandle filterBson = parseFilter(filter);
-            BsonHandle updateBson = makeBsonHandleFromJson(update);
-
-            bson_t opts = BSON_INITIALIZER;
-            if (options.upsert)
-                BSON_APPEND_BOOL(&opts, "upsert", true);
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_update_one(
-                m_collection.get(), filterBson.get(), updateBson.get(), &opts, &reply, &error);
-            bson_destroy(&opts);
-
-            DocumentUpdateResult result;
-            result.acknowledged = success;
-
-            if (success)
+            auto result = updateOne(std::nothrow, filter, update, options);
+            if (!result)
             {
-                bson_iter_t iter;
-                if (bson_iter_init_find(&iter, &reply, "matchedCount"))
-                    result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-                if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
-                    result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-                if (bson_iter_init_find(&iter, &reply, "upsertedId") && BSON_ITER_HOLDS_OID(&iter))
+                throw result.error();
+            }
+            return *result;
+        }
+
+        expected<DocumentUpdateResult, DBException> MongoDBCollection::updateMany(
+            std::nothrow_t,
+            const std::string &filter,
+            const std::string &update,
+            const DocumentUpdateOptions &options) noexcept
+        {
+            try
+            {
+                MONGODB_DEBUG("MongoDBCollection::updateMany(nothrow) - Updating in: " << m_name);
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
                 {
-                    const bson_oid_t *oid = bson_iter_oid(&iter);
-                    char oidStr[25];
-                    bson_oid_to_string(oid, oidStr);
-                    result.upsertedId = oidStr;
+                    return unexpected<DBException>(DBException(
+                        "D3E4F5A6B7C8",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
                 }
-            }
-            else
-            {
-                bson_destroy(&reply);
-                throwMongoError(error, "updateOne");
-            }
 
-            bson_destroy(&reply);
-            return result;
+                BsonHandle filterBson = parseFilter(filter);
+                BsonHandle updateBson = makeBsonHandleFromJson(update);
+
+                bson_t opts = BSON_INITIALIZER;
+                if (options.upsert)
+                    BSON_APPEND_BOOL(&opts, "upsert", true);
+
+                bson_error_t error;
+                bson_t reply;
+                bson_init(&reply);
+
+                bool success = mongoc_collection_update_many(
+                    m_collection.get(), filterBson.get(), updateBson.get(), &opts, &reply, &error);
+                bson_destroy(&opts);
+
+                DocumentUpdateResult result;
+                result.acknowledged = success;
+
+                if (success)
+                {
+                    bson_iter_t iter;
+                    if (bson_iter_init_find(&iter, &reply, "matchedCount"))
+                        result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                    if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
+                        result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                }
+                else
+                {
+                    bson_destroy(&reply);
+                    return unexpected<DBException>(DBException(
+                        "E4F5A6B7C8D9",
+                        std::string("updateMany failed: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
+                bson_destroy(&reply);
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "F5A6B7C8D9E0",
+                    "Memory allocation failed in updateMany",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "A6B7C8D9E0F1",
+                    std::string("Unexpected error in updateMany: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "B7C8D9E0F1A2",
+                    "Unknown error in updateMany",
+                    system_utils::captureCallStack()));
+            }
         }
 
         DocumentUpdateResult MongoDBCollection::updateMany(
@@ -1679,43 +2888,104 @@ namespace cpp_dbc
             const std::string &update,
             const DocumentUpdateOptions &options)
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            BsonHandle filterBson = parseFilter(filter);
-            BsonHandle updateBson = makeBsonHandleFromJson(update);
-
-            bson_t opts = BSON_INITIALIZER;
-            if (options.upsert)
-                BSON_APPEND_BOOL(&opts, "upsert", true);
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_update_many(
-                m_collection.get(), filterBson.get(), updateBson.get(), &opts, &reply, &error);
-            bson_destroy(&opts);
-
-            DocumentUpdateResult result;
-            result.acknowledged = success;
-
-            if (success)
+            auto result = updateMany(std::nothrow, filter, update, options);
+            if (!result)
             {
-                bson_iter_t iter;
-                if (bson_iter_init_find(&iter, &reply, "matchedCount"))
-                    result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-                if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
-                    result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                throw result.error();
             }
-            else
+            return *result;
+        }
+
+        expected<DocumentUpdateResult, DBException> MongoDBCollection::replaceOne(
+            std::nothrow_t,
+            const std::string &filter,
+            std::shared_ptr<DocumentDBData> replacement,
+            const DocumentUpdateOptions &options) noexcept
+        {
+            try
             {
+                MONGODB_DEBUG("MongoDBCollection::replaceOne(nothrow) - Replacing in: " << m_name);
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "C8D9E0F1A2B3",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(replacement);
+                if (!mongoDoc)
+                {
+                    return unexpected<DBException>(DBException(
+                        "C3D9E8F7A2B1",
+                        "Replacement must be a MongoDBDocument",
+                        system_utils::captureCallStack()));
+                }
+
+                BsonHandle filterBson = parseFilter(filter);
+
+                bson_t opts = BSON_INITIALIZER;
+                if (options.upsert)
+                    BSON_APPEND_BOOL(&opts, "upsert", true);
+
+                bson_error_t error;
+                bson_t reply;
+                bson_init(&reply);
+
+                bool success = mongoc_collection_replace_one(
+                    m_collection.get(), filterBson.get(), mongoDoc->getBson(), &opts, &reply, &error);
+                bson_destroy(&opts);
+
+                DocumentUpdateResult result;
+                result.acknowledged = success;
+
+                if (success)
+                {
+                    bson_iter_t iter;
+                    if (bson_iter_init_find(&iter, &reply, "matchedCount"))
+                        result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                    if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
+                        result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                }
+                else
+                {
+                    bson_destroy(&reply);
+                    return unexpected<DBException>(DBException(
+                        "D9E0F1A2B3C4",
+                        std::string("replaceOne failed: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
                 bson_destroy(&reply);
-                throwMongoError(error, "updateMany");
+                return result;
             }
-
-            bson_destroy(&reply);
-            return result;
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "E0F1A2B3C4D5",
+                    "Memory allocation failed in replaceOne",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "F1A2B3C4D5E6",
+                    std::string("Unexpected error in replaceOne: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "A2B3C4D5E6F7",
+                    "Unknown error in replaceOne",
+                    system_utils::captureCallStack()));
+            }
         }
 
         DocumentUpdateResult MongoDBCollection::replaceOne(
@@ -1723,413 +2993,900 @@ namespace cpp_dbc
             std::shared_ptr<DocumentDBData> replacement,
             const DocumentUpdateOptions &options)
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(replacement);
-            if (!mongoDoc)
+            auto result = replaceOne(std::nothrow, filter, replacement, options);
+            if (!result)
             {
-                throw DBException("C3D9E8F7A2B1", "Replacement must be a MongoDBDocument", system_utils::captureCallStack());
+                throw result.error();
             }
+            return *result;
+        }
 
-            BsonHandle filterBson = parseFilter(filter);
+        // ====================================================================
+        // DELETE OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+        // ====================================================================
 
-            bson_t opts = BSON_INITIALIZER;
-            if (options.upsert)
-                BSON_APPEND_BOOL(&opts, "upsert", true);
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_replace_one(
-                m_collection.get(), filterBson.get(), mongoDoc->getBson(), &opts, &reply, &error);
-            bson_destroy(&opts);
-
-            DocumentUpdateResult result;
-            result.acknowledged = success;
-
-            if (success)
+        expected<DocumentDeleteResult, DBException> MongoDBCollection::deleteOne(
+            std::nothrow_t,
+            const std::string &filter) noexcept
+        {
+            try
             {
-                bson_iter_t iter;
-                if (bson_iter_init_find(&iter, &reply, "matchedCount"))
-                    result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-                if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
-                    result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-            }
-            else
-            {
+                MONGODB_DEBUG("MongoDBCollection::deleteOne(nothrow) - Deleting from: " << m_name);
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "B3C4D5E6F7A8",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                BsonHandle filterBson = parseFilter(filter);
+
+                bson_error_t error;
+                bson_t reply;
+                bson_init(&reply);
+
+                bool success = mongoc_collection_delete_one(
+                    m_collection.get(), filterBson.get(), nullptr, &reply, &error);
+
+                DocumentDeleteResult result;
+                result.acknowledged = success;
+
+                if (success)
+                {
+                    bson_iter_t iter;
+                    if (bson_iter_init_find(&iter, &reply, "deletedCount"))
+                        result.deletedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                }
+                else
+                {
+                    bson_destroy(&reply);
+                    return unexpected<DBException>(DBException(
+                        "C4D5E6F7A8B9",
+                        std::string("deleteOne failed: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
                 bson_destroy(&reply);
-                throwMongoError(error, "replaceOne");
+                return result;
             }
-
-            bson_destroy(&reply);
-            return result;
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "D5E6F7A8B9C0",
+                    "Memory allocation failed in deleteOne",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "E6F7A8B9C0D1",
+                    std::string("Unexpected error in deleteOne: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "F7A8B9C0D1E2",
+                    "Unknown error in deleteOne",
+                    system_utils::captureCallStack()));
+            }
         }
 
         DocumentDeleteResult MongoDBCollection::deleteOne(const std::string &filter)
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            BsonHandle filterBson = parseFilter(filter);
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_delete_one(
-                m_collection.get(), filterBson.get(), nullptr, &reply, &error);
-
-            DocumentDeleteResult result;
-            result.acknowledged = success;
-
-            if (success)
+            auto result = deleteOne(std::nothrow, filter);
+            if (!result)
             {
-                bson_iter_t iter;
-                if (bson_iter_init_find(&iter, &reply, "deletedCount"))
-                    result.deletedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                throw result.error();
             }
-            else
+            return *result;
+        }
+
+        expected<DocumentDeleteResult, DBException> MongoDBCollection::deleteMany(
+            std::nothrow_t,
+            const std::string &filter) noexcept
+        {
+            try
             {
+                MONGODB_DEBUG("MongoDBCollection::deleteMany(nothrow) - Deleting from: " << m_name);
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "A8B9C0D1E2F3",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                BsonHandle filterBson = parseFilter(filter);
+
+                bson_error_t error;
+                bson_t reply;
+                bson_init(&reply);
+
+                bool success = mongoc_collection_delete_many(
+                    m_collection.get(), filterBson.get(), nullptr, &reply, &error);
+
+                DocumentDeleteResult result;
+                result.acknowledged = success;
+
+                if (success)
+                {
+                    bson_iter_t iter;
+                    if (bson_iter_init_find(&iter, &reply, "deletedCount"))
+                        result.deletedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                }
+                else
+                {
+                    bson_destroy(&reply);
+                    return unexpected<DBException>(DBException(
+                        "B9C0D1E2F3A4",
+                        std::string("deleteMany failed: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
                 bson_destroy(&reply);
-                throwMongoError(error, "deleteOne");
+                return result;
             }
-
-            bson_destroy(&reply);
-            return result;
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "C0D1E2F3A4B5",
+                    "Memory allocation failed in deleteMany",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "D1E2F3A4B5C6",
+                    std::string("Unexpected error in deleteMany: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "E2F3A4B5C6D7",
+                    "Unknown error in deleteMany",
+                    system_utils::captureCallStack()));
+            }
         }
 
         DocumentDeleteResult MongoDBCollection::deleteMany(const std::string &filter)
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            BsonHandle filterBson = parseFilter(filter);
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_delete_many(
-                m_collection.get(), filterBson.get(), nullptr, &reply, &error);
-
-            DocumentDeleteResult result;
-            result.acknowledged = success;
-
-            if (success)
+            auto result = deleteMany(std::nothrow, filter);
+            if (!result)
             {
-                bson_iter_t iter;
-                if (bson_iter_init_find(&iter, &reply, "deletedCount"))
-                    result.deletedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                throw result.error();
             }
-            else
-            {
-                bson_destroy(&reply);
-                throwMongoError(error, "deleteMany");
-            }
+            return *result;
+        }
 
-            bson_destroy(&reply);
-            return result;
+        expected<DocumentDeleteResult, DBException> MongoDBCollection::deleteById(
+            std::nothrow_t,
+            const std::string &id) noexcept
+        {
+            try
+            {
+                std::string filter;
+                if (bson_oid_is_valid(id.c_str(), id.length()))
+                {
+                    filter = "{\"_id\": {\"$oid\": \"" + id + "\"}}";
+                }
+                else
+                {
+                    filter = "{\"_id\": \"" + id + "\"}";
+                }
+                return deleteOne(std::nothrow, filter);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "F3A4B5C6D7E8",
+                    std::string("Error in deleteById: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "A4B5C6D7E8F9",
+                    "Unknown error in deleteById",
+                    system_utils::captureCallStack()));
+            }
         }
 
         DocumentDeleteResult MongoDBCollection::deleteById(const std::string &id)
         {
-            std::string filter;
-            if (bson_oid_is_valid(id.c_str(), id.length()))
+            auto result = deleteById(std::nothrow, id);
+            if (!result)
             {
-                filter = "{\"_id\": {\"$oid\": \"" + id + "\"}}";
+                throw result.error();
             }
-            else
-            {
-                filter = "{\"_id\": \"" + id + "\"}";
-            }
-            return deleteOne(filter);
+            return *result;
         }
 
-        std::string MongoDBCollection::createIndex(const std::string &keys, const std::string &options)
+        // ====================================================================
+        // INDEX OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+        // ====================================================================
+
+        expected<std::string, DBException> MongoDBCollection::createIndex(
+            std::nothrow_t,
+            const std::string &keys,
+            const std::string &options) noexcept
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            BsonHandle keysBson = makeBsonHandleFromJson(keys);
-
-            // Parse options if provided
-            mongoc_index_opt_t indexOpts;
-            mongoc_index_opt_init(&indexOpts);
-
-            bool isUnique = false;
-            bool isSparse = false;
-            std::string indexName;
-
-            if (!options.empty())
+            try
             {
-                bson_error_t parseError;
-                bson_t *optsBson = bson_new_from_json(
-                    reinterpret_cast<const uint8_t *>(options.c_str()),
-                    static_cast<ssize_t>(options.length()),
-                    &parseError);
+                MONGODB_DEBUG("MongoDBCollection::createIndex(nothrow) - Creating index in: " << m_name);
+                MONGODB_LOCK_GUARD(m_mutex);
 
-                if (optsBson)
+                if (m_client.expired())
                 {
-                    bson_iter_t iter;
-                    if (bson_iter_init_find(&iter, optsBson, "unique") && BSON_ITER_HOLDS_BOOL(&iter))
-                    {
-                        isUnique = bson_iter_bool(&iter);
-                    }
-                    if (bson_iter_init_find(&iter, optsBson, "sparse") && BSON_ITER_HOLDS_BOOL(&iter))
-                    {
-                        isSparse = bson_iter_bool(&iter);
-                    }
-                    if (bson_iter_init_find(&iter, optsBson, "name") && BSON_ITER_HOLDS_UTF8(&iter))
-                    {
-                        uint32_t len = 0;
-                        const char *name = bson_iter_utf8(&iter, &len);
-                        indexName = std::string(name, len);
-                    }
-                    bson_destroy(optsBson);
+                    return unexpected<DBException>(DBException(
+                        "B5C6D7E8F9A0",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
                 }
-            }
 
-            indexOpts.unique = isUnique;
-            indexOpts.sparse = isSparse;
-            if (!indexName.empty())
-            {
-                indexOpts.name = indexName.c_str();
-            }
+                BsonHandle keysBson = makeBsonHandleFromJson(keys);
 
-            // Generate index name from keys if not provided
-            char *generatedName = mongoc_collection_keys_to_index_string(keysBson.get());
-            std::string result = indexName.empty() ? (generatedName ? generatedName : "") : indexName;
-            bson_free(generatedName);
+                mongoc_index_opt_t indexOpts;
+                mongoc_index_opt_init(&indexOpts);
 
-            bson_error_t error;
+                bool isUnique = false;
+                bool isSparse = false;
+                std::string indexName;
 
-            // Suppress deprecation warning for mongoc_collection_create_index
-            // We use this older API for broader compatibility with different libmongoc versions
+                if (!options.empty())
+                {
+                    bson_error_t parseError;
+                    bson_t *optsBson = bson_new_from_json(
+                        reinterpret_cast<const uint8_t *>(options.c_str()),
+                        static_cast<ssize_t>(options.length()),
+                        &parseError);
+
+                    if (optsBson)
+                    {
+                        bson_iter_t iter;
+                        if (bson_iter_init_find(&iter, optsBson, "unique") && BSON_ITER_HOLDS_BOOL(&iter))
+                            isUnique = bson_iter_bool(&iter);
+                        if (bson_iter_init_find(&iter, optsBson, "sparse") && BSON_ITER_HOLDS_BOOL(&iter))
+                            isSparse = bson_iter_bool(&iter);
+                        if (bson_iter_init_find(&iter, optsBson, "name") && BSON_ITER_HOLDS_UTF8(&iter))
+                        {
+                            uint32_t len = 0;
+                            const char *name = bson_iter_utf8(&iter, &len);
+                            indexName = std::string(name, len);
+                        }
+                        bson_destroy(optsBson);
+                    }
+                }
+
+                indexOpts.unique = isUnique;
+                indexOpts.sparse = isSparse;
+                if (!indexName.empty())
+                    indexOpts.name = indexName.c_str();
+
+                char *generatedName = mongoc_collection_keys_to_index_string(keysBson.get());
+                std::string result = indexName.empty() ? (generatedName ? generatedName : "") : indexName;
+                bson_free(generatedName);
+
+                bson_error_t error;
+
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
-            bool success = mongoc_collection_create_index(
-                m_collection.get(), keysBson.get(), &indexOpts, &error);
+                bool success = mongoc_collection_create_index(
+                    m_collection.get(), keysBson.get(), &indexOpts, &error);
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
 
-            if (!success)
-            {
-                throwMongoError(error, "createIndex");
-            }
+                if (!success)
+                {
+                    return unexpected<DBException>(DBException(
+                        "C6D7E8F9A0B1",
+                        std::string("createIndex failed: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
 
-            return result;
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "D7E8F9A0B1C2",
+                    "Memory allocation failed in createIndex",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "E8F9A0B1C2D3",
+                    std::string("Unexpected error in createIndex: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "F9A0B1C2D3E4",
+                    "Unknown error in createIndex",
+                    system_utils::captureCallStack()));
+            }
+        }
+
+        std::string MongoDBCollection::createIndex(const std::string &keys, const std::string &options)
+        {
+            auto result = createIndex(std::nothrow, keys, options);
+            if (!result)
+            {
+                throw result.error();
+            }
+            return *result;
+        }
+
+        expected<void, DBException> MongoDBCollection::dropIndex(
+            std::nothrow_t,
+            const std::string &indexName) noexcept
+        {
+            try
+            {
+                MONGODB_DEBUG("MongoDBCollection::dropIndex(nothrow) - Dropping index: " << indexName);
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "A0B1C2D3E4F5",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                bson_error_t error;
+                bool success = mongoc_collection_drop_index(m_collection.get(), indexName.c_str(), &error);
+
+                if (!success)
+                {
+                    return unexpected<DBException>(DBException(
+                        "B1C2D3E4F5A6",
+                        std::string("dropIndex failed: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
+                return {};
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "C2D3E4F5A6B7",
+                    std::string("Unexpected error in dropIndex: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "D3E4F5A6B7C8",
+                    "Unknown error in dropIndex",
+                    system_utils::captureCallStack()));
+            }
         }
 
         void MongoDBCollection::dropIndex(const std::string &indexName)
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            bson_error_t error;
-            bool success = mongoc_collection_drop_index(m_collection.get(), indexName.c_str(), &error);
-
-            if (!success)
+            auto result = dropIndex(std::nothrow, indexName);
+            if (!result)
             {
-                throwMongoError(error, "dropIndex");
+                throw result.error();
+            }
+        }
+
+        expected<void, DBException> MongoDBCollection::dropAllIndexes(
+            std::nothrow_t) noexcept
+        {
+            try
+            {
+                MONGODB_DEBUG("MongoDBCollection::dropAllIndexes(nothrow)");
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "E4F5A6B7C8D9",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                bson_t cmd = BSON_INITIALIZER;
+                BSON_APPEND_UTF8(&cmd, "dropIndexes", m_name.c_str());
+                BSON_APPEND_UTF8(&cmd, "index", "*");
+
+                bson_error_t error;
+                bson_t reply;
+                bson_init(&reply);
+
+                auto client = getClient();
+                MongoDatabaseHandle db(mongoc_client_get_database(client, m_databaseName.c_str()));
+
+                bool success = mongoc_database_command_simple(db.get(), &cmd, nullptr, &reply, &error);
+
+                bson_destroy(&cmd);
+                bson_destroy(&reply);
+
+                if (!success)
+                {
+                    return unexpected<DBException>(DBException(
+                        "F5A6B7C8D9E0",
+                        std::string("dropAllIndexes failed: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
+                return {};
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "A6B7C8D9E0F1",
+                    std::string("Unexpected error in dropAllIndexes: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "B7C8D9E0F1A2",
+                    "Unknown error in dropAllIndexes",
+                    system_utils::captureCallStack()));
             }
         }
 
         void MongoDBCollection::dropAllIndexes()
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            // Drop all indexes except _id
-            bson_t cmd = BSON_INITIALIZER;
-            BSON_APPEND_UTF8(&cmd, "dropIndexes", m_name.c_str());
-            BSON_APPEND_UTF8(&cmd, "index", "*");
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            auto client = getClient();
-            MongoDatabaseHandle db(mongoc_client_get_database(client, m_databaseName.c_str()));
-
-            bool success = mongoc_database_command_simple(db.get(), &cmd, nullptr, &reply, &error);
-
-            bson_destroy(&cmd);
-            bson_destroy(&reply);
-
-            if (!success)
+            auto result = dropAllIndexes(std::nothrow);
+            if (!result)
             {
-                throwMongoError(error, "dropAllIndexes");
+                throw result.error();
+            }
+        }
+
+        expected<std::vector<std::string>, DBException> MongoDBCollection::listIndexes(
+            std::nothrow_t) noexcept
+        {
+            try
+            {
+                MONGODB_DEBUG("MongoDBCollection::listIndexes(nothrow)");
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "C8D9E0F1A2B3",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                std::vector<std::string> result;
+
+                mongoc_cursor_t *cursor = mongoc_collection_find_indexes_with_opts(
+                    m_collection.get(), nullptr);
+
+                if (!cursor)
+                {
+                    return unexpected<DBException>(DBException(
+                        "G1H2I3J4K5L6",
+                        "Failed to list indexes",
+                        system_utils::captureCallStack()));
+                }
+
+                const bson_t *doc = nullptr;
+                while (mongoc_cursor_next(cursor, &doc))
+                {
+                    size_t length = 0;
+                    char *json = bson_as_relaxed_extended_json(doc, &length);
+                    if (json)
+                    {
+                        result.emplace_back(json, length);
+                        bson_free(json);
+                    }
+                }
+
+                bson_error_t error;
+                if (mongoc_cursor_error(cursor, &error))
+                {
+                    mongoc_cursor_destroy(cursor);
+                    return unexpected<DBException>(DBException(
+                        "H2I3J4K5L6M7",
+                        std::string("listIndexes error: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
+                mongoc_cursor_destroy(cursor);
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "D9E0F1A2B3C4",
+                    "Memory allocation failed in listIndexes",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "E0F1A2B3C4D5",
+                    std::string("Unexpected error in listIndexes: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "F1A2B3C4D5E6",
+                    "Unknown error in listIndexes",
+                    system_utils::captureCallStack()));
             }
         }
 
         std::vector<std::string> MongoDBCollection::listIndexes()
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            std::vector<std::string> result;
-
-            mongoc_cursor_t *cursor = mongoc_collection_find_indexes_with_opts(
-                m_collection.get(), nullptr);
-
-            if (!cursor)
+            auto result = listIndexes(std::nothrow);
+            if (!result)
             {
-                throw DBException("G1H2I3J4K5L6", "Failed to list indexes", system_utils::captureCallStack());
+                throw result.error();
             }
+            return *result;
+        }
 
-            const bson_t *doc = nullptr;
-            while (mongoc_cursor_next(cursor, &doc))
+        // ====================================================================
+        // COLLECTION OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+        // ====================================================================
+
+        expected<void, DBException> MongoDBCollection::drop(
+            std::nothrow_t) noexcept
+        {
+            try
             {
-                size_t length = 0;
-                char *json = bson_as_relaxed_extended_json(doc, &length);
-                if (json)
+                MONGODB_DEBUG("MongoDBCollection::drop(nothrow)");
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
                 {
-                    result.emplace_back(json, length);
-                    bson_free(json);
+                    return unexpected<DBException>(DBException(
+                        "A2B3C4D5E6F7",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
                 }
-            }
 
-            bson_error_t error;
-            if (mongoc_cursor_error(cursor, &error))
+                bson_error_t error;
+                bool success = mongoc_collection_drop(m_collection.get(), &error);
+
+                if (!success)
+                {
+                    return unexpected<DBException>(DBException(
+                        "B3C4D5E6F7A8",
+                        std::string("drop failed: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
+                return {};
+            }
+            catch (const DBException &e)
             {
-                mongoc_cursor_destroy(cursor);
-                throw DBException("H2I3J4K5L6M7", std::string("listIndexes error: ") + error.message, system_utils::captureCallStack());
+                return unexpected<DBException>(e);
             }
-
-            mongoc_cursor_destroy(cursor);
-            return result;
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "C4D5E6F7A8B9",
+                    std::string("Unexpected error in drop: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "D5E6F7A8B9C0",
+                    "Unknown error in drop",
+                    system_utils::captureCallStack()));
+            }
         }
 
         void MongoDBCollection::drop()
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            bson_error_t error;
-            bool success = mongoc_collection_drop(m_collection.get(), &error);
-
-            if (!success)
+            auto result = drop(std::nothrow);
+            if (!result)
             {
-                throwMongoError(error, "drop");
+                throw result.error();
+            }
+        }
+
+        expected<void, DBException> MongoDBCollection::rename(
+            std::nothrow_t,
+            const std::string &newName,
+            bool dropTarget) noexcept
+        {
+            try
+            {
+                MONGODB_DEBUG("MongoDBCollection::rename(nothrow) to: " << newName);
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "E6F7A8B9C0D1",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                bson_error_t error;
+                bool success = mongoc_collection_rename(
+                    m_collection.get(), m_databaseName.c_str(), newName.c_str(), dropTarget, &error);
+
+                if (!success)
+                {
+                    return unexpected<DBException>(DBException(
+                        "F7A8B9C0D1E2",
+                        std::string("rename failed: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
+                m_name = newName;
+                return {};
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "A8B9C0D1E2F3",
+                    std::string("Unexpected error in rename: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "B9C0D1E2F3A4",
+                    "Unknown error in rename",
+                    system_utils::captureCallStack()));
             }
         }
 
         void MongoDBCollection::rename(const std::string &newName, bool dropTarget)
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            bson_error_t error;
-            bool success = mongoc_collection_rename(
-                m_collection.get(), m_databaseName.c_str(), newName.c_str(), dropTarget, &error);
-
-            if (!success)
+            auto result = rename(std::nothrow, newName, dropTarget);
+            if (!result)
             {
-                throwMongoError(error, "rename");
+                throw result.error();
             }
+        }
 
-            m_name = newName;
+        expected<std::shared_ptr<DocumentDBCursor>, DBException> MongoDBCollection::aggregate(
+            std::nothrow_t,
+            const std::string &pipeline) noexcept
+        {
+            try
+            {
+                MONGODB_DEBUG("MongoDBCollection::aggregate(nothrow)");
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "C0D1E2F3A4B5",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                BsonHandle pipelineBson = makeBsonHandleFromJson(pipeline);
+
+                mongoc_cursor_t *cursor = mongoc_collection_aggregate(
+                    m_collection.get(), MONGOC_QUERY_NONE, pipelineBson.get(), nullptr, nullptr);
+
+                if (!cursor)
+                {
+                    return unexpected<DBException>(DBException(
+                        "I3J4K5L6M7N8",
+                        "Failed to create cursor for aggregate",
+                        system_utils::captureCallStack()));
+                }
+
+                std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "D1E2F3A4B5C6",
+                    "Memory allocation failed in aggregate",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "E2F3A4B5C6D7",
+                    std::string("Unexpected error in aggregate: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "F3A4B5C6D7E8",
+                    "Unknown error in aggregate",
+                    system_utils::captureCallStack()));
+            }
         }
 
         std::shared_ptr<DocumentDBCursor> MongoDBCollection::aggregate(const std::string &pipeline)
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            BsonHandle pipelineBson = makeBsonHandleFromJson(pipeline);
-
-            mongoc_cursor_t *cursor = mongoc_collection_aggregate(
-                m_collection.get(), MONGOC_QUERY_NONE, pipelineBson.get(), nullptr, nullptr);
-
-            if (!cursor)
+            auto result = aggregate(std::nothrow, pipeline);
+            if (!result)
             {
-                throw DBException("I3J4K5L6M7N8", "Failed to create cursor for aggregate", system_utils::captureCallStack());
+                throw result.error();
             }
+            return *result;
+        }
 
-            return std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
+        expected<std::vector<std::string>, DBException> MongoDBCollection::distinct(
+            std::nothrow_t,
+            const std::string &fieldPath,
+            const std::string &filter) noexcept
+        {
+            try
+            {
+                MONGODB_DEBUG("MongoDBCollection::distinct(nothrow)");
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (m_client.expired())
+                {
+                    return unexpected<DBException>(DBException(
+                        "A4B5C6D7E8F9",
+                        "Connection has been closed",
+                        system_utils::captureCallStack()));
+                }
+
+                std::vector<std::string> result;
+
+                bson_t cmd = BSON_INITIALIZER;
+                BSON_APPEND_UTF8(&cmd, "distinct", m_name.c_str());
+                BSON_APPEND_UTF8(&cmd, "key", fieldPath.c_str());
+
+                if (!filter.empty())
+                {
+                    BsonHandle filterBson = parseFilter(filter);
+                    BSON_APPEND_DOCUMENT(&cmd, "query", filterBson.get());
+                }
+
+                bson_error_t error;
+                bson_t reply;
+                bson_init(&reply);
+
+                auto client = getClient();
+                MongoDatabaseHandle db(mongoc_client_get_database(client, m_databaseName.c_str()));
+
+                bool success = mongoc_database_command_simple(db.get(), &cmd, nullptr, &reply, &error);
+
+                bson_destroy(&cmd);
+
+                if (!success)
+                {
+                    bson_destroy(&reply);
+                    return unexpected<DBException>(DBException(
+                        "B5C6D7E8F9A0",
+                        std::string("distinct failed: ") + error.message,
+                        system_utils::captureCallStack()));
+                }
+
+                // Extract values from reply
+                bson_iter_t iter;
+                if (bson_iter_init_find(&iter, &reply, "values") && BSON_ITER_HOLDS_ARRAY(&iter))
+                {
+                    bson_iter_t arrayIter;
+                    const uint8_t *data = nullptr;
+                    uint32_t length = 0;
+                    bson_iter_array(&iter, &length, &data);
+
+                    bson_t arrayBson;
+                    if (bson_init_static(&arrayBson, data, length) && bson_iter_init(&arrayIter, &arrayBson))
+                    {
+                        while (bson_iter_next(&arrayIter))
+                        {
+                            if (BSON_ITER_HOLDS_UTF8(&arrayIter))
+                            {
+                                uint32_t strLen = 0;
+                                const char *str = bson_iter_utf8(&arrayIter, &strLen);
+                                result.emplace_back(str, strLen);
+                            }
+                            else
+                            {
+                                // Convert other types to JSON string
+                                bson_t tempDoc = BSON_INITIALIZER;
+                                bson_append_iter(&tempDoc, "v", 1, &arrayIter);
+                                size_t jsonLen = 0;
+                                char *json = bson_as_relaxed_extended_json(&tempDoc, &jsonLen);
+                                if (json)
+                                {
+                                    result.emplace_back(json, jsonLen);
+                                    bson_free(json);
+                                }
+                                bson_destroy(&tempDoc);
+                            }
+                        }
+                    }
+                }
+
+                bson_destroy(&reply);
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "C6D7E8F9A0B1",
+                    "Memory allocation failed in distinct",
+                    system_utils::captureCallStack()));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "D7E8F9A0B1C2",
+                    std::string("Unexpected error in distinct: ") + e.what(),
+                    system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "E8F9A0B1C2D3",
+                    "Unknown error in distinct",
+                    system_utils::captureCallStack()));
+            }
         }
 
         std::vector<std::string> MongoDBCollection::distinct(
             const std::string &fieldPath,
             const std::string &filter)
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-            validateConnection();
-
-            std::vector<std::string> result;
-
-            bson_t cmd = BSON_INITIALIZER;
-            BSON_APPEND_UTF8(&cmd, "distinct", m_name.c_str());
-            BSON_APPEND_UTF8(&cmd, "key", fieldPath.c_str());
-
-            if (!filter.empty())
+            auto result = distinct(std::nothrow, fieldPath, filter);
+            if (!result)
             {
-                BsonHandle filterBson = parseFilter(filter);
-                BSON_APPEND_DOCUMENT(&cmd, "query", filterBson.get());
+                throw result.error();
             }
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            auto client = getClient();
-            MongoDatabaseHandle db(mongoc_client_get_database(client, m_databaseName.c_str()));
-
-            bool success = mongoc_database_command_simple(db.get(), &cmd, nullptr, &reply, &error);
-
-            bson_destroy(&cmd);
-
-            if (!success)
-            {
-                bson_destroy(&reply);
-                throwMongoError(error, "distinct");
-            }
-
-            // Extract values from reply
-            bson_iter_t iter;
-            if (bson_iter_init_find(&iter, &reply, "values") && BSON_ITER_HOLDS_ARRAY(&iter))
-            {
-                bson_iter_t arrayIter;
-                const uint8_t *data = nullptr;
-                uint32_t length = 0;
-                bson_iter_array(&iter, &length, &data);
-
-                bson_t arrayBson;
-                if (bson_init_static(&arrayBson, data, length) && bson_iter_init(&arrayIter, &arrayBson))
-                {
-                    while (bson_iter_next(&arrayIter))
-                    {
-                        if (BSON_ITER_HOLDS_UTF8(&arrayIter))
-                        {
-                            uint32_t strLen = 0;
-                            const char *str = bson_iter_utf8(&arrayIter, &strLen);
-                            result.emplace_back(str, strLen);
-                        }
-                        else
-                        {
-                            // Convert other types to JSON string
-                            bson_t tempDoc = BSON_INITIALIZER;
-                            bson_append_iter(&tempDoc, "v", 1, &arrayIter);
-                            size_t jsonLen = 0;
-                            char *json = bson_as_relaxed_extended_json(&tempDoc, &jsonLen);
-                            if (json)
-                            {
-                                result.emplace_back(json, jsonLen);
-                                bson_free(json);
-                            }
-                            bson_destroy(&tempDoc);
-                        }
-                    }
-                }
-            }
-
-            bson_destroy(&reply);
-            return result;
+            return *result;
         }
 
         bool MongoDBCollection::isConnectionValid() const
@@ -2785,6 +4542,593 @@ namespace cpp_dbc
             m_pooled = pooled;
         }
 
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API implementations
+        // ====================================================================
+
+        expected<std::vector<std::string>, DBException> MongoDBConnection::listDatabases(std::nothrow_t) noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_connMutex);
+
+                if (m_closed.load())
+                {
+                    return unexpected<DBException>(DBException(
+                        "C54C7EECE4D6",
+                        "Connection has been closed"));
+                }
+
+                bson_error_t error;
+                char **names = mongoc_client_get_database_names_with_opts(m_client.get(), nullptr, &error);
+
+                if (!names)
+                {
+                    return unexpected<DBException>(DBException(
+                        "EED4BB95EA04",
+                        std::string("Failed to list databases: ") + error.message));
+                }
+
+                std::vector<std::string> databases;
+                for (size_t i = 0; names[i] != nullptr; ++i)
+                {
+                    databases.emplace_back(names[i]);
+                }
+
+                bson_strfreev(names);
+                return databases;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "1DCF59899097",
+                    "Memory allocation failed in listDatabases"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "3D10AE1E27C2",
+                    std::string("Unexpected error in listDatabases: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "79046EE25E4F",
+                    "Unknown error in listDatabases"));
+            }
+        }
+
+        expected<std::shared_ptr<DocumentDBCollection>, DBException> MongoDBConnection::getCollection(
+            std::nothrow_t, const std::string &collectionName) noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_connMutex);
+
+                if (m_closed.load())
+                {
+                    return unexpected<DBException>(DBException(
+                        "34BF1ABBB585",
+                        "Connection has been closed"));
+                }
+
+                if (m_databaseName.empty())
+                {
+                    return unexpected<DBException>(DBException(
+                        "79292056CE1F",
+                        "No database selected. Call useDatabase() first"));
+                }
+
+                mongoc_collection_t *collection = mongoc_client_get_collection(
+                    m_client.get(),
+                    m_databaseName.c_str(),
+                    collectionName.c_str());
+
+                if (!collection)
+                {
+                    return unexpected<DBException>(DBException(
+                        "49D69DDC2A47",
+                        "Failed to get collection: " + collectionName));
+                }
+
+                auto collectionPtr = std::make_shared<MongoDBCollection>(
+                    m_client,
+                    collection,
+                    collectionName,
+                    m_databaseName,
+                    weak_from_this());
+
+                return std::static_pointer_cast<DocumentDBCollection>(collectionPtr);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "D8267AB49B49",
+                    "Memory allocation failed in getCollection"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "277C75E974F0",
+                    std::string("Unexpected error in getCollection: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "FDE1D469FA3C",
+                    "Unknown error in getCollection"));
+            }
+        }
+
+        expected<std::vector<std::string>, DBException> MongoDBConnection::listCollections(std::nothrow_t) noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_connMutex);
+
+                if (m_closed.load())
+                {
+                    return unexpected<DBException>(DBException(
+                        "5A6B7C8D9E0F",
+                        "Connection has been closed"));
+                }
+
+                if (m_databaseName.empty())
+                {
+                    return unexpected<DBException>(DBException(
+                        "6B7C8D9E0F1A",
+                        "No database selected. Call useDatabase() first"));
+                }
+
+                MongoDatabaseHandle db(mongoc_client_get_database(m_client.get(), m_databaseName.c_str()));
+
+                bson_error_t error;
+                char **names = mongoc_database_get_collection_names_with_opts(db.get(), nullptr, &error);
+
+                if (!names)
+                {
+                    return unexpected<DBException>(DBException(
+                        "7C8D9E0F1A2B",
+                        std::string("Failed to list collections: ") + error.message));
+                }
+
+                std::vector<std::string> collections;
+                for (size_t i = 0; names[i] != nullptr; ++i)
+                {
+                    collections.emplace_back(names[i]);
+                }
+
+                bson_strfreev(names);
+                return collections;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "8D9E0F1A2B3C",
+                    "Memory allocation failed in listCollections"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "9E0F1A2B3C4D",
+                    std::string("Unexpected error in listCollections: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "0F1A2B3C4D5E",
+                    "Unknown error in listCollections"));
+            }
+        }
+
+        expected<std::shared_ptr<DocumentDBCollection>, DBException> MongoDBConnection::createCollection(
+            std::nothrow_t,
+            const std::string &collectionName,
+            const std::string &options) noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_connMutex);
+
+                if (m_closed.load())
+                {
+                    return unexpected<DBException>(DBException(
+                        "1A2B3C4D5E6F",
+                        "Connection has been closed"));
+                }
+
+                if (m_databaseName.empty())
+                {
+                    return unexpected<DBException>(DBException(
+                        "2B3C4D5E6F7A",
+                        "No database selected. Call useDatabase() first"));
+                }
+
+                MongoDatabaseHandle db(mongoc_client_get_database(m_client.get(), m_databaseName.c_str()));
+
+                bson_t *opts = nullptr;
+                if (!options.empty())
+                {
+                    bson_error_t parseError;
+                    opts = bson_new_from_json(
+                        reinterpret_cast<const uint8_t *>(options.c_str()),
+                        static_cast<ssize_t>(options.length()),
+                        &parseError);
+                    if (!opts)
+                    {
+                        return unexpected<DBException>(DBException(
+                            "3C4D5E6F7A8B",
+                            std::string("Invalid options JSON: ") + parseError.message));
+                    }
+                }
+
+                bson_error_t error;
+                mongoc_collection_t *coll = mongoc_database_create_collection(
+                    db.get(), collectionName.c_str(), opts, &error);
+
+                if (opts)
+                    bson_destroy(opts);
+
+                if (!coll)
+                {
+                    return unexpected<DBException>(DBException(
+                        "4D5E6F7A8B9C",
+                        std::string("Failed to create collection: ") + error.message));
+                }
+
+                auto collectionPtr = std::make_shared<MongoDBCollection>(
+                    m_client,
+                    coll,
+                    collectionName,
+                    m_databaseName,
+                    weak_from_this());
+
+                return std::static_pointer_cast<DocumentDBCollection>(collectionPtr);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "5E6F7A8B9C0D",
+                    "Memory allocation failed in createCollection"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "6F7A8B9C0D1E",
+                    std::string("Unexpected error in createCollection: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "7A8B9C0D1E2F",
+                    "Unknown error in createCollection"));
+            }
+        }
+
+        expected<void, DBException> MongoDBConnection::dropCollection(
+            std::nothrow_t, const std::string &collectionName) noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_connMutex);
+
+                if (m_closed.load())
+                {
+                    return unexpected<DBException>(DBException(
+                        "8B9C0D1E2F3A",
+                        "Connection has been closed"));
+                }
+
+                if (m_databaseName.empty())
+                {
+                    return unexpected<DBException>(DBException(
+                        "9C0D1E2F3A4B",
+                        "No database selected. Call useDatabase() first"));
+                }
+
+                mongoc_collection_t *coll = mongoc_client_get_collection(
+                    m_client.get(), m_databaseName.c_str(), collectionName.c_str());
+
+                if (!coll)
+                {
+                    return unexpected<DBException>(DBException(
+                        "0D1E2F3A4B5C",
+                        "Failed to get collection: " + collectionName));
+                }
+
+                MongoCollectionHandle collHandle(coll);
+
+                bson_error_t error;
+                bool success = mongoc_collection_drop(collHandle.get(), &error);
+
+                if (!success)
+                {
+                    return unexpected<DBException>(DBException(
+                        "1E2F3A4B5C6D",
+                        std::string("Failed to drop collection: ") + error.message));
+                }
+
+                return {};
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "2F3A4B5C6D7E",
+                    "Memory allocation failed in dropCollection"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "3A4B5C6D7E8F",
+                    std::string("Unexpected error in dropCollection: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "4B5C6D7E8F9A",
+                    "Unknown error in dropCollection"));
+            }
+        }
+
+        expected<void, DBException> MongoDBConnection::dropDatabase(
+            std::nothrow_t, const std::string &databaseName) noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_connMutex);
+
+                if (m_closed.load())
+                {
+                    return unexpected<DBException>(DBException(
+                        "5C6D7E8F9A0B",
+                        "Connection has been closed"));
+                }
+
+                MongoDatabaseHandle db(mongoc_client_get_database(m_client.get(), databaseName.c_str()));
+
+                bson_error_t error;
+                bool success = mongoc_database_drop(db.get(), &error);
+
+                if (!success)
+                {
+                    return unexpected<DBException>(DBException(
+                        "6D7E8F9A0B1C",
+                        std::string("Failed to drop database: ") + error.message));
+                }
+
+                return {};
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "7E8F9A0B1C2D",
+                    "Memory allocation failed in dropDatabase"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "8F9A0B1C2D3E",
+                    std::string("Unexpected error in dropDatabase: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "9A0B1C2D3E4F",
+                    "Unknown error in dropDatabase"));
+            }
+        }
+
+        expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::createDocument(std::nothrow_t) noexcept
+        {
+            try
+            {
+                auto doc = std::make_shared<MongoDBDocument>();
+                return std::static_pointer_cast<DocumentDBData>(doc);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "0B1C2D3E4F5A",
+                    "Memory allocation failed in createDocument"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "1C2D3E4F5A6B",
+                    std::string("Unexpected error in createDocument: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "2D3E4F5A6B7C",
+                    "Unknown error in createDocument"));
+            }
+        }
+
+        expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::createDocument(
+            std::nothrow_t, const std::string &json) noexcept
+        {
+            try
+            {
+                auto doc = std::make_shared<MongoDBDocument>(json);
+                return std::static_pointer_cast<DocumentDBData>(doc);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "3E4F5A6B7C8D",
+                    "Memory allocation failed in createDocument"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "4F5A6B7C8D9E",
+                    std::string("Failed to parse JSON in createDocument: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "5A6B7C8D9E0F",
+                    "Unknown error in createDocument"));
+            }
+        }
+
+        expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::runCommand(
+            std::nothrow_t, const std::string &command) noexcept
+        {
+            try
+            {
+                MONGODB_LOCK_GUARD(m_connMutex);
+
+                if (m_closed.load())
+                {
+                    return unexpected<DBException>(DBException(
+                        "6B7C8D9E0F1A",
+                        "Connection has been closed"));
+                }
+
+                if (m_databaseName.empty())
+                {
+                    return unexpected<DBException>(DBException(
+                        "7C8D9E0F1A2B",
+                        "No database selected. Call useDatabase() first"));
+                }
+
+                BsonHandle cmdBson = makeBsonHandleFromJson(command);
+
+                MongoDatabaseHandle db(mongoc_client_get_database(m_client.get(), m_databaseName.c_str()));
+
+                bson_error_t error;
+                bson_t reply;
+                bson_init(&reply);
+
+                bool success = mongoc_database_command_simple(db.get(), cmdBson.get(), nullptr, &reply, &error);
+
+                if (!success)
+                {
+                    bson_destroy(&reply);
+                    return unexpected<DBException>(DBException(
+                        "8D9E0F1A2B3C",
+                        std::string("Command failed: ") + error.message));
+                }
+
+                bson_t *replyCopy = bson_copy(&reply);
+                bson_destroy(&reply);
+
+                if (!replyCopy)
+                {
+                    return unexpected<DBException>(DBException(
+                        "9E0F1A2B3C4D",
+                        "Failed to copy command reply"));
+                }
+
+                auto doc = std::make_shared<MongoDBDocument>(replyCopy);
+                return std::static_pointer_cast<DocumentDBData>(doc);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "0F1A2B3C4D5E",
+                    "Memory allocation failed in runCommand"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "1A2B3C4D5E6F",
+                    std::string("Unexpected error in runCommand: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "2B3C4D5E6F7A",
+                    "Unknown error in runCommand"));
+            }
+        }
+
+        expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerInfo(std::nothrow_t) noexcept
+        {
+            try
+            {
+                return runCommand(std::nothrow, "{\"buildInfo\": 1}");
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "3C4D5E6F7A8B",
+                    std::string("Error in getServerInfo: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "4D5E6F7A8B9C",
+                    "Unknown error in getServerInfo"));
+            }
+        }
+
+        expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerStatus(std::nothrow_t) noexcept
+        {
+            try
+            {
+                return runCommand(std::nothrow, "{\"serverStatus\": 1}");
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "5E6F7A8B9C0D",
+                    std::string("Error in getServerStatus: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "6F7A8B9C0D1E",
+                    "Unknown error in getServerStatus"));
+            }
+        }
+
         // ============================================================================
         // MongoDBDriver Implementation
         // ============================================================================
@@ -2979,6 +5323,131 @@ namespace cpp_dbc
             }
 
             return false;
+        }
+
+        // ====================================================================
+        // MongoDBDriver NOTHROW VERSIONS
+        // ====================================================================
+
+        expected<std::shared_ptr<DocumentDBConnection>, DBException> MongoDBDriver::connectDocument(
+            std::nothrow_t,
+            const std::string &url,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options) noexcept
+        {
+            try
+            {
+                MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: " << url);
+                MONGODB_LOCK_GUARD(m_mutex);
+
+                if (!acceptsURL(url))
+                {
+                    return unexpected<DBException>(DBException(
+                        "1C2D3E4F5A6B",
+                        "Invalid MongoDB URL: " + url));
+                }
+
+                // Strip the 'cpp_dbc:' prefix if present
+                std::string mongoUrl = url;
+                if (url.substr(0, 8) == "cpp_dbc:")
+                {
+                    mongoUrl = url.substr(8);
+                }
+
+                auto conn = std::make_shared<MongoDBConnection>(mongoUrl, user, password, options);
+                MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection established");
+                return std::static_pointer_cast<DocumentDBConnection>(conn);
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "2D3E4F5A6B7C",
+                    "Memory allocation failed in connectDocument"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "3E4F5A6B7C8D",
+                    std::string("Error in connectDocument: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "4F5A6B7C8D9E",
+                    "Unknown error in connectDocument"));
+            }
+        }
+
+        expected<std::map<std::string, std::string>, DBException> MongoDBDriver::parseURI(
+            std::nothrow_t, const std::string &uri) noexcept
+        {
+            try
+            {
+                std::map<std::string, std::string> result;
+
+                bson_error_t error;
+                MongoUriHandle mongoUri(mongoc_uri_new_with_error(uri.c_str(), &error));
+
+                if (!mongoUri)
+                {
+                    return unexpected<DBException>(DBException(
+                        "5A6B7C8D9E0F",
+                        std::string("Invalid URI: ") + error.message));
+                }
+
+                // Extract components
+                const char *host = mongoc_uri_get_hosts(mongoUri.get())->host;
+                if (host)
+                    result["host"] = host;
+
+                uint16_t port = mongoc_uri_get_hosts(mongoUri.get())->port;
+                result["port"] = std::to_string(port);
+
+                const char *database = mongoc_uri_get_database(mongoUri.get());
+                if (database)
+                    result["database"] = database;
+
+                const char *username = mongoc_uri_get_username(mongoUri.get());
+                if (username)
+                    result["username"] = username;
+
+                const char *authSource = mongoc_uri_get_auth_source(mongoUri.get());
+                if (authSource)
+                    result["authSource"] = authSource;
+
+                const char *replicaSet = mongoc_uri_get_replica_set(mongoUri.get());
+                if (replicaSet)
+                    result["replicaSet"] = replicaSet;
+
+                return result;
+            }
+            catch (const DBException &e)
+            {
+                return unexpected<DBException>(e);
+            }
+            catch (const std::bad_alloc &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "6B7C8D9E0F1A",
+                    "Memory allocation failed in parseURI"));
+            }
+            catch (const std::exception &e)
+            {
+                return unexpected<DBException>(DBException(
+                    "7C8D9E0F1A2B",
+                    std::string("Error in parseURI: ") + e.what()));
+            }
+            catch (...)
+            {
+                return unexpected<DBException>(DBException(
+                    "8D9E0F1A2B3C",
+                    "Unknown error in parseURI"));
+            }
         }
 
     } // namespace MongoDB

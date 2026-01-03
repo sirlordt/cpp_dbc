@@ -23,6 +23,7 @@
 #include <memory>
 #include <vector>
 #include "cpp_dbc/core/db_result_set.hpp"
+#include "cpp_dbc/core/db_expected.hpp"
 
 namespace cpp_dbc
 {
@@ -144,6 +145,36 @@ namespace cpp_dbc
          * @note Not all cursor implementations support rewinding
          */
         virtual void rewind() = 0;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        /**
+         * @brief Get the current document (nothrow version)
+         * @return expected containing shared pointer to current document, or DBException on failure
+         */
+        virtual expected<std::shared_ptr<DocumentDBData>, DBException> current(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get the next document and advance the cursor (nothrow version)
+         * @return expected containing shared pointer to next document, or DBException on failure
+         */
+        virtual expected<std::shared_ptr<DocumentDBData>, DBException> nextDocument(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get all remaining documents as a vector (nothrow version)
+         * @return expected containing vector of all remaining documents, or DBException on failure
+         */
+        virtual expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> toVector(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get the next batch of documents (nothrow version)
+         * @param batchSize The maximum number of documents to retrieve
+         * @return expected containing vector of documents, or DBException on failure
+         */
+        virtual expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> getBatch(
+            std::nothrow_t, size_t batchSize) noexcept = 0;
     };
 
 } // namespace cpp_dbc

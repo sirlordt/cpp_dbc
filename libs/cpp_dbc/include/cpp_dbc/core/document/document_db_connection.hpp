@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 #include "cpp_dbc/core/db_connection.hpp"
+#include "cpp_dbc/core/db_expected.hpp"
 
 namespace cpp_dbc
 {
@@ -208,6 +209,102 @@ namespace cpp_dbc
          * @return true if transactions are supported
          */
         virtual bool supportsTransactions() = 0;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        /**
+         * @brief List all databases on the server (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing vector of database names, or DBException on failure
+         */
+        virtual expected<std::vector<std::string>, DBException> listDatabases(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get a collection by name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param collectionName The name of the collection
+         * @return expected containing shared pointer to the collection, or DBException on failure
+         */
+        virtual expected<std::shared_ptr<DocumentDBCollection>, DBException> getCollection(
+            std::nothrow_t, const std::string &collectionName) noexcept = 0;
+
+        /**
+         * @brief List all collections in the current database (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing vector of collection names, or DBException on failure
+         */
+        virtual expected<std::vector<std::string>, DBException> listCollections(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Create a new collection (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param collectionName The name of the collection to create
+         * @param options Collection options (JSON string, e.g., capped collection settings)
+         * @return expected containing shared pointer to the created collection, or DBException on failure
+         */
+        virtual expected<std::shared_ptr<DocumentDBCollection>, DBException> createCollection(
+            std::nothrow_t,
+            const std::string &collectionName,
+            const std::string &options = "") noexcept = 0;
+
+        /**
+         * @brief Drop (delete) a collection (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param collectionName The name of the collection to drop
+         * @return expected containing void, or DBException on failure
+         */
+        virtual expected<void, DBException> dropCollection(
+            std::nothrow_t, const std::string &collectionName) noexcept = 0;
+
+        /**
+         * @brief Drop (delete) a database (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param databaseName The name of the database to drop
+         * @return expected containing void, or DBException on failure
+         */
+        virtual expected<void, DBException> dropDatabase(
+            std::nothrow_t, const std::string &databaseName) noexcept = 0;
+
+        /**
+         * @brief Create a new empty document (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing shared pointer to a new document, or DBException on failure
+         */
+        virtual expected<std::shared_ptr<DocumentDBData>, DBException> createDocument(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Create a document from a JSON string (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param json The JSON string to parse
+         * @return expected containing shared pointer to the created document, or DBException on failure
+         */
+        virtual expected<std::shared_ptr<DocumentDBData>, DBException> createDocument(
+            std::nothrow_t, const std::string &json) noexcept = 0;
+
+        /**
+         * @brief Execute a database command (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param command The command document (JSON string)
+         * @return expected containing command result as a document, or DBException on failure
+         */
+        virtual expected<std::shared_ptr<DocumentDBData>, DBException> runCommand(
+            std::nothrow_t, const std::string &command) noexcept = 0;
+
+        /**
+         * @brief Get server information (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing server information as a document, or DBException on failure
+         */
+        virtual expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfo(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get server status (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing server status as a document, or DBException on failure
+         */
+        virtual expected<std::shared_ptr<DocumentDBData>, DBException> getServerStatus(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

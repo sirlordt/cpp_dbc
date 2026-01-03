@@ -38,6 +38,7 @@ endif()
 add_executable(cpp_dbc_tests
     test_main.cpp
     test_basic.cpp
+    test_expected.cpp
     test_yaml.cpp
     test_db_config.cpp
     test_mysql_connection.cpp

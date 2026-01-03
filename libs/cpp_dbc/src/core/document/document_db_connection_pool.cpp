@@ -916,6 +916,128 @@ namespace cpp_dbc
         return m_conn->supportsTransactions();
     }
 
+    // ====================================================================
+    // NOTHROW VERSIONS - delegate to underlying connection
+    // ====================================================================
+
+    expected<std::vector<std::string>, DBException> DocumentPooledDBConnection::listDatabases(std::nothrow_t) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("7A8B9C0D1E2F", "Connection is closed"));
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->listDatabases(std::nothrow);
+    }
+
+    expected<std::shared_ptr<DocumentDBCollection>, DBException> DocumentPooledDBConnection::getCollection(
+        std::nothrow_t, const std::string &collectionName) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("8B9C0D1E2F3A", "Connection is closed"));
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->getCollection(std::nothrow, collectionName);
+    }
+
+    expected<std::vector<std::string>, DBException> DocumentPooledDBConnection::listCollections(std::nothrow_t) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("9C0D1E2F3A4B", "Connection is closed"));
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->listCollections(std::nothrow);
+    }
+
+    expected<std::shared_ptr<DocumentDBCollection>, DBException> DocumentPooledDBConnection::createCollection(
+        std::nothrow_t,
+        const std::string &collectionName,
+        const std::string &options) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("0D1E2F3A4B5C", "Connection is closed"));
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->createCollection(std::nothrow, collectionName, options);
+    }
+
+    expected<void, DBException> DocumentPooledDBConnection::dropCollection(
+        std::nothrow_t, const std::string &collectionName) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("1E2F3A4B5C6D", "Connection is closed"));
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->dropCollection(std::nothrow, collectionName);
+    }
+
+    expected<void, DBException> DocumentPooledDBConnection::dropDatabase(
+        std::nothrow_t, const std::string &databaseName) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("2F3A4B5C6D7E", "Connection is closed"));
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->dropDatabase(std::nothrow, databaseName);
+    }
+
+    expected<std::shared_ptr<DocumentDBData>, DBException> DocumentPooledDBConnection::createDocument(std::nothrow_t) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("3A4B5C6D7E8F", "Connection is closed"));
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->createDocument(std::nothrow);
+    }
+
+    expected<std::shared_ptr<DocumentDBData>, DBException> DocumentPooledDBConnection::createDocument(
+        std::nothrow_t, const std::string &json) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("4B5C6D7E8F9A", "Connection is closed"));
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->createDocument(std::nothrow, json);
+    }
+
+    expected<std::shared_ptr<DocumentDBData>, DBException> DocumentPooledDBConnection::runCommand(
+        std::nothrow_t, const std::string &command) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("5C6D7E8F9A0B", "Connection is closed"));
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->runCommand(std::nothrow, command);
+    }
+
+    expected<std::shared_ptr<DocumentDBData>, DBException> DocumentPooledDBConnection::getServerInfo(std::nothrow_t) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("6D7E8F9A0B1C", "Connection is closed"));
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->getServerInfo(std::nothrow);
+    }
+
+    expected<std::shared_ptr<DocumentDBData>, DBException> DocumentPooledDBConnection::getServerStatus(std::nothrow_t) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("7E8F9A0B1C2D", "Connection is closed"));
+        }
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->getServerStatus(std::nothrow);
+    }
+
     // MongoDB connection pool implementation
     namespace MongoDB
     {

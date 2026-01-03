@@ -435,6 +435,17 @@ namespace cpp_dbc
              * @return A shared pointer to the new document
              */
             static std::shared_ptr<MongoDBDocument> fromBsonCopy(const bson_t *bson);
+
+            // Nothrow versions
+            expected<std::string, DBException> getString(std::nothrow_t, const std::string &fieldPath) const noexcept override;
+            expected<int64_t, DBException> getInt(std::nothrow_t, const std::string &fieldPath) const noexcept override;
+            expected<double, DBException> getDouble(std::nothrow_t, const std::string &fieldPath) const noexcept override;
+            expected<bool, DBException> getBool(std::nothrow_t, const std::string &fieldPath) const noexcept override;
+            expected<std::vector<uint8_t>, DBException> getBinary(std::nothrow_t, const std::string &fieldPath) const noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> getDocument(std::nothrow_t, const std::string &fieldPath) const noexcept override;
+            expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> getDocumentArray(std::nothrow_t, const std::string &fieldPath) const noexcept override;
+            expected<std::vector<std::string>, DBException> getStringArray(std::nothrow_t, const std::string &fieldPath) const noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> clone(std::nothrow_t) const noexcept override;
         };
 
         // ============================================================================
@@ -594,6 +605,13 @@ namespace cpp_dbc
              * @return The error message, or empty string if no error
              */
             std::string getError() const;
+
+            // Nothrow versions
+            expected<std::shared_ptr<DocumentDBData>, DBException> current(std::nothrow_t) noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> nextDocument(std::nothrow_t) noexcept override;
+            expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> toVector(std::nothrow_t) noexcept override;
+            expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> getBatch(
+                std::nothrow_t, size_t batchSize) noexcept override;
         };
 
         // ============================================================================
@@ -706,6 +724,29 @@ namespace cpp_dbc
             uint64_t estimatedDocumentCount() override;
             uint64_t countDocuments(const std::string &filter = "") override;
 
+            // ====================================================================
+            // INSERT OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+            // ====================================================================
+
+            expected<DocumentInsertResult, DBException> insertOne(
+                std::nothrow_t,
+                std::shared_ptr<DocumentDBData> document,
+                const DocumentWriteOptions &options = DocumentWriteOptions()) noexcept override;
+
+            expected<DocumentInsertResult, DBException> insertOne(
+                std::nothrow_t,
+                const std::string &jsonDocument,
+                const DocumentWriteOptions &options = DocumentWriteOptions()) noexcept override;
+
+            expected<DocumentInsertResult, DBException> insertMany(
+                std::nothrow_t,
+                const std::vector<std::shared_ptr<DocumentDBData>> &documents,
+                const DocumentWriteOptions &options = DocumentWriteOptions()) noexcept override;
+
+            // ====================================================================
+            // INSERT OPERATIONS - exception versions (WRAPPERS)
+            // ====================================================================
+
             DocumentInsertResult insertOne(
                 std::shared_ptr<DocumentDBData> document,
                 const DocumentWriteOptions &options = DocumentWriteOptions()) override;
@@ -718,12 +759,58 @@ namespace cpp_dbc
                 const std::vector<std::shared_ptr<DocumentDBData>> &documents,
                 const DocumentWriteOptions &options = DocumentWriteOptions()) override;
 
+            // ====================================================================
+            // FIND OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+            // ====================================================================
+
+            expected<std::shared_ptr<DocumentDBData>, DBException>
+            findOne(std::nothrow_t, const std::string &filter = "") noexcept override;
+
+            expected<std::shared_ptr<DocumentDBData>, DBException>
+            findById(std::nothrow_t, const std::string &id) noexcept override;
+
+            expected<std::shared_ptr<DocumentDBCursor>, DBException>
+            find(std::nothrow_t, const std::string &filter = "") noexcept override;
+
+            expected<std::shared_ptr<DocumentDBCursor>, DBException>
+            find(std::nothrow_t, const std::string &filter, const std::string &projection) noexcept override;
+
+            // ====================================================================
+            // FIND OPERATIONS - exception versions (WRAPPERS)
+            // ====================================================================
+
             std::shared_ptr<DocumentDBData> findOne(const std::string &filter = "") override;
             std::shared_ptr<DocumentDBData> findById(const std::string &id) override;
             std::shared_ptr<DocumentDBCursor> find(const std::string &filter = "") override;
             std::shared_ptr<DocumentDBCursor> find(
                 const std::string &filter,
                 const std::string &projection) override;
+
+            // ====================================================================
+            // UPDATE OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+            // ====================================================================
+
+            expected<DocumentUpdateResult, DBException> updateOne(
+                std::nothrow_t,
+                const std::string &filter,
+                const std::string &update,
+                const DocumentUpdateOptions &options = DocumentUpdateOptions()) noexcept override;
+
+            expected<DocumentUpdateResult, DBException> updateMany(
+                std::nothrow_t,
+                const std::string &filter,
+                const std::string &update,
+                const DocumentUpdateOptions &options = DocumentUpdateOptions()) noexcept override;
+
+            expected<DocumentUpdateResult, DBException> replaceOne(
+                std::nothrow_t,
+                const std::string &filter,
+                std::shared_ptr<DocumentDBData> replacement,
+                const DocumentUpdateOptions &options = DocumentUpdateOptions()) noexcept override;
+
+            // ====================================================================
+            // UPDATE OPERATIONS - exception versions (WRAPPERS)
+            // ====================================================================
 
             DocumentUpdateResult updateOne(
                 const std::string &filter,
@@ -740,9 +827,69 @@ namespace cpp_dbc
                 std::shared_ptr<DocumentDBData> replacement,
                 const DocumentUpdateOptions &options = DocumentUpdateOptions()) override;
 
+            // ====================================================================
+            // DELETE OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+            // ====================================================================
+
+            expected<DocumentDeleteResult, DBException> deleteOne(
+                std::nothrow_t,
+                const std::string &filter) noexcept override;
+
+            expected<DocumentDeleteResult, DBException> deleteMany(
+                std::nothrow_t,
+                const std::string &filter) noexcept override;
+
+            expected<DocumentDeleteResult, DBException> deleteById(
+                std::nothrow_t,
+                const std::string &id) noexcept override;
+
+            // ====================================================================
+            // DELETE OPERATIONS - exception versions (WRAPPERS)
+            // ====================================================================
+
             DocumentDeleteResult deleteOne(const std::string &filter) override;
             DocumentDeleteResult deleteMany(const std::string &filter) override;
             DocumentDeleteResult deleteById(const std::string &id) override;
+
+            // ====================================================================
+            // INDEX & COLLECTION OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+            // ====================================================================
+
+            expected<std::string, DBException> createIndex(
+                std::nothrow_t,
+                const std::string &keys,
+                const std::string &options = "") noexcept override;
+
+            expected<void, DBException> dropIndex(
+                std::nothrow_t,
+                const std::string &indexName) noexcept override;
+
+            expected<void, DBException> dropAllIndexes(
+                std::nothrow_t) noexcept override;
+
+            expected<std::vector<std::string>, DBException> listIndexes(
+                std::nothrow_t) noexcept override;
+
+            expected<void, DBException> drop(
+                std::nothrow_t) noexcept override;
+
+            expected<void, DBException> rename(
+                std::nothrow_t,
+                const std::string &newName,
+                bool dropTarget = false) noexcept override;
+
+            expected<std::shared_ptr<DocumentDBCursor>, DBException> aggregate(
+                std::nothrow_t,
+                const std::string &pipeline) noexcept override;
+
+            expected<std::vector<std::string>, DBException> distinct(
+                std::nothrow_t,
+                const std::string &fieldPath,
+                const std::string &filter = "") noexcept override;
+
+            // ====================================================================
+            // INDEX & COLLECTION OPERATIONS - exception versions (WRAPPERS)
+            // ====================================================================
 
             std::string createIndex(
                 const std::string &keys,
@@ -940,6 +1087,30 @@ namespace cpp_dbc
             void abortTransaction(const std::string &sessionId) override;
             bool supportsTransactions() override;
 
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
+            expected<std::vector<std::string>, DBException> listDatabases(std::nothrow_t) noexcept override;
+            expected<std::shared_ptr<DocumentDBCollection>, DBException> getCollection(
+                std::nothrow_t, const std::string &collectionName) noexcept override;
+            expected<std::vector<std::string>, DBException> listCollections(std::nothrow_t) noexcept override;
+            expected<std::shared_ptr<DocumentDBCollection>, DBException> createCollection(
+                std::nothrow_t,
+                const std::string &collectionName,
+                const std::string &options = "") noexcept override;
+            expected<void, DBException> dropCollection(
+                std::nothrow_t, const std::string &collectionName) noexcept override;
+            expected<void, DBException> dropDatabase(
+                std::nothrow_t, const std::string &databaseName) noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> createDocument(std::nothrow_t) noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> createDocument(
+                std::nothrow_t, const std::string &json) noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> runCommand(
+                std::nothrow_t, const std::string &command) noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfo(std::nothrow_t) noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> getServerStatus(std::nothrow_t) noexcept override;
+
             // MongoDB-specific methods
 
             /**
@@ -1072,6 +1243,17 @@ namespace cpp_dbc
              * @return true if the URI is valid
              */
             static bool validateURI(const std::string &uri);
+
+            // Nothrow versions
+            expected<std::shared_ptr<DocumentDBConnection>, DBException> connectDocument(
+                std::nothrow_t,
+                const std::string &url,
+                const std::string &user,
+                const std::string &password,
+                const std::map<std::string, std::string> &options = {}) noexcept override;
+
+            expected<std::map<std::string, std::string>, DBException> parseURI(
+                std::nothrow_t, const std::string &uri) noexcept override;
         };
 
     } // namespace MongoDB

@@ -1,6 +1,37 @@
 # Changelog
 
-## 2026-01-01 07:48:12 PM PST [Current]
+## 2026-01-02 06:18:19 PM PST [Current]
+
+### Exception-Free API Implementation using std::expected and std::nothrow
+* Added comprehensive exception-free API as an alternative to traditional exception-based error handling:
+  * **New Header File:**
+    * Added `include/cpp_dbc/core/db_expected.hpp` - Implementation of `expected<T, E>` with polyfill for C++11+
+    * Support for native `std::expected` in C++23 with automatic detection
+  * **Architecture:**
+    * Inverted implementation pattern: `std::nothrow` versions contain the real logic, exception versions are lightweight wrappers
+    * Both APIs always coexist (no conditional compilation) - user chooses which to use according to their needs
+    * Reuses existing `DBException` directly in `expected<T, DBException>` (no additional error type needed)
+    * Maintains same call stack and error information as exception-based API
+  * **Method Signatures:**
+    * All methods have dual signatures: exception-throwing and exception-free variants
+    * Exception-free variants use `std::nothrow_t` parameter and return `expected<T, DBException>`
+    * Void-returning methods use `expected<void, DBException>` for error handling
+  * **Testing:**
+    * Added `test_expected.cpp` with comprehensive tests for `cpp_dbc::expected` implementation
+    * Tests for basic construction, value/error access, move/copy semantics, and monadic operations
+    * Tests for exception-free API with various database driver methods
+  * **Usage Examples:**
+    * Traditional exception-based code continues to work unchanged
+    * New code can use exception-free variants with `std::nothrow` parameter
+    * Supports fluent programming with monadic operations (and_then, transform, or_else)
+  * **Benefits:**
+    * No logic duplication - single implementation in nothrow methods
+    * Natural migration path - existing code works without changes
+    * Performance - nothrow users completely avoid exception overhead
+    * Cleaner error handling in performance-critical code
+    * Better interop with code that can't use exceptions
+
+## 2026-01-01 07:48:12 PM PST
 
 ### Redis KV Connection Pool Implementation
 * Added key-value database connection pool implementation:

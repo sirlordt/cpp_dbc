@@ -23,6 +23,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "cpp_dbc/core/db_expected.hpp"
 
 namespace cpp_dbc
 {
@@ -237,6 +238,64 @@ namespace cpp_dbc
          * @return true if the document has no fields
          */
         virtual bool isEmpty() const = 0;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        /**
+         * @brief Get a string field value (nothrow version)
+         * @return expected containing field value, or DBException on failure
+         */
+        virtual expected<std::string, DBException> getString(std::nothrow_t, const std::string &fieldPath) const noexcept = 0;
+
+        /**
+         * @brief Get an integer field value (nothrow version)
+         * @return expected containing field value, or DBException on failure
+         */
+        virtual expected<int64_t, DBException> getInt(std::nothrow_t, const std::string &fieldPath) const noexcept = 0;
+
+        /**
+         * @brief Get a double field value (nothrow version)
+         * @return expected containing field value, or DBException on failure
+         */
+        virtual expected<double, DBException> getDouble(std::nothrow_t, const std::string &fieldPath) const noexcept = 0;
+
+        /**
+         * @brief Get a boolean field value (nothrow version)
+         * @return expected containing field value, or DBException on failure
+         */
+        virtual expected<bool, DBException> getBool(std::nothrow_t, const std::string &fieldPath) const noexcept = 0;
+
+        /**
+         * @brief Get binary data from a field (nothrow version)
+         * @return expected containing binary data, or DBException on failure
+         */
+        virtual expected<std::vector<uint8_t>, DBException> getBinary(std::nothrow_t, const std::string &fieldPath) const noexcept = 0;
+
+        /**
+         * @brief Get a nested document (nothrow version)
+         * @return expected containing shared pointer to nested document, or DBException on failure
+         */
+        virtual expected<std::shared_ptr<DocumentDBData>, DBException> getDocument(std::nothrow_t, const std::string &fieldPath) const noexcept = 0;
+
+        /**
+         * @brief Get an array of documents (nothrow version)
+         * @return expected containing vector of shared pointers to documents, or DBException on failure
+         */
+        virtual expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> getDocumentArray(std::nothrow_t, const std::string &fieldPath) const noexcept = 0;
+
+        /**
+         * @brief Get an array of strings (nothrow version)
+         * @return expected containing vector of strings, or DBException on failure
+         */
+        virtual expected<std::vector<std::string>, DBException> getStringArray(std::nothrow_t, const std::string &fieldPath) const noexcept = 0;
+
+        /**
+         * @brief Create a deep copy of this document (nothrow version)
+         * @return expected containing new document with same content, or DBException on failure
+         */
+        virtual expected<std::shared_ptr<DocumentDBData>, DBException> clone(std::nothrow_t) const noexcept = 0;
     };
 
 } // namespace cpp_dbc

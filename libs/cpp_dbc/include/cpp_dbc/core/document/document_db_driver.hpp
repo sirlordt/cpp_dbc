@@ -23,6 +23,7 @@
 #include <memory>
 #include <string>
 #include "cpp_dbc/core/db_driver.hpp"
+#include "cpp_dbc/core/db_expected.hpp"
 #include "document_db_connection.hpp"
 
 namespace cpp_dbc
@@ -142,6 +143,28 @@ namespace cpp_dbc
          * @return The driver version string
          */
         virtual std::string getDriverVersion() const = 0;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        /**
+         * @brief Connect to a document database (nothrow version)
+         * @return expected containing connection to the database, or DBException on failure
+         */
+        virtual expected<std::shared_ptr<DocumentDBConnection>, DBException> connectDocument(
+            std::nothrow_t,
+            const std::string &url,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept = 0;
+
+        /**
+         * @brief Parse a connection URI and extract components (nothrow version)
+         * @return expected containing map of parsed components, or DBException on failure
+         */
+        virtual expected<std::map<std::string, std::string>, DBException> parseURI(
+            std::nothrow_t, const std::string &uri) noexcept = 0;
     };
 
 } // namespace cpp_dbc

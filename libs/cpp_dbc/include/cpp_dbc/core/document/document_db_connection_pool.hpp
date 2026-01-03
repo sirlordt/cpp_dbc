@@ -248,6 +248,27 @@ namespace cpp_dbc
         void abortTransaction(const std::string &sessionId) override;
         bool supportsTransactions() override;
 
+        // Nothrow versions - delegate to underlying connection
+        expected<std::vector<std::string>, DBException> listDatabases(std::nothrow_t) noexcept override;
+        expected<std::shared_ptr<DocumentDBCollection>, DBException> getCollection(
+            std::nothrow_t, const std::string &collectionName) noexcept override;
+        expected<std::vector<std::string>, DBException> listCollections(std::nothrow_t) noexcept override;
+        expected<std::shared_ptr<DocumentDBCollection>, DBException> createCollection(
+            std::nothrow_t,
+            const std::string &collectionName,
+            const std::string &options = "") noexcept override;
+        expected<void, DBException> dropCollection(
+            std::nothrow_t, const std::string &collectionName) noexcept override;
+        expected<void, DBException> dropDatabase(
+            std::nothrow_t, const std::string &databaseName) noexcept override;
+        expected<std::shared_ptr<DocumentDBData>, DBException> createDocument(std::nothrow_t) noexcept override;
+        expected<std::shared_ptr<DocumentDBData>, DBException> createDocument(
+            std::nothrow_t, const std::string &json) noexcept override;
+        expected<std::shared_ptr<DocumentDBData>, DBException> runCommand(
+            std::nothrow_t, const std::string &command) noexcept override;
+        expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfo(std::nothrow_t) noexcept override;
+        expected<std::shared_ptr<DocumentDBData>, DBException> getServerStatus(std::nothrow_t) noexcept override;
+
         // DBConnectionPooled interface methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const override;
         std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime() const override;
