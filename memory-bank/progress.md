@@ -20,6 +20,7 @@ The CPP_DBC library appears to be in a functional state with the following compo
 14. **Code Quality**: Comprehensive warning flags and compile-time checks with improved variable naming
 15. **Benchmark System**: Comprehensive benchmark system for database operations with different data sizes
 16. **Thread-Safe Drivers**: Optional thread-safety support for all database drivers with mutex protection
+17. **Exception-Free API**: Implementation of exception-free error handling using std::expected pattern for Redis driver
 
 The project includes example code demonstrating:
 - Basic database operations
@@ -245,7 +246,37 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **MongoDB Document Database Driver Support** (2025-12-27):
+1. **Redis Exception-Free API Implementation** (2026-01-03 05:23:03 PM PST):
+   - Added comprehensive exception-free API for Redis driver operations:
+     - **Implementation Details:**
+       - Added nothrow versions of all Redis driver methods using `std::nothrow_t` parameter
+       - All methods return `expected<T, DBException>` with clear error information
+       - Added `std::expected`-based error handling approach as alternative to exceptions
+       - Custom `cpp_dbc::expected<T, E>` implementation for pre-C++23 compatibility
+       - Automatic use of native `std::expected` when C++23 is available
+       - Comprehensive error handling with unique error codes for each method
+       - Added `#include <new>` for `std::nothrow_t`
+     - **Operations Covered:**
+       - Key-Value operations (setString, getString, exists, deleteKey, etc.)
+       - List operations (listPushLeft, listPushRight, listPopLeft, etc.)
+       - Hash operations (hashSet, hashGet, hashDelete, hashExists, etc.)
+       - Set operations (setAdd, setRemove, setIsMember, etc.)
+       - Sorted Set operations (sortedSetAdd, sortedSetRemove, sortedSetScore, etc.)
+       - Server operations (scanKeys, ping, flushDB, getServerInfo, etc.)
+     - **Error Handling Approach:**
+       - Error propagation with expected<T, DBException>
+       - Preserves call stack information in error cases
+       - Consistent error code format across all methods
+       - Clear error messages with operation and failure reason
+       - Support for monadic operations: and_then(), transform(), or_else()
+     - **Benefits:**
+       - No exception overhead in performance-critical code
+       - More explicit error handling with monadic operations
+       - Better interoperability with code that can't use exceptions
+       - Same comprehensive error information as exception-based API
+       - Natural migration path - existing code works without changes
+
+2. **MongoDB Document Database Driver Support** (2025-12-27):
    - Added complete MongoDB document database driver implementation:
      - **Core Document Database Interfaces:**
        - `DocumentDBConnection`: Base interface for document database connections

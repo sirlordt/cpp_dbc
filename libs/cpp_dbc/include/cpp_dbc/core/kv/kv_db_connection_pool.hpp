@@ -270,6 +270,125 @@ namespace cpp_dbc
 
         // KVPooledDBConnection specific method
         std::shared_ptr<KVDBConnection> getUnderlyingKVConnection();
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API (delegated to underlying connection)
+        // ====================================================================
+
+        cpp_dbc::expected<bool, DBException> setString(
+            std::nothrow_t,
+            const std::string &key,
+            const std::string &value,
+            std::optional<int64_t> expirySeconds = std::nullopt) noexcept override;
+
+        cpp_dbc::expected<std::string, DBException> getString(
+            std::nothrow_t, const std::string &key) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> exists(
+            std::nothrow_t, const std::string &key) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> deleteKey(
+            std::nothrow_t, const std::string &key) noexcept override;
+
+        cpp_dbc::expected<int64_t, DBException> deleteKeys(
+            std::nothrow_t, const std::vector<std::string> &keys) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> expire(
+            std::nothrow_t, const std::string &key, int64_t seconds) noexcept override;
+
+        cpp_dbc::expected<int64_t, DBException> getTTL(
+            std::nothrow_t, const std::string &key) noexcept override;
+
+        cpp_dbc::expected<int64_t, DBException> increment(
+            std::nothrow_t, const std::string &key, int64_t by = 1) noexcept override;
+
+        cpp_dbc::expected<int64_t, DBException> decrement(
+            std::nothrow_t, const std::string &key, int64_t by = 1) noexcept override;
+
+        cpp_dbc::expected<int64_t, DBException> listPushLeft(
+            std::nothrow_t, const std::string &key, const std::string &value) noexcept override;
+
+        cpp_dbc::expected<int64_t, DBException> listPushRight(
+            std::nothrow_t, const std::string &key, const std::string &value) noexcept override;
+
+        cpp_dbc::expected<std::string, DBException> listPopLeft(
+            std::nothrow_t, const std::string &key) noexcept override;
+
+        cpp_dbc::expected<std::string, DBException> listPopRight(
+            std::nothrow_t, const std::string &key) noexcept override;
+
+        cpp_dbc::expected<std::vector<std::string>, DBException> listRange(
+            std::nothrow_t, const std::string &key, int64_t start, int64_t stop) noexcept override;
+
+        cpp_dbc::expected<int64_t, DBException> listLength(
+            std::nothrow_t, const std::string &key) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> hashSet(
+            std::nothrow_t,
+            const std::string &key,
+            const std::string &field,
+            const std::string &value) noexcept override;
+
+        cpp_dbc::expected<std::string, DBException> hashGet(
+            std::nothrow_t, const std::string &key, const std::string &field) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> hashDelete(
+            std::nothrow_t, const std::string &key, const std::string &field) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> hashExists(
+            std::nothrow_t, const std::string &key, const std::string &field) noexcept override;
+
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> hashGetAll(
+            std::nothrow_t, const std::string &key) noexcept override;
+
+        cpp_dbc::expected<int64_t, DBException> hashLength(
+            std::nothrow_t, const std::string &key) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> setAdd(
+            std::nothrow_t, const std::string &key, const std::string &member) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> setRemove(
+            std::nothrow_t, const std::string &key, const std::string &member) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> setIsMember(
+            std::nothrow_t, const std::string &key, const std::string &member) noexcept override;
+
+        cpp_dbc::expected<std::vector<std::string>, DBException> setMembers(
+            std::nothrow_t, const std::string &key) noexcept override;
+
+        cpp_dbc::expected<int64_t, DBException> setSize(
+            std::nothrow_t, const std::string &key) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> sortedSetAdd(
+            std::nothrow_t, const std::string &key, double score, const std::string &member) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> sortedSetRemove(
+            std::nothrow_t, const std::string &key, const std::string &member) noexcept override;
+
+        cpp_dbc::expected<std::optional<double>, DBException> sortedSetScore(
+            std::nothrow_t, const std::string &key, const std::string &member) noexcept override;
+
+        cpp_dbc::expected<std::vector<std::string>, DBException> sortedSetRange(
+            std::nothrow_t, const std::string &key, int64_t start, int64_t stop) noexcept override;
+
+        cpp_dbc::expected<int64_t, DBException> sortedSetSize(
+            std::nothrow_t, const std::string &key) noexcept override;
+
+        cpp_dbc::expected<std::vector<std::string>, DBException> scanKeys(
+            std::nothrow_t, const std::string &pattern, int64_t count = 10) noexcept override;
+
+        cpp_dbc::expected<std::string, DBException> executeCommand(
+            std::nothrow_t,
+            const std::string &command,
+            const std::vector<std::string> &args = {}) noexcept override;
+
+        cpp_dbc::expected<bool, DBException> flushDB(
+            std::nothrow_t, bool async = false) noexcept override;
+
+        cpp_dbc::expected<std::string, DBException> ping(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(
+            std::nothrow_t) noexcept override;
     };
 
     // Specialized connection pool for Redis

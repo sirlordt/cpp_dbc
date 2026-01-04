@@ -25,7 +25,10 @@
 #include <vector>
 #include <map>
 #include <optional>
+#include <new> // For std::nothrow_t
 #include "cpp_dbc/core/db_connection.hpp"
+#include "cpp_dbc/core/db_exception.hpp"
+#include "cpp_dbc/core/db_expected.hpp"
 
 namespace cpp_dbc
 {
@@ -332,6 +335,364 @@ namespace cpp_dbc
          * @return Map of server information
          */
         virtual std::map<std::string, std::string> getServerInfo() = 0;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        /**
+         * @brief Set a key to a string value (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @param value The string value
+         * @param expirySeconds Optional expiration time in seconds
+         * @return expected containing true if successful, or DBException on failure
+         */
+        virtual expected<bool, DBException> setString(
+            std::nothrow_t,
+            const std::string &key,
+            const std::string &value,
+            std::optional<int64_t> expirySeconds = std::nullopt) noexcept = 0;
+
+        /**
+         * @brief Get the string value of a key (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @return expected containing the value as a string, or DBException on failure
+         */
+        virtual expected<std::string, DBException> getString(
+            std::nothrow_t, const std::string &key) noexcept = 0;
+
+        /**
+         * @brief Check if a key exists (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @return expected containing true if the key exists, or DBException on failure
+         */
+        virtual expected<bool, DBException> exists(
+            std::nothrow_t, const std::string &key) noexcept = 0;
+
+        /**
+         * @brief Delete a key (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @return expected containing true if the key was deleted, or DBException on failure
+         */
+        virtual expected<bool, DBException> deleteKey(
+            std::nothrow_t, const std::string &key) noexcept = 0;
+
+        /**
+         * @brief Delete multiple keys (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param keys Vector of keys to delete
+         * @return expected containing number of keys that were deleted, or DBException on failure
+         */
+        virtual expected<int64_t, DBException> deleteKeys(
+            std::nothrow_t, const std::vector<std::string> &keys) noexcept = 0;
+
+        /**
+         * @brief Set expiration time on a key (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @param seconds Time to live in seconds
+         * @return expected containing true if successful, or DBException on failure
+         */
+        virtual expected<bool, DBException> expire(
+            std::nothrow_t, const std::string &key, int64_t seconds) noexcept = 0;
+
+        /**
+         * @brief Get the time to live for a key (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @return expected containing TTL in seconds, or DBException on failure
+         */
+        virtual expected<int64_t, DBException> getTTL(
+            std::nothrow_t, const std::string &key) noexcept = 0;
+
+        /**
+         * @brief Increment the integer value of a key (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @param by The increment value
+         * @return expected containing the new value after increment, or DBException on failure
+         */
+        virtual expected<int64_t, DBException> increment(
+            std::nothrow_t, const std::string &key, int64_t by = 1) noexcept = 0;
+
+        /**
+         * @brief Decrement the integer value of a key (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @param by The decrement value
+         * @return expected containing the new value after decrement, or DBException on failure
+         */
+        virtual expected<int64_t, DBException> decrement(
+            std::nothrow_t, const std::string &key, int64_t by = 1) noexcept = 0;
+
+        /**
+         * @brief Push an element to the left of a list (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @param value The value to push
+         * @return expected containing the length of the list after the push, or DBException on failure
+         */
+        virtual expected<int64_t, DBException> listPushLeft(
+            std::nothrow_t, const std::string &key, const std::string &value) noexcept = 0;
+
+        /**
+         * @brief Push an element to the right of a list (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @param value The value to push
+         * @return expected containing the length of the list after the push, or DBException on failure
+         */
+        virtual expected<int64_t, DBException> listPushRight(
+            std::nothrow_t, const std::string &key, const std::string &value) noexcept = 0;
+
+        /**
+         * @brief Pop an element from the left of a list (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @return expected containing the popped element, or DBException on failure
+         */
+        virtual expected<std::string, DBException> listPopLeft(
+            std::nothrow_t, const std::string &key) noexcept = 0;
+
+        /**
+         * @brief Pop an element from the right of a list (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @return expected containing the popped element, or DBException on failure
+         */
+        virtual expected<std::string, DBException> listPopRight(
+            std::nothrow_t, const std::string &key) noexcept = 0;
+
+        /**
+         * @brief Get a range of elements from a list (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @param start The start index
+         * @param stop The stop index
+         * @return expected containing vector of elements, or DBException on failure
+         */
+        virtual expected<std::vector<std::string>, DBException> listRange(
+            std::nothrow_t, const std::string &key, int64_t start, int64_t stop) noexcept = 0;
+
+        /**
+         * @brief Get the length of a list (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key
+         * @return expected containing the length of the list, or DBException on failure
+         */
+        virtual expected<int64_t, DBException> listLength(
+            std::nothrow_t, const std::string &key) noexcept = 0;
+
+        /**
+         * @brief Set a field in a hash (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the hash
+         * @param field The field to set
+         * @param value The value to set
+         * @return expected containing true if field is a new field, or DBException on failure
+         */
+        virtual expected<bool, DBException> hashSet(
+            std::nothrow_t,
+            const std::string &key,
+            const std::string &field,
+            const std::string &value) noexcept = 0;
+
+        /**
+         * @brief Get a field from a hash (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the hash
+         * @param field The field to get
+         * @return expected containing the value of the field, or DBException on failure
+         */
+        virtual expected<std::string, DBException> hashGet(
+            std::nothrow_t, const std::string &key, const std::string &field) noexcept = 0;
+
+        /**
+         * @brief Delete a field from a hash (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the hash
+         * @param field The field to delete
+         * @return expected containing true if the field existed and was deleted, or DBException on failure
+         */
+        virtual expected<bool, DBException> hashDelete(
+            std::nothrow_t, const std::string &key, const std::string &field) noexcept = 0;
+
+        /**
+         * @brief Check if a field exists in a hash (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the hash
+         * @param field The field to check
+         * @return expected containing true if the field exists, or DBException on failure
+         */
+        virtual expected<bool, DBException> hashExists(
+            std::nothrow_t, const std::string &key, const std::string &field) noexcept = 0;
+
+        /**
+         * @brief Get all fields and values from a hash (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the hash
+         * @return expected containing map of field-value pairs, or DBException on failure
+         */
+        virtual expected<std::map<std::string, std::string>, DBException> hashGetAll(
+            std::nothrow_t, const std::string &key) noexcept = 0;
+
+        /**
+         * @brief Get the number of fields in a hash (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the hash
+         * @return expected containing the number of fields, or DBException on failure
+         */
+        virtual expected<int64_t, DBException> hashLength(
+            std::nothrow_t, const std::string &key) noexcept = 0;
+
+        /**
+         * @brief Add a member to a set (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the set
+         * @param member The member to add
+         * @return expected containing true if the member was added, or DBException on failure
+         */
+        virtual expected<bool, DBException> setAdd(
+            std::nothrow_t, const std::string &key, const std::string &member) noexcept = 0;
+
+        /**
+         * @brief Remove a member from a set (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the set
+         * @param member The member to remove
+         * @return expected containing true if the member was removed, or DBException on failure
+         */
+        virtual expected<bool, DBException> setRemove(
+            std::nothrow_t, const std::string &key, const std::string &member) noexcept = 0;
+
+        /**
+         * @brief Check if a member exists in a set (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the set
+         * @param member The member to check
+         * @return expected containing true if the member exists, or DBException on failure
+         */
+        virtual expected<bool, DBException> setIsMember(
+            std::nothrow_t, const std::string &key, const std::string &member) noexcept = 0;
+
+        /**
+         * @brief Get all members of a set (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the set
+         * @return expected containing vector of all members, or DBException on failure
+         */
+        virtual expected<std::vector<std::string>, DBException> setMembers(
+            std::nothrow_t, const std::string &key) noexcept = 0;
+
+        /**
+         * @brief Get the number of members in a set (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the set
+         * @return expected containing the number of members, or DBException on failure
+         */
+        virtual expected<int64_t, DBException> setSize(
+            std::nothrow_t, const std::string &key) noexcept = 0;
+
+        /**
+         * @brief Add a member with score to a sorted set (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the sorted set
+         * @param score The score
+         * @param member The member
+         * @return expected containing true if the member was added, or DBException on failure
+         */
+        virtual expected<bool, DBException> sortedSetAdd(
+            std::nothrow_t, const std::string &key, double score, const std::string &member) noexcept = 0;
+
+        /**
+         * @brief Remove a member from a sorted set (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the sorted set
+         * @param member The member to remove
+         * @return expected containing true if the member was removed, or DBException on failure
+         */
+        virtual expected<bool, DBException> sortedSetRemove(
+            std::nothrow_t, const std::string &key, const std::string &member) noexcept = 0;
+
+        /**
+         * @brief Get the score of a member in a sorted set (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the sorted set
+         * @param member The member
+         * @return expected containing the score, or DBException on failure
+         */
+        virtual expected<std::optional<double>, DBException> sortedSetScore(
+            std::nothrow_t, const std::string &key, const std::string &member) noexcept = 0;
+
+        /**
+         * @brief Get a range of members from a sorted set by rank (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the sorted set
+         * @param start The start rank
+         * @param stop The stop rank
+         * @return expected containing vector of members, or DBException on failure
+         */
+        virtual expected<std::vector<std::string>, DBException> sortedSetRange(
+            std::nothrow_t, const std::string &key, int64_t start, int64_t stop) noexcept = 0;
+
+        /**
+         * @brief Get the number of members in a sorted set (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param key The key of the sorted set
+         * @return expected containing the number of members, or DBException on failure
+         */
+        virtual expected<int64_t, DBException> sortedSetSize(
+            std::nothrow_t, const std::string &key) noexcept = 0;
+
+        /**
+         * @brief Scan keys matching a pattern (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param pattern The pattern to match
+         * @param count The hint for number of keys to scan per iteration
+         * @return expected containing vector of keys matching the pattern, or DBException on failure
+         */
+        virtual expected<std::vector<std::string>, DBException> scanKeys(
+            std::nothrow_t, const std::string &pattern, int64_t count = 10) noexcept = 0;
+
+        /**
+         * @brief Execute a server command (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param command The command name
+         * @param args The command arguments
+         * @return expected containing the command result as a string, or DBException on failure
+         */
+        virtual expected<std::string, DBException> executeCommand(
+            std::nothrow_t,
+            const std::string &command,
+            const std::vector<std::string> &args = {}) noexcept = 0;
+
+        /**
+         * @brief Flush the database (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param async If true, flush asynchronously
+         * @return expected containing true if successful, or DBException on failure
+         */
+        virtual expected<bool, DBException> flushDB(
+            std::nothrow_t, bool async = false) noexcept = 0;
+
+        /**
+         * @brief Ping the server (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing server response, or DBException on failure
+         */
+        virtual expected<std::string, DBException> ping(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get server information (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing map of server information, or DBException on failure
+         */
+        virtual expected<std::map<std::string, std::string>, DBException> getServerInfo(
+            std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

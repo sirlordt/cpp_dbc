@@ -1,7 +1,28 @@
 # Changelog
 
-## 2026-01-02 06:18:19 PM PST [Current]
+## 2026-01-03 05:23:03 PM PST [Current]
 
+### Redis Exception-Free API Implementation
+* Added comprehensive exception-free API for Redis driver operations:
+  * **Implementation:**
+    * Added nothrow versions of all Redis driver methods using `std::nothrow_t` parameter
+    * All methods return `expected<T, DBException>` with clear error information
+    * Comprehensive error handling with unique error codes for each method
+    * Added `#include <new>` for `std::nothrow_t`
+  * **Operations Supported:**
+    * Key-Value operations (setString, getString, exists, deleteKey, etc.)
+    * List operations (listPushLeft, listPushRight, listPopLeft, etc.)
+    * Hash operations (hashSet, hashGet, hashDelete, hashExists, etc.)
+    * Set operations (setAdd, setRemove, setIsMember, etc.)
+    * Sorted Set operations (sortedSetAdd, sortedSetRemove, sortedSetScore, etc.)
+    * Server operations (scanKeys, ping, flushDB, getServerInfo, etc.)
+  * **Error Handling:**
+    * Error propagation with expected<T, DBException>
+    * Preserves call stack information in error cases
+    * Consistent error code format across all methods
+    * Clear error messages with operation and failure reason
+
+## 2026-01-02 06:18:19 PM PST
 ### Exception-Free API Implementation using std::expected and std::nothrow
 * Added comprehensive exception-free API as an alternative to traditional exception-based error handling:
   * **New Header File:**

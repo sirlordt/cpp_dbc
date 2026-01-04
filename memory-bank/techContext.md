@@ -181,15 +181,49 @@ The project is configured to work with the CMakeTools extension, but does not re
   - `-Wcast-align`: Prevents alignment issues in pointer casts
 
 ### Error Handling
-- Uses exceptions for error propagation
-- Enhanced DBException class with:
-  - Unique error marks for better error identification
-  - Call stack capture for detailed debugging information
-  - Methods to retrieve and print stack traces
-  - Método `what_s()` que devuelve un `std::string&` para evitar problemas de seguridad con punteros `const char*`
-  - Destructor virtual para una correcta jerarquía de herencia
-- Client code should handle DBException appropriately
-- Stack traces provide detailed information about error origins
+- Dual approach to error handling:
+  1. **Exception-Based API**:
+     - Uses exceptions for error propagation
+     - Enhanced DBException class with:
+       - Unique error marks for better error identification
+       - Call stack capture for detailed debugging information
+       - Methods to retrieve and print stack traces
+       - Método `what_s()` que devuelve un `std::string&` para evitar problemas de seguridad con punteros `const char*`
+       - Destructor virtual para una correcta jerarquía de herencia
+     - Client code should handle DBException appropriately
+     - Stack traces provide detailed information about error origins
+
+  2. **Exception-Free API** (using `std::expected`):
+     - Uses `expected<T, DBException>` for error propagation
+     - All methods have dual signatures: exception-throwing and exception-free variants
+     - Exception-free variants use `std::nothrow_t` parameter to distinguish from exception-based variants
+     - Implemented for Redis driver with comprehensive coverage of all operations
+     - Custom `cpp_dbc::expected<T, E>` implementation for pre-C++23 compatibility
+     - Automatic use of native `std::expected` when C++23 is available
+     - Benefits:
+       - No exception overhead in performance-critical code
+       - More explicit error handling with monadic operations
+       - Better interoperability with code that can't use exceptions
+       - Same comprehensive error information as exception-based API
+     - Usage pattern:
+       ```cpp
+       // Exception-free API example
+       auto result = connection->getString(std::nothrow, "mykey");
+       if (result) {
+           // Success case - use result.value()
+           std::string value = result.value();
+       } else {
+           // Error case - use result.error()
+           const auto& error = result.error();
+           std::cerr << "Error: " << error.what_s() << std::endl;
+           std::cerr << "Error Mark: " << error.getMark() << std::endl;
+           error.printCallStack();
+       }
+       ```
+     - Monadic operations support:
+       - `and_then()`: Chain operations when previous operation succeeds
+       - `transform()`: Transform success value to another type
+       - `or_else()`: Handle error cases
 
 ## Dependencies
 

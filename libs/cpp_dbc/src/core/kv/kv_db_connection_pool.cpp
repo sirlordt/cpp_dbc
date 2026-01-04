@@ -980,6 +980,269 @@ namespace cpp_dbc
         return m_conn;
     }
 
+    // ============================================================================
+    // KVPooledDBConnection - NOTHROW IMPLEMENTATIONS (delegate to underlying connection)
+    // ============================================================================
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::setString(
+        std::nothrow_t,
+        const std::string &key,
+        const std::string &value,
+        std::optional<int64_t> expirySeconds) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->setString(std::nothrow, key, value, expirySeconds);
+    }
+
+    cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::getString(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->getString(std::nothrow, key);
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::exists(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->exists(std::nothrow, key);
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::deleteKey(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->deleteKey(std::nothrow, key);
+    }
+
+    cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::deleteKeys(
+        std::nothrow_t, const std::vector<std::string> &keys) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->deleteKeys(std::nothrow, keys);
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::expire(
+        std::nothrow_t, const std::string &key, int64_t seconds) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->expire(std::nothrow, key, seconds);
+    }
+
+    cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::getTTL(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->getTTL(std::nothrow, key);
+    }
+
+    cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::increment(
+        std::nothrow_t, const std::string &key, int64_t by) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->increment(std::nothrow, key, by);
+    }
+
+    cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::decrement(
+        std::nothrow_t, const std::string &key, int64_t by) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->decrement(std::nothrow, key, by);
+    }
+
+    cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::listPushLeft(
+        std::nothrow_t, const std::string &key, const std::string &value) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->listPushLeft(std::nothrow, key, value);
+    }
+
+    cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::listPushRight(
+        std::nothrow_t, const std::string &key, const std::string &value) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->listPushRight(std::nothrow, key, value);
+    }
+
+    cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::listPopLeft(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->listPopLeft(std::nothrow, key);
+    }
+
+    cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::listPopRight(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->listPopRight(std::nothrow, key);
+    }
+
+    cpp_dbc::expected<std::vector<std::string>, DBException> KVPooledDBConnection::listRange(
+        std::nothrow_t, const std::string &key, int64_t start, int64_t stop) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->listRange(std::nothrow, key, start, stop);
+    }
+
+    cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::listLength(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->listLength(std::nothrow, key);
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::hashSet(
+        std::nothrow_t,
+        const std::string &key,
+        const std::string &field,
+        const std::string &value) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->hashSet(std::nothrow, key, field, value);
+    }
+
+    cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::hashGet(
+        std::nothrow_t, const std::string &key, const std::string &field) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->hashGet(std::nothrow, key, field);
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::hashDelete(
+        std::nothrow_t, const std::string &key, const std::string &field) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->hashDelete(std::nothrow, key, field);
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::hashExists(
+        std::nothrow_t, const std::string &key, const std::string &field) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->hashExists(std::nothrow, key, field);
+    }
+
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> KVPooledDBConnection::hashGetAll(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->hashGetAll(std::nothrow, key);
+    }
+
+    cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::hashLength(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->hashLength(std::nothrow, key);
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::setAdd(
+        std::nothrow_t, const std::string &key, const std::string &member) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->setAdd(std::nothrow, key, member);
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::setRemove(
+        std::nothrow_t, const std::string &key, const std::string &member) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->setRemove(std::nothrow, key, member);
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::setIsMember(
+        std::nothrow_t, const std::string &key, const std::string &member) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->setIsMember(std::nothrow, key, member);
+    }
+
+    cpp_dbc::expected<std::vector<std::string>, DBException> KVPooledDBConnection::setMembers(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->setMembers(std::nothrow, key);
+    }
+
+    cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::setSize(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->setSize(std::nothrow, key);
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::sortedSetAdd(
+        std::nothrow_t, const std::string &key, double score, const std::string &member) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->sortedSetAdd(std::nothrow, key, score, member);
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::sortedSetRemove(
+        std::nothrow_t, const std::string &key, const std::string &member) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->sortedSetRemove(std::nothrow, key, member);
+    }
+
+    cpp_dbc::expected<std::optional<double>, DBException> KVPooledDBConnection::sortedSetScore(
+        std::nothrow_t, const std::string &key, const std::string &member) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->sortedSetScore(std::nothrow, key, member);
+    }
+
+    cpp_dbc::expected<std::vector<std::string>, DBException> KVPooledDBConnection::sortedSetRange(
+        std::nothrow_t, const std::string &key, int64_t start, int64_t stop) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->sortedSetRange(std::nothrow, key, start, stop);
+    }
+
+    cpp_dbc::expected<int64_t, DBException> KVPooledDBConnection::sortedSetSize(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->sortedSetSize(std::nothrow, key);
+    }
+
+    cpp_dbc::expected<std::vector<std::string>, DBException> KVPooledDBConnection::scanKeys(
+        std::nothrow_t, const std::string &pattern, int64_t count) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->scanKeys(std::nothrow, pattern, count);
+    }
+
+    cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::executeCommand(
+        std::nothrow_t,
+        const std::string &command,
+        const std::vector<std::string> &args) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->executeCommand(std::nothrow, command, args);
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::flushDB(
+        std::nothrow_t, bool async) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->flushDB(std::nothrow, async);
+    }
+
+    cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::ping(std::nothrow_t) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->ping(std::nothrow);
+    }
+
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> KVPooledDBConnection::getServerInfo(
+        std::nothrow_t) noexcept
+    {
+        m_lastUsedTime = std::chrono::steady_clock::now();
+        return m_conn->getServerInfo(std::nothrow);
+    }
+
     // RedisConnectionPool implementation
 
     namespace Redis

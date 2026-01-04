@@ -35,7 +35,32 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Redis KV Connection Pool Implementation** (2026-01-01 07:48:12 PM PST):
+1. **Redis Exception-Free API Implementation** (2026-01-03 05:23:03 PM PST):
+   - Added comprehensive exception-free API for Redis driver operations:
+     - **Implementation:**
+       - Added nothrow versions of all Redis driver methods using `std::nothrow_t` parameter
+       - All methods return `expected<T, DBException>` with clear error information
+       - Comprehensive error handling with unique error codes for each method
+       - Added `#include <new>` for `std::nothrow_t`
+     - **Operations Supported:**
+       - Key-Value operations (setString, getString, exists, deleteKey, etc.)
+       - List operations (listPushLeft, listPushRight, listPopLeft, etc.)
+       - Hash operations (hashSet, hashGet, hashDelete, hashExists, etc.)
+       - Set operations (setAdd, setRemove, setIsMember, etc.)
+       - Sorted Set operations (sortedSetAdd, sortedSetRemove, sortedSetScore, etc.)
+       - Server operations (scanKeys, ping, flushDB, getServerInfo, etc.)
+     - **Error Handling:**
+       - Error propagation with expected<T, DBException>
+       - Preserves call stack information in error cases
+       - Consistent error code format across all methods
+       - Clear error messages with operation and failure reason
+     - **Benefits:**
+       - No exception overhead in performance-critical code
+       - More explicit error handling
+       - Better interoperability with code that can't use exceptions
+       - Same comprehensive error information as exception-based API
+
+2. **Redis KV Connection Pool Implementation** (2026-01-01 07:48:12 PM PST):
    - Added key-value database connection pool implementation:
      - **New Files:**
        - Added `include/cpp_dbc/core/kv/kv_db_connection_pool.hpp` - Key-value database connection pool interfaces
