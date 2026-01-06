@@ -38,6 +38,8 @@
 #include "test_postgresql_common.hpp"
 #include "test_sqlite_common.hpp"
 #include "test_firebird_common.hpp"
+#include "test_mongodb_common.hpp"
+#include "test_redis_common.hpp"
 
 #include "test_mocks.hpp"
 
@@ -135,7 +137,7 @@ TEST_CASE("Integration test with mock database", "[integration]")
     // };
 
     // Register the mock driver
-    cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<cpp_dbc_test::MockDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc_test::MockDriver>());
 
     SECTION("Integration test with direct connection")
     {
@@ -421,25 +423,37 @@ TEST_CASE("Load and use test_db_connections.yml", "[integration]")
 // Test case for real database integration with all available drivers
 TEST_CASE("Real database integration with all drivers", "[integration][real]")
 {
-    // Register all available drivers
+// Register all available drivers
 #if USE_MYSQL
-    cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
     // std::cout << "MySQL driver registered" << std::endl;
 #endif
 
 #if USE_POSTGRESQL
-    cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
     // std::cout << "PostgreSQL driver registered" << std::endl;
 #endif
 
 #if USE_SQLITE
-    cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
     // std::cout << "SQLite driver registered" << std::endl;
 #endif
 
 #if USE_FIREBIRD
-    cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
     // std::cout << "Firebird driver registered" << std::endl;
+#endif
+
+#if USE_MONGODB
+    auto mongoDriver = std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>();
+    cpp_dbc::DriverManager::registerDriver(mongoDriver);
+    // std::cout << "MongoDB driver registered" << std::endl;
+#endif
+
+#if USE_REDIS
+    auto redisDriver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+    cpp_dbc::DriverManager::registerDriver(redisDriver);
+    // std::cout << "Redis driver registered" << std::endl;
 #endif
 
     SECTION("Test connection to all available databases")
@@ -457,23 +471,20 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
             std::string name = dbConfig.getName();
             std::string type = dbConfig.getType();
 
-            // Skip if the driver is not enabled
-#if !USE_MYSQL
-            if (type == "mysql")
+            // Get the driver to check its database type
+            auto driverOpt = cpp_dbc::DriverManager::getDriver(type);
+            if (!driverOpt.has_value())
+            {
+                WARN("Driver not found for type: " << type);
                 continue;
-#endif
-#if !USE_POSTGRESQL
-            if (type == "postgresql")
+            }
+
+            // Skip non-relational databases (they cannot be tested with SQL queries)
+            if (driverOpt.value()->getDBType() != cpp_dbc::DBType::RELATIONAL)
+            {
+                WARN("Skipping non-relational database: " << name << " (" << type << ")");
                 continue;
-#endif
-#if !USE_SQLITE
-            if (type == "sqlite")
-                continue;
-#endif
-#if !USE_FIREBIRD
-            if (type == "firebird")
-                continue;
-#endif
+            }
 
             // std::cout << "Testing connection to " << name << " (" << type << ")" << std::endl;
 
@@ -483,6 +494,17 @@ TEST_CASE("Real database integration with all drivers", "[integration][real]")
                 std::string connStr = dbConfig.createConnectionString();
                 std::string username = (type == "sqlite") ? "" : dbConfig.getUsername();
                 std::string password = (type == "sqlite") ? "" : dbConfig.getPassword();
+
+                // Special handling for MongoDB - make sure authSource is included
+                if (type == "mongodb")
+                {
+                    // Add authSource parameter if not already in the connection string
+                    if (connStr.find("authSource") == std::string::npos && !username.empty())
+                    {
+                        connStr += (connStr.find("?") != std::string::npos) ? "&" : "?";
+                        connStr += "authSource=admin";
+                    }
+                }
 
                 if (type == "sqlite")
                 {

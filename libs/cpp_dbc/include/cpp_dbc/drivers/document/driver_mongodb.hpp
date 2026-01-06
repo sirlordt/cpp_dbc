@@ -1254,24 +1254,27 @@ namespace cpp_dbc
 
             expected<std::map<std::string, std::string>, DBException> parseURI(
                 std::nothrow_t, const std::string &uri) noexcept override;
+
+            std::string getName() const noexcept override;
         };
 
-    } // namespace MongoDB
-} // namespace cpp_dbc
+        //    } // namespace MongoDB
+        //} // namespace cpp_dbc
 
-#else // USE_MONGODB
+        /*
+        #else // USE_MONGODB
 
-// Stub implementations when MongoDB is disabled
-namespace cpp_dbc
-{
-    namespace MongoDB
-    {
-        /**
-         * @brief Stub MongoDB driver when MongoDB support is disabled
-         *
-         * This class throws an exception on any operation, indicating that
-         * MongoDB support was not compiled into the library.
-         */
+        // Stub implementations when MongoDB is disabled
+        namespace cpp_dbc
+        {
+            namespace MongoDB
+            {
+                / * *
+                 * @brief Stub MongoDB driver when MongoDB support is disabled
+                 *
+                 * This class throws an exception on any operation, indicating that
+                 * MongoDB support was not compiled into the library.
+                 *  /
         class MongoDBDriver : public DocumentDBDriver
         {
         public:
@@ -1343,9 +1346,13 @@ namespace cpp_dbc
             {
                 return "disabled";
             }
+
+            std::string getName() const noexcept override;
         };
+        */
 
     } // namespace MongoDB
+
 } // namespace cpp_dbc
 
 #endif // USE_MONGODB

@@ -48,7 +48,7 @@ TEST_CASE("SQLite BLOB operations", "[sqlite_real_blob]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the SQLite driver
-    cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
     // Get a connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));

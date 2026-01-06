@@ -44,7 +44,7 @@ TEST_CASE("SQLite INNER JOIN operations", "[sqlite_real_inner_join]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the SQLite driver
-    cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
     try
     {

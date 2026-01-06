@@ -138,7 +138,7 @@ namespace mysql_test_helpers
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/mysql";
 
             // Register the MySQL driver
-            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
             // Attempt to connect to MySQL server
             std::cout << "Attempting to connect to MySQL server to create database..." << std::endl;
@@ -180,7 +180,7 @@ namespace mysql_test_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the MySQL driver
-            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
             // Attempt to connect to MySQL
             std::cout << "Attempting to connect to MySQL with connection string: " << connStr << std::endl;

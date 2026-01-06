@@ -543,7 +543,7 @@ cpp_dbc:firebird://host:port/ruta/a/base_de_datos.fdb
 #include <cpp_dbc/drivers/driver_firebird.hpp>
 
 // Registrar el controlador Firebird
-cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::FirebirdDBDriver>());
+cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::FirebirdDBDriver>());
 
 // Conectar a la base de datos
 auto conn = cpp_dbc::DriverManager::getDBConnection(
@@ -678,8 +678,7 @@ mongodb://usuario:contraseña@host:puerto/base_de_datos?authSource=admin
 #include <cpp_dbc/drivers/document/driver_mongodb.hpp>
 
 // Registrar el controlador MongoDB
-cpp_dbc::DriverManager::registerDriver("mongodb",
-    std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
 
 // Conectar a MongoDB
 auto conn = cpp_dbc::DriverManager::getDocumentDBConnection(

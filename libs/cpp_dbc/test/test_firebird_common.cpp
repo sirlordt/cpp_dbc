@@ -135,7 +135,7 @@ namespace firebird_test_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the Firebird driver
-            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
             // Build connection string for cpp_dbc
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
@@ -241,7 +241,7 @@ namespace firebird_test_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the Firebird driver
-            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
             // Attempt to connect to Firebird
             std::cout << "Attempting to connect to Firebird with connection string: " << connStr << std::endl;

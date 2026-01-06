@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
         // Step 1: Register the MongoDB driver
         cout << "Registering MongoDB driver..." << endl;
         auto driver = make_shared<MongoDB::MongoDBDriver>();
-        DriverManager::registerDriver("mongodb", driver);
+        DriverManager::registerDriver(driver);
 
         // Step 2: Create MongoDB connection configuration
         cout << "Creating connection configuration..." << endl;

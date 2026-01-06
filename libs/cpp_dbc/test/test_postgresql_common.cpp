@@ -134,7 +134,7 @@ namespace postgresql_test_helpers
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/postgres";
 
             // Register the PostgreSQL driver
-            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
             // Attempt to connect to PostgreSQL server
             std::cout << "Attempting to connect to PostgreSQL server to create database..." << std::endl;
@@ -206,7 +206,7 @@ namespace postgresql_test_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the PostgreSQL driver
-            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
             // Attempt to connect to PostgreSQL
             std::cout << "Attempting to connect to PostgreSQL with connection string: " << connStr << std::endl;

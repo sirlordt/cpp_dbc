@@ -787,33 +787,27 @@ When using the library as an external dependency, include the headers as follows
 int main() {
     // Register available drivers
 #if USE_MYSQL
-    cpp_dbc::DriverManager::registerDriver("mysql",
-        std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 #endif
 
 #if USE_POSTGRESQL
-    cpp_dbc::DriverManager::registerDriver("postgresql",
-        std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 #endif
 
 #if USE_SQLITE
-    cpp_dbc::DriverManager::registerDriver("sqlite",
-        std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 #endif
 
 #if USE_FIREBIRD
-    cpp_dbc::DriverManager::registerDriver("firebird",
-        std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 #endif
 
 #if USE_MONGODB
-    cpp_dbc::DriverManager::registerDriver("mongodb",
-        std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
 #endif
 
 #if USE_REDIS
-    cpp_dbc::DriverManager::registerDriver("redis",
-        std::make_shared<cpp_dbc::Redis::RedisDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDriver>());
 #endif
 
     // Get a relational database connection

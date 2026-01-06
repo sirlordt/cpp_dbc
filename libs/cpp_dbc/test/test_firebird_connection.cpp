@@ -50,7 +50,7 @@ TEST_CASE("Firebird connection test", "[firebird_connection]")
         std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
 
         // Register the Firebird driver
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
         try
         {

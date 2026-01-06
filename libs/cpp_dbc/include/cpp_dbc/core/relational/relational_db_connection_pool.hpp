@@ -229,6 +229,19 @@ namespace cpp_dbc
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
+        // Nothrow API
+        cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
+        cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
+        cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
+        cpp_dbc::expected<void, DBException> setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override;
+        cpp_dbc::expected<bool, DBException> getAutoCommit(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> beginTransaction(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> transactionActive(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+        cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
+
         // DBConnectionPooled interface methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const override;
         std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime() const override;

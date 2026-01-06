@@ -61,7 +61,7 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
     SECTION("Basic JSON storage operations")
     {
         // Register the Firebird driver
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -144,7 +144,7 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
     SECTION("JSON storage with VARCHAR column")
     {
         // Register the Firebird driver
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -195,7 +195,7 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
     SECTION("JSON search using LIKE (text-based)")
     {
         // Register the Firebird driver
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -275,7 +275,7 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
     SECTION("JSON aggregation and transformation")
     {
         // Register the Firebird driver
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -373,7 +373,7 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
     SECTION("JSON validation (application-level)")
     {
         // Register the Firebird driver
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -433,7 +433,7 @@ TEST_CASE("Firebird JSON data storage", "[firebird_real_json]")
     SECTION("JSON performance with large datasets")
     {
         // Register the Firebird driver
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));

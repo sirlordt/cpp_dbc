@@ -2231,6 +2231,11 @@ namespace cpp_dbc
             }
         }
 
+        std::string RedisDriver::getName() const noexcept
+        {
+            return "redis";
+        }
+
     } // namespace Redis
 } // namespace cpp_dbc
 

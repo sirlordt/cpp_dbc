@@ -209,7 +209,7 @@ using namespace cpp_dbc_test;
 TEST_CASE("ConnectionPool with mock connections", "[connection_pool]")
 {
     // Register the mock driver
-    cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<cpp_dbc_test::MockDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc_test::MockDriver>());
 
     SECTION("Create and use ConnectionPool with mock driver")
     {

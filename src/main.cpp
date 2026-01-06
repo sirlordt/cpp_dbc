@@ -25,6 +25,9 @@ using json = nlohmann::json;
 #if USE_MONGODB
 #include <cpp_dbc/drivers/document/driver_mongodb.hpp>
 #endif
+#if USE_REDIS
+#include <cpp_dbc/drivers/kv/driver_redis.hpp>
+#endif
 
 // Include backward.hpp to check if libdw is enabled
 #include <cpp_dbc/backward.hpp>
@@ -84,6 +87,12 @@ int main(int argc, char *argv[])
     std::cout << "- MongoDB (disabled)" << std::endl;
 #endif
 
+#if USE_REDIS
+    std::cout << "- Redis" << std::endl;
+#else
+    std::cout << "- Redis (disabled)" << std::endl;
+#endif
+
 // Display libdw support status
 #if BACKWARD_HAS_DW
     std::cout << "- libdw support: ENABLED" << std::endl;
@@ -100,32 +109,32 @@ int main(int argc, char *argv[])
         // Register available database drivers
 #if USE_MYSQL
         std::cout << "Registering MySQL driver..." << std::endl;
-        cpp_dbc::DriverManager::registerDriver("mysql",
-                                               std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 #endif
 
 #if USE_POSTGRESQL
         std::cout << "Registering PostgreSQL driver..." << std::endl;
-        cpp_dbc::DriverManager::registerDriver("postgresql",
-                                               std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 #endif
 
 #if USE_SQLITE
         std::cout << "Registering SQLite driver..." << std::endl;
-        cpp_dbc::DriverManager::registerDriver("sqlite",
-                                               std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 #endif
 
 #if USE_FIREBIRD
         std::cout << "Registering Firebird driver..." << std::endl;
-        cpp_dbc::DriverManager::registerDriver("firebird",
-                                               std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 #endif
 
 #if USE_MONGODB
         std::cout << "Registering MongoDB driver..." << std::endl;
-        cpp_dbc::DriverManager::registerDriver("mongodb",
-                                               std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+#endif
+
+#if USE_REDIS
+        std::cout << "Registering MongoDB driver..." << std::endl;
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDBDriver>());
 #endif
 
         std::cout << "Driver registration complete." << std::endl;

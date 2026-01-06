@@ -37,6 +37,16 @@ namespace cpp_dbc
         }
     }
 
+    void DriverManager::registerDriver(std::shared_ptr<DBDriver> driver)
+    {
+        // std::cout << "Registering driver: " << name << std::endl;
+        // Only register if not already registered to avoid conflicts
+        if (drivers.find(driver->getName()) == drivers.end())
+        {
+            drivers[driver->getName()] = driver;
+        }
+    }
+
     std::shared_ptr<DBConnection> DriverManager::getDBConnection(const std::string &url,
                                                                  const std::string &user,
                                                                  const std::string &password,
@@ -131,5 +141,15 @@ namespace cpp_dbc
     void DriverManager::unregisterDriver(const std::string &name)
     {
         drivers.erase(name);
+    }
+
+    std::optional<std::shared_ptr<DBDriver>> DriverManager::getDriver(const std::string &name)
+    {
+        auto it = drivers.find(name);
+        if (it == drivers.end())
+        {
+            return std::nullopt;
+        }
+        return it->second;
     }
 }

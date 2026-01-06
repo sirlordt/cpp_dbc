@@ -1488,7 +1488,7 @@ TEST_CASE("DriverManager transaction isolation tests", "[transaction][isolation]
     SECTION("DriverManager with mock driver")
     {
         // Register the mock driver
-        cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<cpp_dbc_test::MockDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc_test::MockDriver>());
 
         // Get a connection through the DriverManager
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection("cpp_dbc:mock://localhost:1234/mockdb", "user", "pass"));

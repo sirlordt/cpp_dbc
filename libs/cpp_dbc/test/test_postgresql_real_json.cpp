@@ -56,7 +56,7 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[postgresql_real_json]")
     SECTION("Basic JSON operations")
     {
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -162,7 +162,7 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[postgresql_real_json]")
     SECTION("JSON containment and existence operators")
     {
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -232,7 +232,7 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[postgresql_real_json]")
     SECTION("JSON modification functions")
     {
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -303,7 +303,7 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[postgresql_real_json]")
     SECTION("JSON indexing and performance")
     {
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -375,7 +375,7 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[postgresql_real_json]")
     SECTION("JSON aggregation and transformation")
     {
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -497,7 +497,7 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[postgresql_real_json]")
     SECTION("JSON validation and error handling")
     {
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));

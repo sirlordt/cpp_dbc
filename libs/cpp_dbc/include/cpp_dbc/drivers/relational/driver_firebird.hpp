@@ -177,6 +177,8 @@ namespace cpp_dbc
          */
         class FirebirdDBResultSet : public RelationalDBResultSet
         {
+            friend class FirebirdDBConnection;
+
         private:
             FirebirdStmtHandle m_stmt;
             XSQLDAHandle m_sqlda;
@@ -212,6 +214,11 @@ namespace cpp_dbc
              * @brief Get raw statement handle pointer for Firebird API calls
              */
             isc_stmt_handle *getStmtPtr() { return m_stmt.get(); }
+
+            /**
+             * @brief Notify this ResultSet that the connection is closing
+             */
+            void notifyConnClosing();
 
         public:
             FirebirdDBResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement = true,
@@ -255,6 +262,39 @@ namespace cpp_dbc
 
             std::vector<uint8_t> getBytes(size_t columnIndex) override;
             std::vector<uint8_t> getBytes(const std::string &columnName) override;
+
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
+            cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> isBeforeFirst(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> isAfterLast(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<uint64_t, DBException> getRow(std::nothrow_t) noexcept override;
+
+            cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<long, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, size_t columnIndex) noexcept override;
+
+            cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<long, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, const std::string &columnName) noexcept override;
+
+            cpp_dbc::expected<std::vector<std::string>, DBException> getColumnNames(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<size_t, DBException> getColumnCount(std::nothrow_t) noexcept override;
+
+            cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
         };
 
         /**
@@ -320,6 +360,28 @@ namespace cpp_dbc
             uint64_t executeUpdate() override;
             bool execute() override;
             void close() override;
+
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
+            cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept override;
+            cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, long value) noexcept override;
+            cpp_dbc::expected<void, DBException> setDouble(std::nothrow_t, int parameterIndex, double value) noexcept override;
+            cpp_dbc::expected<void, DBException> setString(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
+            cpp_dbc::expected<void, DBException> setBoolean(std::nothrow_t, int parameterIndex, bool value) noexcept override;
+            cpp_dbc::expected<void, DBException> setNull(std::nothrow_t, int parameterIndex, Types type) noexcept override;
+            cpp_dbc::expected<void, DBException> setDate(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
+            cpp_dbc::expected<void, DBException> setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
+            cpp_dbc::expected<void, DBException> setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept override;
+            cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept override;
+            cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept override;
+            cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept override;
+            cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept override;
+            cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> execute(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         };
 
         /**
@@ -361,9 +423,11 @@ namespace cpp_dbc
             TransactionIsolationLevel m_isolationLevel;
             std::string m_url;
 
-            // Registry of active prepared statements
+            // Registry of active prepared statements and result sets
             std::set<std::weak_ptr<FirebirdDBPreparedStatement>, std::owner_less<std::weak_ptr<FirebirdDBPreparedStatement>>> m_activeStatements;
+            std::set<std::weak_ptr<FirebirdDBResultSet>, std::owner_less<std::weak_ptr<FirebirdDBResultSet>>> m_activeResultSets;
             std::mutex m_statementsMutex;
+            std::mutex m_resultSetsMutex;
 
 #if DB_DRIVER_THREAD_SAFE
             mutable std::recursive_mutex m_connMutex;
@@ -371,8 +435,11 @@ namespace cpp_dbc
 
             void registerStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt);
             void unregisterStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt);
+            void registerResultSet(std::weak_ptr<FirebirdDBResultSet> rs);
+            void unregisterResultSet(std::weak_ptr<FirebirdDBResultSet> rs);
             void startTransaction();
             void endTransaction(bool commit);
+            void closeAllActiveResultSets();
 
             /**
              * @brief Execute a CREATE DATABASE statement using isc_dsql_execute_immediate
@@ -414,6 +481,43 @@ namespace cpp_dbc
 
             // Get the connection URL
             std::string getURL() const override;
+
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
+            cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>
+            prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
+
+            cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>
+            executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
+
+            cpp_dbc::expected<uint64_t, DBException>
+            executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
+
+            cpp_dbc::expected<void, DBException>
+            setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override;
+
+            cpp_dbc::expected<bool, DBException>
+                getAutoCommit(std::nothrow_t) noexcept override;
+
+            cpp_dbc::expected<bool, DBException>
+                beginTransaction(std::nothrow_t) noexcept override;
+
+            cpp_dbc::expected<bool, DBException>
+                transactionActive(std::nothrow_t) noexcept override;
+
+            cpp_dbc::expected<void, DBException>
+                commit(std::nothrow_t) noexcept override;
+
+            cpp_dbc::expected<void, DBException>
+                rollback(std::nothrow_t) noexcept override;
+
+            cpp_dbc::expected<void, DBException>
+            setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+
+            cpp_dbc::expected<TransactionIsolationLevel, DBException>
+                getTransactionIsolation(std::nothrow_t) noexcept override;
         };
 
         /**
@@ -479,6 +583,20 @@ namespace cpp_dbc
              * @return true if parsing was successful
              */
             bool parseURL(const std::string &url, std::string &host, int &port, std::string &database);
+
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
+            cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
+            connectRelational(
+                std::nothrow_t,
+                const std::string &url,
+                const std::string &user,
+                const std::string &password,
+                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
+
+            std::string getName() const noexcept override;
         };
 
         // ============================================================================

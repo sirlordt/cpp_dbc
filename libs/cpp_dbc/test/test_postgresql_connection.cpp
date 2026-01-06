@@ -43,7 +43,7 @@ TEST_CASE("PostgreSQL connection test", "[postgresql_connection]")
         std::string password = dbConfig.getPassword();
         std::string connStr = dbConfig.createConnectionString();
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         try
         {

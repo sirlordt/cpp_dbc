@@ -5450,6 +5450,11 @@ namespace cpp_dbc
             }
         }
 
+        std::string MongoDBDriver::getName() const noexcept
+        {
+            return "mongodb";
+        }
+
     } // namespace MongoDB
 } // namespace cpp_dbc
 

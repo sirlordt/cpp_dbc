@@ -41,7 +41,7 @@ TEST_CASE("TransactionManager basic tests", "[transaction_manager]")
 {
     // Register the mock driver directly
     auto mockDriver = std::make_shared<MockDriver>();
-    cpp_dbc::DriverManager::registerDriver("mock", mockDriver);
+    cpp_dbc::DriverManager::registerDriver(mockDriver);
 
     // Create a mock connection pool
     MockConnectionPool pool;
@@ -166,7 +166,7 @@ TEST_CASE("TransactionManager multi-threaded tests", "[transaction_manager]")
 {
     // Register the mock driver directly
     auto mockDriver = std::make_shared<MockDriver>();
-    cpp_dbc::DriverManager::registerDriver("mock", mockDriver);
+    cpp_dbc::DriverManager::registerDriver(mockDriver);
 
     // Create a mock connection pool
     MockConnectionPool pool;

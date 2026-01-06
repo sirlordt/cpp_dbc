@@ -427,6 +427,8 @@ namespace cpp_dbc
             cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
                 std::nothrow_t, const std::string &uri) noexcept override;
 
+            std::string getName() const noexcept override;
+
         private:
             static std::once_flag s_initFlag;
             static std::atomic<bool> s_initialized;

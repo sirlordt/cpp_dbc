@@ -341,7 +341,7 @@ int main()
     {
         // Register database drivers
 #if USE_MYSQL
-        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
         // Connect to MySQL
         std::cout << "Connecting to MySQL..." << std::endl;
@@ -360,7 +360,7 @@ int main()
 #endif
 
 #if USE_POSTGRESQL
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Connect to PostgreSQL
         std::cout << "\nConnecting to PostgreSQL..." << std::endl;

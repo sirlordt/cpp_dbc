@@ -96,7 +96,7 @@ int main() {
     try {
 #if USE_FIREBIRD
         // Register the Firebird driver
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::FirebirdDBDriver>());
         
         // Connect to a Firebird database
         auto conn = cpp_dbc::DriverManager::getDBConnection(
@@ -141,8 +141,7 @@ int main() {
     try {
 #if USE_MONGODB
         // Register the MongoDB driver
-        cpp_dbc::DriverManager::registerDriver("mongodb",
-            std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
         
         // Connect to a MongoDB database
         auto conn = cpp_dbc::DriverManager::getDocumentDBConnection(

@@ -71,7 +71,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
     SECTION("Basic PostgreSQL operations")
     {
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -332,7 +332,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
     SECTION("PostgreSQL metadata retrieval")
     {
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -510,7 +510,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[postgresql_real]")
     SECTION("PostgreSQL specific features")
     {
         // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));

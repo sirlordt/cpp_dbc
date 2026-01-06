@@ -238,7 +238,7 @@ namespace mysql_benchmark_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the MySQL driver
-            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
             // Attempt to connect to MySQL
             cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to MySQL with connection string: " + connStr);
@@ -290,7 +290,7 @@ namespace mysql_benchmark_helpers
             }
 
             // Register the MySQL driver and get a connection
-            cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
                 cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
@@ -387,7 +387,7 @@ namespace postgresql_benchmark_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the PostgreSQL driver
-            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
             // Attempt to connect to PostgreSQL
             cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to PostgreSQL with connection string: " + connStr);
@@ -440,7 +440,7 @@ namespace postgresql_benchmark_helpers
             }
 
             // Register the PostgreSQL driver and get a connection
-            cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
                 cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
@@ -546,7 +546,7 @@ namespace sqlite_benchmark_helpers
             std::string connStr = dbConfig.createConnectionString();
 
             // Register the SQLite driver
-            cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
             // Attempt to connect to SQLite
             cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to SQLite with connection string: " + connStr);
@@ -607,7 +607,7 @@ namespace sqlite_benchmark_helpers
             }
 
             // Register the SQLite driver and get a connection
-            cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
                 cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
 
@@ -704,7 +704,7 @@ namespace firebird_benchmark_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the Firebird driver
-            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
             // Attempt to connect to Firebird
             cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to Firebird with connection string: " + connStr);
@@ -822,7 +822,7 @@ namespace firebird_benchmark_helpers
             }
 
             // Register the Firebird driver and get a connection
-            cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
                 cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
@@ -982,7 +982,7 @@ namespace mongodb_benchmark_helpers
             std::string password = dbConfig.getPassword();
 
             // Register the MongoDB driver
-            cpp_dbc::DriverManager::registerDriver("mongodb", std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
 
             // Attempt to connect to MongoDB
             cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to MongoDB with connection string: " + connStr);
@@ -1137,7 +1137,7 @@ namespace mongodb_benchmark_helpers
             }
 
             // Register the MongoDB driver and get a connection
-            cpp_dbc::DriverManager::registerDriver("mongodb", std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
             auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
                 cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
@@ -1253,7 +1253,7 @@ namespace redis_benchmark_helpers
             cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to Redis with connection string: " + connStr);
 
             // Register the Redis driver
-            cpp_dbc::DriverManager::registerDriver("redis", std::make_shared<cpp_dbc::Redis::RedisDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDriver>());
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(
                 cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -1356,7 +1356,7 @@ namespace redis_benchmark_helpers
             }
 
             // Register the Redis driver and get a connection
-            cpp_dbc::DriverManager::registerDriver("redis", std::make_shared<cpp_dbc::Redis::RedisDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDriver>());
             auto conn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(
                 cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 

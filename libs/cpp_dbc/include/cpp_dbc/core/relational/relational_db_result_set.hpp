@@ -23,7 +23,10 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <new> // For std::nothrow_t
 #include "cpp_dbc/core/db_result_set.hpp"
+#include "cpp_dbc/core/db_expected.hpp"
+#include "cpp_dbc/core/db_exception.hpp"
 
 namespace cpp_dbc
 {
@@ -108,6 +111,220 @@ namespace cpp_dbc
 
         virtual std::vector<uint8_t> getBytes(size_t columnIndex) = 0;
         virtual std::vector<uint8_t> getBytes(const std::string &columnName) = 0;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        /**
+         * @brief Move to the next row in the result set (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing true if there is a next row, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException>
+            next(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Check if cursor is before the first row (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing true if before first row, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException>
+            isBeforeFirst(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Check if cursor is after the last row (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing true if after last row, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException>
+            isAfterLast(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get the current row number (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing the current row number (1-based), or DBException on failure
+         */
+        virtual cpp_dbc::expected<uint64_t, DBException>
+            getRow(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get an int value by column index (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnIndex The column index (1-based)
+         * @return expected containing the int value, or DBException on failure
+         */
+        virtual cpp_dbc::expected<int, DBException>
+        getInt(std::nothrow_t, size_t columnIndex) noexcept = 0;
+
+        /**
+         * @brief Get a long value by column index (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnIndex The column index (1-based)
+         * @return expected containing the long value, or DBException on failure
+         */
+        virtual cpp_dbc::expected<long, DBException>
+        getLong(std::nothrow_t, size_t columnIndex) noexcept = 0;
+
+        /**
+         * @brief Get a double value by column index (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnIndex The column index (1-based)
+         * @return expected containing the double value, or DBException on failure
+         */
+        virtual cpp_dbc::expected<double, DBException>
+        getDouble(std::nothrow_t, size_t columnIndex) noexcept = 0;
+
+        /**
+         * @brief Get a string value by column index (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnIndex The column index (1-based)
+         * @return expected containing the string value, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::string, DBException>
+        getString(std::nothrow_t, size_t columnIndex) noexcept = 0;
+
+        /**
+         * @brief Get a boolean value by column index (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnIndex The column index (1-based)
+         * @return expected containing the boolean value, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException>
+        getBoolean(std::nothrow_t, size_t columnIndex) noexcept = 0;
+
+        /**
+         * @brief Check if a column is NULL by index (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnIndex The column index (1-based)
+         * @return expected containing true if the column is NULL, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException>
+        isNull(std::nothrow_t, size_t columnIndex) noexcept = 0;
+
+        /**
+         * @brief Get an int value by column name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnName The column name
+         * @return expected containing the int value, or DBException on failure
+         */
+        virtual cpp_dbc::expected<int, DBException>
+        getInt(std::nothrow_t, const std::string &columnName) noexcept = 0;
+
+        /**
+         * @brief Get a long value by column name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnName The column name
+         * @return expected containing the long value, or DBException on failure
+         */
+        virtual cpp_dbc::expected<long, DBException>
+        getLong(std::nothrow_t, const std::string &columnName) noexcept = 0;
+
+        /**
+         * @brief Get a double value by column name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnName The column name
+         * @return expected containing the double value, or DBException on failure
+         */
+        virtual cpp_dbc::expected<double, DBException>
+        getDouble(std::nothrow_t, const std::string &columnName) noexcept = 0;
+
+        /**
+         * @brief Get a string value by column name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnName The column name
+         * @return expected containing the string value, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::string, DBException>
+        getString(std::nothrow_t, const std::string &columnName) noexcept = 0;
+
+        /**
+         * @brief Get a boolean value by column name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnName The column name
+         * @return expected containing the boolean value, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException>
+        getBoolean(std::nothrow_t, const std::string &columnName) noexcept = 0;
+
+        /**
+         * @brief Check if a column is NULL by name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnName The column name
+         * @return expected containing true if the column is NULL, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException>
+        isNull(std::nothrow_t, const std::string &columnName) noexcept = 0;
+
+        /**
+         * @brief Get the names of all columns (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing vector of column names, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::vector<std::string>, DBException>
+            getColumnNames(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get the number of columns (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing number of columns, or DBException on failure
+         */
+        virtual cpp_dbc::expected<size_t, DBException>
+            getColumnCount(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get a BLOB by column index (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnIndex The column index (1-based)
+         * @return expected containing the BLOB, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::shared_ptr<Blob>, DBException>
+        getBlob(std::nothrow_t, size_t columnIndex) noexcept = 0;
+
+        /**
+         * @brief Get a BLOB by column name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnName The column name
+         * @return expected containing the BLOB, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::shared_ptr<Blob>, DBException>
+        getBlob(std::nothrow_t, const std::string &columnName) noexcept = 0;
+
+        /**
+         * @brief Get a binary stream by column index (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnIndex The column index (1-based)
+         * @return expected containing the input stream, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::shared_ptr<InputStream>, DBException>
+        getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept = 0;
+
+        /**
+         * @brief Get a binary stream by column name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnName The column name
+         * @return expected containing the input stream, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::shared_ptr<InputStream>, DBException>
+        getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept = 0;
+
+        /**
+         * @brief Get bytes by column index (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnIndex The column index (1-based)
+         * @return expected containing the bytes vector, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::vector<uint8_t>, DBException>
+        getBytes(std::nothrow_t, size_t columnIndex) noexcept = 0;
+
+        /**
+         * @brief Get bytes by column name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnName The column name
+         * @return expected containing the bytes vector, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::vector<uint8_t>, DBException>
+        getBytes(std::nothrow_t, const std::string &columnName) noexcept = 0;
     };
 
 } // namespace cpp_dbc

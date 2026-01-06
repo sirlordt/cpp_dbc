@@ -22,8 +22,11 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <new> // For std::nothrow_t
 #include "cpp_dbc/core/db_connection.hpp"
 #include "cpp_dbc/core/db_types.hpp"
+#include "cpp_dbc/core/db_expected.hpp"
+#include "cpp_dbc/core/db_exception.hpp"
 #include "relational_db_prepared_statement.hpp"
 #include "relational_db_result_set.hpp"
 
@@ -113,6 +116,103 @@ namespace cpp_dbc
          * @return The current isolation level
          */
         virtual TransactionIsolationLevel getTransactionIsolation() = 0;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        /**
+         * @brief Prepare a SQL statement for execution (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param sql The SQL statement with optional parameter placeholders
+         * @return expected containing a prepared statement object, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>
+        prepareStatement(std::nothrow_t, const std::string &sql) noexcept = 0;
+
+        /**
+         * @brief Execute a SELECT query directly (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param sql The SQL SELECT statement
+         * @return expected containing a result set, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>
+        executeQuery(std::nothrow_t, const std::string &sql) noexcept = 0;
+
+        /**
+         * @brief Execute an INSERT, UPDATE, or DELETE statement directly (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param sql The SQL statement
+         * @return expected containing the number of affected rows, or DBException on failure
+         */
+        virtual cpp_dbc::expected<uint64_t, DBException>
+        executeUpdate(std::nothrow_t, const std::string &sql) noexcept = 0;
+
+        /**
+         * @brief Set the auto-commit mode (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param autoCommit true to enable auto-commit, false to disable
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException>
+        setAutoCommit(std::nothrow_t, bool autoCommit) noexcept = 0;
+
+        /**
+         * @brief Get the current auto-commit mode (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing true if auto-commit is enabled, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException>
+            getAutoCommit(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Begin a new transaction (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing true if the transaction was started successfully, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException>
+            beginTransaction(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Check if a transaction is currently active (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing true if a transaction is active, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException>
+            transactionActive(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Commit the current transaction (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException>
+            commit(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Rollback the current transaction (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException>
+            rollback(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Set the transaction isolation level (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param level The desired isolation level
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException>
+        setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept = 0;
+
+        /**
+         * @brief Get the current transaction isolation level (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing the current isolation level, or DBException on failure
+         */
+        virtual cpp_dbc::expected<TransactionIsolationLevel, DBException>
+            getTransactionIsolation(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

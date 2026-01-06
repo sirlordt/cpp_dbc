@@ -57,7 +57,7 @@ TEST_CASE("Firebird BLOB operations", "[firebird_real_blob]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the Firebird driver
-    cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
     // Get a connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));

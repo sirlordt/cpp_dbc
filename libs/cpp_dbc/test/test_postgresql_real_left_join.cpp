@@ -58,7 +58,7 @@ TEST_CASE("PostgreSQL LEFT JOIN operations", "[postgresql_real_left_join]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the PostgreSQL driver
-    cpp_dbc::DriverManager::registerDriver("postgresql", std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
 
     // Get a connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));

@@ -391,7 +391,7 @@ int main()
 
         // Create and register MongoDB driver
         auto mongodbDriver = std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>();
-        cpp_dbc::DriverManager::registerDriver("mongodb", mongodbDriver);
+        cpp_dbc::DriverManager::registerDriver(mongodbDriver);
 
         // Build connection URL
         std::string url = "cpp_dbc:mongodb://" + MONGODB_HOST + ":" +

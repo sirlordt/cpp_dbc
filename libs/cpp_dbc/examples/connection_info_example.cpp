@@ -24,7 +24,7 @@ int main()
     {
         auto mysqlDriver = std::make_shared<MySQL::MySQLDBDriver>();
         std::shared_ptr<DBDriver> driver = std::static_pointer_cast<DBDriver>(mysqlDriver);
-        DriverManager::registerDriver("mysql", driver);
+        DriverManager::registerDriver(driver);
     }
 #endif
 
@@ -32,7 +32,7 @@ int main()
     {
         auto pgDriver = std::make_shared<PostgreSQL::PostgreSQLDBDriver>();
         std::shared_ptr<DBDriver> driver = std::static_pointer_cast<DBDriver>(pgDriver);
-        DriverManager::registerDriver("postgresql", driver);
+        DriverManager::registerDriver(driver);
     }
 #endif
 
@@ -40,7 +40,7 @@ int main()
     {
         auto sqliteDriver = std::make_shared<SQLite::SQLiteDBDriver>();
         std::shared_ptr<DBDriver> driver = std::static_pointer_cast<DBDriver>(sqliteDriver);
-        DriverManager::registerDriver("sqlite", driver);
+        DriverManager::registerDriver(driver);
     }
 #endif
 

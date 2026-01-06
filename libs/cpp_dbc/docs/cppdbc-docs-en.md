@@ -440,8 +440,7 @@ mongodb://username:password@host:port/database?authSource=admin
 #include <cpp_dbc/drivers/document/driver_mongodb.hpp>
 
 // Register the MongoDB driver
-cpp_dbc::DriverManager::registerDriver("mongodb",
-    std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
+cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
 
 // Connect to MongoDB
 auto conn = cpp_dbc::DriverManager::getDocumentDBConnection(

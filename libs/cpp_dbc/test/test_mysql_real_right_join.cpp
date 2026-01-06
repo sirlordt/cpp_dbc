@@ -57,7 +57,7 @@ TEST_CASE("MySQL RIGHT JOIN operations", "[mysql_real_right_join]")
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the MySQL driver
-    cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
     // Get a connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));

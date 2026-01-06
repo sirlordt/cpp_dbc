@@ -49,7 +49,7 @@ TEST_CASE("SQLite real database operations", "[sqlite_real]")
         // Test connection
 
         // Register the SQLite driver
-        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
         try
         {

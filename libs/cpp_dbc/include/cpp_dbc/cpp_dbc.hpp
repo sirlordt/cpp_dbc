@@ -41,6 +41,7 @@
 #include <stdexcept>
 #include <cstdint>
 #include <any>
+#include <optional>
 
 // Core headers
 #include "cpp_dbc/core/db_types.hpp"
@@ -148,6 +149,7 @@ namespace cpp_dbc
         static std::map<std::string, std::shared_ptr<DBDriver>> drivers;
 
     public:
+        static void registerDriver(std::shared_ptr<DBDriver> driver);
         static void registerDriver(const std::string &name, std::shared_ptr<DBDriver> driver);
 
         // Generic connection method - returns base DBConnection
@@ -170,6 +172,9 @@ namespace cpp_dbc
 
         // Unregister a specific driver
         static void unregisterDriver(const std::string &name);
+
+        // Get a driver by name
+        static std::optional<std::shared_ptr<DBDriver>> getDriver(const std::string &name);
     };
 
 } // namespace cpp_dbc

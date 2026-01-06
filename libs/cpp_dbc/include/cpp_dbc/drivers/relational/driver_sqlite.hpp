@@ -202,6 +202,32 @@ namespace cpp_dbc
 
             std::vector<uint8_t> getBytes(size_t columnIndex) override;
             std::vector<uint8_t> getBytes(const std::string &columnName) override;
+
+            // Nothrow API
+            cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> isBeforeFirst(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> isAfterLast(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<uint64_t, DBException> getRow(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<long, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<long, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<std::vector<std::string>, DBException> getColumnNames(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<size_t, DBException> getColumnCount(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
         };
 
         class SQLiteDBPreparedStatement : public RelationalDBPreparedStatement
@@ -266,6 +292,25 @@ namespace cpp_dbc
             uint64_t executeUpdate() override;
             bool execute() override;
             void close() override;
+
+            // Nothrow API
+            cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept override;
+            cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, long value) noexcept override;
+            cpp_dbc::expected<void, DBException> setDouble(std::nothrow_t, int parameterIndex, double value) noexcept override;
+            cpp_dbc::expected<void, DBException> setString(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
+            cpp_dbc::expected<void, DBException> setBoolean(std::nothrow_t, int parameterIndex, bool value) noexcept override;
+            cpp_dbc::expected<void, DBException> setNull(std::nothrow_t, int parameterIndex, Types type) noexcept override;
+            cpp_dbc::expected<void, DBException> setDate(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
+            cpp_dbc::expected<void, DBException> setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
+            cpp_dbc::expected<void, DBException> setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept override;
+            cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept override;
+            cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept override;
+            cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept override;
+            cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept override;
+            cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> execute(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         };
 
         class SQLiteDBConnection : public RelationalDBConnection, public std::enable_shared_from_this<SQLiteDBConnection>
@@ -331,6 +376,19 @@ namespace cpp_dbc
 
             // Get the connection URL
             std::string getURL() const override;
+
+            // Nothrow API
+            cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
+            cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
+            cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
+            cpp_dbc::expected<void, DBException> setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override;
+            cpp_dbc::expected<bool, DBException> getAutoCommit(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> beginTransaction(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> transactionActive(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+            cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
         };
 
         class SQLiteDBDriver : public RelationalDBDriver
@@ -353,6 +411,16 @@ namespace cpp_dbc
 
             // Parses a URL: cpp_dbc:sqlite:/path/to/database.db or cpp_dbc:sqlite::memory:
             bool parseURL(const std::string &url, std::string &database);
+
+            // Nothrow API
+            cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
+                std::nothrow_t,
+                const std::string &url,
+                const std::string &user,
+                const std::string &password,
+                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
+
+            std::string getName() const noexcept override;
         };
 
     } // namespace SQLite

@@ -102,6 +102,8 @@ namespace cpp_dbc
             // Default implementation does nothing - override in specific drivers
             return 0;
         }
+
+        virtual std::string getName() const noexcept = 0;
     };
 
 } // namespace cpp_dbc

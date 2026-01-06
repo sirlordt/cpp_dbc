@@ -40,7 +40,7 @@ TEST_CASE("DriverManager tests", "[driver][manager]")
         // Use the mock driver from test_mocks.hpp
 
         // Register the mock driver
-        cpp_dbc::DriverManager::registerDriver("mock", std::make_shared<cpp_dbc_test::MockDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc_test::MockDriver>());
 
         // Try to get a connection with the mock driver
         // This should not throw and return a valid connection

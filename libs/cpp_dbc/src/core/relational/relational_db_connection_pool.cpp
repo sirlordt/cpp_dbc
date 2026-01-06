@@ -1,5 +1,4 @@
-/*
-
+/**
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -9,14 +8,13 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
-
+ *
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
-
- @file connection_pool.cpp
- @brief Connection pool implementation for relational databases
-
-*/
+ *
+ * @file relational_db_connection_pool.cpp
+ * @brief Implementation of connection pool for relational databases
+ */
 
 #include "cpp_dbc/core/relational/relational_db_connection_pool.hpp"
 #include "cpp_dbc/config/database_config.hpp"
@@ -69,9 +67,7 @@ namespace cpp_dbc
           m_running(true),
           m_activeConnections(0)
     {
-        m_allConnections.reserve(m_maxSize);
-        // Note: Initial connections are created in the factory method after construction
-        // to ensure shared_from_this() works correctly
+        // Pool initialization will be done in the factory method
     }
 
     RelationalDBConnectionPool::RelationalDBConnectionPool(const config::DBConnectionPoolConfig &config)
@@ -94,23 +90,38 @@ namespace cpp_dbc
           m_running(true),
           m_activeConnections(0)
     {
-        m_allConnections.reserve(m_maxSize);
-        // Note: Initial connections are created in the factory method after construction
-        // to ensure shared_from_this() works correctly
+        // Pool initialization will be done in the factory method
     }
 
     void RelationalDBConnectionPool::initializePool()
     {
-        // Create initial connections
-        for (int i = 0; i < m_initialSize; i++)
+        try
         {
-            auto pooledConn = createPooledDBConnection();
-            m_idleConnections.push(pooledConn);
-            m_allConnections.push_back(pooledConn);
-        }
+            // Reserve space for connections
+            m_allConnections.reserve(m_maxSize);
 
-        // Start maintenance thread
-        m_maintenanceThread = std::thread(&RelationalDBConnectionPool::maintenanceTask, this);
+            // Create initial connections
+            for (int i = 0; i < m_initialSize; i++)
+            {
+                auto pooledConn = createPooledDBConnection();
+
+                // Add to idle connections and all connections lists under proper locks
+                {
+                    std::lock_guard<std::mutex> lockIdle(m_mutexIdleConnections);
+                    std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
+                    m_idleConnections.push(pooledConn);
+                    m_allConnections.push_back(pooledConn);
+                }
+            }
+
+            // Start maintenance thread
+            m_maintenanceThread = std::thread(&RelationalDBConnectionPool::maintenanceTask, this);
+        }
+        catch (const std::exception &e)
+        {
+            close();
+            throw DBException("D54157A1F4C7", "Failed to initialize connection pool: " + std::string(e.what()), system_utils::captureCallStack());
+        }
     }
 
     std::shared_ptr<RelationalDBConnectionPool> RelationalDBConnectionPool::create(const std::string &url,
@@ -216,9 +227,21 @@ namespace cpp_dbc
     {
         std::lock_guard<std::mutex> lock(m_mutexReturnConnection);
 
+        if (!conn)
+        {
+            return;
+        }
+
         if (!m_running.load())
         {
-            // If pool is shutting down, just discard the connection
+            try
+            {
+                conn->getUnderlyingRelationalConnection()->close();
+            }
+            catch (const std::exception &)
+            {
+                // Ignore exceptions during close
+            }
             return;
         }
 
@@ -229,66 +252,85 @@ namespace cpp_dbc
         }
 
         // Additional safety check: verify connection is in allConnections
-        auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
-        if (it == m_allConnections.end())
         {
-            return;
-        }
-
-        // Test connection before returning to pool if configured
-        if (m_testOnReturn)
-        {
-            if (!validateConnection(conn->getUnderlyingRelationalConnection()))
+            std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
+            auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
+            if (it == m_allConnections.end())
             {
-                // Remove from allConnections
-                auto it_inner = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
-                if (it_inner != m_allConnections.end())
-                {
-                    m_allConnections.erase(it_inner);
-                }
-
-                // Replace with new connection if pool is running
-                if (m_running && m_allConnections.size() < m_minIdle)
-                {
-                    auto newConn = createPooledDBConnection();
-                    m_idleConnections.push(newConn);
-                    m_allConnections.push_back(newConn);
-                }
-
                 return;
             }
         }
 
-        try
+        bool valid = true;
+
+        if (m_testOnReturn)
         {
-            if (!conn->m_closed)
+            valid = validateConnection(conn->getUnderlyingRelationalConnection());
+        }
+
+        if (valid)
+        {
+            // Reset transaction isolation level if needed
+            try
             {
-                // Check if the connection's transaction isolation level is different from the pool's
-                // If so, reset it to match the pool's level
-                TransactionIsolationLevel connIsolation = conn->getTransactionIsolation();
-                if (connIsolation != m_transactionIsolation)
+                if (!conn->m_closed)
                 {
-                    conn->setTransactionIsolation(m_transactionIsolation);
+                    TransactionIsolationLevel connIsolation = conn->getTransactionIsolation();
+                    if (connIsolation != m_transactionIsolation)
+                    {
+                        conn->setTransactionIsolation(m_transactionIsolation);
+                    }
                 }
             }
+            catch (...)
+            {
+            }
+
+            // Mark as inactive and update last used time
+            conn->setActive(false);
+
+            // Add to idle connections queue
+            {
+                std::lock_guard<std::mutex> lockIdle(m_mutexIdleConnections);
+                m_idleConnections.push(conn);
+                m_activeConnections--;
+            }
         }
-        catch (...)
+        else
         {
+            // Replace invalid connection with a new one
+            try
+            {
+                {
+                    std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
+                    auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
+                    if (it != m_allConnections.end())
+                    {
+                        *it = createPooledDBConnection();
+
+                        {
+                            std::lock_guard<std::mutex> lockIdle(m_mutexIdleConnections);
+                            m_idleConnections.push(*it);
+                        }
+                    }
+                }
+                m_activeConnections--;
+            }
+            catch (const std::exception &)
+            {
+                m_activeConnections--;
+                // Log error here if needed
+            }
         }
 
-        // Mark as inactive and update last used time
-        conn->setActive(false);
-
-        // Add to idle connections queue and tracking set
-        {
-            std::lock_guard<std::mutex> lock_idle(m_mutexIdleConnections);
-            m_idleConnections.push(conn);
-            m_activeConnections--;
-        }
+        // Notify maintenance thread that a connection was returned
+        m_maintenanceCondition.notify_one();
     }
 
     std::shared_ptr<RelationalPooledDBConnection> RelationalDBConnectionPool::getIdleDBConnection()
     {
+        std::lock_guard<std::mutex> lock(m_mutexIdleConnections);
+
         if (!m_idleConnections.empty())
         {
             auto conn = m_idleConnections.front();
@@ -300,14 +342,27 @@ namespace cpp_dbc
                 if (!validateConnection(conn->getUnderlyingRelationalConnection()))
                 {
                     // Remove from allConnections
+                    std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
                     auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
                     if (it != m_allConnections.end())
                     {
                         m_allConnections.erase(it);
                     }
 
-                    // Create new connection
-                    return createPooledDBConnection();
+                    // Create new connection if we're still running
+                    if (m_running.load())
+                    {
+                        try
+                        {
+                            return createPooledDBConnection();
+                        }
+                        catch (const std::exception &)
+                        {
+                            // Return nullptr if we can't create a new connection
+                            return nullptr;
+                        }
+                    }
+                    return nullptr;
                 }
             }
 
@@ -315,13 +370,12 @@ namespace cpp_dbc
         }
         else if (m_allConnections.size() < m_maxSize)
         {
-            // We need to create a new connection, but we'll do it outside the lambda
-            // to avoid holding the lock too long
-            return nullptr; // Signal that we need to create a new connection
+            // Signal that we need to create a new connection
+            return nullptr;
         }
 
         return nullptr;
-    };
+    }
 
     std::shared_ptr<DBConnection> RelationalDBConnectionPool::getDBConnection()
     {
@@ -605,19 +659,24 @@ namespace cpp_dbc
 
     RelationalPooledDBConnection::~RelationalPooledDBConnection()
     {
-        // Mark as closed to prevent any further operations
-        m_closed = true;
-
-        // Simply close the underlying connection without returning to pool
-        if (m_conn)
+        if (!m_closed && m_conn)
         {
             try
             {
-                m_conn->close();
+                // If the pool is no longer alive, close the physical connection
+                if (!isPoolValid())
+                {
+                    m_conn->close();
+                }
+                else
+                {
+                    // Return to pool
+                    returnToPool();
+                }
             }
-            catch (...)
+            catch (const std::exception &)
             {
-                // Ignore exceptions during destruction
+                // Ignore exceptions in destructor
             }
         }
     }
@@ -626,39 +685,45 @@ namespace cpp_dbc
     {
         // Use atomic exchange to ensure only one thread processes the close
         bool expected = false;
-        if (!m_closed.compare_exchange_strong(expected, true))
+        if (m_closed.compare_exchange_strong(expected, true))
         {
-            return; // Already closed, nothing to do
-        }
-
-        try
-        {
-            // Return to pool instead of actually closing
-            m_lastUsedTime = std::chrono::steady_clock::now();
-
-            // Check if pool is still alive using the shared atomic flag
-            if (isPoolValid())
+            try
             {
-                // Try to obtain a shared_ptr from the weak_ptr
-                if (auto poolShared = m_pool.lock())
+                // Return to pool instead of actually closing
+                m_lastUsedTime = std::chrono::steady_clock::now();
+
+                // Check if pool is still alive using the shared atomic flag
+                if (isPoolValid())
                 {
-                    poolShared->returnConnection(std::static_pointer_cast<RelationalPooledDBConnection>(this->shared_from_this()));
-                    // Note: We keep m_closed = true. From the user's perspective, this connection
-                    // is closed. The pool will reset m_closed when it hands out this connection again.
+                    // Try to obtain a shared_ptr from the weak_ptr
+                    if (auto poolShared = m_pool.lock())
+                    {
+                        poolShared->returnConnection(std::static_pointer_cast<RelationalPooledDBConnection>(shared_from_this()));
+                        m_closed.store(false); // Connection has been returned to pool, mark as not closed
+                    }
+                }
+                else if (m_conn)
+                {
+                    // If pool is invalid, actually close the connection
+                    m_conn->close();
                 }
             }
-        }
-        catch (const std::bad_weak_ptr &)
-        {
-            // shared_from_this failed, connection remains closed
-        }
-        catch (const std::exception &)
-        {
-            // Any other exception, connection remains closed
-        }
-        catch (...)
-        {
-            // Any other exception, connection remains closed
+            catch (const std::bad_weak_ptr &)
+            {
+                // shared_from_this failed, just close the connection
+                if (m_conn)
+                {
+                    m_conn->close();
+                }
+            }
+            catch (const std::exception &)
+            {
+                // Any other exception, just close the connection
+                if (m_conn)
+                {
+                    m_conn->close();
+                }
+            }
         }
     }
 
@@ -677,6 +742,35 @@ namespace cpp_dbc
         return m_conn->prepareStatement(sql);
     }
 
+    cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> RelationalPooledDBConnection::prepareStatement(std::nothrow_t, const std::string &sql) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("95097A0AE22B", "Connection is closed", system_utils::captureCallStack()));
+            }
+            m_lastUsedTime = std::chrono::steady_clock::now();
+            return m_conn->prepareStatement(std::nothrow, sql);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("95097A0AE22C",
+                                                   std::string("prepareStatement failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("95097A0AE22D",
+                                                   "prepareStatement failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
     std::shared_ptr<RelationalDBResultSet> RelationalPooledDBConnection::executeQuery(const std::string &sql)
     {
         if (m_closed)
@@ -685,6 +779,35 @@ namespace cpp_dbc
         }
         m_lastUsedTime = std::chrono::steady_clock::now();
         return m_conn->executeQuery(sql);
+    }
+
+    cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> RelationalPooledDBConnection::executeQuery(std::nothrow_t, const std::string &sql) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("F9E32F56CFF4", "Connection is closed", system_utils::captureCallStack()));
+            }
+            m_lastUsedTime = std::chrono::steady_clock::now();
+            return m_conn->executeQuery(std::nothrow, sql);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("F9E32F56CFF5",
+                                                   std::string("executeQuery failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("F9E32F56CFF6",
+                                                   "executeQuery failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
     }
 
     uint64_t RelationalPooledDBConnection::executeUpdate(const std::string &sql)
@@ -697,6 +820,35 @@ namespace cpp_dbc
         return m_conn->executeUpdate(sql);
     }
 
+    cpp_dbc::expected<uint64_t, DBException> RelationalPooledDBConnection::executeUpdate(std::nothrow_t, const std::string &sql) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("3D5C6173E4D1", "Connection is closed", system_utils::captureCallStack()));
+            }
+            m_lastUsedTime = std::chrono::steady_clock::now();
+            return m_conn->executeUpdate(std::nothrow, sql);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("3D5C6173E4D2",
+                                                   std::string("executeUpdate failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("3D5C6173E4D3",
+                                                   "executeUpdate failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
     void RelationalPooledDBConnection::setAutoCommit(bool autoCommit)
     {
         if (m_closed)
@@ -705,6 +857,35 @@ namespace cpp_dbc
         }
         m_lastUsedTime = std::chrono::steady_clock::now();
         m_conn->setAutoCommit(autoCommit);
+    }
+
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::setAutoCommit(std::nothrow_t, bool autoCommit) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("5742170C69B4", "Connection is closed", system_utils::captureCallStack()));
+            }
+            m_lastUsedTime = std::chrono::steady_clock::now();
+            return m_conn->setAutoCommit(std::nothrow, autoCommit);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("5742170C69B5",
+                                                   std::string("setAutoCommit failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("5742170C69B6",
+                                                   "setAutoCommit failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
     }
 
     bool RelationalPooledDBConnection::getAutoCommit()
@@ -717,6 +898,35 @@ namespace cpp_dbc
         return m_conn->getAutoCommit();
     }
 
+    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::getAutoCommit(std::nothrow_t) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("E3DEAB8A5E6D", "Connection is closed", system_utils::captureCallStack()));
+            }
+            m_lastUsedTime = std::chrono::steady_clock::now();
+            return m_conn->getAutoCommit(std::nothrow);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("E3DEAB8A5E6E",
+                                                   std::string("getAutoCommit failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("E3DEAB8A5E6F",
+                                                   "getAutoCommit failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
     void RelationalPooledDBConnection::commit()
     {
         if (m_closed)
@@ -725,6 +935,35 @@ namespace cpp_dbc
         }
         m_lastUsedTime = std::chrono::steady_clock::now();
         m_conn->commit();
+    }
+
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::commit(std::nothrow_t) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("E32DBBC7316E", "Connection is closed", system_utils::captureCallStack()));
+            }
+            m_lastUsedTime = std::chrono::steady_clock::now();
+            return m_conn->commit(std::nothrow);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("E32DBBC7316F",
+                                                   std::string("commit failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("E32DBBC73170",
+                                                   "commit failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
     }
 
     void RelationalPooledDBConnection::rollback()
@@ -737,6 +976,35 @@ namespace cpp_dbc
         m_conn->rollback();
     }
 
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::rollback(std::nothrow_t) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("094612AE91B6", "Connection is closed", system_utils::captureCallStack()));
+            }
+            m_lastUsedTime = std::chrono::steady_clock::now();
+            return m_conn->rollback(std::nothrow);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("094612AE91B7",
+                                                   std::string("rollback failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("094612AE91B8",
+                                                   "rollback failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
     bool RelationalPooledDBConnection::beginTransaction()
     {
         if (m_closed)
@@ -745,6 +1013,35 @@ namespace cpp_dbc
         }
         m_lastUsedTime = std::chrono::steady_clock::now();
         return m_conn->beginTransaction();
+    }
+
+    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::beginTransaction(std::nothrow_t) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("B7C8D9E0F1G2", "Connection is closed", system_utils::captureCallStack()));
+            }
+            m_lastUsedTime = std::chrono::steady_clock::now();
+            return m_conn->beginTransaction(std::nothrow);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("B7C8D9E0F1G3",
+                                                   std::string("beginTransaction failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("B7C8D9E0F1G4",
+                                                   "beginTransaction failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
     }
 
     bool RelationalPooledDBConnection::transactionActive()
@@ -757,6 +1054,35 @@ namespace cpp_dbc
         return m_conn->transactionActive();
     }
 
+    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::transactionActive(std::nothrow_t) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("H3I4J5K6L7M8", "Connection is closed", system_utils::captureCallStack()));
+            }
+            m_lastUsedTime = std::chrono::steady_clock::now();
+            return m_conn->transactionActive(std::nothrow);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("H3I4J5K6L7M9",
+                                                   std::string("transactionActive failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("H3I4J5K6L7MA",
+                                                   "transactionActive failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
     void RelationalPooledDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
         if (m_closed)
@@ -767,6 +1093,35 @@ namespace cpp_dbc
         m_conn->setTransactionIsolation(level);
     }
 
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("F7A2B9C3D1E5", "Connection is closed", system_utils::captureCallStack()));
+            }
+            m_lastUsedTime = std::chrono::steady_clock::now();
+            return m_conn->setTransactionIsolation(std::nothrow, level);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("F7A2B9C3D1E6",
+                                                   std::string("setTransactionIsolation failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("F7A2B9C3D1E7",
+                                                   "setTransactionIsolation failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
     TransactionIsolationLevel RelationalPooledDBConnection::getTransactionIsolation()
     {
         if (m_closed)
@@ -775,6 +1130,35 @@ namespace cpp_dbc
         }
         m_lastUsedTime = std::chrono::steady_clock::now();
         return m_conn->getTransactionIsolation();
+    }
+
+    cpp_dbc::expected<TransactionIsolationLevel, DBException> RelationalPooledDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("A4B5C6D7E8F9", "Connection is closed", system_utils::captureCallStack()));
+            }
+            m_lastUsedTime = std::chrono::steady_clock::now();
+            return m_conn->getTransactionIsolation(std::nothrow);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("A4B5C6D7E8FA",
+                                                   std::string("getTransactionIsolation failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("A4B5C6D7E8FB",
+                                                   "getTransactionIsolation failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
     }
 
     std::string RelationalPooledDBConnection::getURL() const
@@ -809,7 +1193,37 @@ namespace cpp_dbc
 
     void RelationalPooledDBConnection::returnToPool()
     {
-        this->close();
+        // Use atomic exchange to ensure only one thread processes the close
+        bool expected = false;
+        if (!m_closed.compare_exchange_strong(expected, true))
+        {
+            return;
+        }
+
+        try
+        {
+            // Return to pool instead of actually closing
+            m_lastUsedTime = std::chrono::steady_clock::now();
+
+            // Check if pool is still alive using the shared atomic flag
+            if (isPoolValid())
+            {
+                // Try to obtain a shared_ptr from the weak_ptr
+                if (auto poolShared = m_pool.lock())
+                {
+                    poolShared->returnConnection(std::static_pointer_cast<RelationalPooledDBConnection>(this->shared_from_this()));
+                    m_closed.store(false);
+                }
+            }
+        }
+        catch (const std::bad_weak_ptr &e)
+        {
+            // shared_from_this failed, keep as closed
+        }
+        catch (const std::exception &e)
+        {
+            // Any other exception, keep as closed
+        }
     }
 
     bool RelationalPooledDBConnection::isPooled()

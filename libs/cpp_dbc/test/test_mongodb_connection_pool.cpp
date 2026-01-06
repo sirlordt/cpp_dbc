@@ -66,7 +66,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
     {
         // Get a MongoDB driver and register it with the DriverManager
         auto driver = mongodb_test_helpers::getMongoDBDriver();
-        cpp_dbc::DriverManager::registerDriver("mongodb", driver);
+        cpp_dbc::DriverManager::registerDriver(driver);
 
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -330,7 +330,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
     {
         // Get a MongoDB driver and register it with the DriverManager
         auto driver = mongodb_test_helpers::getMongoDBDriver();
-        cpp_dbc::DriverManager::registerDriver("mongodb", driver);
+        cpp_dbc::DriverManager::registerDriver(driver);
 
         // Create a connection pool configuration with smaller size
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;

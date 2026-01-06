@@ -75,7 +75,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
     SECTION("Basic Firebird operations")
     {
         // Register the Firebird driver (safe registration)
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -344,7 +344,7 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
     SECTION("Firebird metadata retrieval")
     {
         // Register the Firebird driver (safe registration)
-        cpp_dbc::DriverManager::registerDriver("firebird", std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -475,6 +475,13 @@ TEST_CASE("Real Firebird connection tests", "[firebird_real]")
                             successCount++;
                         }
 
+                        // NOTE: ResultSets are now automatically closed when connection is returned to pool
+                        // to pool to prevent statements from outliving their transaction context
+                        //selectStmt->close(); //Not work
+
+                        //rs->close(); //Work
+                        //conn_thread->commit(); //Work
+                        //conn_thread->rollback(); //Work
                         // Return the connection to the pool
                         conn_thread->returnToPool();
                     }

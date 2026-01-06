@@ -49,7 +49,7 @@ TEST_CASE("MySQL connection test", "[mysql_connection]")
         std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port);
 
         // Register the MySQL driver
-        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
         try
         {

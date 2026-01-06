@@ -338,7 +338,7 @@ int main()
 
         // Create and register Firebird driver
         auto firebirdDriver = std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>();
-        cpp_dbc::DriverManager::registerDriver("firebird", firebirdDriver);
+        cpp_dbc::DriverManager::registerDriver(firebirdDriver);
 
         // Build connection URL
         std::string url = "cpp_dbc:firebird://" + FIREBIRD_HOST + ":" +

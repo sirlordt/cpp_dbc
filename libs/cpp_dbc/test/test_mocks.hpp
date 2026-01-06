@@ -352,6 +352,130 @@ namespace cpp_dbc_test
             // Return an empty vector
             return std::vector<uint8_t>();
         }
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API implementations
+        // ====================================================================
+
+        cpp_dbc::expected<bool, cpp_dbc::DBException> next(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<bool, cpp_dbc::DBException>(next());
+        }
+
+        cpp_dbc::expected<bool, cpp_dbc::DBException> isBeforeFirst(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<bool, cpp_dbc::DBException>(isBeforeFirst());
+        }
+
+        cpp_dbc::expected<bool, cpp_dbc::DBException> isAfterLast(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<bool, cpp_dbc::DBException>(isAfterLast());
+        }
+
+        cpp_dbc::expected<uint64_t, cpp_dbc::DBException> getRow(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<uint64_t, cpp_dbc::DBException>(getRow());
+        }
+
+        cpp_dbc::expected<int, cpp_dbc::DBException> getInt(std::nothrow_t, size_t columnIndex) noexcept override
+        {
+            return cpp_dbc::expected<int, cpp_dbc::DBException>(getInt(columnIndex));
+        }
+
+        cpp_dbc::expected<long, cpp_dbc::DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept override
+        {
+            return cpp_dbc::expected<long, cpp_dbc::DBException>(getLong(columnIndex));
+        }
+
+        cpp_dbc::expected<double, cpp_dbc::DBException> getDouble(std::nothrow_t, size_t columnIndex) noexcept override
+        {
+            return cpp_dbc::expected<double, cpp_dbc::DBException>(getDouble(columnIndex));
+        }
+
+        cpp_dbc::expected<std::string, cpp_dbc::DBException> getString(std::nothrow_t, size_t columnIndex) noexcept override
+        {
+            return cpp_dbc::expected<std::string, cpp_dbc::DBException>(getString(columnIndex));
+        }
+
+        cpp_dbc::expected<bool, cpp_dbc::DBException> getBoolean(std::nothrow_t, size_t columnIndex) noexcept override
+        {
+            return cpp_dbc::expected<bool, cpp_dbc::DBException>(getBoolean(columnIndex));
+        }
+
+        cpp_dbc::expected<bool, cpp_dbc::DBException> isNull(std::nothrow_t, size_t columnIndex) noexcept override
+        {
+            return cpp_dbc::expected<bool, cpp_dbc::DBException>(isNull(columnIndex));
+        }
+
+        cpp_dbc::expected<int, cpp_dbc::DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept override
+        {
+            return cpp_dbc::expected<int, cpp_dbc::DBException>(getInt(columnName));
+        }
+
+        cpp_dbc::expected<long, cpp_dbc::DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override
+        {
+            return cpp_dbc::expected<long, cpp_dbc::DBException>(getLong(columnName));
+        }
+
+        cpp_dbc::expected<double, cpp_dbc::DBException> getDouble(std::nothrow_t, const std::string &columnName) noexcept override
+        {
+            return cpp_dbc::expected<double, cpp_dbc::DBException>(getDouble(columnName));
+        }
+
+        cpp_dbc::expected<std::string, cpp_dbc::DBException> getString(std::nothrow_t, const std::string &columnName) noexcept override
+        {
+            return cpp_dbc::expected<std::string, cpp_dbc::DBException>(getString(columnName));
+        }
+
+        cpp_dbc::expected<bool, cpp_dbc::DBException> getBoolean(std::nothrow_t, const std::string &columnName) noexcept override
+        {
+            return cpp_dbc::expected<bool, cpp_dbc::DBException>(getBoolean(columnName));
+        }
+
+        cpp_dbc::expected<bool, cpp_dbc::DBException> isNull(std::nothrow_t, const std::string &columnName) noexcept override
+        {
+            return cpp_dbc::expected<bool, cpp_dbc::DBException>(isNull(columnName));
+        }
+
+        cpp_dbc::expected<std::vector<std::string>, cpp_dbc::DBException> getColumnNames(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<std::vector<std::string>, cpp_dbc::DBException>(getColumnNames());
+        }
+
+        cpp_dbc::expected<size_t, cpp_dbc::DBException> getColumnCount(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<size_t, cpp_dbc::DBException>(getColumnCount());
+        }
+
+        cpp_dbc::expected<std::shared_ptr<cpp_dbc::Blob>, cpp_dbc::DBException> getBlob(std::nothrow_t, size_t columnIndex) noexcept override
+        {
+            return cpp_dbc::expected<std::shared_ptr<cpp_dbc::Blob>, cpp_dbc::DBException>(getBlob(columnIndex));
+        }
+
+        cpp_dbc::expected<std::shared_ptr<cpp_dbc::Blob>, cpp_dbc::DBException> getBlob(std::nothrow_t, const std::string &columnName) noexcept override
+        {
+            return cpp_dbc::expected<std::shared_ptr<cpp_dbc::Blob>, cpp_dbc::DBException>(getBlob(columnName));
+        }
+
+        cpp_dbc::expected<std::shared_ptr<cpp_dbc::InputStream>, cpp_dbc::DBException> getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept override
+        {
+            return cpp_dbc::expected<std::shared_ptr<cpp_dbc::InputStream>, cpp_dbc::DBException>(getBinaryStream(columnIndex));
+        }
+
+        cpp_dbc::expected<std::shared_ptr<cpp_dbc::InputStream>, cpp_dbc::DBException> getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept override
+        {
+            return cpp_dbc::expected<std::shared_ptr<cpp_dbc::InputStream>, cpp_dbc::DBException>(getBinaryStream(columnName));
+        }
+
+        cpp_dbc::expected<std::vector<uint8_t>, cpp_dbc::DBException> getBytes(std::nothrow_t, size_t columnIndex) noexcept override
+        {
+            return cpp_dbc::expected<std::vector<uint8_t>, cpp_dbc::DBException>(getBytes(columnIndex));
+        }
+
+        cpp_dbc::expected<std::vector<uint8_t>, cpp_dbc::DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override
+        {
+            return cpp_dbc::expected<std::vector<uint8_t>, cpp_dbc::DBException>(getBytes(columnName));
+        }
     };
 
     // Basic mock implementation of PreparedStatement
@@ -472,6 +596,109 @@ namespace cpp_dbc_test
                 return it->second;
             }
             return "";
+        }
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API implementations
+        // ====================================================================
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept override
+        {
+            setInt(parameterIndex, value);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setLong(std::nothrow_t, int parameterIndex, long value) noexcept override
+        {
+            setLong(parameterIndex, value);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setDouble(std::nothrow_t, int parameterIndex, double value) noexcept override
+        {
+            setDouble(parameterIndex, value);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setString(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override
+        {
+            setString(parameterIndex, value);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setBoolean(std::nothrow_t, int parameterIndex, bool value) noexcept override
+        {
+            setBoolean(parameterIndex, value);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setNull(std::nothrow_t, int parameterIndex, cpp_dbc::Types type) noexcept override
+        {
+            setNull(parameterIndex, type);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setDate(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override
+        {
+            setDate(parameterIndex, value);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override
+        {
+            setTimestamp(parameterIndex, value);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<cpp_dbc::Blob> x) noexcept override
+        {
+            setBlob(parameterIndex, x);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<cpp_dbc::InputStream> x) noexcept override
+        {
+            setBinaryStream(parameterIndex, x);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<cpp_dbc::InputStream> x, size_t length) noexcept override
+        {
+            setBinaryStream(parameterIndex, x, length);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept override
+        {
+            setBytes(parameterIndex, x);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept override
+        {
+            setBytes(parameterIndex, x, length);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<std::shared_ptr<cpp_dbc::RelationalDBResultSet>, cpp_dbc::DBException> executeQuery(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<std::shared_ptr<cpp_dbc::RelationalDBResultSet>, cpp_dbc::DBException>(executeQuery());
+        }
+
+        cpp_dbc::expected<uint64_t, cpp_dbc::DBException> executeUpdate(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<uint64_t, cpp_dbc::DBException>(executeUpdate());
+        }
+
+        cpp_dbc::expected<bool, cpp_dbc::DBException> execute(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<bool, cpp_dbc::DBException>(execute());
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override
+        {
+            close();
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
         }
     };
 
@@ -609,6 +836,80 @@ namespace cpp_dbc_test
             committed = false;
             rolledBack = false;
         }
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API implementations
+        // ====================================================================
+
+        cpp_dbc::expected<std::shared_ptr<cpp_dbc::RelationalDBPreparedStatement>, cpp_dbc::DBException>
+        prepareStatement(std::nothrow_t, const std::string &sql) noexcept override
+        {
+            return cpp_dbc::expected<std::shared_ptr<cpp_dbc::RelationalDBPreparedStatement>, cpp_dbc::DBException>(prepareStatement(sql));
+        }
+
+        cpp_dbc::expected<std::shared_ptr<cpp_dbc::RelationalDBResultSet>, cpp_dbc::DBException>
+        executeQuery(std::nothrow_t, const std::string &sql) noexcept override
+        {
+            return cpp_dbc::expected<std::shared_ptr<cpp_dbc::RelationalDBResultSet>, cpp_dbc::DBException>(executeQuery(sql));
+        }
+
+        cpp_dbc::expected<uint64_t, cpp_dbc::DBException>
+        executeUpdate(std::nothrow_t, const std::string &sql) noexcept override
+        {
+            return cpp_dbc::expected<uint64_t, cpp_dbc::DBException>(executeUpdate(sql));
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException>
+        setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override
+        {
+            setAutoCommit(autoCommit);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<bool, cpp_dbc::DBException>
+        getAutoCommit(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<bool, cpp_dbc::DBException>(getAutoCommit());
+        }
+
+        cpp_dbc::expected<bool, cpp_dbc::DBException>
+        beginTransaction(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<bool, cpp_dbc::DBException>(beginTransaction());
+        }
+
+        cpp_dbc::expected<bool, cpp_dbc::DBException>
+        transactionActive(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<bool, cpp_dbc::DBException>(transactionActive());
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException>
+        commit(std::nothrow_t) noexcept override
+        {
+            commit();
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException>
+        rollback(std::nothrow_t) noexcept override
+        {
+            rollback();
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException>
+        setTransactionIsolation(std::nothrow_t, cpp_dbc::TransactionIsolationLevel level) noexcept override
+        {
+            setTransactionIsolation(level);
+            return cpp_dbc::expected<void, cpp_dbc::DBException>();
+        }
+
+        cpp_dbc::expected<cpp_dbc::TransactionIsolationLevel, cpp_dbc::DBException>
+        getTransactionIsolation(std::nothrow_t) noexcept override
+        {
+            return cpp_dbc::expected<cpp_dbc::TransactionIsolationLevel, cpp_dbc::DBException>(getTransactionIsolation());
+        }
     };
 
     // Basic mock implementation of Driver
@@ -625,6 +926,21 @@ namespace cpp_dbc_test
         {
             return url.find("cpp_dbc:mock") == 0;
         }
+
+        // NOTHROW VERSION - Exception-free API implementation
+        cpp_dbc::expected<std::shared_ptr<cpp_dbc::RelationalDBConnection>, cpp_dbc::DBException>
+        connectRelational(
+            std::nothrow_t,
+            const std::string &url,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override
+        {
+            return cpp_dbc::expected<std::shared_ptr<cpp_dbc::RelationalDBConnection>, cpp_dbc::DBException>(
+                connectRelational(url, user, password, options));
+        }
+
+        std::string getName() const noexcept override { return "mock"; };
     };
 
     // Mock ConnectionPool that can handle unlimited connections
@@ -657,7 +973,7 @@ namespace cpp_dbc_test
             try
             {
                 auto mockDriver = std::make_shared<MockDriver>();
-                cpp_dbc::DriverManager::registerDriver("mock", mockDriver);
+                cpp_dbc::DriverManager::registerDriver(mockDriver);
             }
             catch (...)
             {
@@ -796,6 +1112,80 @@ namespace cpp_dbc_test
             std::string getURL() const override
             {
                 return underlying->getURL();
+            }
+
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API implementations
+            // ====================================================================
+
+            cpp_dbc::expected<std::shared_ptr<cpp_dbc::RelationalDBPreparedStatement>, cpp_dbc::DBException>
+            prepareStatement(std::nothrow_t, const std::string &sql) noexcept override
+            {
+                return cpp_dbc::expected<std::shared_ptr<cpp_dbc::RelationalDBPreparedStatement>, cpp_dbc::DBException>(prepareStatement(sql));
+            }
+
+            cpp_dbc::expected<std::shared_ptr<cpp_dbc::RelationalDBResultSet>, cpp_dbc::DBException>
+            executeQuery(std::nothrow_t, const std::string &sql) noexcept override
+            {
+                return cpp_dbc::expected<std::shared_ptr<cpp_dbc::RelationalDBResultSet>, cpp_dbc::DBException>(executeQuery(sql));
+            }
+
+            cpp_dbc::expected<uint64_t, cpp_dbc::DBException>
+            executeUpdate(std::nothrow_t, const std::string &sql) noexcept override
+            {
+                return cpp_dbc::expected<uint64_t, cpp_dbc::DBException>(executeUpdate(sql));
+            }
+
+            cpp_dbc::expected<void, cpp_dbc::DBException>
+            setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override
+            {
+                setAutoCommit(autoCommit);
+                return cpp_dbc::expected<void, cpp_dbc::DBException>();
+            }
+
+            cpp_dbc::expected<bool, cpp_dbc::DBException>
+            getAutoCommit(std::nothrow_t) noexcept override
+            {
+                return cpp_dbc::expected<bool, cpp_dbc::DBException>(getAutoCommit());
+            }
+
+            cpp_dbc::expected<bool, cpp_dbc::DBException>
+            beginTransaction(std::nothrow_t) noexcept override
+            {
+                return cpp_dbc::expected<bool, cpp_dbc::DBException>(beginTransaction());
+            }
+
+            cpp_dbc::expected<bool, cpp_dbc::DBException>
+            transactionActive(std::nothrow_t) noexcept override
+            {
+                return cpp_dbc::expected<bool, cpp_dbc::DBException>(transactionActive());
+            }
+
+            cpp_dbc::expected<void, cpp_dbc::DBException>
+            commit(std::nothrow_t) noexcept override
+            {
+                commit();
+                return cpp_dbc::expected<void, cpp_dbc::DBException>();
+            }
+
+            cpp_dbc::expected<void, cpp_dbc::DBException>
+            rollback(std::nothrow_t) noexcept override
+            {
+                rollback();
+                return cpp_dbc::expected<void, cpp_dbc::DBException>();
+            }
+
+            cpp_dbc::expected<void, cpp_dbc::DBException>
+            setTransactionIsolation(std::nothrow_t, cpp_dbc::TransactionIsolationLevel level) noexcept override
+            {
+                setTransactionIsolation(level);
+                return cpp_dbc::expected<void, cpp_dbc::DBException>();
+            }
+
+            cpp_dbc::expected<cpp_dbc::TransactionIsolationLevel, cpp_dbc::DBException>
+            getTransactionIsolation(std::nothrow_t) noexcept override
+            {
+                return cpp_dbc::expected<cpp_dbc::TransactionIsolationLevel, cpp_dbc::DBException>(getTransactionIsolation());
             }
         };
     };

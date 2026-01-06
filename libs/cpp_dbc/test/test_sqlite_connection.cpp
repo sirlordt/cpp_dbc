@@ -45,7 +45,7 @@ TEST_CASE("SQLite connection test", "[sqlite_connection]")
         std::string connStr = dbConfig.createConnectionString();
 
         // Register the SQLite driver
-        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
         try
         {
@@ -139,7 +139,7 @@ TEST_CASE("SQLite in-memory database test", "[sqlite_memory]")
     SECTION("Test SQLite in-memory database")
     {
         // Register the SQLite driver
-        cpp_dbc::DriverManager::registerDriver("sqlite", std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
         try
         {

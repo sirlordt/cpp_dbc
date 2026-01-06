@@ -69,7 +69,7 @@ TEST_CASE("Real Redis connection pool tests", "[redis_connection_pool_real]")
     {
         // Get a Redis driver and register it with the DriverManager
         auto driver = redis_test_helpers::getRedisDriver();
-        cpp_dbc::DriverManager::registerDriver("redis", driver);
+        cpp_dbc::DriverManager::registerDriver(driver);
 
         // Use the full connection string including the cpp_dbc: prefix if present
         std::string poolConnStr = connStr;
@@ -309,7 +309,7 @@ TEST_CASE("Real Redis connection pool tests", "[redis_connection_pool_real]")
     {
         // Get a Redis driver and register it with the DriverManager
         auto driver = redis_test_helpers::getRedisDriver();
-        cpp_dbc::DriverManager::registerDriver("redis", driver);
+        cpp_dbc::DriverManager::registerDriver(driver);
 
         // Use the full connection string including the cpp_dbc: prefix if present
         std::string poolConnStr = connStr;

@@ -73,7 +73,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
     SECTION("Basic MySQL operations")
     {
         // Register the MySQL driver (safe registration)
-        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -383,7 +383,7 @@ TEST_CASE("Real MySQL connection tests", "[mysql_real]")
     SECTION("MySQL metadata retrieval")
     {
         // Register the MySQL driver (safe registration)
-        cpp_dbc::DriverManager::registerDriver("mysql", std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
