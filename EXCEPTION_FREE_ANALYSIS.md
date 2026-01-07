@@ -818,12 +818,13 @@ if (conn_res) {
 2. ✅ Implementation of `expected` completed and tested
 3. ⚠️ Update CMakeLists.txt with automatic detection
 4. ⚠️ Implement core interfaces with default wrappers
-5. ⚠️ Implement MySQL as prototype (Relational)
-6. ⚠️ Implement MongoDB (Document)
-7. ⚠️ Implement Redis (Key-Value)
-8. ⚠️ Apply to remaining drivers
-9. ⚠️ Comprehensive tests
-10. ⚠️ Documentation and examples
+5. ✅ Implement MySQL as prototype (Relational)
+6. ✅ Implement PostgreSQL driver (Relational)
+7. ⚠️ Implement MongoDB (Document)
+8. ✅ Implement Redis (Key-Value)
+9. ⚠️ Apply to remaining drivers (SQLite, Firebird)
+10. ⚠️ Comprehensive tests
+11. ⚠️ Documentation and examples
 
 ## References
 

@@ -35,7 +35,32 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Redis Exception-Free API Implementation** (2026-01-03 05:23:03 PM PST):
+1. **PostgreSQL Exception-Free API Implementation** (2026-01-06 08:11:44 PM PST):
+   - Added comprehensive exception-free API for PostgreSQL driver operations:
+     - **Implementation:**
+       - Implemented nothrow versions of all PostgreSQL driver methods using `std::nothrow_t` parameter
+       - All methods return `expected<T, DBException>` with clear error information
+       - Comprehensive error handling with unique error codes for each method
+       - Replaced "NOT_IMPLEMENTED" placeholders with full implementations
+     - **Operations Supported:**
+       - Connection management (prepareStatement, executeQuery, executeUpdate)
+       - Transaction handling (beginTransaction, commit, rollback)
+       - Transaction isolation level management
+       - Auto-commit settings
+       - Connection URL parsing and validation
+       - Parameter binding in prepared statements
+     - **Error Handling:**
+       - Error propagation with expected<T, DBException>
+       - Preserves call stack information in error cases
+       - Consistent error code format across all methods
+       - Clear error messages with operation and failure reason
+     - **Benefits:**
+       - Consistent API pattern with other database drivers
+       - Performance improvements for code using nothrow API
+       - Safer error handling without exception overhead
+       - Full compatibility with both exception and non-exception usage patterns
+
+2. **Redis Exception-Free API Implementation** (2026-01-03 05:23:03 PM PST):
    - Added comprehensive exception-free API for Redis driver operations:
      - **Implementation:**
        - Added nothrow versions of all Redis driver methods using `std::nothrow_t` parameter

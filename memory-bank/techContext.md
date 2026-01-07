@@ -197,7 +197,7 @@ The project is configured to work with the CMakeTools extension, but does not re
      - Uses `expected<T, DBException>` for error propagation
      - All methods have dual signatures: exception-throwing and exception-free variants
      - Exception-free variants use `std::nothrow_t` parameter to distinguish from exception-based variants
-     - Implemented for Redis driver with comprehensive coverage of all operations
+     - Implemented for Redis and PostgreSQL drivers with comprehensive coverage of all operations
      - Custom `cpp_dbc::expected<T, E>` implementation for pre-C++23 compatibility
      - Automatic use of native `std::expected` when C++23 is available
      - Benefits:
