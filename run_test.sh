@@ -44,9 +44,11 @@ USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
+USE_SCYLLA=OFF
 USE_REDIS=OFF
 USE_YAML=ON
 BUILD_TYPE=Debug
+ENABLE_GCC_ANALYZER=OFF
 ASAN_OPTIONS=""
 ENABLE_ASAN=false
 RUN_CTEST=false
@@ -61,6 +63,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
+DEBUG_SCYLLA=OFF
 DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
 DW_OFF=false
@@ -109,6 +112,14 @@ while [[ $# -gt 0 ]]; do
             USE_MONGODB=OFF
             shift
             ;;
+        --scylla|--scylla-on)
+            USE_SCYLLA=ON
+            shift
+            ;;
+        --scylla-off)
+            USE_SCYLLA=OFF
+            shift
+            ;;
         --redis|--redis-on)
             USE_REDIS=ON
             shift
@@ -131,6 +142,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --release)
             BUILD_TYPE=Release
+            shift
+            ;;
+        --gcc-analyzer)
+            ENABLE_GCC_ANALYZER=ON
             shift
             ;;
         --asan)
@@ -195,6 +210,10 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             shift
             ;;
+        --debug-scylla)
+            DEBUG_SCYLLA=ON
+            shift
+            ;;
         --debug-redis)
             DEBUG_REDIS=ON
             shift
@@ -230,12 +249,15 @@ while [[ $# -gt 0 ]]; do
             echo "  --firebird-off         Disable Firebird support"
             echo "  --mongodb, --mongodb-on  Enable MongoDB support"
             echo "  --mongodb-off          Disable MongoDB support"
+            echo "  --scylla, --scylla-on    Enable ScyllaDB support"
+            echo "  --scylla-off           Disable ScyllaDB support"
             echo "  --redis, --redis-on    Enable Redis support"
             echo "  --redis-off            Disable Redis support"
             echo "  --yaml, --yaml-on      Enable YAML configuration support"
             echo "  --yaml-off             Disable YAML configuration support"
             echo "  --auto                 Automatically run tests without user interaction"
             echo "  --release              Run in Release mode (default: Debug)"
+            echo "  --gcc-analyzer         Enable GCC Static Analyzer (GCC 10+)"
             echo "  --asan                 Enable Address Sanitizer"
             echo "  --valgrind             Run tests with Valgrind"
             echo "  --ctest                Run tests using CTest"
@@ -249,6 +271,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
+            echo "  --debug-scylla         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
@@ -302,6 +325,10 @@ if [ ! -f "$MAIN_EXECUTABLE" ]; then
     if [ "$USE_MONGODB" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --mongodb"
     fi
+
+    if [ "$USE_SCYLLA" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --scylla"
+    fi
     
     if [ "$USE_REDIS" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --redis"
@@ -315,6 +342,10 @@ if [ ! -f "$MAIN_EXECUTABLE" ]; then
     
     if [ "$BUILD_TYPE" = "Release" ]; then
         BUILD_CMD="$BUILD_CMD --release"
+    fi
+
+    if [ "$ENABLE_GCC_ANALYZER" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --gcc-analyzer"
     fi
     
     # Always include --test to ensure tests are built
@@ -356,6 +387,10 @@ fi
 # Build the command to pass to run_test_cpp_dbc.sh
 CMD="./libs/cpp_dbc/run_test_cpp_dbc.sh"
 
+if [ "$ENABLE_GCC_ANALYZER" = "ON" ]; then
+    CMD="$CMD --gcc-analyzer"
+fi
+
 # Add options based on user input
 if [ "$USE_MYSQL" = "OFF" ]; then
     CMD="$CMD --mysql-off"
@@ -375,6 +410,10 @@ fi
 
 if [ "$USE_MONGODB" = "ON" ]; then
     CMD="$CMD --mongodb-on"
+fi
+
+if [ "$USE_SCYLLA" = "ON" ]; then
+    CMD="$CMD --scylla-on"
 fi
 
 if [ "$USE_REDIS" = "ON" ]; then
@@ -446,6 +485,10 @@ fi
 
 if [ "$DEBUG_MONGODB" = "ON" ]; then
     CMD="$CMD --debug-mongodb"
+fi
+
+if [ "$DEBUG_SCYLLA" = "ON" ]; then
+    CMD="$CMD --debug-scylla"
 fi
 
 if [ "$DEBUG_REDIS" = "ON" ]; then

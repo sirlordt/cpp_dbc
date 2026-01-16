@@ -47,6 +47,20 @@
   - Index management: createIndex, dropIndex, listIndexes
   - Collection management: createCollection, dropCollection, listCollections
 
+- **Cassandra/ScyllaDB Client Library**: For ScyllaDB columnar database connectivity
+  - Uses the DataStax C++ driver for Apache Cassandra API (`cassandra.h`)
+  - Requires libcassandra-dev package (Debian/Ubuntu)
+  - Requires cassandra-cpp-driver-devel package (RHEL/Fedora)
+  - Default port: 9042
+  - URL format: `cpp_dbc:scylladb://host:port/keyspace` or `cpp_dbc:scylladb://username:password@host:port/keyspace`
+  - CQL query execution and prepared statements
+  - Result set handling with all supported data types
+  - Thread-safe operations when enabled with DB_DRIVER_THREAD_SAFE
+  - Support for keyspace operations
+  - JOIN emulation (not natively supported in CQL)
+  - Support for batch operations
+  - Robust error handling with driver-specific error codes
+
 - **Redis Client Library**: For Redis key-value database connectivity
   - Uses the Hiredis C library API (`hiredis/hiredis.h`)
   - Requires libhiredis-dev package (Debian/Ubuntu)
@@ -100,6 +114,7 @@ The project uses:
   - `--debug-txmgr`: Enable debug output for TransactionManager
   - `--debug-sqlite`: Enable debug output for SQLite driver
   - `--debug-mongodb`: Enable debug output for MongoDB driver
+  - `--debug-scylla`: Enable debug output for ScyllaDB driver
   - `--debug-redis`: Enable debug output for Redis driver
   - `--debug-all`: Enable all debug output at once (simplifies debugging across multiple components)
   - `--db-driver-thread-safe-off`: Disable thread-safe database driver operations (for single-threaded performance)
@@ -130,11 +145,12 @@ The project is configured to work with the CMakeTools extension, but does not re
 ## Technical Constraints
 
 ### Database Support
-- Currently supports MySQL, PostgreSQL, SQLite, Firebird SQL (relational), MongoDB (document), and Redis (key-value)
+- Currently supports MySQL, PostgreSQL, SQLite, Firebird SQL (relational), MongoDB (document), ScyllaDB (columnar), and Redis (key-value)
 - Adding support for other databases requires implementing new driver classes
 - Different database paradigms use separate interfaces:
   - Relational database interfaces (MySQL, PostgreSQL, SQLite, Firebird SQL)
   - Document database interfaces (MongoDB)
+  - Columnar database interfaces (ScyllaDB/Cassandra)
   - Key-value database interfaces (Redis)
 
 ### Thread Safety

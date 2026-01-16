@@ -1,6 +1,62 @@
 # Changelog
 
-## 2026-01-06 08:11:44 PM PST [Current]
+## 2026-01-15 11:46:28 PM PST [Current]
+
+### ScyllaDB Columnar Database Driver Support
+* Added complete ScyllaDB columnar database driver implementation:
+  * **New Core Columnar Database Interfaces:**
+    * Added implementations for `core/columnar/columnar_db_connection.hpp` - Base connection interface for columnar databases
+    * Added implementations for `core/columnar/columnar_db_driver.hpp` - Base driver interface for columnar databases
+    * Added implementations for `core/columnar/columnar_db_prepared_statement.hpp` - Prepared statement interface for columnar databases
+    * Added implementations for `core/columnar/columnar_db_result_set.hpp` - Result set interface for columnar databases
+  * **ScyllaDB Driver Implementation:**
+    * Added `drivers/columnar/driver_scylla.hpp` - ScyllaDB driver class declarations
+    * Added `src/drivers/columnar/driver_scylla.cpp` - Full ScyllaDB driver implementation
+    * Added `cmake/FindCassandra.cmake` - CMake module for Cassandra C++ driver detection (used by ScyllaDB)
+  * **Driver Features:**
+    * Full support for ScyllaDB/Cassandra databases
+    * Connection management with proper resource cleanup using smart pointers
+    * Prepared statement support with parameter binding
+    * Result set handling with all supported data types
+    * Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+  * **Build System Updates:**
+    * Added `USE_SCYLLA` option to CMakeLists.txt (default: OFF)
+    * Added `--scylla` and `--scylla-off` options to build.sh
+    * Added `--scylla` and `--scylla-off` options to build_cpp_dbc.sh
+    * Added `--debug-scylla` option for ScyllaDB driver debug output
+    * Added `scylla` option to helper.sh for --run-build, --run-test, and --run-benchmarks
+    * Automatic detection and installation of Cassandra C++ driver development libraries
+  * **Required System Packages:**
+    * Debian/Ubuntu: `sudo apt-get install libcassandra-dev`
+    * RHEL/CentOS/Fedora: `sudo dnf install cassandra-cpp-driver-devel`
+  * **Connection URL Format:**
+    * `cpp_dbc:scylladb://host:port/keyspace`
+    * Default port: 9042
+  * **Smart Pointer Implementation:**
+    * Smart pointer-based connection and statement management for memory safety
+    * Proper resource cleanup with custom deleters for Cassandra C++ driver
+* Added comprehensive ScyllaDB test suite:
+  * **New Test Files:**
+    * Added `test_scylla_common.hpp` - ScyllaDB test helper declarations
+    * Added `test_scylla_common.cpp` - ScyllaDB test helper implementations
+    * Added `test_scylla_connection.cpp` - Connection and basic operations tests
+    * Added `test_scylla_thread_safe.cpp` - Thread-safety stress tests
+    * Added `test_scylla_real_right_join.cpp` - Emulated RIGHT JOIN operations
+    * Added `test_scylla_real_inner_join.cpp` - INNER JOIN operations
+  * **Test Coverage:**
+    * Basic connection and authentication
+    * CQL query execution and prepared statements
+    * Data type handling and conversions
+    * Join operation emulation (not natively supported in CQL)
+    * Thread safety with multiple concurrent connections
+* Updated build scripts with ScyllaDB support:
+  * Updated `build.sh` with `--scylla`, `--scylla-off`, `--debug-scylla` options
+  * Updated `build.dist.sh` with ScyllaDB options and dependency detection
+  * Updated `run_test.sh` with ScyllaDB test options
+  * Updated `helper.sh` with ScyllaDB options for all commands
+  * Added `download_and_setup_cassandra_driver.sh` for easy dependency installation
+
+## 2026-01-06 08:11:44 PM PST
 
 ### PostgreSQL Exception-Free API Implementation
 * Added comprehensive exception-free API for PostgreSQL driver operations:

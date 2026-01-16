@@ -10,8 +10,9 @@ The CPP_DBC library appears to be in a functional state with the following compo
 4. **SQLite Implementation**: Complete implementation of SQLite driver with optional thread-safety
 5. **Firebird Implementation**: Complete implementation of Firebird SQL driver with optional thread-safety
 6. **MongoDB Implementation**: Complete implementation of MongoDB document database driver with optional thread-safety
-7. **Connection Pool**: Fully implemented with configuration options for MySQL, PostgreSQL, SQLite, and Firebird
-8. **Transaction Manager**: Fully implemented with transaction tracking, timeout, and improved resource management
+7. **ScyllaDB Implementation**: Complete implementation of ScyllaDB columnar database driver with optional thread-safety
+8. **Connection Pool**: Fully implemented with configuration options for MySQL, PostgreSQL, SQLite, and Firebird
+9. **Transaction Manager**: Fully implemented with transaction tracking, timeout, and improved resource management
 9. **Connection Options**: Support for database-specific connection options in all drivers
 10. **BLOB Support**: Complete implementation of Binary Large Object (BLOB) support for all relational database drivers
 11. **Logging System**: Structured logging system with dedicated log directories and automatic rotation
@@ -174,6 +175,30 @@ The project includes example code demonstrating:
   - Thread safety with multiple connections and shared connections
   - Join operations using $lookup and other MongoDB aggregation pipeline operations
 
+### ScyllaDB Support
+- Connection to ScyllaDB/Cassandra databases
+- Prepared statements with parameter binding
+- Result set processing with all supported data types
+- Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+- Connection URL format: `cpp_dbc:scylladb://host:port/keyspace` or `cpp_dbc:scylladb://username:password@host:port/keyspace`
+- Default port: 9042
+- Build system integration with `USE_SCYLLA` option
+- Debug output option with `--debug-scylla` flag
+- Comprehensive test coverage:
+  - Basic connection and authentication
+  - CQL query execution and prepared statements
+  - Data type handling and conversions
+  - JOIN operation emulation (not natively supported in CQL)
+  - Thread safety with multiple concurrent connections
+- JOIN emulation for ScyllaDB:
+  - Implementation for INNER JOIN and RIGHT JOIN operations
+  - Manual implementation using multiple queries
+  - Result aggregation and sorting to emulate JOIN behavior
+  - Comprehensive test cases in test_scylla_real_inner_join.cpp and test_scylla_real_right_join.cpp
+- Support for tables, keyspaces, and indexes
+- Support for filtering operations (with ALLOW FILTERING)
+- Thread safety testing with high concurrency stress tests
+
 ### Transaction Management
 - Transaction creation and tracking
 - Cross-thread transaction coordination
@@ -246,7 +271,40 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **PostgreSQL Exception-Free API Implementation** (2026-01-06 08:11:44 PM PST):
+1. **ScyllaDB Columnar Database Driver Support** (2026-01-15 11:46:28 PM PST):
+   - Added complete ScyllaDB columnar database driver implementation:
+     - **New Core Columnar Database Interfaces:**
+       - Implemented `core/columnar/columnar_db_connection.hpp` - Base connection interface for columnar databases
+       - Implemented `core/columnar/columnar_db_driver.hpp` - Base driver interface for columnar databases
+       - Implemented `core/columnar/columnar_db_prepared_statement.hpp` - Prepared statement interface for columnar databases
+       - Implemented `core/columnar/columnar_db_result_set.hpp` - Result set interface for columnar databases
+     - **ScyllaDB Driver Implementation:**
+       - Added `drivers/columnar/driver_scylla.hpp` - ScyllaDB driver class declarations
+       - Added `src/drivers/columnar/driver_scylla.cpp` - Full ScyllaDB driver implementation
+       - Added `cmake/FindCassandra.cmake` - CMake module for Cassandra C++ driver detection
+     - **Driver Features:**
+       - Full support for ScyllaDB/Cassandra databases
+       - Connection management with proper resource cleanup using smart pointers
+       - Prepared statement support with parameter binding
+       - Result set handling with all supported data types
+       - Thread-safe operations (conditionally compiled with `DB_DRIVER_THREAD_SAFE`)
+     - **Build System Updates:**
+       - Added `USE_SCYLLA` option to CMakeLists.txt (default: OFF)
+       - Added `--scylla` and `--scylla-off` options to build.sh
+       - Added `--debug-scylla` option for ScyllaDB driver debug output
+       - Added `scylla` option to helper.sh for --run-build, --run-test, and --run-benchmarks
+     - **Test Coverage:**
+       - Basic connection and authentication
+       - CQL query execution and prepared statements
+       - Data type handling and conversions
+       - JOIN operation emulation (not natively supported in CQL)
+       - Thread safety with multiple concurrent connections
+     - **JOIN Emulation:**
+       - Implementation for INNER JOIN and RIGHT JOIN operations
+       - Manual implementation using multiple queries
+       - Result aggregation and sorting to emulate JOIN behavior
+
+2. **PostgreSQL Exception-Free API Implementation** (2026-01-06 08:11:44 PM PST):
    - Added comprehensive exception-free API for PostgreSQL driver operations:
      - **Implementation Details:**
        - Implemented nothrow versions of all PostgreSQL driver methods using `std::nothrow_t` parameter

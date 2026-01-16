@@ -83,6 +83,7 @@ function get_distro_packages() {
             SQLITE_DEV_PKG="libsqlite3-dev"
             FIREBIRD_DEV_PKG="firebird-dev"
             MONGODB_DEV_PKG="libmongoc-dev"
+            SCYLLA_DEV_PKG="libuv1-dev, libssl-dev, zlib1g-dev"
             LIBDW_DEV_PKG="libdw-dev"
             ;;
         fedora:42|fedora:43)
@@ -91,6 +92,7 @@ function get_distro_packages() {
             SQLITE_DEV_PKG="sqlite-devel"
             FIREBIRD_DEV_PKG="firebird-devel"
             MONGODB_DEV_PKG="mongo-c-driver-devel"
+            SCYLLA_DEV_PKG="libuv-devel, openssl-devel, zlib-devel"
             LIBDW_DEV_PKG="elfutils-devel"
             ;;
         *)
@@ -137,6 +139,7 @@ CMAKE_POSTGRESQL_OPTION="-DCPP_DBC_WITH_POSTGRESQL=OFF"
 CMAKE_SQLITE_OPTION="-DCPP_DBC_WITH_SQLITE=OFF"
 CMAKE_FIREBIRD_OPTION="-DCPP_DBC_WITH_FIREBIRD=OFF"
 CMAKE_MONGODB_OPTION="-DCPP_DBC_WITH_MONGODB=OFF"
+CMAKE_SCYLLA_OPTION="-DCPP_DBC_WITH_SCYLLA=OFF"
 CMAKE_DW_OPTION="-DBACKWARD_HAS_DW=OFF"
 
 DEB_DEPENDENCIES="libc6"
@@ -147,12 +150,14 @@ POSTGRESQL_CONTROL_DEP=""
 SQLITE_CONTROL_DEP=""
 FIREBIRD_CONTROL_DEP=""
 MONGODB_CONTROL_DEP=""
+SCYLLA_CONTROL_DEP=""
 LIBDW_CONTROL_DEP=""
 USE_MYSQL="OFF"
 USE_POSTGRESQL="OFF"
 USE_SQLITE="OFF"
 USE_FIREBIRD="OFF"
 USE_MONGODB="OFF"
+USE_SCYLLA="OFF"
 USE_CPP_YAML="OFF"
 USE_DW="OFF"
 BUILD_TYPE="Debug"
@@ -210,6 +215,13 @@ for option in "${OPTIONS[@]}"; do
             MONGODB_CONTROL_DEP=", $MONGODB_DEV_PKG"
             USE_MONGODB="ON"
             BUILD_FLAGS="$BUILD_FLAGS --mongodb"
+            ;;
+        scylla)
+            CMAKE_SCYLLA_OPTION="-DCPP_DBC_WITH_SCYLLA=ON"
+            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SCYLLA_DEV_PKG"
+            SCYLLA_CONTROL_DEP=", $SCYLLA_DEV_PKG"
+            USE_SCYLLA="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --scylla"
             ;;
         debug)
             BUILD_TYPE="Debug"
@@ -318,12 +330,14 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__SQLITE_CONTROL_DEP__/$SQLITE_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__FIREBIRD_CONTROL_DEP__/$FIREBIRD_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__MONGODB_CONTROL_DEP__/$MONGODB_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__SCYLLA_CONTROL_DEP__/$SCYLLA_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__LIBDW_CONTROL_DEP__/$LIBDW_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_MYSQL__/$USE_MYSQL/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_POSTGRESQL__/$USE_POSTGRESQL/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_SQLITE__/$USE_SQLITE/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_FIREBIRD__/$USE_FIREBIRD/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_MONGODB__/$USE_MONGODB/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__USE_SCYLLA__/$USE_SCYLLA/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_CPP_YAML__/$USE_CPP_YAML/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_DW__/$USE_DW/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__BUILD_TYPE__/$BUILD_TYPE/g" "$TEMP_BUILD_DIR/build_script.sh"

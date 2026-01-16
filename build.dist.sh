@@ -146,6 +146,7 @@ fi
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
+USE_SCYLLA=OFF
 USE_REDIS=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
@@ -178,6 +179,12 @@ do
         ;;
         --sqlite-off)
         USE_SQLITE=OFF
+        ;;
+        --scylla|--scylla-on)
+        USE_SCYLLA=ON
+        ;;
+        --scylla-off)
+        USE_SCYLLA=OFF
         ;;
         --redis|--redis-on)
         USE_REDIS=ON
@@ -236,6 +243,8 @@ do
         echo "  --postgres-off         Disable PostgreSQL support"
         echo "  --sqlite, --sqlite-on  Enable SQLite support"
         echo "  --sqlite-off           Disable SQLite support"
+        echo "  --scylla, --scylla-on    Enable ScyllaDB support"
+        echo "  --scylla-off           Disable ScyllaDB support"
         echo "  --redis, --redis-on    Enable Redis support"
         echo "  --redis-off            Disable Redis support"
         echo "  --yaml, --yaml-on      Enable YAML configuration support"
@@ -270,6 +279,10 @@ fi
 
 if [ "$USE_SQLITE" = "ON" ]; then
     BUILD_CMD="$BUILD_CMD --sqlite"
+fi
+
+if [ "$USE_SCYLLA" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --scylla"
 fi
 
 if [ "$USE_REDIS" = "ON" ]; then
@@ -362,6 +375,7 @@ LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libelf.so.1"]="libelf1"
 LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libz.so.1"]="zlib1g"
 LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/liblzma.so.5"]="liblzma5"
 LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libbz2.so.1.0"]="libbz2-1.0"
+LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libcassandra.so.2"]="libcassandra2"
 
 # Function to add a package to our list
 add_package() {

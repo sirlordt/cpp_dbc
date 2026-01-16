@@ -53,13 +53,13 @@ show_usage() {
   echo "Commands:"
   echo "  --run-build              Build via ./build.sh, logs to build/run-build-<timestamp>.log"
   echo "  --run-build=OPTIONS      Build with comma-separated options"
-  echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,firebird,mongodb,redis,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
+  echo "                           Available options: clean,release,gcc-analyzer,postgres,mysql,mysql-off,sqlite,firebird,mongodb,scylla,redis,yaml,test,examples,"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylla,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
   echo "                           Example: --run-build=clean,sqlite,yaml,test,debug-pool"
   echo "  --run-build-dist         Build via ./build.dist.sh, logs to build/run-build-dist-<timestamp>.log"
   echo "  --run-build-dist=OPTIONS Build dist with comma-separated options"
-  echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,firebird,mongodb,redis,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
+  echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,firebird,mongodb,scylla,redis,yaml,test,examples,"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylla,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
   echo "                           Example: --run-build-dist=clean,sqlite,yaml,test,debug-sqlite"
   echo "  --check-test-log         Check the most recent test log file in logs/test/ for failures and memory issues"
   echo "  --check-test-log=PATH    Check the specified test log file for failures and memory issues"
@@ -70,18 +70,18 @@ show_usage() {
   echo "  --clean-conan-cache      Clear Conan local cache"
   echo "  --run-test               Build (if needed) and run the tests"
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
-  echo "                           Available options: clean,release,rebuild,sqlite,firebird,mongodb,redis,mysql,mysql-off,postgres,valgrind,"
+  echo "                           Available options: clean,release,gcc-analyzer,rebuild,sqlite,firebird,mongodb,scylla,redis,mysql,mysql-off,postgres,valgrind,"
   echo "                                              yaml,auto,asan,ctest,check,run=N,test=Tag1+Tag2+Tag3,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylla,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3,test=integration+mysql_real_right_join"
   echo "                           Example: --run-test=rebuild,sqlite,debug-pool,debug-sqlite,test=integration"
   echo "                           Example: --run-test=clean,rebuild,sqlite,mysql,postgres,yaml,valgrind,auto,run=1"
   echo "                           Note: Multiple test tags can be specified using + as separator after test="
   echo "  --run-benchmarks         Run the benchmarks"
   echo "  --run-benchmarks=OPTIONS Run benchmarks with comma-separated options"
-  echo "                           Available options: clean,release,rebuild,sqlite,firebird,mongodb,redis,mysql,mysql-off,postgres,"
+  echo "                           Available options: clean,release,rebuild,sqlite,firebird,mongodb,scylla,redis,mysql,mysql-off,postgres,"
   echo "                                              yaml,benchmark=Tag1+Tag2+Tag3,memory-usage,base-line,repetitions=3,iterations=1000,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylla,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Example: --run-benchmarks=mysql,postgresql"
   echo "                           Example: --run-benchmarks=benchmark=update+postgresql"
   echo "                           Example: --run-benchmarks=rebuild,mongodb,yaml,benchmark=mongodb+delete"
@@ -91,20 +91,20 @@ show_usage() {
   echo "  --ldd-bin-ctr [name]     Run ldd on the executable inside the container"
   echo "  --ldd-build-bin          Run ldd on the final local build/ executable"
   echo "  --run-build-bin          Run the final local build/ executable"
-  echo "  --bk-combo-01            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,redis,yaml,valgrind,auto,run=1"
-  echo "  --bk-combo-02            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,redis,yaml,auto,run=1"
-  echo "  --bk-combo-03            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,redis,yaml,valgrind,auto,run=5"
-  echo "  --bk-combo-04            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,redis,yaml,auto,run=5"
-  echo "  --bk-combo-05            Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,redis,yaml,valgrind,auto,run=1"
-  echo "  --bk-combo-06            Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,redis,yaml,auto,run=1"
-  echo "  --bk-combo-07            Equivalent to --run-test=sqlite,postgres,mysql,firebird,mongodb,redis,yaml,valgrind,auto,run=1"
-  echo "  --bk-combo-08            Equivalent to --run-test=sqlite,postgres,mysql,firebird,mongodb,redis,yaml,auto,run=1"
-  echo "  --mc-combo-01            Equivalent to --run-build=clean,postgres,mysql,sqlite,firebird,mongodb,redis,yaml,test,examples"
-  echo "  --mc-combo-02            Equivalent to --run-build=postgres,sqlite,mysql,redis,yaml,test,examples"
-  echo "  --kfc-combo-01           Equivalent to --run-build-dist=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,redis,yaml,test,examples"
-  echo "  --kfc-combo-02           Equivalent to --run-build-dist=rebuild,sqlite,postgres,mysql,firebird,mongodb,redis,yaml,test,examples"
-  echo "  --dk-combo-01            Equivalent to --run-benchmarks=rebuild,sqlite,postgres,mysql,firebird,mongodb,redis,yaml,memory-usage,base-line"
-  echo "  --dk-combo-02            Equivalent to --run-benchmarks=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,redis,yaml,memory-usage,base-line"
+  echo "  --bk-combo-01            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylla,redis,yaml,valgrind,auto,run=1"
+  echo "  --bk-combo-02            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylla,redis,yaml,auto,run=1"
+  echo "  --bk-combo-03            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylla,redis,yaml,valgrind,auto,run=5"
+  echo "  --bk-combo-04            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylla,redis,yaml,auto,run=5"
+  echo "  --bk-combo-05            Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylla,redis,yaml,valgrind,auto,run=1"
+  echo "  --bk-combo-06            Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylla,redis,yaml,auto,run=1"
+  echo "  --bk-combo-07            Equivalent to --run-test=sqlite,postgres,mysql,firebird,mongodb,scylla,redis,yaml,valgrind,auto,run=1"
+  echo "  --bk-combo-08            Equivalent to --run-test=sqlite,postgres,mysql,firebird,mongodb,scylla,redis,yaml,auto,run=1"
+  echo "  --mc-combo-01            Equivalent to --run-build=clean,postgres,mysql,sqlite,firebird,mongodb,scylla,redis,yaml,test,examples"
+  echo "  --mc-combo-02            Equivalent to --run-build=postgres,sqlite,mysql,scylla,redis,yaml,test,examples"
+  echo "  --kfc-combo-01           Equivalent to --run-build-dist=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylla,redis,yaml,test,examples"
+  echo "  --kfc-combo-02           Equivalent to --run-build-dist=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylla,redis,yaml,test,examples"
+  echo "  --dk-combo-01            Equivalent to --run-benchmarks=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylla,redis,yaml,memory-usage,base-line"
+  echo "  --dk-combo-02            Equivalent to --run-benchmarks=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylla,redis,yaml,memory-usage,base-line"
   echo ""
   echo "Multiple commands can be combined, e.g.:"
   echo "  $(basename "$0") --clean-conan-cache --run-build"
@@ -194,6 +194,10 @@ cmd_run_build() {
         build_cmd="$build_cmd --mongodb"
         echo "Enabling MongoDB support"
         ;;
+      scylla)
+        build_cmd="$build_cmd --scylla"
+        echo "Enabling ScyllaDB support"
+        ;;
       redis)
         build_cmd="$build_cmd --redis"
         echo "Enabling Redis support"
@@ -218,6 +222,10 @@ cmd_run_build() {
         build_cmd="$build_cmd --release"
         echo "Building in release mode"
         ;;
+      gcc-analyzer)
+        build_cmd="$build_cmd --gcc-analyzer"
+        echo "Enabling GCC Static Analyzer"
+        ;;
       debug-pool)
         build_cmd="$build_cmd --debug-pool"
         echo "Enabling debug output for ConnectionPool"
@@ -237,6 +245,10 @@ cmd_run_build() {
       debug-mongodb)
         build_cmd="$build_cmd --debug-mongodb"
         echo "Enabling debug output for MongoDB driver"
+        ;;
+      debug-scylla)
+        build_cmd="$build_cmd --debug-scylla"
+        echo "Enabling debug output for ScyllaDB driver"
         ;;
       debug-redis)
         build_cmd="$build_cmd --debug-redis"
@@ -355,6 +367,9 @@ cmd_run_test() {
         mongodb)
           run_test_cmd="$run_test_cmd --mongodb"
           ;;
+        scylla)
+          run_test_cmd="$run_test_cmd --scylla"
+          ;;
         redis)
           run_test_cmd="$run_test_cmd --redis"
           ;;
@@ -408,6 +423,10 @@ cmd_run_test() {
           run_test_cmd="$run_test_cmd --debug-mongodb"
           echo "Enabling debug output for MongoDB driver"
           ;;
+        debug-scylla)
+          run_test_cmd="$run_test_cmd --debug-scylla"
+          echo "Enabling debug output for ScyllaDB driver"
+          ;;
         debug-redis)
           run_test_cmd="$run_test_cmd --debug-redis"
           echo "Enabling debug output for Redis driver"
@@ -427,6 +446,10 @@ cmd_run_test() {
         release)
           run_test_cmd="$run_test_cmd --release"
           echo "Building in release mode"
+          ;;
+        gcc-analyzer)
+          run_test_cmd="$run_test_cmd --gcc-analyzer"
+          echo "Enabling GCC Static Analyzer"
           ;;
         *)
           echo "Warning: Unknown test option: $opt"
@@ -889,6 +912,10 @@ cmd_run_benchmarks() {
           run_benchmark_cmd="$run_benchmark_cmd --mongodb"
           echo "Running MongoDB benchmarks only"
           ;;
+        scylla)
+          run_benchmark_cmd="$run_benchmark_cmd --scylla"
+          echo "Running ScyllaDB benchmarks only"
+          ;;
         redis)
             run_benchmark_cmd="$run_benchmark_cmd --redis"
             echo "Running Redis benchmarks only"
@@ -939,6 +966,10 @@ cmd_run_benchmarks() {
         debug-mongodb)
           run_benchmark_cmd="$run_benchmark_cmd --debug-mongodb"
           echo "Enabling debug output for MongoDB driver"
+          ;;
+        debug-scylla)
+          run_benchmark_cmd="$run_benchmark_cmd --debug-scylla"
+          echo "Enabling debug output for ScyllaDB driver"
           ;;
         debug-redis)
           run_benchmark_cmd="$run_benchmark_cmd --debug-redis"
@@ -1085,6 +1116,10 @@ cmd_run_build_dist() {
         build_cmd="$build_cmd --mongodb"
         echo "Enabling MongoDB support"
         ;;
+      scylla)
+        build_cmd="$build_cmd --scylla"
+        echo "Enabling ScyllaDB support"
+        ;;
       redis)
         build_cmd="$build_cmd --redis"
         echo "Enabling Redis support"
@@ -1124,6 +1159,10 @@ cmd_run_build_dist() {
       debug-mongodb)
         build_cmd="$build_cmd --debug-mongodb"
         echo "Enabling debug output for MongoDB driver"
+        ;;
+      debug-scylla)
+        build_cmd="$build_cmd --debug-scylla"
+        echo "Enabling debug output for ScyllaDB driver"
         ;;
       debug-redis)
         build_cmd="$build_cmd --debug-redis"

@@ -7,6 +7,7 @@ option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
 option(USE_SQLITE "Enable SQLite support" OFF)
 option(USE_FIREBIRD "Enable Firebird SQL support" OFF)
 option(USE_MONGODB "Enable MongoDB support" OFF)
+option(USE_SCYLLA "Enable ScyllaDB support" OFF)
 option(USE_REDIS "Enable Redis support" OFF)
 option(USE_CPP_YAML "Enable YAML configuration support" OFF)
 option(BACKWARD_HAS_DW "Enable libdw support for stack traces" ON)
@@ -69,6 +70,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
     $<$<BOOL:${USE_MONGODB}>:USE_MONGODB=1>
     $<$<NOT:$<BOOL:${USE_MONGODB}>>:USE_MONGODB=0>
+    $<$<BOOL:${USE_SCYLLA}>:USE_SCYLLA=1>
+    $<$<NOT:$<BOOL:${USE_SCYLLA}>>:USE_SCYLLA=0>
     $<$<BOOL:${USE_REDIS}>:USE_REDIS=1>
     $<$<NOT:$<BOOL:${USE_REDIS}>>:USE_REDIS=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
@@ -179,6 +182,20 @@ if(USE_MONGODB)
     target_link_libraries(cpp_dbc PUBLIC ${MONGODB_LIBRARIES})
 endif()
 
+# Conditionally add ScyllaDB driver files and dependencies
+if(USE_SCYLLA)
+    target_sources(cpp_dbc PRIVATE
+        src/drivers/columnar/driver_scylla.cpp
+    )
+
+    # Find Cassandra/ScyllaDB C driver package
+    # Required system package: libcassandra-dev (Debian/Ubuntu) or cassandra-cpp-driver-devel (RHEL/Fedora)
+    # Install with: sudo apt-get install libcassandra-dev
+    find_package(Cassandra REQUIRED)
+    target_include_directories(cpp_dbc PUBLIC ${CASSANDRA_INCLUDE_DIR})
+    target_link_libraries(cpp_dbc PUBLIC ${CASSANDRA_LIBRARIES})
+endif()
+
 # Conditionally add Redis driver files and dependencies
 if(USE_REDIS)
     target_sources(cpp_dbc PRIVATE
@@ -280,6 +297,7 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSQLite3.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindFirebird.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindMongoDB.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindCassandra.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindHiredis.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/cpp_dbc
 )

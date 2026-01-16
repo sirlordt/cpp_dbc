@@ -28,16 +28,19 @@ USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
+USE_SCYLLA=OFF
 USE_REDIS=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
 ENABLE_ASAN=OFF
+ENABLE_GCC_ANALYZER=OFF
 NO_REBUILD_DEPS=false
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
+DEBUG_SCYLLA=OFF
 DEBUG_REDIS=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
@@ -93,6 +96,14 @@ while [[ $# -gt 0 ]]; do
             USE_MONGODB=OFF
             shift
             ;;
+        --scylla|--scylla-on)
+            USE_SCYLLA=ON
+            shift
+            ;;
+        --scylla-off)
+            USE_SCYLLA=OFF
+            shift
+            ;;
         --redis|--redis-on)
             USE_REDIS=ON
             shift
@@ -111,6 +122,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --asan)
             ENABLE_ASAN=ON
+            shift
+            ;;
+        --gcc-analyzer)
+            ENABLE_GCC_ANALYZER=ON
             shift
             ;;
         --debug-pool)
@@ -133,6 +148,10 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             shift
             ;;
+        --debug-scylla)
+            DEBUG_SCYLLA=ON
+            shift
+            ;;
         --debug-redis)
             DEBUG_REDIS=ON
             shift
@@ -143,6 +162,7 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             DEBUG_FIREBIRD=ON
             DEBUG_MONGODB=ON
+            DEBUG_SCYLLA=ON
             DEBUG_REDIS=ON
             shift
             ;;
@@ -173,16 +193,20 @@ while [[ $# -gt 0 ]]; do
             echo "  --firebird-off         Disable Firebird support"
             echo "  --mongodb, --mongodb-on  Enable MongoDB support"
             echo "  --mongodb-off          Disable MongoDB support"
+            echo "  --scylla, --scylla-on    Enable ScyllaDB support"
+            echo "  --scylla-off           Disable ScyllaDB support"
             echo "  --redis, --redis-on    Enable Redis support"
             echo "  --redis-off            Disable Redis support"
             echo "  --release              Build in Release mode (default: Debug)"
             echo "  --debug                Build in Debug mode (default)"
             echo "  --asan                 Enable Address Sanitizer"
+            echo "  --gcc-analyzer         Enable GCC Static Analyzer (GCC 10+)"
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
+            echo "  --debug-scylla         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
@@ -193,7 +217,7 @@ while [[ $# -gt 0 ]]; do
         *)
             # Unknown option
             echo "Unknown option: $1"
-            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--sqlite|--sqlite-on|--sqlite-off] [--firebird|--firebird-on|--firebird-off] [--mongodb|--mongodb-on|--mongodb-off] [--release] [--asan] [--dw-off] [--help]"
+            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--sqlite|--sqlite-on|--sqlite-off] [--firebird|--firebird-on|--firebird-off] [--mongodb|--mongodb-on|--mongodb-off] [--scylla|--scylla-on|--scylla-off] [--release] [--asan] [--dw-off] [--help]"
             exit 1
             ;;
     esac
@@ -266,6 +290,7 @@ echo "  PostgreSQL support: $USE_POSTGRESQL"
 echo "  SQLite support: $USE_SQLITE"
 echo "  Firebird support: $USE_FIREBIRD"
 echo "  MongoDB support: $USE_MONGODB"
+echo "  ScyllaDB support: $USE_SCYLLA"
 echo "  Redis support: $USE_REDIS"
 echo "  Build type: $BUILD_TYPE"
 echo "  Address Sanitizer: $ENABLE_ASAN"
@@ -274,6 +299,7 @@ echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
+echo "  Debug ScyllaDB: $DEBUG_SCYLLA"
 echo "  Debug Redis: $DEBUG_REDIS"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
@@ -281,6 +307,22 @@ echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
 # Create build directory for tests
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 CPP_DBC_DIR="${SCRIPT_DIR}"
+
+# Check for ScyllaDB dependencies
+if [ "$USE_SCYLLA" = "ON" ]; then
+    echo "Checking for ScyllaDB (Cassandra) driver..."
+    # Call the setup script
+    if [ -f "${SCRIPT_DIR}/download_and_setup_cassandra_driver.sh" ]; then
+        bash "${SCRIPT_DIR}/download_and_setup_cassandra_driver.sh"
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to setup Cassandra driver."
+            exit 1
+        fi
+    else
+        echo "Error: download_and_setup_cassandra_driver.sh not found in ${SCRIPT_DIR}"
+        exit 1
+    fi
+fi
 #TEST_BUILD_DIR="${CPP_DBC_DIR}/build/test_build"
 TEST_BUILD_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/test"
 
@@ -314,6 +356,21 @@ fi
 
 echo "Using toolchain file: $TOOLCHAIN_FILE"
 
+# Check if GCC supports -fanalyzer (GCC 10+)
+GCC_VERSION=$(gcc -dumpversion | cut -d. -f1)
+ANALYZER_FLAG=""
+
+if [ "$ENABLE_GCC_ANALYZER" = "ON" ]; then
+    if [ "$GCC_VERSION" -ge 10 ]; then
+        echo "GCC version $GCC_VERSION supports -fanalyzer. Enabling it."
+        ANALYZER_FLAG="-fanalyzer"
+    else
+        echo "GCC version $GCC_VERSION does not support -fanalyzer. Ignoring --gcc-analyzer."
+    fi
+else
+    echo "GCC Static Analyzer is disabled (use --gcc-analyzer to enable)"
+fi
+
 # Configure with CMake
 echo "Configuring with CMake..."
 cmake "${CPP_DBC_DIR}" \
@@ -325,6 +382,7 @@ cmake "${CPP_DBC_DIR}" \
       -DUSE_SQLITE=$USE_SQLITE \
       -DUSE_FIREBIRD=$USE_FIREBIRD \
       -DUSE_MONGODB=$USE_MONGODB \
+      -DUSE_SCYLLA=$USE_SCYLLA \
       -DUSE_REDIS=$USE_REDIS \
       -DCPP_DBC_BUILD_TESTS=ON \
       -DENABLE_ASAN=$ENABLE_ASAN \
@@ -333,10 +391,11 @@ cmake "${CPP_DBC_DIR}" \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
       -DDEBUG_FIREBIRD=$DEBUG_FIREBIRD \
       -DDEBUG_MONGODB=$DEBUG_MONGODB \
+      -DDEBUG_SCYLLA=$DEBUG_SCYLLA \
       -DDEBUG_REDIS=$DEBUG_REDIS \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
-      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align" \
+      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align ${ANALYZER_FLAG}" \
       -Wno-dev
 
 # Print status message about ASAN

@@ -5,14 +5,20 @@
 
 set -e
 
+# Determine script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
 # Default values
 USE_MYSQL=ON
 USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
+USE_SCYLLA=OFF
 USE_REDIS=OFF
 USE_CPP_YAML=OFF
+ENABLE_GCC_ANALYZER=OFF
+ENABLE_ASAN=OFF
 BUILD_TYPE=Debug
 BUILD_TESTS=OFF
 BUILD_EXAMPLES=OFF
@@ -71,6 +77,14 @@ do
         USE_MONGODB=OFF
         shift
         ;;
+        --scylla|--scylla-on)
+        USE_SCYLLA=ON
+        shift
+        ;;
+        --scylla-off)
+        USE_SCYLLA=OFF
+        shift
+        ;;
         --redis|--redis-on)
         USE_REDIS=ON
         shift
@@ -93,6 +107,14 @@ do
         ;;
         --release)
         BUILD_TYPE=Release
+        shift
+        ;;
+        --gcc-analyzer)
+        ENABLE_GCC_ANALYZER=ON
+        shift
+        ;;
+        --asan)
+        ENABLE_ASAN=ON
         shift
         ;;
         --test)
@@ -127,6 +149,10 @@ do
         DEBUG_MONGODB=ON
         shift
         ;;
+        --debug-scylla)
+        DEBUG_SCYLLA=ON
+        shift
+        ;;
         --debug-redis)
         DEBUG_REDIS=ON
         shift
@@ -137,6 +163,7 @@ do
         DEBUG_SQLITE=ON
         DEBUG_FIREBIRD=ON
         DEBUG_MONGODB=ON
+        DEBUG_SCYLLA=ON
         DEBUG_REDIS=ON
         DEBUG_ALL=ON
         shift
@@ -162,11 +189,14 @@ do
         echo "  --firebird-off         Disable Firebird SQL support"
         echo "  --mongodb, --mongodb-on  Enable MongoDB support"
         echo "  --mongodb-off          Disable MongoDB support"
+        echo "  --scylla, --scylla-on    Enable ScyllaDB support"
+        echo "  --scylla-off           Disable ScyllaDB support"
         echo "  --redis, --redis-on    Enable Redis support"
         echo "  --redis-off            Disable Redis support"
         echo "  --yaml, --yaml-on      Enable YAML configuration support"
         echo "  --debug                Build in Debug mode (default)"
         echo "  --release              Build in Release mode"
+        echo "  --gcc-analyzer         Enable GCC Static Analyzer (GCC 10+)"
         echo "  --test                 Build cpp_dbc tests"
         echo "  --examples             Build cpp_dbc examples"
         echo "  --benchmarks           Build cpp_dbc benchmarks"
@@ -175,6 +205,7 @@ do
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
         echo "  --debug-firebird       Enable debug output for Firebird driver"
         echo "  --debug-mongodb        Enable debug output for MongoDB driver"
+        echo "  --debug-scylla         Enable debug output for ScyllaDB driver"
         echo "  --debug-redis          Enable debug output for Redis driver"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
@@ -192,6 +223,7 @@ echo "  PostgreSQL support: $USE_POSTGRESQL"
 echo "  SQLite support: $USE_SQLITE"
 echo "  Firebird support: $USE_FIREBIRD"
 echo "  MongoDB support: $USE_MONGODB"
+echo "  ScyllaDB support: $USE_SCYLLA"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"
@@ -202,6 +234,7 @@ echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
+echo "  Debug ScyllaDB: $DEBUG_SCYLLA"
 echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
@@ -385,6 +418,23 @@ if [ "$USE_MONGODB" = "ON" ]; then
     fi
 fi
 
+# Check for ScyllaDB dependencies
+if [ "$USE_SCYLLA" = "ON" ]; then
+    echo "Checking for ScyllaDB (Cassandra) driver development libraries..."
+    
+    # Call the setup script
+    if [ -f "${SCRIPT_DIR}/download_and_setup_cassandra_driver.sh" ]; then
+        bash "${SCRIPT_DIR}/download_and_setup_cassandra_driver.sh"
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to setup Cassandra driver."
+            exit 1
+        fi
+    else
+        echo "Error: download_and_setup_cassandra_driver.sh not found in ${SCRIPT_DIR}"
+        exit 1
+    fi
+fi
+
 # Check for Redis dependencies
 if [ "$USE_REDIS" = "ON" ]; then
     echo "Checking for Redis development libraries..."
@@ -458,7 +508,7 @@ if [ "$BACKWARD_HAS_DW" = "ON" ]; then
 fi
 
 # Create build directory
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+# SCRIPT_DIR is defined at the top
 PROJECT_ROOT="$( cd "${SCRIPT_DIR}/../.." &> /dev/null && pwd )"
 BUILD_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc/build"
 INSTALL_DIR="${PROJECT_ROOT}/build/libs/cpp_dbc"
@@ -475,6 +525,21 @@ echo "Installing dependencies with Conan..."
 cd "${SCRIPT_DIR}"
 conan install . --output-folder="${CONAN_DIR}" --build=missing -s build_type=$BUILD_TYPE
 cd "${BUILD_DIR}"
+
+# Check if GCC supports -fanalyzer (GCC 10+)
+GCC_VERSION=$(gcc -dumpversion | cut -d. -f1)
+ANALYZER_FLAG=""
+
+if [ "$ENABLE_GCC_ANALYZER" = "ON" ]; then
+    if [ "$GCC_VERSION" -ge 10 ]; then
+        echo "GCC version $GCC_VERSION supports -fanalyzer. Enabling it."
+        ANALYZER_FLAG="-fanalyzer"
+    else
+        echo "GCC version $GCC_VERSION does not support -fanalyzer. Ignoring --gcc-analyzer."
+    fi
+else
+    echo "GCC Static Analyzer is disabled (use --gcc-analyzer to enable)"
+fi
 
 # Configure with CMake
 echo "Configuring with CMake..."
@@ -500,6 +565,7 @@ cmake "${SCRIPT_DIR}" \
       -DUSE_SQLITE=$USE_SQLITE \
       -DUSE_FIREBIRD=$USE_FIREBIRD \
       -DUSE_MONGODB=$USE_MONGODB \
+      -DUSE_SCYLLA=$USE_SCYLLA \
       -DUSE_REDIS=$USE_REDIS \
       -DUSE_CPP_YAML=$USE_CPP_YAML \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
@@ -511,12 +577,14 @@ cmake "${SCRIPT_DIR}" \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
       -DDEBUG_FIREBIRD=$DEBUG_FIREBIRD \
       -DDEBUG_MONGODB=$DEBUG_MONGODB \
+      -DDEBUG_SCYLLA=$DEBUG_SCYLLA \
       -DDEBUG_REDIS=$DEBUG_REDIS \
       -DDEBUG_ALL=$DEBUG_ALL \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
+      -DENABLE_ASAN=$ENABLE_ASAN \
       -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
-      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align" \
+      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align ${ANALYZER_FLAG}" \
       -Wno-dev
 
 # Build and install the library
@@ -567,6 +635,11 @@ if [ "$BUILD_TESTS" = "ON" ]; then
     if [ "$USE_MONGODB" = "ON" ]; then
         TEST_PARAMS="$TEST_PARAMS --mongodb"
     fi
+
+    # Pass ScyllaDB configuration
+    if [ "$USE_SCYLLA" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --scylla"
+    fi
     
     # Pass Redis configuration
     if [ "$USE_REDIS" = "ON" ]; then
@@ -576,6 +649,14 @@ if [ "$BUILD_TESTS" = "ON" ]; then
     # Pass build type
     if [ "$BUILD_TYPE" = "Release" ]; then
         TEST_PARAMS="$TEST_PARAMS --release"
+    fi
+
+    if [ "$ENABLE_GCC_ANALYZER" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --gcc-analyzer"
+    fi
+
+    if [ "$ENABLE_ASAN" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --asan"
     fi
     
     # Pass debug options
@@ -598,6 +679,10 @@ if [ "$BUILD_TESTS" = "ON" ]; then
     if [ "$DEBUG_MONGODB" = "ON" ]; then
         TEST_PARAMS="$TEST_PARAMS --debug-mongodb"
     fi
+
+    if [ "$DEBUG_SCYLLA" = "ON" ]; then
+        TEST_PARAMS="$TEST_PARAMS --debug-scylla"
+    fi
     
     if [ "$DEBUG_REDIS" = "ON" ]; then
         TEST_PARAMS="$TEST_PARAMS --debug-redis"
@@ -618,6 +703,7 @@ echo "  PostgreSQL: $USE_POSTGRESQL"
 echo "  SQLite: $USE_SQLITE"
 echo "  Firebird: $USE_FIREBIRD"
 echo "  MongoDB: $USE_MONGODB"
+echo "  ScyllaDB: $USE_SCYLLA"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
 echo "  Build tests: $BUILD_TESTS"

@@ -16,6 +16,7 @@ USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
+USE_SCYLLA=OFF
 USE_REDIS=OFF
 USE_CPP_YAML=OFF
 BUILD_TYPE=Debug
@@ -27,6 +28,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
+DEBUG_SCYLLA=OFF
 DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
 BACKWARD_HAS_DW=ON
@@ -65,6 +67,12 @@ do
         --mongodb-off)
         USE_MONGODB=OFF
         ;;
+        --scylla|--scylla-on)
+        USE_SCYLLA=ON
+        ;;
+        --scylla-off)
+        USE_SCYLLA=OFF
+        ;;
         --redis|--redis-on)
         USE_REDIS=ON
         ;;
@@ -76,6 +84,9 @@ do
         ;;
         --release)
         BUILD_TYPE=Release
+        ;;
+        --gcc-analyzer)
+        ENABLE_GCC_ANALYZER=ON
         ;;
         --test)
         BUILD_TESTS=ON
@@ -106,6 +117,9 @@ do
         ;;
         --debug-mongodb)
         DEBUG_MONGODB=ON
+        ;;
+        --debug-scylla)
+        DEBUG_SCYLLA=ON
         ;;
         --debug-redis)
         DEBUG_REDIS=ON
@@ -138,9 +152,12 @@ do
         echo "  --firebird-off         Disable Firebird SQL support"
         echo "  --mongodb, --mongodb-on  Enable MongoDB support"
         echo "  --mongodb-off          Disable MongoDB support"
+        echo "  --scylla, --scylla-on    Enable ScyllaDB support"
+        echo "  --scylla-off           Disable ScyllaDB support"
         echo "  --yaml, --yaml-on      Enable YAML configuration support"
         echo "  --clean                Clean build directories before building"
         echo "  --release              Build in Release mode (default: Debug)"
+        echo "  --gcc-analyzer         Enable GCC Static Analyzer (GCC 10+)"
         echo "  --test                 Build cpp_dbc tests"
         echo "  --examples             Build cpp_dbc examples"
         echo "  --benchmarks           Build cpp_dbc benchmarks"
@@ -149,6 +166,7 @@ do
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
         echo "  --debug-firebird       Enable debug output for Firebird driver"
         echo "  --debug-mongodb        Enable debug output for MongoDB driver"
+        echo "  --debug-scylla         Enable debug output for ScyllaDB driver"
         echo "  --debug-redis          Enable debug output for Redis driver"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
@@ -165,8 +183,10 @@ export USE_POSTGRESQL
 export USE_SQLITE
 export USE_FIREBIRD
 export USE_MONGODB
+export USE_SCYLLA
 export USE_REDIS
 export USE_CPP_YAML
+export ENABLE_GCC_ANALYZER
 export BUILD_TYPE
 export BUILD_TESTS
 export BUILD_EXAMPLES
@@ -176,6 +196,7 @@ export DEBUG_TRANSACTION_MANAGER
 export DEBUG_SQLITE
 export DEBUG_FIREBIRD
 export DEBUG_MONGODB
+export DEBUG_SCYLLA
 export DEBUG_ALL
 export BACKWARD_HAS_DW
 export DB_DRIVER_THREAD_SAFE
@@ -211,6 +232,12 @@ else
     MONGODB_PARAM="--mongodb-off"
 fi
 
+if [ "$USE_SCYLLA" = "ON" ]; then
+    SCYLLA_PARAM="--scylla"
+else
+    SCYLLA_PARAM="--scylla-off"
+fi
+
 if [ "$USE_REDIS" = "ON" ]; then
     REDIS_PARAM="--redis"
 else
@@ -222,6 +249,10 @@ if [ "$BUILD_TYPE" = "Release" ]; then
     BUILD_TYPE_PARAM="--release"
 else
     BUILD_TYPE_PARAM=""
+fi
+
+if [ "$ENABLE_GCC_ANALYZER" = "ON" ]; then
+    BUILD_TYPE_PARAM="$BUILD_TYPE_PARAM --gcc-analyzer"
 fi
 
 # Pass the build tests option to the cpp_dbc build script
@@ -274,6 +305,10 @@ if [ "$DEBUG_MONGODB" = "ON" ]; then
     DEBUG_PARAMS="$DEBUG_PARAMS --debug-mongodb"
 fi
 
+if [ "$DEBUG_SCYLLA" = "ON" ]; then
+    DEBUG_PARAMS="$DEBUG_PARAMS --debug-scylla"
+fi
+
 if [ "$DEBUG_ALL" = "ON" ]; then
     DEBUG_PARAMS="$DEBUG_PARAMS --debug-all"
 fi
@@ -290,7 +325,7 @@ fi
 
 echo "$0 >= Running ./libs/cpp_dbc/build_cpp_dbc.sh "
 # Build the cpp_dbc library
-./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $FIREBIRD_PARAM $MONGODB_PARAM $REDIS_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM $BUILD_BENCHMARKS_PARAM $DEBUG_PARAMS
+./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $FIREBIRD_PARAM $MONGODB_PARAM $SCYLLA_PARAM $REDIS_PARAM $YAML_PARAM $BUILD_TYPE_PARAM $BUILD_TESTS_PARAM $BUILD_EXAMPLES_PARAM $BUILD_BENCHMARKS_PARAM $DEBUG_PARAMS
 
 # If the cpp_dbc build script fails, stop the build process
 if [ $? -ne 0 ]; then
@@ -326,6 +361,7 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE \
          -DUSE_SQLITE=$USE_SQLITE \
          -DUSE_FIREBIRD=$USE_FIREBIRD \
          -DUSE_MONGODB=$USE_MONGODB \
+         -DUSE_SCYLLA=$USE_SCYLLA \
          -DUSE_CPP_YAML=$USE_CPP_YAML \
          -DCMAKE_PREFIX_PATH=../build/libs/cpp_dbc \
          -Wno-dev
@@ -350,6 +386,7 @@ echo "  PostgreSQL: $USE_POSTGRESQL"
 echo "  SQLite: $USE_SQLITE"
 echo "  Firebird: $USE_FIREBIRD"
 echo "  MongoDB: $USE_MONGODB"
+echo "  ScyllaDB: $USE_SCYLLA"
 echo "  Redis: $USE_REDIS"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
@@ -361,6 +398,7 @@ echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
+echo "  Debug ScyllaDB: $DEBUG_SCYLLA"
 echo "  Debug Redis: $DEBUG_REDIS"
 echo "  Debug All: $DEBUG_ALL"
 echo "  libdw support: $BACKWARD_HAS_DW"

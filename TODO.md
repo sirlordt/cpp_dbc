@@ -2,6 +2,10 @@
 
 ## Pending Tasks
 
+- Add DEBUG_SCYLLA to the driver of SCYLLA. And relevant intrumentation messages in the driver code.
+- Add conection pool interface and class implementation to SCYLLADB driver.
+- Add examples to SCYLLADB driver
+- Add benchmarks to SCYLLADB driver
 - NEW FEATURE: Add more examples.
 - NEW FEATURE: Add more debug messages?
 - PLANNED: Start to using in real proyect and test how ease is integrate in third party project. Maybe write a INTERGRATION.md to explain how full integrate in a real project.
@@ -10,8 +14,10 @@
    - Oracle?
    - DB2?
    - Clickhouse?
-   - Cassandra/Symtilla?
+   
 ## Completed Tasks
+
+- Cassandra/Symtilla driver implementation
 
 - PostgreSQL Exception-Free API Implementation:
   - Implemented comprehensive exception-free API for all PostgreSQL driver methods using `std::nothrow_t` parameter
@@ -20,7 +26,6 @@
   - Added error handling with unique error codes for each error condition
   - Implemented for connection operations, transaction management, and statement execution
   - Ensures consistent API pattern across all database drivers
-
 
 - MongoDB benchmark and test improvements:
   - Added comprehensive MongoDB benchmark suite with benchmark_mongodb_select.cpp, benchmark_mongodb_insert.cpp, benchmark_mongodb_update.cpp, benchmark_mongodb_delete.cpp

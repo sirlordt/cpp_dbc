@@ -16,6 +16,7 @@ set -e  # Exit on error
 #   --firebird, --firebird-on  Enable Firebird support
 #   --firebird-off         Disable Firebird support
 #   --release              Run in Release mode (default: Debug)
+#   --gcc-analyzer         Enable GCC Static Analyzer (GCC 10+)
 #   --asan                 Enable Address Sanitizer
 #   --valgrind             Run tests with Valgrind
 #   --auto                 Automatically continue to next test set if tests pass
@@ -42,8 +43,10 @@ USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
+USE_SCYLLA=OFF
 USE_REDIS=OFF
 BUILD_TYPE=Debug
+ENABLE_GCC_ANALYZER=OFF
 ASAN_OPTIONS=""
 ENABLE_ASAN=false
 RUN_CTEST=false
@@ -59,6 +62,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
+DEBUG_SCYLLA=OFF
 DEBUG_REDIS=OFF
 RUN_COUNT=1
 BACKWARD_HAS_DW=ON
@@ -115,6 +119,14 @@ while [[ $# -gt 0 ]]; do
             USE_MONGODB=OFF
             shift
             ;;
+        --scylla|--scylla-on)
+            USE_SCYLLA=ON
+            shift
+            ;;
+        --scylla-off)
+            USE_SCYLLA=OFF
+            shift
+            ;;
         --redis|--redis-on)
             USE_REDIS=ON
             shift
@@ -125,6 +137,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --release)
             BUILD_TYPE=Release
+            shift
+            ;;
+        --gcc-analyzer)
+            ENABLE_GCC_ANALYZER=ON
             shift
             ;;
         --asan)
@@ -193,6 +209,10 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             shift
             ;;
+        --debug-scylla)
+            DEBUG_SCYLLA=ON
+            shift
+            ;;
         --debug-redis)
             DEBUG_REDIS=ON
             shift
@@ -203,6 +223,7 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             DEBUG_FIREBIRD=ON
             DEBUG_MONGODB=ON
+            DEBUG_SCYLLA=ON
             DEBUG_REDIS=ON
             shift
             ;;
@@ -227,6 +248,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --firebird-off         Disable Firebird support"
             echo "  --mongodb, --mongodb-on  Enable MongoDB support"
             echo "  --mongodb-off          Disable MongoDB support"
+            echo "  --scylla, --scylla-on    Enable ScyllaDB support"
+            echo "  --scylla-off           Disable ScyllaDB support"
             echo "  --redis, --redis-on    Enable Redis support"
             echo "  --redis-off            Disable Redis support"
             echo "  --release              Run in Release mode (default: Debug)"
@@ -245,6 +268,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
+            echo "  --debug-scylla         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
@@ -394,6 +418,12 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
     else
         BUILD_CMD="$BUILD_CMD --mongodb-off"
     fi
+
+    if [ "$USE_SCYLLA" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --scylla"
+    else
+        BUILD_CMD="$BUILD_CMD --scylla-off"
+    fi
     
     if [ "$USE_REDIS" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --redis"
@@ -405,6 +435,10 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
         BUILD_CMD="$BUILD_CMD --release"
     else
         BUILD_CMD="$BUILD_CMD --debug"
+    fi
+
+    if [ "$ENABLE_GCC_ANALYZER" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --gcc-analyzer"
     fi
 
     # Add debug options
@@ -426,6 +460,10 @@ if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
     
     if [ "$DEBUG_MONGODB" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --debug-mongodb"
+    fi
+
+    if [ "$DEBUG_SCYLLA" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --debug-scylla"
     fi
     
     if [ "$DEBUG_REDIS" = "ON" ]; then

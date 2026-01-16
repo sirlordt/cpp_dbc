@@ -183,6 +183,15 @@ TEST_CASE("DatabaseConfig tests", "[database_config]")
 
         connStr = config.createConnectionString();
         REQUIRE(connStr == "cpp_dbc:postgresql://db.example.com:5432/postgres");
+
+        // Change parameters for ScyllaDB
+        config.setType("scylladb");
+        config.setHost("localhost");
+        config.setPort(9042);
+        config.setDatabase("keyspace");
+
+        connStr = config.createConnectionString();
+        REQUIRE(connStr == "cpp_dbc:scylladb://localhost:9042/keyspace");
     }
 }
 

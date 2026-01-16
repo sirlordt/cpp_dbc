@@ -16,15 +16,16 @@ CPP_DBC solves these problems by providing:
 
 1. **Unified API**: A consistent interface for database operations regardless of the underlying database system
 2. **Driver Architecture**: Database-specific implementations encapsulated behind common interfaces
-3. **Multi-Database Type Support**: Support for relational (MySQL, PostgreSQL, SQLite, Firebird), document (MongoDB), and key-value (Redis) databases
+3. **Multi-Database Type Support**: Support for relational (MySQL, PostgreSQL, SQLite, Firebird), document (MongoDB), columnar (ScyllaDB), and key-value (Redis) databases
 4. **Connection Pooling**: Efficient management of database connections to improve performance
 5. **Transaction Management**: Simplified transaction handling across threads with JDBC-compatible isolation levels
 6. **Prepared Statements**: Support for parameterized queries to prevent SQL injection
 7. **BLOB Support**: Comprehensive handling of Binary Large Objects across all relational database drivers
 8. **Document Operations**: Full CRUD operations for document databases with cursor-based iteration
 9. **JSON Support**: Native handling of JSON data types in MySQL and PostgreSQL
-10. **Key-Value Operations**: Comprehensive support for Redis key-value storage operations
-11. **Code Quality**: Strict warning flags and compile-time checks to ensure robust, reliable code
+10. **Columnar Operations**: Support for ScyllaDB/Cassandra columnar database operations
+11. **Key-Value Operations**: Comprehensive support for Redis key-value storage operations
+12. **Code Quality**: Strict warning flags and compile-time checks to ensure robust, reliable code
 
 ## Target Users
 
@@ -35,7 +36,7 @@ CPP_DBC solves these problems by providing:
 
 ## Use Cases
 
-1. **Cross-Database Applications**: Systems that need to work with MySQL, PostgreSQL, SQLite, Firebird, MongoDB, and Redis
+1. **Cross-Database Applications**: Systems that need to work with MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, and Redis
 2. **High-Performance Applications**: Applications that benefit from connection pooling
 3. **Distributed Systems**: Applications with complex transaction requirements across multiple components
 4. **Concurrent Data Access**: Applications requiring fine-grained control over transaction isolation levels
@@ -43,7 +44,8 @@ CPP_DBC solves these problems by providing:
 6. **Media-Rich Applications**: Systems that need to store and retrieve binary data like images, documents, or other files
 7. **Data-Intensive Applications**: Systems that work with complex, hierarchical data structures using JSON
 8. **Document-Oriented Applications**: Systems that need flexible schema design with MongoDB document storage
-9. **Caching and Fast Storage**: Applications requiring high-performance caching and quick data retrieval using Redis
+9. **Columnar Database Applications**: Systems requiring high-throughput, low-latency operations on large datasets using ScyllaDB
+10. **Caching and Fast Storage**: Applications requiring high-performance caching and quick data retrieval using Redis
 
 ## Comparison with Alternatives
 

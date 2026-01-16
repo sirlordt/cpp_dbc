@@ -51,7 +51,9 @@ namespace cpp_dbc
         DATE,
         TIMESTAMP,
         BOOLEAN,
-        BLOB
+        BLOB,
+        UUID,
+        CHAR
     };
 
     /**

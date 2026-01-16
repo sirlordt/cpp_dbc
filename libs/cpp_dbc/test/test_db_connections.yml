@@ -194,6 +194,28 @@ databases:
       read_timeout: 3000
       write_timeout: 3000
 
+  # ScyllaDB development database
+  - name: dev_scylla
+    type: scylladb
+    host: localhost
+    port: 9042
+    database: dev_keyspace
+    username: cassandra
+    password: dsystems
+    options:
+      connect_timeout: 5000
+
+  # ScyllaDB testing database
+  - name: test_scylla
+    type: scylladb
+    host: localhost
+    port: 9042
+    database: test_keyspace
+    username: cassandra
+    password: dsystems
+    options:
+      connect_timeout: 5000
+
 # Connection pool configuration for tests
 connection_pool:
   default:
@@ -261,3 +283,12 @@ test_queries:
     set_key: "SET test:key \"Hello Redis\""
     get_key: "GET test:key"
     delete_key: "DEL test:key"
+
+  # ScyllaDB specific test queries
+  scylladb:
+    connection_test: "SELECT release_version FROM system.local"
+    create_keyspace: "CREATE KEYSPACE IF NOT EXISTS test_keyspace WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}"
+    create_table: "CREATE TABLE IF NOT EXISTS test_keyspace.test_table (id int PRIMARY KEY, name text, value double)"
+    insert_data: "INSERT INTO test_keyspace.test_table (id, name, value) VALUES (?, ?, ?)"
+    select_data: "SELECT * FROM test_keyspace.test_table WHERE id = ?"
+    drop_table: "DROP TABLE IF EXISTS test_keyspace.test_table"

@@ -97,6 +97,16 @@ add_executable(cpp_dbc_tests
     test_mongodb_connection_pool.cpp
     test_redis_connection.cpp
     test_redis_connection_pool.cpp
+    test_scylla_common.cpp
+    test_scylla_connection.cpp
+    test_scylla_real.cpp
+    test_scylla_real_blob.cpp
+    test_scylla_real_json.cpp
+    test_scylla_thread_safe.cpp
+    test_scylla_real_inner_join.cpp
+    test_scylla_real_left_join.cpp
+    test_scylla_real_right_join.cpp
+    test_scylla_real_full_join.cpp
 )
 
 # Link against Catch2 and cpp_dbc
@@ -134,6 +144,8 @@ target_compile_definitions(cpp_dbc_tests PUBLIC
     $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
     $<$<BOOL:${USE_MONGODB}>:USE_MONGODB=1>
     $<$<NOT:$<BOOL:${USE_MONGODB}>>:USE_MONGODB=0>
+    $<$<BOOL:${USE_SCYLLA}>:USE_SCYLLA=1>
+    $<$<NOT:$<BOOL:${USE_SCYLLA}>>:USE_SCYLLA=0>
     $<$<BOOL:${USE_REDIS}>:USE_REDIS=1>
     $<$<NOT:$<BOOL:${USE_REDIS}>>:USE_REDIS=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
