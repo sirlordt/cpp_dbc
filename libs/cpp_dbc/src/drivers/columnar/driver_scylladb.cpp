@@ -875,7 +875,7 @@ namespace cpp_dbc
         ScyllaDBPreparedStatement::~ScyllaDBPreparedStatement()
         {
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::destructor - Destroying prepared statement");
-            close();
+            close(std::nothrow);
         }
 
         void ScyllaDBPreparedStatement::close()
