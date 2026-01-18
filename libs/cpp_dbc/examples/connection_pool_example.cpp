@@ -106,10 +106,10 @@ int main()
 
         // Create MySQL connection pool
 #if USE_MYSQL
-        cpp_dbc::MySQL::MySQLConnectionPool mysqlPool(mysqlConfig);
+        auto mysqlPool = cpp_dbc::MySQL::MySQLConnectionPool::create(mysqlConfig);
 
         std::cout << "MySQL connection pool created with "
-                  << mysqlPool.getIdleDBConnectionCount() << " idle connections" << std::endl;
+                  << mysqlPool->getIdleDBConnectionCount() << " idle connections" << std::endl;
 
         // Demonstrate concurrent usage with multiple threads
         std::vector<std::thread> threads;
@@ -119,7 +119,7 @@ int main()
 
         for (int i = 0; i < numThreads; ++i)
         {
-            threads.push_back(std::thread(performDatabaseOperation, std::ref(mysqlPool), i));
+            threads.push_back(std::thread(performDatabaseOperation, std::ref(*mysqlPool), i));
         }
 
         // Wait for all threads to complete
@@ -130,12 +130,12 @@ int main()
 
         std::cout << "All threads completed." << std::endl;
         std::cout << "Final pool statistics:" << std::endl;
-        std::cout << "  Active connections: " << mysqlPool.getActiveDBConnectionCount() << std::endl;
-        std::cout << "  Idle connections: " << mysqlPool.getIdleDBConnectionCount() << std::endl;
-        std::cout << "  Total connections: " << mysqlPool.getTotalDBConnectionCount() << std::endl;
+        std::cout << "  Active connections: " << mysqlPool->getActiveDBConnectionCount() << std::endl;
+        std::cout << "  Idle connections: " << mysqlPool->getIdleDBConnectionCount() << std::endl;
+        std::cout << "  Total connections: " << mysqlPool->getTotalDBConnectionCount() << std::endl;
 
         // Close the pool
-        mysqlPool.close();
+        mysqlPool->close();
         std::cout << "MySQL connection pool closed." << std::endl;
 #else
         std::cout << "MySQL support is not enabled. Skipping MySQL example." << std::endl;
@@ -155,10 +155,10 @@ int main()
         pgConfig.setValidationQuery("SELECT 1");
 
         // Create PostgreSQL connection pool
-        cpp_dbc::PostgreSQL::PostgreSQLConnectionPool pgPool(pgConfig);
+        auto pgPool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(pgConfig);
 
         std::cout << "PostgreSQL connection pool created with "
-                  << pgPool.getIdleDBConnectionCount() << " idle connections" << std::endl;
+                  << pgPool->getIdleDBConnectionCount() << " idle connections" << std::endl;
 
         // Run a few operations with the PostgreSQL pool
         // (Similar to MySQL example but with fewer threads for brevity)
@@ -167,7 +167,7 @@ int main()
 
         for (int i = 0; i < pgNumThreads; ++i)
         {
-            pgThreads.push_back(std::thread(performDatabaseOperation, std::ref(pgPool), i));
+            pgThreads.push_back(std::thread(performDatabaseOperation, std::ref(*pgPool), i));
         }
 
         for (auto &thread : pgThreads)
@@ -175,7 +175,7 @@ int main()
             thread.join();
         }
 
-        pgPool.close();
+        pgPool->close();
         std::cout << "PostgreSQL connection pool closed." << std::endl;
 #else
         std::cout << "\nPostgreSQL support is not enabled. Skipping PostgreSQL example." << std::endl;

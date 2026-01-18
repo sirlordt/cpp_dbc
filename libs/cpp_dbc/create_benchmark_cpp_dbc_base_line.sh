@@ -89,13 +89,17 @@ echo "Output will be saved to: $OUTPUT_FILE"
     sqlite_memory=0
     firebird_memory=0
     mongodb_memory=0
-    
+    scylladb_memory=0
+    redis_memory=0
+
     # Extract full time command output for each database type
     mysql_time_output=""
     postgresql_time_output=""
     sqlite_time_output=""
     firebird_time_output=""
     mongodb_time_output=""
+    scylladb_time_output=""
+    redis_time_output=""
     
     # Extract MySQL time command output
     mysql_section=$(grep -n "Command being timed:.*BM_MySQL" "$LOG_FILE" | head -1 | cut -d':' -f1)
@@ -153,7 +157,7 @@ echo "Output will be saved to: $OUTPUT_FILE"
         if [ -n "$mongodb_section" ]; then
             # Extract the complete time command output
             mongodb_time_output=$(tail -n +$mongodb_section "$LOG_FILE" | head -25)
-            
+
             # Extract memory usage
             mongodb_memory=$(echo "$mongodb_time_output" | grep "Maximum resident set size" | awk '{print $6}')
             if [ -z "$mongodb_memory" ]; then
@@ -161,9 +165,35 @@ echo "Output will be saved to: $OUTPUT_FILE"
             fi
         fi
     fi
+
+    # Extract ScyllaDB time command output
+    scylladb_section=$(grep -n "Command being timed:.*BM_ScyllaDB" "$LOG_FILE" | head -1 | cut -d':' -f1)
+    if [ -n "$scylladb_section" ]; then
+        # Extract the complete time command output
+        scylladb_time_output=$(tail -n +$scylladb_section "$LOG_FILE" | head -25)
+
+        # Extract memory usage
+        scylladb_memory=$(echo "$scylladb_time_output" | grep "Maximum resident set size" | awk '{print $6}')
+        if [ -z "$scylladb_memory" ]; then
+            scylladb_memory=0
+        fi
+    fi
+
+    # Extract Redis time command output
+    redis_section=$(grep -n "Command being timed:.*BM_Redis" "$LOG_FILE" | head -1 | cut -d':' -f1)
+    if [ -n "$redis_section" ]; then
+        # Extract the complete time command output
+        redis_time_output=$(tail -n +$redis_section "$LOG_FILE" | head -25)
+
+        # Extract memory usage
+        redis_memory=$(echo "$redis_time_output" | grep "Maximum resident set size" | awk '{print $6}')
+        if [ -z "$redis_memory" ]; then
+            redis_memory=0
+        fi
+    fi
     
     # Write memory usage to output file
-    echo "# Memory usage (KB): MySQL=$mysql_memory, PostgreSQL=$postgresql_memory, SQLite=$sqlite_memory, Firebird=$firebird_memory, MongoDB=$mongodb_memory" >> "$OUTPUT_FILE"
+    echo "# Memory usage (KB): MySQL=$mysql_memory, PostgreSQL=$postgresql_memory, SQLite=$sqlite_memory, Firebird=$firebird_memory, MongoDB=$mongodb_memory, ScyllaDB=$scylladb_memory, Redis=$redis_memory" >> "$OUTPUT_FILE"
     
     # Extract benchmark results from the log file
     # This pattern looks for lines with benchmark results in Google Benchmark format
@@ -209,6 +239,12 @@ echo "Output will be saved to: $OUTPUT_FILE"
         elif [[ "$benchmark_name" == BM_MongoDB_* ]]; then
             memory_kb=$mongodb_memory
             benchmark_type="MongoDB"
+        elif [[ "$benchmark_name" == BM_ScyllaDB_* ]]; then
+            memory_kb=$scylladb_memory
+            benchmark_type="ScyllaDB"
+        elif [[ "$benchmark_name" == BM_Redis_* ]]; then
+            memory_kb=$redis_memory
+            benchmark_type="Redis"
         fi
         
         # Output in semicolon-separated format - preserve exact format for all values
@@ -240,6 +276,12 @@ if [ $firebird_memory -gt 0 ]; then
 fi
 if [ $mongodb_memory -gt 0 ]; then
     echo "  MongoDB benchmarks: $mongodb_memory KB"
+fi
+if [ $scylladb_memory -gt 0 ]; then
+    echo "  ScyllaDB benchmarks: $scylladb_memory KB"
+fi
+if [ $redis_memory -gt 0 ]; then
+    echo "  Redis benchmarks: $redis_memory KB"
 fi
 echo ""
 echo "You can compare this baseline with future runs to track performance changes."
@@ -399,6 +441,66 @@ if [ -n "$mongodb_time_output" ]; then
     
     # Write to output file
     echo "MongoDB;\"$command\";$user_time;$system_time;$cpu_percent;\"$elapsed_time\";$max_resident;$page_faults_major;$page_faults_minor;$vol_ctx_switches;$invol_ctx_switches;$fs_inputs;$fs_outputs;$exit_status" >> "$OUTPUT_FILE"
+fi
+
+# Process ScyllaDB time command output
+if [ -n "$scylladb_time_output" ]; then
+    # Extract command and trim whitespace while keeping quotes
+    command=$(echo "$scylladb_time_output" | grep "Command being timed:" | sed 's/Command being timed: "//' | sed 's/"$//' | sed 's/^[ \t]*//;s/[ \t]*$//')
+    # Extract user time
+    user_time=$(echo "$scylladb_time_output" | grep "User time" | awk '{print $4}')
+    # Extract system time
+    system_time=$(echo "$scylladb_time_output" | grep "System time" | awk '{print $4}')
+    # Extract CPU percent
+    cpu_percent=$(echo "$scylladb_time_output" | grep "Percent of CPU" | sed 's/.*: //' | sed 's/%$//')
+    # Extract elapsed time
+    elapsed_time=$(echo "$scylladb_time_output" | grep "Elapsed" | sed 's/.*: //')
+    # Extract max resident set size
+    max_resident=$(echo "$scylladb_time_output" | grep "Maximum resident set size" | awk '{print $6}')
+    # Extract page faults
+    page_faults_major=$(echo "$scylladb_time_output" | grep "Major" | awk '{print $6}')
+    page_faults_minor=$(echo "$scylladb_time_output" | grep "Minor" | awk '{print $6}')
+    # Extract context switches
+    vol_ctx_switches=$(echo "$scylladb_time_output" | grep "Voluntary context switches" | awk '{print $4}')
+    invol_ctx_switches=$(echo "$scylladb_time_output" | grep "Involuntary context switches" | awk '{print $4}')
+    # Extract file system I/O
+    fs_inputs=$(echo "$scylladb_time_output" | grep "File system inputs" | awk '{print $4}')
+    fs_outputs=$(echo "$scylladb_time_output" | grep "File system outputs" | awk '{print $4}')
+    # Extract exit status
+    exit_status=$(echo "$scylladb_time_output" | grep "Exit status" | awk '{print $3}')
+
+    # Write to output file
+    echo "ScyllaDB;\"$command\";$user_time;$system_time;$cpu_percent;\"$elapsed_time\";$max_resident;$page_faults_major;$page_faults_minor;$vol_ctx_switches;$invol_ctx_switches;$fs_inputs;$fs_outputs;$exit_status" >> "$OUTPUT_FILE"
+fi
+
+# Process Redis time command output
+if [ -n "$redis_time_output" ]; then
+    # Extract command and trim whitespace while keeping quotes
+    command=$(echo "$redis_time_output" | grep "Command being timed:" | sed 's/Command being timed: "//' | sed 's/"$//' | sed 's/^[ \t]*//;s/[ \t]*$//')
+    # Extract user time
+    user_time=$(echo "$redis_time_output" | grep "User time" | awk '{print $4}')
+    # Extract system time
+    system_time=$(echo "$redis_time_output" | grep "System time" | awk '{print $4}')
+    # Extract CPU percent
+    cpu_percent=$(echo "$redis_time_output" | grep "Percent of CPU" | sed 's/.*: //' | sed 's/%$//')
+    # Extract elapsed time
+    elapsed_time=$(echo "$redis_time_output" | grep "Elapsed" | sed 's/.*: //')
+    # Extract max resident set size
+    max_resident=$(echo "$redis_time_output" | grep "Maximum resident set size" | awk '{print $6}')
+    # Extract page faults
+    page_faults_major=$(echo "$redis_time_output" | grep "Major" | awk '{print $6}')
+    page_faults_minor=$(echo "$redis_time_output" | grep "Minor" | awk '{print $6}')
+    # Extract context switches
+    vol_ctx_switches=$(echo "$redis_time_output" | grep "Voluntary context switches" | awk '{print $4}')
+    invol_ctx_switches=$(echo "$redis_time_output" | grep "Involuntary context switches" | awk '{print $4}')
+    # Extract file system I/O
+    fs_inputs=$(echo "$redis_time_output" | grep "File system inputs" | awk '{print $4}')
+    fs_outputs=$(echo "$redis_time_output" | grep "File system outputs" | awk '{print $4}')
+    # Extract exit status
+    exit_status=$(echo "$redis_time_output" | grep "Exit status" | awk '{print $3}')
+
+    # Write to output file
+    echo "Redis;\"$command\";$user_time;$system_time;$cpu_percent;\"$elapsed_time\";$max_resident;$page_faults_major;$page_faults_minor;$vol_ctx_switches;$invol_ctx_switches;$fs_inputs;$fs_outputs;$exit_status" >> "$OUTPUT_FILE"
 fi
 
 echo "Baseline creation completed."

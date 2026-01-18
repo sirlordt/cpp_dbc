@@ -28,11 +28,11 @@
 #include <cpp_dbc/core/columnar/columnar_db_connection.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 
-#include "test_scylla_common.hpp"
+#include "test_scylladb_common.hpp"
 
-#if USE_SCYLLA
+#if USE_SCYLLADB
 // Test case for ScyllaDB JSON operations
-TEST_CASE("ScyllaDB JSON operations", "[scylla_real_json]")
+TEST_CASE("ScyllaDB JSON operations", "[scylladb_real_json]")
 {
     // Skip these tests if we can't connect to ScyllaDB
     if (!scylla_test_helpers::canConnectToScylla())
@@ -51,7 +51,7 @@ TEST_CASE("ScyllaDB JSON operations", "[scylla_real_json]")
     std::string connStr = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) + "/" + keyspace;
 
     // Register the ScyllaDB driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
     // Get a connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
@@ -215,7 +215,7 @@ TEST_CASE("ScyllaDB JSON operations", "[scylla_real_json]")
     conn->close();
 }
 #else
-TEST_CASE("ScyllaDB JSON operations (skipped)", "[scylla_real_json]")
+TEST_CASE("ScyllaDB JSON operations (skipped)", "[scylladb_real_json]")
 {
     SKIP("ScyllaDB support is not enabled");
 }

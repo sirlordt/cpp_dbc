@@ -26,14 +26,14 @@
 #include <cpp_dbc/config/database_config.hpp>
 #include "test_main.hpp"
 
-#if USE_SCYLLA
-#include <cpp_dbc/drivers/columnar/driver_scylla.hpp>
+#if USE_SCYLLADB
+#include <cpp_dbc/drivers/columnar/driver_scylladb.hpp>
 #endif
 
 namespace scylla_test_helpers
 {
 
-#if USE_SCYLLA
+#if USE_SCYLLADB
 
     /**
      * @brief Get ScyllaDB database configuration with test queries

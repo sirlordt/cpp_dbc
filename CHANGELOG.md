@@ -1,6 +1,86 @@
 # Changelog
 
-## 2026-01-15 11:46:28 PM PST [Current]
+## 2026-01-18 02:59:56 PM PST [Current]
+
+### VSCode IntelliSense Automatic Synchronization System
+* Added automatic synchronization system for VSCode IntelliSense:
+  * **New Scripts:**
+    * Added `.vscode/sync_intellisense.sh` - Quick sync without rebuilding (reads saved config)
+    * Added `.vscode/regenerate_intellisense.sh` - Rebuild from last config or with new parameters
+    * Added `.vscode/update_defines.sh` - Update defines from compile_commands.json
+    * Added `.vscode/detect_include_paths.sh` - Detect system include paths automatically
+  * **Documentation:**
+    * Added `.vscode/README_INTELLISENSE.md` - Comprehensive guide for IntelliSense configuration
+  * **Features:**
+    * Build parameters automatically saved to `build/.build_args`
+    * Configuration state saved to `build/.build_config`
+    * VSCode scripts read these files to stay synchronized
+    * No need to manually specify parameters twice
+    * Quick sync option that doesn't require rebuild
+  * **Workflow Improvements:**
+    * Run `./build.sh [options]` then `.vscode/sync_intellisense.sh` to sync IntelliSense
+    * Or use `.vscode/regenerate_intellisense.sh` to rebuild with same parameters
+    * Supports all database drivers: MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis
+* Removed `EXCEPTION_FREE_ANALYSIS.md` (analysis completed and integrated into codebase)
+
+## 2026-01-18 02:08:02 PM PST
+
+### ScyllaDB Connection Pool and Driver Enhancements
+* Added columnar database connection pool implementation for ScyllaDB:
+  * **New Connection Pool Files:**
+    * Added `include/cpp_dbc/core/columnar/columnar_db_connection_pool.hpp` - Columnar database connection pool interfaces
+    * Added `src/core/columnar/columnar_db_connection_pool.cpp` - Columnar database connection pool implementation
+    * Added `examples/scylladb_connection_pool_example.cpp` - Example for ScyllaDB connection pool usage
+    * Added `test/test_scylladb_connection_pool.cpp` - Comprehensive tests for ScyllaDB connection pool
+  * **Pool Features:**
+    * Factory pattern with `create` static methods for ScyllaDB connection pool creation
+    * Smart pointer-based pool lifetime tracking for memory safety
+    * Connection validation with CQL query (`SELECT now() FROM system.local`)
+    * Configurable pool size, connection timeout, and idle timeout
+    * Support for ScyllaDB authentication
+    * Background maintenance thread for connection cleanup
+    * Thread-safe connection management
+    * `ColumnarDBConnectionPool` base class for columnar databases
+    * `ColumnarPooledDBConnection` wrapper class for pooled columnar connections
+    * `Scylla::ScyllaConnectionPool` specialized implementation for ScyllaDB
+  * **Build System Updates:**
+    * Renamed `USE_SCYLLA` to `USE_SCYLLADB` for consistency
+    * Renamed driver files from `driver_scylla` to `driver_scylladb`
+    * Renamed namespace from `Scylla` to `ScyllaDB`
+    * Updated CMakeLists.txt to include the new source files
+    * Added ScyllaDB connection pool example to build configuration
+    * Added ScyllaDB connection pool tests to test suite
+  * **Test Coverage:**
+    * Basic connection pool operations (get/return connections)
+    * ScyllaDB operations through pooled connections
+    * Concurrent connections stress testing
+    * Connection pool behavior under load
+    * Connection validation and cleanup
+    * Pool growth and scaling tests
+* Added comprehensive ScyllaDB examples:
+  * **New Example Files:**
+    * Added `examples/scylla_example.cpp` - Basic ScyllaDB operations example
+    * Added `examples/scylla_blob_example.cpp` - BLOB operations with ScyllaDB
+    * Added `examples/scylla_json_example.cpp` - JSON data handling with ScyllaDB
+    * Added `examples/scylladb_connection_pool_example.cpp` - Connection pool usage example
+* Added ScyllaDB benchmark suite:
+  * **New Benchmark Files:**
+    * Added `benchmark/benchmark_scylladb_select.cpp` - CQL SELECT operations benchmarks
+    * Added `benchmark/benchmark_scylladb_insert.cpp` - CQL INSERT operations benchmarks
+    * Added `benchmark/benchmark_scylladb_update.cpp` - CQL UPDATE operations benchmarks
+    * Added `benchmark/benchmark_scylladb_delete.cpp` - CQL DELETE operations benchmarks
+  * **Benchmark Infrastructure Updates:**
+    * Updated benchmark scripts with ScyllaDB support
+    * Added ScyllaDB configuration to benchmark_db_connections.yml
+* Renamed test files for consistency:
+  * Renamed `test_scylla_*` to `test_scylladb_*`
+  * Updated all test references to use new naming convention
+* Added ScyllaDB exception-free API:
+  * All ScyllaDB driver methods support nothrow variants
+  * Returns `expected<T, DBException>` for error handling
+  * Consistent with Redis and PostgreSQL exception-free patterns
+
+## 2026-01-15 11:46:28 PM PST
 
 ### ScyllaDB Columnar Database Driver Support
 * Added complete ScyllaDB columnar database driver implementation:

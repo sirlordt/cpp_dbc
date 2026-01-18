@@ -65,7 +65,7 @@ void testConnection(std::shared_ptr<KVDBConnectionPool> pool, int id)
     }
     catch (const DBException &e)
     {
-        std::cerr << "Thread " << id << " error: " << e.what() << "\n";
+        std::cerr << "Thread " << id << " error: " << e.what_s() << "\n";
     }
 }
 
@@ -144,7 +144,7 @@ int main()
     }
     catch (const DBException &e)
     {
-        std::cerr << "Error: " << e.what() << "\n";
+        std::cerr << "Error: " << e.what_s() << "\n";
         return 1;
     }
     catch (const std::exception &e)

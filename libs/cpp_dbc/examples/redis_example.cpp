@@ -235,9 +235,9 @@ int main()
         auto serverInfo = conn->getServerInfo();
         std::cout << "Redis server info (excerpt):\n";
         int count = 0;
-        for (const auto &[key, info] : serverInfo)
+        for (const auto &[k, info] : serverInfo)
         {
-            std::cout << "  " << key << ": " << info << "\n";
+            std::cout << "  " << k << ": " << info << "\n";
             if (++count >= 5)
             {
                 std::cout << "  ... (more info available)\n";
@@ -260,7 +260,7 @@ int main()
     }
     catch (const DBException &e)
     {
-        std::cerr << "Error: " << e.what() << "\n";
+        std::cerr << "Error: " << e.what_s() << "\n";
         return 1;
     }
     catch (const std::exception &e)

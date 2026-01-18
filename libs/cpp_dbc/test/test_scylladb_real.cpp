@@ -32,12 +32,12 @@
 #include <cpp_dbc/config/database_config.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
 
-#include "test_scylla_common.hpp"
+#include "test_scylladb_common.hpp"
 #include "test_main.hpp"
 
-#if USE_SCYLLA
+#if USE_SCYLLADB
 // Test case for real ScyllaDB connection
-TEST_CASE("Real ScyllaDB connection tests", "[scylla_real]")
+TEST_CASE("Real ScyllaDB connection tests", "[scylladb_real]")
 {
     // Skip these tests if we can't connect to ScyllaDB
     if (!scylla_test_helpers::canConnectToScylla())
@@ -72,7 +72,7 @@ TEST_CASE("Real ScyllaDB connection tests", "[scylla_real]")
     SECTION("Basic ScyllaDB operations")
     {
         // Register the ScyllaDB driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
@@ -165,7 +165,7 @@ TEST_CASE("Real ScyllaDB connection tests", "[scylla_real]")
     SECTION("ScyllaDB metadata retrieval")
     {
         // Register the ScyllaDB driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
@@ -281,7 +281,7 @@ TEST_CASE("Real ScyllaDB connection tests", "[scylla_real]")
     SECTION("ScyllaDB stress test")
     {
         // Register the ScyllaDB driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
         // Get a connection
         auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
@@ -376,7 +376,7 @@ TEST_CASE("Real ScyllaDB connection tests", "[scylla_real]")
 }
 #else
 // Skip tests if ScyllaDB support is not enabled
-TEST_CASE("Real ScyllaDB connection tests (skipped)", "[scylla_real]")
+TEST_CASE("Real ScyllaDB connection tests (skipped)", "[scylladb_real]")
 {
     SKIP("ScyllaDB support is not enabled");
 }

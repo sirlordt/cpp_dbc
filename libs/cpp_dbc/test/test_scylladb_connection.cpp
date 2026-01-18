@@ -25,12 +25,12 @@
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/core/columnar/columnar_db_connection.hpp>
 
-#include "test_scylla_common.hpp"
+#include "test_scylladb_common.hpp"
 
 // Test case to verify ScyllaDB connection
-TEST_CASE("ScyllaDB connection test", "[scylla_connection]")
+TEST_CASE("ScyllaDB connection test", "[scylladb_connection]")
 {
-#if USE_SCYLLA
+#if USE_SCYLLADB
     // Skip this test if ScyllaDB support is not enabled
     SECTION("Test ScyllaDB connection")
     {
@@ -49,7 +49,7 @@ TEST_CASE("ScyllaDB connection test", "[scylla_connection]")
         std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port);
 
         // Register the ScyllaDB driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
         try
         {
@@ -97,7 +97,7 @@ TEST_CASE("ScyllaDB connection test", "[scylla_connection]")
         std::string connStr = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) + "/" + keyspace;
 
         // Register the ScyllaDB driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
         try
         {
@@ -170,7 +170,7 @@ TEST_CASE("ScyllaDB connection test", "[scylla_connection]")
         std::string connStr = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port);
 
         // Register the ScyllaDB driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
         try
         {

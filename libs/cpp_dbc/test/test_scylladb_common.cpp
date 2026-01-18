@@ -16,12 +16,12 @@
  * @brief Implementation of Scylla test helpers
  */
 
-#include "test_scylla_common.hpp"
+#include "test_scylladb_common.hpp"
 
 namespace scylla_test_helpers
 {
 
-#if USE_SCYLLA
+#if USE_SCYLLADB
 
     cpp_dbc::config::DatabaseConfig getScyllaConfig(const std::string &databaseName)
     {
@@ -122,7 +122,7 @@ namespace scylla_test_helpers
                                                                  "CREATE KEYSPACE IF NOT EXISTS " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
 
             // Register the ScyllaDB driver
-            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
             // Attempt to connect to ScyllaDB
             std::cout << "Attempting to connect to ScyllaDB to create keyspace..." << std::endl;
@@ -162,7 +162,7 @@ namespace scylla_test_helpers
             std::string connStr = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) + "/" + keyspace;
 
             // Register the ScyllaDB driver
-            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
             // Attempt to connect to ScyllaDB
             std::cout << "Attempting to connect to ScyllaDB with connection string: " << connStr << std::endl;

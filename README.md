@@ -89,7 +89,7 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - `include/cpp_dbc/drivers/kv/driver_redis.hpp` & `src/drivers/kv/driver_redis.cpp`: Redis implementation
 
 - **Database Drivers** (Columnar):
-  - `include/cpp_dbc/drivers/columnar/driver_scylla.hpp` & `src/drivers/columnar/driver_scylla.cpp`: ScyllaDB implementation
+  - `include/cpp_dbc/drivers/columnar/driver_scylladb.hpp` & `src/drivers/columnar/driver_scylladb.cpp`: ScyllaDB implementation
 
 - **Core Interfaces**:
   - `include/cpp_dbc/core/relational/`: Relational database interfaces
@@ -132,7 +132,7 @@ The library supports conditional compilation of database drivers and features:
 - `USE_SQLITE`: Enable/disable SQLite support (OFF by default)
 - `USE_FIREBIRD`: Enable/disable Firebird SQL support (OFF by default)
 - `USE_MONGODB`: Enable/disable MongoDB support (OFF by default)
-- `USE_SCYLLA`: Enable/disable ScyllaDB support (OFF by default)
+- `USE_SCYLLADB`: Enable/disable ScyllaDB support (OFF by default)
 - `USE_REDIS`: Enable/disable Redis support (OFF by default)
 - `USE_CPP_YAML`: Enable/disable YAML configuration support (OFF by default)
 - `CPP_DBC_BUILD_EXAMPLES`: Enable/disable building examples (OFF by default)
@@ -141,7 +141,7 @@ The library supports conditional compilation of database drivers and features:
 - `DEBUG_TRANSACTION_MANAGER`: Enable debug output for TransactionManager (OFF by default)
 - `DEBUG_SQLITE`: Enable debug output for SQLite driver (OFF by default)
 - `DEBUG_MONGODB`: Enable debug output for MongoDB driver (OFF by default)
-- `DEBUG_SCYLLA`: Enable debug output for ScyllaDB driver (OFF by default)
+- `DEBUG_SCYLLADB`: Enable debug output for ScyllaDB driver (OFF by default)
 - `DEBUG_REDIS`: Enable debug output for Redis driver (OFF by default)
 - `DEBUG_ALL`: Enable all debug output at once (OFF by default)
 - `BACKWARD_HAS_DW`: Enable libdw support for enhanced stack traces (ON by default)

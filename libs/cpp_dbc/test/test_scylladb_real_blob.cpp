@@ -31,12 +31,12 @@
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 
-#include "test_scylla_common.hpp"
+#include "test_scylladb_common.hpp"
 #include "test_main.hpp"
 
-#if USE_SCYLLA
+#if USE_SCYLLADB
 // Test case for ScyllaDB BLOB operations
-TEST_CASE("ScyllaDB BLOB operations", "[scylla_real_blob]")
+TEST_CASE("ScyllaDB BLOB operations", "[scylladb_real_blob]")
 {
     // Skip these tests if we can't connect to ScyllaDB
     if (!scylla_test_helpers::canConnectToScylla())
@@ -57,7 +57,7 @@ TEST_CASE("ScyllaDB BLOB operations", "[scylla_real_blob]")
     std::string connStr = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) + "/" + keyspace;
 
     // Register the ScyllaDB driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
     // Get a connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -285,7 +285,7 @@ TEST_CASE("ScyllaDB BLOB operations", "[scylla_real_blob]")
 }
 #else
 // Skip tests if ScyllaDB support is not enabled
-TEST_CASE("ScyllaDB BLOB operations (skipped)", "[scylla_real_blob]")
+TEST_CASE("ScyllaDB BLOB operations (skipped)", "[scylladb_real_blob]")
 {
     SKIP("ScyllaDB support is not enabled");
 }

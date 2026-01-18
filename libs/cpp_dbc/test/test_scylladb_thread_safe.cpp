@@ -37,14 +37,14 @@
 #include <cpp_dbc/config/database_config.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
 
-#include "test_scylla_common.hpp"
+#include "test_scylladb_common.hpp"
 
-#if USE_SCYLLA
+#if USE_SCYLLADB
 
 /**
  * @brief Thread-safety stress tests for ScyllaDB driver
  */
-TEST_CASE("ScyllaDB Thread-Safety Tests", "[scylla_thread_safe]")
+TEST_CASE("ScyllaDB Thread-Safety Tests", "[scylladb_thread_safe]")
 {
     // Skip these tests if we can't connect to ScyllaDB
     if (!scylla_test_helpers::canConnectToScylla())
@@ -64,7 +64,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[scylla_thread_safe]")
     std::string connStr = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) + "/" + keyspace;
 
     // Register the ScyllaDB driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
     // Prepare table
     {
@@ -411,7 +411,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[scylla_thread_safe]")
 }
 
 #else
-TEST_CASE("ScyllaDB Thread-Safety Tests (skipped)", "[scylla_thread_safe]")
+TEST_CASE("ScyllaDB Thread-Safety Tests (skipped)", "[scylladb_thread_safe]")
 {
     SKIP("ScyllaDB support is not enabled");
 }
@@ -420,7 +420,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests (skipped)", "[scylla_thread_safe]")
 #else // DB_DRIVER_THREAD_SAFE
 // Empty test case when thread safety is disabled
 #include <catch2/catch_test_macros.hpp>
-TEST_CASE("ScyllaDB Thread-Safety Tests (disabled)", "[scylla_thread_safe]")
+TEST_CASE("ScyllaDB Thread-Safety Tests (disabled)", "[scylladb_thread_safe]")
 {
     SKIP("Thread-safety tests are disabled when DB_DRIVER_THREAD_SAFE=0");
 }

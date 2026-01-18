@@ -31,11 +31,11 @@
 #include <cpp_dbc/core/columnar/columnar_db_connection.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 
-#include "test_scylla_common.hpp"
+#include "test_scylladb_common.hpp"
 
-#if USE_SCYLLA
+#if USE_SCYLLADB
 // Test case for ScyllaDB operations that emulate FULL JOIN
-TEST_CASE("ScyllaDB FULL JOIN emulation", "[scylla_real_full_join]")
+TEST_CASE("ScyllaDB FULL JOIN emulation", "[scylladb_real_full_join]")
 {
     // Skip these tests if we can't connect to ScyllaDB
     if (!scylla_test_helpers::canConnectToScylla())
@@ -54,7 +54,7 @@ TEST_CASE("ScyllaDB FULL JOIN emulation", "[scylla_real_full_join]")
     std::string connStr = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) + "/" + keyspace;
 
     // Register the ScyllaDB driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
     // Get a connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
@@ -666,7 +666,7 @@ TEST_CASE("ScyllaDB FULL JOIN emulation", "[scylla_real_full_join]")
     conn->close();
 }
 #else
-TEST_CASE("ScyllaDB FULL JOIN emulation (skipped)", "[scylla_real_full_join]")
+TEST_CASE("ScyllaDB FULL JOIN emulation (skipped)", "[scylladb_real_full_join]")
 {
     SKIP("ScyllaDB support is not enabled");
 }

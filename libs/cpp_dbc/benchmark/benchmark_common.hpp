@@ -58,6 +58,10 @@
 #include <cpp_dbc/drivers/kv/driver_redis.hpp>
 #endif
 
+#if USE_SCYLLADB
+#include <cpp_dbc/drivers/columnar/driver_scylladb.hpp>
+#endif
+
 #include <string>
 #include <memory>
 #include <vector>
@@ -226,5 +230,25 @@ namespace redis_benchmark_helpers
 
     // Helper function to clean up Redis keys
     void cleanupRedisKeys(std::shared_ptr<cpp_dbc::KVDBConnection> &conn, const std::string &keyPrefix);
+#endif
+}
+
+namespace scylladb_benchmark_helpers
+{
+#if USE_SCYLLADB
+    // Get a ScyllaDB database configuration based on the given name
+    cpp_dbc::config::DatabaseConfig getScyllaDBConfig(const std::string &databaseName = "dev_scylladb");
+
+    // Check if a connection to ScyllaDB can be established
+    bool canConnectToScyllaDB();
+
+    // Helper function to setup ScyllaDB connection
+    std::shared_ptr<cpp_dbc::ColumnarDBConnection> setupScyllaDBConnection(const std::string &tableName, int rowCount = 0);
+
+    // Helper function to create ScyllaDB-specific benchmark table
+    void createScyllaDBBenchmarkTable(std::shared_ptr<cpp_dbc::ColumnarDBConnection> &conn, const std::string &tableName);
+
+    // Helper function to populate ScyllaDB table with test data
+    void populateScyllaDBTable(std::shared_ptr<cpp_dbc::ColumnarDBConnection> &conn, const std::string &tableName, int rowCount);
 #endif
 }

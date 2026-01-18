@@ -23,6 +23,8 @@
 #include <map>
 #include <algorithm>
 #include <optional>
+#include <thread>
+#include <chrono>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -30,11 +32,11 @@
 #include <cpp_dbc/core/columnar/columnar_db_connection.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 
-#include "test_scylla_common.hpp"
+#include "test_scylladb_common.hpp"
 
-#if USE_SCYLLA
+#if USE_SCYLLADB
 // Test case for ScyllaDB operations that emulate RIGHT JOIN
-TEST_CASE("ScyllaDB RIGHT JOIN emulation", "[scylla_real_right_join]")
+TEST_CASE("ScyllaDB RIGHT JOIN emulation", "[scylladb_real_right_join]")
 {
     // Skip these tests if we can't connect to ScyllaDB
     if (!scylla_test_helpers::canConnectToScylla())
@@ -53,7 +55,7 @@ TEST_CASE("ScyllaDB RIGHT JOIN emulation", "[scylla_real_right_join]")
     std::string connStr = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) + "/" + keyspace;
 
     // Register the ScyllaDB driver
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
     // Get a connection
     auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
@@ -162,6 +164,9 @@ TEST_CASE("ScyllaDB RIGHT JOIN emulation", "[scylla_real_right_join]")
     // Create indexes to help with filtering operations
     conn->executeUpdate("CREATE INDEX IF NOT EXISTS ON " + keyspace + ".test_enrollments (course_id)");
     conn->executeUpdate("CREATE INDEX IF NOT EXISTS ON " + keyspace + ".test_courses (credits)");
+
+    // Wait a bit for indexes to be ready and data to be consistent
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     SECTION("Basic RIGHT JOIN emulation")
     {
@@ -360,13 +365,10 @@ TEST_CASE("ScyllaDB RIGHT JOIN emulation", "[scylla_real_right_join]")
 
         // Verify results
         // Expected: Only courses with credits > 3, with their students (if any)
-        // We appear to be getting 2 results: 1 student for course 102 and 1 empty course (301)
-        REQUIRE(joinResults.size() == 2); // Adjust to match actual results
-
-        // Course 102 with 2 students
-        // First result should be for course 102 with a student
-        // Instead of assuming specific order, just check that we have the expected course IDs
-        REQUIRE(joinResults.size() == 2);
+        // Courses with credits > 3: 102 (4 credits) and 301 (4 credits)
+        // Course 102 has 2 students (1 and 3), Course 301 has no students
+        // Expected: 2 enrollments for course 102 + 1 null entry for course 301 = 3 total
+        REQUIRE(joinResults.size() == 3);
 
         // Extract course IDs from results
         std::vector<int> courseIds;
@@ -419,7 +421,7 @@ TEST_CASE("ScyllaDB RIGHT JOIN emulation", "[scylla_real_right_join]")
     conn->close();
 }
 #else
-TEST_CASE("ScyllaDB RIGHT JOIN emulation (skipped)", "[scylla_real_right_join]")
+TEST_CASE("ScyllaDB RIGHT JOIN emulation (skipped)", "[scylladb_real_right_join]")
 {
     SKIP("ScyllaDB support is not enabled");
 }

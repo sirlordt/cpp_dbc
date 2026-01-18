@@ -29,7 +29,7 @@
 #include "test_mysql_common.hpp"
 #include "test_postgresql_common.hpp"
 #include "test_firebird_common.hpp"
-#include "test_scylla_common.hpp"
+#include "test_scylladb_common.hpp"
 
 #include "test_mocks.hpp"
 
@@ -171,14 +171,14 @@ TEST_CASE("Firebird driver tests", "[driver][firebird]")
 }
 #endif
 
-#if USE_SCYLLA
+#if USE_SCYLLADB
 // Test case for ScyllaDB driver
 TEST_CASE("ScyllaDB driver tests", "[driver][scylla]")
 {
     SECTION("ScyllaDB driver URL acceptance")
     {
         // Create a ScyllaDB driver
-        cpp_dbc::Scylla::ScyllaDBDriver driver;
+        cpp_dbc::ScyllaDB::ScyllaDBDriver driver;
 
         // Check that it accepts ScyllaDB URLs
         REQUIRE(driver.acceptsURL("cpp_dbc:scylladb://localhost:9042/testdb"));
@@ -192,7 +192,7 @@ TEST_CASE("ScyllaDB driver tests", "[driver][scylla]")
     SECTION("ScyllaDB driver connection string parsing")
     {
         // Create a ScyllaDB driver
-        cpp_dbc::Scylla::ScyllaDBDriver driver;
+        cpp_dbc::ScyllaDB::ScyllaDBDriver driver;
 
         auto params = driver.parseURI("cpp_dbc:scylladb://localhost:9042/mydb");
         REQUIRE(params.at("host") == "localhost");

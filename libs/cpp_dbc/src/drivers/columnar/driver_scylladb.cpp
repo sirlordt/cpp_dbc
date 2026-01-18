@@ -16,9 +16,9 @@
  * @brief ScyllaDB (Cassandra) database driver implementation
  */
 
-#include "cpp_dbc/drivers/columnar/driver_scylla.hpp"
+#include "cpp_dbc/drivers/columnar/driver_scylladb.hpp"
 
-#if USE_SCYLLA
+#if USE_SCYLLADB
 
 #include <cstring>
 #include <algorithm>
@@ -29,9 +29,16 @@
 #include <iomanip>
 #include <cpp_dbc/common/system_utils.hpp>
 
+// Debug output is controlled by -DDEBUG_SCYLLADB=1 or -DDEBUG_ALL=1 CMake option
+#if (defined(DEBUG_SCYLLADB) && DEBUG_SCYLLADB) || (defined(DEBUG_ALL) && DEBUG_ALL)
+#define SCYLLADB_DEBUG(x) std::cout << "[ScyllaDB] " << x << std::endl
+#else
+#define SCYLLADB_DEBUG(x)
+#endif
+
 namespace cpp_dbc
 {
-    namespace Scylla
+    namespace ScyllaDB
     {
         // ====================================================================
         // ScyllaDBResultSet
@@ -41,8 +48,10 @@ namespace cpp_dbc
             : m_result(res), // Takes ownership via unique_ptr
               m_iterator(cass_iterator_from_result(res))
         {
+            SCYLLADB_DEBUG("ScyllaDBResultSet::constructor - Creating result set");
             m_rowCount = cass_result_row_count(res);
             m_columnCount = cass_result_column_count(res);
+            SCYLLADB_DEBUG("ScyllaDBResultSet::constructor - Row count: " << m_rowCount << ", Column count: " << m_columnCount);
 
             for (size_t i = 0; i < m_columnCount; ++i)
             {
@@ -59,6 +68,7 @@ namespace cpp_dbc
 
         ScyllaDBResultSet::~ScyllaDBResultSet()
         {
+            SCYLLADB_DEBUG("ScyllaDBResultSet::destructor - Destroying result set");
             close();
         }
 
@@ -66,6 +76,7 @@ namespace cpp_dbc
         {
             if (!m_iterator)
             {
+                SCYLLADB_DEBUG("ScyllaDBResultSet::validateResultState - ResultSet is closed");
                 throw DBException("98907CB0524D", "ResultSet is closed", system_utils::captureCallStack());
             }
         }
@@ -75,12 +86,14 @@ namespace cpp_dbc
             validateResultState();
             if (!m_currentRow)
             {
+                SCYLLADB_DEBUG("ScyllaDBResultSet::validateCurrentRow - No current row available");
                 throw DBException("4059030800AA", "No current row available", system_utils::captureCallStack());
             }
         }
 
         void ScyllaDBResultSet::close()
         {
+            SCYLLADB_DEBUG("ScyllaDBResultSet::close - Closing result set");
             DB_DRIVER_LOCK_GUARD(m_mutex);
             m_iterator.reset();
             m_result.reset();
@@ -90,6 +103,7 @@ namespace cpp_dbc
         bool ScyllaDBResultSet::isEmpty()
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
+            SCYLLADB_DEBUG("ScyllaDBResultSet::isEmpty - Result is " << (m_rowCount == 0 ? "empty" : "not empty"));
             return m_rowCount == 0;
         }
 
@@ -97,7 +111,9 @@ namespace cpp_dbc
         {
             auto result = next(std::nothrow);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -105,14 +121,19 @@ namespace cpp_dbc
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
             if (!m_iterator)
+            {
+                SCYLLADB_DEBUG("ScyllaDBResultSet::next - Iterator is null, returning false");
                 return false;
+            }
 
             if (cass_iterator_next(m_iterator.get()))
             {
                 m_currentRow = cass_iterator_get_row(m_iterator.get());
                 m_rowPosition++;
+                SCYLLADB_DEBUG("ScyllaDBResultSet::next - Advanced to row " << m_rowPosition);
                 return true;
             }
+            SCYLLADB_DEBUG("ScyllaDBResultSet::next - No more rows");
             m_currentRow = nullptr;
             return false;
         }
@@ -121,7 +142,9 @@ namespace cpp_dbc
         {
             auto result = isBeforeFirst(std::nothrow);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -135,7 +158,9 @@ namespace cpp_dbc
         {
             auto result = isAfterLast(std::nothrow);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -149,7 +174,9 @@ namespace cpp_dbc
         {
             auto result = getRow(std::nothrow);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -163,7 +190,9 @@ namespace cpp_dbc
         static const CassValue *get_column_value(const CassRow *row, size_t index, size_t count)
         {
             if (index >= count)
+            {
                 return nullptr;
+            }
             return cass_row_get_column(row, index);
         }
 
@@ -171,7 +200,9 @@ namespace cpp_dbc
         {
             auto result = getInt(std::nothrow, columnIndex);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -180,11 +211,15 @@ namespace cpp_dbc
             DB_DRIVER_LOCK_GUARD(m_mutex);
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_columnCount)
+            {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            }
 
             const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
             if (cass_value_is_null(val))
+            {
                 return 0;
+            }
 
             cass_int32_t output;
             if (cass_value_get_int32(val, &output) != CASS_OK)
@@ -200,7 +235,9 @@ namespace cpp_dbc
         {
             auto result = getInt(std::nothrow, columnName);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -208,7 +245,9 @@ namespace cpp_dbc
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
+            {
                 return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            }
             return getInt(std::nothrow, it->second + 1);
         }
 
@@ -216,7 +255,9 @@ namespace cpp_dbc
         {
             auto result = getLong(std::nothrow, columnIndex);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -225,11 +266,15 @@ namespace cpp_dbc
             DB_DRIVER_LOCK_GUARD(m_mutex);
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_columnCount)
+            {
                 return cpp_dbc::unexpected(DBException("D7F6C2471F23", "Invalid column index", system_utils::captureCallStack()));
+            }
 
             const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
             if (cass_value_is_null(val))
+            {
                 return 0;
+            }
 
             cass_int64_t output;
             if (cass_value_get_int64(val, &output) != CASS_OK)
@@ -243,7 +288,9 @@ namespace cpp_dbc
         {
             auto result = getLong(std::nothrow, columnName);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -251,7 +298,9 @@ namespace cpp_dbc
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
+            {
                 return cpp_dbc::unexpected(DBException("126BA85C92BC", columnName, system_utils::captureCallStack()));
+            }
             return getLong(std::nothrow, it->second + 1);
         }
 
@@ -259,7 +308,9 @@ namespace cpp_dbc
         {
             auto result = getDouble(std::nothrow, columnIndex);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -268,11 +319,15 @@ namespace cpp_dbc
             DB_DRIVER_LOCK_GUARD(m_mutex);
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_columnCount)
+            {
                 return cpp_dbc::unexpected(DBException("C6D5D1730470", "Invalid column index", system_utils::captureCallStack()));
+            }
 
             const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
             if (cass_value_is_null(val))
+            {
                 return 0.0;
+            }
 
             cass_double_t output;
             if (cass_value_get_double(val, &output) != CASS_OK)
@@ -286,7 +341,9 @@ namespace cpp_dbc
         {
             auto result = getDouble(std::nothrow, columnName);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -294,7 +351,9 @@ namespace cpp_dbc
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
+            {
                 return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            }
             return getDouble(std::nothrow, it->second + 1);
         }
 
@@ -302,7 +361,9 @@ namespace cpp_dbc
         {
             auto result = getString(std::nothrow, columnIndex);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -311,11 +372,15 @@ namespace cpp_dbc
             DB_DRIVER_LOCK_GUARD(m_mutex);
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_columnCount)
+            {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            }
 
             const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
             if (cass_value_is_null(val))
+            {
                 return std::string("");
+            }
 
             // Standard string handling - no special type detection
             // For special types like UUID, timestamp, etc., use the dedicated methods
@@ -332,7 +397,9 @@ namespace cpp_dbc
         {
             auto result = getString(std::nothrow, columnName);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -340,7 +407,9 @@ namespace cpp_dbc
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
+            {
                 return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            }
             return getString(std::nothrow, it->second + 1);
         }
 
@@ -348,7 +417,9 @@ namespace cpp_dbc
         {
             auto result = getBoolean(std::nothrow, columnIndex);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -357,11 +428,15 @@ namespace cpp_dbc
             DB_DRIVER_LOCK_GUARD(m_mutex);
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_columnCount)
+            {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            }
 
             const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
             if (cass_value_is_null(val))
+            {
                 return false;
+            }
 
             cass_bool_t output;
             if (cass_value_get_bool(val, &output) != CASS_OK)
@@ -375,7 +450,9 @@ namespace cpp_dbc
         {
             auto result = getBoolean(std::nothrow, columnName);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -383,7 +460,9 @@ namespace cpp_dbc
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
+            {
                 return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            }
             return getBoolean(std::nothrow, it->second + 1);
         }
 
@@ -391,7 +470,9 @@ namespace cpp_dbc
         {
             auto result = getUUID(std::nothrow, columnName);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -399,7 +480,9 @@ namespace cpp_dbc
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
+            {
                 return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            }
             return getUUID(std::nothrow, it->second + 1);
         }
 
@@ -407,7 +490,9 @@ namespace cpp_dbc
         {
             auto result = getUUID(std::nothrow, columnIndex);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -416,11 +501,15 @@ namespace cpp_dbc
             DB_DRIVER_LOCK_GUARD(m_mutex);
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_columnCount)
+            {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            }
 
             const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
             if (cass_value_is_null(val))
+            {
                 return std::string("");
+            }
 
             CassValueType valueType = cass_value_type(val);
             if (valueType == CASS_VALUE_TYPE_UUID || valueType == CASS_VALUE_TYPE_TIMEUUID)
@@ -449,7 +538,9 @@ namespace cpp_dbc
         {
             auto result = getDate(std::nothrow, columnName);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -457,7 +548,9 @@ namespace cpp_dbc
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
+            {
                 return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            }
             return getDate(std::nothrow, it->second + 1);
         }
 
@@ -465,7 +558,9 @@ namespace cpp_dbc
         {
             auto result = getDate(std::nothrow, columnIndex);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -474,11 +569,15 @@ namespace cpp_dbc
             DB_DRIVER_LOCK_GUARD(m_mutex);
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_columnCount)
+            {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            }
 
             const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
             if (cass_value_is_null(val))
+            {
                 return std::string("");
+            }
 
             if (cass_value_type(val) == CASS_VALUE_TYPE_TIMESTAMP)
             {
@@ -512,7 +611,9 @@ namespace cpp_dbc
         {
             auto result = getTimestamp(std::nothrow, columnName);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -520,7 +621,9 @@ namespace cpp_dbc
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
+            {
                 return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            }
             return getTimestamp(std::nothrow, it->second + 1);
         }
 
@@ -528,7 +631,9 @@ namespace cpp_dbc
         {
             auto result = getTimestamp(std::nothrow, columnIndex);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -537,11 +642,15 @@ namespace cpp_dbc
             DB_DRIVER_LOCK_GUARD(m_mutex);
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_columnCount)
+            {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            }
 
             const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
             if (cass_value_is_null(val))
+            {
                 return std::string("");
+            }
 
             if (cass_value_type(val) == CASS_VALUE_TYPE_TIMESTAMP)
             {
@@ -575,7 +684,9 @@ namespace cpp_dbc
         {
             auto result = isNull(std::nothrow, columnIndex);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -584,7 +695,9 @@ namespace cpp_dbc
             DB_DRIVER_LOCK_GUARD(m_mutex);
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_columnCount)
+            {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            }
 
             const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
             return cass_value_is_null(val);
@@ -594,7 +707,9 @@ namespace cpp_dbc
         {
             auto result = isNull(std::nothrow, columnName);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -602,7 +717,9 @@ namespace cpp_dbc
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
+            {
                 return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            }
             return isNull(std::nothrow, it->second + 1);
         }
 
@@ -610,7 +727,9 @@ namespace cpp_dbc
         {
             auto result = getColumnNames(std::nothrow);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -624,7 +743,9 @@ namespace cpp_dbc
         {
             auto result = getColumnCount(std::nothrow);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -639,7 +760,9 @@ namespace cpp_dbc
         {
             auto result = getBytes(std::nothrow, columnIndex);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -648,11 +771,15 @@ namespace cpp_dbc
             DB_DRIVER_LOCK_GUARD(m_mutex);
             validateCurrentRow();
             if (columnIndex < 1 || columnIndex > m_columnCount)
+            {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            }
 
             const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
             if (cass_value_is_null(val))
+            {
                 return std::vector<uint8_t>();
+            }
 
             const cass_byte_t *output;
             size_t output_size;
@@ -670,7 +797,9 @@ namespace cpp_dbc
         {
             auto result = getBytes(std::nothrow, columnName);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -678,7 +807,9 @@ namespace cpp_dbc
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
+            {
                 return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            }
             return getBytes(std::nothrow, it->second + 1);
         }
 
@@ -687,7 +818,9 @@ namespace cpp_dbc
         {
             auto result = getBinaryStream(std::nothrow, columnIndex);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -695,7 +828,9 @@ namespace cpp_dbc
         {
             auto bytes = getBytes(std::nothrow, columnIndex);
             if (!bytes)
+            {
                 return cpp_dbc::unexpected(bytes.error());
+            }
 
             return std::shared_ptr<InputStream>(std::make_shared<ScyllaMemoryInputStream>(*bytes));
         }
@@ -704,7 +839,9 @@ namespace cpp_dbc
         {
             auto result = getBinaryStream(std::nothrow, columnName);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -712,7 +849,9 @@ namespace cpp_dbc
         {
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
+            {
                 return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            }
             return getBinaryStream(std::nothrow, it->second + 1);
         }
 
@@ -723,16 +862,19 @@ namespace cpp_dbc
         ScyllaDBPreparedStatement::ScyllaDBPreparedStatement(std::weak_ptr<CassSession> session, const std::string &query, const CassPrepared *prepared)
             : m_session(session), m_query(query), m_prepared(prepared, CassPreparedDeleter()) // Shared ptr to prepared
         {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::constructor - Creating prepared statement for query: " << query);
             recreateStatement();
         }
 
         void ScyllaDBPreparedStatement::recreateStatement()
         {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::recreateStatement - Binding prepared statement");
             m_statement.reset(cass_prepared_bind(m_prepared.get()));
         }
 
         ScyllaDBPreparedStatement::~ScyllaDBPreparedStatement()
         {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::destructor - Destroying prepared statement");
             close();
         }
 
@@ -740,11 +882,14 @@ namespace cpp_dbc
         {
             auto result = close(std::nothrow);
             if (!result)
+            {
                 throw result.error();
+            }
         }
 
         cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::close(std::nothrow_t) noexcept
         {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::close - Closing prepared statement");
             DB_DRIVER_LOCK_GUARD(m_mutex);
             m_statement.reset();
             m_prepared.reset();
@@ -754,7 +899,10 @@ namespace cpp_dbc
         void ScyllaDBPreparedStatement::checkSession()
         {
             if (m_session.expired())
+            {
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::checkSession - Session is closed");
                 throw DBException("285435967910", "Session is closed", system_utils::captureCallStack());
+            }
         }
 
         // Binding implementation
@@ -763,14 +911,18 @@ namespace cpp_dbc
         {
             auto result = setInt(std::nothrow, parameterIndex, value);
             if (!result)
+            {
                 throw result.error();
+            }
         }
 
         cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setInt(std::nothrow_t, int parameterIndex, int value) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
             if (!m_statement)
+            {
                 return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            }
 
             // Check bounds... Cassandra binds by index 0-based, JDBC is 1-based
             if (cass_statement_bind_int32(m_statement.get(), parameterIndex - 1, value) != CASS_OK)
@@ -787,14 +939,18 @@ namespace cpp_dbc
         {
             auto result = setLong(std::nothrow, parameterIndex, value);
             if (!result)
+            {
                 throw result.error();
+            }
         }
 
         cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, long value) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
             if (!m_statement)
+            {
                 return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            }
 
             if (cass_statement_bind_int64(m_statement.get(), parameterIndex - 1, value) != CASS_OK)
             {
@@ -808,14 +964,18 @@ namespace cpp_dbc
         {
             auto result = setDouble(std::nothrow, parameterIndex, value);
             if (!result)
+            {
                 throw result.error();
+            }
         }
 
         cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setDouble(std::nothrow_t, int parameterIndex, double value) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
             if (!m_statement)
+            {
                 return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            }
 
             if (cass_statement_bind_double(m_statement.get(), parameterIndex - 1, value) != CASS_OK)
             {
@@ -829,14 +989,18 @@ namespace cpp_dbc
         {
             auto result = setString(std::nothrow, parameterIndex, value);
             if (!result)
+            {
                 throw result.error();
+            }
         }
 
         cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setString(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
             if (!m_statement)
+            {
                 return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            }
 
             // Simple string binding without type detection
             // For special types like UUID, timestamp, etc., use the dedicated methods
@@ -867,14 +1031,18 @@ namespace cpp_dbc
         {
             auto result = setBoolean(std::nothrow, parameterIndex, value);
             if (!result)
+            {
                 throw result.error();
+            }
         }
 
         cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setBoolean(std::nothrow_t, int parameterIndex, bool value) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
             if (!m_statement)
+            {
                 return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            }
 
             if (cass_statement_bind_bool(m_statement.get(), parameterIndex - 1, value ? cass_true : cass_false) != CASS_OK)
             {
@@ -888,14 +1056,18 @@ namespace cpp_dbc
         {
             auto result = setNull(std::nothrow, parameterIndex, type);
             if (!result)
+            {
                 throw result.error();
+            }
         }
 
         cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setNull(std::nothrow_t, int parameterIndex, Types type) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
             if (!m_statement)
+            {
                 return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            }
 
             if (cass_statement_bind_null(m_statement.get(), parameterIndex - 1) != CASS_OK)
             {
@@ -916,7 +1088,9 @@ namespace cpp_dbc
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
             if (!m_statement)
+            {
                 return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            }
 
             bool parseSuccess = false;
             cass_int64_t timestamp_ms = 0;
@@ -987,7 +1161,9 @@ namespace cpp_dbc
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
             if (!m_statement)
+            {
                 return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            }
 
             // Format the UUID string if needed
             std::string uuidStr = value;
@@ -1029,7 +1205,9 @@ namespace cpp_dbc
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
             if (!m_statement)
+            {
                 return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            }
 
             bool parseSuccess = false;
             cass_int64_t timestamp_ms = 0;
@@ -1110,7 +1288,9 @@ namespace cpp_dbc
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
             if (!m_statement)
+            {
                 return cpp_dbc::unexpected(DBException("0DD0D3E7440E", "Statement closed", system_utils::captureCallStack()));
+            }
 
             if (cass_statement_bind_bytes(m_statement.get(), parameterIndex - 1, x, length) != CASS_OK)
             {
@@ -1132,7 +1312,9 @@ namespace cpp_dbc
         cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept
         {
             if (!x)
+            {
                 return cpp_dbc::unexpected(DBException("982374982374", "InputStream is null", system_utils::captureCallStack()));
+            }
 
             try
             {
@@ -1142,7 +1324,9 @@ namespace cpp_dbc
                 {
                     int read = x->read(temp, sizeof(temp));
                     if (read <= 0)
+                    {
                         break;
+                    }
                     buffer.insert(buffer.end(), temp, temp + read);
                 }
                 return setBytes(std::nothrow, parameterIndex, buffer);
@@ -1167,7 +1351,9 @@ namespace cpp_dbc
         cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept
         {
             if (!x)
+            {
                 return cpp_dbc::unexpected(DBException("982374982374", "InputStream is null", system_utils::captureCallStack()));
+            }
 
             try
             {
@@ -1181,7 +1367,9 @@ namespace cpp_dbc
                     size_t toRead = std::min(sizeof(temp), length - totalRead);
                     int read = x->read(temp, toRead);
                     if (read <= 0)
+                    {
                         break;
+                    }
                     buffer.insert(buffer.end(), temp, temp + read);
                     totalRead += read;
                 }
@@ -1210,13 +1398,21 @@ namespace cpp_dbc
 
         cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException> ScyllaDBPreparedStatement::executeQuery(std::nothrow_t) noexcept
         {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Executing query: " << m_query);
             DB_DRIVER_LOCK_GUARD(m_mutex);
             auto session = m_session.lock();
             if (!session)
+            {
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Session closed");
                 return cpp_dbc::unexpected(DBException("285435967910", "Session closed", system_utils::captureCallStack()));
+            }
             if (!m_statement)
+            {
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Statement closed");
                 return cpp_dbc::unexpected(DBException("10AA8966C506", "Statement closed", system_utils::captureCallStack()));
+            }
 
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Submitting statement to Scylla session");
             CassFutureHandle future(cass_session_execute(session.get(), m_statement.get()));
 
             // Wait for query to complete
@@ -1225,15 +1421,22 @@ namespace cpp_dbc
                 const char *message;
                 size_t length;
                 cass_future_error_message(future.get(), &message, &length);
-                return cpp_dbc::unexpected(DBException("923573205723", std::string(message, length), system_utils::captureCallStack()));
+                std::string errorMsg(message, length);
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Error: " << errorMsg);
+                return cpp_dbc::unexpected(DBException("923573205723", errorMsg, system_utils::captureCallStack()));
             }
 
             const CassResult *result = cass_future_get_result(future.get());
             if (result == nullptr)
             {
                 // Should not happen if error_code is OK, but safety first
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Failed to get result");
                 return cpp_dbc::unexpected(DBException("823507305723", "Failed to get result", system_utils::captureCallStack()));
             }
+
+            size_t rowCount = cass_result_row_count(result);
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Query executed successfully, returned " << rowCount << " rows");
+            (void)rowCount;
 
             // After successful execution, we should prepare for next execution by recreating the statement
             // (Binding clears parameters or requires re-binding)
@@ -1254,10 +1457,14 @@ namespace cpp_dbc
 
         cpp_dbc::expected<uint64_t, DBException> ScyllaDBPreparedStatement::executeUpdate(std::nothrow_t) noexcept
         {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeUpdate - Executing update: " << m_query);
+
             // For Cassandra/Scylla, everything is execute.
             auto res = executeQuery(std::nothrow);
             if (!res)
+            {
                 return cpp_dbc::unexpected(res.error());
+            }
 
             // For INSERT, UPDATE, DELETE operations, we need to determine affected rows
             auto resultSet = std::dynamic_pointer_cast<ScyllaDBResultSet>(*res);
@@ -1276,6 +1483,7 @@ namespace cpp_dbc
                     queryUpper.find("ALTER ") == 0 ||
                     queryUpper.find("TRUNCATE ") == 0)
                 {
+                    SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeUpdate - DDL statement, returning 0 affected rows");
                     return 0;
                 }
 
@@ -1295,31 +1503,40 @@ namespace cpp_dbc
                             for (char c : inClause)
                             {
                                 if (c == ',')
+                                {
                                     commaCount++;
+                                }
                             }
-                            return commaCount + 1; // Number of elements = number of commas + 1
+                            uint64_t count = commaCount + 1;
+                            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeUpdate - DELETE with IN clause, affected rows: " << count);
+                            return count; // Number of elements = number of commas + 1
                         }
                     }
                     // For other DELETE operations, return 1 as we can't accurately determine count
+                    SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeUpdate - DELETE operation, assuming 1 affected row");
                     return 1;
                 }
 
                 // For UPDATE operations, similar to DELETE
                 if (queryUpper.find("UPDATE ") == 0)
                 {
+                    SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeUpdate - UPDATE operation, assuming 1 affected row");
                     return 1;
                 }
 
                 // For INSERT operations
                 if (queryUpper.find("INSERT ") == 0)
                 {
+                    SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeUpdate - INSERT operation, assuming 1 affected row");
                     return 1;
                 }
 
                 // For any other operations, return 1 to indicate success
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeUpdate - Other operation, returning 1");
                 return 1;
             }
 
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeUpdate - No result set, returning 0");
             return 0;
         }
 
@@ -1327,15 +1544,21 @@ namespace cpp_dbc
         {
             auto result = execute(std::nothrow);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
         cpp_dbc::expected<bool, DBException> ScyllaDBPreparedStatement::execute(std::nothrow_t) noexcept
         {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::execute - Executing statement");
             auto res = executeQuery(std::nothrow);
             if (!res)
+            {
                 return cpp_dbc::unexpected(res.error());
+            }
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::execute - Execution successful");
             return true;
         }
 
@@ -1344,13 +1567,18 @@ namespace cpp_dbc
         {
             auto result = addBatch(std::nothrow);
             if (!result)
+            {
                 throw result.error();
+            }
         }
 
         cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::addBatch(std::nothrow_t) noexcept
         {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::addBatch - Adding current parameters to batch");
             DB_DRIVER_LOCK_GUARD(m_mutex);
             m_batchEntries.push_back(m_currentEntry);
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::addBatch - Batch now contains " << m_batchEntries.size() << " entries");
+
             // Clear current entry for next set of params
             m_currentEntry = BatchEntry();
 
@@ -1370,11 +1598,14 @@ namespace cpp_dbc
         {
             auto result = clearBatch(std::nothrow);
             if (!result)
+            {
                 throw result.error();
+            }
         }
 
         cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::clearBatch(std::nothrow_t) noexcept
         {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::clearBatch - Clearing batch with " << m_batchEntries.size() << " entries");
             DB_DRIVER_LOCK_GUARD(m_mutex);
             m_batchEntries.clear();
             m_currentEntry = BatchEntry();
@@ -1385,30 +1616,43 @@ namespace cpp_dbc
         {
             auto result = executeBatch(std::nothrow);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
         cpp_dbc::expected<std::vector<uint64_t>, DBException> ScyllaDBPreparedStatement::executeBatch(std::nothrow_t) noexcept
         {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Executing batch with " << m_batchEntries.size() << " statements");
             DB_DRIVER_LOCK_GUARD(m_mutex);
             auto session = m_session.lock();
             if (!session)
+            {
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Session closed");
                 return cpp_dbc::unexpected(DBException("C5082FD562CF", "Session closed", system_utils::captureCallStack()));
+            }
 
             if (m_batchEntries.empty())
+            {
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Batch is empty, returning empty result");
                 return std::vector<uint64_t>();
+            }
 
             // Create Batch
             // Use LOGGED batch for atomicity by default? Or UNLOGGED?
             // Standard JDBC usually implies some atomicity.
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Creating LOGGED batch");
             std::unique_ptr<CassBatch, void (*)(CassBatch *)> batch(cass_batch_new(CASS_BATCH_TYPE_LOGGED), cass_batch_free);
 
             // We need to create multiple statements from the prepared statement
             std::vector<CassStatementHandle> statements;
 
-            for (const auto &entry : m_batchEntries)
+            for (size_t i = 0; i < m_batchEntries.size(); i++)
             {
+                const auto &entry = m_batchEntries[i];
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Binding parameters for batch entry " << i + 1);
+
                 CassStatement *stmt = cass_prepared_bind(m_prepared.get());
                 statements.push_back(CassStatementHandle(stmt));
 
@@ -1431,6 +1675,7 @@ namespace cpp_dbc
                 cass_batch_add_statement(batch.get(), stmt);
             }
 
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Executing batch of " << statements.size() << " statements");
             CassFutureHandle future(cass_session_execute_batch(session.get(), batch.get()));
 
             if (cass_future_error_code(future.get()) != CASS_OK)
@@ -1438,9 +1683,12 @@ namespace cpp_dbc
                 const char *message;
                 size_t length;
                 cass_future_error_message(future.get(), &message, &length);
-                return cpp_dbc::unexpected(DBException("295872350923", std::string(message, length), system_utils::captureCallStack()));
+                std::string errorMsg(message, length);
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Error executing batch: " << errorMsg);
+                return cpp_dbc::unexpected(DBException("295872350923", errorMsg, system_utils::captureCallStack()));
             }
 
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Batch executed successfully");
             std::vector<uint64_t> results(m_batchEntries.size(), 0); // Scylla doesn't return affected rows per statement easily
             m_batchEntries.clear();
             return results;
@@ -1454,18 +1702,21 @@ namespace cpp_dbc
                                                const std::string &user, const std::string &password,
                                                const std::map<std::string, std::string> &)
         {
+            SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connecting to " << host << ":" << port);
             m_cluster = std::shared_ptr<CassCluster>(cass_cluster_new(), CassClusterDeleter());
             cass_cluster_set_contact_points(m_cluster.get(), host.c_str());
             cass_cluster_set_port(m_cluster.get(), port);
 
             if (!user.empty())
             {
+                SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Setting credentials for user: " << user);
                 cass_cluster_set_credentials(m_cluster.get(), user.c_str(), password.c_str());
             }
 
             m_session = std::shared_ptr<CassSession>(cass_session_new(), CassSessionDeleter());
 
             // Connect
+            SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connecting to cluster");
             CassFutureHandle connect_future(cass_session_connect(m_session.get(), m_cluster.get()));
 
             if (cass_future_error_code(connect_future.get()) != CASS_OK)
@@ -1473,32 +1724,41 @@ namespace cpp_dbc
                 const char *message;
                 size_t length;
                 cass_future_error_message(connect_future.get(), &message, &length);
-                throw DBException("109238502385", std::string(message, length), system_utils::captureCallStack());
+                std::string errorMsg(message, length);
+                SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connection failed: " << errorMsg);
+                throw DBException("109238502385", errorMsg, system_utils::captureCallStack());
             }
+
+            SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connected successfully");
 
             // Use keyspace if provided
             if (!keyspace.empty())
             {
+                SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Using keyspace: " << keyspace);
                 std::string query = "USE " + keyspace;
                 CassStatementHandle statement(cass_statement_new(query.c_str(), 0));
                 CassFutureHandle future(cass_session_execute(m_session.get(), statement.get()));
                 if (cass_future_error_code(future.get()) != CASS_OK)
                 {
+                    SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Failed to use keyspace: " << keyspace);
                     throw DBException("912830912830", "Failed to use keyspace " + keyspace, system_utils::captureCallStack());
                 }
             }
 
             m_closed = false;
             m_url = "scylladb://" + host + ":" + std::to_string(port) + "/" + keyspace;
+            SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connection established");
         }
 
         ScyllaDBConnection::~ScyllaDBConnection()
         {
+            SCYLLADB_DEBUG("ScyllaDBConnection::destructor - Destroying connection");
             close();
         }
 
         void ScyllaDBConnection::close()
         {
+            SCYLLADB_DEBUG("ScyllaDBConnection::close - Closing connection");
             DB_DRIVER_LOCK_GUARD(m_connMutex);
             if (!m_closed && m_session)
             {
@@ -1507,6 +1767,7 @@ namespace cpp_dbc
                 m_session.reset();
                 m_cluster.reset();
                 m_closed = true;
+                SCYLLADB_DEBUG("ScyllaDBConnection::close - Connection closed");
             }
         }
 
@@ -1517,6 +1778,7 @@ namespace cpp_dbc
 
         void ScyllaDBConnection::returnToPool()
         {
+            SCYLLADB_DEBUG("ScyllaDBConnection::returnToPool - No-op");
             // No-op for now
         }
 
@@ -1534,15 +1796,21 @@ namespace cpp_dbc
         {
             auto result = prepareStatement(std::nothrow, query);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
         cpp_dbc::expected<std::shared_ptr<ColumnarDBPreparedStatement>, DBException> ScyllaDBConnection::prepareStatement(std::nothrow_t, const std::string &query) noexcept
         {
+            SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Preparing query: " << query);
             DB_DRIVER_LOCK_GUARD(m_connMutex);
             if (m_closed || !m_session)
+            {
+                SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Connection closed");
                 return cpp_dbc::unexpected(DBException("981230918230", "Connection closed", system_utils::captureCallStack()));
+            }
 
             CassFutureHandle future(cass_session_prepare(m_session.get(), query.c_str()));
 
@@ -1551,10 +1819,13 @@ namespace cpp_dbc
                 const char *message;
                 size_t length;
                 cass_future_error_message(future.get(), &message, &length);
-                return cpp_dbc::unexpected(DBException("192830192830", std::string(message, length), system_utils::captureCallStack()));
+                std::string errorMsg(message, length);
+                SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Prepare failed: " << errorMsg);
+                return cpp_dbc::unexpected(DBException("192830192830", errorMsg, system_utils::captureCallStack()));
             }
 
             const CassPrepared *prepared = cass_future_get_prepared(future.get());
+            SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Query prepared successfully");
             return std::shared_ptr<ColumnarDBPreparedStatement>(std::make_shared<ScyllaDBPreparedStatement>(m_session, query, prepared));
         }
 
@@ -1562,15 +1833,21 @@ namespace cpp_dbc
         {
             auto result = executeQuery(std::nothrow, query);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
         cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException> ScyllaDBConnection::executeQuery(std::nothrow_t, const std::string &query) noexcept
         {
+            SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Executing query: " << query);
             DB_DRIVER_LOCK_GUARD(m_connMutex);
             if (m_closed || !m_session)
+            {
+                SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Connection closed");
                 return cpp_dbc::unexpected(DBException("8A350B08A3B3", "Connection closed", system_utils::captureCallStack()));
+            }
 
             CassStatementHandle statement(cass_statement_new(query.c_str(), 0));
             CassFutureHandle future(cass_session_execute(m_session.get(), statement.get()));
@@ -1580,10 +1857,13 @@ namespace cpp_dbc
                 const char *message;
                 size_t length;
                 cass_future_error_message(future.get(), &message, &length);
-                return cpp_dbc::unexpected(DBException("772E10871903", std::string(message, length), system_utils::captureCallStack()));
+                std::string errorMsg(message, length);
+                SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Execution failed: " << errorMsg);
+                return cpp_dbc::unexpected(DBException("772E10871903", errorMsg, system_utils::captureCallStack()));
             }
 
             const CassResult *result = cass_future_get_result(future.get());
+            SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Query executed successfully");
             return std::shared_ptr<ColumnarDBResultSet>(std::make_shared<ScyllaDBResultSet>(result));
         }
 
@@ -1591,15 +1871,21 @@ namespace cpp_dbc
         {
             auto result = executeUpdate(std::nothrow, query);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
         cpp_dbc::expected<uint64_t, DBException> ScyllaDBConnection::executeUpdate(std::nothrow_t, const std::string &query) noexcept
         {
+            SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - Executing update: " << query);
             auto res = executeQuery(std::nothrow, query);
             if (!res)
+            {
+                SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - Update failed");
                 return cpp_dbc::unexpected(res.error());
+            }
 
             // The Cassandra C++ driver doesn't provide a direct way to get the exact number of affected rows
             // See: https://github.com/apache/cassandra-cpp-driver/
@@ -1614,6 +1900,7 @@ namespace cpp_dbc
                 queryUpper.find("ALTER ") == 0 ||
                 queryUpper.find("TRUNCATE ") == 0)
             {
+                SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - DDL statement, returning 0 affected rows");
                 return 0;
             }
 
@@ -1635,42 +1922,70 @@ namespace cpp_dbc
                             if (c == ',')
                                 commaCount++;
                         }
-                        return commaCount + 1; // Number of elements = number of commas + 1
+                        uint64_t count = commaCount + 1;
+                        SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - DELETE with IN clause, affected rows: " << count);
+                        return count; // Number of elements = number of commas + 1
                     }
                 }
                 // For other DELETE operations, return 1
+                SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - DELETE operation, returning 1");
                 return 1;
             }
 
             // For UPDATE operations
             if (queryUpper.find("UPDATE ") == 0)
             {
+                SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - UPDATE operation, returning 1");
                 return 1;
             }
 
             // For INSERT operations
             if (queryUpper.find("INSERT ") == 0)
             {
+                SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - INSERT operation, returning 1");
                 return 1;
             }
 
             // For any other DML operations, return 1 to indicate success
+            SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - Other operation, returning 1");
             return 1;
         }
 
         bool ScyllaDBConnection::beginTransaction()
         {
+            SCYLLADB_DEBUG("ScyllaDBConnection::beginTransaction - Transactions not supported in ScyllaDB driver");
             // Scylla/Cassandra doesn't support ACID transactions in the traditional sense
             // Lightweight Transactions (LWT) exist but are different.
             return false;
         }
 
-        void ScyllaDBConnection::commit() {}
-        void ScyllaDBConnection::rollback() {}
+        void ScyllaDBConnection::commit()
+        {
+            SCYLLADB_DEBUG("ScyllaDBConnection::commit - No-op");
+        }
 
-        cpp_dbc::expected<bool, DBException> ScyllaDBConnection::beginTransaction(std::nothrow_t) noexcept { return false; }
-        cpp_dbc::expected<void, DBException> ScyllaDBConnection::commit(std::nothrow_t) noexcept { return {}; }
-        cpp_dbc::expected<void, DBException> ScyllaDBConnection::rollback(std::nothrow_t) noexcept { return {}; }
+        void ScyllaDBConnection::rollback()
+        {
+            SCYLLADB_DEBUG("ScyllaDBConnection::rollback - No-op");
+        }
+
+        cpp_dbc::expected<bool, DBException> ScyllaDBConnection::beginTransaction(std::nothrow_t) noexcept
+        {
+            SCYLLADB_DEBUG("ScyllaDBConnection::beginTransaction - Transactions not supported");
+            return false;
+        }
+
+        cpp_dbc::expected<void, DBException> ScyllaDBConnection::commit(std::nothrow_t) noexcept
+        {
+            SCYLLADB_DEBUG("ScyllaDBConnection::commit - No-op");
+            return {};
+        }
+
+        cpp_dbc::expected<void, DBException> ScyllaDBConnection::rollback(std::nothrow_t) noexcept
+        {
+            SCYLLADB_DEBUG("ScyllaDBConnection::rollback - No-op");
+            return {};
+        }
 
         // ====================================================================
         // ScyllaDBDriver
@@ -1678,6 +1993,7 @@ namespace cpp_dbc
 
         ScyllaDBDriver::ScyllaDBDriver()
         {
+            SCYLLADB_DEBUG("ScyllaDBDriver::constructor - Initializing driver");
             // Global init if needed
             // Suppress server-side warnings (like SimpleStrategy recommendations)
             cass_log_set_level(CASS_LOG_ERROR);
@@ -1691,7 +2007,9 @@ namespace cpp_dbc
         {
             auto result = connectColumnar(std::nothrow, url, user, password, options);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
@@ -1702,10 +2020,14 @@ namespace cpp_dbc
             const std::string &password,
             const std::map<std::string, std::string> &options) noexcept
         {
+            SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Connecting to " << url);
 
             auto params = parseURI(std::nothrow, url);
             if (!params)
+            {
+                SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Failed to parse URI");
                 return cpp_dbc::unexpected(params.error());
+            }
 
             std::string host = (*params)["host"];
             int port = std::stoi((*params)["port"]);
@@ -1713,14 +2035,17 @@ namespace cpp_dbc
 
             try
             {
+                SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Creating connection object");
                 return std::shared_ptr<ColumnarDBConnection>(std::make_shared<ScyllaDBConnection>(host, port, keyspace, user, password, options));
             }
             catch (const DBException &e)
             {
+                SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - DBException: " << e.what());
                 return cpp_dbc::unexpected(e);
             }
             catch (const std::exception &e)
             {
+                SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Exception: " << e.what());
                 return cpp_dbc::unexpected(DBException("891238912389", e.what(), system_utils::captureCallStack()));
             }
         }
@@ -1736,17 +2061,23 @@ namespace cpp_dbc
         {
             auto result = parseURI(std::nothrow, uri);
             if (!result)
+            {
                 throw result.error();
+            }
             return *result;
         }
 
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> ScyllaDBDriver::parseURI(std::nothrow_t, const std::string &uri) noexcept
         {
+            SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Parsing URI: " << uri);
             std::map<std::string, std::string> result;
             // cpp_dbc:scylladb://host:port/keyspace
             std::string scheme = "cpp_dbc:scylladb://";
             if (uri.substr(0, scheme.length()) != scheme)
+            {
+                SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Invalid scheme");
                 return cpp_dbc::unexpected(DBException("123891238912", "Must start with " + scheme, system_utils::captureCallStack()));
+            }
 
             std::string rest = uri.substr(scheme.length());
             size_t colon = rest.find(':');
@@ -1786,6 +2117,7 @@ namespace cpp_dbc
                 }
                 result["database"] = rest.substr(slash + 1);
             }
+            SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Parsed host: " << result["host"] << ", port: " << result["port"] << ", database: " << result["database"]);
             return result;
         }
 
@@ -1800,7 +2132,7 @@ namespace cpp_dbc
             return url.substr(0, 19) == "cpp_dbc:scylladb://";
         }
 
-    } // namespace Scylla
+    } // namespace ScyllaDB
 } // namespace cpp_dbc
 
-#endif // USE_SCYLLA
+#endif // USE_SCYLLADB

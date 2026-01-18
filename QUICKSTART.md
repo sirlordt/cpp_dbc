@@ -335,6 +335,62 @@ The test log analysis feature checks for:
 #   // Use collection...
 #   conn->close(); // Return to pool
 
+# ScyllaDB Specific Examples
+# Run ScyllaDB benchmarks with memory usage tracking
+./helper.sh --run-benchmarks=scylladb,memory-usage
+
+# Run ScyllaDB benchmarks and create a baseline
+./helper.sh --run-benchmarks=scylladb,base-line
+
+# Compare ScyllaDB benchmarks against baseline
+./libs/cpp_dbc/compare_benchmark_cpp_dbc_base_line.sh --filter=ScyllaDB
+
+# Run specific ScyllaDB benchmark operations
+./helper.sh --run-benchmarks=scylladb,benchmark=insert
+./helper.sh --run-benchmarks=scylladb,benchmark=select
+./helper.sh --run-benchmarks=scylladb,benchmark=update
+./helper.sh --run-benchmarks=scylladb,benchmark=delete
+
+# ScyllaDB Testing Examples
+# Run ScyllaDB connection tests
+./helper.sh --run-test=scylladb,test=scylladb_connection
+
+# Run ScyllaDB connection pool tests
+./helper.sh --run-test=scylladb,test=scylladb_connection_pool
+
+# Run all ScyllaDB tests
+./helper.sh --run-test=scylladb,test=scylladb_connection+scylladb_connection_pool+scylladb_thread_safe
+
+# Run ScyllaDB tests with debug output
+./helper.sh --run-test=scylladb,debug-scylladb
+
+# Build and run the ScyllaDB connection pool example
+./helper.sh --run-build=scylladb,examples
+./build/libs/cpp_dbc/examples/scylladb_connection_pool_example
+
+# ScyllaDB Connection Pool Factory Pattern Examples
+# Create ScyllaDB connection pool using factory method with configuration
+./libs/cpp_dbc/examples/scylladb_connection_pool_example --factory-config
+
+# Create ScyllaDB connection pool using factory method with direct parameters
+./libs/cpp_dbc/examples/scylladb_connection_pool_example --factory-direct
+
+# Code examples for creating ScyllaDB connection pools:
+# Using configuration object:
+#   auto config = cpp_dbc::config::DBConnectionPoolConfig();
+#   config.setUrl("cpp_dbc:scylladb://localhost:9042/test_keyspace");
+#   auto pool = cpp_dbc::Scylla::ScyllaConnectionPool::create(config);
+#
+# Using direct parameters:
+#   auto pool = cpp_dbc::Scylla::ScyllaConnectionPool::create(
+#       "cpp_dbc:scylladb://localhost:9042/test_keyspace", "username", "password");
+#
+# Getting and using connections:
+#   auto conn = pool->getColumnarDBConnection();
+#   auto rs = conn->executeQuery("SELECT * FROM my_table");
+#   // Process results...
+#   conn->close(); // Return to pool
+
 # Connection Pool Factory Pattern Examples
 
 # Run relational connection pool tests to verify factory pattern
@@ -494,4 +550,31 @@ The project now includes VSCode configuration files in the `.vscode` directory:
 ```
 
 The "Auto install extensions" task runs automatically when opening the folder and installs recommended extensions.
+
+### VSCode IntelliSense Synchronization
+
+The project includes an automatic synchronization system for IntelliSense:
+
+```bash
+# Quick sync after building (no rebuild required, reads saved config)
+./.vscode/sync_intellisense.sh
+
+# Rebuild from last config (uses parameters from previous build)
+./.vscode/regenerate_intellisense.sh
+
+# Rebuild with new parameters
+./.vscode/regenerate_intellisense.sh --postgres --redis
+
+# Update defines from compile_commands.json only
+./.vscode/update_defines.sh
+
+# Typical workflow:
+# 1. Build with desired configuration
+./build.sh --scylladb --mongodb
+# 2. Sync IntelliSense (fast, no rebuild)
+./.vscode/sync_intellisense.sh
+# 3. Reload VSCode window if needed (Ctrl+Shift+P -> "Developer: Reload Window")
+```
+
+For more details, see `.vscode/README_INTELLISENSE.md`.
 

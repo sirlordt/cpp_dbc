@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.15)
 project(cpp_dbc_demo VERSION 0.1.0 LANGUAGES CXX)
 
+# Generate compile_commands.json for IntelliSense
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Set C++ standard to C++23
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,6 +12,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Options for conditional compilation of database drivers
 option(USE_MYSQL "Enable MySQL support" ON)
 option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
+option(USE_SQLITE "Enable SQLite support" OFF)
+option(USE_FIREBIRD "Enable Firebird support" OFF)
+option(USE_MONGODB "Enable MongoDB support" OFF)
+option(USE_SCYLLADB "Enable ScyllaDB support" OFF)
+option(USE_CPP_YAML "Enable YAML support" OFF)
 
 # Load binary name from .dist_build
 file(STRINGS ".dist_build" DIST_BUILD_CONTENT)
@@ -27,6 +35,11 @@ endif()
 message(STATUS "Building executable: ${APP_BIN_NAME}")
 message(STATUS "MySQL support: ${USE_MYSQL}")
 message(STATUS "PostgreSQL support: ${USE_POSTGRESQL}")
+message(STATUS "SQLite support: ${USE_SQLITE}")
+message(STATUS "Firebird support: ${USE_FIREBIRD}")
+message(STATUS "MongoDB support: ${USE_MONGODB}")
+message(STATUS "ScyllaDB support: ${USE_SCYLLADB}")
+message(STATUS "YAML support: ${USE_CPP_YAML}")
 
 # Find dependencies with Conan
 if(EXISTS "${CMAKE_BINARY_DIR}/conan_toolchain.cmake")
@@ -73,13 +86,9 @@ target_include_directories(${APP_BIN_NAME} PRIVATE
     ${CONAN_GENERATORS_DIR}
 )
 
-# Add compile definitions for the database drivers
-target_compile_definitions(${APP_BIN_NAME} PRIVATE
-    $<$<BOOL:${USE_MYSQL}>:USE_MYSQL=1>
-    $<$<NOT:$<BOOL:${USE_MYSQL}>>:USE_MYSQL=0>
-    $<$<BOOL:${USE_POSTGRESQL}>:USE_POSTGRESQL=1>
-    $<$<NOT:$<BOOL:${USE_POSTGRESQL}>>:USE_POSTGRESQL=0>
-)
+# Note: Compile definitions for database drivers (USE_MYSQL, USE_POSTGRESQL, etc.)
+# are automatically added by linking to cpp_dbc::cpp_dbc through INTERFACE properties.
+# They are defined in the cpp_dbc-config.cmake file based on how the library was built.
 
 # Installation rules
 install(TARGETS ${APP_BIN_NAME}

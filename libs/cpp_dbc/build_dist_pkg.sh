@@ -83,7 +83,8 @@ function get_distro_packages() {
             SQLITE_DEV_PKG="libsqlite3-dev"
             FIREBIRD_DEV_PKG="firebird-dev"
             MONGODB_DEV_PKG="libmongoc-dev"
-            SCYLLA_DEV_PKG="libuv1-dev, libssl-dev, zlib1g-dev"
+            SCYLLA_DEV_PKG="libuv1-dev libssl-dev zlib1g-dev"
+            REDIS_DEV_PKG="libhiredis-dev"
             LIBDW_DEV_PKG="libdw-dev"
             ;;
         fedora:42|fedora:43)
@@ -92,7 +93,8 @@ function get_distro_packages() {
             SQLITE_DEV_PKG="sqlite-devel"
             FIREBIRD_DEV_PKG="firebird-devel"
             MONGODB_DEV_PKG="mongo-c-driver-devel"
-            SCYLLA_DEV_PKG="libuv-devel, openssl-devel, zlib-devel"
+            SCYLLA_DEV_PKG="libuv-devel openssl-devel zlib-devel"
+            REDIS_DEV_PKG="hiredis-devel"
             LIBDW_DEV_PKG="elfutils-devel"
             ;;
         *)
@@ -139,7 +141,8 @@ CMAKE_POSTGRESQL_OPTION="-DCPP_DBC_WITH_POSTGRESQL=OFF"
 CMAKE_SQLITE_OPTION="-DCPP_DBC_WITH_SQLITE=OFF"
 CMAKE_FIREBIRD_OPTION="-DCPP_DBC_WITH_FIREBIRD=OFF"
 CMAKE_MONGODB_OPTION="-DCPP_DBC_WITH_MONGODB=OFF"
-CMAKE_SCYLLA_OPTION="-DCPP_DBC_WITH_SCYLLA=OFF"
+CMAKE_SCYLLA_OPTION="-DCPP_DBC_WITH_SCYLLADB=OFF"
+CMAKE_REDIS_OPTION="-DCPP_DBC_WITH_REDIS=OFF"
 CMAKE_DW_OPTION="-DBACKWARD_HAS_DW=OFF"
 
 DEB_DEPENDENCIES="libc6"
@@ -151,13 +154,15 @@ SQLITE_CONTROL_DEP=""
 FIREBIRD_CONTROL_DEP=""
 MONGODB_CONTROL_DEP=""
 SCYLLA_CONTROL_DEP=""
+REDIS_CONTROL_DEP=""
 LIBDW_CONTROL_DEP=""
 USE_MYSQL="OFF"
 USE_POSTGRESQL="OFF"
 USE_SQLITE="OFF"
 USE_FIREBIRD="OFF"
 USE_MONGODB="OFF"
-USE_SCYLLA="OFF"
+USE_SCYLLADB="OFF"
+USE_REDIS="OFF"
 USE_CPP_YAML="OFF"
 USE_DW="OFF"
 BUILD_TYPE="Debug"
@@ -168,6 +173,8 @@ DEBUG_TRANSACTION_MANAGER="OFF"
 DEBUG_SQLITE="OFF"
 DEBUG_FIREBIRD="OFF"
 DEBUG_MONGODB="OFF"
+DEBUG_SCYLLADB="OFF"
+DEBUG_REDIS="OFF"
 DEBUG_ALL="OFF"
 # Create a variable to store the build flags for the Debian package
 BUILD_FLAGS=""
@@ -216,12 +223,19 @@ for option in "${OPTIONS[@]}"; do
             USE_MONGODB="ON"
             BUILD_FLAGS="$BUILD_FLAGS --mongodb"
             ;;
+        redis)
+            CMAKE_REDIS_OPTION="-DCPP_DBC_WITH_REDIS=ON"
+            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $REDIS_DEV_PKG"
+            REDIS_CONTROL_DEP=", $REDIS_DEV_PKG"
+            USE_REDIS="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --redis"
+            ;;
         scylla)
-            CMAKE_SCYLLA_OPTION="-DCPP_DBC_WITH_SCYLLA=ON"
+            CMAKE_SCYLLA_OPTION="-DCPP_DBC_WITH_SCYLLADB=ON"
             DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SCYLLA_DEV_PKG"
             SCYLLA_CONTROL_DEP=", $SCYLLA_DEV_PKG"
-            USE_SCYLLA="ON"
-            BUILD_FLAGS="$BUILD_FLAGS --scylla"
+            USE_SCYLLADB="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --scylladb"
             ;;
         debug)
             BUILD_TYPE="Debug"
@@ -264,12 +278,22 @@ for option in "${OPTIONS[@]}"; do
             DEBUG_MONGODB="ON"
             BUILD_FLAGS="$BUILD_FLAGS --debug-mongodb"
             ;;
+        debug-scylla)
+            DEBUG_SCYLLADB="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-scylladb"
+            ;;
+        debug-redis)
+            DEBUG_REDIS="ON"
+            BUILD_FLAGS="$BUILD_FLAGS --debug-redis"
+            ;;
         debug-all)
             DEBUG_CONNECTION_POOL="ON"
             DEBUG_TRANSACTION_MANAGER="ON"
             DEBUG_SQLITE="ON"
             DEBUG_FIREBIRD="ON"
             DEBUG_MONGODB="ON"
+            DEBUG_SCYLLADB="ON"
+            DEBUG_REDIS="ON"
             DEBUG_ALL="ON"
             BUILD_FLAGS="$BUILD_FLAGS --debug-all"
             ;;
@@ -337,7 +361,7 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__USE_SQLITE__/$USE_SQLITE/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_FIREBIRD__/$USE_FIREBIRD/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_MONGODB__/$USE_MONGODB/g" "$TEMP_BUILD_DIR/build_script.sh"
-    sed -i "s/__USE_SCYLLA__/$USE_SCYLLA/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__USE_SCYLLADB__/$USE_SCYLLADB/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_CPP_YAML__/$USE_CPP_YAML/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_DW__/$USE_DW/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__BUILD_TYPE__/$BUILD_TYPE/g" "$TEMP_BUILD_DIR/build_script.sh"
@@ -348,6 +372,8 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__DEBUG_SQLITE__/$DEBUG_SQLITE/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__DEBUG_FIREBIRD__/$DEBUG_FIREBIRD/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__DEBUG_MONGODB__/$DEBUG_MONGODB/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__DEBUG_SCYLLADB__/$DEBUG_SCYLLADB/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__DEBUG_REDIS__/$DEBUG_REDIS/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__DEBUG_ALL__/$DEBUG_ALL/g" "$TEMP_BUILD_DIR/build_script.sh"
     # Pass the build flags to the build script
     sed -i "s/__BUILD_FLAGS__/$BUILD_FLAGS/g" "$TEMP_BUILD_DIR/build_script.sh"

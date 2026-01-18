@@ -44,7 +44,7 @@ USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
-USE_SCYLLA=OFF
+USE_SCYLLADB=OFF
 USE_REDIS=OFF
 USE_YAML=ON
 BUILD_TYPE=Debug
@@ -63,7 +63,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
-DEBUG_SCYLLA=OFF
+DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
 DW_OFF=false
@@ -112,12 +112,12 @@ while [[ $# -gt 0 ]]; do
             USE_MONGODB=OFF
             shift
             ;;
-        --scylla|--scylla-on)
-            USE_SCYLLA=ON
+        --scylladb|--scylladb-on)
+            USE_SCYLLADB=ON
             shift
             ;;
-        --scylla-off)
-            USE_SCYLLA=OFF
+        --scylladb-off)
+            USE_SCYLLADB=OFF
             shift
             ;;
         --redis|--redis-on)
@@ -210,8 +210,8 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             shift
             ;;
-        --debug-scylla)
-            DEBUG_SCYLLA=ON
+        --debug-scylladb)
+            DEBUG_SCYLLADB=ON
             shift
             ;;
         --debug-redis)
@@ -249,8 +249,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --firebird-off         Disable Firebird support"
             echo "  --mongodb, --mongodb-on  Enable MongoDB support"
             echo "  --mongodb-off          Disable MongoDB support"
-            echo "  --scylla, --scylla-on    Enable ScyllaDB support"
-            echo "  --scylla-off           Disable ScyllaDB support"
+            echo "  --scylladb, --scylladb-on    Enable ScyllaDB support"
+            echo "  --scylladb-off           Disable ScyllaDB support"
             echo "  --redis, --redis-on    Enable Redis support"
             echo "  --redis-off            Disable Redis support"
             echo "  --yaml, --yaml-on      Enable YAML configuration support"
@@ -271,7 +271,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
-            echo "  --debug-scylla         Enable debug output for ScyllaDB driver"
+            echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
@@ -326,8 +326,8 @@ if [ ! -f "$MAIN_EXECUTABLE" ]; then
         BUILD_CMD="$BUILD_CMD --mongodb"
     fi
 
-    if [ "$USE_SCYLLA" = "ON" ]; then
-        BUILD_CMD="$BUILD_CMD --scylla"
+    if [ "$USE_SCYLLADB" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --scylladb"
     fi
     
     if [ "$USE_REDIS" = "ON" ]; then
@@ -412,8 +412,8 @@ if [ "$USE_MONGODB" = "ON" ]; then
     CMD="$CMD --mongodb-on"
 fi
 
-if [ "$USE_SCYLLA" = "ON" ]; then
-    CMD="$CMD --scylla-on"
+if [ "$USE_SCYLLADB" = "ON" ]; then
+    CMD="$CMD --scylladb-on"
 fi
 
 if [ "$USE_REDIS" = "ON" ]; then
@@ -487,8 +487,8 @@ if [ "$DEBUG_MONGODB" = "ON" ]; then
     CMD="$CMD --debug-mongodb"
 fi
 
-if [ "$DEBUG_SCYLLA" = "ON" ]; then
-    CMD="$CMD --debug-scylla"
+if [ "$DEBUG_SCYLLADB" = "ON" ]; then
+    CMD="$CMD --debug-scylladb"
 fi
 
 if [ "$DEBUG_REDIS" = "ON" ]; then

@@ -9,6 +9,7 @@ USE_POSTGRESQL=OFF
 USE_SQLITE=OFF
 USE_FIREBIRD=OFF
 USE_MONGODB=OFF
+USE_SCYLLADB=OFF
 USE_REDIS=OFF
 USE_CPP_YAML=OFF
 BENCHMARK_MIN_TIME="0.5"  # Minimum time per iteration for Google Benchmark
@@ -23,6 +24,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
+DEBUG_SCYLLADB=OFF
 BACKWARD_HAS_DW=ON
 USE_MEMORY_USAGE=false    # Whether to use /usr/bin/time for memory usage tracking
 DB_DRIVER_THREAD_SAFE=ON
@@ -70,6 +72,14 @@ while [[ $# -gt 0 ]]; do
             USE_MONGODB=OFF
             shift
             ;;
+        --scylladb|--scylladb-on)
+            USE_SCYLLADB=ON
+            shift
+            ;;
+        --scylladb-off)
+            USE_SCYLLADB=OFF
+            shift
+            ;;
         --redis|--redis-on)
             USE_REDIS=ON
             shift
@@ -114,12 +124,17 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             shift
             ;;
+        --debug-scylladb)
+            DEBUG_SCYLLADB=ON
+            shift
+            ;;
         --debug-all)
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
             DEBUG_FIREBIRD=ON
             DEBUG_MONGODB=ON
+            DEBUG_SCYLLADB=ON
             shift
             ;;
         --dw-off)
@@ -167,6 +182,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --firebird-off         Disable Firebird support"
             echo "  --mongodb, --mongodb-on  Enable MongoDB support"
             echo "  --mongodb-off         Disable MongoDB support"
+            echo "  --scylladb, --scylladb-on  Enable ScyllaDB support"
+            echo "  --scylladb-off        Disable ScyllaDB support"
             echo "  --redis, --redis-on    Enable Redis support"
             echo "  --redis-off           Disable Redis support"
             echo "  --yaml, --yaml-on      Enable YAML support"
@@ -183,6 +200,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
+            echo "  --debug-scylladb       Enable debug output for ScyllaDB driver"
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -218,6 +236,7 @@ echo "  PostgreSQL support: $USE_POSTGRESQL"
 echo "  SQLite support: $USE_SQLITE"
 echo "  Firebird support: $USE_FIREBIRD"
 echo "  MongoDB support: $USE_MONGODB"
+echo "  ScyllaDB support: $USE_SCYLLADB"
 echo "  Redis support: $USE_REDIS"
 echo "  YAML support: $USE_CPP_YAML"
 echo "  Build type: $BUILD_TYPE"
@@ -230,6 +249,7 @@ echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
+echo "  Debug ScyllaDB: $DEBUG_SCYLLADB"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
 echo "  Memory usage tracking: $USE_MEMORY_USAGE"
@@ -276,7 +296,13 @@ if [ "$CLEAN_BUILD" = true ] || [ "$REBUILD" = true ]; then
         echo "MongoDB benchmark tag detected, ensuring MongoDB support is enabled"
         USE_MONGODB=ON
     fi
-    
+
+    # Check if benchmark tags contain "scylladb" and enable ScyllaDB support if needed
+    if [ -n "$BENCHMARK_TAGS" ] && [[ "$BENCHMARK_TAGS" == *"scylladb"* ]]; then
+        echo "ScyllaDB benchmark tag detected, ensuring ScyllaDB support is enabled"
+        USE_SCYLLADB=ON
+    fi
+
     # Check if benchmark tags contain "redis" and enable Redis support if needed
     if [ -n "$BENCHMARK_TAGS" ] && [[ "$BENCHMARK_TAGS" == *"redis"* ]]; then
         echo "Redis benchmark tag detected, ensuring Redis support is enabled"
@@ -313,7 +339,13 @@ if [ "$CLEAN_BUILD" = true ] || [ "$REBUILD" = true ]; then
     else
         BUILD_OPTIONS="$BUILD_OPTIONS --mongodb-off"
     fi
-    
+
+    if [ "$USE_SCYLLADB" = "ON" ]; then
+        BUILD_OPTIONS="$BUILD_OPTIONS --scylladb"
+    else
+        BUILD_OPTIONS="$BUILD_OPTIONS --scylladb-off"
+    fi
+
     if [ "$USE_REDIS" = "ON" ]; then
         BUILD_OPTIONS="$BUILD_OPTIONS --redis"
     else
@@ -344,7 +376,11 @@ if [ "$CLEAN_BUILD" = true ] || [ "$REBUILD" = true ]; then
     if [ "$DEBUG_MONGODB" = "ON" ]; then
         BUILD_OPTIONS="$BUILD_OPTIONS --debug-mongodb"
     fi
-    
+
+    if [ "$DEBUG_SCYLLADB" = "ON" ]; then
+        BUILD_OPTIONS="$BUILD_OPTIONS --debug-scylladb"
+    fi
+
     if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
         BUILD_OPTIONS="$BUILD_OPTIONS --dw-off"
     fi
@@ -442,6 +478,9 @@ if [ -n "$BENCHMARK_TAGS" ]; then
                 ;;
             "mongodb")
                 FILTER="${FILTER}.*MongoDB"
+                ;;
+            "scylladb")
+                FILTER="${FILTER}.*ScyllaDB"
                 ;;
             "redis")
                 FILTER="${FILTER}.*Redis"
@@ -577,7 +616,7 @@ else
         echo ""
         echo "=============================="
     fi
-    
+
     # Redis benchmarks
     if [ "$USE_REDIS" = "ON" ]; then
         echo "Running Redis benchmarks..."
@@ -587,6 +626,20 @@ else
             /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_Redis" $BENCHMARK_OPTIONS
         else
             ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_Redis" $BENCHMARK_OPTIONS
+        fi
+        echo ""
+        echo "=============================="
+    fi
+
+    # ScyllaDB benchmarks (last)
+    if [ "$USE_SCYLLADB" = "ON" ]; then
+        echo "Running ScyllaDB benchmarks..."
+        # Pattern to match the standard BM_ScyllaDB_* benchmark names
+        if [ "$USE_MEMORY_USAGE" = true ]; then
+            echo "Running with memory usage tracking..."
+            /usr/bin/time -v ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_ScyllaDB" $BENCHMARK_OPTIONS
+        else
+            ${BENCHMARK_EXECUTABLE} --benchmark_filter="BM_ScyllaDB" $BENCHMARK_OPTIONS
         fi
         echo ""
         echo "=============================="

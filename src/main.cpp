@@ -133,8 +133,8 @@ int main(int argc, char *argv[])
 #endif
 
 #if USE_REDIS
-        std::cout << "Registering MongoDB driver..." << std::endl;
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDBDriver>());
+        std::cout << "Registering Redis driver..." << std::endl;
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDriver>());
 #endif
 
         std::cout << "Driver registration complete." << std::endl;

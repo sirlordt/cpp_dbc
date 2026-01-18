@@ -1,6 +1,6 @@
 # CPPDBC - C++ Database Connectivity Library
 
-This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, SQLite, Firebird, and MongoDB databases using a unified interface. The library includes connection pooling, transaction management with different isolation levels, support for YAML configuration, enhanced stack trace capabilities with libdw, and comprehensive benchmarking capabilities for all supported database types.
+This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, and Redis databases using a unified interface. The library includes connection pooling for all database types (relational, document, columnar, and key-value), transaction management with different isolation levels, support for YAML configuration, enhanced stack trace capabilities with libdw, and comprehensive benchmarking capabilities for all supported database types.
 
 ## File Structure
 
@@ -21,6 +21,16 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `include/cpp_dbc/drivers/relational/driver_sqlite.hpp` - SQLite-specific definitions
 - `include/cpp_dbc/drivers/relational/driver_firebird.hpp` - Firebird-specific definitions
 - `include/cpp_dbc/drivers/document/driver_mongodb.hpp` - MongoDB-specific definitions
+- `include/cpp_dbc/core/columnar/columnar_db_connection.hpp` - Columnar database connection interface
+- `include/cpp_dbc/core/columnar/columnar_db_driver.hpp` - Columnar database driver interface
+- `include/cpp_dbc/core/columnar/columnar_db_prepared_statement.hpp` - Columnar prepared statement interface
+- `include/cpp_dbc/core/columnar/columnar_db_result_set.hpp` - Columnar result set interface
+- `include/cpp_dbc/core/columnar/columnar_db_connection_pool.hpp` - Columnar database connection pool interface
+- `include/cpp_dbc/drivers/columnar/driver_scylladb.hpp` - ScyllaDB-specific definitions
+- `include/cpp_dbc/core/kv/kv_db_connection.hpp` - Key-value database connection interface
+- `include/cpp_dbc/core/kv/kv_db_driver.hpp` - Key-value database driver interface
+- `include/cpp_dbc/core/kv/kv_db_connection_pool.hpp` - Key-value database connection pool interface
+- `include/cpp_dbc/drivers/kv/driver_redis.hpp` - Redis-specific definitions
 - `include/cpp_dbc/drivers/relational/mysql_blob.hpp` - MySQL BLOB implementation
 - `include/cpp_dbc/drivers/relational/postgresql_blob.hpp` - PostgreSQL BLOB implementation
 - `include/cpp_dbc/drivers/relational/sqlite_blob.hpp` - SQLite BLOB implementation
@@ -40,16 +50,34 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `src/drivers/relational/driver_sqlite.cpp` - SQLite implementation using libsqlite3
 - `src/drivers/relational/driver_firebird.cpp` - Firebird implementation using libfbclient
 - `src/drivers/document/driver_mongodb.cpp` - MongoDB implementation using libmongocxx
+- `src/drivers/columnar/driver_scylladb.cpp` - ScyllaDB implementation using Cassandra C++ driver
+- `src/drivers/kv/driver_redis.cpp` - Redis implementation using hiredis
 - `src/core/document/document_db_connection_pool.cpp` - Document database connection pool implementation
+- `src/core/columnar/columnar_db_connection_pool.cpp` - Columnar database connection pool implementation
+- `src/core/kv/kv_db_connection_pool.cpp` - Key-value database connection pool implementation
 - `benchmark/benchmark_mongodb_select.cpp` - MongoDB select operation benchmarks
 - `benchmark/benchmark_mongodb_insert.cpp` - MongoDB insert operation benchmarks
 - `benchmark/benchmark_mongodb_update.cpp` - MongoDB update operation benchmarks
 - `benchmark/benchmark_mongodb_delete.cpp` - MongoDB delete operation benchmarks
+- `benchmark/benchmark_scylladb_select.cpp` - ScyllaDB select operation benchmarks
+- `benchmark/benchmark_scylladb_insert.cpp` - ScyllaDB insert operation benchmarks
+- `benchmark/benchmark_scylladb_update.cpp` - ScyllaDB update operation benchmarks
+- `benchmark/benchmark_scylladb_delete.cpp` - ScyllaDB delete operation benchmarks
+- `benchmark/benchmark_redis_select.cpp` - Redis select operation benchmarks
+- `benchmark/benchmark_redis_insert.cpp` - Redis insert operation benchmarks
+- `benchmark/benchmark_redis_update.cpp` - Redis update operation benchmarks
+- `benchmark/benchmark_redis_delete.cpp` - Redis delete operation benchmarks
 - `test/test_mongodb_real.cpp` - MongoDB integration tests
 - `test/test_mongodb_real_blob.cpp` - MongoDB BLOB handling tests
 - `test/test_mongodb_real_json.cpp` - MongoDB JSON operation tests
 - `test/test_mongodb_real_join.cpp` - MongoDB join operation tests
 - `test/test_mongodb_thread_safe.cpp` - MongoDB thread safety tests
+- `test/test_scylladb_connection.cpp` - ScyllaDB connection tests
+- `test/test_scylladb_connection_pool.cpp` - ScyllaDB connection pool tests
+- `test/test_scylladb_real.cpp` - ScyllaDB integration tests
+- `test/test_scylladb_thread_safe.cpp` - ScyllaDB thread safety tests
+- `test/test_redis_connection.cpp` - Redis connection tests
+- `test/test_redis_connection_pool.cpp` - Redis connection pool tests
 - `src/core/relational/relational_db_connection_pool.cpp` - Relational database connection pool implementation
 - `src/transaction_manager.cpp` - Transaction manager implementation
 - `src/driver_manager.cpp` - Driver manager implementation
@@ -60,6 +88,12 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `examples/example.cpp` - Basic usage example with MySQL, PostgreSQL, and SQLite
 - `examples/connection_pool_example.cpp` - Relational database connection pool usage example
 - `examples/document_connection_pool_example.cpp` - Document database connection pool usage example with MongoDB
+- `examples/scylladb_connection_pool_example.cpp` - Columnar database connection pool usage example with ScyllaDB
+- `examples/kv_connection_pool_example.cpp` - Key-value database connection pool usage example with Redis
+- `examples/scylla_example.cpp` - Basic ScyllaDB usage example
+- `examples/scylla_blob_example.cpp` - ScyllaDB BLOB operations example
+- `examples/scylla_json_example.cpp` - ScyllaDB JSON data handling example
+- `examples/redis_example.cpp` - Basic Redis usage example
 - `examples/transaction_manager_example.cpp` - Cross-thread transaction example
 - `examples/config_example.cpp` - YAML configuration example
 - `examples/config_integration_example.cpp` - Database configuration integration example
@@ -75,10 +109,12 @@ To build the library and examples, you'll need:
 4. SQLite development libraries (libsqlite3-dev) (optional)
 5. Firebird development libraries (libfbclient2, firebird-dev) (optional)
 6. MongoDB C++ Driver (libmongoc-dev, libbson-dev, libmongocxx-dev, libbsoncxx-dev) (optional)
-7. yaml-cpp development libraries (optional)
-8. libdw development libraries (part of elfutils, optional)
-9. CMake 3.15 or later
-10. Conan for dependency management
+7. Cassandra C++ Driver (libcassandra-dev) for ScyllaDB support (optional)
+8. Hiredis library (libhiredis-dev) for Redis support (optional)
+9. yaml-cpp development libraries (optional)
+10. libdw development libraries (part of elfutils, optional)
+11. CMake 3.15 or later
+12. Conan for dependency management
 
 ### Using the Build Scripts
 

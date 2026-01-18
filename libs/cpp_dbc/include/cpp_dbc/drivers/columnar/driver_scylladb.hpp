@@ -26,7 +26,7 @@
 #include "cpp_dbc/core/columnar/columnar_db_result_set.hpp"
 #include "cpp_dbc/core/db_exception.hpp"
 
-#if USE_SCYLLA
+#if USE_SCYLLADB
 #include <cassandra.h>
 #include <map>
 #include <memory>
@@ -49,7 +49,7 @@
 
 namespace cpp_dbc
 {
-    namespace Scylla
+    namespace ScyllaDB
     {
         // Custom deleters for Cassandra objects
         struct CassClusterDeleter
@@ -417,7 +417,7 @@ namespace cpp_dbc
     }
 }
 
-#else // USE_SCYLLA
+#else // USE_SCYLLADB
 
 namespace cpp_dbc
 {
@@ -454,6 +454,6 @@ namespace cpp_dbc
     }
 }
 
-#endif // USE_SCYLLA
+#endif // USE_SCYLLADB
 
 #endif // CPP_DBC_DRIVER_SCYLLA_HPP

@@ -1,6 +1,6 @@
 # Documentación de la Biblioteca CPP_DBC
 
-Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL, SQLite, Firebird y MongoDB.
+Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB y Redis.
 
 ## Tabla de Contenidos
 - [Componentes Principales](#componentes-principales)
@@ -10,6 +10,8 @@ Este documento proporciona una guía completa de la biblioteca CPP_DBC, una bibl
 - [Implementación SQLite](#implementación-sqlite)
 - [Implementación Firebird](#implementación-firebird)
 - [Implementación MongoDB](#implementación-mongodb)
+- [Implementación ScyllaDB](#implementación-scylladb)
+- [Implementación Redis](#implementación-redis)
 - [Pool de Conexiones](#pool-de-conexiones)
 - [Gestor de Transacciones](#gestor-de-transacciones)
 - [Sistema de Configuración](#sistema-de-configuración)

@@ -7,7 +7,7 @@ option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
 option(USE_SQLITE "Enable SQLite support" OFF)
 option(USE_FIREBIRD "Enable Firebird SQL support" OFF)
 option(USE_MONGODB "Enable MongoDB support" OFF)
-option(USE_SCYLLA "Enable ScyllaDB support" OFF)
+option(USE_SCYLLADB "Enable ScyllaDB support" OFF)
 option(USE_REDIS "Enable Redis support" OFF)
 option(USE_CPP_YAML "Enable YAML configuration support" OFF)
 option(BACKWARD_HAS_DW "Enable libdw support for stack traces" ON)
@@ -22,8 +22,12 @@ option(DEBUG_TRANSACTION_MANAGER "Enable debug output for TransactionManager" OF
 option(DEBUG_SQLITE "Enable debug output for SQLite driver" OFF)
 option(DEBUG_FIREBIRD "Enable debug output for Firebird driver" OFF)
 option(DEBUG_MONGODB "Enable debug output for MongoDB driver" OFF)
+option(DEBUG_SCYLLADB "Enable debug output for ScyllaDB driver" OFF)
 option(DEBUG_REDIS "Enable debug output for Redis driver" OFF)
 option(DEBUG_ALL "Enable debug output for all drivers and components" OFF)
+
+# Sanitizer option
+option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 23)
@@ -37,6 +41,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 add_library(cpp_dbc
     src/core/relational/relational_db_connection_pool.cpp
     src/core/document/document_db_connection_pool.cpp
+    src/core/columnar/columnar_db_connection_pool.cpp
     src/core/kv/kv_db_connection_pool.cpp
     src/transaction_manager.cpp
     src/driver_manager.cpp
@@ -70,8 +75,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
     $<$<BOOL:${USE_MONGODB}>:USE_MONGODB=1>
     $<$<NOT:$<BOOL:${USE_MONGODB}>>:USE_MONGODB=0>
-    $<$<BOOL:${USE_SCYLLA}>:USE_SCYLLA=1>
-    $<$<NOT:$<BOOL:${USE_SCYLLA}>>:USE_SCYLLA=0>
+    $<$<BOOL:${USE_SCYLLADB}>:USE_SCYLLADB=1>
+    $<$<NOT:$<BOOL:${USE_SCYLLADB}>>:USE_SCYLLADB=0>
     $<$<BOOL:${USE_REDIS}>:USE_REDIS=1>
     $<$<NOT:$<BOOL:${USE_REDIS}>>:USE_REDIS=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
@@ -83,6 +88,7 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<BOOL:${DEBUG_SQLITE}>:DEBUG_SQLITE=1>
     $<$<BOOL:${DEBUG_FIREBIRD}>:DEBUG_FIREBIRD=1>
     $<$<BOOL:${DEBUG_MONGODB}>:DEBUG_MONGODB=1>
+    $<$<BOOL:${DEBUG_SCYLLADB}>:DEBUG_SCYLLADB=1>
     $<$<BOOL:${DEBUG_REDIS}>:DEBUG_REDIS=1>
     $<$<BOOL:${DEBUG_ALL}>:DEBUG_ALL=1>
     $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
@@ -183,9 +189,9 @@ if(USE_MONGODB)
 endif()
 
 # Conditionally add ScyllaDB driver files and dependencies
-if(USE_SCYLLA)
+if(USE_SCYLLADB)
     target_sources(cpp_dbc PRIVATE
-        src/drivers/columnar/driver_scylla.cpp
+        src/drivers/columnar/driver_scylladb.cpp
     )
 
     # Find Cassandra/ScyllaDB C driver package
@@ -392,6 +398,22 @@ if(CPP_DBC_BUILD_EXAMPLES)
         # Key-value database connection pool example
         add_executable(kv_connection_pool_example examples/kv_connection_pool_example.cpp)
         target_link_libraries(kv_connection_pool_example PRIVATE cpp_dbc)
+    endif()
+
+    # ScyllaDB examples (only if ScyllaDB is enabled)
+    if(USE_SCYLLADB)
+        add_executable(scylla_example examples/scylla_example.cpp)
+        target_link_libraries(scylla_example PRIVATE cpp_dbc)
+
+        add_executable(scylla_blob_example examples/scylla_blob_example.cpp)
+        target_link_libraries(scylla_blob_example PRIVATE cpp_dbc)
+
+        add_executable(scylla_json_example examples/scylla_json_example.cpp)
+        target_link_libraries(scylla_json_example PRIVATE cpp_dbc)
+
+        # Columnar database connection pool example for ScyllaDB
+        add_executable(scylladb_connection_pool_example examples/scylladb_connection_pool_example.cpp)
+        target_link_libraries(scylladb_connection_pool_example PRIVATE cpp_dbc)
     endif()
 
     # Copy necessary files for examples

@@ -19,7 +19,7 @@ POSTGRES_PARAM="--postgres-off"
 SQLITE_PARAM="--sqlite-off"
 FIREBIRD_PARAM="--firebird-off"
 MONGODB_PARAM="--mongodb-off"
-SCYLLA_PARAM="--scylla-off"
+SCYLLADB_PARAM="--scylladb-off"
 REDIS_PARAM="--redis-off"
 YAML_PARAM="--yaml-off"
 DEBUG_PARAM="--debug"
@@ -31,7 +31,7 @@ DEBUG_TXMGR_PARAM=""
 DEBUG_SQLITE_PARAM=""
 DEBUG_FIREBIRD_PARAM=""
 DEBUG_MONGODB_PARAM=""
-DEBUG_SCYLLA_PARAM=""
+DEBUG_SCYLLADB_PARAM=""
 DEBUG_REDIS_PARAM=""
 DEBUG_ALL_PARAM=""
 
@@ -66,10 +66,10 @@ else
     MONGODB_PARAM="--mongodb-off"
 fi
 
-if [ "__USE_SCYLLA__" = "ON" ]; then
-    SCYLLA_PARAM="--scylla"
+if [ "__USE_SCYLLADB__" = "ON" ]; then
+    SCYLLADB_PARAM="--scylladb"
 else
-    SCYLLA_PARAM="--scylla-off"
+    SCYLLADB_PARAM="--scylladb-off"
 fi
 
 if [ "__USE_REDIS__" = "ON" ]; then
@@ -128,8 +128,8 @@ if [ "__DEBUG_MONGODB__" = "ON" ]; then
     DEBUG_MONGODB_PARAM="--debug-mongodb"
 fi
 
-if [ "__DEBUG_SCYLLA__" = "ON" ]; then
-    DEBUG_SCYLLA_PARAM="--debug-scylla"
+if [ "__DEBUG_SCYLLADB__" = "ON" ]; then
+    DEBUG_SCYLLADB_PARAM="--debug-scylladb"
 fi
 
 if [ "__DEBUG_REDIS__" = "ON" ]; then
@@ -140,8 +140,8 @@ if [ "__DEBUG_ALL__" = "ON" ]; then
     DEBUG_ALL_PARAM="--debug-all"
 fi
 
-echo "Using parameters: $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $FIREBIRD_PARAM $MONGODB_PARAM $SCYLLA_PARAM $REDIS_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM $DB_DRIVER_THREAD_SAFE_PARAM $DEBUG_POOL_PARAM $DEBUG_TXMGR_PARAM $DEBUG_SQLITE_PARAM $DEBUG_FIREBIRD_PARAM $DEBUG_MONGODB_PARAM $DEBUG_SCYLLA_PARAM $DEBUG_REDIS_PARAM $DEBUG_ALL_PARAM"
-./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $FIREBIRD_PARAM $MONGODB_PARAM $SCYLLA_PARAM $REDIS_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM $DB_DRIVER_THREAD_SAFE_PARAM $DEBUG_POOL_PARAM $DEBUG_TXMGR_PARAM $DEBUG_SQLITE_PARAM $DEBUG_FIREBIRD_PARAM $DEBUG_MONGODB_PARAM $DEBUG_SCYLLA_PARAM $DEBUG_REDIS_PARAM $DEBUG_ALL_PARAM
+echo "Using parameters: $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $FIREBIRD_PARAM $MONGODB_PARAM $SCYLLADB_PARAM $REDIS_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM $DB_DRIVER_THREAD_SAFE_PARAM $DEBUG_POOL_PARAM $DEBUG_TXMGR_PARAM $DEBUG_SQLITE_PARAM $DEBUG_FIREBIRD_PARAM $DEBUG_MONGODB_PARAM $DEBUG_SCYLLADB_PARAM $DEBUG_REDIS_PARAM $DEBUG_ALL_PARAM"
+./libs/cpp_dbc/build_cpp_dbc.sh $MYSQL_PARAM $POSTGRES_PARAM $SQLITE_PARAM $FIREBIRD_PARAM $MONGODB_PARAM $SCYLLADB_PARAM $REDIS_PARAM $YAML_PARAM $DEBUG_PARAM $DW_PARAM $EXAMPLES_PARAM $DB_DRIVER_THREAD_SAFE_PARAM $DEBUG_POOL_PARAM $DEBUG_TXMGR_PARAM $DEBUG_SQLITE_PARAM $DEBUG_FIREBIRD_PARAM $DEBUG_MONGODB_PARAM $DEBUG_SCYLLADB_PARAM $DEBUG_REDIS_PARAM $DEBUG_ALL_PARAM
 
 # Now create the debian package
 
@@ -223,7 +223,7 @@ override_dh_auto_install:
 	sed -i "s/@USE_SQLITE@/__USE_SQLITE__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
 	sed -i "s/@USE_FIREBIRD@/__USE_FIREBIRD__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
 	sed -i "s/@USE_MONGODB@/__USE_MONGODB__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
-	sed -i "s/@USE_SCYLLA@/__USE_SCYLLA__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
+	sed -i "s/@USE_SCYLLADB@/__USE_SCYLLADB__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
 	sed -i "s/@USE_REDIS@/__USE_REDIS__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
 	sed -i "s/@USE_CPP_YAML@/__USE_CPP_YAML__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
 	sed -i "s/@BACKWARD_HAS_DW@/__USE_DW__/g" \${CURDIR}/debian/cpp-dbc-dev/usr/lib/cmake/cpp_dbc/cpp_dbc-config.cmake
