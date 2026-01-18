@@ -1398,6 +1398,15 @@ namespace scylladb_benchmark_helpers
     static std::unordered_map<std::string, bool> tableInitialized;
     static std::mutex tableMutex;
 
+    /**
+     * @brief Retrieve ScyllaDB connection configuration for the given database identifier.
+     *
+     * Loads configuration from the YAML config file when available; otherwise returns a sensible default
+     * configuration for a local ScyllaDB instance.
+     *
+     * @param databaseName Name or key of the database configuration to fetch from the config file.
+     * @return cpp_dbc::config::DatabaseConfig The resolved database configuration populated with host, port, keyspace (database), username, and password.
+     */
     cpp_dbc::config::DatabaseConfig getScyllaDBConfig(const std::string &databaseName)
     {
         cpp_dbc::config::DatabaseConfig dbConfig;
@@ -1440,6 +1449,14 @@ namespace scylladb_benchmark_helpers
         return dbConfig;
     }
 
+    /**
+     * @brief Check whether a ScyllaDB instance is reachable and responsive using the "dev_scylladb" configuration.
+     *
+     * Uses the configured connection string and credentials, registers the ScyllaDB driver, opens a connection,
+     * and executes a simple query against system.local to verify the server responds.
+     *
+     * @return `true` if ScyllaDB responded to the verification query, `false` otherwise.
+     */
     bool canConnectToScyllaDB()
     {
         try
@@ -1480,7 +1497,16 @@ namespace scylladb_benchmark_helpers
         }
     }
 
-    // Helper function to create ScyllaDB-specific benchmark table
+    /**
+     * @brief Create a ScyllaDB benchmark table with standard columns, dropping any existing table first.
+     *
+     * Attempts to drop a table named by @p tableName (errors during drop are logged and ignored), then creates
+     * a table using CQL with columns: `id` (INT PRIMARY KEY), `name` (TEXT), `value` (DOUBLE), and `description` (TEXT).
+     *
+     * @param tableName Name of the ScyllaDB table to create (CQL identifier).
+     *
+     * @throws std::exception Propagates exceptions thrown by the connection when table creation fails.
+     */
     void createScyllaDBBenchmarkTable(std::shared_ptr<cpp_dbc::ColumnarDBConnection> &conn, const std::string &tableName)
     {
         // Drop table if it exists
@@ -1512,7 +1538,19 @@ namespace scylladb_benchmark_helpers
         }
     }
 
-    // Helper function to populate ScyllaDB table with test data
+    /**
+     * @brief Insert a sequence of test rows into a ScyllaDB benchmark table.
+     *
+     * Inserts `rowCount` rows into `tableName`. Each inserted row has:
+     * - `id`: integer from 1 to `rowCount`
+     * - `name`: "Name <id>"
+     * - `value`: `<id> * 1.5`
+     * - `description`: a 50-character random alphanumeric string
+     *
+     * @param conn Active ColumnarDBConnection used to prepare and execute the insert statements.
+     * @param tableName Target table name to populate.
+     * @param rowCount Number of rows to insert; if less than or equal to zero, no rows are inserted.
+     */
     void populateScyllaDBTable(std::shared_ptr<cpp_dbc::ColumnarDBConnection> &conn, const std::string &tableName, int rowCount)
     {
         // Prepare the insert statement
@@ -1530,7 +1568,18 @@ namespace scylladb_benchmark_helpers
         }
     }
 
-    // Implementation of setupScyllaDBConnection
+    /**
+     * @brief Establishes a ScyllaDB connection and ensures a benchmark table exists.
+     *
+     * Obtains configuration, creates and returns a ColumnarDBConnection for the given table name.
+     * If this is the first call for the specified table, the function will create the benchmark table
+     * and, when `rowCount` is greater than zero, populate it with that many rows. Table initialization
+     * is performed at most once per table name across concurrent callers.
+     *
+     * @param tableName Name of the benchmark table to create or reuse.
+     * @param rowCount Number of rows to insert into the table when initializing; ignored if less than or equal to zero.
+     * @return std::shared_ptr<cpp_dbc::ColumnarDBConnection> Active database connection, or `nullptr` if an error occurred.
+     */
     std::shared_ptr<cpp_dbc::ColumnarDBConnection> setupScyllaDBConnection(const std::string &tableName, int rowCount)
     {
         try

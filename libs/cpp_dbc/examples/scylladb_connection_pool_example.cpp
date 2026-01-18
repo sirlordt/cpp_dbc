@@ -45,7 +45,18 @@ using namespace cpp_dbc;
 
 #if USE_SCYLLADB
 
-// Function to test a connection from the pool
+/**
+ * @brief Exercises a connection from the pool by creating a per-thread table, performing inserts, queries, an update, and cleaning up.
+ *
+ * Performs the following observable actions using a pooled connection:
+ * - Ensures the shared keyspace exists (only when `id == 0`).
+ * - Creates a thread-specific table, inserts 5 rows via a prepared statement, queries and prints rows.
+ * - Updates the row with `id = 3`, verifies the update, then drops the table.
+ * - Closes the connection, returning it to the pool.
+ *
+ * @param pool Shared pointer to the columnar database connection pool used to obtain the connection.
+ * @param id   Thread identifier used to name the per-thread table and for inserted row values.
+ */
 void testConnection(shared_ptr<ColumnarDBConnectionPool> pool, int id)
 {
     cout << "Thread " << id << " getting connection from pool..." << endl;
@@ -146,7 +157,14 @@ void testConnection(shared_ptr<ColumnarDBConnectionPool> pool, int id)
     }
 }
 
-// Function to demonstrate batch operations
+/**
+ * @brief Demonstrates batch-style operations using a connection from the pool.
+ *
+ * Creates a test table in the "test_pool_keyspace" keyspace, inserts 10 rows using a prepared
+ * statement, queries and counts the rows, then drops the table and closes the connection.
+ *
+ * @param pool Connection pool used to acquire a ColumnarDBConnection for the operations.
+ */
 void batchOperations(shared_ptr<ColumnarDBConnectionPool> pool)
 {
     cout << "\n=== Demonstrating Batch Operations ===" << endl;
@@ -207,6 +225,16 @@ void batchOperations(shared_ptr<ColumnarDBConnectionPool> pool)
 
 #endif
 
+/**
+ * @brief Demonstrates creating and exercising a ScyllaDB connection pool through a sequence of example tests.
+ *
+ * Runs an example program that registers the ScyllaDB driver, creates and configures a ColumnarDBConnectionPool,
+ * performs sequential, concurrent, batch, and stress tests against the pool while printing pool statistics,
+ * then cleans up by dropping the test keyspace and closing the pool. If ScyllaDB support is not compiled in,
+ * prints build instructions and exits.
+ *
+ * @return int 0 on success, non-zero on error.
+ */
 int main()
 {
     try

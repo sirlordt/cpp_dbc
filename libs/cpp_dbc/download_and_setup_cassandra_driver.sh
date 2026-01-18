@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Function to check if a command exists
+# command_exists checks whether the specified command is available in PATH.
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
@@ -77,7 +77,7 @@ fi
 TEMP_DIR=$(mktemp -d -p /tmp cassandra_driver_build.XXXXXX)
 echo "Using temporary directory: $TEMP_DIR"
 
-# Cleanup function
+# cleanup removes the temporary build directory stored in $TEMP_DIR if it exists.
 cleanup() {
     if [ -d "$TEMP_DIR" ]; then
         echo "Cleaning up temporary directory..."

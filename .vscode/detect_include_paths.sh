@@ -62,7 +62,7 @@ for conan_dir in "${CONAN_CACHE_DIRS[@]}"; do
     fi
 done
 
-# Function to search for a header file and add its directory to include paths
+# find_and_add_include searches for the given header name in /usr/include and /usr/local/include and appends each found header's directory to INCLUDE_PATHS if it is not already present.
 find_and_add_include() {
     local header_name=$1
     local search_dirs=("/usr/include" "/usr/local/include")

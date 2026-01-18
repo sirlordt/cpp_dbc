@@ -19,6 +19,15 @@
 using namespace cpp_dbc;
 using namespace cpp_dbc::Redis;
 
+/**
+ * @brief Demonstrates common Redis key-value operations using the cpp_dbc Redis driver.
+ *
+ * Performs a sequence of example operations against a Redis server:
+ * connects to Redis, exercises string, counter, list, hash, set, and sorted-set commands,
+ * scans keys, retrieves basic server info (including ping), cleans up example keys, and closes the connection.
+ *
+ * @return int 0 on successful completion, 1 if an exception (DBException or std::exception) is encountered.
+ */
 int main()
 {
     try

@@ -47,7 +47,13 @@ namespace cpp_dbc
     class ColumnarDBPreparedStatement
     {
     public:
-        virtual ~ColumnarDBPreparedStatement() = default;
+        /**
+ * @brief Virtual default destructor.
+ *
+ * Ensures derived class destructors are invoked when an instance is deleted
+ * through a pointer to ColumnarDBPreparedStatement.
+ */
+virtual ~ColumnarDBPreparedStatement() = default;
 
         // Parameter binding (1-based index)
         virtual void setInt(int parameterIndex, int value) = 0;

@@ -31,7 +31,14 @@
 using namespace std;
 using namespace cpp_dbc;
 
-// Helper function to create a simple test document
+/**
+ * @brief Constructs a JSON-formatted string representing a simple document.
+ *
+ * @param id Numeric identifier to include in the `id` field.
+ * @param name Text value to include in the `name` field.
+ * @param value Numeric value to include in the `value` field.
+ * @return std::string JSON string with keys `id`, `name`, and `value` (e.g. {"id": 1, "name": "foo", "value": 3.14}).
+ */
 string createTestDocument(int id, const string &name, double value)
 {
     return "{\"id\": " + to_string(id) +
@@ -39,6 +46,15 @@ string createTestDocument(int id, const string &name, double value)
            ", \"value\": " + to_string(value) + "}";
 }
 
+/**
+ * @brief Demonstrates usage of a MongoDB document database connection pool.
+ *
+ * Runs a complete example that registers the MongoDB driver, configures and creates a connection pool,
+ * performs collection setup, executes basic CRUD operations (including concurrent inserts from multiple
+ * threads), reports pool statistics, cleans up the test collection, and shuts down the pool.
+ *
+ * @return int Exit code: 0 on success, 1 on error.
+ */
 int main()
 { //(int argc, char *argv[])
 

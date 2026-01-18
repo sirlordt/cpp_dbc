@@ -54,6 +54,11 @@ namespace cpp_dbc
         // Custom deleters for Cassandra objects
         struct CassClusterDeleter
         {
+            /**
+             * @brief Frees a Cassandra cluster handle if the pointer is non-null.
+             *
+             * @param ptr Pointer to a `CassCluster` to be freed; no action is taken if `ptr` is `nullptr`.
+             */
             void operator()(CassCluster *ptr) const
             {
                 if (ptr)
@@ -63,6 +68,13 @@ namespace cpp_dbc
 
         struct CassSessionDeleter
         {
+            /**
+             * @brief Frees a Cassandra session handle.
+             *
+             * Releases the resources associated with the provided `CassSession` pointer.
+             *
+             * @param ptr Pointer to a `CassSession`. If `nullptr`, no action is taken.
+             */
             void operator()(CassSession *ptr) const
             {
                 if (ptr)
@@ -72,6 +84,11 @@ namespace cpp_dbc
 
         struct CassFutureDeleter
         {
+            /**
+             * @brief Releases a Cassandra future handle if it is not null.
+             *
+             * @param ptr Pointer to a `CassFuture` to be freed; no action is taken if `ptr` is `nullptr`.
+             */
             void operator()(CassFuture *ptr) const
             {
                 if (ptr)
@@ -81,6 +98,13 @@ namespace cpp_dbc
 
         struct CassStatementDeleter
         {
+            /**
+             * @brief Releases a Cassandra statement object.
+             *
+             * Frees the given `CassStatement` if `ptr` is not null.
+             *
+             * @param ptr Pointer to the `CassStatement` to free.
+             */
             void operator()(CassStatement *ptr) const
             {
                 if (ptr)
@@ -90,6 +114,11 @@ namespace cpp_dbc
 
         struct CassPreparedDeleter
         {
+            /**
+             * @brief Releases a `CassPrepared` instance if present.
+             *
+             * @param ptr Pointer to the `CassPrepared` object to free; no action is taken if `ptr` is null.
+             */
             void operator()(const CassPrepared *ptr) const
             {
                 if (ptr)
@@ -99,6 +128,11 @@ namespace cpp_dbc
 
         struct CassResultDeleter
         {
+            /**
+             * @brief Frees a CassResult resource if one is provided.
+             *
+             * @param ptr Pointer to the CassResult to release; may be nullptr.
+             */
             void operator()(const CassResult *ptr) const
             {
                 if (ptr)
@@ -108,6 +142,11 @@ namespace cpp_dbc
 
         struct CassIteratorDeleter
         {
+            /**
+             * @brief Releases a Cassandra iterator handle if non-null.
+             *
+             * @param ptr Pointer to the CassIterator to free; ignored if `nullptr`.
+             */
             void operator()(CassIterator *ptr) const
             {
                 if (ptr)
@@ -130,8 +169,27 @@ namespace cpp_dbc
             size_t m_position{0};
 
         public:
-            explicit ScyllaMemoryInputStream(std::vector<uint8_t> data) : m_data(std::move(data)) {}
+            /**
+ * @brief Constructs an in-memory input stream from a byte buffer.
+ *
+ * Creates a stream that reads from the provided byte vector. The constructor
+ * takes ownership of the contents of `data`.
+ *
+ * @param data Byte buffer to be used as the stream source; contents are moved into the stream.
+ */
+explicit ScyllaMemoryInputStream(std::vector<uint8_t> data) : m_data(std::move(data)) {}
 
+            /**
+             * @brief Reads up to `length` bytes from the in-memory stream into `buffer`.
+             *
+             * Reads at most `length` bytes starting at the current stream position, advances
+             * the stream position by the number of bytes read, and signals end-of-file when
+             * no bytes remain.
+             *
+             * @param buffer Destination buffer to receive read bytes.
+             * @param length Maximum number of bytes to read.
+             * @return int Number of bytes actually read, or `-1` if the stream is at end-of-file.
+             */
             int read(uint8_t *buffer, size_t length) override
             {
                 if (m_position >= m_data.size())
@@ -144,11 +202,23 @@ namespace cpp_dbc
                 return static_cast<int>(toRead);
             }
 
+            /**
+             * @brief Advances the read position by up to n bytes.
+             *
+             * Moves the stream cursor forward by `n` bytes; if `n` is larger than the remaining bytes, the cursor is set to the end of the stream.
+             *
+             * @param n Number of bytes to skip.
+             */
             void skip(size_t n) override
             {
                 m_position = std::min(m_position + n, m_data.size());
             }
 
+            /**
+             * @brief Closes the stream.
+             *
+             * No-op for in-memory streams; there are no external resources to release.
+             */
             void close() override
             {
                 // Nothing to close
@@ -385,7 +455,12 @@ namespace cpp_dbc
         {
         public:
             ScyllaDBDriver();
-            ~ScyllaDBDriver() override = default;
+            /**
+ * @brief Destroy the ScyllaDBDriver and release any resources it holds.
+ *
+ * Defaulted destructor; performs any necessary cleanup of driver state.
+ */
+~ScyllaDBDriver() override = default;
 
             std::shared_ptr<ColumnarDBConnection> connectColumnar(
                 const std::string &url,
@@ -426,30 +501,129 @@ namespace cpp_dbc
         class ScyllaDBDriver : public ColumnarDBDriver
         {
         public:
-            ScyllaDBDriver() { throw DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled in this build"); }
+            /**
+ * @brief Constructor that signals ScyllaDB support is unavailable in this build.
+ *
+ * @throws DBException Always thrown with code "SCYLLA_DISABLED" and message
+ * "ScyllaDB support is not enabled in this build".
+ */
+ScyllaDBDriver() { throw DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled in this build"); }
 
+            /**
+             * @brief Create a columnar connection to a ScyllaDB instance using the provided URL and credentials.
+             *
+             * @param url Connection URL specifying host(s), port, and any database/keyspace information.
+             * @param user Username for authentication.
+             * @param password Password for authentication.
+             * @param options Optional map of driver-specific connection options.
+             * @return std::shared_ptr<ColumnarDBConnection> A shared pointer to the established columnar connection.
+             *
+             * @throws DBException Thrown with code "SCYLLA_DISABLED" when ScyllaDB support is not enabled in this build.
+             */
             std::shared_ptr<ColumnarDBConnection> connectColumnar(const std::string &, const std::string &, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
             {
                 throw DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled in this build");
             }
-            int getDefaultPort() const override { return 9042; }
-            std::string getURIScheme() const override { return "scylladb"; }
-            std::map<std::string, std::string> parseURI(const std::string &) override { throw DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled"); }
-            std::string buildURI(const std::string &, int, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override { throw DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled"); }
-            bool supportsClustering() const override { return false; }
-            bool supportsAsync() const override { return false; }
-            std::string getDriverVersion() const override { return "0.0.0"; }
+            /**
+ * @brief Provides the default network port used by the ScyllaDB driver.
+ *
+ * @return int The default port number (9042).
+ */
+int getDefaultPort() const override { return 9042; }
+            /**
+ * @brief Provides the URI scheme used by this driver.
+ *
+ * @return std::string The URI scheme "scylladb".
+ */
+std::string getURIScheme() const override { return "scylladb"; }
+            /**
+ * @brief Parse a ScyllaDB connection URI into its components.
+ *
+ * Parses the provided connection URI and returns a map of component names to their values
+ * (for example: host, port, database, user, and options).
+ *
+ * @param uri The connection URI to parse.
+ * @return std::map<std::string, std::string> Map of URI component names to values.
+ * @throws DBException Thrown with code "SCYLLA_DISABLED" when ScyllaDB support is not enabled.
+ */
+std::map<std::string, std::string> parseURI(const std::string &) override { throw DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled"); }
+            /**
+ * @brief Constructs a ScyllaDB connection URI from host, port, database, and options.
+ *
+ * @param host Hostname or IP of the ScyllaDB server.
+ * @param port TCP port number.
+ * @param database Database/keyspace name.
+ * @param options Optional key/value map of URI options to include.
+ * @return std::string The constructed URI.
+ *
+ * @throws DBException Thrown with code "SCYLLA_DISABLED" when ScyllaDB support is not enabled in this build.
+ */
+std::string buildURI(const std::string &, int, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override { throw DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled"); }
+            /**
+ * @brief Indicates whether the driver supports clustered (multi-node) deployments.
+ *
+ * @return `true` if clustering is supported, `false` otherwise.
+ */
+bool supportsClustering() const override { return false; }
+            /**
+ * @brief Indicates whether the driver supports asynchronous operations.
+ *
+ * @return `true` if asynchronous operations are supported, `false` otherwise.
+ */
+bool supportsAsync() const override { return false; }
+            /**
+ * @brief Gets the driver's version string.
+ *
+ * @return std::string The driver version string (e.g., "0.0.0").
+ */
+std::string getDriverVersion() const override { return "0.0.0"; }
 
+            /**
+             * @brief Attempt to create a columnar ScyllaDB connection when Scylla support is disabled.
+             *
+             * When compiled without ScyllaDB support, this function always fails to create a connection and
+             * returns an unexpected `DBException` indicating the feature is disabled.
+             *
+             * @param nw Placeholder to select nothrow overload (ignored).
+             * @param url Connection URL or host specification.
+             * @param user Username for authentication.
+             * @param password Password for authentication.
+             * @param options Optional connection options map.
+             * @return cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException>
+             *         An unexpected `DBException` with code `"SCYLLA_DISABLED"` and message
+             *         `"ScyllaDB support is not enabled"`.
+             */
             cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> connectColumnar(std::nothrow_t, const std::string &, const std::string &, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) noexcept override
             {
                 return cpp_dbc::unexpected(DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled"));
             }
+            /**
+             * @brief Parses a ScyllaDB connection URI into its components.
+             *
+             * In builds where ScyllaDB support is disabled this overload always fails.
+             *
+             * @param uri The connection URI to parse.
+             * @return cpp_dbc::expected<std::map<std::string, std::string>, DBException>
+             *         An unexpected `DBException` with code `"SCYLLA_DISABLED"` and message
+             *         `"ScyllaDB support is not enabled"`.
+             */
             cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(std::nothrow_t, const std::string &) noexcept override
             {
                 return cpp_dbc::unexpected(DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled"));
             }
-            bool acceptsURL(const std::string &) override { return false; }
-            std::string getName() const noexcept override { return "scylladb"; }
+            /**
+ * @brief Checks whether the driver accepts the given connection URL.
+ *
+ * @param url The connection URL to test.
+ * @return `true` if the driver accepts `url`, `false` otherwise.
+ */
+bool acceptsURL(const std::string &) override { return false; }
+            /**
+ * @brief Canonical name of the driver.
+ *
+ * @return std::string The driver name "scylladb".
+ */
+std::string getName() const noexcept override { return "scylladb"; }
         };
     }
 }

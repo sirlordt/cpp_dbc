@@ -20,7 +20,15 @@
 
 #if USE_SCYLLADB
 
-// Small dataset (10 rows)
+/**
+ * @brief Benchmarks individual UPDATE operations on a small (10-row) ScyllaDB table.
+ *
+ * Sets up a table populated with SMALL_SIZE rows (outside timing), then measures the cost of executing
+ * a separate UPDATE statement for each row in the table on every benchmark iteration. Cleans up the
+ * connection after the benchmark and reports items processed as iterations × SMALL_SIZE.
+ *
+ * @param state Benchmark state provided by Google Benchmark; used to drive iterations and report metrics.
+ */
 static void BM_ScyllaDB_Update_Small_Individual(benchmark::State &state)
 {
     const std::string tableName = "benchmark_scylladb_update_small_ind";
@@ -55,6 +63,16 @@ static void BM_ScyllaDB_Update_Small_Individual(benchmark::State &state)
 }
 BENCHMARK(BM_ScyllaDB_Update_Small_Individual)->Iterations(1000);
 
+/**
+ * @brief Measures prepared UPDATE operations on a small dataset.
+ *
+ * Sets up a table with SMALL_SIZE rows outside of measured timing, pauses timing to prepare
+ * a single parameterized UPDATE statement, then resumes timing and executes SMALL_SIZE
+ * prepared updates per iteration. If the ScyllaDB connection cannot be established, the
+ * benchmark is skipped.
+ *
+ * @param state Google Benchmark state used to control iterations and timing.
+ */
 static void BM_ScyllaDB_Update_Small_Prepared(benchmark::State &state)
 {
     const std::string tableName = "benchmark_scylladb_update_small_prep";
@@ -94,6 +112,16 @@ static void BM_ScyllaDB_Update_Small_Prepared(benchmark::State &state)
 }
 BENCHMARK(BM_ScyllaDB_Update_Small_Prepared)->Iterations(1000);
 
+/**
+ * @brief Measures ScyllaDB batched UPDATE performance on a small dataset.
+ *
+ * Sets up a ScyllaDB connection and a table populated with common_benchmark_helpers::SMALL_SIZE rows,
+ * then repeatedly prepares a batch containing SMALL_SIZE UPDATE statements (preparation done while timing
+ * is paused) and measures the time to execute the batch. Cleans up the connection after the benchmark
+ * and records items processed as iterations × SMALL_SIZE.
+ *
+ * @param state Benchmark state provided by Google Benchmark.
+ */
 static void BM_ScyllaDB_Update_Small_Batch(benchmark::State &state)
 {
     const std::string tableName = "benchmark_scylladb_update_small_batch";
@@ -137,7 +165,15 @@ static void BM_ScyllaDB_Update_Small_Batch(benchmark::State &state)
 }
 BENCHMARK(BM_ScyllaDB_Update_Small_Batch)->Iterations(1000);
 
-// Medium dataset (100 rows)
+/**
+ * @brief Measures individual UPDATE operations on a medium (100-row) ScyllaDB table.
+ *
+ * Sets up a table populated with 100 rows outside of the timed section, then in each benchmark
+ * iteration issues separate UPDATE statements for each row. Records items processed as
+ * iterations × 100 and performs cleanup outside of timing.
+ *
+ * @param state Benchmark state provided by Google Benchmark.
+ */
 static void BM_ScyllaDB_Update_Medium_Individual(benchmark::State &state)
 {
     const std::string tableName = "benchmark_scylladb_update_medium_ind";
@@ -172,6 +208,15 @@ static void BM_ScyllaDB_Update_Medium_Individual(benchmark::State &state)
 }
 BENCHMARK(BM_ScyllaDB_Update_Medium_Individual)->Iterations(1000);
 
+/**
+ * @brief Benchmarks UPDATE performance using a prepared statement against a medium-sized table.
+ *
+ * Sets up a ScyllaDB connection and table populated with MEDIUM_SIZE rows, then for each benchmark
+ * iteration prepares an UPDATE statement (preparation excluded from timing) and executes MEDIUM_SIZE
+ * updates using bound parameters. Records total items processed as iterations × MEDIUM_SIZE.
+ *
+ * @param state Benchmark state used to control iterations and timing.
+ */
 static void BM_ScyllaDB_Update_Medium_Prepared(benchmark::State &state)
 {
     const std::string tableName = "benchmark_scylladb_update_medium_prep";
@@ -211,6 +256,16 @@ static void BM_ScyllaDB_Update_Medium_Prepared(benchmark::State &state)
 }
 BENCHMARK(BM_ScyllaDB_Update_Medium_Prepared)->Iterations(1000);
 
+/**
+ * @brief Measures batched UPDATE performance on a medium-sized ScyllaDB table.
+ *
+ * Prepares a batch of UPDATE statements for MEDIUM_SIZE rows while timing is paused,
+ * executes the batch while timing is active, and records the result. If a ScyllaDB
+ * connection cannot be established, the benchmark is skipped. After completion the
+ * connection is closed and the number of items processed is set to iterations × MEDIUM_SIZE.
+ *
+ * @param state Benchmark state used to control iterations, timing, and to report results.
+ */
 static void BM_ScyllaDB_Update_Medium_Batch(benchmark::State &state)
 {
     const std::string tableName = "benchmark_scylladb_update_medium_batch";
@@ -254,7 +309,15 @@ static void BM_ScyllaDB_Update_Medium_Batch(benchmark::State &state)
 }
 BENCHMARK(BM_ScyllaDB_Update_Medium_Batch)->Iterations(1000);
 
-// Large dataset (1000 rows)
+/**
+ * @brief Benchmarks individual UPDATE operations on a large ScyllaDB table.
+ *
+ * Runs a benchmark that updates each row in a prepopulated table of size common_benchmark_helpers::LARGE_SIZE (1000)
+ * by executing one UPDATE per row inside the measured loop. Setup and teardown (connection establishment and closing)
+ * occur outside the timed section. The benchmark records items processed as iterations × LARGE_SIZE.
+ *
+ * @param state Google Benchmark state controlling the benchmark loop and metrics.
+ */
 static void BM_ScyllaDB_Update_Large_Individual(benchmark::State &state)
 {
     const std::string tableName = "benchmark_scylladb_update_large_ind";
@@ -289,6 +352,17 @@ static void BM_ScyllaDB_Update_Large_Individual(benchmark::State &state)
 }
 BENCHMARK(BM_ScyllaDB_Update_Large_Individual)->Iterations(100);
 
+/**
+ * @brief Benchmarks prepared UPDATE statements on a large ScyllaDB table.
+ *
+ * Updates each row in a table of size LARGE_SIZE using a prepared UPDATE statement.
+ * Statement preparation is performed while timing is paused; the timed section covers binding parameters and executing the prepared updates.
+ * If a ScyllaDB connection cannot be established, the benchmark is skipped via state.SkipWithError.
+ *
+ * @param state Google Benchmark state object used to control iterations, timing, and metrics.
+ *
+ * @note On completion, the function sets the items-processed metric to iterations() * LARGE_SIZE.
+ */
 static void BM_ScyllaDB_Update_Large_Prepared(benchmark::State &state)
 {
     const std::string tableName = "benchmark_scylladb_update_large_prep";
@@ -328,6 +402,14 @@ static void BM_ScyllaDB_Update_Large_Prepared(benchmark::State &state)
 }
 BENCHMARK(BM_ScyllaDB_Update_Large_Prepared)->Iterations(100);
 
+/**
+ * @brief Measures batch UPDATE performance on a large dataset.
+ *
+ * Executes, in each benchmark iteration, a single batched UPDATE containing LARGE_SIZE parameterized updates
+ * and records the batch execution performance. If a ScyllaDB connection cannot be established the benchmark
+ * is skipped. The connection is closed after the benchmark and the number of processed items is set to
+ * iterations × LARGE_SIZE.
+ */
 static void BM_ScyllaDB_Update_Large_Batch(benchmark::State &state)
 {
     const std::string tableName = "benchmark_scylladb_update_large_batch";
@@ -422,7 +504,14 @@ BENCHMARK(BM_ScyllaDB_Update_XLarge_Batch)->Iterations(100);
 */
 
 #else
-// Register empty benchmark when ScyllaDB is disabled
+/**
+ * @brief Placeholder benchmark that immediately skips execution when ScyllaDB support is not enabled.
+ *
+ * Signals the benchmark framework to skip this benchmark and reports the error message
+ * "ScyllaDB support is not enabled".
+ *
+ * @param state Benchmark state object used to mark the benchmark as skipped.
+ */
 static void BM_ScyllaDB_Update_Disabled(benchmark::State &state)
 {
     for (auto _ : state)

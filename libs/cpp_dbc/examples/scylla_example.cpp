@@ -28,6 +28,18 @@
 #include <cmath>
 
 #if USE_SCYLLADB
+/**
+ * @brief Perform a sequence of basic ScyllaDB operations using the provided connection.
+ *
+ * Executes a demonstration workflow against ScyllaDB that creates a keyspace and table,
+ * inserts multiple rows via prepared statements, selects and prints a single row,
+ * updates and verifies that row, selects and prints all rows, deletes a row and verifies
+ * the remaining count, then drops the table as cleanup.
+ *
+ * @param conn Shared pointer to an active cpp_dbc::ColumnarDBConnection used to run the demo operations; must not be null.
+ *
+ * Note: Database errors of type `cpp_dbc::DBException` are caught inside the function and reported to stderr.
+ */
 void demonstrateScyllaDB(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
     std::cout << "\n=== ScyllaDB Basic Operations ===\n"
@@ -136,6 +148,16 @@ void demonstrateScyllaDB(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 }
 #endif
 
+/**
+ * @brief Program entry point that runs the ScyllaDB demonstration when built with ScyllaDB support.
+ *
+ * If the binary is compiled with ScyllaDB enabled, this function registers the ScyllaDB driver,
+ * establishes a connection using configured credentials, invokes the demonstration routine, and
+ * closes the connection. If ScyllaDB support is not enabled at build time, it prints an informational message.
+ * Observable errors are reported to stderr.
+ *
+ * @return int `0` on success, `1` if an exception is thrown during initialization or execution.
+ */
 int main()
 {
     try

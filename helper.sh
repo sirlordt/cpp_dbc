@@ -48,6 +48,7 @@ get_container_name() {
   return 0
 }
 
+# show_usage prints the help text describing the script's commands, available options (build/test/benchmark/dist), combo shortcuts, and example usages.
 show_usage() {
   echo "Usage: $(basename "$0") COMMAND [COMMAND...] [container_name]"
   echo "Commands:"
@@ -112,6 +113,9 @@ show_usage() {
   echo "  $(basename "$0") --run-build --vscode"
 }
 
+# cleanup_old_logs removes older `.log` files from a log directory, keeping at most the specified number of most recent logs.
+# log_path is the directory containing `.log` files to manage; required.
+# max_logs is the number of newest log files to keep (defaults to 4).
 cleanup_old_logs() {
   local log_path="$1"
   local max_logs="$2"
@@ -148,6 +152,7 @@ check_color_support() {
   fi
 }
 
+# cmd_run_build builds the project using BUILD_OPTIONS, captures terminal-friendly colored output while writing a stripped timestamped log to logs/build (rotating old logs, keeping four), and prints the executed command and log file path.
 cmd_run_build() {
 
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
@@ -292,6 +297,7 @@ cmd_run_build() {
 
 }
 
+# cmd_run_test runs the test runner (./run_test.sh) with flags derived from TEST_OPTIONS, writes a timestamped log to logs/test while keeping recent logs, preserves terminal colors but strips them from the log file, and invokes ./helper.sh --check-test-log on the generated log.
 cmd_run_test() {
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
   # Get current directory
@@ -543,7 +549,7 @@ extract_available_tests() {
   rm -f "$temp_file"
 }
 
-# Helper function to extract executed test cases from log file
+# extract_executed_tests extracts executed test tags from a test log and echoes each tag that had at least one passed or failed test.
 extract_executed_tests() {
   local log_file="$1"
   
@@ -565,7 +571,7 @@ extract_executed_tests() {
   rm -f "$temp_file"
 }
 
-# Helper function to check for test failures in log file
+# check_test_failures scans a test log for Catch2-style failure lines and echoes each failure's file:line location.
 check_test_failures() {
   local log_file="$1"
   local found_issues=0
@@ -591,7 +597,7 @@ check_test_failures() {
   return $found_issues
 }
 
-# Helper function to check for memory leaks in log file
+# check_memory_leaks inspects a Valgrind-style log file for non-zero memory leak summaries and prints any leak locations it finds; returns 0 when no leaks are detected and 1 if leaks are found.
 check_memory_leaks() {
   local log_file="$1"
   local found_issues=0
@@ -629,7 +635,7 @@ check_memory_leaks() {
   return $found_issues
 }
 
-# Helper function to check for valgrind errors in log file
+# check_valgrind_errors scans a Valgrind log file for "ERROR SUMMARY" entries, prints any summaries that report non-zero errors or contexts with file:line references, and returns 1 if any issues were found.
 check_valgrind_errors() {
   local log_file="$1"
   local found_issues=0
@@ -668,7 +674,7 @@ check_valgrind_errors() {
   return $found_issues
 }
 
-# Helper function to display test execution table
+# display_test_execution_table prints all available test cases found in the given test log and marks each entry as [Executed] or [Not Executed].
 display_test_execution_table() {
   local log_file="$1"
   
@@ -749,7 +755,7 @@ display_test_execution_table() {
   done <<< "$available_tests"
 }
 
-# Synchronize VSCode IntelliSense with last build configuration
+# cmd_vscode synchronizes VSCode IntelliSense with the last build configuration by running .vscode/sync_intellisense.sh and reports success or failure.
 cmd_vscode() {
   local current_dir=$(pwd)
   local vscode_script="${current_dir}/.vscode/sync_intellisense.sh"
@@ -775,7 +781,8 @@ cmd_vscode() {
   return 0
 }
 
-# Main function to check test logs for specific patterns
+# cmd_check_test_log checks a test log file for executed tests, test failures, memory leaks, and Valgrind errors and prints a formatted summary.
+# If no path is provided, it selects the most recent logs/test/output-*.log in the current directory; it returns 1 if the test log directory or specified file does not exist and 0 otherwise.
 cmd_check_test_log() {
   local log_file="$1"
   local current_dir=$(pwd)
@@ -848,7 +855,7 @@ cmd_check_test_log() {
   return 0
 }
 
-# Function to run benchmarks
+# cmd_run_benchmarks runs configured benchmarks, writes output to a timestamped log in logs/benchmark, supports filtering and runner flags via the BENCHMARK_OPTIONS string (including benchmark tags, database and debug options), and optionally creates a baseline when the `base-line` option is present.
 cmd_run_benchmarks() {
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
   # Get current directory
@@ -1096,6 +1103,8 @@ cmd_run_bin() {
   "$bin_path"
 }
 
+# cmd_run_build_dist builds the distribution Docker image by running ./build.dist.sh with comma-separated options taken from BUILD_DIST_OPTIONS.
+# It writes a timestamped log to logs/build_dist/, rotates old logs (keeps 4), and preserves terminal colors while stripping ANSI sequences from the saved log.
 cmd_run_build_dist() {
 
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')

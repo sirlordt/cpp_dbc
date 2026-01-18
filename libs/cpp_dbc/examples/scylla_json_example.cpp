@@ -27,6 +27,12 @@
 #include <vector>
 
 #if USE_SCYLLADB
+/**
+ * @brief Demonstrates storing and retrieving JSON payloads in ScyllaDB using the provided connection.
+ *
+ * Creates a keyspace and temporary table, inserts three example JSON values (simple object, array, nested object),
+ * selects and prints all rows, and then drops the table. Database errors are caught and reported to stderr.
+ */
 void demonstrateScyllaDBJson(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
     std::cout << "\n=== ScyllaDB JSON Operations ===\n"
@@ -92,6 +98,16 @@ void demonstrateScyllaDBJson(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn
 }
 #endif
 
+/**
+ * @brief Program entry point that runs the ScyllaDB JSON demonstration when available.
+ *
+ * When compiled with ScyllaDB support, registers the ScyllaDB driver, establishes a
+ * connection using configured credentials, invokes the JSON demonstration routine,
+ * and closes the connection. If ScyllaDB support is not enabled, prints a message
+ * indicating that the feature is unavailable.
+ *
+ * @return int 0 on success, 1 if an exception is thrown during execution.
+ */
 int main()
 {
     try

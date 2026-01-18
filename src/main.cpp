@@ -50,6 +50,13 @@ void function1()
     function2();
 }
 
+/**
+ * @brief Application entry point that demonstrates cpp_dbc features, registers available database drivers, shows JSON/YAML usage, processes command-line arguments, and prints stack traces.
+ *
+ * Performs driver registration for drivers enabled at compile time, prints available drivers and libdw support status, constructs and updates example database configurations using nlohmann::json and yaml-cpp, captures and prints sample call stacks, and lists provided command-line arguments.
+ *
+ * @return int Exit status: `0` on success.
+ */
 int main(int argc, char *argv[])
 {
     std::cout << "CPP_DBC Demo Application" << std::endl;

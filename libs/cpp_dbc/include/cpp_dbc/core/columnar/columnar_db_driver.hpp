@@ -49,11 +49,15 @@ namespace cpp_dbc
     class ColumnarDBDriver : public DBDriver
     {
     public:
-        virtual ~ColumnarDBDriver() = default;
+        /**
+ * @brief Virtual destructor to allow proper cleanup of resources in derived columnar driver implementations.
+ */
+virtual ~ColumnarDBDriver() = default;
 
         /**
-         * @brief Get the database type
-         * @return Always returns DBType::COLUMNAR
+         * @brief Identify this driver as a columnar database driver.
+         *
+         * @return DBType::COLUMNAR indicating the driver targets columnar databases.
          */
         DBType getDBType() const override
         {
@@ -79,10 +83,13 @@ namespace cpp_dbc
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
 
         /**
-         * @brief Connect to a database (base class implementation)
+         * @brief Establishes a connection to a columnar database and returns it as a DBConnection pointer.
          *
-         * This method delegates to connectColumnar() and returns the result
-         * as a DBConnection pointer.
+         * @param url Connection URI or address for the database.
+         * @param user Username for authentication.
+         * @param password Password for authentication.
+         * @param options Optional key/value connection options.
+         * @return std::shared_ptr<DBConnection> Shared pointer to the established DBConnection (owns the connection).
          */
         std::shared_ptr<DBConnection> connect(
             const std::string &url,
@@ -164,7 +171,9 @@ namespace cpp_dbc
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept = 0;
 
         /**
-         * @brief Connect to a database (base class nothrow implementation)
+         * @brief Attempt a nothrow connection to the columnar database.
+         *
+         * @returns cpp_dbc::expected holding a `std::shared_ptr<DBConnection>` on success, or an unexpected `DBException` on failure.
          */
         cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> connect(
             std::nothrow_t,

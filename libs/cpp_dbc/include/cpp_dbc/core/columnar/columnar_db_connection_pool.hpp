@@ -109,7 +109,14 @@ namespace cpp_dbc
         std::shared_ptr<ColumnarPooledDBConnection> getIdleDBConnection();
 
     protected:
-        // Sets the transaction isolation level for the pool
+        /**
+         * @brief Set the transaction isolation level used by the pool.
+         *
+         * Updates the pool's stored transaction isolation level; connections created by
+         * the pool after this call will use the specified level.
+         *
+         * @param level TransactionIsolationLevel to apply to subsequently created connections.
+         */
         void setPoolTransactionIsolation(TransactionIsolationLevel level) override
         {
             m_transactionIsolation = level;

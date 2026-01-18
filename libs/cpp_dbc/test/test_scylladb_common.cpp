@@ -23,6 +23,18 @@ namespace scylla_test_helpers
 
 #if USE_SCYLLADB
 
+    /**
+     * @brief Builds a DatabaseConfig prepopulated for ScyllaDB, optionally overridden by YAML configuration.
+     *
+     * Constructs a cpp_dbc::config::DatabaseConfig initialized with sensible ScyllaDB defaults (host, port,
+     * keyspace, username, password) and attaches test query options (create keyspace/table, insert/select/drop).
+     * If a YAML configuration is available and contains an entry matching databaseName, values and test queries
+     * from the YAML override the defaults; otherwise the function uses embedded hardcoded defaults and sets the
+     * config name to databaseName.
+     *
+     * @param databaseName Name of the database configuration to look up in the YAML (used as the DatabaseConfig name when not found).
+     * @return cpp_dbc::config::DatabaseConfig Configured DatabaseConfig containing connection parameters and test query options.
+     */
     cpp_dbc::config::DatabaseConfig getScyllaConfig(const std::string &databaseName)
     {
         cpp_dbc::config::DatabaseConfig dbConfig;
@@ -109,6 +121,15 @@ namespace scylla_test_helpers
         return dbConfig;
     }
 
+    /**
+     * @brief Attempts to create the configured ScyllaDB keyspace for tests.
+     *
+     * Registers the ScyllaDB driver, connects to the server without selecting a keyspace,
+     * executes the CREATE KEYSPACE statement obtained from the test configuration (or a built-in default),
+     * and then closes the connection.
+     *
+     * @return `true` if the create-keyspace command completed successfully or the keyspace already exists, `false` if an exception occurred.
+     */
     bool tryCreateKeyspace()
     {
         try
@@ -145,6 +166,15 @@ namespace scylla_test_helpers
         }
     }
 
+    /**
+     * @brief Verifies that a connection to the configured ScyllaDB instance can be established.
+     *
+     * This function attempts to ensure the test keyspace exists (best-effort) and then opens a
+     * connection to ScyllaDB using the configuration returned by getScyllaConfig("dev_scylla").
+     * It registers the ScyllaDB driver, attempts to obtain a connection, and closes it on success.
+     *
+     * @return `true` if a connection was successfully established and closed, `false` otherwise.
+     */
     bool canConnectToScylla()
     {
         try

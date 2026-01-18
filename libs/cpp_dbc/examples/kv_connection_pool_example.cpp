@@ -22,7 +22,17 @@
 using namespace cpp_dbc;
 using namespace cpp_dbc::Redis;
 
-// Function to test a connection from the pool
+/**
+ * @brief Performs a sequence of basic key-value operations using a connection borrowed from the pool.
+ *
+ * Borrows a KVDB connection from the provided pool, sets and reads a thread-unique string key,
+ * initializes and increments a per-thread counter five times, and deletes the test keys.
+ * The connection is returned to the pool when it goes out of scope. Catches and logs DBException
+ * internally; it does not propagate exceptions.
+ *
+ * @param pool Shared pointer to the KVDBConnectionPool to borrow a connection from.
+ * @param id   Thread identifier used to namespace test keys and log output.
+ */
 void testConnection(std::shared_ptr<KVDBConnectionPool> pool, int id)
 {
     std::cout << "Thread " << id << " getting connection from pool...\n";
@@ -69,6 +79,15 @@ void testConnection(std::shared_ptr<KVDBConnectionPool> pool, int id)
     }
 }
 
+/**
+ * @brief Example program that demonstrates creating and using a Redis KV connection pool.
+ *
+ * Creates a Redis connection pool, displays initial pool statistics, runs multiple threads
+ * that borrow connections to perform basic KV operations, waits for completion, displays
+ * final pool statistics, and then closes the pool.
+ *
+ * @return int 0 on success, non-zero on error.
+ */
 int main()
 {
     try

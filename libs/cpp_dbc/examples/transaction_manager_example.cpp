@@ -127,6 +127,16 @@ void workerThread(cpp_dbc::TransactionManager & /*txnManager*/, TaskQueue &taskQ
     }
 }
 
+/**
+ * @brief Runs a multithreaded demonstration that executes per-transaction tasks using a transaction manager and a MySQL connection pool.
+ *
+ * Sets up a database connection pool and transaction manager, launches worker threads that consume a thread-safe task queue,
+ * starts multiple transactions, enqueues per-transaction workflow tasks (database updates and final commit or rollback), waits
+ * for workers to complete, and then shuts down the transaction manager and connection pool. If compiled without MySQL support,
+ * prints a message indicating the example requires MySQL.
+ *
+ * @return int 0 on successful execution, 1 if an exception is thrown during setup or runtime.
+ */
 int main()
 {
     try

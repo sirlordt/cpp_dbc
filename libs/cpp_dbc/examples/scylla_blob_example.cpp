@@ -29,7 +29,13 @@
 
 #if USE_SCYLLADB
 
-// Helper to print binary data in hex
+/**
+ * @brief Prints binary data as a hexadecimal dump.
+ *
+ * Outputs each byte of `data` as a two-digit hex value separated by spaces, inserts a newline after every 16 bytes, and restores numeric formatting to decimal at the end.
+ *
+ * @param data Binary data to print as hex bytes.
+ */
 void printHex(const std::vector<uint8_t> &data)
 {
     for (size_t i = 0; i < data.size(); ++i)
@@ -41,6 +47,15 @@ void printHex(const std::vector<uint8_t> &data)
     std::cout << std::dec << std::endl;
 }
 
+/**
+ * @brief Demonstrates inserting, retrieving, and verifying a BLOB in ScyllaDB.
+ *
+ * Sets up a test keyspace and table, inserts a sample binary vector as a BLOB,
+ * reads the row back, compares the retrieved bytes with the original, and
+ * cleans up by dropping the table. Progress, the hex dump of the data, and
+ * verification results are written to standard output; errors are reported to
+ * standard error.
+ */
 void demonstrateScyllaDBBlob(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
     std::cout << "\n=== ScyllaDB BLOB Operations ===\n"
@@ -110,6 +125,16 @@ void demonstrateScyllaDBBlob(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn
 }
 #endif
 
+/**
+ * @brief Program entry point that demonstrates ScyllaDB BLOB operations when enabled.
+ *
+ * When compiled with USE_SCYLLADB defined, registers the ScyllaDB driver, connects to a
+ * ScyllaDB instance using a fixed connection string and credentials, runs the BLOB demonstration,
+ * and closes the connection. When USE_SCYLLADB is not defined, prints a message indicating that
+ * ScyllaDB support is not enabled.
+ *
+ * @return int 0 on success, 1 if an exception is caught.
+ */
 int main()
 {
     try

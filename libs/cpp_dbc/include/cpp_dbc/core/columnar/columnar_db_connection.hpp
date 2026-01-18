@@ -45,7 +45,10 @@ namespace cpp_dbc
     class ColumnarDBConnection : public DBConnection
     {
     public:
-        virtual ~ColumnarDBConnection() = default;
+        /**
+ * @brief Ensures derived ColumnarDBConnection objects are destroyed correctly through base pointers.
+ */
+virtual ~ColumnarDBConnection() = default;
 
         // SQL/CQL execution
         /**

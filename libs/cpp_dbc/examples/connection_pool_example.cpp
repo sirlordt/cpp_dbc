@@ -88,6 +88,17 @@ void performDatabaseOperation(cpp_dbc::RelationalDBConnectionPool &pool, int thr
     }
 }
 
+/**
+ * @brief Demonstrates creating and using relational connection pools with concurrent worker threads.
+ *
+ * Configures and creates MySQL and PostgreSQL connection pools when their support is enabled,
+ * launches multiple threads that obtain connections from the pools to run example queries,
+ * prints pool statistics, and closes the pools. Exceptions of type `cpp_dbc::DBException`
+ * and `std::exception` are caught, reported to stderr, and cause the program to exit with a
+ * non-zero status.
+ *
+ * @return int `0` on successful completion; `1` if a caught exception caused early termination.
+ */
 int main()
 {
     // Seed the random number generator

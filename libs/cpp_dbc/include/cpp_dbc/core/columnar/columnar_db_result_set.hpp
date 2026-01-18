@@ -47,7 +47,13 @@ namespace cpp_dbc
     class ColumnarDBResultSet : public DBResultSet
     {
     public:
-        virtual ~ColumnarDBResultSet() = default;
+        /**
+ * @brief Virtual destructor.
+ *
+ * Ensures derived ColumnarDBResultSet implementations are destroyed correctly and
+ * can release any owned resources.
+ */
+virtual ~ColumnarDBResultSet() = default;
 
         // Row navigation
         /**

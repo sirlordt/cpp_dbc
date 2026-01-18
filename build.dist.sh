@@ -379,7 +379,9 @@ LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libcassandra.so.2"]="libcassandra2"
 LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libuv.so.1"]="libuv1"
 LIB_TO_PKG_MAP["/lib/x86_64-linux-gnu/libhiredis.so.1.1.0"]="libhiredis1.1.0"
 
-# Function to add a package to our list
+# add_package adds a Debian package name to PACKAGES and records its installed version in CONTAINER_DEPS.
+# It echoes when a package is added and prints a warning if the package version cannot be determined.
+# @param pkg The Debian package name to add.
 add_package() {
     local pkg="$1"
     

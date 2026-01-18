@@ -72,7 +72,7 @@ else
     TIMESTAMP="$VERSION"
 fi
 
-# Function to get package dependencies for a distro
+# get_distro_packages sets shell variables naming development packages (e.g., MYSQL_DEV_PKG, POSTGRESQL_DEV_PKG, SQLITE_DEV_PKG, FIREBIRD_DEV_PKG, MONGODB_DEV_PKG, SCYLLA_DEV_PKG, REDIS_DEV_PKG, LIBDW_DEV_PKG) appropriate for the given distro identifier (for example `debian:12`, `ubuntu:24.04`, `fedora:42`). It echoes an error and invokes show_usage for unsupported distributions.
 function get_distro_packages() {
     local distro=$1
     
