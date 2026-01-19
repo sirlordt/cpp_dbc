@@ -33,7 +33,7 @@ namespace cpp_dbc
     {
     private:
         const std::vector<uint8_t> &m_data;
-        size_t m_position;
+        size_t m_position{0};
 
     public:
         explicit MemoryInputStream(const std::vector<uint8_t> &data)
@@ -66,7 +66,7 @@ namespace cpp_dbc
     {
     private:
         std::vector<uint8_t> &m_data;
-        size_t m_position;
+        size_t m_position{0};
 
     public:
         MemoryOutputStream(std::vector<uint8_t> &data, size_t position)

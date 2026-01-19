@@ -1,6 +1,51 @@
 # Changelog
 
-## 18/01/2026 22:33:51 [Current]
+## 2026-01-18 23:26:52 [Current]
+
+### Connection Pool Race Condition Fix and Code Quality Improvements
+* Fixed connection pool race condition in all database types (relational, document, columnar, key-value):
+  * **Race Condition Fix:**
+    * Added pool size recheck under lock to prevent exceeding `m_maxSize` under concurrent creation
+    * New connections are now created as candidates and only registered if pool hasn't filled
+    * Unregistered candidate connections are properly closed to prevent resource leaks
+  * **Improved Return Connection Logic:**
+    * Added null check to prevent crash when returning null connections
+    * Added proper connection cleanup when pool is shutting down
+    * Added `m_maintenanceCondition.notify_one()` after returning connections
+  * **Enhanced Idle Connection Handling:**
+    * Improved `getIdleDBConnection()` with better error handling
+    * Added try-catch around new connection creation in replacement logic
+* Fixed MongoDB stub driver (when `USE_MONGODB=OFF`):
+  * Uncommented disabled stub implementation code
+  * Updated exception marks from text-based (`MONGODB_DISABLED`) to UUID-style marks
+* Fixed other driver stub exception marks:
+  * MySQL: `MYSQL_DISABLED` → UUID marks (`4FE1EBBEA99F`, `23D2107DA64F`)
+  * PostgreSQL: `PGSQL_DISABLED` → UUID marks (`3FE734D0BDE9`, `E39F6F23D06B`)
+  * ScyllaDB: `SCYLLA_DISABLED` → `SCYLLADB_DISABLED` for consistency
+* Fixed variable initialization in `blob.hpp`:
+  * `MemoryInputStream::m_position` now initialized to 0 at declaration
+  * `MemoryOutputStream::m_position` now initialized to 0 at declaration
+* Fixed remaining ScyllaDB variable naming in `build_dist_pkg.sh`:
+  * `SCYLLA_DEV_PKG` → `SCYLLADB_DEV_PKG` for both Debian and Fedora packages
+
+## 2026-01-18 22:49:41
+
+### ScyllaDB Native DATE Type Support Fix
+* Fixed ScyllaDB driver to properly handle native Cassandra DATE type:
+  * **Reading DATE values (`getString`):**
+    * Added support for `CASS_VALUE_TYPE_DATE` (uint32 - days since epoch with 2^31 bias)
+    * Correctly converts Cassandra DATE format to ISO date string (YYYY-MM-DD)
+    * Uses `cass_value_get_uint32` instead of treating as timestamp
+  * **Writing DATE values (`setDate`):**
+    * Changed from `cass_statement_bind_int64` (timestamp) to `cass_statement_bind_uint32` (date)
+    * Uses `cass_date_from_epoch` to convert epoch seconds to Cassandra DATE format
+    * Uses `timegm` for proper UTC timezone handling (with Windows `_mkgmtime` fallback)
+  * **Technical Details:**
+    * Cassandra DATE is stored as: `days_since_epoch + 2^31` (bias offset)
+    * Previous implementation incorrectly used TIMESTAMP type (milliseconds since epoch)
+    * Now properly distinguishes between DATE (uint32) and TIMESTAMP (int64) types
+
+## 2026-01-18 22:33:51
 
 ### Connection Pool Deadlock Prevention and ScyllaDB Naming Consistency Fixes
 * Fixed potential deadlock in all connection pool implementations:

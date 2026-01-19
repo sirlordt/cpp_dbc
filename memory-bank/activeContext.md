@@ -37,7 +37,29 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Connection Pool Deadlock Prevention and ScyllaDB Naming Consistency Fixes** (18/01/2026 22:33:51):
+1. **Connection Pool Race Condition Fix and Code Quality Improvements** (2026-01-18 23:26:52):
+   - Fixed connection pool race condition in all database types:
+     - Added pool size recheck under lock to prevent exceeding `m_maxSize` under concurrent creation
+     - New connections are created as candidates and only registered if pool hasn't filled
+     - Unregistered candidate connections are properly closed to prevent resource leaks
+   - Improved return connection logic with null checks and proper cleanup on shutdown
+   - Fixed MongoDB stub driver (uncommented disabled code, updated exception marks)
+   - Fixed driver stub exception marks to use UUID-style marks for consistency
+   - Fixed `blob.hpp` variable initialization (`m_position` now initialized at declaration)
+   - Fixed remaining ScyllaDB variable naming (`SCYLLA_DEV_PKG` → `SCYLLADB_DEV_PKG`)
+
+2. **ScyllaDB Native DATE Type Support Fix** (2026-01-18 22:49:41):
+   - Fixed ScyllaDB driver to properly handle native Cassandra DATE type:
+     - **Reading DATE values (`getString`):**
+       - Added support for `CASS_VALUE_TYPE_DATE` (uint32 - days since epoch with 2^31 bias)
+       - Correctly converts Cassandra DATE format to ISO date string (YYYY-MM-DD)
+       - Uses `cass_value_get_uint32` instead of treating as timestamp
+     - **Writing DATE values (`setDate`):**
+       - Changed from `cass_statement_bind_int64` (timestamp) to `cass_statement_bind_uint32` (date)
+       - Uses `cass_date_from_epoch` to convert epoch seconds to Cassandra DATE format
+       - Uses `timegm` for proper UTC timezone handling (with Windows `_mkgmtime` fallback)
+
+2. **Connection Pool Deadlock Prevention and ScyllaDB Naming Consistency Fixes** (18/01/2026 22:33:51):
    - Fixed potential deadlock in all connection pool implementations:
      - **Deadlock Prevention:**
        - Changed from sequential `std::lock_guard` calls to `std::scoped_lock` for consistent lock ordering

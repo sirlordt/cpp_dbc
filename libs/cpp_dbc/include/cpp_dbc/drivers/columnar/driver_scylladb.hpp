@@ -434,19 +434,19 @@ namespace cpp_dbc
             }
             int getDefaultPort() const override { return 9042; }
             std::string getURIScheme() const override { return "scylladb"; }
-            std::map<std::string, std::string> parseURI(const std::string &) override { throw DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled"); }
-            std::string buildURI(const std::string &, int, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override { throw DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled"); }
+            std::map<std::string, std::string> parseURI(const std::string &) override { throw DBException("SCYLLADB_DISABLED", "ScyllaDB support is not enabled"); }
+            std::string buildURI(const std::string &, int, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override { throw DBException("SCYLLADB_DISABLED", "ScyllaDB support is not enabled"); }
             bool supportsClustering() const override { return false; }
             bool supportsAsync() const override { return false; }
             std::string getDriverVersion() const override { return "0.0.0"; }
 
             cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> connectColumnar(std::nothrow_t, const std::string &, const std::string &, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) noexcept override
             {
-                return cpp_dbc::unexpected(DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled"));
+                return cpp_dbc::unexpected(DBException("SCYLLADB_DISABLED", "ScyllaDB support is not enabled"));
             }
             cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(std::nothrow_t, const std::string &) noexcept override
             {
-                return cpp_dbc::unexpected(DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled"));
+                return cpp_dbc::unexpected(DBException("SCYLLADB_DISABLED", "ScyllaDB support is not enabled"));
             }
             bool acceptsURL(const std::string &) override { return false; }
             std::string getName() const noexcept override { return "scylladb"; }

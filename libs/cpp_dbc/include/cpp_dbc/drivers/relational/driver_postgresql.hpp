@@ -389,7 +389,7 @@ namespace cpp_dbc
         public:
             PostgreSQLDBDriver()
             {
-                throw DBException("PGSQL_DISABLED", "PostgreSQL support is not enabled in this build");
+                throw DBException("3FE734D0BDE9", "PostgreSQL support is not enabled in this build");
             }
             ~PostgreSQLDBDriver() override = default;
 
@@ -398,7 +398,7 @@ namespace cpp_dbc
                                                                       const std::string &,
                                                                       const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
             {
-                throw DBException("PGSQL_DISABLED", "PostgreSQL support is not enabled in this build");
+                throw DBException("E39F6F23D06B", "PostgreSQL support is not enabled in this build");
             }
 
             bool acceptsURL(const std::string &) override

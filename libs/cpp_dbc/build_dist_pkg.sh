@@ -83,7 +83,7 @@ function get_distro_packages() {
             SQLITE_DEV_PKG="libsqlite3-dev"
             FIREBIRD_DEV_PKG="firebird-dev"
             MONGODB_DEV_PKG="libmongoc-dev"
-            SCYLLA_DEV_PKG="libuv1-dev libssl-dev zlib1g-dev"
+            SCYLLADB_DEV_PKG="libuv1-dev libssl-dev zlib1g-dev"
             REDIS_DEV_PKG="libhiredis-dev"
             LIBDW_DEV_PKG="libdw-dev"
             ;;
@@ -93,7 +93,7 @@ function get_distro_packages() {
             SQLITE_DEV_PKG="sqlite-devel"
             FIREBIRD_DEV_PKG="firebird-devel"
             MONGODB_DEV_PKG="mongo-c-driver-devel"
-            SCYLLA_DEV_PKG="libuv-devel openssl-devel zlib-devel"
+            SCYLLADB_DEV_PKG="libuv-devel openssl-devel zlib-devel"
             REDIS_DEV_PKG="hiredis-devel"
             LIBDW_DEV_PKG="elfutils-devel"
             ;;
@@ -336,7 +336,7 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__SQLITE_DEV_PKG__/$SQLITE_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__FIREBIRD_DEV_PKG__/$FIREBIRD_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__MONGODB_DEV_PKG__/$MONGODB_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
-    sed -i "s/__SCYLLA_DEV_PKG__/$SCYLLA_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
+    sed -i "s/__SCYLLADB_DEV_PKG__/$SCYLLADB_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__REDIS_DEV_PKG__/$REDIS_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__LIBDW_DEV_PKG__/$LIBDW_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     

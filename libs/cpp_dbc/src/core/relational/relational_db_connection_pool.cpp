@@ -106,9 +106,9 @@ namespace cpp_dbc
                 auto pooledConn = createPooledDBConnection();
 
                 // Add to idle connections and all connections lists under proper locks
+                // Use scoped_lock for consistent lock ordering to prevent deadlock
                 {
-                    std::lock_guard<std::mutex> lockIdle(m_mutexIdleConnections);
-                    std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
+                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
                     m_idleConnections.push(pooledConn);
                     m_allConnections.push_back(pooledConn);
                 }
@@ -301,17 +301,14 @@ namespace cpp_dbc
             // Replace invalid connection with a new one
             try
             {
+                // Use scoped_lock for consistent lock ordering to prevent deadlock
                 {
-                    std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
+                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
                     auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
                     if (it != m_allConnections.end())
                     {
                         *it = createPooledDBConnection();
-
-                        {
-                            std::lock_guard<std::mutex> lockIdle(m_mutexIdleConnections);
-                            m_idleConnections.push(*it);
-                        }
+                        m_idleConnections.push(*it);
                     }
                 }
                 m_activeConnections--;
@@ -403,15 +400,26 @@ namespace cpp_dbc
         }
         if (result == nullptr && currentSize < m_maxSize)
         {
-            result = createPooledDBConnection();
+            auto candidate = createPooledDBConnection();
 
             {
                 std::lock_guard<std::mutex> lock_all(m_mutexAllConnections);
-                m_allConnections.push_back(result);
+                // Recheck size under lock to prevent exceeding m_maxSize under concurrent creation
+                if (m_allConnections.size() < m_maxSize)
+                {
+                    m_allConnections.push_back(candidate);
+                    result = candidate;
+                }
+            }
+
+            // If we couldn't register the connection (pool became full), close it
+            if (result == nullptr && candidate && candidate->getUnderlyingRelationalConnection())
+            {
+                candidate->getUnderlyingRelationalConnection()->close();
             }
         }
         // If no connection available, wait until one becomes available
-        else if (result == nullptr)
+        if (result == nullptr)
         {
             auto waitStart = std::chrono::steady_clock::now();
 
@@ -606,8 +614,8 @@ namespace cpp_dbc
         }
 
         // Close all connections
-        std::lock_guard<std::mutex> lockAllConnections(m_mutexAllConnections);
-        std::lock_guard<std::mutex> lockIdleConnections(m_mutexIdleConnections);
+        // Use scoped_lock for consistent lock ordering to prevent deadlock
+        std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
 
         for (size_t i = 0; i < m_allConnections.size(); ++i)
         {

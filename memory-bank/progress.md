@@ -295,7 +295,20 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **Connection Pool Deadlock Prevention and ScyllaDB Naming Consistency Fixes** (18/01/2026 22:33:51):
+1. **Connection Pool Race Condition Fix and Code Quality Improvements** (2026-01-18 23:26:52):
+   - Fixed connection pool race condition in all database types (relational, document, columnar, key-value)
+   - Added pool size recheck under lock to prevent exceeding `m_maxSize` under concurrent creation
+   - Improved return connection logic with null checks and proper cleanup
+   - Fixed MongoDB stub driver and driver exception marks to use UUID-style marks
+   - Fixed `blob.hpp` variable initialization and ScyllaDB variable naming
+
+2. **ScyllaDB Native DATE Type Support Fix** (2026-01-18 22:49:41):
+   - Fixed ScyllaDB driver to properly handle native Cassandra DATE type:
+     - **Reading DATE values:** Added `CASS_VALUE_TYPE_DATE` support with proper uint32 conversion
+     - **Writing DATE values:** Changed from int64 (timestamp) to uint32 (date) binding
+     - **Technical:** Uses `cass_date_from_epoch` and `timegm` for correct UTC handling
+
+3. **Connection Pool Deadlock Prevention and ScyllaDB Naming Consistency Fixes** (2026-01-18 22:33:51):
    - Fixed potential deadlock in all connection pool implementations:
      - **Deadlock Prevention:**
        - Changed from sequential `std::lock_guard` calls to `std::scoped_lock` for consistent lock ordering

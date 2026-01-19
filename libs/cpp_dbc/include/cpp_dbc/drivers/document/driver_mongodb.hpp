@@ -1258,29 +1258,27 @@ namespace cpp_dbc
             std::string getName() const noexcept override;
         };
 
-        //    } // namespace MongoDB
-        //} // namespace cpp_dbc
+    } // namespace MongoDB
+} // namespace cpp_dbc
 
-        /*
-        #else // USE_MONGODB
+#else // USE_MONGODB
 
-        // Stub implementations when MongoDB is disabled
-        namespace cpp_dbc
-        {
-            namespace MongoDB
-            {
-                / * *
-                 * @brief Stub MongoDB driver when MongoDB support is disabled
-                 *
-                 * This class throws an exception on any operation, indicating that
-                 * MongoDB support was not compiled into the library.
-                 *  /
+// Stub implementations when MongoDB is disabled
+namespace cpp_dbc
+{
+    namespace MongoDB
+    {
+        /**
+         * @brief Stub MongoDB driver when MongoDB support is disabled
+         * This class throws an exception on any operation, indicating that
+         * MongoDB support was not compiled into the library.*
+         */
         class MongoDBDriver : public DocumentDBDriver
         {
         public:
             MongoDBDriver()
             {
-                throw DBException("MONGODB_DISABLED", "MongoDB support is not enabled in this build");
+                throw DBException("F3E813E10E8C", "MongoDB support is not enabled in this build");
             }
 
             ~MongoDBDriver() override = default;
@@ -1291,7 +1289,7 @@ namespace cpp_dbc
                 const std::string &,
                 const std::map<std::string, std::string> & = {}) override
             {
-                throw DBException("MONGODB_DISABLED", "MongoDB support is not enabled in this build");
+                throw DBException("AC208113FF23", "MongoDB support is not enabled in this build");
             }
 
             bool acceptsURL(const std::string &) override
@@ -1305,7 +1303,7 @@ namespace cpp_dbc
                 const std::string &,
                 const std::map<std::string, std::string> & = {}) override
             {
-                throw DBException("MONGODB_DISABLED", "MongoDB support is not enabled in this build");
+                throw DBException("2CC107C18A39", "MongoDB support is not enabled in this build");
             }
 
             int getDefaultPort() const override
@@ -1320,7 +1318,7 @@ namespace cpp_dbc
 
             std::map<std::string, std::string> parseURI(const std::string &) override
             {
-                throw DBException("MONGODB_DISABLED", "MongoDB support is not enabled in this build");
+                throw DBException("1BB61E9DD031", "MongoDB support is not enabled in this build");
             }
 
             std::string buildURI(
@@ -1329,7 +1327,7 @@ namespace cpp_dbc
                 const std::string &,
                 const std::map<std::string, std::string> & = {}) override
             {
-                throw DBException("MONGODB_DISABLED", "MongoDB support is not enabled in this build");
+                throw DBException("11202995FCE7", "MongoDB support is not enabled in this build");
             }
 
             bool supportsReplicaSets() const override
@@ -1349,7 +1347,6 @@ namespace cpp_dbc
 
             std::string getName() const noexcept override;
         };
-        */
 
     } // namespace MongoDB
 
