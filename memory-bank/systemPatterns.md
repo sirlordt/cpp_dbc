@@ -138,6 +138,10 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Pool sets `m_poolAlive` to `false` in `close()` before cleanup
   - Prevents use-after-free when pool is destroyed while connections are in use
   - Graceful handling of connection return when pool is already closed
+- Deadlock prevention with `std::scoped_lock`:
+  - All connection pool implementations use `std::scoped_lock` for consistent lock ordering
+  - Prevents deadlock when acquiring multiple mutexes (`m_mutexAllConnections` and `m_mutexIdleConnections`)
+  - Applied to all database types: relational, document, columnar, and key-value pools
 
 ### Connection Pooling (continued)
 - Connection pool implementations for different database types:

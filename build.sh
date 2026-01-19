@@ -135,6 +135,7 @@ do
         DEBUG_SQLITE=ON
         DEBUG_FIREBIRD=ON
         DEBUG_MONGODB=ON
+        DEBUG_SCYLLADB=ON
         DEBUG_REDIS=ON
         DEBUG_ALL=ON
         ;;

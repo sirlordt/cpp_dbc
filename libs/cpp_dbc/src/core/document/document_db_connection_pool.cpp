@@ -266,6 +266,9 @@ namespace cpp_dbc
 
     std::shared_ptr<DocumentPooledDBConnection> DocumentDBConnectionPool::getIdleDBConnection()
     {
+        // Lock both mutexes in consistent order to prevent deadlock
+        std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+
         if (!m_idleConnections.empty())
         {
             auto conn = m_idleConnections.front();
@@ -283,8 +286,10 @@ namespace cpp_dbc
                         m_allConnections.erase(it);
                     }
 
-                    // Create new connection
-                    return createPooledDBConnection();
+                    // Create new connection and register it
+                    auto newConn = createPooledDBConnection();
+                    m_allConnections.push_back(newConn);
+                    return newConn;
                 }
             }
 
@@ -297,7 +302,7 @@ namespace cpp_dbc
         }
 
         return nullptr;
-    };
+    }
 
     std::shared_ptr<DBConnection> DocumentDBConnectionPool::getDBConnection()
     {
@@ -316,7 +321,12 @@ namespace cpp_dbc
         std::shared_ptr<DocumentPooledDBConnection> result = this->getIdleDBConnection();
 
         // If no connection available, check if we can create a new one
-        if (result == nullptr && m_allConnections.size() < m_maxSize)
+        size_t currentSize;
+        {
+            std::lock_guard<std::mutex> lock_all(m_mutexAllConnections);
+            currentSize = m_allConnections.size();
+        }
+        if (result == nullptr && currentSize < m_maxSize)
         {
             result = createPooledDBConnection();
 
@@ -378,8 +388,8 @@ namespace cpp_dbc
             auto now = std::chrono::steady_clock::now();
 
             // Ensure no body touch the allConnections and idleConnections variables when is used by this thread
-            std::lock_guard<std::mutex> lockAllConnections(m_mutexAllConnections);
-            std::lock_guard<std::mutex> lockIdleConnectons(m_mutexIdleConnections);
+            // Use scoped_lock for consistent lock ordering to prevent deadlock
+            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
 
             // Check all connections for expired ones
             for (auto it = m_allConnections.begin(); it != m_allConnections.end();)

@@ -158,13 +158,13 @@ Source: cpp-dbc-dev
 Section: libs
 Priority: optional
 Maintainer: Tomas R Moreno P <tomasr.morenop@gmail.com>
-Build-Depends: debhelper (>= 10), cmake, g++__MYSQL_CONTROL_DEP____POSTGRESQL_CONTROL_DEP____SQLITE_CONTROL_DEP____FIREBIRD_CONTROL_DEP____MONGODB_CONTROL_DEP____SCYLLA_CONTROL_DEP____LIBDW_CONTROL_DEP__
+Build-Depends: debhelper (>= 10), cmake, g++__MYSQL_CONTROL_DEP____POSTGRESQL_CONTROL_DEP____SQLITE_CONTROL_DEP____FIREBIRD_CONTROL_DEP____MONGODB_CONTROL_DEP____SCYLLADB_CONTROL_DEP____REDIS_CONTROL_DEP____LIBDW_CONTROL_DEP__
 Standards-Version: 4.5.0
 Homepage: https://github.com/sirlordt/cpp_dbc
 
 Package: cpp-dbc-dev
 Architecture: amd64
-Depends: \${shlibs:Depends}, \${misc:Depends}__MYSQL_CONTROL_DEP____POSTGRESQL_CONTROL_DEP____SQLITE_CONTROL_DEP____FIREBIRD_CONTROL_DEP____MONGODB_CONTROL_DEP____SCYLLA_CONTROL_DEP____LIBDW_CONTROL_DEP__
+Depends: \${shlibs:Depends}, \${misc:Depends}__MYSQL_CONTROL_DEP____POSTGRESQL_CONTROL_DEP____SQLITE_CONTROL_DEP____FIREBIRD_CONTROL_DEP____MONGODB_CONTROL_DEP____SCYLLADB_CONTROL_DEP____REDIS_CONTROL_DEP____LIBDW_CONTROL_DEP__
 Description: C++ Database Connectivity Library - Development files
  A C++ library for database connectivity inspired by JDBC.
  .

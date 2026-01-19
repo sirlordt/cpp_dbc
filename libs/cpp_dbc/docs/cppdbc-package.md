@@ -304,7 +304,7 @@ cmake --build .
       - Comprehensive example in `document_connection_pool_example.cpp`
       - Thorough test coverage in `test_mongodb_connection_pool.cpp`
       - Performance testing in MongoDB benchmarks
-19. MongoDB benchmark support for select, insert, update, and delete operations with detailed performance metrics:
+20. MongoDB benchmark support for select, insert, update, and delete operations with detailed performance metrics:
     - Document insert benchmarks (single and batch operations)
     - Document query benchmarks with different filter complexities
     - Document update benchmarks with various update operators
@@ -312,7 +312,7 @@ cmake --build .
     - Memory usage tracking for MongoDB operations
     - Performance comparison against baseline measurements
     - Support for different document sizes and collection scales
-20. Extensive testing suite for MongoDB including:
+21. Extensive testing suite for MongoDB including:
     - JSON operations (basic, nested, arrays)
     - JSON query operators ($eq, $gt, $lt, etc.)
     - JSON updates and modifications
@@ -320,7 +320,7 @@ cmake --build .
     - Thread safety with multiple connections
     - Thread safety with shared connection
     - Join operations using MongoDB aggregation pipeline
-20. Memory usage tracking for all database operations in benchmarks
+22. Memory usage tracking for all database operations in benchmarks
 
 ### Code Quality Features
 

@@ -153,7 +153,7 @@ POSTGRESQL_CONTROL_DEP=""
 SQLITE_CONTROL_DEP=""
 FIREBIRD_CONTROL_DEP=""
 MONGODB_CONTROL_DEP=""
-SCYLLA_CONTROL_DEP=""
+SCYLLADB_CONTROL_DEP=""
 REDIS_CONTROL_DEP=""
 LIBDW_CONTROL_DEP=""
 USE_MYSQL="OFF"
@@ -232,8 +232,8 @@ for option in "${OPTIONS[@]}"; do
             ;;
         scylla)
             CMAKE_SCYLLA_OPTION="-DCPP_DBC_WITH_SCYLLADB=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SCYLLA_DEV_PKG"
-            SCYLLA_CONTROL_DEP=", $SCYLLA_DEV_PKG"
+            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SCYLLADB_DEV_PKG"
+            SCYLLADB_CONTROL_DEP=", $SCYLLADB_DEV_PKG"
             USE_SCYLLADB="ON"
             BUILD_FLAGS="$BUILD_FLAGS --scylladb"
             ;;
@@ -336,6 +336,8 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__SQLITE_DEV_PKG__/$SQLITE_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__FIREBIRD_DEV_PKG__/$FIREBIRD_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__MONGODB_DEV_PKG__/$MONGODB_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
+    sed -i "s/__SCYLLA_DEV_PKG__/$SCYLLA_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
+    sed -i "s/__REDIS_DEV_PKG__/$REDIS_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__LIBDW_DEV_PKG__/$LIBDW_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     
     # Replace placeholders in build script
@@ -354,7 +356,8 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__SQLITE_CONTROL_DEP__/$SQLITE_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__FIREBIRD_CONTROL_DEP__/$FIREBIRD_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__MONGODB_CONTROL_DEP__/$MONGODB_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
-    sed -i "s/__SCYLLA_CONTROL_DEP__/$SCYLLA_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__SCYLLADB_CONTROL_DEP__/$SCYLLADB_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__REDIS_CONTROL_DEP__/$REDIS_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__LIBDW_CONTROL_DEP__/$LIBDW_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_MYSQL__/$USE_MYSQL/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_POSTGRESQL__/$USE_POSTGRESQL/g" "$TEMP_BUILD_DIR/build_script.sh"

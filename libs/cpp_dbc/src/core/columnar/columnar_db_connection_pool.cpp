@@ -313,7 +313,9 @@ namespace cpp_dbc
 
     std::shared_ptr<ColumnarPooledDBConnection> ColumnarDBConnectionPool::getIdleDBConnection()
     {
-        std::lock_guard<std::mutex> lock(m_mutexIdleConnections);
+        // Lock both mutexes in consistent order to prevent deadlocks
+        // Always lock m_mutexAllConnections first, then m_mutexIdleConnections
+        std::scoped_lock lock(m_mutexAllConnections, m_mutexIdleConnections);
 
         if (!m_idleConnections.empty())
         {
@@ -326,7 +328,6 @@ namespace cpp_dbc
                 if (!validateConnection(conn->getUnderlyingColumnarConnection()))
                 {
                     // Remove from allConnections
-                    std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
                     auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
                     if (it != m_allConnections.end())
                     {
@@ -338,7 +339,10 @@ namespace cpp_dbc
                     {
                         try
                         {
-                            return createPooledDBConnection();
+                            auto newConn = createPooledDBConnection();
+                            // Register the replacement connection in m_allConnections
+                            m_allConnections.push_back(newConn);
+                            return newConn;
                         }
                         catch (const std::exception &)
                         {
@@ -378,42 +382,51 @@ namespace cpp_dbc
         std::shared_ptr<ColumnarPooledDBConnection> result = this->getIdleDBConnection();
 
         // If no connection available, check if we can create a new one
-        if (result == nullptr && m_allConnections.size() < m_maxSize)
+        if (result == nullptr)
         {
-            result = createPooledDBConnection();
-
+            bool canCreateNew = false;
             {
                 std::lock_guard<std::mutex> lock_all(m_mutexAllConnections);
-                m_allConnections.push_back(result);
+                canCreateNew = m_allConnections.size() < m_maxSize;
             }
-        }
-        // If no connection available, wait until one becomes available
-        else if (result == nullptr)
-        {
-            auto waitStart = std::chrono::steady_clock::now();
 
-            // Wait until a connection is returned to the pool or timeout
-            do
+            if (canCreateNew)
             {
-                auto now = std::chrono::steady_clock::now();
+                result = createPooledDBConnection();
 
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-                auto waitedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - waitStart).count();
-
-                if (waitedMs >= m_maxWaitMillis)
                 {
-                    throw DBException("99E01137B87B", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
+                    std::lock_guard<std::mutex> lock_all(m_mutexAllConnections);
+                    m_allConnections.push_back(result);
                 }
+            }
+            // If no connection available, wait until one becomes available
+            else
+            {
+                auto waitStart = std::chrono::steady_clock::now();
 
-                if (!m_running.load())
+                // Wait until a connection is returned to the pool or timeout
+                do
                 {
-                    throw DBException("69677B95E2B2", "Connection pool is closed", system_utils::captureCallStack());
-                }
+                    auto now = std::chrono::steady_clock::now();
 
-                result = this->getIdleDBConnection();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-            } while (result == nullptr);
+                    auto waitedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - waitStart).count();
+
+                    if (waitedMs >= m_maxWaitMillis)
+                    {
+                        throw DBException("99E01137B87B", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
+                    }
+
+                    if (!m_running.load())
+                    {
+                        throw DBException("69677B95E2B2", "Connection pool is closed", system_utils::captureCallStack());
+                    }
+
+                    result = this->getIdleDBConnection();
+
+                } while (result == nullptr);
+            }
         }
 
         // Mark as active and reset closed flag (connection is being reused)
@@ -440,9 +453,9 @@ namespace cpp_dbc
 
             auto now = std::chrono::steady_clock::now();
 
-            // Ensure no body touch the allConnections and idleConnections variables when is used by this thread
-            std::lock_guard<std::mutex> lockAllConnections(m_mutexAllConnections);
-            std::lock_guard<std::mutex> lockIdleConnectons(m_mutexIdleConnections);
+            // Lock both mutexes in consistent order to prevent deadlocks
+            // Always lock m_mutexAllConnections first, then m_mutexIdleConnections
+            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
 
             // Check all connections for expired ones
             for (auto it = m_allConnections.begin(); it != m_allConnections.end();)

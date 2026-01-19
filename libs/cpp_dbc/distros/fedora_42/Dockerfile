@@ -24,7 +24,7 @@ RUN dnf -y install \
     __POSTGRESQL_DEV_PKG__ \
     __FIREBIRD_DEV_PKG__ \
     __MONGODB_DEV_PKG__ \
-    __SCYLLA_DEV_PKG__ \
+    __SCYLLADB_DEV_PKG__ \
     __REDIS_DEV_PKG__ \
     __LIBDW_DEV_PKG__
 

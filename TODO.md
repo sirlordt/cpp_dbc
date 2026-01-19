@@ -4,7 +4,7 @@
 
 - NEW FEATURE: Add more examples.
 - NEW FEATURE: Add more debug messages?
-- PLANNED: Start to using in real proyect and test how ease is integrate in third party project. Maybe write a INTERGRATION.md to explain how full integrate in a real project.
+- PLANNED: Start to using in real project and test how easy is integrate in third party project. Maybe write an INTEGRATION.md to explain how full integrate in a real project.
 - PLANNED: More db drivers
    - SQLServer/SysBase?
    - Oracle?

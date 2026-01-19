@@ -421,16 +421,16 @@ namespace cpp_dbc
 
 namespace cpp_dbc
 {
-    namespace Scylla
+    namespace ScyllaDB
     {
         class ScyllaDBDriver : public ColumnarDBDriver
         {
         public:
-            ScyllaDBDriver() { throw DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled in this build"); }
+            ScyllaDBDriver() { throw DBException("5F7826C0D4F2", "ScyllaDB support is not enabled in this build"); }
 
             std::shared_ptr<ColumnarDBConnection> connectColumnar(const std::string &, const std::string &, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
             {
-                throw DBException("SCYLLA_DISABLED", "ScyllaDB support is not enabled in this build");
+                throw DBException("C0414E6FE88D", "ScyllaDB support is not enabled in this build");
             }
             int getDefaultPort() const override { return 9042; }
             std::string getURIScheme() const override { return "scylladb"; }
