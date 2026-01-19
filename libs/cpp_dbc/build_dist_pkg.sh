@@ -83,7 +83,7 @@ function get_distro_packages() {
             SQLITE_DEV_PKG="libsqlite3-dev"
             FIREBIRD_DEV_PKG="firebird-dev"
             MONGODB_DEV_PKG="libmongoc-dev"
-            SCYLLA_DEV_PKG="libuv1-dev libssl-dev zlib1g-dev"
+            SCYLLADB_DEV_PKG="libuv1-dev libssl-dev zlib1g-dev"
             REDIS_DEV_PKG="libhiredis-dev"
             LIBDW_DEV_PKG="libdw-dev"
             ;;
@@ -93,7 +93,7 @@ function get_distro_packages() {
             SQLITE_DEV_PKG="sqlite-devel"
             FIREBIRD_DEV_PKG="firebird-devel"
             MONGODB_DEV_PKG="mongo-c-driver-devel"
-            SCYLLA_DEV_PKG="libuv-devel openssl-devel zlib-devel"
+            SCYLLADB_DEV_PKG="libuv-devel openssl-devel zlib-devel"
             REDIS_DEV_PKG="hiredis-devel"
             LIBDW_DEV_PKG="elfutils-devel"
             ;;
@@ -153,7 +153,7 @@ POSTGRESQL_CONTROL_DEP=""
 SQLITE_CONTROL_DEP=""
 FIREBIRD_CONTROL_DEP=""
 MONGODB_CONTROL_DEP=""
-SCYLLA_CONTROL_DEP=""
+SCYLLADB_CONTROL_DEP=""
 REDIS_CONTROL_DEP=""
 LIBDW_CONTROL_DEP=""
 USE_MYSQL="OFF"
@@ -190,50 +190,43 @@ for option in "${OPTIONS[@]}"; do
             ;;
         mysql)
             CMAKE_MYSQL_OPTION="-DCPP_DBC_WITH_MYSQL=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $MYSQL_DEV_PKG"
-            MYSQL_CONTROL_DEP=", $MYSQL_DEV_PKG"
+            # Note: MYSQL_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_MYSQL="ON"
             BUILD_FLAGS="$BUILD_FLAGS --mysql"
             ;;
         postgres)
             CMAKE_POSTGRESQL_OPTION="-DCPP_DBC_WITH_POSTGRESQL=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $POSTGRESQL_DEV_PKG"
-            POSTGRESQL_CONTROL_DEP=", $POSTGRESQL_DEV_PKG"
+            # Note: POSTGRESQL_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_POSTGRESQL="ON"
             BUILD_FLAGS="$BUILD_FLAGS --postgres"
             ;;
         sqlite)
             CMAKE_SQLITE_OPTION="-DCPP_DBC_WITH_SQLITE=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SQLITE_DEV_PKG"
-            SQLITE_CONTROL_DEP=", $SQLITE_DEV_PKG"
+            # Note: SQLITE_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_SQLITE="ON"
             BUILD_FLAGS="$BUILD_FLAGS --sqlite"
             ;;
         firebird)
             CMAKE_FIREBIRD_OPTION="-DCPP_DBC_WITH_FIREBIRD=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $FIREBIRD_DEV_PKG"
-            FIREBIRD_CONTROL_DEP=", $FIREBIRD_DEV_PKG"
+            # Note: FIREBIRD_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_FIREBIRD="ON"
             BUILD_FLAGS="$BUILD_FLAGS --firebird"
             ;;
         mongodb)
             CMAKE_MONGODB_OPTION="-DCPP_DBC_WITH_MONGODB=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $MONGODB_DEV_PKG"
-            MONGODB_CONTROL_DEP=", $MONGODB_DEV_PKG"
+            # Note: MONGODB_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_MONGODB="ON"
             BUILD_FLAGS="$BUILD_FLAGS --mongodb"
             ;;
         redis)
             CMAKE_REDIS_OPTION="-DCPP_DBC_WITH_REDIS=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $REDIS_DEV_PKG"
-            REDIS_CONTROL_DEP=", $REDIS_DEV_PKG"
+            # Note: REDIS_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_REDIS="ON"
             BUILD_FLAGS="$BUILD_FLAGS --redis"
             ;;
         scylla)
             CMAKE_SCYLLA_OPTION="-DCPP_DBC_WITH_SCYLLADB=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SCYLLA_DEV_PKG"
-            SCYLLA_CONTROL_DEP=", $SCYLLA_DEV_PKG"
+            # Note: SCYLLADB_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_SCYLLADB="ON"
             BUILD_FLAGS="$BUILD_FLAGS --scylladb"
             ;;
@@ -304,11 +297,8 @@ for option in "${OPTIONS[@]}"; do
     esac
 done
 
-# Add libdw to dependencies if enabled
-if [ "$USE_DW" = "ON" ]; then
-    DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $LIBDW_DEV_PKG"
-    LIBDW_CONTROL_DEP=", $LIBDW_DEV_PKG"
-fi
+# Note: libdw dependencies are now handled inside the per-distro loop
+# after get_distro_packages() populates the package variable names
 
 # Create build directory if it doesn't exist
 mkdir -p build
@@ -317,10 +307,61 @@ mkdir -p build
 IFS='+' read -ra DISTRO_LIST <<< "$DISTROS"
 for DISTRO in "${DISTRO_LIST[@]}"; do
     echo "Processing distribution: $DISTRO"
-    
+
     # Get package dependencies for this distro
     get_distro_packages "$DISTRO"
-    
+
+    # Regenerate control dependencies and DEB_DEPENDENCIES now that distro-specific package variables are populated
+    # Reset to base dependency and rebuild with proper package names for this distro
+    DEB_DEPENDENCIES="libc6"
+    MYSQL_CONTROL_DEP=""
+    POSTGRESQL_CONTROL_DEP=""
+    SQLITE_CONTROL_DEP=""
+    FIREBIRD_CONTROL_DEP=""
+    MONGODB_CONTROL_DEP=""
+    SCYLLADB_CONTROL_DEP=""
+    REDIS_CONTROL_DEP=""
+    LIBDW_CONTROL_DEP=""
+
+    if [ "$USE_CPP_YAML" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, libyaml-cpp-dev"
+    fi
+    if [ "$USE_MYSQL" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $MYSQL_DEV_PKG"
+        MYSQL_CONTROL_DEP=", $MYSQL_DEV_PKG"
+    fi
+    if [ "$USE_POSTGRESQL" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $POSTGRESQL_DEV_PKG"
+        POSTGRESQL_CONTROL_DEP=", $POSTGRESQL_DEV_PKG"
+    fi
+    if [ "$USE_SQLITE" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SQLITE_DEV_PKG"
+        SQLITE_CONTROL_DEP=", $SQLITE_DEV_PKG"
+    fi
+    if [ "$USE_FIREBIRD" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $FIREBIRD_DEV_PKG"
+        FIREBIRD_CONTROL_DEP=", $FIREBIRD_DEV_PKG"
+    fi
+    if [ "$USE_MONGODB" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $MONGODB_DEV_PKG"
+        MONGODB_CONTROL_DEP=", $MONGODB_DEV_PKG"
+    fi
+    if [ "$USE_SCYLLADB" = "ON" ]; then
+        # SCYLLADB_DEV_PKG contains space-separated packages (e.g., "libuv1-dev libssl-dev zlib1g-dev")
+        # Convert spaces to ", " for proper Debian control file format
+        SCYLLADB_DEV_PKG_COMMA=$(echo "$SCYLLADB_DEV_PKG" | sed 's/ /, /g')
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SCYLLADB_DEV_PKG_COMMA"
+        SCYLLADB_CONTROL_DEP=", $SCYLLADB_DEV_PKG_COMMA"
+    fi
+    if [ "$USE_REDIS" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $REDIS_DEV_PKG"
+        REDIS_CONTROL_DEP=", $REDIS_DEV_PKG"
+    fi
+    if [ "$USE_DW" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $LIBDW_DEV_PKG"
+        LIBDW_CONTROL_DEP=", $LIBDW_DEV_PKG"
+    fi
+
     # Get directory name for this distro
     DISTRO_DIR=$(get_distro_dir "$DISTRO")
     
@@ -336,6 +377,8 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__SQLITE_DEV_PKG__/$SQLITE_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__FIREBIRD_DEV_PKG__/$FIREBIRD_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__MONGODB_DEV_PKG__/$MONGODB_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
+    sed -i "s/__SCYLLADB_DEV_PKG__/$SCYLLADB_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
+    sed -i "s/__REDIS_DEV_PKG__/$REDIS_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     sed -i "s/__LIBDW_DEV_PKG__/$LIBDW_DEV_PKG/g" "$TEMP_BUILD_DIR/Dockerfile"
     
     # Replace placeholders in build script
@@ -345,6 +388,8 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__CMAKE_SQLITE_OPTION__/$CMAKE_SQLITE_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__CMAKE_FIREBIRD_OPTION__/$CMAKE_FIREBIRD_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__CMAKE_MONGODB_OPTION__/$CMAKE_MONGODB_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__CMAKE_SCYLLA_OPTION__/$CMAKE_SCYLLA_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__CMAKE_REDIS_OPTION__/$CMAKE_REDIS_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__CMAKE_DW_OPTION__/$CMAKE_DW_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__DEB_DEPENDENCIES__/$DEB_DEPENDENCIES/g" "$TEMP_BUILD_DIR/build_script.sh"
     
@@ -354,7 +399,8 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__SQLITE_CONTROL_DEP__/$SQLITE_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__FIREBIRD_CONTROL_DEP__/$FIREBIRD_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__MONGODB_CONTROL_DEP__/$MONGODB_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
-    sed -i "s/__SCYLLA_CONTROL_DEP__/$SCYLLA_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__SCYLLADB_CONTROL_DEP__/$SCYLLADB_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__REDIS_CONTROL_DEP__/$REDIS_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__LIBDW_CONTROL_DEP__/$LIBDW_CONTROL_DEP/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_MYSQL__/$USE_MYSQL/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_POSTGRESQL__/$USE_POSTGRESQL/g" "$TEMP_BUILD_DIR/build_script.sh"
@@ -362,6 +408,7 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__USE_FIREBIRD__/$USE_FIREBIRD/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_MONGODB__/$USE_MONGODB/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_SCYLLADB__/$USE_SCYLLADB/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__USE_REDIS__/$USE_REDIS/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_CPP_YAML__/$USE_CPP_YAML/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_DW__/$USE_DW/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__BUILD_TYPE__/$BUILD_TYPE/g" "$TEMP_BUILD_DIR/build_script.sh"

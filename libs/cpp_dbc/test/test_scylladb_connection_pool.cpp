@@ -79,7 +79,7 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[scylladb_connection_pool_real
         // Get a ScyllaDB driver and register it with the DriverManager (if not already registered)
         // Note: The pool creates connections via DriverManager, so generic Scylla driver must be registered.
         // Usually done in test_main or statically. We assume it's available or we register it.
-        // cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Scylla::ScyllaDBDriver>());
+        // cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -98,7 +98,7 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[scylladb_connection_pool_real
         poolConfig.setValidationQuery("SELECT now() FROM system.local");
 
         // Create a connection pool
-        auto pool = cpp_dbc::Scylla::ScyllaConnectionPool::create(poolConfig);
+        auto pool = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(poolConfig);
 
         // Initialize schema
         auto conn = pool->getColumnarDBConnection();

@@ -424,7 +424,7 @@ namespace cpp_dbc
         public:
             MySQLDBDriver()
             {
-                throw DBException("MYSQL_DISABLED", "MySQL support is not enabled in this build");
+                throw DBException("4FE1EBBEA99F", "MySQL support is not enabled in this build");
             }
             ~MySQLDBDriver() override = default;
 
@@ -433,7 +433,7 @@ namespace cpp_dbc
                                                                       const std::string &,
                                                                       const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
             {
-                throw DBException("MYSQL_DISABLED", "MySQL support is not enabled in this build");
+                throw DBException("23D2107DA64F", "MySQL support is not enabled in this build");
             }
 
             bool acceptsURL(const std::string &) override

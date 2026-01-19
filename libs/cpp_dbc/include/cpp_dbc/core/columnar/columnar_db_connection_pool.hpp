@@ -247,7 +247,7 @@ namespace cpp_dbc
     };
 
     // Specialized connection pool for ScyllaDB
-    namespace Scylla
+    namespace ScyllaDB
     {
         /**
          * @brief ScyllaDB-specific connection pool implementation

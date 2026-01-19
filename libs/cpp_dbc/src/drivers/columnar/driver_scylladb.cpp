@@ -579,7 +579,32 @@ namespace cpp_dbc
                 return std::string("");
             }
 
-            if (cass_value_type(val) == CASS_VALUE_TYPE_TIMESTAMP)
+            CassValueType valueType = cass_value_type(val);
+
+            // Handle native Cassandra DATE type (uint32 - days since epoch with 2^31 bias)
+            if (valueType == CASS_VALUE_TYPE_DATE)
+            {
+                cass_uint32_t date_value;
+                if (cass_value_get_uint32(val, &date_value) == CASS_OK)
+                {
+                    // Convert Cassandra date (days since epoch with 2^31 bias) to time_t
+                    // Cassandra DATE is stored as: days_since_epoch + 2^31
+                    // So we subtract 2^31 to get actual days since 1970-01-01
+                    int64_t days_since_epoch = static_cast<int64_t>(date_value) - (1LL << 31);
+                    std::time_t time_seconds = days_since_epoch * 86400; // 86400 seconds per day
+
+                    std::tm *tm = std::gmtime(&time_seconds);
+                    if (tm)
+                    {
+                        std::stringstream ss;
+                        ss << std::put_time(tm, "%Y-%m-%d");
+                        return ss.str();
+                    }
+                }
+            }
+
+            // Handle TIMESTAMP type (int64 - milliseconds since epoch)
+            if (valueType == CASS_VALUE_TYPE_TIMESTAMP)
             {
                 cass_int64_t timestamp_ms;
                 if (cass_value_get_int64(val, &timestamp_ms) == CASS_OK)
@@ -596,7 +621,7 @@ namespace cpp_dbc
                 }
             }
 
-            // Try to get as string if not a timestamp or conversion failed
+            // Try to get as string if not a date/timestamp or conversion failed
             const char *output;
             size_t output_length;
             if (cass_value_get_string(val, &output, &output_length) == CASS_OK)
@@ -1093,7 +1118,7 @@ namespace cpp_dbc
             }
 
             bool parseSuccess = false;
-            cass_int64_t timestamp_ms = 0;
+            cass_uint32_t cass_date = 0;
 
             try
             {
@@ -1105,14 +1130,21 @@ namespace cpp_dbc
 
                 if (!ss.fail())
                 {
-                    // Convert to epoch milliseconds for Cassandra - setting time to midnight
+                    // Convert to epoch seconds for Cassandra DATE type
                     tm.tm_hour = 0;
                     tm.tm_min = 0;
                     tm.tm_sec = 0;
-                    auto timePoint = std::chrono::system_clock::from_time_t(std::mktime(&tm));
-                    timestamp_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                       timePoint.time_since_epoch())
-                                       .count();
+
+                    // Use timegm for UTC conversion (or portable equivalent)
+#ifdef _WIN32
+                    std::time_t epoch_seconds = _mkgmtime(&tm);
+#else
+                    std::time_t epoch_seconds = timegm(&tm);
+#endif
+
+                    // Use cass_date_from_epoch to convert seconds to Cassandra DATE format
+                    // Cassandra DATE is uint32: days_since_epoch + 2^31 (bias offset)
+                    cass_date = cass_date_from_epoch(epoch_seconds);
                     parseSuccess = true;
                 }
             }
@@ -1124,8 +1156,8 @@ namespace cpp_dbc
             CassError rc;
             if (parseSuccess)
             {
-                // Bind as native Cassandra timestamp (milliseconds since epoch)
-                rc = cass_statement_bind_int64(m_statement.get(), parameterIndex - 1, timestamp_ms);
+                // Bind as native Cassandra DATE (uint32 - days since epoch with 2^31 bias)
+                rc = cass_statement_bind_uint32(m_statement.get(), parameterIndex - 1, cass_date);
             }
             else
             {

@@ -106,9 +106,9 @@ namespace cpp_dbc
                 auto pooledConn = createPooledDBConnection();
 
                 // Add to idle connections and all connections lists under proper locks
+                // Use scoped_lock for consistent lock ordering to prevent deadlock
                 {
-                    std::lock_guard<std::mutex> lockIdle(m_mutexIdleConnections);
-                    std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
+                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
                     m_idleConnections.push(pooledConn);
                     m_allConnections.push_back(pooledConn);
                 }
@@ -285,17 +285,14 @@ namespace cpp_dbc
             // Replace invalid connection with a new one
             try
             {
+                // Use scoped_lock for consistent lock ordering to prevent deadlock
                 {
-                    std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
+                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
                     auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
                     if (it != m_allConnections.end())
                     {
                         *it = createPooledDBConnection();
-
-                        {
-                            std::lock_guard<std::mutex> lockIdle(m_mutexIdleConnections);
-                            m_idleConnections.push(*it);
-                        }
+                        m_idleConnections.push(*it);
                     }
                 }
                 m_activeConnections--;
@@ -313,7 +310,9 @@ namespace cpp_dbc
 
     std::shared_ptr<ColumnarPooledDBConnection> ColumnarDBConnectionPool::getIdleDBConnection()
     {
-        std::lock_guard<std::mutex> lock(m_mutexIdleConnections);
+        // Lock both mutexes in consistent order to prevent deadlocks
+        // Always lock m_mutexAllConnections first, then m_mutexIdleConnections
+        std::scoped_lock lock(m_mutexAllConnections, m_mutexIdleConnections);
 
         if (!m_idleConnections.empty())
         {
@@ -326,7 +325,6 @@ namespace cpp_dbc
                 if (!validateConnection(conn->getUnderlyingColumnarConnection()))
                 {
                     // Remove from allConnections
-                    std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
                     auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
                     if (it != m_allConnections.end())
                     {
@@ -338,7 +336,10 @@ namespace cpp_dbc
                     {
                         try
                         {
-                            return createPooledDBConnection();
+                            auto newConn = createPooledDBConnection();
+                            // Register the replacement connection in m_allConnections
+                            m_allConnections.push_back(newConn);
+                            return newConn;
                         }
                         catch (const std::exception &)
                         {
@@ -378,17 +379,37 @@ namespace cpp_dbc
         std::shared_ptr<ColumnarPooledDBConnection> result = this->getIdleDBConnection();
 
         // If no connection available, check if we can create a new one
-        if (result == nullptr && m_allConnections.size() < m_maxSize)
+        if (result == nullptr)
         {
-            result = createPooledDBConnection();
-
+            bool canCreateNew = false;
             {
                 std::lock_guard<std::mutex> lock_all(m_mutexAllConnections);
-                m_allConnections.push_back(result);
+                canCreateNew = m_allConnections.size() < m_maxSize;
+            }
+
+            if (canCreateNew)
+            {
+                auto candidate = createPooledDBConnection();
+
+                {
+                    std::lock_guard<std::mutex> lock_all(m_mutexAllConnections);
+                    // Recheck size under lock to prevent exceeding m_maxSize under concurrent creation
+                    if (m_allConnections.size() < m_maxSize)
+                    {
+                        m_allConnections.push_back(candidate);
+                        result = candidate;
+                    }
+                }
+
+                // If we couldn't register the connection (pool became full), close it
+                if (result == nullptr && candidate && candidate->getUnderlyingColumnarConnection())
+                {
+                    candidate->getUnderlyingColumnarConnection()->close();
+                }
             }
         }
         // If no connection available, wait until one becomes available
-        else if (result == nullptr)
+        if (result == nullptr)
         {
             auto waitStart = std::chrono::steady_clock::now();
 
@@ -440,9 +461,9 @@ namespace cpp_dbc
 
             auto now = std::chrono::steady_clock::now();
 
-            // Ensure no body touch the allConnections and idleConnections variables when is used by this thread
-            std::lock_guard<std::mutex> lockAllConnections(m_mutexAllConnections);
-            std::lock_guard<std::mutex> lockIdleConnectons(m_mutexIdleConnections);
+            // Lock both mutexes in consistent order to prevent deadlocks
+            // Always lock m_mutexAllConnections first, then m_mutexIdleConnections
+            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
 
             // Check all connections for expired ones
             for (auto it = m_allConnections.begin(); it != m_allConnections.end();)
@@ -583,8 +604,8 @@ namespace cpp_dbc
         }
 
         // Close all connections
-        std::lock_guard<std::mutex> lockAllConnections(m_mutexAllConnections);
-        std::lock_guard<std::mutex> lockIdleConnections(m_mutexIdleConnections);
+        // Use scoped_lock for consistent lock ordering to prevent deadlock
+        std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
 
         for (size_t i = 0; i < m_allConnections.size(); ++i)
         {
@@ -1030,8 +1051,8 @@ namespace cpp_dbc
         return m_conn;
     }
 
-    // Scylla connection pool implementation
-    namespace Scylla
+    // ScyllaDB connection pool implementation
+    namespace ScyllaDB
     {
         ScyllaConnectionPool::ScyllaConnectionPool(const std::string &url,
                                                    const std::string &username,

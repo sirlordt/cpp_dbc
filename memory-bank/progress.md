@@ -295,7 +295,50 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-1. **VSCode IntelliSense Automatic Synchronization System** (2026-01-18 02:59:56 PM PST):
+#### This PR (scylladb_driver_fix1)
+
+2. **ScyllaDB Native DATE Type Support Fix** (2026-01-18 22:49:41): *(Included in this PR)*
+   - Fixed ScyllaDB driver to properly handle native Cassandra DATE type:
+     - **Reading DATE values:** Added `CASS_VALUE_TYPE_DATE` support with proper uint32 conversion
+     - **Writing DATE values:** Changed from int64 (timestamp) to uint32 (date) binding
+     - **Technical:** Uses `cass_date_from_epoch` and `timegm` for correct UTC handling
+
+3. **Connection Pool Deadlock Prevention and ScyllaDB Naming Consistency Fixes** (2026-01-18 22:33:51): *(Included in this PR)*
+   - Fixed potential deadlock in all connection pool implementations:
+     - **Deadlock Prevention:**
+       - Changed from sequential `std::lock_guard` calls to `std::scoped_lock` for consistent lock ordering
+       - Fixed in `columnar_db_connection_pool.cpp` (ScyllaDB)
+       - Fixed in `document_db_connection_pool.cpp` (MongoDB)
+       - Fixed in `kv_db_connection_pool.cpp` (Redis)
+       - Fixed in `relational_db_connection_pool.cpp` (MySQL, PostgreSQL, SQLite, Firebird)
+     - **Connection Registration Fix:**
+       - Fixed `getIdleDBConnection()` method to properly register newly created connections
+       - New connections are now added to `m_allConnections` before being returned
+   - Fixed ScyllaDB naming consistency:
+     - **Namespace Rename:**
+       - Changed namespace from `Scylla` to `ScyllaDB` in `driver_scylladb.hpp`
+       - Updated error code prefix from `SCYLLA_` to `SCYLLADB_`
+     - **Build Script Fixes:**
+       - Added ScyllaDB echo output in `build.dist.sh`
+       - Added `DEBUG_SCYLLADB=ON` in debug mode for `build.sh`
+       - Fixed `--debug-scylladb` option alias in `build_cpp_dbc.sh`
+     - **Distribution Package Fixes:**
+       - Renamed `SCYLLA_CONTROL_DEP` to `SCYLLADB_CONTROL_DEP` in `build_dist_pkg.sh`
+       - Updated `__SCYLLA_DEV_PKG__` to `__SCYLLADB_DEV_PKG__` in all distro Dockerfiles
+       - Added `__REDIS_CONTROL_DEP__` placeholder handling in build scripts
+   - Fixed documentation numbering in `cppdbc-package.md`
+   - Fixed typos in `TODO.md`
+
+#### Other commits on branch (not part of this PR)
+
+1. **Connection Pool Race Condition Fix and Code Quality Improvements** (2026-01-18 23:26:52): *(Not part of this PR)*
+   - Fixed connection pool race condition in all database types (relational, document, columnar, key-value)
+   - Added pool size recheck under lock to prevent exceeding `m_maxSize` under concurrent creation
+   - Improved return connection logic with null checks and proper cleanup
+   - Fixed MongoDB stub driver and driver exception marks to use UUID-style marks
+   - Fixed `blob.hpp` variable initialization and ScyllaDB variable naming
+
+4. **VSCode IntelliSense Automatic Synchronization System** (2026-01-18 02:59:56 PM PST): *(Not part of this PR)*
    - Added automatic synchronization system for VSCode IntelliSense:
      - **New Scripts:**
        - `.vscode/sync_intellisense.sh` - Quick sync without rebuilding
@@ -310,7 +353,7 @@ Based on the current state of the project, potential areas for enhancement inclu
        - Quick sync option that doesn't require rebuild
    - Removed `EXCEPTION_FREE_ANALYSIS.md` (analysis completed and integrated)
 
-2. **ScyllaDB Connection Pool and Driver Enhancements** (2026-01-18 02:08:02 PM PST):
+5. **ScyllaDB Connection Pool and Driver Enhancements** (2026-01-18 02:08:02 PM PST):
    - Added columnar database connection pool implementation for ScyllaDB:
      - **New Connection Pool Files:**
        - Added `include/cpp_dbc/core/columnar/columnar_db_connection_pool.hpp` - Columnar database connection pool interfaces
@@ -320,7 +363,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - **Pool Architecture:**
        - `ColumnarDBConnectionPool` base class for all columnar database pools
        - `ColumnarPooledDBConnection` wrapper class for pooled columnar connections
-       - `Scylla::ScyllaConnectionPool` specialized implementation for ScyllaDB
+       - `ScyllaDB::ScyllaConnectionPool` specialized implementation for ScyllaDB
        - Factory pattern with `create` static methods for pool creation
        - Smart pointer-based pool lifetime tracking for memory safety
        - Connection validation with CQL query (`SELECT now() FROM system.local`)
@@ -350,7 +393,7 @@ Based on the current state of the project, potential areas for enhancement inclu
        - Returns `expected<T, DBException>` for error handling
        - Consistent with Redis and PostgreSQL exception-free patterns
 
-2. **ScyllaDB Columnar Database Driver Support** (2026-01-15 11:46:28 PM PST):
+6. **ScyllaDB Columnar Database Driver Support** (2026-01-15 11:46:28 PM PST):
    - Added complete ScyllaDB columnar database driver implementation:
      - **New Core Columnar Database Interfaces:**
        - Implemented `core/columnar/columnar_db_connection.hpp` - Base connection interface for columnar databases
@@ -383,7 +426,7 @@ Based on the current state of the project, potential areas for enhancement inclu
        - Manual implementation using multiple queries
        - Result aggregation and sorting to emulate JOIN behavior
 
-2. **PostgreSQL Exception-Free API Implementation** (2026-01-06 08:11:44 PM PST):
+7. **PostgreSQL Exception-Free API Implementation** (2026-01-06 08:11:44 PM PST):
    - Added comprehensive exception-free API for PostgreSQL driver operations:
      - **Implementation Details:**
        - Implemented nothrow versions of all PostgreSQL driver methods using `std::nothrow_t` parameter
@@ -409,7 +452,7 @@ Based on the current state of the project, potential areas for enhancement inclu
        - Safer error handling without exception overhead
        - Full compatibility with both exception and non-exception usage patterns
 
-2. **Redis Exception-Free API Implementation** (2026-01-03 05:23:03 PM PST):
+8. **Redis Exception-Free API Implementation** (2026-01-03 05:23:03 PM PST):
    - Added comprehensive exception-free API for Redis driver operations:
      - **Implementation Details:**
        - Added nothrow versions of all Redis driver methods using `std::nothrow_t` parameter
@@ -439,7 +482,7 @@ Based on the current state of the project, potential areas for enhancement inclu
        - Same comprehensive error information as exception-based API
        - Natural migration path - existing code works without changes
 
-2. **MongoDB Document Database Driver Support** (2025-12-27):
+9. **MongoDB Document Database Driver Support** (2025-12-27):
    - Added complete MongoDB document database driver implementation:
      - **Core Document Database Interfaces:**
        - `DocumentDBConnection`: Base interface for document database connections
@@ -476,7 +519,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Connection URL format: `mongodb://host:port/database` or `mongodb://username:password@host:port/database?authSource=admin`
    - Required packages: libmongoc-dev, libbson-dev, libmongocxx-dev, libbsoncxx-dev (Debian/Ubuntu)
 
-2. **Directory Restructuring for Multi-Database Type Support** (2025-12-27):
+10. **Directory Restructuring for Multi-Database Type Support** (2025-12-27):
    - Reorganized project directory structure to support multiple database types:
      - **Core Interfaces Moved:**
        - Moved `relational/` → `core/relational/`
@@ -497,7 +540,7 @@ Based on the current state of the project, potential areas for enhancement inclu
        - Updated `CMakeLists.txt` with new source file paths
    - Benefits: Clear separation between database types, prepared for future database driver implementations, better code organization
 
-2. **Connection Pool Memory Safety Improvements** (2025-12-27):
+11. **Connection Pool Memory Safety Improvements** (2025-12-27):
    - Enhanced connection pool with smart pointer-based pool lifetime tracking:
      - **RelationalDBConnectionPool Changes:**
        - Added `m_poolAlive` shared atomic flag (`std::shared_ptr<std::atomic<bool>>`) to track pool lifetime
@@ -512,7 +555,7 @@ Based on the current state of the project, potential areas for enhancement inclu
        - Updated `close()` method to check `isPoolValid()` before returning connection to pool
    - Benefits: Prevention of use-after-free when pool is destroyed while connections are in use
 
-2. **API Naming Convention Refactoring** (2025-12-26):
+12. **API Naming Convention Refactoring** (2025-12-26):
    - Renamed classes and methods to use "DB" prefix for better clarity and consistency:
      - **Driver Classes:**
        - `MySQLDriver` → `MySQLDBDriver`
@@ -534,7 +577,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Updated all example files to use new class and method names
    - Updated main.cpp to use new driver class names
 
-2. **BLOB Memory Safety Improvements with Smart Pointers** (2025-12-22):
+13. **BLOB Memory Safety Improvements with Smart Pointers** (2025-12-22):
    - Migrated all BLOB implementations from raw pointers to smart pointers for improved memory safety:
      - **Firebird BLOB:**
        - Changed from raw `isc_db_handle*` and `isc_tr_handle*` to `std::weak_ptr<FirebirdConnection>`
@@ -557,7 +600,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Updated driver implementations to use new BLOB constructors
    - Benefits: Automatic detection of closed connections, prevention of use-after-free errors, clear ownership semantics
 
-2. **Firebird Driver Database Creation and Error Handling Improvements** (2025-12-21):
+14. **Firebird Driver Database Creation and Error Handling Improvements** (2025-12-21):
    - Added database creation support to Firebird driver:
      - Added `createDatabase()` method to `FirebirdDriver` for creating new Firebird databases
      - Added `command()` method for executing driver-specific commands
@@ -573,7 +616,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Added `firebird_reserved_word_example.cpp` demonstrating reserved word handling in Firebird
      - Updated `CMakeLists.txt` to include the new example when Firebird is enabled
 
-2. **Firebird SQL Driver Enhancements and Benchmark Support** (2025-12-21):
+15. **Firebird SQL Driver Enhancements and Benchmark Support** (2025-12-21):
    - Added comprehensive Firebird benchmark suite:
      - New benchmark files for SELECT, INSERT, UPDATE, DELETE operations
      - Updated benchmark infrastructure with Firebird support
@@ -590,7 +633,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Updated integration tests with Firebird support
      - Updated transaction isolation and transaction manager tests
 
-2. **Firebird SQL Database Driver Support** (2025-12-20):
+16. **Firebird SQL Database Driver Support** (2025-12-20):
    - Added complete Firebird SQL database driver implementation
    - Full support for Firebird SQL databases (version 2.5+, 3.0+, 4.0+)
    - Connection management with proper resource cleanup using smart pointers
@@ -602,7 +645,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Build system updates with `USE_FIREBIRD` option
    - Connection URL format: `cpp_dbc:firebird://host:port/path/to/database.fdb`
 
-3. **Thread-Safe Database Driver Operations**:
+17. **Thread-Safe Database Driver Operations**:
    - Added optional thread-safety support for database driver operations:
      - **New CMake Option:**
        - Added `DB_DRIVER_THREAD_SAFE` option (default: ON) to enable/disable thread-safe operations
@@ -620,7 +663,7 @@ Based on the current state of the project, potential areas for enhancement inclu
          concurrent read operations, high concurrency stress test, rapid connection open/close stress test
    - Benefits: Safe concurrent access, protection against race conditions, optional feature for performance
 
-2. **Smart Pointer Migration for Database Drivers**:
+18. **Smart Pointer Migration for Database Drivers**:
    - Migrated all database drivers from raw pointers to smart pointers for improved memory safety:
      - **MySQL Driver:**
        - Added `MySQLResDeleter` custom deleter for `MYSQL_RES*` with `unique_ptr`
@@ -656,7 +699,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Clear ownership semantics documented in code
      - Elimination of manual `delete`/`free` calls
 
-2. **Benchmark Baseline and Comparison System**:
+19. **Benchmark Baseline and Comparison System**:
    - Added benchmark baseline creation and comparison functionality:
      - Added `create_benchmark_cpp_dbc_base_line.sh` script to create benchmark baselines from log files
      - Added `compare_benchmark_cpp_dbc_base_line.sh` script to compare two benchmark baseline files
@@ -672,7 +715,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Added `base-line` option to automatically create baseline after running benchmarks
      - Updated help text with new options and examples
 
-2. **Benchmark System Migration to Google Benchmark**:
+20. **Benchmark System Migration to Google Benchmark**:
    - Migrated benchmark system from Catch2 to Google Benchmark:
      - Updated CMakeLists.txt to use Google Benchmark instead of Catch2WithMain
      - Added benchmark/1.8.3 as a dependency in conanfile.txt
@@ -692,7 +735,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Changed configuration parameters (--samples and --resamples to --min-time and --repetitions)
      - Improved filter handling for running specific benchmarks
 
-2. **SQLite Driver Thread Safety Improvements**:
+21. **SQLite Driver Thread Safety Improvements**:
    - Enhanced thread safety in SQLite driver implementation:
      - Added thread-safe initialization pattern using std::atomic and std::mutex
      - Implemented singleton pattern for SQLite configuration to ensure it's only done once
@@ -705,7 +748,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Added [[maybe_unused]] attribute to avoid warnings with unused variables
    - Removed obsolete inject_cline_custom_instructions.sh script
 
-2. **Benchmark and Testing Framework Improvements**:
+22. **Benchmark and Testing Framework Improvements**:
    - Added improved benchmark organization and reusability:
      - Added benchmark_common.cpp with implementation of common benchmark helper functions
      - Reorganized helper functions into namespaces (common_benchmark_helpers, mysql_benchmark_helpers, etc.)
@@ -723,7 +766,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Updated CMakeLists.txt to build the new example
    - Updated helper.sh with new example command for comprehensive testing
 
-2. **Test Code Refactoring**:
+23. **Test Code Refactoring**:
    - Refactored test code to improve organization and reusability:
      - Added test_sqlite_common.hpp with SQLite-specific helper functions
      - Added test_sqlite_common.cpp with helper function implementations
@@ -742,7 +785,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Updated CMakeLists.txt to include new test files
      - Removed update_headers.sh script, replaced with more precise manual management
 
-2. **Benchmark System Implementation**:
+24. **Benchmark System Implementation**:
    - Added comprehensive benchmark system for database operations:
      - Added benchmark directory with benchmark files for all database drivers
      - Added benchmark_main.cpp with common benchmark setup
@@ -767,7 +810,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Updated build script documentation with benchmark options
      - Updated TODO.md to mark benchmark task as completed
 
-2. **Code Quality Improvements with Comprehensive Warning Flags**:
+25. **Code Quality Improvements with Comprehensive Warning Flags**:
    - Added comprehensive warning flags and compile-time checks:
      - Added `-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align` to all build scripts
      - Added special handling for backward.hpp to silence -Wundef warnings
@@ -780,7 +823,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Updated TODO.md:
      - Marked "Activate ALL possible warnings and compile time checks" as completed
 
-2. **Distribution Package Build System (DEB and RPM)**:
+26. **Distribution Package Build System (DEB and RPM)**:
    - Added comprehensive distribution package build system:
      - Created `build_dist_pkg.sh` script to replace `build_dist_deb.sh` with improved functionality
      - Added support for building packages for multiple distributions in a single command
@@ -806,7 +849,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Marked "Add --run-build-lib-dist-deb using docker" as completed
      - Marked "Add --run-build-lib-dist-rpm using docker" as completed
 
-2. **Stack Trace Improvements with libdw Support**:
+27. **Stack Trace Improvements with libdw Support**:
    - Added libdw support for enhanced stack traces:
      - Added `BACKWARD_HAS_DW` option to CMakeLists.txt to enable/disable libdw support
      - Added `--dw-off` flag to build scripts to disable libdw support when needed
@@ -822,7 +865,7 @@ Based on the current state of the project, potential areas for enhancement inclu
        - "Add --run-build-lib-dist-deb using docker"
        - "Add --run-build-lib-dist-rpm using docker"
 
-2. **Mejoras de Seguridad y Tipos de Datos**:
+28. **Mejoras de Seguridad y Tipos de Datos**:
    - Mejoras en el manejo de excepciones:
      - Reemplazado `what()` por `what_s()` en toda la base de código para evitar el uso de punteros `const char*` inseguros
      - Añadido un destructor virtual a `DBException`
@@ -836,7 +879,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - "Add library dw to linker en CPP_SBC" (completada)
      - "Add script for build inside a docker the creation of .deb (ubuntu 22.04) .rpm (fedora) and make simple build for another distro version" (reemplazada por tareas más específicas)
 
-2. **Exception Handling and Stack Trace Improvements**:
+29. **Exception Handling and Stack Trace Improvements**:
    - Added comprehensive stack trace capture and error tracking:
      - Added `backward.hpp` library for stack trace capture and analysis
      - Created `system_utils::StackFrame` structure to store stack frame information
@@ -857,7 +900,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Added comprehensive tests for the new exception features in test_drivers.cpp
    - Added stack trace testing functionality to main.cpp
 
-2. **JSON Data Type Support**:
+30. **JSON Data Type Support**:
    - Added comprehensive support for JSON data types in MySQL and PostgreSQL
    - Added test files for JSON operations:
      - `test_mysql_real_json.cpp` for MySQL JSON testing
@@ -878,7 +921,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Updated CMakeLists.txt to include the new JSON test files
 
 
-1. **Logging System Improvements**:
+31. **Logging System Improvements**:
    - Added structured logging system with dedicated log directories:
      - Created logs/build directory for build output logs
      - Created logs/test directory for test output logs
@@ -890,7 +933,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Added sed command to strip ANSI color codes from log files
      - Updated command output to show log file location
 
-2. **VSCode Integration**:
+32. **VSCode Integration**:
    - Added VSCode configuration files:
      - Added .vscode/c_cpp_properties.json with proper include paths
      - Added .vscode/tasks.json with build tasks
@@ -898,13 +941,13 @@ Based on the current state of the project, potential areas for enhancement inclu
      - Added support for building with MySQL and PostgreSQL from VSCode
      - Added automatic extension installation task
 
-3. **License Header Updates**:
+33. **License Header Updates**:
    - Added standardized license headers to all .cpp and .hpp files
    - Created update_headers.sh script to automate header updates
    - Headers include copyright information, license terms, and file descriptions
    - All example files and test files now have proper headers
 
-1. **BLOB Support for Image Files**:
+34. **BLOB Support for Image Files**:
    - Added support for storing and retrieving image files as BLOBs
    - Added helper functions in test_main.cpp for binary file operations:
      * `readBinaryFile()` to read binary data from files
@@ -920,7 +963,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Added tests for storing, retrieving, and verifying image data integrity
    - Added tests for writing retrieved image data to temporary files
 
-2. **BLOB Support Implementation**:
+35. **BLOB Support Implementation**:
    - Added comprehensive BLOB (Binary Large Object) support for all database drivers
    - Implemented base classes: Blob, InputStream, OutputStream
    - Added memory-based implementations: MemoryBlob, MemoryInputStream, MemoryOutputStream
@@ -931,7 +974,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Added test.jpg file for BLOB testing
    - Updated Spanish documentation with BLOB support information
 
-2. **SQLite JOIN Operations Testing**:
+36. **SQLite JOIN Operations Testing**:
    - Added comprehensive test cases for SQLite JOIN operations
    - Added `test_sqlite_real_inner_join.cpp` with INNER JOIN test cases
    - Added `test_sqlite_real_left_join.cpp` with LEFT JOIN test cases
@@ -939,7 +982,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Added tests for JOIN operations with NULL checks and invalid columns
    - Added tests for type mismatches in JOIN conditions
 
-2. **Debug Output Options**:
+37. **Debug Output Options**:
    - Added debug output options for better troubleshooting
    - Added `--debug-pool` option to enable debug output for ConnectionPool
    - Added `--debug-txmgr` option to enable debug output for TransactionManager
@@ -949,7 +992,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Added debug output parameters to helper.sh script
    - Added logging to files for build and test output
 
-3. **Test Script Enhancements**:
+38. **Test Script Enhancements**:
    - Enhanced test script functionality
    - Added `--run-test="tag"` option to run specific tests by tag
    - Added support for multiple test tags using + separator (e.g., "tag1+tag2+tag3")
@@ -958,7 +1001,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Changed default AUTO_MODE to false in run_test.sh
    - Added logging to files for test output with automatic log rotation
 
-4. **Valgrind Suppressions Removal**:
+39. **Valgrind Suppressions Removal**:
    - Removed valgrind-suppressions.txt file as it's no longer needed with improved PostgreSQL driver
 
 ### Fixed Issues
@@ -992,7 +1035,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Added support for journal_mode, synchronous, and foreign_keys options
    - Added error codes to exception messages for better debugging
 
-4. **SQLite Driver Implementation**:
+5. **SQLite Driver Implementation**:
    - Added SQLite database driver support with full implementation
    - Added SQLite connection string format support
    - Added SQLite-specific transaction isolation level handling
@@ -1001,7 +1044,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Added SQLite dependency detection and installation in build scripts
    - Added SQLite configuration in test YAML file
 
-2. **Connection Pool and Transaction Manager Improvements**:
+6. **Connection Pool and Transaction Manager Improvements**:
    - Enhanced connection pool with better connection handling
    - Added transaction isolation level preservation when returning connections to pool
    - Improved connection closing mechanism with proper cleanup
@@ -1009,7 +1052,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Enhanced transaction manager with better resource management
    - Improved connection return to pool after transaction completion
 
-3. **Database Configuration Integration**:
+7. **Database Configuration Integration**:
    - Added integration between database configuration and connection classes
    - Created new `config_integration_example.cpp` with examples of different connection methods
    - Added `createConnection()` method to `DatabaseConfig` class
@@ -1019,7 +1062,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Changed URL format from "cppdbc:" to "cpp_dbc:" for consistency
    - Updated all examples, tests, and code to use the new format
 
-2. **Connection Pool Enhancements**:
+8. **Connection Pool Enhancements**:
    - Moved `ConnectionPoolConfig` from connection_pool.hpp to config/database_config.hpp
    - Enhanced `ConnectionPoolConfig` with more options and better encapsulation
    - Added new constructors and factory methods to `ConnectionPool`
@@ -1027,7 +1070,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Improved code organization with forward declarations
    - Added database_config.cpp implementation file
 
-3. **YAML Configuration Support**:
+9. **YAML Configuration Support**:
    - Added optional YAML configuration support to the library
    - Created database configuration classes in `include/cpp_dbc/config/database_config.hpp`
    - Implemented YAML configuration loader in `include/cpp_dbc/config/yaml_config_loader.hpp` and `src/config/yaml_config_loader.cpp`
@@ -1035,26 +1078,26 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Modified CMakeLists.txt to conditionally include YAML-related files based on USE_CPP_YAML flag
    - Fixed issue with Conan generators directory path in `build_cpp_dbc.sh`
 
-2. **Examples Improvements**:
+10. **Examples Improvements**:
    - Added `--examples` option to `build.sh` and `build_cpp_dbc.sh` to build examples
    - Created YAML configuration example in `examples/config_example.cpp`
    - Added example YAML configuration file in `examples/example_config.yml`
    - Created script to run the configuration example in `examples/run_config_example.sh`
    - Fixed initialization issue in `examples/transaction_manager_example.cpp`
 
-3. **Project Structure Reorganization**:
+11. **Project Structure Reorganization**:
    - Moved all content from `src/libs/cpp_dbc/` to `libs/cpp_dbc/` in the root of the project.
    - Reorganized the internal structure of the library with separate `src/` and `include/cpp_dbc/` directories.
    - Updated all CMake files and include paths to reflect the new directory structure.
    - This provides a cleaner, more standard library organization that follows C++ best practices.
 
-2. **Build Configuration**:
+12. **Build Configuration**:
    - Changed the default build type from Release to Debug to facilitate development and debugging.
    - Added support for `--release` argument to build in Release mode when needed.
    - Fixed issues with finding the correct `conan_toolchain.cmake` file based on build type.
    - Ensured both the library and the main project use the same build type.
 
-3. **VS Code Debugging Issues**:
+13. **VS Code Debugging Issues**:
    - Added the correct include path for nlohmann_json library.
    - Updated the `c_cpp_properties.json` file to include the necessary paths.
    - Modified CMakeLists.txt to add explicit include directories.
@@ -1073,11 +1116,11 @@ Based on the current state of the project, potential areas for enhancement inclu
      - This forces IntelliSense to reload with the updated preprocessor definitions
    - These changes ensure that VS Code can find all header files and properly debug the application.
 
-4. **Installation Directory**:
+14. **Installation Directory**:
    - Modified the installation path to use `/home/dsystems/Desktop/projects/cpp/cpp_dbc/build/libs/cpp_dbc` for consistency.
    - Updated the main CMakeLists.txt to look for the library in the new location.
 
-5. **Testing Infrastructure**:
+15. **Testing Infrastructure**:
    - Implemented basic unit tests using Catch2
    - Created test directory structure in `libs/cpp_dbc/test`
    - Added build scripts for tests with ASAN and Valgrind support
@@ -1090,7 +1133,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Added `yaml-cpp` dependency to `libs/cpp_dbc/conanfile.txt` for tests
    - Added automatic project build detection in `run_test.sh`
 
-6. **Enhanced Helper Script**:
+16. **Enhanced Helper Script**:
    - Improved `helper.sh` to support multiple commands in a single invocation
    - Added `--test` option to build tests
    - Added `--run-test` option to run tests
@@ -1109,7 +1152,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Added unbuffer usage to preserve colors in terminal output
    - Added sed command to strip ANSI color codes from log files
 
-7. **Improved Docker Container Build**:
+17. **Improved Docker Container Build**:
    - Enhanced `build.dist.sh` to accept the same parameters as `build.sh`
    - Implemented automatic detection of shared library dependencies
    - Added mapping of libraries to their corresponding Debian packages
@@ -1117,7 +1160,7 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Improved Docker container creation with only necessary dependencies
    - Fixed numbering of build steps for better readability
 
-7. **Previous Fixed Issues**:
+18. **Previous Fixed Issues**:
    - Fixed PostgreSQL header propagation issues.
    - Fixed naming conflicts with executable names.
    - Suppressed CMake warnings with `-Wno-dev` flag.

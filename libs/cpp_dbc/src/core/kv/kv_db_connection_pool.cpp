@@ -148,9 +148,9 @@ namespace cpp_dbc
                 auto pooledConn = createPooledDBConnection();
 
                 // Add to idle connections and all connections lists under proper locks
+                // Use scoped_lock for consistent lock ordering to prevent deadlock
                 {
-                    std::lock_guard<std::mutex> lockIdle(m_mutexIdleConnections);
-                    std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
+                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
                     m_idleConnections.push(pooledConn);
                     m_allConnections.push_back(pooledConn);
                 }
@@ -213,7 +213,8 @@ namespace cpp_dbc
 
     std::shared_ptr<KVPooledDBConnection> KVDBConnectionPool::getIdleDBConnection()
     {
-        std::lock_guard<std::mutex> lock(m_mutexIdleConnections);
+        // Lock both mutexes in consistent order to prevent deadlock
+        std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
 
         if (!m_idleConnections.empty())
         {
@@ -226,19 +227,20 @@ namespace cpp_dbc
                 if (!validateConnection(conn->getUnderlyingKVConnection()))
                 {
                     // Remove from allConnections
-                    std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
                     auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
                     if (it != m_allConnections.end())
                     {
                         m_allConnections.erase(it);
                     }
 
-                    // Create new connection if we're still running
+                    // Create new connection and register it if we're still running
                     if (m_running.load())
                     {
                         try
                         {
-                            return createPooledDBConnection();
+                            auto newConn = createPooledDBConnection();
+                            m_allConnections.push_back(newConn);
+                            return newConn;
                         }
                         catch (const std::exception &)
                         {
@@ -323,17 +325,14 @@ namespace cpp_dbc
             // Replace invalid connection with a new one
             try
             {
+                // Use scoped_lock for consistent lock ordering to prevent deadlock
                 {
-                    std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
+                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
                     auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
                     if (it != m_allConnections.end())
                     {
                         *it = createPooledDBConnection();
-
-                        {
-                            std::lock_guard<std::mutex> lockIdle(m_mutexIdleConnections);
-                            m_idleConnections.push(*it);
-                        }
+                        m_idleConnections.push(*it);
                     }
                 }
                 m_activeConnections--;
@@ -366,8 +365,8 @@ namespace cpp_dbc
             auto now = std::chrono::steady_clock::now();
 
             // Ensure no body touch the allConnections and idleConnections variables when used by this thread
-            std::lock_guard<std::mutex> lockAllConnections(m_mutexAllConnections);
-            std::lock_guard<std::mutex> lockIdleConnectons(m_mutexIdleConnections);
+            // Use scoped_lock for consistent lock ordering to prevent deadlock
+            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
 
             // Check all connections for expired ones
             for (auto it = m_allConnections.begin(); it != m_allConnections.end();)
@@ -447,17 +446,33 @@ namespace cpp_dbc
         std::shared_ptr<KVPooledDBConnection> result = this->getIdleDBConnection();
 
         // If no connection available, check if we can create a new one
-        if (result == nullptr && m_allConnections.size() < m_maxSize)
+        size_t currentSize;
         {
-            result = createPooledDBConnection();
+            std::lock_guard<std::mutex> lock_all(m_mutexAllConnections);
+            currentSize = m_allConnections.size();
+        }
+        if (result == nullptr && currentSize < m_maxSize)
+        {
+            auto candidate = createPooledDBConnection();
 
             {
                 std::lock_guard<std::mutex> lock_all(m_mutexAllConnections);
-                m_allConnections.push_back(result);
+                // Recheck size under lock to prevent exceeding m_maxSize under concurrent creation
+                if (m_allConnections.size() < m_maxSize)
+                {
+                    m_allConnections.push_back(candidate);
+                    result = candidate;
+                }
+            }
+
+            // If we couldn't register the connection (pool became full), close it
+            if (result == nullptr && candidate && candidate->getUnderlyingKVConnection())
+            {
+                candidate->getUnderlyingKVConnection()->close();
             }
         }
         // If no connection available, wait until one becomes available
-        else if (result == nullptr)
+        if (result == nullptr)
         {
             auto waitStart = std::chrono::steady_clock::now();
 
@@ -552,8 +567,8 @@ namespace cpp_dbc
         }
 
         // Close all connections
-        std::lock_guard<std::mutex> lockAllConnections(m_mutexAllConnections);
-        std::lock_guard<std::mutex> lockIdleConnections(m_mutexIdleConnections);
+        // Use scoped_lock for consistent lock ordering to prevent deadlock
+        std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
 
         for (auto &conn : m_allConnections)
         {

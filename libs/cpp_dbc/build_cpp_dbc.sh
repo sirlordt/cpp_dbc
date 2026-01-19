@@ -28,6 +28,7 @@ DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
+DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
 BACKWARD_HAS_DW=ON
@@ -149,7 +150,7 @@ do
         DEBUG_MONGODB=ON
         shift
         ;;
-        --debug-scylladbdb)
+        --debug-scylladb|--debug-scylladbdb)
         DEBUG_SCYLLADB=ON
         shift
         ;;
@@ -197,6 +198,7 @@ do
         echo "  --debug                Build in Debug mode (default)"
         echo "  --release              Build in Release mode"
         echo "  --gcc-analyzer         Enable GCC Static Analyzer (GCC 10+)"
+        echo "  --asan                 Enable AddressSanitizer"
         echo "  --test                 Build cpp_dbc tests"
         echo "  --examples             Build cpp_dbc examples"
         echo "  --benchmarks           Build cpp_dbc benchmarks"

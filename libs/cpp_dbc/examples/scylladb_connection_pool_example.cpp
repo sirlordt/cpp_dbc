@@ -248,7 +248,7 @@ int main()
 
         // Or use the ScyllaDB-specific pool:
         /*
-        auto pool = Scylla::ScyllaConnectionPool::create(
+        auto pool = ScyllaDB::ScyllaConnectionPool::create(
             "cpp_dbc:scylladb://localhost:9042/test_pool_keyspace",
             "cassandra",
             "dsystems"

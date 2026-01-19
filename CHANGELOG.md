@@ -1,6 +1,91 @@
 # Changelog
 
-## 2026-01-18 02:59:56 PM PST [Current]
+## 2026-01-18 23:26:52 [Current]
+
+### Connection Pool Race Condition Fix and Code Quality Improvements
+* Fixed connection pool race condition in all database types (relational, document, columnar, key-value):
+  * **Race Condition Fix:**
+    * Added pool size recheck under lock to prevent exceeding `m_maxSize` under concurrent creation
+    * New connections are now created as candidates and only registered if pool hasn't filled
+    * Unregistered candidate connections are properly closed to prevent resource leaks
+  * **Improved Return Connection Logic:**
+    * Added null check to prevent crash when returning null connections
+    * Added proper connection cleanup when pool is shutting down
+    * Added `m_maintenanceCondition.notify_one()` after returning connections
+  * **Enhanced Idle Connection Handling:**
+    * Improved `getIdleDBConnection()` with better error handling
+    * Added try-catch around new connection creation in replacement logic
+* Fixed MongoDB stub driver (when `USE_MONGODB=OFF`):
+  * Uncommented disabled stub implementation code
+  * Updated exception marks from text-based (`MONGODB_DISABLED`) to UUID-style marks
+* Fixed other driver stub exception marks:
+  * MySQL: `MYSQL_DISABLED` → UUID marks (`4FE1EBBEA99F`, `23D2107DA64F`)
+  * PostgreSQL: `PGSQL_DISABLED` → UUID marks (`3FE734D0BDE9`, `E39F6F23D06B`)
+  * ScyllaDB: `SCYLLA_DISABLED` → `SCYLLADB_DISABLED` for consistency
+* Fixed variable initialization in `blob.hpp`:
+  * `MemoryInputStream::m_position` now initialized to 0 at declaration
+  * `MemoryOutputStream::m_position` now initialized to 0 at declaration
+* Fixed remaining ScyllaDB variable naming in `build_dist_pkg.sh`:
+  * `SCYLLA_DEV_PKG` → `SCYLLADB_DEV_PKG` for both Debian and Fedora packages
+
+## 2026-01-18 22:49:41
+
+### ScyllaDB Native DATE Type Support Fix
+* Fixed ScyllaDB driver to properly handle native Cassandra DATE type:
+  * **Reading DATE values (`getDate` in ScyllaDBResultSet):**
+    * Added support for `CASS_VALUE_TYPE_DATE` (uint32 - days since epoch with 2^31 bias)
+    * Correctly converts Cassandra DATE format to ISO date string (YYYY-MM-DD)
+    * Uses `cass_value_get_uint32` instead of treating as timestamp
+  * **Writing DATE values (`setDate` in ScyllaDBPreparedStatement):**
+    * Changed from `cass_statement_bind_int64` (timestamp) to `cass_statement_bind_uint32` (date)
+    * Uses `cass_date_from_epoch` to convert epoch seconds to Cassandra DATE format
+    * Uses `timegm` for proper UTC timezone handling (with Windows `_mkgmtime` fallback)
+  * **Technical Details:**
+    * Cassandra DATE is stored as: `days_since_epoch + 2^31` (bias offset)
+    * Previous implementation incorrectly used TIMESTAMP type (milliseconds since epoch)
+    * Now properly distinguishes between DATE (uint32) and TIMESTAMP (int64) types
+
+## 2026-01-18 22:33:51
+
+### Connection Pool Deadlock Prevention and ScyllaDB Naming Consistency Fixes
+* Fixed potential deadlock in all connection pool implementations:
+  * **Deadlock Prevention:**
+    * Changed from sequential `std::lock_guard` calls to `std::scoped_lock` for consistent lock ordering
+    * Fixed in `columnar_db_connection_pool.cpp` (ScyllaDB)
+    * Fixed in `document_db_connection_pool.cpp` (MongoDB)
+    * Fixed in `kv_db_connection_pool.cpp` (Redis)
+    * Fixed in `relational_db_connection_pool.cpp` (MySQL, PostgreSQL, SQLite, Firebird)
+  * **Before (potential deadlock):**
+    ```cpp
+    std::lock_guard<std::mutex> lockAllConnections(m_mutexAllConnections);
+    std::lock_guard<std::mutex> lockIdleConnections(m_mutexIdleConnections);
+    ```
+  * **After (deadlock-safe):**
+    ```cpp
+    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+    ```
+  * **Connection Registration Fix:**
+    * Fixed `getIdleDBConnection()` method to properly register newly created connections
+    * New connections are now added to `m_allConnections` before being returned
+* Fixed ScyllaDB naming consistency:
+  * **Namespace Rename:**
+    * Changed namespace from `Scylla` to `ScyllaDB` in `driver_scylladb.hpp`
+    * Updated error code prefix from `SCYLLA_` to `SCYLLADB_`
+  * **Build Script Fixes:**
+    * Added ScyllaDB echo output in `build.dist.sh`
+    * Added `DEBUG_SCYLLADB=ON` in debug mode for `build.sh`
+    * Fixed `--debug-scylladb` option alias in `build_cpp_dbc.sh`
+  * **Distribution Package Fixes:**
+    * Renamed `SCYLLA_CONTROL_DEP` to `SCYLLADB_CONTROL_DEP` in `build_dist_pkg.sh`
+    * Updated `__SCYLLA_DEV_PKG__` to `__SCYLLADB_DEV_PKG__` in all distro Dockerfiles
+    * Added `__REDIS_CONTROL_DEP__` placeholder handling in build scripts
+* Fixed documentation numbering in `cppdbc-package.md` (corrected step numbers 19→20, 20→21, 20→22)
+* Fixed typos in `TODO.md`:
+  * "proyect" → "project"
+  * "ease" → "easy"
+  * "INTERGRATION" → "INTEGRATION"
+
+## 2026-01-18 02:59:56 PM PST
 
 ### VSCode IntelliSense Automatic Synchronization System
 * Added automatic synchronization system for VSCode IntelliSense:
