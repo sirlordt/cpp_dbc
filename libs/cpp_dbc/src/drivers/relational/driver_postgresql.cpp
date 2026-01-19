@@ -403,7 +403,7 @@ namespace cpp_dbc
         {
             // Connection is closing, invalidate the statement without calling mysql_stmt_close
             // since the connection is already being destroyed
-            this->close();
+            this->close(std::nothrow);
         }
 
         void PostgreSQLDBPreparedStatement::setInt(int parameterIndex, int value)
@@ -2828,7 +2828,7 @@ namespace cpp_dbc
                         this->m_autoCommit = false;
 
                         auto result = beginTransaction(std::nothrow);
-                        if (!result)
+                        if (!result.has_value())
                         {
                             return cpp_dbc::unexpected<DBException>(result.error());
                         }
@@ -2839,7 +2839,7 @@ namespace cpp_dbc
                         if (m_transactionActive)
                         {
                             auto result = commit(std::nothrow);
-                            if (!result)
+                            if (!result.has_value())
                             {
                                 return cpp_dbc::unexpected<DBException>(result.error());
                             }

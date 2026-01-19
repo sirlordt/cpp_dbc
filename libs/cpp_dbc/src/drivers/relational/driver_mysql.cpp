@@ -1304,7 +1304,7 @@ namespace cpp_dbc
         {
             // Connection is closing, invalidate the statement without calling mysql_stmt_close
             // since the connection is already being destroyed
-            this->close();
+            this->close(std::nothrow);
         }
 
         void MySQLDBPreparedStatement::setInt(int parameterIndex, int value)
