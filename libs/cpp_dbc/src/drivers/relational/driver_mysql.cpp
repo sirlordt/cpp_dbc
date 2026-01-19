@@ -1257,7 +1257,7 @@ namespace cpp_dbc
 
         MySQLDBPreparedStatement::~MySQLDBPreparedStatement()
         {
-            close();
+            close(std::nothrow);
         }
 
         void MySQLDBPreparedStatement::close()

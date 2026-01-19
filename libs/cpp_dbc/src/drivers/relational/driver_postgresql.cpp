@@ -387,25 +387,15 @@ namespace cpp_dbc
 
         PostgreSQLDBPreparedStatement::~PostgreSQLDBPreparedStatement()
         {
-            close();
+            close(std::nothrow);
         }
 
         void PostgreSQLDBPreparedStatement::close()
         {
-            if (m_prepared)
+            auto result = this->close(std::nothrow);
+            if (!result)
             {
-                // Try to deallocate the prepared statement if connection is still valid
-                auto conn = m_conn.lock();
-                if (conn)
-                {
-                    std::string deallocateSQL = "DEALLOCATE " + m_stmtName;
-                    PGresult *res = PQexec(conn.get(), deallocateSQL.c_str());
-                    if (res)
-                    {
-                        PQclear(res);
-                    }
-                }
-                m_prepared = false;
+                throw result.error();
             }
         }
 
