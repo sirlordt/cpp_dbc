@@ -769,7 +769,8 @@ namespace cpp_dbc
                 uint64_t rowCount = 0;
                 if (affectedRows && affectedRows[0] != '\0')
                 {
-                    std::from_chars(affectedRows, affectedRows + strlen(affectedRows), rowCount);
+                    std::string_view affectedRowsView(affectedRows);
+                    std::from_chars(affectedRowsView.data(), affectedRowsView.data() + affectedRowsView.size(), rowCount);
                 }
 
                 PQclear(result);
@@ -2787,7 +2788,8 @@ namespace cpp_dbc
                 uint64_t rowCount = 0;
                 if (affectedRows && affectedRows[0] != '\0')
                 {
-                    std::from_chars(affectedRows, affectedRows + strlen(affectedRows), rowCount);
+                    std::string_view affectedRowsView(affectedRows);
+                    std::from_chars(affectedRowsView.data(), affectedRowsView.data() + affectedRowsView.size(), rowCount);
                 }
 
                 PQclear(result);
