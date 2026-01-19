@@ -32,11 +32,11 @@
 
 ### ScyllaDB Native DATE Type Support Fix
 * Fixed ScyllaDB driver to properly handle native Cassandra DATE type:
-  * **Reading DATE values (`getString`):**
+  * **Reading DATE values (`getDate` in ScyllaDBResultSet):**
     * Added support for `CASS_VALUE_TYPE_DATE` (uint32 - days since epoch with 2^31 bias)
     * Correctly converts Cassandra DATE format to ISO date string (YYYY-MM-DD)
     * Uses `cass_value_get_uint32` instead of treating as timestamp
-  * **Writing DATE values (`setDate`):**
+  * **Writing DATE values (`setDate` in ScyllaDBPreparedStatement):**
     * Changed from `cass_statement_bind_int64` (timestamp) to `cass_statement_bind_uint32` (date)
     * Uses `cass_date_from_epoch` to convert epoch seconds to Cassandra DATE format
     * Uses `timegm` for proper UTC timezone handling (with Windows `_mkgmtime` fallback)

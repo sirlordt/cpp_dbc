@@ -190,50 +190,43 @@ for option in "${OPTIONS[@]}"; do
             ;;
         mysql)
             CMAKE_MYSQL_OPTION="-DCPP_DBC_WITH_MYSQL=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $MYSQL_DEV_PKG"
-            MYSQL_CONTROL_DEP=", $MYSQL_DEV_PKG"
+            # Note: MYSQL_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_MYSQL="ON"
             BUILD_FLAGS="$BUILD_FLAGS --mysql"
             ;;
         postgres)
             CMAKE_POSTGRESQL_OPTION="-DCPP_DBC_WITH_POSTGRESQL=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $POSTGRESQL_DEV_PKG"
-            POSTGRESQL_CONTROL_DEP=", $POSTGRESQL_DEV_PKG"
+            # Note: POSTGRESQL_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_POSTGRESQL="ON"
             BUILD_FLAGS="$BUILD_FLAGS --postgres"
             ;;
         sqlite)
             CMAKE_SQLITE_OPTION="-DCPP_DBC_WITH_SQLITE=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SQLITE_DEV_PKG"
-            SQLITE_CONTROL_DEP=", $SQLITE_DEV_PKG"
+            # Note: SQLITE_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_SQLITE="ON"
             BUILD_FLAGS="$BUILD_FLAGS --sqlite"
             ;;
         firebird)
             CMAKE_FIREBIRD_OPTION="-DCPP_DBC_WITH_FIREBIRD=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $FIREBIRD_DEV_PKG"
-            FIREBIRD_CONTROL_DEP=", $FIREBIRD_DEV_PKG"
+            # Note: FIREBIRD_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_FIREBIRD="ON"
             BUILD_FLAGS="$BUILD_FLAGS --firebird"
             ;;
         mongodb)
             CMAKE_MONGODB_OPTION="-DCPP_DBC_WITH_MONGODB=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $MONGODB_DEV_PKG"
-            MONGODB_CONTROL_DEP=", $MONGODB_DEV_PKG"
+            # Note: MONGODB_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_MONGODB="ON"
             BUILD_FLAGS="$BUILD_FLAGS --mongodb"
             ;;
         redis)
             CMAKE_REDIS_OPTION="-DCPP_DBC_WITH_REDIS=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $REDIS_DEV_PKG"
-            REDIS_CONTROL_DEP=", $REDIS_DEV_PKG"
+            # Note: REDIS_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_REDIS="ON"
             BUILD_FLAGS="$BUILD_FLAGS --redis"
             ;;
         scylla)
             CMAKE_SCYLLA_OPTION="-DCPP_DBC_WITH_SCYLLADB=ON"
-            DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SCYLLADB_DEV_PKG"
-            SCYLLADB_CONTROL_DEP=", $SCYLLADB_DEV_PKG"
+            # Note: SCYLLADB_CONTROL_DEP is set inside the per-distro loop after get_distro_packages()
             USE_SCYLLADB="ON"
             BUILD_FLAGS="$BUILD_FLAGS --scylladb"
             ;;
@@ -304,11 +297,8 @@ for option in "${OPTIONS[@]}"; do
     esac
 done
 
-# Add libdw to dependencies if enabled
-if [ "$USE_DW" = "ON" ]; then
-    DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $LIBDW_DEV_PKG"
-    LIBDW_CONTROL_DEP=", $LIBDW_DEV_PKG"
-fi
+# Note: libdw dependencies are now handled inside the per-distro loop
+# after get_distro_packages() populates the package variable names
 
 # Create build directory if it doesn't exist
 mkdir -p build
@@ -317,10 +307,58 @@ mkdir -p build
 IFS='+' read -ra DISTRO_LIST <<< "$DISTROS"
 for DISTRO in "${DISTRO_LIST[@]}"; do
     echo "Processing distribution: $DISTRO"
-    
+
     # Get package dependencies for this distro
     get_distro_packages "$DISTRO"
-    
+
+    # Regenerate control dependencies and DEB_DEPENDENCIES now that distro-specific package variables are populated
+    # Reset to base dependency and rebuild with proper package names for this distro
+    DEB_DEPENDENCIES="libc6"
+    MYSQL_CONTROL_DEP=""
+    POSTGRESQL_CONTROL_DEP=""
+    SQLITE_CONTROL_DEP=""
+    FIREBIRD_CONTROL_DEP=""
+    MONGODB_CONTROL_DEP=""
+    SCYLLADB_CONTROL_DEP=""
+    REDIS_CONTROL_DEP=""
+    LIBDW_CONTROL_DEP=""
+
+    if [ "$USE_CPP_YAML" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, libyaml-cpp-dev"
+    fi
+    if [ "$USE_MYSQL" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $MYSQL_DEV_PKG"
+        MYSQL_CONTROL_DEP=", $MYSQL_DEV_PKG"
+    fi
+    if [ "$USE_POSTGRESQL" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $POSTGRESQL_DEV_PKG"
+        POSTGRESQL_CONTROL_DEP=", $POSTGRESQL_DEV_PKG"
+    fi
+    if [ "$USE_SQLITE" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SQLITE_DEV_PKG"
+        SQLITE_CONTROL_DEP=", $SQLITE_DEV_PKG"
+    fi
+    if [ "$USE_FIREBIRD" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $FIREBIRD_DEV_PKG"
+        FIREBIRD_CONTROL_DEP=", $FIREBIRD_DEV_PKG"
+    fi
+    if [ "$USE_MONGODB" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $MONGODB_DEV_PKG"
+        MONGODB_CONTROL_DEP=", $MONGODB_DEV_PKG"
+    fi
+    if [ "$USE_SCYLLADB" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SCYLLADB_DEV_PKG"
+        SCYLLADB_CONTROL_DEP=", $SCYLLADB_DEV_PKG"
+    fi
+    if [ "$USE_REDIS" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $REDIS_DEV_PKG"
+        REDIS_CONTROL_DEP=", $REDIS_DEV_PKG"
+    fi
+    if [ "$USE_DW" = "ON" ]; then
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $LIBDW_DEV_PKG"
+        LIBDW_CONTROL_DEP=", $LIBDW_DEV_PKG"
+    fi
+
     # Get directory name for this distro
     DISTRO_DIR=$(get_distro_dir "$DISTRO")
     
