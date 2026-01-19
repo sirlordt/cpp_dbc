@@ -930,7 +930,7 @@ Recent changes to the codebase include:
 56. **Build System Enhancements**:
    - Modified `build.sh` to support `--yaml` and `--examples` options
    - Updated `build_cpp_dbc.sh` to support `--yaml` and `--examples` options
-   - Fixed issue with Conan generators directory path in `build_cpp_dbc.sh`
+   - Resolved issue with Conan generators directory path in `build_cpp_dbc.sh`
    - Improved error handling in build scripts
 
 57. **Enhanced Testing Support**:
@@ -987,7 +987,7 @@ Recent changes to the codebase include:
    - Changed the default build type from Release to Debug
    - Added support for `--release` argument to build in Release mode when needed
    - Ensured both the library and the main project use the same build type
-   - Fixed issues with finding the correct `conan_toolchain.cmake` file based on build type
+   - Resolved issues with finding the correct `conan_toolchain.cmake` file based on build type
 
 62. **Fixed VS Code Debugging Issues**:
    - Added the correct include path for nlohmann_json library
