@@ -363,7 +363,7 @@ Based on the current state of the project, potential areas for enhancement inclu
      - **Pool Architecture:**
        - `ColumnarDBConnectionPool` base class for all columnar database pools
        - `ColumnarPooledDBConnection` wrapper class for pooled columnar connections
-       - `Scylla::ScyllaConnectionPool` specialized implementation for ScyllaDB
+       - `ScyllaDB::ScyllaConnectionPool` specialized implementation for ScyllaDB
        - Factory pattern with `create` static methods for pool creation
        - Smart pointer-based pool lifetime tracking for memory safety
        - Connection validation with CQL query (`SELECT now() FROM system.local`)
