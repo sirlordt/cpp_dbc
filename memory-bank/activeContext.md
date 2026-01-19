@@ -59,7 +59,7 @@ Recent changes to the codebase include:
        - Uses `cass_date_from_epoch` to convert epoch seconds to Cassandra DATE format
        - Uses `timegm` for proper UTC timezone handling (with Windows `_mkgmtime` fallback)
 
-3. **Connection Pool Deadlock Prevention and ScyllaDB Naming Consistency Fixes** (18/01/2026 22:33:51):
+3. **Connection Pool Deadlock Prevention and ScyllaDB Naming Consistency Fixes** (2026-01-18 22:33:51):
    - Fixed potential deadlock in all connection pool implementations:
      - **Deadlock Prevention:**
        - Changed from sequential `std::lock_guard` calls to `std::scoped_lock` for consistent lock ordering
@@ -119,7 +119,7 @@ Recent changes to the codebase include:
      - **Pool Architecture:**
        - `ColumnarDBConnectionPool` base class for all columnar database pools
        - `ColumnarPooledDBConnection` wrapper class for pooled columnar connections
-       - `Scylla::ScyllaConnectionPool` specialized implementation for ScyllaDB
+       - `ScyllaDB::ScyllaConnectionPool` specialized implementation for ScyllaDB
        - Smart pointer-based pool lifetime tracking for memory safety
        - Connection validation with CQL query (`SELECT now() FROM system.local`)
        - Configurable pool parameters (initial size, max size, min idle, etc.)

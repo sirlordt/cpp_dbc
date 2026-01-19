@@ -347,8 +347,11 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
         MONGODB_CONTROL_DEP=", $MONGODB_DEV_PKG"
     fi
     if [ "$USE_SCYLLADB" = "ON" ]; then
-        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SCYLLADB_DEV_PKG"
-        SCYLLADB_CONTROL_DEP=", $SCYLLADB_DEV_PKG"
+        # SCYLLADB_DEV_PKG contains space-separated packages (e.g., "libuv1-dev libssl-dev zlib1g-dev")
+        # Convert spaces to ", " for proper Debian control file format
+        SCYLLADB_DEV_PKG_COMMA=$(echo "$SCYLLADB_DEV_PKG" | sed 's/ /, /g')
+        DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $SCYLLADB_DEV_PKG_COMMA"
+        SCYLLADB_CONTROL_DEP=", $SCYLLADB_DEV_PKG_COMMA"
     fi
     if [ "$USE_REDIS" = "ON" ]; then
         DEB_DEPENDENCIES="$DEB_DEPENDENCIES, $REDIS_DEV_PKG"
@@ -385,6 +388,8 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__CMAKE_SQLITE_OPTION__/$CMAKE_SQLITE_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__CMAKE_FIREBIRD_OPTION__/$CMAKE_FIREBIRD_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__CMAKE_MONGODB_OPTION__/$CMAKE_MONGODB_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__CMAKE_SCYLLA_OPTION__/$CMAKE_SCYLLA_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__CMAKE_REDIS_OPTION__/$CMAKE_REDIS_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__CMAKE_DW_OPTION__/$CMAKE_DW_OPTION/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__DEB_DEPENDENCIES__/$DEB_DEPENDENCIES/g" "$TEMP_BUILD_DIR/build_script.sh"
     
@@ -403,6 +408,7 @@ for DISTRO in "${DISTRO_LIST[@]}"; do
     sed -i "s/__USE_FIREBIRD__/$USE_FIREBIRD/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_MONGODB__/$USE_MONGODB/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_SCYLLADB__/$USE_SCYLLADB/g" "$TEMP_BUILD_DIR/build_script.sh"
+    sed -i "s/__USE_REDIS__/$USE_REDIS/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_CPP_YAML__/$USE_CPP_YAML/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__USE_DW__/$USE_DW/g" "$TEMP_BUILD_DIR/build_script.sh"
     sed -i "s/__BUILD_TYPE__/$BUILD_TYPE/g" "$TEMP_BUILD_DIR/build_script.sh"
