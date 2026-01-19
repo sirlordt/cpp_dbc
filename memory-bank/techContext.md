@@ -47,6 +47,28 @@
   - Index management: createIndex, dropIndex, listIndexes
   - Collection management: createCollection, dropCollection, listCollections
 
+- **Cassandra/ScyllaDB Client Library**: For ScyllaDB columnar database connectivity
+  - Uses the DataStax C++ driver for Apache Cassandra API (`cassandra.h`)
+  - Requires libcassandra-dev package (Debian/Ubuntu)
+  - Requires cassandra-cpp-driver-devel package (RHEL/Fedora)
+  - Default port: 9042
+  - URL format: `cpp_dbc:scylladb://host:port/keyspace` or `cpp_dbc:scylladb://username:password@host:port/keyspace`
+  - CQL query execution and prepared statements
+  - Result set handling with all supported data types
+  - Thread-safe operations when enabled with DB_DRIVER_THREAD_SAFE
+  - Support for keyspace operations
+  - JOIN emulation (not natively supported in CQL)
+  - Support for batch operations
+  - Robust error handling with driver-specific error codes
+  - Connection pooling with `ScyllaConnectionPool`:
+    - Factory pattern with `create` static methods for pool creation
+    - `ColumnarDBConnectionPool` base class for columnar databases
+    - `ColumnarPooledDBConnection` wrapper class for pooled connections
+    - Connection validation with CQL query (`SELECT now() FROM system.local`)
+    - Configurable pool parameters (initial size, max size, min idle, etc.)
+  - Exception-free API with nothrow variants returning `expected<T, DBException>`
+  - Build system: `USE_SCYLLADB` option (renamed from `USE_SCYLLA`)
+
 - **Redis Client Library**: For Redis key-value database connectivity
   - Uses the Hiredis C library API (`hiredis/hiredis.h`)
   - Requires libhiredis-dev package (Debian/Ubuntu)
@@ -100,6 +122,7 @@ The project uses:
   - `--debug-txmgr`: Enable debug output for TransactionManager
   - `--debug-sqlite`: Enable debug output for SQLite driver
   - `--debug-mongodb`: Enable debug output for MongoDB driver
+  - `--debug-scylladb`: Enable debug output for ScyllaDB driver
   - `--debug-redis`: Enable debug output for Redis driver
   - `--debug-all`: Enable all debug output at once (simplifies debugging across multiple components)
   - `--db-driver-thread-safe-off`: Disable thread-safe database driver operations (for single-threaded performance)
@@ -118,23 +141,40 @@ The project includes VSCode configuration files for seamless development:
 - `.vscode/c_cpp_properties.json`: Sets up include paths for IntelliSense
 - `.vscode/launch.json`: Provides debugging configurations (standard and CMake-based)
 - `.vscode/tasks.json`: Defines build tasks including "CMake: build"
+- `.vscode/README_INTELLISENSE.md`: Comprehensive guide for IntelliSense configuration
 
 The project is configured to work with the CMakeTools extension, but does not rely on CMake presets to avoid configuration issues. Instead, it uses direct configuration settings in the VSCode files.
 
+#### VSCode IntelliSense Automatic Synchronization
+The project now includes an automatic synchronization system for IntelliSense:
+- **Scripts:**
+  - `.vscode/sync_intellisense.sh`: Quick sync without rebuilding (reads saved config)
+  - `.vscode/regenerate_intellisense.sh`: Rebuild from last config or with new parameters
+  - `.vscode/update_defines.sh`: Update defines from compile_commands.json
+  - `.vscode/detect_include_paths.sh`: Detect system include paths automatically
+- **Features:**
+  - Build parameters automatically saved to `build/.build_args`
+  - Configuration state saved to `build/.build_config`
+  - No need to manually specify parameters twice
+- **Workflow:**
+  1. Run `./build.sh [options]` to build with desired configuration
+  2. Run `.vscode/sync_intellisense.sh` to sync IntelliSense (fast, no rebuild)
+  3. Reload VSCode window if needed (`Ctrl+Shift+P` -> "Developer: Reload Window")
+
 #### Known VSCode Issues
 - **IntelliSense Preprocessor Definition Caching**: IntelliSense may show `USE_POSTGRESQL` as 0 even after compilation has activated it. This can cause confusion when working with conditional code. To fix this issue:
-  1. After compilation, press `CTRL+SHIFT+P`
-  2. Type and select "Developer: Reload Window"
-  3. This forces IntelliSense to reload with the updated preprocessor definitions
+  1. After compilation, run `.vscode/sync_intellisense.sh` (preferred), or
+  2. Press `CTRL+SHIFT+P` and select "Developer: Reload Window"
 
 ## Technical Constraints
 
 ### Database Support
-- Currently supports MySQL, PostgreSQL, SQLite, Firebird SQL (relational), MongoDB (document), and Redis (key-value)
+- Currently supports MySQL, PostgreSQL, SQLite, Firebird SQL (relational), MongoDB (document), ScyllaDB (columnar), and Redis (key-value)
 - Adding support for other databases requires implementing new driver classes
 - Different database paradigms use separate interfaces:
   - Relational database interfaces (MySQL, PostgreSQL, SQLite, Firebird SQL)
   - Document database interfaces (MongoDB)
+  - Columnar database interfaces (ScyllaDB/Cassandra)
   - Key-value database interfaces (Redis)
 
 ### Thread Safety

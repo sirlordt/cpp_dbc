@@ -39,8 +39,9 @@ string createTestDocument(int id, const string &name, double value)
            ", \"value\": " + to_string(value) + "}";
 }
 
-int main(int argc, char *argv[])
-{
+int main()
+{ //(int argc, char *argv[])
+
     try
     {
         cout << "Document Database Connection Pool Example" << endl;
@@ -74,14 +75,14 @@ int main(int argc, char *argv[])
 
         // Step 3: Create the connection pool
         cout << "Creating MongoDB connection pool..." << endl;
-        MongoDB::MongoDBConnectionPool pool(poolConfig);
+        auto pool = MongoDB::MongoDBConnectionPool::create(poolConfig);
 
         // Step 4: Create a test collection
         const string testCollectionName = "connection_pool_example";
 
         {
             cout << "Setting up test collection..." << endl;
-            auto conn = pool.getDocumentDBConnection();
+            auto conn = pool->getDocumentDBConnection();
 
             // Drop the collection if it exists (cleanup from previous runs)
             if (conn->collectionExists(testCollectionName))
@@ -102,7 +103,7 @@ int main(int argc, char *argv[])
             cout << "\nPerforming basic document operations..." << endl;
 
             // Get a connection from the pool
-            auto conn = pool.getDocumentDBConnection();
+            auto conn = pool->getDocumentDBConnection();
             auto collection = conn->getCollection(testCollectionName);
 
             // Insert a document
@@ -157,7 +158,7 @@ int main(int argc, char *argv[])
                                          {
                     try {
                         // Get connection from pool
-                        auto conn = pool.getDocumentDBConnection();
+                        auto conn = pool->getDocumentDBConnection();
                         
                         // Get collection
                         auto collection = conn->getCollection(testCollectionName);
@@ -195,7 +196,7 @@ int main(int argc, char *argv[])
             }
 
             // Check results
-            auto conn = pool.getDocumentDBConnection();
+            auto conn = pool->getDocumentDBConnection();
             auto collection = conn->getCollection(testCollectionName);
             auto count = collection->countDocuments();
 
@@ -207,14 +208,14 @@ int main(int argc, char *argv[])
 
         // Step 7: Print pool statistics
         cout << "\nConnection pool statistics:" << endl;
-        cout << "Active connections: " << pool.getActiveDBConnectionCount() << endl;
-        cout << "Idle connections: " << pool.getIdleDBConnectionCount() << endl;
-        cout << "Total connections: " << pool.getTotalDBConnectionCount() << endl;
+        cout << "Active connections: " << pool->getActiveDBConnectionCount() << endl;
+        cout << "Idle connections: " << pool->getIdleDBConnectionCount() << endl;
+        cout << "Total connections: " << pool->getTotalDBConnectionCount() << endl;
 
         // Step 8: Clean up
         {
             cout << "\nCleaning up..." << endl;
-            auto conn = pool.getDocumentDBConnection();
+            auto conn = pool->getDocumentDBConnection();
 
             if (conn->collectionExists(testCollectionName))
             {
@@ -227,7 +228,7 @@ int main(int argc, char *argv[])
 
         // Close the pool
         cout << "Closing connection pool..." << endl;
-        pool.close();
+        pool->close();
 
         cout << "\nExample completed successfully." << endl;
     }

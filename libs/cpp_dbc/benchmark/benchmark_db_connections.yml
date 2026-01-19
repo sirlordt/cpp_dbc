@@ -194,6 +194,32 @@ databases:
       auth_source: admin
       direct_connection: true
 
+  # ScyllaDB development database
+  - name: dev_scylladb
+    type: scylladb
+    host: localhost
+    port: 9042
+    database: test_keyspace
+    username: cassandra
+    password: dsystems
+    options:
+      connect_timeout: 5000
+      request_timeout: 12000
+      protocol_version: 4
+
+  # ScyllaDB testing database
+  - name: test_scylladb
+    type: scylladb
+    host: localhost
+    port: 9042
+    database: test_keyspace
+    username: cassandra
+    password: dsystems
+    options:
+      connect_timeout: 3000
+      request_timeout: 10000
+      protocol_version: 4
+
 # Connection pool configuration for tests
 connection_pool:
   default:

@@ -29,6 +29,7 @@
 #include "test_mysql_common.hpp"
 #include "test_postgresql_common.hpp"
 #include "test_firebird_common.hpp"
+#include "test_scylladb_common.hpp"
 
 #include "test_mocks.hpp"
 
@@ -166,6 +167,42 @@ TEST_CASE("Firebird driver tests", "[driver][firebird]")
         REQUIRE_THROWS_AS(
             driver.connect("cpp_dbc:firebird://localhost:3050/non_existent_db", "user", "pass"),
             cpp_dbc::DBException);
+    }
+}
+#endif
+
+#if USE_SCYLLADB
+// Test case for ScyllaDB driver
+TEST_CASE("ScyllaDB driver tests", "[driver][scylla]")
+{
+    SECTION("ScyllaDB driver URL acceptance")
+    {
+        // Create a ScyllaDB driver
+        cpp_dbc::ScyllaDB::ScyllaDBDriver driver;
+
+        // Check that it accepts ScyllaDB URLs
+        REQUIRE(driver.acceptsURL("cpp_dbc:scylladb://localhost:9042/testdb"));
+        REQUIRE(driver.acceptsURL("cpp_dbc:scylladb://127.0.0.1:9042/testdb"));
+
+        // Check that it rejects non-ScyllaDB URLs
+        REQUIRE_FALSE(driver.acceptsURL("cpp_dbc:mysql://localhost:3306/testdb"));
+        REQUIRE_FALSE(driver.acceptsURL("scylladb://localhost:9042/testdb"));
+    }
+
+    SECTION("ScyllaDB driver connection string parsing")
+    {
+        // Create a ScyllaDB driver
+        cpp_dbc::ScyllaDB::ScyllaDBDriver driver;
+
+        auto params = driver.parseURI("cpp_dbc:scylladb://localhost:9042/mydb");
+        REQUIRE(params.at("host") == "localhost");
+        REQUIRE(params.at("port") == "9042");
+        REQUIRE(params.at("database") == "mydb");
+
+        params = driver.parseURI("cpp_dbc:scylladb://server:1234");
+        REQUIRE(params.at("host") == "server");
+        REQUIRE(params.at("port") == "1234");
+        REQUIRE(params.at("database") == "");
     }
 }
 #endif

@@ -10,8 +10,27 @@
    - Oracle?
    - DB2?
    - Clickhouse?
-   - Cassandra/Symtilla?
+
 ## Completed Tasks
+
+- ScyllaDB Connection Pool and Driver Enhancements (2026-01-18):
+  - Added ColumnarDBConnectionPool base class for columnar databases
+  - Added ColumnarPooledDBConnection wrapper class for pooled columnar connections
+  - Added Scylla::ScyllaConnectionPool specialized implementation for ScyllaDB
+  - Renamed USE_SCYLLA to USE_SCYLLADB for consistency
+  - Renamed driver files from driver_scylla to driver_scylladb
+  - Renamed namespace from Scylla to ScyllaDB
+  - Added comprehensive ScyllaDB examples (blob, json, connection pool)
+  - Added ScyllaDB benchmark suite (select, insert, update, delete)
+  - Renamed test files from test_scylla_* to test_scylladb_*
+  - Added ScyllaDB exception-free API with nothrow variants
+
+- Add benchmarks to SCYLLADB driver
+- Add examples to SCYLLADB driver
+- Add conection pool interface and class implementation to SCYLLADB driver.
+- Add container build the scylladb drvier support
+- Cassandra/SCYLLADB driver implementation
+- Add DEBUG_SCYLLADB to the driver of SCYLLADB. And relevant intrumentation messages in the driver code.
 
 - PostgreSQL Exception-Free API Implementation:
   - Implemented comprehensive exception-free API for all PostgreSQL driver methods using `std::nothrow_t` parameter
@@ -20,7 +39,6 @@
   - Added error handling with unique error codes for each error condition
   - Implemented for connection operations, transaction management, and statement execution
   - Ensures consistent API pattern across all database drivers
-
 
 - MongoDB benchmark and test improvements:
   - Added comprehensive MongoDB benchmark suite with benchmark_mongodb_select.cpp, benchmark_mongodb_insert.cpp, benchmark_mongodb_update.cpp, benchmark_mongodb_delete.cpp

@@ -7,14 +7,14 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
 1. **Core Interface Layer**: Abstract base classes defining the API in the `include/cpp_dbc/core/` directory
    - `core/relational/`: Relational database interfaces (`RelationalDBConnection`, `RelationalDBPreparedStatement`, `RelationalDBResultSet`, etc.)
    - `core/document/`: Document database interfaces (`DocumentDBConnection`, `DocumentDBDriver`, `DocumentDBCollection`, `DocumentDBCursor`, `DocumentDBData`)
-   - `core/columnar/`: Columnar database interfaces (placeholder for future)
+   - `core/columnar/`: Columnar database interfaces (`ColumnarDBConnection`, `ColumnarDBDriver`, `ColumnarDBConnectionPool`)
    - `core/graph/`: Graph database interfaces (placeholder for future)
    - `core/kv/`: Key-Value database interfaces (`KVDBConnection`, `KVDBDriver`, `KVDBConnectionPool`)
    - `core/timeseries/`: Time-series database interfaces (placeholder for future)
 2. **Driver Layer**: Database-specific implementations in the `src/drivers/` and `include/cpp_dbc/drivers/` directories
    - `drivers/relational/`: Relational database drivers (MySQL, PostgreSQL, SQLite, Firebird)
    - `drivers/document/`: Document database drivers (MongoDB)
-   - `drivers/columnar/`: Columnar database drivers (placeholder for future)
+   - `drivers/columnar/`: Columnar database drivers (ScyllaDB)
    - `drivers/graph/`: Graph database drivers (placeholder for future)
    - `drivers/kv/`: Key-Value database drivers (Redis)
    - `drivers/timeseries/`: Time-series database drivers (placeholder for future)
@@ -49,6 +49,12 @@ Client Application → DriverManager → KVDBDriver → KVDBConnection
                     → KVDBConnection → Key-Value Operations (get, set, hash, list, set, etc.)
                     → KVDBConnectionPool → KVPooledDBConnection → KVDBConnection
                     → DatabaseConfigManager → DatabaseConfig → KVDBConnection
+                    → Code Quality Checks → All Components
+
+Columnar Databases:
+Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnection → ColumnarDBPreparedStatement/ColumnarDBResultSet
+                    → ColumnarDBConnectionPool → ColumnarPooledDBConnection → ColumnarDBConnection
+                    → DatabaseConfigManager → DatabaseConfig → ColumnarDBConnection
                     → Code Quality Checks → All Components
 ```
 
@@ -137,10 +143,11 @@ Client Application → DriverManager → KVDBDriver → KVDBConnection
 - Connection pool implementations for different database types:
   - `RelationalDBConnectionPool` for relational databases with factory pattern
   - `DocumentDBConnectionPool` for document databases with factory pattern
+  - `ColumnarDBConnectionPool` for columnar databases with factory pattern
   - `KVDBConnectionPool` for key-value databases with factory pattern
 - Each connection pool implementation follows the same architecture:
   - Abstract base class defining the pool interface
-  - Concrete implementations for specific database types (PostgreSQLConnectionPool, MongoDBConnectionPool, RedisConnectionPool, etc.)
+  - Concrete implementations for specific database types (PostgreSQLConnectionPool, MongoDBConnectionPool, ScyllaConnectionPool, RedisConnectionPool, etc.)
   - Factory methods (`create`) for creating pool instances with shared_ptr ownership
   - Protected constructors to enforce factory method usage
   - Resource cleanup with proper exception handling

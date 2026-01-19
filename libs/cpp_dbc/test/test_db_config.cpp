@@ -78,7 +78,7 @@ TEST_CASE("Database configurations", "[db_config]")
         const auto &allDatabases = configManager.getAllDatabases();
 
         // Check that we have the expected number of databases
-        REQUIRE(allDatabases.size() == 15); // 3 MySQL + 3 PostgreSQL + 3 SQLite + 2 Firebird + 2 MongoDB
+        REQUIRE(allDatabases.size() == 17); // 3 MySQL + 3 PostgreSQL + 3 SQLite + 2 Firebird + 2 MongoDB + 2 ScyllaDB
 
         // Check that each database has the required fields
         for (const auto &db : allDatabases)
@@ -90,8 +90,8 @@ TEST_CASE("Database configurations", "[db_config]")
             REQUIRE(!db.getType().empty());
             REQUIRE(!db.getDatabase().empty());
 
-            // Host and port are only required for MySQL, PostgreSQL, and Firebird
-            if (type == "mysql" || type == "postgresql" || type == "firebird")
+            // Host and port are only required for MySQL, PostgreSQL, Firebird and ScyllaDB
+            if (type == "mysql" || type == "postgresql" || type == "firebird" || type == "scylladb")
             {
                 REQUIRE(!db.getHost().empty());
                 REQUIRE(db.getPort() > 0);
@@ -314,6 +314,28 @@ TEST_CASE("Specific SQLite database configurations", "[db_config]")
         REQUIRE(prodSQLite.getOption("journal_mode") == "WAL");
         REQUIRE(prodSQLite.getOption("synchronous") == "FULL");
     }
+
+    SECTION("Verify dev_scylla configuration")
+    {
+        auto devScyllaOpt = configManager.getDatabaseByName("dev_scylla");
+
+        // Check that the database was found
+        REQUIRE(devScyllaOpt.has_value());
+
+        // Get the reference to the database config
+        const auto &devScylla = devScyllaOpt->get();
+
+        // Check connection parameters
+        REQUIRE(devScylla.getType() == "scylladb");
+        REQUIRE(devScylla.getHost() == "localhost");
+        REQUIRE(devScylla.getPort() == 9042);
+        REQUIRE(devScylla.getDatabase() == "dev_keyspace");
+        REQUIRE(devScylla.getUsername() == "cassandra");
+        REQUIRE(devScylla.getPassword() == "dsystems");
+
+        // Check options
+        REQUIRE(devScylla.getOption("connect_timeout") == "5000");
+    }
 #endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
@@ -471,6 +493,9 @@ TEST_CASE("Create connection strings from configuration", "[db_config]")
         REQUIRE(connectionStrings["dev_sqlite"] == "cpp_dbc:sqlite://:memory:");
         REQUIRE(connectionStrings["test_sqlite"] == "cpp_dbc:sqlite://test_sqlite.db");
         REQUIRE(connectionStrings["prod_sqlite"] == "cpp_dbc:sqlite:///path/to/production.db");
+
+        // Verify connection strings for ScyllaDB databases
+        REQUIRE(connectionStrings["dev_scylla"] == "cpp_dbc:scylladb://localhost:9042/dev_keyspace");
 
         // In a real application, you would use these connection strings with DriverManager:
         // for (const auto& [dbName, connStr] : connectionStrings) {

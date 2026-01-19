@@ -140,10 +140,10 @@ int main()
         config.setInitialSize(5);
         config.setMaxSize(20);
 
-        cpp_dbc::MySQL::MySQLConnectionPool pool(config);
+        auto pool = cpp_dbc::MySQL::MySQLConnectionPool::create(config);
 
         // Create transaction manager
-        cpp_dbc::TransactionManager txnManager(pool);
+        cpp_dbc::TransactionManager txnManager(*pool);
         txnManager.setTransactionTimeout(60000); // 1 minute timeout
 
         // Create task queue and workers
@@ -249,7 +249,7 @@ int main()
 
         // Cleanup
         txnManager.close();
-        pool.close();
+        pool->close();
 
         std::cout << "Transaction manager and connection pool closed." << std::endl;
 #else

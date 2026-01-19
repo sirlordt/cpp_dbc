@@ -6,6 +6,19 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Options for conditional compilation (inherited from parent project)
+option(USE_MYSQL "Enable MySQL support" ON)
+option(USE_POSTGRESQL "Enable PostgreSQL support" OFF)
+option(USE_SQLITE "Enable SQLite support" OFF)
+option(USE_FIREBIRD "Enable Firebird SQL support" OFF)
+option(USE_MONGODB "Enable MongoDB support" OFF)
+option(USE_SCYLLADB "Enable ScyllaDB support" OFF)
+option(USE_REDIS "Enable Redis support" OFF)
+option(USE_CPP_YAML "Enable YAML configuration support" OFF)
+
+# Thread safety option for database drivers
+option(DB_DRIVER_THREAD_SAFE "Enable thread-safe database driver operations" ON)
+
 # Option for Address Sanitizer
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
 
@@ -97,6 +110,17 @@ add_executable(cpp_dbc_tests
     test_mongodb_connection_pool.cpp
     test_redis_connection.cpp
     test_redis_connection_pool.cpp
+    test_scylladb_common.cpp
+    test_scylladb_connection.cpp
+    test_scylladb_real.cpp
+    test_scylladb_real_blob.cpp
+    test_scylladb_real_json.cpp
+    test_scylladb_thread_safe.cpp
+    test_scylladb_real_inner_join.cpp
+    test_scylladb_real_left_join.cpp
+    test_scylladb_real_right_join.cpp
+    test_scylladb_real_full_join.cpp
+    test_scylladb_connection_pool.cpp
 )
 
 # Link against Catch2 and cpp_dbc
@@ -134,6 +158,8 @@ target_compile_definitions(cpp_dbc_tests PUBLIC
     $<$<NOT:$<BOOL:${USE_FIREBIRD}>>:USE_FIREBIRD=0>
     $<$<BOOL:${USE_MONGODB}>:USE_MONGODB=1>
     $<$<NOT:$<BOOL:${USE_MONGODB}>>:USE_MONGODB=0>
+    $<$<BOOL:${USE_SCYLLADB}>:USE_SCYLLADB=1>
+    $<$<NOT:$<BOOL:${USE_SCYLLADB}>>:USE_SCYLLADB=0>
     $<$<BOOL:${USE_REDIS}>:USE_REDIS=1>
     $<$<NOT:$<BOOL:${USE_REDIS}>>:USE_REDIS=0>
     $<$<BOOL:${USE_CPP_YAML}>:USE_CPP_YAML=1>
