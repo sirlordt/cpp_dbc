@@ -1051,8 +1051,8 @@ namespace cpp_dbc
         return m_conn;
     }
 
-    // Scylla connection pool implementation
-    namespace Scylla
+    // ScyllaDB connection pool implementation
+    namespace ScyllaDB
     {
         ScyllaConnectionPool::ScyllaConnectionPool(const std::string &url,
                                                    const std::string &username,
