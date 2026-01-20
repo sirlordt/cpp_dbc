@@ -45,7 +45,7 @@ namespace cpp_dbc
     class ColumnarDBConnection : public DBConnection
     {
     public:
-        virtual ~ColumnarDBConnection() = default;
+        ~ColumnarDBConnection() override = default;
 
         // SQL/CQL execution
         /**

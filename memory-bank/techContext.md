@@ -355,6 +355,13 @@ The project now includes an automatic synchronization system for IntelliSense:
   - `-Wpointer-arith`: Prevents pointer arithmetic issues
   - `-Wcast-align`: Prevents alignment issues in pointer casts
 
+- **SonarCloud Static Analysis**:
+  - Configuration in `.sonarcloud.properties`
+  - Rule exclusions for intentional patterns:
+    - cpp:S3776 (cognitive complexity) - some functions inherently require complex logic
+    - cpp:S134 (nesting depth) - control flow > 3 levels allowed in specific cases
+  - Automatically runs on pull requests via GitHub Actions
+
 - **Naming Conventions**:
   - Member variables prefixed with `m_` to avoid shadowing issues
   - Consistent method naming following JDBC conventions

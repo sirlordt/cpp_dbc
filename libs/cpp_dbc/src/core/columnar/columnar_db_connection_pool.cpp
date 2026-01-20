@@ -63,9 +63,7 @@ namespace cpp_dbc
           m_testOnBorrow(testOnBorrow),
           m_testOnReturn(testOnReturn),
           m_validationQuery(validationQuery),
-          m_transactionIsolation(transactionIsolation),
-          m_running(true),
-          m_activeConnections(0)
+          m_transactionIsolation(transactionIsolation)
     {
         // Pool initialization will be done in the factory method
     }
@@ -86,9 +84,7 @@ namespace cpp_dbc
           m_testOnBorrow(config.getTestOnBorrow()),
           m_testOnReturn(config.getTestOnReturn()),
           m_validationQuery(config.getValidationQuery()),
-          m_transactionIsolation(config.getTransactionIsolation()),
-          m_running(true),
-          m_activeConnections(0)
+          m_transactionIsolation(config.getTransactionIsolation())
     {
         // Pool initialization will be done in the factory method
     }
@@ -209,7 +205,7 @@ namespace cpp_dbc
         return pooledConn;
     }
 
-    bool ColumnarDBConnectionPool::validateConnection(std::shared_ptr<ColumnarDBConnection> conn)
+    bool ColumnarDBConnectionPool::validateConnection(std::shared_ptr<ColumnarDBConnection> conn) const
     {
         try
         {
@@ -217,7 +213,7 @@ namespace cpp_dbc
             auto resultSet = conn->executeQuery(m_validationQuery);
             return true;
         }
-        catch (const DBException &e)
+        catch (const DBException &)
         {
             return false;
         }
@@ -225,7 +221,7 @@ namespace cpp_dbc
 
     void ColumnarDBConnectionPool::returnConnection(std::shared_ptr<ColumnarPooledDBConnection> conn)
     {
-        std::lock_guard<std::mutex> lock(m_mutexReturnConnection);
+        std::scoped_lock lock(m_mutexReturnConnection);
 
         if (!conn)
         {
@@ -238,7 +234,7 @@ namespace cpp_dbc
             {
                 conn->getUnderlyingColumnarConnection()->close();
             }
-            catch (const std::exception &)
+            catch (const DBException &)
             {
                 // Ignore exceptions during close
             }
@@ -253,7 +249,7 @@ namespace cpp_dbc
 
         // Additional safety check: verify connection is in allConnections
         {
-            std::lock_guard<std::mutex> lockAll(m_mutexAllConnections);
+            std::scoped_lock lockAll(m_mutexAllConnections);
             auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
             if (it == m_allConnections.end())
             {
@@ -275,7 +271,7 @@ namespace cpp_dbc
 
             // Add to idle connections queue
             {
-                std::lock_guard<std::mutex> lockIdle(m_mutexIdleConnections);
+                std::scoped_lock lockIdle(m_mutexIdleConnections);
                 m_idleConnections.push(conn);
                 m_activeConnections--;
             }
@@ -297,7 +293,7 @@ namespace cpp_dbc
                 }
                 m_activeConnections--;
             }
-            catch (const std::exception &)
+            catch (const DBException &)
             {
                 m_activeConnections--;
                 // Log error here if needed
@@ -320,35 +316,32 @@ namespace cpp_dbc
             m_idleConnections.pop();
 
             // Test connection before use if configured
-            if (m_testOnBorrow)
+            if (m_testOnBorrow && !validateConnection(conn->getUnderlyingColumnarConnection()))
             {
-                if (!validateConnection(conn->getUnderlyingColumnarConnection()))
+                // Remove from allConnections
+                auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
+                if (it != m_allConnections.end())
                 {
-                    // Remove from allConnections
-                    auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
-                    if (it != m_allConnections.end())
-                    {
-                        m_allConnections.erase(it);
-                    }
-
-                    // Create new connection if we're still running
-                    if (m_running.load())
-                    {
-                        try
-                        {
-                            auto newConn = createPooledDBConnection();
-                            // Register the replacement connection in m_allConnections
-                            m_allConnections.push_back(newConn);
-                            return newConn;
-                        }
-                        catch (const std::exception &)
-                        {
-                            // Return nullptr if we can't create a new connection
-                            return nullptr;
-                        }
-                    }
-                    return nullptr;
+                    m_allConnections.erase(it);
                 }
+
+                // Create new connection if we're still running
+                if (m_running.load())
+                {
+                    try
+                    {
+                        auto newConn = createPooledDBConnection();
+                        // Register the replacement connection in m_allConnections
+                        m_allConnections.push_back(newConn);
+                        return newConn;
+                    }
+                    catch (const DBException &)
+                    {
+                        // Return nullptr if we can't create a new connection
+                        return nullptr;
+                    }
+                }
+                return nullptr;
             }
 
             return conn;
@@ -369,7 +362,7 @@ namespace cpp_dbc
 
     std::shared_ptr<ColumnarDBConnection> ColumnarDBConnectionPool::getColumnarDBConnection()
     {
-        std::unique_lock<std::mutex> lock(m_mutexGetConnection);
+        std::unique_lock lock(m_mutexGetConnection);
 
         if (!m_running.load())
         {
@@ -383,7 +376,7 @@ namespace cpp_dbc
         {
             bool canCreateNew = false;
             {
-                std::lock_guard<std::mutex> lock_all(m_mutexAllConnections);
+                std::scoped_lock lock_all(m_mutexAllConnections);
                 canCreateNew = m_allConnections.size() < m_maxSize;
             }
 
@@ -392,7 +385,7 @@ namespace cpp_dbc
                 auto candidate = createPooledDBConnection();
 
                 {
-                    std::lock_guard<std::mutex> lock_all(m_mutexAllConnections);
+                    std::scoped_lock lock_all(m_mutexAllConnections);
                     // Recheck size under lock to prevent exceeding m_maxSize under concurrent creation
                     if (m_allConnections.size() < m_maxSize)
                     {
@@ -450,7 +443,7 @@ namespace cpp_dbc
         do
         {
             // Wait for 30 seconds or until notified (e.g., when close() is called)
-            std::unique_lock<std::mutex> lock(m_mutexMaintenance);
+            std::unique_lock lock(m_mutexMaintenance);
             m_maintenanceCondition.wait_for(lock, std::chrono::seconds(30), [this]
                                             { return !m_running; });
 
@@ -533,13 +526,13 @@ namespace cpp_dbc
 
     size_t ColumnarDBConnectionPool::getIdleDBConnectionCount() const
     {
-        std::lock_guard<std::mutex> lock(m_mutexIdleConnections);
+        std::scoped_lock lock(m_mutexIdleConnections);
         return m_idleConnections.size();
     }
 
     size_t ColumnarDBConnectionPool::getTotalDBConnectionCount() const
     {
-        std::lock_guard<std::mutex> lock(m_mutexAllConnections);
+        std::scoped_lock lock(m_mutexAllConnections);
         return m_allConnections.size();
     }
 
@@ -651,7 +644,7 @@ namespace cpp_dbc
         std::shared_ptr<ColumnarDBConnection> connection,
         std::weak_ptr<ColumnarDBConnectionPool> connectionPool,
         std::shared_ptr<std::atomic<bool>> poolAlive)
-        : m_conn(connection), m_pool(connectionPool), m_poolAlive(poolAlive), m_active(false), m_closed(false)
+        : m_conn(connection), m_pool(connectionPool), m_poolAlive(poolAlive)
     {
         m_creationTime = std::chrono::steady_clock::now();
         m_lastUsedTime = m_creationTime;
@@ -721,7 +714,7 @@ namespace cpp_dbc
                     m_conn->close();
                 }
             }
-            catch (const std::exception &)
+            catch (const DBException &)
             {
                 // Any other exception, just close the connection
                 if (m_conn)
@@ -1026,11 +1019,11 @@ namespace cpp_dbc
                 }
             }
         }
-        catch (const std::bad_weak_ptr &e)
+        catch (const std::bad_weak_ptr &)
         {
             // shared_from_this failed, keep as closed
         }
-        catch (const std::exception &e)
+        catch (const std::exception &)
         {
             // Any other exception, keep as closed
         }

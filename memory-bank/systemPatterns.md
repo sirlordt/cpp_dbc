@@ -216,6 +216,19 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - Type safety improvements:
   - Using static_cast<> for numeric conversions
   - Changing int return types to uint64_t for executeUpdate() methods
+- Modern C++ patterns:
+  - Use `override` instead of `virtual` for destructors in derived classes
+  - Use in-class member initialization for atomic and boolean variables
+  - Use `std::scoped_lock` instead of `std::lock_guard<std::mutex>` for CTAD
+  - Use `std::unique_lock` with CTAD instead of explicit template arguments
+  - Mark methods as `const` when they don't modify state
+  - Mark methods as `final` to prevent further overriding when appropriate
+  - Catch specific exception types (e.g., `DBException`) instead of generic `std::exception`
+  - Use `explicit` keyword for single-argument constructors
+  - Avoid redundant member initializations when already initialized at declaration
+- SonarCloud static analysis integration:
+  - Configuration in `.sonarcloud.properties`
+  - Documented rule exclusions for intentional patterns
 
 ## Component Relationships
 

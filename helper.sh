@@ -544,23 +544,29 @@ extract_available_tests() {
 }
 
 # Helper function to extract executed test cases from log file
+# Returns: tag|line_number for each executed test
 extract_executed_tests() {
   local log_file="$1"
-  
-  # Create a temporary file to store the executed tags
+
+  # Create a temporary file to store the executed tags with line numbers
   local temp_file=$(mktemp)
-  
-  # Extract all filter tags from the log file
-  grep -a -o "Filters: \[[^]]*\]" "$log_file" | sed 's/Filters: \[\([^]]*\)\]/\1/' > "$temp_file"
+
+  # Extract all filter tags from the log file with line numbers
+  # Format: line_number:Filters: [tag]
+  grep -a -n "Filters: \[[^]]*\]" "$log_file" > "$temp_file"
 
   # For each tag, check if there are any passed or failed tests
-  while IFS= read -r tag; do
+  while IFS= read -r line; do
+    # Extract line number and tag from the grep output
+    local line_number=$(echo "$line" | cut -d: -f1)
+    local tag=$(echo "$line" | sed 's/.*Filters: \[\([^]]*\)\]/\1/')
+
     # Look for lines with passed/failed after the Filters line for this tag
     if grep -a -A 100 "Filters: \[$tag\]" "$log_file" | grep -a -q "\.cpp:[0-9]\+: passed:\|\.cpp:[0-9]\+: failed:"; then
-      echo "$tag"
+      echo "${tag}|${line_number}"
     fi
   done < "$temp_file"
-  
+
   # Clean up
   rm -f "$temp_file"
 }
@@ -671,81 +677,95 @@ check_valgrind_errors() {
 # Helper function to display test execution table
 display_test_execution_table() {
   local log_file="$1"
-  
+
+  # Convert absolute path to relative path from project root
+  local project_root=$(pwd)
+  local relative_log_file="${log_file#$project_root/}"
+  # Add ./ prefix if it's a relative path without it
+  if [[ "$relative_log_file" != /* ]] && [[ "$relative_log_file" != ./* ]]; then
+    relative_log_file="./${relative_log_file}"
+  fi
+
   echo "All available test cases:"
-  
+
   # Get available tests
   local available_tests=$(extract_available_tests "$log_file")
-  
-  # Get executed tests
+
+  # Get executed tests (now returns tag|line_number)
   local executed_tests=$(extract_executed_tests "$log_file")
-  
+
   # If no available tests were found, show a message
   if [ -z "$available_tests" ]; then
     echo "  No test cases found in the log file."
     return
   fi
-  
+
   # First pass: find the longest tag and description
   local max_tag_len=0
   local max_desc_len=0
-  
+
   while IFS= read -r test_line; do
     # Skip empty lines
     if [ -z "$test_line" ]; then
       continue
     fi
-    
+
     # Split the line by the pipe character
     IFS='|' read -r test_name tag <<< "$test_line"
-    
+
     # Calculate lengths
     local tag_len=${#tag}
     local desc_len=${#test_name}
-    
+
     # Update max lengths if needed
     if [ $tag_len -gt $max_tag_len ]; then
       max_tag_len=$tag_len
     fi
-    
+
     if [ $desc_len -gt $max_desc_len ]; then
       max_desc_len=$desc_len
     fi
   done <<< "$available_tests"
-  
+
   # Add padding to the lengths
   # For tag column: tag length + 3 (2 for brackets and 1 for space after)
   tag_col_width=$((max_tag_len + 3))
-  
+
   # For description column: description length + 1 (1 space after)
   desc_col_width=$((max_desc_len + 1))
-  
+
   # Calculate total width of first two columns
   total_width=$((tag_col_width + desc_col_width))
-  
+
   # Process each available test for display
   while IFS= read -r test_line; do
     # Skip empty lines
     if [ -z "$test_line" ]; then
       continue
     fi
-    
+
     # Split the line by the pipe character
     IFS='|' read -r test_name tag <<< "$test_line"
-    
+
     # Default to not executed
     local executed="[Not Executed]"
-    
-    # Check if this tag was executed
-    while IFS= read -r executed_tag; do
-      if [ "$tag" = "$executed_tag" ]; then
+    local log_location=""
+
+    # Check if this tag was executed (format: tag|line_number)
+    while IFS= read -r executed_entry; do
+      # Split by pipe to get tag and line number
+      local exec_tag=$(echo "$executed_entry" | cut -d'|' -f1)
+      local exec_line=$(echo "$executed_entry" | cut -d'|' -f2)
+
+      if [ "$tag" = "$exec_tag" ]; then
         executed="[Executed]"
+        log_location=" => ${relative_log_file}:${exec_line}"
         break
       fi
     done <<< "$executed_tests"
-    
-    # Format the output to match the example in the task description
-    printf "  [%-${max_tag_len}s] %-${desc_col_width}s %s\n" "$tag" "$test_name" "$executed"
+
+    # Format the output with optional log location for executed tests
+    printf "  [%-${max_tag_len}s] %-${desc_col_width}s %s%s\n" "$tag" "$test_name" "$executed" "$log_location"
   done <<< "$available_tests"
 }
 

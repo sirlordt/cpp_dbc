@@ -1,6 +1,35 @@
 # Changelog
 
-## 2026-01-18 23:26:52 [Current]
+## 2026-01-20 15:17:41 [Current]
+
+### SonarCloud Code Quality Fixes and Helper Script Enhancement
+* **SonarCloud Configuration Updates:**
+  * Consolidated SonarCloud configuration into `.sonarcloud.properties`
+  * Deleted redundant `sonar-project.properties` file
+  * Added exclusion for cognitive complexity rule (cpp:S3776)
+  * Added exclusion for nesting depth rule (cpp:S134)
+  * Added documentation comments for each excluded rule
+* **Code Quality Improvements in `blob.hpp`:**
+  * Added `explicit` keyword to `FileOutputStream` constructor
+  * Removed redundant `m_position(0)` initialization in `MemoryInputStream` (already initialized at declaration)
+* **Code Quality Improvements in Columnar DB Connection Pool:**
+  * Changed `ColumnarDBConnection` destructor from `virtual` to `override`
+  * Added in-class member initialization for `m_running{true}` and `m_activeConnections{0}` in `ColumnarDBConnectionPool`
+  * Added in-class member initialization for `m_active{false}` and `m_closed{false}` in `ColumnarPooledDBConnection`
+  * Changed `validateConnection` method to `const`
+  * Changed `close()` and `isPoolValid()` methods to `final` in appropriate classes
+  * Replaced `std::lock_guard<std::mutex>` with `std::scoped_lock` for modern C++ style
+  * Changed `std::unique_lock<std::mutex>` to `std::unique_lock` with CTAD
+  * Replaced generic `std::exception` catches with specific `DBException` catches
+  * Simplified conditional logic in `getIdleDBConnection()` method
+  * Removed redundant member initializations from constructor initializer lists
+* **Helper Script Enhancement (`helper.sh`):**
+  * Enhanced `extract_executed_tests()` function to track line numbers for executed tests
+  * Updated `display_test_execution_table()` to show log file location with line numbers for executed tests
+  * Added relative path display for log files (e.g., `./logs/test/output.log:42`)
+  * Improved test execution output to help users quickly navigate to specific test results
+
+## 2026-01-18 23:26:52
 
 ### Connection Pool Race Condition Fix and Code Quality Improvements
 * Fixed connection pool race condition in all database types (relational, document, columnar, key-value):

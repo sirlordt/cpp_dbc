@@ -87,8 +87,8 @@ namespace cpp_dbc
         mutable std::mutex m_mutexIdleConnections;
         mutable std::mutex m_mutexMaintenance;
         std::condition_variable m_maintenanceCondition;
-        std::atomic<bool> m_running;
-        std::atomic<int> m_activeConnections;
+        std::atomic<bool> m_running{true};
+        std::atomic<int> m_activeConnections{0};
         std::thread m_maintenanceThread;
 
         // Creates a new physical connection
@@ -98,7 +98,7 @@ namespace cpp_dbc
         std::shared_ptr<ColumnarPooledDBConnection> createPooledDBConnection();
 
         // Validates a connection
-        bool validateConnection(std::shared_ptr<ColumnarDBConnection> conn);
+        bool validateConnection(std::shared_ptr<ColumnarDBConnection> conn) const;
 
         // Returns a connection to the pool
         void returnConnection(std::shared_ptr<ColumnarPooledDBConnection> conn);
@@ -175,7 +175,7 @@ namespace cpp_dbc
         size_t getTotalDBConnectionCount() const override;
 
         // Closes the pool and all connections
-        void close() override;
+        void close() final;
 
         // Check if pool is running
         bool isRunning() const override;
@@ -195,13 +195,13 @@ namespace cpp_dbc
         std::shared_ptr<std::atomic<bool>> m_poolAlive; // Shared flag to check if pool is still alive
         std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
         std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
-        std::atomic<bool> m_active;
-        std::atomic<bool> m_closed;
+        std::atomic<bool> m_active{false};
+        std::atomic<bool> m_closed{false};
 
         friend class ColumnarDBConnectionPool;
 
         // Helper method to check if pool is still valid
-        bool isPoolValid() const override;
+        bool isPoolValid() const final;
 
     public:
         ColumnarPooledDBConnection(std::shared_ptr<ColumnarDBConnection> conn,
@@ -210,9 +210,9 @@ namespace cpp_dbc
         ~ColumnarPooledDBConnection() override;
 
         // Overridden DBConnection interface methods
-        void close() override;
+        void close() final;
         bool isClosed() override;
-        void returnToPool() override;
+        void returnToPool() final;
         bool isPooled() override;
         std::string getURL() const override;
 
