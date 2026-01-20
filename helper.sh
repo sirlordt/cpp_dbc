@@ -561,8 +561,10 @@ extract_executed_tests() {
     local line_number=$(echo "$line" | cut -d: -f1)
     local tag=$(echo "$line" | sed 's/.*Filters: \[\([^]]*\)\]/\1/')
 
-    # Look for lines with passed/failed after the Filters line for this tag
-    if grep -a -A 100 "Filters: \[$tag\]" "$log_file" | grep -a -q "\.cpp:[0-9]\+: passed:\|\.cpp:[0-9]\+: failed:"; then
+    # Look for lines with passed/failed starting from this specific line_number
+    # and stopping at the next "Filters:" boundary (or end of file)
+    # This ensures we only inspect tests for this specific Filters block
+    if sed -n "${line_number},\$p" "$log_file" | sed '/^.*Filters: \[/{ 1!q }' | grep -a -q "\.cpp:[0-9]\+: passed:\|\.cpp:[0-9]\+: failed:"; then
       echo "${tag}|${line_number}"
     fi
   done < "$temp_file"
@@ -727,11 +729,7 @@ display_test_execution_table() {
     fi
   done <<< "$available_tests"
 
-  # Add padding to the lengths
-  # For tag column: tag length + 3 (2 for brackets and 1 for space after)
-  tag_col_width=$((max_tag_len + 3))
-
-  # For description column: description length + 1 (1 space after)
+  # Add padding to the description column length (1 space after)
   desc_col_width=$((max_desc_len + 1))
 
   # Process each available test for display

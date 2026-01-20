@@ -234,9 +234,9 @@ namespace cpp_dbc
             {
                 conn->getUnderlyingColumnarConnection()->close();
             }
-            catch ([[maybe_unused]] const DBException &ex)
+            catch (const DBException &ex)
             {
-                // Intentionally ignoring exceptions during close - pool is shutting down
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception during close (pool shutting down): " << ex.what());
             }
             return;
         }
@@ -293,10 +293,15 @@ namespace cpp_dbc
                 }
                 m_activeConnections--;
             }
-            catch (const DBException &)
+            catch (const DBException &ex)
             {
                 m_activeConnections--;
-                // Log error here if needed
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - DBException replacing invalid connection: " << ex.what());
+            }
+            catch (const std::exception &ex)
+            {
+                m_activeConnections--;
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception replacing invalid connection: " << ex.what());
             }
         }
 
@@ -724,9 +729,17 @@ namespace cpp_dbc
                     m_conn->close();
                 }
             }
-            catch (const DBException &)
+            catch (const DBException &ex)
             {
-                // Any other exception, just close the connection
+                CP_DEBUG("ColumnarPooledDBConnection::close - DBException during return to pool: " << ex.what());
+                if (m_conn)
+                {
+                    m_conn->close();
+                }
+            }
+            catch (const std::exception &ex)
+            {
+                CP_DEBUG("ColumnarPooledDBConnection::close - Exception during return to pool: " << ex.what());
                 if (m_conn)
                 {
                     m_conn->close();
@@ -1029,13 +1042,13 @@ namespace cpp_dbc
                 }
             }
         }
-        catch ([[maybe_unused]] const std::bad_weak_ptr &ex)
+        catch (const std::bad_weak_ptr &ex)
         {
-            // Intentionally not handling - shared_from_this failed, keeping closed is safe
+            CP_DEBUG("ColumnarPooledDBConnection::returnToPool - shared_from_this failed: " << ex.what());
         }
-        catch ([[maybe_unused]] const std::exception &ex)
+        catch (const std::exception &ex)
         {
-            // Intentionally not handling - any failure means keep connection closed
+            CP_DEBUG("ColumnarPooledDBConnection::returnToPool - Exception: " << ex.what());
         }
     }
 
