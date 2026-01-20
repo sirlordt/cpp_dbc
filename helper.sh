@@ -734,9 +734,6 @@ display_test_execution_table() {
   # For description column: description length + 1 (1 space after)
   desc_col_width=$((max_desc_len + 1))
 
-  # Calculate total width of first two columns
-  total_width=$((tag_col_width + desc_col_width))
-
   # Process each available test for display
   while IFS= read -r test_line; do
     # Skip empty lines

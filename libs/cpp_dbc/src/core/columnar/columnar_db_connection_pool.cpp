@@ -234,9 +234,9 @@ namespace cpp_dbc
             {
                 conn->getUnderlyingColumnarConnection()->close();
             }
-            catch (const DBException &)
+            catch ([[maybe_unused]] const DBException &ex)
             {
-                // Ignore exceptions during close
+                // Intentionally ignoring exceptions during close - pool is shutting down
             }
             return;
         }
@@ -318,6 +318,16 @@ namespace cpp_dbc
             // Test connection before use if configured
             if (m_testOnBorrow && !validateConnection(conn->getUnderlyingColumnarConnection()))
             {
+                // Close the invalid connection to avoid leaking handles
+                try
+                {
+                    conn->getUnderlyingColumnarConnection()->close();
+                }
+                catch ([[maybe_unused]] const DBException &ex)
+                {
+                    // Ignore close errors - connection is invalid anyway
+                }
+
                 // Remove from allConnections
                 auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
                 if (it != m_allConnections.end())
@@ -335,7 +345,7 @@ namespace cpp_dbc
                         m_allConnections.push_back(newConn);
                         return newConn;
                     }
-                    catch (const DBException &)
+                    catch ([[maybe_unused]] const DBException &ex)
                     {
                         // Return nullptr if we can't create a new connection
                         return nullptr;
@@ -1019,13 +1029,13 @@ namespace cpp_dbc
                 }
             }
         }
-        catch (const std::bad_weak_ptr &)
+        catch ([[maybe_unused]] const std::bad_weak_ptr &ex)
         {
-            // shared_from_this failed, keep as closed
+            // Intentionally not handling - shared_from_this failed, keeping closed is safe
         }
-        catch (const std::exception &)
+        catch ([[maybe_unused]] const std::exception &ex)
         {
-            // Any other exception, keep as closed
+            // Intentionally not handling - any failure means keep connection closed
         }
     }
 
