@@ -97,7 +97,7 @@ namespace cpp_dbc
 
         MySQLDBResultSet::~MySQLDBResultSet()
         {
-            close();
+            MySQLDBResultSet::close();
         }
 
         bool MySQLDBResultSet::isEmpty()
@@ -656,7 +656,7 @@ namespace cpp_dbc
                     return false;
                 }
 
-                std::string value = std::string(m_currentRow[idx]);
+                auto value = std::string(m_currentRow[idx]);
                 return (value == "1" || value == "true" || value == "TRUE" || value == "True");
             }
             catch (const DBException &ex)
@@ -1257,7 +1257,7 @@ namespace cpp_dbc
 
         MySQLDBPreparedStatement::~MySQLDBPreparedStatement()
         {
-            close(std::nothrow);
+            MySQLDBPreparedStatement::close(std::nothrow);
         }
 
         void MySQLDBPreparedStatement::close()
@@ -2184,11 +2184,6 @@ namespace cpp_dbc
                     return cpp_dbc::unexpected(DBException("547F7466347C", std::string("Failed to execute update: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
                 }
 
-                // auto result = mysql_stmt_affected_rows(m_stmt.get());
-
-                // this->close();
-
-                // Return the number of affected rows
                 return mysql_stmt_affected_rows(m_stmt.get());
             }
             catch (const DBException &ex)
@@ -2351,9 +2346,7 @@ namespace cpp_dbc
 
         MySQLDBConnection::~MySQLDBConnection()
         {
-            // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis(), "(1) MySQLConnection::~MySQLConnection()");
-
-            close();
+            MySQLDBConnection::close();
         }
 
         void MySQLDBConnection::close()
@@ -2362,10 +2355,9 @@ namespace cpp_dbc
             {
                 // Notify all active statements that connection is closing
                 {
-                    std::lock_guard<std::mutex> lock(m_statementsMutex);
+                    std::scoped_lock lock(m_statementsMutex);
                     for (auto &stmt : m_activeStatements)
                     {
-                        // if (auto stmt = weakStmt.lock())
                         if (stmt)
                         {
                             stmt->notifyConnClosing();
@@ -2374,11 +2366,9 @@ namespace cpp_dbc
                     m_activeStatements.clear();
                 }
 
-                // Sleep for 25ms to avoid problems with corrency
+                // Sleep for 25ms to avoid problems with concurrency
                 std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
-                // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis(), "(1) MySQLConnection::close()");
-                // unique_ptr will automatically call mysql_close via the deleter
                 m_mysql.reset();
                 m_closed = true;
             }
@@ -2406,9 +2396,10 @@ namespace cpp_dbc
                 // We don't set m_closed = true because we want to keep the connection open
                 // Just mark it as available for reuse
             }
-            catch (...)
+            catch ([[maybe_unused]] const std::exception &ex)
             {
                 // Ignore errors during cleanup
+                MYSQL_DEBUG("MySQLDBConnection::returnToPool - Exception ignored during cleanup: " << ex.what());
             }
         }
 
@@ -3044,9 +3035,10 @@ namespace cpp_dbc
                     inGetTransactionIsolation = false;
                     return isolationResult;
                 }
-                catch (...)
+                catch ([[maybe_unused]] const std::exception &ex)
                 {
                     inGetTransactionIsolation = false;
+                    MYSQL_DEBUG("MySQLDBConnection::getTransactionIsolation - Exception during query: " << ex.what());
                     throw;
                 }
             }
@@ -3060,25 +3052,17 @@ namespace cpp_dbc
                                                        std::string("getTransactionIsolation failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("F4A0B6C2D8EC",
-                                                       "getTransactionIsolation failed: unknown error",
-                                                       system_utils::captureCallStack()));
-            }
         }
 
         void MySQLDBConnection::registerStatement(std::shared_ptr<MySQLDBPreparedStatement> stmt)
         {
-            std::lock_guard<std::mutex> lock(m_statementsMutex);
-            // m_activeStatements.insert(std::weak_ptr<MySQLPreparedStatement>(stmt));
+            std::scoped_lock lock(m_statementsMutex);
             m_activeStatements.insert(stmt);
         }
 
         void MySQLDBConnection::unregisterStatement(std::shared_ptr<MySQLDBPreparedStatement> stmt)
         {
-            std::lock_guard<std::mutex> lock(m_statementsMutex);
-            // m_activeStatements.erase(std::weak_ptr<MySQLPreparedStatement>(stmt));
+            std::scoped_lock lock(m_statementsMutex);
             m_activeStatements.erase(stmt);
         }
 
@@ -3127,7 +3111,7 @@ namespace cpp_dbc
                 std::string database = ""; // Default to empty database
 
                 // Simple parsing for common URL formats
-                if (url.substr(0, 16) == "cpp_dbc:mysql://")
+                if (url.starts_with("cpp_dbc:mysql://"))
                 {
                     std::string temp = url.substr(16); // Remove "cpp_dbc:mysql://"
 
@@ -3148,8 +3132,9 @@ namespace cpp_dbc
                             {
                                 port = std::stoi(portStr);
                             }
-                            catch (...)
+                            catch ([[maybe_unused]] const std::exception &ex)
                             {
+                                MYSQL_DEBUG("MySQLDBDriver::connectRelational - Invalid port in URL: " << ex.what());
                                 return cpp_dbc::unexpected(DBException("3A4B5C6D7E8F", "Invalid port in URL: " + url, system_utils::captureCallStack()));
                             }
 
@@ -3167,8 +3152,9 @@ namespace cpp_dbc
                             {
                                 port = std::stoi(portStr);
                             }
-                            catch (...)
+                            catch ([[maybe_unused]] const std::exception &ex)
                             {
+                                MYSQL_DEBUG("MySQLDBDriver::connectRelational - Invalid port in URL: " << ex.what());
                                 return cpp_dbc::unexpected(DBException("9G0H1I2J3K4L", "Invalid port in URL: " + url, system_utils::captureCallStack()));
                             }
                         }
@@ -3225,7 +3211,7 @@ namespace cpp_dbc
 
         bool MySQLDBDriver::acceptsURL(const std::string &url)
         {
-            return url.substr(0, 16) == "cpp_dbc:mysql://";
+            return url.starts_with("cpp_dbc:mysql://");
         }
 
         bool MySQLDBDriver::parseURL(const std::string &url,
@@ -3274,8 +3260,9 @@ namespace cpp_dbc
                     {
                         port = std::stoi(portStr);
                     }
-                    catch (...)
+                    catch ([[maybe_unused]] const std::exception &ex)
                     {
+                        MYSQL_DEBUG("MySQLDBDriver::parseURL - Invalid port: " << ex.what());
                         return false;
                     }
 
@@ -3289,8 +3276,9 @@ namespace cpp_dbc
                     {
                         port = std::stoi(portStr);
                     }
-                    catch (...)
+                    catch ([[maybe_unused]] const std::exception &ex)
                     {
+                        MYSQL_DEBUG("MySQLDBDriver::parseURL - Invalid port: " << ex.what());
                         return false;
                     }
 

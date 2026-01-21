@@ -25,7 +25,9 @@ set -e  # Exit on error
 #   --check                Check shared library dependencies of test executable
 #   --rebuild              Rebuild the test targets before running
 #   --list                 List available tests only (does not run tests)
-#   --run-test="tag"       Run only tests with the specified tag (use + to separate multiple tags, e.g. "tag1+tag2+tag3")
+#   --run-test="filter"    Run only tests matching the filter. Two formats supported:
+#                          - Wildcard pattern: "*mysql*" matches test names containing "mysql"
+#                          - Tags: "tag1+tag2+tag3" runs tests with those specific tags
 #   --run=N                Run all test sets N times (default: 1)
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
@@ -261,7 +263,9 @@ while [[ $# -gt 0 ]]; do
             echo "  --check                Check shared library dependencies of test executable"
             echo "  --rebuild              Rebuild the test targets before running"
             echo "  --list                 List available tests only (does not run tests)"
-            echo "  --run-test=\"tag\"       Run only tests with the specified tag (use + to separate multiple tags, e.g. \"tag1+tag2+tag3\")"
+            echo "  --run-test=\"filter\"    Run only tests matching the filter. Two formats supported:"
+            echo "                           - Wildcard: \"*mysql*\" matches test names containing 'mysql'"
+            echo "                           - Tags: \"tag1+tag2\" runs tests with those specific tags"
             echo "  --run=N                Run all test sets N times (default: 1)"
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
@@ -576,20 +580,52 @@ for ((run=1; run<=RUN_COUNT; run++)); do
         # If a specific test tag was provided, run only that test
         if [ -n "$RUN_SPECIFIC_TEST" ]; then
             echo -e "\nDebug: RUN_SPECIFIC_TEST value: '$RUN_SPECIFIC_TEST'"
-            
+
+            # Check if it's a wildcard pattern (contains *)
+            if [[ "$RUN_SPECIFIC_TEST" == *"*"* ]]; then
+                # Wildcard pattern - get all available tags and filter matching ones
+                echo -e "\nWildcard pattern detected: '$RUN_SPECIFIC_TEST'"
+                echo -e "Getting available tags that match the pattern...\n"
+
+                # Get all available tags
+                ALL_TAGS=$(run_test --list-tags 2>/dev/null | grep -oP '\[\K[^\]]+' | sort -u)
+
+                # Filter tags that match the wildcard pattern
+                MATCHING_TAGS=""
+                for TAG in $ALL_TAGS; do
+                    # Use bash pattern matching to check if tag matches the wildcard
+                    if [[ "$TAG" == $RUN_SPECIFIC_TEST ]]; then
+                        if [ -z "$MATCHING_TAGS" ]; then
+                            MATCHING_TAGS="$TAG"
+                        else
+                            MATCHING_TAGS="$MATCHING_TAGS $TAG"
+                        fi
+                    fi
+                done
+
+                if [ -z "$MATCHING_TAGS" ]; then
+                    echo -e "No tags found matching pattern '$RUN_SPECIFIC_TEST'"
+                else
+                    echo -e "Found matching tags: $MATCHING_TAGS\n"
+                    # Run each matching tag as an exact tag
+                    for MATCH_TAG in $MATCHING_TAGS; do
+                        echo -e "\nRunning tests with tag [$MATCH_TAG] (Run $run of $RUN_COUNT)...\n"
+                        run_test -s -r compact "[$MATCH_TAG]"
+                    done
+                fi
             # Check if there are multiple tags separated by plus sign
-            if [[ "$RUN_SPECIFIC_TEST" == *"+"* ]]; then
+            elif [[ "$RUN_SPECIFIC_TEST" == *"+"* ]]; then
                 # Multiple tags separated by plus sign
                 IFS='+' read -ra TEST_TAGS <<< "$RUN_SPECIFIC_TEST"
                 echo -e "Debug: Multiple tags detected: ${#TEST_TAGS[@]}"
-                
+
                 # Run each tag separately
                 for TEST_TAG in "${TEST_TAGS[@]}"; do
                     echo -e "\nRunning tests with tag [$TEST_TAG] (Run $run of $RUN_COUNT)...\n"
                     run_test -s -r compact "[$TEST_TAG]"
                 done
             else
-                # Single tag
+                # Single tag - add brackets
                 echo -e "\nRunning tests with tag [$RUN_SPECIFIC_TEST] (Run $run of $RUN_COUNT)...\n"
                 run_test -s -r compact "[$RUN_SPECIFIC_TEST]"
             fi
