@@ -281,6 +281,16 @@ namespace cpp_dbc
             // Replace invalid connection with a new one
             try
             {
+                // Close the invalid connection to avoid resource leak
+                try
+                {
+                    conn->getUnderlyingColumnarConnection()->close();
+                }
+                catch (const DBException &ex)
+                {
+                    CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception closing invalid connection: " << ex.what());
+                }
+
                 // Use scoped_lock for consistent lock ordering to prevent deadlock
                 {
                     std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
@@ -292,11 +302,6 @@ namespace cpp_dbc
                     }
                 }
                 m_activeConnections--;
-            }
-            catch (const DBException &ex)
-            {
-                m_activeConnections--;
-                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - DBException replacing invalid connection: " << ex.what());
             }
             catch (const std::exception &ex)
             {
@@ -328,9 +333,9 @@ namespace cpp_dbc
                 {
                     conn->getUnderlyingColumnarConnection()->close();
                 }
-                catch ([[maybe_unused]] const DBException &ex)
+                catch (const DBException &ex)
                 {
-                    // Ignore close errors - connection is invalid anyway
+                    CP_DEBUG("ColumnarDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: " << ex.what());
                 }
 
                 // Remove from allConnections
@@ -718,22 +723,6 @@ namespace cpp_dbc
                 else if (m_conn)
                 {
                     // If pool is invalid, actually close the connection
-                    m_conn->close();
-                }
-            }
-            catch (const std::bad_weak_ptr &)
-            {
-                // shared_from_this failed, just close the connection
-                if (m_conn)
-                {
-                    m_conn->close();
-                }
-            }
-            catch (const DBException &ex)
-            {
-                CP_DEBUG("ColumnarPooledDBConnection::close - DBException during return to pool: " << ex.what());
-                if (m_conn)
-                {
                     m_conn->close();
                 }
             }
