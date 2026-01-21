@@ -13,6 +13,20 @@
 
 ## Completed Tasks
 
+- SonarCloud Code Quality Fixes (2026-01-20):
+  - Consolidated SonarCloud configuration into `.sonarcloud.properties`
+  - Deleted redundant `sonar-project.properties` file
+  - Added exclusion for cognitive complexity rule (cpp:S3776)
+  - Added exclusion for nesting depth rule (cpp:S134)
+  - Fixed `explicit` keyword in `FileOutputStream` constructor
+  - Fixed redundant member initialization in `MemoryInputStream`
+  - Fixed Columnar DB Connection Pool code quality issues:
+    - Changed destructor from `virtual` to `override`
+    - Added in-class member initialization for atomic variables
+    - Changed methods to `const` and `final` where appropriate
+    - Replaced `std::lock_guard` with `std::scoped_lock`
+    - Replaced generic exception catches with specific `DBException` catches
+
 - ScyllaDB Connection Pool and Driver Enhancements (2026-01-18):
   - Added ColumnarDBConnectionPool base class for columnar databases
   - Added ColumnarPooledDBConnection wrapper class for pooled columnar connections

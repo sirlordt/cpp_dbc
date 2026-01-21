@@ -37,7 +37,7 @@ namespace cpp_dbc
 
     public:
         explicit MemoryInputStream(const std::vector<uint8_t> &data)
-            : m_data(data), m_position(0) {}
+            : m_data(data) {}
 
         int read(uint8_t *buffer, size_t length) override
         {
@@ -135,7 +135,7 @@ namespace cpp_dbc
         std::ofstream file;
 
     public:
-        FileOutputStream(const std::string &filename, bool append = false)
+        explicit FileOutputStream(const std::string &filename, bool append = false)
             : file(filename, append ? (std::ios::binary | std::ios::app) : (std::ios::binary | std::ios::trunc))
         {
             if (!file)

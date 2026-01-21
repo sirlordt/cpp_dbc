@@ -295,15 +295,44 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-#### This PR (scylladb_driver_fix1)
+#### This PR (sonnar_cloud_issues)
 
-2. **ScyllaDB Native DATE Type Support Fix** (2026-01-18 22:49:41): *(Included in this PR)*
+1. **SonarCloud Code Quality Fixes and Helper Script Enhancement** (2026-01-20 15:17:41):
+   - **SonarCloud Configuration Updates:**
+     - Consolidated SonarCloud configuration into `.sonarcloud.properties`
+     - Deleted redundant `sonar-project.properties` file
+     - Added exclusion for cognitive complexity rule (cpp:S3776) - some functions inherently require complex logic
+     - Added exclusion for nesting depth rule (cpp:S134) - control flow > 3 levels allowed
+     - Added documentation comments for each excluded rule
+   - **Code Quality Improvements in `blob.hpp`:**
+     - Added `explicit` keyword to `FileOutputStream` constructor
+     - Removed redundant `m_position(0)` initialization in `MemoryInputStream` (already initialized at declaration)
+   - **Code Quality Improvements in Columnar DB Connection Pool:**
+     - Changed `ColumnarDBConnection` destructor from `virtual` to `override`
+     - Added in-class member initialization for `m_running{true}` and `m_activeConnections{0}` in `ColumnarDBConnectionPool`
+     - Added in-class member initialization for `m_active{false}` and `m_closed{false}` in `ColumnarPooledDBConnection`
+     - Changed `validateConnection` method to `const`
+     - Changed `close()` and `isPoolValid()` methods to `final` in appropriate classes
+     - Replaced `std::lock_guard<std::mutex>` with `std::scoped_lock` for modern C++ style
+     - Changed `std::unique_lock<std::mutex>` to `std::unique_lock` with CTAD
+     - Replaced generic `std::exception` catches with specific `DBException` catches
+     - Simplified conditional logic in `getIdleDBConnection()` method
+     - Removed redundant member initializations from constructor initializer lists
+   - **Helper Script Enhancement (`helper.sh`):**
+     - Enhanced `extract_executed_tests()` function to track line numbers for executed tests
+     - Updated `display_test_execution_table()` to show log file location with line numbers for executed tests
+     - Added relative path display for log files (e.g., `./logs/test/output.log:42`)
+     - Improved test execution output to help users quickly navigate to specific test results
+
+#### Previous PR (scylladb_driver_fix1)
+
+2. **ScyllaDB Native DATE Type Support Fix** (2026-01-18 22:49:41): *(Included in previous PR)*
    - Fixed ScyllaDB driver to properly handle native Cassandra DATE type:
      - **Reading DATE values:** Added `CASS_VALUE_TYPE_DATE` support with proper uint32 conversion
      - **Writing DATE values:** Changed from int64 (timestamp) to uint32 (date) binding
      - **Technical:** Uses `cass_date_from_epoch` and `timegm` for correct UTC handling
 
-3. **Connection Pool Deadlock Prevention and ScyllaDB Naming Consistency Fixes** (2026-01-18 22:33:51): *(Included in this PR)*
+3. **Connection Pool Deadlock Prevention and ScyllaDB Naming Consistency Fixes** (2026-01-18 22:33:51): *(Included in previous PR)*
    - Fixed potential deadlock in all connection pool implementations:
      - **Deadlock Prevention:**
        - Changed from sequential `std::lock_guard` calls to `std::scoped_lock` for consistent lock ordering
@@ -329,16 +358,16 @@ Based on the current state of the project, potential areas for enhancement inclu
    - Fixed documentation numbering in `cppdbc-package.md`
    - Fixed typos in `TODO.md`
 
-#### Other commits on branch (not part of this PR)
+#### Other commits on branch (not part of previous PR)
 
-1. **Connection Pool Race Condition Fix and Code Quality Improvements** (2026-01-18 23:26:52): *(Not part of this PR)*
+1. **Connection Pool Race Condition Fix and Code Quality Improvements** (2026-01-18 23:26:52): *(Not part of previous PR)*
    - Fixed connection pool race condition in all database types (relational, document, columnar, key-value)
    - Added pool size recheck under lock to prevent exceeding `m_maxSize` under concurrent creation
    - Improved return connection logic with null checks and proper cleanup
    - Fixed MongoDB stub driver and driver exception marks to use UUID-style marks
    - Fixed `blob.hpp` variable initialization and ScyllaDB variable naming
 
-4. **VSCode IntelliSense Automatic Synchronization System** (2026-01-18 02:59:56 PM PST): *(Not part of this PR)*
+4. **VSCode IntelliSense Automatic Synchronization System** (2026-01-18 02:59:56 PM PST): *(Not part of previous PR)*
    - Added automatic synchronization system for VSCode IntelliSense:
      - **New Scripts:**
        - `.vscode/sync_intellisense.sh` - Quick sync without rebuilding

@@ -37,7 +37,30 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Connection Pool Race Condition Fix and Code Quality Improvements** (2026-01-18 23:26:52):
+1. **SonarCloud Code Quality Fixes and Helper Script Enhancement** (2026-01-20 15:17:41):
+   - **SonarCloud Configuration Updates:**
+     - Consolidated SonarCloud configuration into `.sonarcloud.properties`
+     - Deleted redundant `sonar-project.properties` file
+     - Added exclusion for cognitive complexity rule (cpp:S3776)
+     - Added exclusion for nesting depth rule (cpp:S134)
+     - Added documentation comments for each excluded rule
+   - **Code Quality Improvements in `blob.hpp`:**
+     - Added `explicit` keyword to `FileOutputStream` constructor
+     - Removed redundant `m_position(0)` initialization in `MemoryInputStream`
+   - **Code Quality Improvements in Columnar DB Connection Pool:**
+     - Changed `ColumnarDBConnection` destructor from `virtual` to `override`
+     - Added in-class member initialization for atomic variables
+     - Changed `validateConnection` method to `const`
+     - Changed `close()` and `isPoolValid()` methods to `final` in appropriate classes
+     - Replaced `std::lock_guard<std::mutex>` with `std::scoped_lock`
+     - Changed `std::unique_lock<std::mutex>` to `std::unique_lock` with CTAD
+     - Replaced generic `std::exception` catches with specific `DBException` catches
+     - Simplified conditional logic in `getIdleDBConnection()` method
+   - **Helper Script Enhancement (`helper.sh`):**
+     - Enhanced test execution table to show log file location with line numbers
+     - Improved test output to help users quickly navigate to specific test results
+
+2. **Connection Pool Race Condition Fix and Code Quality Improvements** (2026-01-18 23:26:52):
    - Fixed connection pool race condition in all database types:
      - Added pool size recheck under lock to prevent exceeding `m_maxSize` under concurrent creation
      - New connections are created as candidates and only registered if pool hasn't filled
