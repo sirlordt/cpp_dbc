@@ -119,10 +119,10 @@ namespace cpp_dbc
             // Start maintenance thread
             m_maintenanceThread = std::thread(&DocumentDBConnectionPool::maintenanceTask, this);
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
             close();
-            throw DBException("DOC54157A1F4D8", "Failed to initialize connection pool: " + std::string(e.what()), system_utils::captureCallStack());
+            throw DBException("DOC54157A1F4D8", "Failed to initialize connection pool: " + std::string(ex.what()), system_utils::captureCallStack());
         }
     }
 
@@ -217,7 +217,7 @@ namespace cpp_dbc
             // Use ping to validate document database connection
             return conn->ping();
         }
-        catch ([[maybe_unused]] const DBException &ex)
+        catch ([[maybe_unused]] const std::exception &ex)
         {
             CP_DEBUG("DocumentDBConnectionPool::validateConnection - Exception: " << ex.what());
             return false;
@@ -299,7 +299,7 @@ namespace cpp_dbc
                 }
                 m_activeConnections--;
             }
-            catch (const std::exception &ex)
+            catch ([[maybe_unused]] const std::exception &ex)
             {
                 m_activeConnections--;
                 CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception replacing invalid connection: " << ex.what());
@@ -310,7 +310,7 @@ namespace cpp_dbc
             {
                 conn->getUnderlyingDocumentConnection()->close();
             }
-            catch (const std::exception &ex)
+            catch ([[maybe_unused]] const std::exception &ex)
             {
                 CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception closing invalid connection: " << ex.what());
             }
@@ -633,7 +633,7 @@ namespace cpp_dbc
                     }
                 }
             }
-            catch (const std::exception &ex)
+            catch ([[maybe_unused]] const std::exception &ex)
             {
                 CP_DEBUG("DocumentDBConnectionPool::close - Exception during connection close: " << ex.what());
             }
@@ -680,7 +680,7 @@ namespace cpp_dbc
             {
                 m_conn->close();
             }
-            catch (const std::exception &ex)
+            catch ([[maybe_unused]] const std::exception &ex)
             {
                 CP_DEBUG("DocumentPooledDBConnection::~DocumentPooledDBConnection - Exception during close: " << ex.what());
             }

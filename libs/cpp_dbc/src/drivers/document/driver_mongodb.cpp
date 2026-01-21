@@ -1199,7 +1199,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "5A6B7C8D9E0F",
@@ -1259,7 +1259,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "1A2B3C4D5E6F",
@@ -1340,7 +1340,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "7A8B9C0D1E2F",
@@ -1415,7 +1415,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "3A4B5C6D7E8F",
@@ -1463,7 +1463,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "8F9A0B1C2D3E",
@@ -1912,7 +1912,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "8D9E0F1A2B3C",
@@ -1987,7 +1987,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "4D5E6F7A8B9C",
@@ -2182,7 +2182,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "46F76AEC33F1",
@@ -2367,7 +2367,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "F1A2B3C4D5E6",
@@ -2466,7 +2466,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D5E6F7A8B9C0",
@@ -2582,7 +2582,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D1E2F3A4B5C6",
@@ -2658,7 +2658,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "B5C6D7E8F9A0",
@@ -2765,7 +2765,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "A0B1C2D3E4F5",
@@ -2862,7 +2862,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "F5A6B7C8D9E0",
@@ -2967,7 +2967,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "E0F1A2B3C4D5",
@@ -3058,7 +3058,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D5E6F7A8B9C0",
@@ -3142,7 +3142,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "C0D1E2F3A4B5",
@@ -3321,7 +3321,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D7E8F9A0B1C2",
@@ -3542,7 +3542,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D9E0F1A2B3C4",
@@ -3736,7 +3736,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D1E2F3A4B5C6",
@@ -3864,7 +3864,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "C6D7E8F9A0B1",
@@ -4110,7 +4110,7 @@ namespace cpp_dbc
                         {
                             cursor->close();
                         }
-                        catch (const std::exception &ex)
+                        catch ([[maybe_unused]] const std::exception &ex)
                         {
                             // Ignore errors during cleanup
                             MONGODB_DEBUG("MongoDBConnection::close - Exception ignored during cursor cleanup: " << ex.what());
@@ -4595,7 +4595,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "1DCF59899097",
@@ -4661,7 +4661,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D8267AB49B49",
@@ -4726,7 +4726,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "8D9E0F1A2B3C",
@@ -4814,7 +4814,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "5E6F7A8B9C0D",
@@ -4883,7 +4883,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "2F3A4B5C6D7E",
@@ -4935,7 +4935,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "7E8F9A0B1C2D",
@@ -4966,7 +4966,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "0B1C2D3E4F5A",
@@ -4998,7 +4998,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "3E4F5A6B7C8D",
@@ -5074,7 +5074,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "0F1A2B3C4D5E",
@@ -5376,7 +5376,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "2D3E4F5A6B7C",
@@ -5443,7 +5443,7 @@ namespace cpp_dbc
             {
                 return unexpected<DBException>(ex);
             }
-            catch ([[maybe_unused]] const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "6B7C8D9E0F1A",
