@@ -71,12 +71,14 @@ show_usage() {
   echo "  --run-test               Build (if needed) and run the tests"
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
   echo "                           Available options: clean,release,gcc-analyzer,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,valgrind,"
-  echo "                                              yaml,auto,asan,ctest,check,run=N,test=Tag1+Tag2+Tag3,"
+  echo "                                              yaml,auto,asan,ctest,check,run=N,test=FILTER,"
   echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
+  echo "                           Test filter formats (test=FILTER):"
+  echo "                             - Wildcard: test=*mysql* matches test names containing 'mysql'"
+  echo "                             - Tags: test=tag1+tag2 runs tests with those specific tags"
+  echo "                           Example: --run-test=rebuild,mysql,valgrind,run=1,test=*mysql*"
   echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3,test=integration+mysql_real_right_join"
-  echo "                           Example: --run-test=rebuild,sqlite,debug-pool,debug-sqlite,test=integration"
   echo "                           Example: --run-test=clean,rebuild,sqlite,mysql,postgres,yaml,valgrind,auto,run=1"
-  echo "                           Note: Multiple test tags can be specified using + as separator after test="
   echo "  --run-benchmarks         Run the benchmarks"
   echo "  --run-benchmarks=OPTIONS Run benchmarks with comma-separated options"
   echo "                           Available options: clean,release,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,"
@@ -553,10 +555,11 @@ extract_executed_tests() {
 
   # Extract all filter tags from the log file with line numbers
   # Format: line_number:Filters: [tag]
-  grep -a -n "Filters: \[[^]]*\]" "$log_file" > "$temp_file"
+  grep -a -n "Filters: \[[^]]*\]" "$log_file" > "$temp_file" 2>/dev/null || true
 
   # For each tag, check if there are any passed or failed tests
   while IFS= read -r line; do
+    [ -z "$line" ] && continue
     # Extract line number and tag from the grep output
     local line_number=$(echo "$line" | cut -d: -f1)
     local tag=$(echo "$line" | sed 's/.*Filters: \[\([^]]*\)\]/\1/')
@@ -748,6 +751,7 @@ display_test_execution_table() {
 
     # Check if this tag was executed (format: tag|line_number)
     while IFS= read -r executed_entry; do
+      [ -z "$executed_entry" ] && continue
       # Split by pipe to get tag and line number
       local exec_tag=$(echo "$executed_entry" | cut -d'|' -f1)
       local exec_line=$(echo "$executed_entry" | cut -d'|' -f2)
