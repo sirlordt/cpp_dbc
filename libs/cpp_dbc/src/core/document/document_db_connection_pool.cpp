@@ -285,25 +285,34 @@ namespace cpp_dbc
         }
         else
         {
+            // Use scoped_lock for consistent lock ordering to prevent deadlock
+            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+
             // Replace invalid connection with a new one
             try
             {
-                // Use scoped_lock for consistent lock ordering to prevent deadlock
+                auto it = std::ranges::find(m_allConnections, conn);
+                if (it != m_allConnections.end())
                 {
-                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
-                    auto it = std::ranges::find(m_allConnections, conn);
-                    if (it != m_allConnections.end())
-                    {
-                        *it = createPooledDBConnection();
-                        m_idleConnections.push(*it);
-                    }
+                    *it = createPooledDBConnection();
+                    m_idleConnections.push(*it);
                 }
                 m_activeConnections--;
             }
-            catch ([[maybe_unused]] const std::exception &ex)
+            catch (const std::exception &ex)
             {
                 m_activeConnections--;
                 CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception replacing invalid connection: " << ex.what());
+            }
+
+            // Close the old invalid connection (conn still points to the original invalid connection)
+            try
+            {
+                conn->getUnderlyingDocumentConnection()->close();
+            }
+            catch (const std::exception &ex)
+            {
+                CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception closing invalid connection: " << ex.what());
             }
         }
 
