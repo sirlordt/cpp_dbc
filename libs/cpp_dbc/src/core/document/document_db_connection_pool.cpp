@@ -291,17 +291,21 @@ namespace cpp_dbc
             // Replace invalid connection with a new one
             try
             {
+                m_activeConnections--;
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
                     *it = createPooledDBConnection();
                     m_idleConnections.push(*it);
                 }
-                m_activeConnections--;
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                m_activeConnections--;
+                auto it = std::ranges::find(m_allConnections, conn);
+                if (it != m_allConnections.end())
+                {
+                    m_allConnections.erase(it);
+                }
                 CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception replacing invalid connection: " << ex.what());
             }
 
