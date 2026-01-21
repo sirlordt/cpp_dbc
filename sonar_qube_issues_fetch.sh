@@ -48,6 +48,14 @@ log_debug() {
 }
 
 # -----------------------------------------------------------------------------
+# URL encode a string (percent-encoding for query parameters)
+# Uses jq which is already a dependency of this script
+# -----------------------------------------------------------------------------
+urlencode() {
+    jq -sRr @uri <<< "$1" | sed 's/%0A$//'
+}
+
+# -----------------------------------------------------------------------------
 # Load project key from .sonarcloud.properties file
 # -----------------------------------------------------------------------------
 load_project_from_properties() {
@@ -387,11 +395,11 @@ get_current_branch() {
 # -----------------------------------------------------------------------------
 resolve_pr_from_branch() {
     local branch_name="$1"
-    
+
     log_info "Detecting PR for branch: ${branch_name}"
-    
+
     local url="${API_URL}/project_pull_requests/list"
-    url="${url}?project=${PROJECT}"
+    url="${url}?project=$(urlencode "$PROJECT")"
     
     local response
     response=$(api_request "$url")
@@ -446,29 +454,30 @@ list_project_files() {
     elif [[ -n "$BRANCH" ]]; then
         log_info "Branch: ${BRANCH}"
     fi
-    
+
     local page=1
     local page_size=500
     local total=0
     local fetched=0
-    
+
     echo ""
     printf "${CYAN}%-70s %s${NC}\n" "FILE PATH" "COMPONENT KEY"
     printf "%s\n" "$(printf '=%.0s' {1..120})"
-    
+
     while true; do
+        # URL encode all query parameter values to handle special characters
         local url="${API_URL}/components/tree"
-        url="${url}?component=${PROJECT}"
+        url="${url}?component=$(urlencode "$PROJECT")"
         url="${url}&qualifiers=FIL"
         url="${url}&strategy=leaves"
         url="${url}&ps=${page_size}"
         url="${url}&p=${page}"
-        
+
         # Add branch or pull request filter
         if [[ -n "$PULL_REQUEST" ]]; then
-            url="${url}&pullRequest=${PULL_REQUEST}"
+            url="${url}&pullRequest=$(urlencode "$PULL_REQUEST")"
         elif [[ -n "$BRANCH" ]]; then
-            url="${url}&branch=${BRANCH}"
+            url="${url}&branch=$(urlencode "$BRANCH")"
         fi
         
         local response
@@ -511,9 +520,9 @@ list_project_files() {
 # -----------------------------------------------------------------------------
 list_project_branches() {
     log_info "Fetching branch list for project: ${PROJECT}"
-    
+
     local url="${API_URL}/project_branches/list"
-    url="${url}?project=${PROJECT}"
+    url="${url}?project=$(urlencode "$PROJECT")"
     
     local response
     response=$(api_request "$url")
@@ -543,9 +552,9 @@ list_project_branches() {
 # -----------------------------------------------------------------------------
 list_project_prs() {
     log_info "Fetching pull request list for project: ${PROJECT}"
-    
+
     local url="${API_URL}/project_pull_requests/list"
-    url="${url}?project=${PROJECT}"
+    url="${url}?project=$(urlencode "$PROJECT")"
     
     local response
     response=$(api_request "$url")
@@ -588,18 +597,19 @@ resolve_file_uuid() {
     search_name=$(basename "$filename")
     
     # Use components/tree API to search for the file
+    # URL encode all query parameter values to handle special characters
     local url="${API_URL}/components/tree"
-    url="${url}?component=${PROJECT}"
+    url="${url}?component=$(urlencode "$PROJECT")"
     url="${url}&qualifiers=FIL"
     url="${url}&strategy=leaves"
-    url="${url}&q=${search_name}"
+    url="${url}&q=$(urlencode "$search_name")"
     url="${url}&ps=100"
-    
+
     # Add branch or pull request filter
     if [[ -n "$PULL_REQUEST" ]]; then
-        url="${url}&pullRequest=${PULL_REQUEST}"
+        url="${url}&pullRequest=$(urlencode "$PULL_REQUEST")"
     elif [[ -n "$BRANCH" ]]; then
-        url="${url}&branch=${BRANCH}"
+        url="${url}&branch=$(urlencode "$BRANCH")"
     fi
     
     local response
@@ -692,17 +702,18 @@ resolve_file_uuid() {
 # Fetch issues from SonarCloud API
 # -----------------------------------------------------------------------------
 fetch_issues() {
+    # URL encode all query parameter values to handle special characters
     local url="${API_URL}/issues/search"
-    url="${url}?componentKeys=${FILE_COMPONENT_KEY}"
-    url="${url}&issueStatuses=${STATUSES}"
-    url="${url}&impactSoftwareQualities=${QUALITIES}"
+    url="${url}?componentKeys=$(urlencode "$FILE_COMPONENT_KEY")"
+    url="${url}&issueStatuses=$(urlencode "$STATUSES")"
+    url="${url}&impactSoftwareQualities=$(urlencode "$QUALITIES")"
     url="${url}&ps=500"  # Page size (max)
-    
+
     # Add branch or pull request filter
     if [[ -n "$PULL_REQUEST" ]]; then
-        url="${url}&pullRequest=${PULL_REQUEST}"
+        url="${url}&pullRequest=$(urlencode "$PULL_REQUEST")"
     elif [[ -n "$BRANCH" ]]; then
-        url="${url}&branch=${BRANCH}"
+        url="${url}&branch=$(urlencode "$BRANCH")"
     fi
     
     log_info "Fetching issues from SonarCloud API..." >&2
