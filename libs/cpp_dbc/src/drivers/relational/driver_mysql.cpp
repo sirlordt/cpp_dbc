@@ -40,10 +40,8 @@
 #define MYSQL_DEBUG(x)
 #endif
 
-namespace cpp_dbc
+namespace cpp_dbc::MySQL
 {
-    namespace MySQL
-    {
 
         // MySQLDBResultSet implementation
 
@@ -72,7 +70,7 @@ namespace cpp_dbc
             }
         }
 
-        MySQLDBResultSet::MySQLDBResultSet(MYSQL_RES *res) : m_result(res), m_currentRow(nullptr), m_rowPosition(0)
+        MySQLDBResultSet::MySQLDBResultSet(MYSQL_RES *res) : m_result(res)
         {
             if (m_result)
             {
@@ -80,7 +78,7 @@ namespace cpp_dbc
                 m_fieldCount = mysql_num_fields(m_result.get());
 
                 // Store column names and create column name to index mapping
-                MYSQL_FIELD *fields = mysql_fetch_fields(m_result.get());
+                const MYSQL_FIELD *fields = mysql_fetch_fields(m_result.get());
                 for (size_t i = 0; i < m_fieldCount; i++)
                 {
                     std::string name = fields[i].name;
@@ -111,7 +109,7 @@ namespace cpp_dbc
         bool MySQLDBResultSet::next()
         {
             auto result = next(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -161,7 +159,7 @@ namespace cpp_dbc
         bool MySQLDBResultSet::isBeforeFirst()
         {
             auto result = isBeforeFirst(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -198,7 +196,7 @@ namespace cpp_dbc
         bool MySQLDBResultSet::isAfterLast()
         {
             auto result = isAfterLast(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -235,7 +233,7 @@ namespace cpp_dbc
         uint64_t MySQLDBResultSet::getRow()
         {
             auto result = getRow(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -272,7 +270,7 @@ namespace cpp_dbc
         int MySQLDBResultSet::getInt(size_t columnIndex)
         {
             auto result = getInt(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -323,7 +321,7 @@ namespace cpp_dbc
         int MySQLDBResultSet::getInt(const std::string &columnName)
         {
             auto result = getInt(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -362,7 +360,7 @@ namespace cpp_dbc
         long MySQLDBResultSet::getLong(size_t columnIndex)
         {
             auto result = getLong(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -412,7 +410,7 @@ namespace cpp_dbc
         long MySQLDBResultSet::getLong(const std::string &columnName)
         {
             auto result = getLong(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -451,7 +449,7 @@ namespace cpp_dbc
         double MySQLDBResultSet::getDouble(size_t columnIndex)
         {
             auto result = getDouble(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -501,7 +499,7 @@ namespace cpp_dbc
         double MySQLDBResultSet::getDouble(const std::string &columnName)
         {
             auto result = getDouble(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -540,7 +538,7 @@ namespace cpp_dbc
         std::string MySQLDBResultSet::getString(size_t columnIndex)
         {
             auto result = getString(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -590,7 +588,7 @@ namespace cpp_dbc
         std::string MySQLDBResultSet::getString(const std::string &columnName)
         {
             auto result = getString(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -629,7 +627,7 @@ namespace cpp_dbc
         bool MySQLDBResultSet::getBoolean(size_t columnIndex)
         {
             auto result = getBoolean(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -680,7 +678,7 @@ namespace cpp_dbc
         bool MySQLDBResultSet::getBoolean(const std::string &columnName)
         {
             auto result = getBoolean(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -719,7 +717,7 @@ namespace cpp_dbc
         bool MySQLDBResultSet::isNull(size_t columnIndex)
         {
             auto result = isNull(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -764,7 +762,7 @@ namespace cpp_dbc
         bool MySQLDBResultSet::isNull(const std::string &columnName)
         {
             auto result = isNull(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -803,7 +801,7 @@ namespace cpp_dbc
         std::vector<std::string> MySQLDBResultSet::getColumnNames()
         {
             auto result = getColumnNames(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -840,7 +838,7 @@ namespace cpp_dbc
         size_t MySQLDBResultSet::getColumnCount()
         {
             auto result = getColumnCount(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -894,7 +892,7 @@ namespace cpp_dbc
         std::shared_ptr<Blob> MySQLDBResultSet::getBlob(size_t columnIndex)
         {
             auto result = getBlob(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -924,7 +922,7 @@ namespace cpp_dbc
                 }
 
                 // Get the length of the BLOB data
-                unsigned long *lengths = mysql_fetch_lengths(m_result.get());
+                const unsigned long *lengths = mysql_fetch_lengths(m_result.get());
                 if (!lengths)
                 {
                     return cpp_dbc::unexpected(DBException("H3I4J5K6L7M8", "Failed to get BLOB data length", system_utils::captureCallStack()));
@@ -963,7 +961,7 @@ namespace cpp_dbc
         std::shared_ptr<Blob> MySQLDBResultSet::getBlob(const std::string &columnName)
         {
             auto result = getBlob(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1002,7 +1000,7 @@ namespace cpp_dbc
         std::shared_ptr<InputStream> MySQLDBResultSet::getBinaryStream(size_t columnIndex)
         {
             auto result = getBinaryStream(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1032,7 +1030,7 @@ namespace cpp_dbc
                 }
 
                 // Get the length of the BLOB data
-                unsigned long *lengths = mysql_fetch_lengths(m_result.get());
+                const unsigned long *lengths = mysql_fetch_lengths(m_result.get());
                 if (!lengths)
                 {
                     return cpp_dbc::unexpected(DBException("Z1A2B3C4D5E6", "Failed to get BLOB data length", system_utils::captureCallStack()));
@@ -1062,7 +1060,7 @@ namespace cpp_dbc
         std::shared_ptr<InputStream> MySQLDBResultSet::getBinaryStream(const std::string &columnName)
         {
             auto result = getBinaryStream(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1101,7 +1099,7 @@ namespace cpp_dbc
         std::vector<uint8_t> MySQLDBResultSet::getBytes(size_t columnIndex)
         {
             auto result = getBytes(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1130,7 +1128,7 @@ namespace cpp_dbc
                 }
 
                 // Get the length of the BLOB data
-                unsigned long *lengths = mysql_fetch_lengths(m_result.get());
+                const unsigned long *lengths = mysql_fetch_lengths(m_result.get());
                 if (!lengths)
                 {
                     return cpp_dbc::unexpected(DBException("R9S0T1U2V3W4", "Failed to get BLOB data length", system_utils::captureCallStack()));
@@ -1167,7 +1165,7 @@ namespace cpp_dbc
         std::vector<uint8_t> MySQLDBResultSet::getBytes(const std::string &columnName)
         {
             auto result = getBytes(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1215,7 +1213,7 @@ namespace cpp_dbc
         }
 
         MySQLDBPreparedStatement::MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql_conn, const std::string &sql_stmt)
-            : m_mysql(mysql_conn), m_sql(sql_stmt), m_stmt(nullptr)
+            : m_mysql(mysql_conn), m_sql(sql_stmt)
         {
             MYSQL *mysqlPtr = getMySQLConnection();
 
@@ -1263,7 +1261,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::close()
         {
             auto result = close(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1310,7 +1308,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setInt(int parameterIndex, int value)
         {
             auto result = setInt(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1363,7 +1361,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setLong(int parameterIndex, long value)
         {
             auto result = setLong(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1417,7 +1415,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
         {
             auto result = setBlob(std::nothrow, parameterIndex, x);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1487,7 +1485,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
         {
             auto result = setBinaryStream(std::nothrow, parameterIndex, x);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1563,7 +1561,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
         {
             auto result = setBinaryStream(std::nothrow, parameterIndex, x, length);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1642,7 +1640,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
         {
             auto result = setBytes(std::nothrow, parameterIndex, x);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1656,7 +1654,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
         {
             auto result = setBytes(std::nothrow, parameterIndex, x, length);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1721,7 +1719,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setDouble(int parameterIndex, double value)
         {
             auto result = setDouble(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1774,7 +1772,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setString(int parameterIndex, const std::string &value)
         {
             auto result = setString(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1837,7 +1835,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setBoolean(int parameterIndex, bool value)
         {
             auto result = setBoolean(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1890,7 +1888,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setNull(int parameterIndex, Types type)
         {
             auto result = setNull(std::nothrow, parameterIndex, type);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1973,7 +1971,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setDate(int parameterIndex, const std::string &value)
         {
             auto result = setDate(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2025,7 +2023,7 @@ namespace cpp_dbc
         void MySQLDBPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
         {
             auto result = setTimestamp(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2077,7 +2075,7 @@ namespace cpp_dbc
         std::shared_ptr<RelationalDBResultSet> MySQLDBPreparedStatement::executeQuery()
         {
             auto result = executeQuery(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2153,7 +2151,7 @@ namespace cpp_dbc
         uint64_t MySQLDBPreparedStatement::executeUpdate()
         {
             auto result = executeUpdate(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2207,7 +2205,7 @@ namespace cpp_dbc
         bool MySQLDBPreparedStatement::execute()
         {
             auto result = execute(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2266,8 +2264,7 @@ namespace cpp_dbc
                                              const std::string &user,
                                              const std::string &password,
                                              const std::map<std::string, std::string> &options)
-            : m_closed(false), m_autoCommit(true), m_transactionActive(false),
-              m_isolationLevel(TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ) // MySQL default
+            : m_closed(false)
         {
             // Create shared_ptr with custom deleter for MYSQL*
             m_mysql = std::shared_ptr<MYSQL>(mysql_init(nullptr), MySQLDeleter());
@@ -2281,28 +2278,28 @@ namespace cpp_dbc
             mysql_options(m_mysql.get(), MYSQL_OPT_PROTOCOL, &protocol);
 
             // Aplicar opciones de conexión desde el mapa
-            for (const auto &option : options)
+            for (const auto &[key, value] : options)
             {
-                if (option.first == "connect_timeout")
+                if (key == "connect_timeout")
                 {
-                    unsigned int timeout = std::stoi(option.second);
+                    unsigned int timeout = std::stoi(value);
                     mysql_options(m_mysql.get(), MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
                 }
-                else if (option.first == "read_timeout")
+                else if (key == "read_timeout")
                 {
-                    unsigned int timeout = std::stoi(option.second);
+                    unsigned int timeout = std::stoi(value);
                     mysql_options(m_mysql.get(), MYSQL_OPT_READ_TIMEOUT, &timeout);
                 }
-                else if (option.first == "write_timeout")
+                else if (key == "write_timeout")
                 {
-                    unsigned int timeout = std::stoi(option.second);
+                    unsigned int timeout = std::stoi(value);
                     mysql_options(m_mysql.get(), MYSQL_OPT_WRITE_TIMEOUT, &timeout);
                 }
-                else if (option.first == "charset")
+                else if (key == "charset")
                 {
-                    mysql_options(m_mysql.get(), MYSQL_SET_CHARSET_NAME, option.second.c_str());
+                    mysql_options(m_mysql.get(), MYSQL_SET_CHARSET_NAME, value.c_str());
                 }
-                else if (option.first == "auto_reconnect" && option.second == "true")
+                else if (key == "auto_reconnect" && value == "true")
                 {
                     bool reconnect = true;
                     mysql_options(m_mysql.get(), MYSQL_OPT_RECONNECT, &reconnect);
@@ -2320,15 +2317,12 @@ namespace cpp_dbc
             }
 
             // Select the database if provided
-            if (!database.empty())
+            if (!database.empty() && mysql_select_db(m_mysql.get(), database.c_str()) != 0)
             {
-                if (mysql_select_db(m_mysql.get(), database.c_str()) != 0)
-                {
-                    std::string error = mysql_error(m_mysql.get());
-                    // unique_ptr will automatically call mysql_close via the deleter
-                    m_mysql.reset();
-                    throw DBException("5W6X7Y8Z9A0B", "Failed to select database: " + error, system_utils::captureCallStack());
-                }
+                std::string error = mysql_error(m_mysql.get());
+                // unique_ptr will automatically call mysql_close via the deleter
+                m_mysql.reset();
+                throw DBException("5W6X7Y8Z9A0B", "Failed to select database: " + error, system_utils::captureCallStack());
             }
 
             // Disable auto-commit by default to match JDBC behavior
@@ -2411,7 +2405,7 @@ namespace cpp_dbc
         std::shared_ptr<RelationalDBPreparedStatement> MySQLDBConnection::prepareStatement(const std::string &sql)
         {
             auto result = prepareStatement(std::nothrow, sql);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2459,7 +2453,7 @@ namespace cpp_dbc
         std::shared_ptr<RelationalDBResultSet> MySQLDBConnection::executeQuery(const std::string &sql)
         {
             auto result = executeQuery(std::nothrow, sql);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2512,7 +2506,7 @@ namespace cpp_dbc
         uint64_t MySQLDBConnection::executeUpdate(const std::string &sql)
         {
             auto result = executeUpdate(std::nothrow, sql);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2559,7 +2553,7 @@ namespace cpp_dbc
         void MySQLDBConnection::setAutoCommit(bool autoCommitFlag)
         {
             auto result = setAutoCommit(std::nothrow, autoCommitFlag);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2625,7 +2619,7 @@ namespace cpp_dbc
         bool MySQLDBConnection::getAutoCommit()
         {
             auto result = getAutoCommit(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2662,7 +2656,7 @@ namespace cpp_dbc
         bool MySQLDBConnection::beginTransaction()
         {
             auto result = beginTransaction(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2719,7 +2713,7 @@ namespace cpp_dbc
         bool MySQLDBConnection::transactionActive()
         {
             auto result = transactionActive(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2756,7 +2750,7 @@ namespace cpp_dbc
         void MySQLDBConnection::commit()
         {
             auto result = commit(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2815,7 +2809,7 @@ namespace cpp_dbc
         void MySQLDBConnection::rollback()
         {
             auto result = rollback(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2874,7 +2868,7 @@ namespace cpp_dbc
         void MySQLDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
         {
             auto result = setTransactionIsolation(std::nothrow, level);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2957,7 +2951,7 @@ namespace cpp_dbc
         TransactionIsolationLevel MySQLDBConnection::getTransactionIsolation()
         {
             auto result = getTransactionIsolation(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -3090,7 +3084,7 @@ namespace cpp_dbc
                                                                                  const std::map<std::string, std::string> &options)
         {
             auto result = connectRelational(std::nothrow, url, user, password, options);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -3305,7 +3299,6 @@ namespace cpp_dbc
             return "mysql";
         }
 
-    } // namespace MySQL
-} // namespace cpp_dbc
+} // namespace cpp_dbc::MySQL
 
 #endif // USE_MYSQL

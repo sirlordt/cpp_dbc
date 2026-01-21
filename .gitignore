@@ -6,6 +6,11 @@ build/**
 external/
 external/**
 
+
+# External folders/libraries/files directory
+issues/
+issues/**
+
 # Compiled Object files
 *.o
 *.obj
