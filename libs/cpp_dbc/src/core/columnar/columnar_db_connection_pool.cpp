@@ -298,7 +298,7 @@ namespace cpp_dbc
                 CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception replacing invalid connection: " << ex.what());
             }
 
-            // Close the old invalid connection (conn still points to it)
+            // Close the old invalid connection (conn still points to the original invalid connection)
             try
             {
                 conn->getUnderlyingColumnarConnection()->close();
