@@ -2298,7 +2298,7 @@ namespace cpp_dbc
                                  nullptr);
 
             // Set auto-commit mode
-            PostgreSQLDBConnection::setAutoCommit(true);
+            setAutoCommit(true);
 
             // Initialize URL string once
             std::stringstream urlBuilder;
