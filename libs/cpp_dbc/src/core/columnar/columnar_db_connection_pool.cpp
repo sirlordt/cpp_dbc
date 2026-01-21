@@ -289,7 +289,7 @@ namespace cpp_dbc
                 {
                     conn->getUnderlyingColumnarConnection()->close();
                 }
-                catch (const DBException &ex)
+                catch (const std::exception &ex)
                 {
                     // Drop the invalid connection so capacity can recover
                     auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
