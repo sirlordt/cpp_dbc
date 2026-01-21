@@ -2310,7 +2310,7 @@ namespace cpp_dbc::PostgreSQL
                              nullptr);
 
         // Set auto-commit mode
-        PostgreSQLDBConnection::setAutoCommit(true);
+        setAutoCommit(true);
 
         // Initialize URL string once
         std::stringstream urlBuilder;
@@ -2499,7 +2499,8 @@ namespace cpp_dbc::PostgreSQL
 
     std::string PostgreSQLDBConnection::generateStatementName()
     {
-        int counter = m_statementCounter++;
+        int counter = m_statementCounter;
+        m_statementCounter += 1;
         std::stringstream ss;
         ss << "stmt_" << counter;
         return ss.str();
