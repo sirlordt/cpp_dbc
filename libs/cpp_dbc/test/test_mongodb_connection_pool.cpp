@@ -337,9 +337,9 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
-        poolConfig.setInitialSize(2);           // Smaller initial size
-        poolConfig.setMaxSize(5);               // Smaller max size
-        poolConfig.setMinIdle(1);               // Smaller min idle
+        poolConfig.setInitialSize(5);           // Initial size (enough for invalid connection tests)
+        poolConfig.setMaxSize(10);              // Max size
+        poolConfig.setMinIdle(3);               // Min idle (need at least 3 for multiple invalid connection test)
         poolConfig.setConnectionTimeout(2000);  // Shorter timeout
         poolConfig.setIdleTimeout(10000);       // Shorter idle timeout
         poolConfig.setMaxLifetimeMillis(30000); // Shorter max lifetime
@@ -378,14 +378,16 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
             std::vector<std::shared_ptr<cpp_dbc::DocumentDBConnection>> connections;
 
             // Get more connections than initialSize (should cause pool to grow)
-            for (int i = 0; i < 4; i++)
+            // With initialSize=5, we need to request more than 5 to force growth
+            const size_t numConnectionsToRequest = initialTotalCount + 2;
+            for (size_t i = 0; i < numConnectionsToRequest; i++)
             {
                 connections.push_back(pool->getDocumentDBConnection());
                 REQUIRE(connections.back() != nullptr);
             }
 
             // Verify pool grew
-            REQUIRE(pool->getActiveDBConnectionCount() == 4);
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnectionsToRequest);
             REQUIRE(pool->getTotalDBConnectionCount() > initialTotalCount);
 
             // Return all connections
@@ -397,6 +399,112 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
             // Verify all returned
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getIdleDBConnectionCount() >= initialIdleCount);
+        }
+
+        // Test invalid connection replacement
+        SECTION("Invalid connection replacement on return")
+        {
+            // Get initial pool statistics
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+
+            // Get a connection from the pool
+            auto conn = pool->getDocumentDBConnection();
+            REQUIRE(conn != nullptr);
+            REQUIRE(pool->getActiveDBConnectionCount() == 1);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 1);
+
+            // Get the underlying connection and close it directly to invalidate
+            auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::DocumentPooledDBConnection>(conn);
+            REQUIRE(pooledConn != nullptr);
+
+            auto underlyingConn = pooledConn->getUnderlyingDocumentConnection();
+            REQUIRE(underlyingConn != nullptr);
+
+            // Close the underlying connection directly - this invalidates the pooled connection
+            underlyingConn->close();
+
+            // Now return the (now invalid) connection to the pool
+            // The pool should detect it's invalid and replace it
+            conn->close();
+
+            // Give the pool a moment to process the replacement
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+            // Verify pool statistics:
+            // - activeConnections should be 0 (connection was returned)
+            // - totalConnections should remain the same (invalid connection was replaced)
+            // - idleConnections should be back to initial (replacement went to idle)
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify we can still get a working connection from the pool
+            auto newConn = pool->getDocumentDBConnection();
+            REQUIRE(newConn != nullptr);
+            REQUIRE(newConn->ping()); // Should work - it's the replacement connection
+            newConn->close();
+        }
+
+        // Test multiple invalid connections replacement
+        SECTION("Multiple invalid connections replacement")
+        {
+            // Get initial pool statistics
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(initialIdleCount >= 3); // Need at least 3 idle connections for this test
+
+            // Get multiple connections
+            std::vector<std::shared_ptr<cpp_dbc::DocumentDBConnection>> connections;
+            const size_t numConnections = 3;
+
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto conn = pool->getDocumentDBConnection();
+                REQUIRE(conn != nullptr);
+                connections.push_back(conn);
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnections);
+            // Use signed arithmetic to avoid underflow
+            REQUIRE(pool->getIdleDBConnectionCount() == (initialIdleCount - numConnections));
+
+            // Invalidate all connections by closing their underlying connections
+            for (auto &conn : connections)
+            {
+                auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::DocumentPooledDBConnection>(conn);
+                REQUIRE(pooledConn != nullptr);
+
+                auto underlyingConn = pooledConn->getUnderlyingDocumentConnection();
+                underlyingConn->close();
+            }
+
+            // Return all invalid connections to the pool
+            for (auto &conn : connections)
+            {
+                conn->close();
+            }
+
+            // Give the pool time to process replacements
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+            // Verify pool statistics
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify all replacement connections work
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto newConn = pool->getDocumentDBConnection();
+                REQUIRE(newConn != nullptr);
+                REQUIRE(newConn->ping());
+                newConn->close();
+            }
         }
 
         // Close the pool

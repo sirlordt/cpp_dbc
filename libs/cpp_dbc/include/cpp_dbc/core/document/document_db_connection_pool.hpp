@@ -102,7 +102,7 @@ namespace cpp_dbc
         std::shared_ptr<DocumentPooledDBConnection> createPooledDBConnection();
 
         // Validates a connection
-        bool validateConnection(std::shared_ptr<DocumentDBConnection> conn);
+        bool validateConnection(std::shared_ptr<DocumentDBConnection> conn) const;
 
         // Returns a connection to the pool
         void returnConnection(std::shared_ptr<DocumentPooledDBConnection> conn);
@@ -123,7 +123,6 @@ namespace cpp_dbc
         // This must be called after the pool is managed by a shared_ptr
         void initializePool();
 
-    protected:
         // Protected constructors - pools must be created via factory methods
         // Constructor that takes individual parameters
         DocumentDBConnectionPool(const std::string &url,
@@ -143,7 +142,7 @@ namespace cpp_dbc
                                  TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
         // Constructor that accepts a configuration object
-        DocumentDBConnectionPool(const config::DBConnectionPoolConfig &config);
+        explicit DocumentDBConnectionPool(const config::DBConnectionPoolConfig &config);
 
     public:
         // Static factory methods - use these to create pools
@@ -165,7 +164,7 @@ namespace cpp_dbc
 
         static std::shared_ptr<DocumentDBConnectionPool> create(const config::DBConnectionPoolConfig &config);
 
-        ~DocumentDBConnectionPool();
+        ~DocumentDBConnectionPool() override;
 
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
@@ -298,7 +297,7 @@ namespace cpp_dbc
                                   const std::string &username,
                                   const std::string &password);
 
-            MongoDBConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit MongoDBConnectionPool(const config::DBConnectionPoolConfig &config);
 
         public:
             static std::shared_ptr<MongoDBConnectionPool> create(const std::string &url,
