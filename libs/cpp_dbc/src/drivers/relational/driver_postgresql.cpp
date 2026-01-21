@@ -64,7 +64,7 @@ namespace cpp_dbc
 
         PostgreSQLDBResultSet::~PostgreSQLDBResultSet()
         {
-            this->close();
+            PostgreSQLDBResultSet::close();
         }
 
         bool PostgreSQLDBResultSet::next()
@@ -387,7 +387,7 @@ namespace cpp_dbc
 
         PostgreSQLDBPreparedStatement::~PostgreSQLDBPreparedStatement()
         {
-            close(std::nothrow);
+            PostgreSQLDBPreparedStatement::close(std::nothrow);
         }
 
         void PostgreSQLDBPreparedStatement::close()
@@ -461,13 +461,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("5B9C3F1D7E2A", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("5B9C3F1D7E2A", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -503,13 +503,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("2D7F9A3E8C1B", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("2D7F9A3E8C1B", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -580,13 +580,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("8D2C7F3A9E5B", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("8D2C7F3A9E5B", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -685,13 +685,13 @@ namespace cpp_dbc
 
                 return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>{resultSet};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7D2E9B4F1C8A", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7D2E9B4F1C8A", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -780,13 +780,13 @@ namespace cpp_dbc
 
                 return rowCount;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("9E2D7F5A3B8C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("9E2D7F5A3B8C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -881,9 +881,9 @@ namespace cpp_dbc
                 m_rowPosition++;
                 return true;
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("11AD78E9C72F", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("11AD78E9C72F", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -897,9 +897,9 @@ namespace cpp_dbc
             {
                 return m_rowPosition == 0;
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("A9CD0E3B6241", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("A9CD0E3B6241", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -913,9 +913,9 @@ namespace cpp_dbc
             {
                 return m_result && m_rowPosition > m_rowCount;
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("27DB83E591AF", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("27DB83E591AF", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -929,9 +929,9 @@ namespace cpp_dbc
             {
                 return m_rowPosition;
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("F5E21DA897B6", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("F5E21DA897B6", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -951,7 +951,7 @@ namespace cpp_dbc
                 }
 
                 // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
-                int idx = static_cast<int>(columnIndex - 1);
+                auto idx = static_cast<int>(columnIndex - 1);
                 int row = m_rowPosition - 1;
 
                 if (PQgetisnull(m_result.get(), row, idx))
@@ -964,18 +964,18 @@ namespace cpp_dbc
                 {
                     return std::stoi(value);
                 }
-                catch (const std::exception &e)
+                catch ([[maybe_unused]] const std::exception &ex)
                 {
                     return cpp_dbc::unexpected<DBException>(DBException("7Y8Z9A0B1C2D", "Failed to convert value to int", system_utils::captureCallStack()));
                 }
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("D28E47A9FC35", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("D28E47A9FC35", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -994,7 +994,7 @@ namespace cpp_dbc
                     return cpp_dbc::unexpected<DBException>(DBException("9K0L1M2N3O4P", "Invalid column index or row position", system_utils::captureCallStack()));
                 }
 
-                int idx = static_cast<int>(columnIndex - 1);
+                auto idx = static_cast<int>(columnIndex - 1);
                 int row = m_rowPosition - 1;
 
                 if (PQgetisnull(m_result.get(), row, idx))
@@ -1007,18 +1007,18 @@ namespace cpp_dbc
                 {
                     return std::stol(value);
                 }
-                catch (const std::exception &e)
+                catch ([[maybe_unused]] const std::exception &ex)
                 {
                     return cpp_dbc::unexpected<DBException>(DBException("1W2X3Y4Z5A6B", "Failed to convert value to long", system_utils::captureCallStack()));
                 }
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7D9E2F8A1B3C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7D9E2F8A1B3C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1037,7 +1037,7 @@ namespace cpp_dbc
                     return cpp_dbc::unexpected<DBException>(DBException("3I4J5K6L7M8N", "Invalid column index or row position", system_utils::captureCallStack()));
                 }
 
-                int idx = static_cast<int>(columnIndex - 1);
+                auto idx = static_cast<int>(columnIndex - 1);
                 int row = m_rowPosition - 1;
 
                 if (PQgetisnull(m_result.get(), row, idx))
@@ -1050,18 +1050,18 @@ namespace cpp_dbc
                 {
                     return std::stod(value);
                 }
-                catch (const std::exception &e)
+                catch ([[maybe_unused]] const std::exception &ex)
                 {
                     return cpp_dbc::unexpected<DBException>(DBException("9O0P1Q2R3S4T", "Failed to convert value to double", system_utils::captureCallStack()));
                 }
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7B2E8F4D9A3C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7B2E8F4D9A3C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1080,7 +1080,7 @@ namespace cpp_dbc
                     return cpp_dbc::unexpected<DBException>(DBException("1A2B3C4D5E6F", "Invalid column index or row position", system_utils::captureCallStack()));
                 }
 
-                int idx = static_cast<int>(columnIndex - 1);
+                auto idx = static_cast<int>(columnIndex - 1);
                 int row = m_rowPosition - 1;
 
                 if (PQgetisnull(m_result.get(), row, idx))
@@ -1090,13 +1090,13 @@ namespace cpp_dbc
 
                 return std::string(PQgetvalue(m_result.get(), row, idx));
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("3E7C9A1B5D2F", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("3E7C9A1B5D2F", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1115,7 +1115,7 @@ namespace cpp_dbc
                     return cpp_dbc::unexpected<DBException>(DBException("F7096FE7EDFC", "Invalid column index or row position", system_utils::captureCallStack()));
                 }
 
-                int idx = static_cast<int>(columnIndex - 1);
+                auto idx = static_cast<int>(columnIndex - 1);
                 int row = m_rowPosition - 1;
 
                 if (PQgetisnull(m_result.get(), row, idx))
@@ -1123,16 +1123,16 @@ namespace cpp_dbc
                     return false;
                 }
 
-                std::string value = std::string(PQgetvalue(m_result.get(), row, idx));
+                auto value = std::string(PQgetvalue(m_result.get(), row, idx));
                 return (value == "t" || value == "true" || value == "1" || value == "TRUE" || value == "True");
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("4B9D3F7A2E8C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("4B9D3F7A2E8C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1151,18 +1151,18 @@ namespace cpp_dbc
                     return cpp_dbc::unexpected<DBException>(DBException("3M4N5O6P7Q8R", "Invalid column index or row position", system_utils::captureCallStack()));
                 }
 
-                int idx = static_cast<int>(columnIndex - 1);
+                auto idx = static_cast<int>(columnIndex - 1);
                 int row = m_rowPosition - 1;
 
                 return PQgetisnull(m_result.get(), row, idx);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("5D9F2A7B3E8C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("5D9F2A7B3E8C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1182,13 +1182,13 @@ namespace cpp_dbc
 
                 return getInt(std::nothrow, it->second + 1); // +1 because getInt(int) is 1-based
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("FE573C284D9A", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("FE573C284D9A", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1208,13 +1208,13 @@ namespace cpp_dbc
 
                 return getLong(std::nothrow, it->second + 1);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("3D9B7C5E8F2A", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("3D9B7C5E8F2A", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1234,13 +1234,13 @@ namespace cpp_dbc
 
                 return getDouble(std::nothrow, it->second + 1);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("2C8A1E9D3B5F", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("2C8A1E9D3B5F", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1260,13 +1260,13 @@ namespace cpp_dbc
 
                 return getString(std::nothrow, it->second + 1);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("1F3D5A7C9B2E", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("1F3D5A7C9B2E", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1286,13 +1286,13 @@ namespace cpp_dbc
 
                 return getBoolean(std::nothrow, it->second + 1);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("9F3A7B2D5E8C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("9F3A7B2D5E8C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1312,13 +1312,13 @@ namespace cpp_dbc
 
                 return isNull(std::nothrow, it->second + 1);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("4E2B8C7F1D9A", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("4E2B8C7F1D9A", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1332,13 +1332,13 @@ namespace cpp_dbc
             {
                 return m_columnNames;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7B3E9C2D5F8A", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7B3E9C2D5F8A", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1352,13 +1352,13 @@ namespace cpp_dbc
             {
                 return m_fieldCount;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("2F9E4B7A3D8C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("2F9E4B7A3D8C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1378,7 +1378,7 @@ namespace cpp_dbc
                 }
 
                 // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
-                int idx = static_cast<int>(columnIndex - 1);
+                auto idx = static_cast<int>(columnIndex - 1);
                 int row = m_rowPosition - 1;
 
                 if (PQgetisnull(m_result.get(), row, idx))
@@ -1407,13 +1407,13 @@ namespace cpp_dbc
                 // and the blob won't need to query the database
                 return cpp_dbc::expected<std::shared_ptr<Blob>, DBException>{std::make_shared<PostgreSQLBlob>(std::shared_ptr<PGconn>(), data)};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("F93D7A2B6E1C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("F93D7A2B6E1C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1433,13 +1433,13 @@ namespace cpp_dbc
 
                 return getBlob(std::nothrow, it->second + 1); // +1 because getBlob(int) is 1-based
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("5A1D9F8E3B7C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("5A1D9F8E3B7C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1459,7 +1459,7 @@ namespace cpp_dbc
                 }
 
                 // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
-                int idx = static_cast<int>(columnIndex - 1);
+                auto idx = static_cast<int>(columnIndex - 1);
                 int row = m_rowPosition - 1;
 
                 if (PQgetisnull(m_result.get(), row, idx))
@@ -1489,13 +1489,13 @@ namespace cpp_dbc
                             data.size())};
                 }
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("3A7C9E5F1D2B", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("3A7C9E5F1D2B", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1515,13 +1515,13 @@ namespace cpp_dbc
 
                 return getBinaryStream(std::nothrow, it->second + 1); // +1 because getBinaryStream(int) is 1-based
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7B2E9A4F1D5C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7B2E9A4F1D5C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1541,7 +1541,7 @@ namespace cpp_dbc
                 }
 
                 // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
-                int idx = static_cast<int>(columnIndex - 1);
+                auto idx = static_cast<int>(columnIndex - 1);
                 int row = m_rowPosition - 1;
 
                 if (PQgetisnull(m_result.get(), row, idx))
@@ -1580,7 +1580,7 @@ namespace cpp_dbc
                                 {
                                     // Convert hex pair to byte
                                     char hexPair[3] = {hexData[i], hexData[i + 1], 0};
-                                    uint8_t byte = static_cast<uint8_t>(strtol(hexPair, nullptr, 16));
+                                    auto byte = static_cast<uint8_t>(strtol(hexPair, nullptr, 16));
                                     data.push_back(byte);
                                 }
                             }
@@ -1609,13 +1609,13 @@ namespace cpp_dbc
 
                 return data;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7F2E9D3B8C5A", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7F2E9D3B8C5A", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1635,13 +1635,13 @@ namespace cpp_dbc
 
                 return getBytes(std::nothrow, it->second + 1);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("3D8B7E2F5A9C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("3D8B7E2F5A9C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1701,13 +1701,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7D9E3B5F8A2C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7D9E3B5F8A2C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1772,13 +1772,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("2A6D9F4B7E3C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("2A6D9F4B7E3C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1846,13 +1846,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("5D7F3A2E9B1C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("5D7F3A2E9B1C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1898,13 +1898,13 @@ namespace cpp_dbc
 
                 return {}; // Return empty/success for void expected
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("9D4C7B1E8F3A", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("9D4C7B1E8F3A", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1931,13 +1931,13 @@ namespace cpp_dbc
 
                 return {}; // Return empty/success for void expected
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("8E2F5A9C3B7D", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("8E2F5A9C3B7D", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1964,13 +1964,13 @@ namespace cpp_dbc
 
                 return {}; // Return empty/success for void expected
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("2D9F5C7B1A3E", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("2D9F5C7B1A3E", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -1997,13 +1997,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("9E7D3F1A8C2B", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("9E7D3F1A8C2B", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2030,13 +2030,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7B3F8A2D9C5E", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7B3F8A2D9C5E", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2070,13 +2070,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("3A7F9D2E5B8C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("3A7F9D2E5B8C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2121,13 +2121,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7D9F2B5E3A8C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7D9F2B5E3A8C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2197,13 +2197,13 @@ namespace cpp_dbc
                 PQclear(result);
                 return hasResultSet;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7A9C5E2B8D3F", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7A9C5E2B8D3F", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2233,13 +2233,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("3D8E5F2A9B7C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("3D8E5F2A9B7C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2273,7 +2273,7 @@ namespace cpp_dbc
                 }
             }
 
-            if (options.find("gssencmode") == options.end())
+            if (!options.contains("gssencmode"))
             {
                 conninfo << "gssencmode=disable";
             }
@@ -2298,7 +2298,7 @@ namespace cpp_dbc
                                  nullptr);
 
             // Set auto-commit mode
-            setAutoCommit(true);
+            PostgreSQLDBConnection::setAutoCommit(true);
 
             // Initialize URL string once
             std::stringstream urlBuilder;
@@ -2312,7 +2312,7 @@ namespace cpp_dbc
 
         PostgreSQLDBConnection::~PostgreSQLDBConnection()
         {
-            close();
+            PostgreSQLDBConnection::close();
         }
 
         void PostgreSQLDBConnection::close()
@@ -2322,7 +2322,7 @@ namespace cpp_dbc
 
                 // Notify all active statements that connection is closing
                 {
-                    std::lock_guard<std::mutex> lock(m_statementsMutex);
+                    std::scoped_lock lock(m_statementsMutex);
                     for (auto &stmt : m_activeStatements)
                     {
                         if (stmt)
@@ -2490,15 +2490,13 @@ namespace cpp_dbc
 
         void PostgreSQLDBConnection::registerStatement(std::shared_ptr<PostgreSQLDBPreparedStatement> stmt)
         {
-            std::lock_guard<std::mutex> lock(m_statementsMutex);
-            // m_activeStatements.insert(std::weak_ptr<MySQLPreparedStatement>(stmt));
+            std::scoped_lock lock(m_statementsMutex);
             m_activeStatements.insert(stmt);
         }
 
         void PostgreSQLDBConnection::unregisterStatement(std::shared_ptr<PostgreSQLDBPreparedStatement> stmt)
         {
-            std::lock_guard<std::mutex> lock(m_statementsMutex);
-            // m_activeStatements.erase(std::weak_ptr<MySQLPreparedStatement>(stmt));
+            std::scoped_lock lock(m_statementsMutex);
             m_activeStatements.erase(stmt);
         }
 
@@ -2534,7 +2532,7 @@ namespace cpp_dbc
 
         bool PostgreSQLDBDriver::acceptsURL(const std::string &url)
         {
-            return url.substr(0, 21) == "cpp_dbc:postgresql://";
+            return url.starts_with("cpp_dbc:postgresql://");
         }
 
         bool PostgreSQLDBDriver::parseURL(const std::string &url,
@@ -2674,13 +2672,13 @@ namespace cpp_dbc
                 auto connection = std::make_shared<PostgreSQLDBConnection>(host, port, database, user, password, options);
                 return cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>(std::static_pointer_cast<RelationalDBConnection>(connection));
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("2A3B4C5D6E7F", std::string("Exception in connectRelational: ") + e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("2A3B4C5D6E7F", std::string("Exception in connectRelational: ") + ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2714,13 +2712,13 @@ namespace cpp_dbc
 
                 return cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>(std::static_pointer_cast<RelationalDBPreparedStatement>(stmt));
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("1D3F5A7C9E2B", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("1D3F5A7C9E2B", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2750,13 +2748,13 @@ namespace cpp_dbc
                 auto resultSet = std::make_shared<PostgreSQLDBResultSet>(result);
                 return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>(std::static_pointer_cast<RelationalDBResultSet>(resultSet));
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("2D7F9A3E8C1B", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("2D7F9A3E8C1B", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2795,13 +2793,13 @@ namespace cpp_dbc
                 PQclear(result);
                 return rowCount;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("9A7C3E5B2D8F", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("9A7C3E5B2D8F", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2853,13 +2851,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("5D7F9A2E8B3C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("5D7F9A2E8B3C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2878,13 +2876,13 @@ namespace cpp_dbc
 
                 return m_autoCommit;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("1B7D9E5F3A2C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("1B7D9E5F3A2C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2954,13 +2952,13 @@ namespace cpp_dbc
                 m_transactionActive = true;
                 return true;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("4B8D2F6A9E3C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("4B8D2F6A9E3C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -2979,13 +2977,13 @@ namespace cpp_dbc
 
                 return m_transactionActive;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("3A7D9B5E2C8F", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("3A7D9B5E2C8F", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -3024,13 +3022,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("9D2E7F5A3C8B", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("9D2E7F5A3C8B", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -3069,13 +3067,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("8D2A7F4E9B3C", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("8D2A7F4E9B3C", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -3177,13 +3175,13 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7D1B9E3C5A8F", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7D1B9E3C5A8F", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
@@ -3238,13 +3236,13 @@ namespace cpp_dbc
                 else
                     return TransactionIsolationLevel::TRANSACTION_NONE;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return cpp_dbc::unexpected<DBException>(e);
+                return cpp_dbc::unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("2D7E9C4B8A3F", e.what(), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("2D7E9C4B8A3F", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
