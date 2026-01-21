@@ -1037,7 +1037,7 @@ namespace cpp_dbc
             MongoDBConnection(const std::string &uri,
                               const std::string &user,
                               const std::string &password,
-                              const std::map<std::string, std::string> &options = {});
+                              const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
 
             ~MongoDBConnection() override;
 
@@ -1197,7 +1197,7 @@ namespace cpp_dbc
                 const std::string &url,
                 const std::string &user,
                 const std::string &password,
-                const std::map<std::string, std::string> &options = {}) override;
+                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
             bool acceptsURL(const std::string &url) override;
 
@@ -1206,7 +1206,7 @@ namespace cpp_dbc
                 const std::string &url,
                 const std::string &user,
                 const std::string &password,
-                const std::map<std::string, std::string> &options = {}) override;
+                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
             int getDefaultPort() const override;
             std::string getURIScheme() const override;
@@ -1215,7 +1215,7 @@ namespace cpp_dbc
                 const std::string &host,
                 int port,
                 const std::string &database,
-                const std::map<std::string, std::string> &options = {}) override;
+                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
             bool supportsReplicaSets() const override;
             bool supportsSharding() const override;
@@ -1250,7 +1250,7 @@ namespace cpp_dbc
                 const std::string &url,
                 const std::string &user,
                 const std::string &password,
-                const std::map<std::string, std::string> &options = {}) noexcept override;
+                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
             expected<std::map<std::string, std::string>, DBException> parseURI(
                 std::nothrow_t, const std::string &uri) noexcept override;

@@ -21,8 +21,10 @@
 #if USE_MONGODB
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <iostream>
+#include <ranges>
 #include <sstream>
 #include <stdexcept>
 #include <cpp_dbc/common/system_utils.hpp>
@@ -165,7 +167,7 @@ namespace cpp_dbc
             }
 
             // Handle dot notation for nested fields
-            if (fieldPath.find('.') != std::string::npos)
+            if (fieldPath.contains('.'))
             {
                 return bson_iter_find_descendant(&iter, fieldPath.c_str(), &outIter);
             }
@@ -196,9 +198,9 @@ namespace cpp_dbc
                 if (BSON_ITER_HOLDS_OID(&iter))
                 {
                     const bson_oid_t *oid = bson_iter_oid(&iter);
-                    char oidStr[25];
-                    bson_oid_to_string(oid, oidStr);
-                    m_cachedId = oidStr;
+                    std::array<char, 25> oidStr{};
+                    bson_oid_to_string(oid, oidStr.data());
+                    m_cachedId = oidStr.data();
                     m_idCached = true;
                     return m_cachedId;
                 }
@@ -246,7 +248,7 @@ namespace cpp_dbc
                 while (bson_iter_next(&iter))
                 {
                     const char *key = bson_iter_key(&iter);
-                    if (std::strcmp(key, "_id") != 0)
+                    if (std::string_view(key) != "_id")
                     {
                         bson_append_iter(newBson, key, -1, &iter);
                     }
@@ -553,7 +555,7 @@ namespace cpp_dbc
             validateDocument();
 
             // For simple fields (no dot notation), use direct append
-            if (fieldPath.find('.') == std::string::npos)
+            if (!fieldPath.contains('.'))
             {
                 // Create a new document with the field updated
                 bson_t *newBson = bson_new();
@@ -569,7 +571,7 @@ namespace cpp_dbc
                     while (bson_iter_next(&iter))
                     {
                         const char *key = bson_iter_key(&iter);
-                        if (std::strcmp(key, fieldPath.c_str()) != 0)
+                        if (fieldPath != key)
                         {
                             bson_append_iter(newBson, key, -1, &iter);
                         }
@@ -593,7 +595,7 @@ namespace cpp_dbc
             MONGODB_LOCK_GUARD(m_mutex);
             validateDocument();
 
-            if (fieldPath.find('.') == std::string::npos)
+            if (!fieldPath.contains('.'))
             {
                 bson_t *newBson = bson_new();
                 if (!newBson)
@@ -607,7 +609,7 @@ namespace cpp_dbc
                     while (bson_iter_next(&iter))
                     {
                         const char *key = bson_iter_key(&iter);
-                        if (std::strcmp(key, fieldPath.c_str()) != 0)
+                        if (fieldPath != key)
                         {
                             bson_append_iter(newBson, key, -1, &iter);
                         }
@@ -630,7 +632,7 @@ namespace cpp_dbc
             MONGODB_LOCK_GUARD(m_mutex);
             validateDocument();
 
-            if (fieldPath.find('.') == std::string::npos)
+            if (!fieldPath.contains('.'))
             {
                 bson_t *newBson = bson_new();
                 if (!newBson)
@@ -644,7 +646,7 @@ namespace cpp_dbc
                     while (bson_iter_next(&iter))
                     {
                         const char *key = bson_iter_key(&iter);
-                        if (std::strcmp(key, fieldPath.c_str()) != 0)
+                        if (fieldPath != key)
                         {
                             bson_append_iter(newBson, key, -1, &iter);
                         }
@@ -667,7 +669,7 @@ namespace cpp_dbc
             MONGODB_LOCK_GUARD(m_mutex);
             validateDocument();
 
-            if (fieldPath.find('.') == std::string::npos)
+            if (!fieldPath.contains('.'))
             {
                 bson_t *newBson = bson_new();
                 if (!newBson)
@@ -681,7 +683,7 @@ namespace cpp_dbc
                     while (bson_iter_next(&iter))
                     {
                         const char *key = bson_iter_key(&iter);
-                        if (std::strcmp(key, fieldPath.c_str()) != 0)
+                        if (fieldPath != key)
                         {
                             bson_append_iter(newBson, key, -1, &iter);
                         }
@@ -704,7 +706,7 @@ namespace cpp_dbc
             MONGODB_LOCK_GUARD(m_mutex);
             validateDocument();
 
-            if (fieldPath.find('.') == std::string::npos)
+            if (!fieldPath.contains('.'))
             {
                 bson_t *newBson = bson_new();
                 if (!newBson)
@@ -718,7 +720,7 @@ namespace cpp_dbc
                     while (bson_iter_next(&iter))
                     {
                         const char *key = bson_iter_key(&iter);
-                        if (std::strcmp(key, fieldPath.c_str()) != 0)
+                        if (fieldPath != key)
                         {
                             bson_append_iter(newBson, key, -1, &iter);
                         }
@@ -748,7 +750,7 @@ namespace cpp_dbc
                 throw DBException("0DEA5F5E4607", "Document must be a MongoDBDocument", system_utils::captureCallStack());
             }
 
-            if (fieldPath.find('.') == std::string::npos)
+            if (!fieldPath.contains('.'))
             {
                 bson_t *newBson = bson_new();
                 if (!newBson)
@@ -762,7 +764,7 @@ namespace cpp_dbc
                     while (bson_iter_next(&iter))
                     {
                         const char *key = bson_iter_key(&iter);
-                        if (std::strcmp(key, fieldPath.c_str()) != 0)
+                        if (fieldPath != key)
                         {
                             bson_append_iter(newBson, key, -1, &iter);
                         }
@@ -785,7 +787,7 @@ namespace cpp_dbc
             MONGODB_LOCK_GUARD(m_mutex);
             validateDocument();
 
-            if (fieldPath.find('.') == std::string::npos)
+            if (!fieldPath.contains('.'))
             {
                 bson_t *newBson = bson_new();
                 if (!newBson)
@@ -799,7 +801,7 @@ namespace cpp_dbc
                     while (bson_iter_next(&iter))
                     {
                         const char *key = bson_iter_key(&iter);
-                        if (std::strcmp(key, fieldPath.c_str()) != 0)
+                        if (fieldPath != key)
                         {
                             bson_append_iter(newBson, key, -1, &iter);
                         }
@@ -848,7 +850,7 @@ namespace cpp_dbc
             MONGODB_LOCK_GUARD(m_mutex);
             validateDocument();
 
-            if (fieldPath.find('.') != std::string::npos)
+            if (fieldPath.contains('.'))
             {
                 throw DBException("6C8902B6F059", "Nested field removal not yet implemented: " + fieldPath, system_utils::captureCallStack());
             }
@@ -872,7 +874,7 @@ namespace cpp_dbc
                 while (bson_iter_next(&iter))
                 {
                     const char *key = bson_iter_key(&iter);
-                    if (std::strcmp(key, fieldPath.c_str()) != 0)
+                    if (fieldPath != key)
                     {
                         bson_append_iter(newBson, key, -1, &iter);
                     }
@@ -1008,15 +1010,15 @@ namespace cpp_dbc
                 const char *str = bson_iter_utf8(&iter, &length);
                 return std::string(str, length);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "9C0D1E2F3A4B",
-                    std::string("Error in getString: ") + e.what()));
+                    std::string("Error in getString: ") + ex.what()));
             }
             catch (...)
             {
@@ -1055,15 +1057,15 @@ namespace cpp_dbc
                         "Field is not an integer: " + fieldPath));
                 }
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "3A4B5C6D7E8F",
-                    std::string("Error in getInt: ") + e.what()));
+                    std::string("Error in getInt: ") + ex.what()));
             }
             catch (...)
             {
@@ -1106,15 +1108,15 @@ namespace cpp_dbc
                         "Field is not a number: " + fieldPath));
                 }
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "7E8F9A0B1C2D",
-                    std::string("Error in getDouble: ") + e.what()));
+                    std::string("Error in getDouble: ") + ex.what()));
             }
             catch (...)
             {
@@ -1147,15 +1149,15 @@ namespace cpp_dbc
 
                 return bson_iter_bool(&iter);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "1C2D3E4F5A6B",
-                    std::string("Error in getBool: ") + e.what()));
+                    std::string("Error in getBool: ") + ex.what()));
             }
             catch (...)
             {
@@ -1193,21 +1195,21 @@ namespace cpp_dbc
 
                 return std::vector<uint8_t>(data, data + length);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "5A6B7C8D9E0F",
                     "Memory allocation failed in getBinary"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "6B7C8D9E0F1A",
-                    std::string("Error in getBinary: ") + e.what()));
+                    std::string("Error in getBinary: ") + ex.what()));
             }
             catch (...)
             {
@@ -1253,21 +1255,21 @@ namespace cpp_dbc
                 auto doc = std::make_shared<MongoDBDocument>(subdoc);
                 return std::static_pointer_cast<DocumentDBData>(doc);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "1A2B3C4D5E6F",
                     "Memory allocation failed in getDocument"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "2B3C4D5E6F7A",
-                    std::string("Error in getDocument: ") + e.what()));
+                    std::string("Error in getDocument: ") + ex.what()));
             }
             catch (...)
             {
@@ -1334,21 +1336,21 @@ namespace cpp_dbc
 
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "7A8B9C0D1E2F",
                     "Memory allocation failed in getDocumentArray"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "8B9C0D1E2F3A",
-                    std::string("Error in getDocumentArray: ") + e.what()));
+                    std::string("Error in getDocumentArray: ") + ex.what()));
             }
             catch (...)
             {
@@ -1409,21 +1411,21 @@ namespace cpp_dbc
 
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "3A4B5C6D7E8F",
                     "Memory allocation failed in getStringArray"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "4B5C6D7E8F9A",
-                    std::string("Error in getStringArray: ") + e.what()));
+                    std::string("Error in getStringArray: ") + ex.what()));
             }
             catch (...)
             {
@@ -1457,21 +1459,21 @@ namespace cpp_dbc
                 auto doc = std::make_shared<MongoDBDocument>(copy);
                 return std::static_pointer_cast<DocumentDBData>(doc);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "8F9A0B1C2D3E",
                     "Memory allocation failed in clone"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "9A0B1C2D3E4F",
-                    std::string("Error in clone: ") + e.what()));
+                    std::string("Error in clone: ") + ex.what()));
             }
             catch (...)
             {
@@ -1815,15 +1817,15 @@ namespace cpp_dbc
 
                 return std::static_pointer_cast<DocumentDBData>(m_currentDoc);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "0B1C2D3E4F5A",
-                    std::string("Error in current: ") + e.what()));
+                    std::string("Error in current: ") + ex.what()));
             }
             catch (...)
             {
@@ -1845,15 +1847,15 @@ namespace cpp_dbc
                 }
                 return std::static_pointer_cast<DocumentDBData>(m_currentDoc);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "3E4F5A6B7C8D",
-                    std::string("Error in nextDocument: ") + e.what()));
+                    std::string("Error in nextDocument: ") + ex.what()));
             }
             catch (...)
             {
@@ -1906,21 +1908,21 @@ namespace cpp_dbc
                 m_currentDoc.reset();
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "8D9E0F1A2B3C",
                     "Memory allocation failed in toVector"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "9E0F1A2B3C4D",
-                    std::string("Error in toVector: ") + e.what()));
+                    std::string("Error in toVector: ") + ex.what()));
             }
             catch (...)
             {
@@ -1981,21 +1983,21 @@ namespace cpp_dbc
 
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "4D5E6F7A8B9C",
                     "Memory allocation failed in getBatch"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "5E6F7A8B9C0D",
-                    std::string("Error in getBatch: ") + e.what()));
+                    std::string("Error in getBatch: ") + ex.what()));
             }
             catch (...)
             {
@@ -2176,22 +2178,22 @@ namespace cpp_dbc
                 bson_destroy(&reply);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "46F76AEC33F1",
                     "Memory allocation failed in insertOne",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "74B74B69CF86",
-                    std::string("Unexpected error in insertOne: ") + e.what(),
+                    std::string("Unexpected error in insertOne: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -2229,15 +2231,15 @@ namespace cpp_dbc
                 auto doc = std::make_shared<MongoDBDocument>(jsonDocument);
                 return insertOne(std::nothrow, doc, options);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "B7C8D9E0F1A2",
-                    std::string("Failed to parse JSON document: ") + e.what(),
+                    std::string("Failed to parse JSON document: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -2361,22 +2363,22 @@ namespace cpp_dbc
                 bson_destroy(&reply);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "F1A2B3C4D5E6",
                     "Memory allocation failed in insertMany",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "A2B3C4D5E6F7",
-                    std::string("Unexpected error in insertMany: ") + e.what(),
+                    std::string("Unexpected error in insertMany: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -2460,22 +2462,22 @@ namespace cpp_dbc
                 mongoc_cursor_destroy(cursor);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D5E6F7A8B9C0",
                     "Memory allocation failed in findOne",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "E6F7A8B9C0D1",
-                    std::string("Unexpected error in findOne: ") + e.what(),
+                    std::string("Unexpected error in findOne: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -2506,23 +2508,23 @@ namespace cpp_dbc
                 std::string filter;
                 if (bson_oid_is_valid(id.c_str(), id.length()))
                 {
-                    filter = "{\"_id\": {\"$oid\": \"" + id + "\"}}";
+                    filter = R"({"_id": {"$oid": ")" + id + R"("}})";
                 }
                 else
                 {
-                    filter = "{\"_id\": \"" + id + "\"}";
+                    filter = R"({"_id": ")" + id + R"("})";
                 }
                 return findOne(std::nothrow, filter);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "A8B9C0D1E2F3",
-                    std::string("Error in findById: ") + e.what(),
+                    std::string("Error in findById: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -2576,22 +2578,22 @@ namespace cpp_dbc
                 std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D1E2F3A4B5C6",
                     "Memory allocation failed in find",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "E2F3A4B5C6D7",
-                    std::string("Unexpected error in find: ") + e.what(),
+                    std::string("Unexpected error in find: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -2652,22 +2654,22 @@ namespace cpp_dbc
                 std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "B5C6D7E8F9A0",
                     "Memory allocation failed in find",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "C6D7E8F9A0B1",
-                    std::string("Unexpected error in find: ") + e.what(),
+                    std::string("Unexpected error in find: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -2742,9 +2744,9 @@ namespace cpp_dbc
                     if (bson_iter_init_find(&iter, &reply, "upsertedId") && BSON_ITER_HOLDS_OID(&iter))
                     {
                         const bson_oid_t *oid = bson_iter_oid(&iter);
-                        char oidStr[25];
-                        bson_oid_to_string(oid, oidStr);
-                        result.upsertedId = oidStr;
+                        std::array<char, 25> oidStr{};
+                        bson_oid_to_string(oid, oidStr.data());
+                        result.upsertedId = oidStr.data();
                     }
                 }
                 else
@@ -2759,22 +2761,22 @@ namespace cpp_dbc
                 bson_destroy(&reply);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "A0B1C2D3E4F5",
                     "Memory allocation failed in updateOne",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "B1C2D3E4F5A6",
-                    std::string("Unexpected error in updateOne: ") + e.what(),
+                    std::string("Unexpected error in updateOne: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -2856,22 +2858,22 @@ namespace cpp_dbc
                 bson_destroy(&reply);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "F5A6B7C8D9E0",
                     "Memory allocation failed in updateMany",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "A6B7C8D9E0F1",
-                    std::string("Unexpected error in updateMany: ") + e.what(),
+                    std::string("Unexpected error in updateMany: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -2961,22 +2963,22 @@ namespace cpp_dbc
                 bson_destroy(&reply);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "E0F1A2B3C4D5",
                     "Memory allocation failed in replaceOne",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "F1A2B3C4D5E6",
-                    std::string("Unexpected error in replaceOne: ") + e.what(),
+                    std::string("Unexpected error in replaceOne: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -3052,22 +3054,22 @@ namespace cpp_dbc
                 bson_destroy(&reply);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D5E6F7A8B9C0",
                     "Memory allocation failed in deleteOne",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "E6F7A8B9C0D1",
-                    std::string("Unexpected error in deleteOne: ") + e.what(),
+                    std::string("Unexpected error in deleteOne: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -3136,22 +3138,22 @@ namespace cpp_dbc
                 bson_destroy(&reply);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "C0D1E2F3A4B5",
                     "Memory allocation failed in deleteMany",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D1E2F3A4B5C6",
-                    std::string("Unexpected error in deleteMany: ") + e.what(),
+                    std::string("Unexpected error in deleteMany: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -3182,23 +3184,23 @@ namespace cpp_dbc
                 std::string filter;
                 if (bson_oid_is_valid(id.c_str(), id.length()))
                 {
-                    filter = "{\"_id\": {\"$oid\": \"" + id + "\"}}";
+                    filter = R"({"_id": {"$oid": ")" + id + R"("}})";
                 }
                 else
                 {
-                    filter = "{\"_id\": \"" + id + "\"}";
+                    filter = R"({"_id": ")" + id + R"("})";
                 }
                 return deleteOne(std::nothrow, filter);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "F3A4B5C6D7E8",
-                    std::string("Error in deleteById: ") + e.what(),
+                    std::string("Error in deleteById: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -3282,7 +3284,15 @@ namespace cpp_dbc
                     indexOpts.name = indexName.c_str();
 
                 char *generatedName = mongoc_collection_keys_to_index_string(keysBson.get());
-                std::string result = indexName.empty() ? (generatedName ? generatedName : "") : indexName;
+                std::string result;
+                if (indexName.empty())
+                {
+                    result = generatedName ? generatedName : "";
+                }
+                else
+                {
+                    result = indexName;
+                }
                 bson_free(generatedName);
 
                 bson_error_t error;
@@ -3307,22 +3317,22 @@ namespace cpp_dbc
 
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D7E8F9A0B1C2",
                     "Memory allocation failed in createIndex",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "E8F9A0B1C2D3",
-                    std::string("Unexpected error in createIndex: ") + e.what(),
+                    std::string("Unexpected error in createIndex: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -3374,15 +3384,15 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "C2D3E4F5A6B7",
-                    std::string("Unexpected error in dropIndex: ") + e.what(),
+                    std::string("Unexpected error in dropIndex: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -3397,7 +3407,7 @@ namespace cpp_dbc
         void MongoDBCollection::dropIndex(const std::string &indexName)
         {
             auto result = dropIndex(std::nothrow, indexName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -3445,15 +3455,15 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "A6B7C8D9E0F1",
-                    std::string("Unexpected error in dropAllIndexes: ") + e.what(),
+                    std::string("Unexpected error in dropAllIndexes: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -3468,7 +3478,7 @@ namespace cpp_dbc
         void MongoDBCollection::dropAllIndexes()
         {
             auto result = dropAllIndexes(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -3528,22 +3538,22 @@ namespace cpp_dbc
                 mongoc_cursor_destroy(cursor);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D9E0F1A2B3C4",
                     "Memory allocation failed in listIndexes",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "E0F1A2B3C4D5",
-                    std::string("Unexpected error in listIndexes: ") + e.what(),
+                    std::string("Unexpected error in listIndexes: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -3598,15 +3608,15 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "C4D5E6F7A8B9",
-                    std::string("Unexpected error in drop: ") + e.what(),
+                    std::string("Unexpected error in drop: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -3621,7 +3631,7 @@ namespace cpp_dbc
         void MongoDBCollection::drop()
         {
             auto result = drop(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -3660,15 +3670,15 @@ namespace cpp_dbc
                 m_name = newName;
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "A8B9C0D1E2F3",
-                    std::string("Unexpected error in rename: ") + e.what(),
+                    std::string("Unexpected error in rename: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -3683,7 +3693,7 @@ namespace cpp_dbc
         void MongoDBCollection::rename(const std::string &newName, bool dropTarget)
         {
             auto result = rename(std::nothrow, newName, dropTarget);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -3722,22 +3732,22 @@ namespace cpp_dbc
                 std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D1E2F3A4B5C6",
                     "Memory allocation failed in aggregate",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "E2F3A4B5C6D7",
-                    std::string("Unexpected error in aggregate: ") + e.what(),
+                    std::string("Unexpected error in aggregate: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -3850,22 +3860,22 @@ namespace cpp_dbc
                 bson_destroy(&reply);
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "C6D7E8F9A0B1",
                     "Memory allocation failed in distinct",
                     system_utils::captureCallStack()));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D7E8F9A0B1C2",
-                    std::string("Unexpected error in distinct: ") + e.what(),
+                    std::string("Unexpected error in distinct: ") + ex.what(),
                     system_utils::captureCallStack()));
             }
             catch (...)
@@ -3909,7 +3919,7 @@ namespace cpp_dbc
             std::string connectionUri = uri;
 
             // If user/password provided and not in URI, add them
-            if (!user.empty() && uri.find("@") == std::string::npos)
+            if (!user.empty() && !uri.contains("@"))
             {
                 // Parse the URI to insert credentials
                 size_t schemeEnd = uri.find("://");
@@ -3924,11 +3934,11 @@ namespace cpp_dbc
             // Add options to URI if provided
             if (!options.empty())
             {
-                bool hasQuery = connectionUri.find('?') != std::string::npos;
-                for (const auto &opt : options)
+                bool hasQuery = connectionUri.contains('?');
+                for (const auto &[key, value] : options)
                 {
                     connectionUri += (hasQuery ? "&" : "?");
-                    connectionUri += opt.first + "=" + opt.second;
+                    connectionUri += key + "=" + value;
                     hasQuery = true;
                 }
             }
@@ -3994,11 +4004,13 @@ namespace cpp_dbc
             {
                 try
                 {
-                    close();
+                    // Explicitly call our own close() since virtual dispatch doesn't work in destructors
+                    MongoDBConnection::close();
                 }
                 catch (...)
                 {
                     // Suppress exceptions in destructor
+                    MONGODB_DEBUG("MongoDBConnection::destructor - Exception suppressed during close");
                 }
             }
             MONGODB_DEBUG("MongoDBConnection::destructor - Done");
@@ -4056,7 +4068,7 @@ namespace cpp_dbc
         {
             if (cursor)
             {
-                std::lock_guard<std::mutex> lock(m_cursorsMutex);
+                std::scoped_lock lock(m_cursorsMutex);
                 m_activeCursors.insert(cursor);
                 MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: " << m_activeCursors.size());
             }
@@ -4066,7 +4078,7 @@ namespace cpp_dbc
         {
             if (cursor)
             {
-                std::lock_guard<std::mutex> lock(m_cursorsMutex);
+                std::scoped_lock lock(m_cursorsMutex);
                 m_activeCursors.erase(cursor);
                 MONGODB_DEBUG("MongoDBConnection::unregisterCursor - Unregistered cursor, remaining: " << m_activeCursors.size());
             }
@@ -4084,7 +4096,7 @@ namespace cpp_dbc
             // Close all active cursors BEFORE destroying the client
             // This is critical: cursors must be destroyed before the client
             {
-                std::lock_guard<std::mutex> cursorsLock(m_cursorsMutex);
+                std::scoped_lock cursorsLock(m_cursorsMutex);
                 MONGODB_DEBUG("MongoDBConnection::close - Closing " << m_activeCursors.size() << " active cursors");
 
                 // Make a copy of the set to avoid iterator invalidation
@@ -4098,9 +4110,10 @@ namespace cpp_dbc
                         {
                             cursor->close();
                         }
-                        catch (...)
+                        catch ([[maybe_unused]] const std::exception &ex)
                         {
                             // Ignore errors during cleanup
+                            MONGODB_DEBUG("MongoDBConnection::close - Exception ignored during cursor cleanup: " << ex.what());
                         }
                     }
                 }
@@ -4110,13 +4123,13 @@ namespace cpp_dbc
 
             // End all active sessions
             {
-                std::lock_guard<std::mutex> sessionsLock(m_sessionsMutex);
+                std::scoped_lock sessionsLock(m_sessionsMutex);
                 m_sessions.clear();
             }
 
             // Clear active collections
             {
-                std::lock_guard<std::mutex> collectionsLock(m_collectionsMutex);
+                std::scoped_lock collectionsLock(m_collectionsMutex);
                 m_activeCollections.clear();
             }
 
@@ -4185,7 +4198,7 @@ namespace cpp_dbc
         bool MongoDBConnection::databaseExists(const std::string &databaseName)
         {
             auto databases = listDatabases();
-            return std::find(databases.begin(), databases.end(), databaseName) != databases.end();
+            return std::ranges::find(databases, databaseName) != databases.end();
         }
 
         void MongoDBConnection::useDatabase(const std::string &databaseName)
@@ -4267,7 +4280,7 @@ namespace cpp_dbc
         bool MongoDBConnection::collectionExists(const std::string &collectionName)
         {
             auto collections = listCollections();
-            return std::find(collections.begin(), collections.end(), collectionName) != collections.end();
+            return std::ranges::find(collections, collectionName) != collections.end();
         }
 
         std::shared_ptr<DocumentDBCollection> MongoDBConnection::createCollection(
@@ -4440,7 +4453,7 @@ namespace cpp_dbc
             std::string sessionId = generateSessionId();
 
             {
-                std::lock_guard<std::mutex> sessionsLock(m_sessionsMutex);
+                std::scoped_lock sessionsLock(m_sessionsMutex);
                 m_sessions[sessionId] = MongoSessionHandle(session);
             }
 
@@ -4449,7 +4462,7 @@ namespace cpp_dbc
 
         void MongoDBConnection::endSession(const std::string &sessionId)
         {
-            std::lock_guard<std::mutex> lock(m_sessionsMutex);
+            std::scoped_lock lock(m_sessionsMutex);
 
             auto it = m_sessions.find(sessionId);
             if (it != m_sessions.end())
@@ -4460,7 +4473,7 @@ namespace cpp_dbc
 
         void MongoDBConnection::startTransaction(const std::string &sessionId)
         {
-            std::lock_guard<std::mutex> lock(m_sessionsMutex);
+            std::scoped_lock lock(m_sessionsMutex);
 
             auto it = m_sessions.find(sessionId);
             if (it == m_sessions.end())
@@ -4479,7 +4492,7 @@ namespace cpp_dbc
 
         void MongoDBConnection::commitTransaction(const std::string &sessionId)
         {
-            std::lock_guard<std::mutex> lock(m_sessionsMutex);
+            std::scoped_lock lock(m_sessionsMutex);
 
             auto it = m_sessions.find(sessionId);
             if (it == m_sessions.end())
@@ -4503,7 +4516,7 @@ namespace cpp_dbc
 
         void MongoDBConnection::abortTransaction(const std::string &sessionId)
         {
-            std::lock_guard<std::mutex> lock(m_sessionsMutex);
+            std::scoped_lock lock(m_sessionsMutex);
 
             auto it = m_sessions.find(sessionId);
             if (it == m_sessions.end())
@@ -4578,21 +4591,21 @@ namespace cpp_dbc
                 bson_strfreev(names);
                 return databases;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "1DCF59899097",
                     "Memory allocation failed in listDatabases"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "3D10AE1E27C2",
-                    std::string("Unexpected error in listDatabases: ") + e.what()));
+                    std::string("Unexpected error in listDatabases: ") + ex.what()));
             }
             catch (...)
             {
@@ -4644,21 +4657,21 @@ namespace cpp_dbc
 
                 return std::static_pointer_cast<DocumentDBCollection>(collectionPtr);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "D8267AB49B49",
                     "Memory allocation failed in getCollection"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "277C75E974F0",
-                    std::string("Unexpected error in getCollection: ") + e.what()));
+                    std::string("Unexpected error in getCollection: ") + ex.what()));
             }
             catch (...)
             {
@@ -4709,21 +4722,21 @@ namespace cpp_dbc
                 bson_strfreev(names);
                 return collections;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "8D9E0F1A2B3C",
                     "Memory allocation failed in listCollections"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "9E0F1A2B3C4D",
-                    std::string("Unexpected error in listCollections: ") + e.what()));
+                    std::string("Unexpected error in listCollections: ") + ex.what()));
             }
             catch (...)
             {
@@ -4797,21 +4810,21 @@ namespace cpp_dbc
 
                 return std::static_pointer_cast<DocumentDBCollection>(collectionPtr);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "5E6F7A8B9C0D",
                     "Memory allocation failed in createCollection"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "6F7A8B9C0D1E",
-                    std::string("Unexpected error in createCollection: ") + e.what()));
+                    std::string("Unexpected error in createCollection: ") + ex.what()));
             }
             catch (...)
             {
@@ -4866,21 +4879,21 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "2F3A4B5C6D7E",
                     "Memory allocation failed in dropCollection"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "3A4B5C6D7E8F",
-                    std::string("Unexpected error in dropCollection: ") + e.what()));
+                    std::string("Unexpected error in dropCollection: ") + ex.what()));
             }
             catch (...)
             {
@@ -4918,21 +4931,21 @@ namespace cpp_dbc
 
                 return {};
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "7E8F9A0B1C2D",
                     "Memory allocation failed in dropDatabase"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "8F9A0B1C2D3E",
-                    std::string("Unexpected error in dropDatabase: ") + e.what()));
+                    std::string("Unexpected error in dropDatabase: ") + ex.what()));
             }
             catch (...)
             {
@@ -4949,21 +4962,21 @@ namespace cpp_dbc
                 auto doc = std::make_shared<MongoDBDocument>();
                 return std::static_pointer_cast<DocumentDBData>(doc);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "0B1C2D3E4F5A",
                     "Memory allocation failed in createDocument"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "1C2D3E4F5A6B",
-                    std::string("Unexpected error in createDocument: ") + e.what()));
+                    std::string("Unexpected error in createDocument: ") + ex.what()));
             }
             catch (...)
             {
@@ -4981,21 +4994,21 @@ namespace cpp_dbc
                 auto doc = std::make_shared<MongoDBDocument>(json);
                 return std::static_pointer_cast<DocumentDBData>(doc);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "3E4F5A6B7C8D",
                     "Memory allocation failed in createDocument"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "4F5A6B7C8D9E",
-                    std::string("Failed to parse JSON in createDocument: ") + e.what()));
+                    std::string("Failed to parse JSON in createDocument: ") + ex.what()));
             }
             catch (...)
             {
@@ -5057,21 +5070,21 @@ namespace cpp_dbc
                 auto doc = std::make_shared<MongoDBDocument>(replyCopy);
                 return std::static_pointer_cast<DocumentDBData>(doc);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "0F1A2B3C4D5E",
                     "Memory allocation failed in runCommand"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "1A2B3C4D5E6F",
-                    std::string("Unexpected error in runCommand: ") + e.what()));
+                    std::string("Unexpected error in runCommand: ") + ex.what()));
             }
             catch (...)
             {
@@ -5087,15 +5100,15 @@ namespace cpp_dbc
             {
                 return runCommand(std::nothrow, "{\"buildInfo\": 1}");
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "3C4D5E6F7A8B",
-                    std::string("Error in getServerInfo: ") + e.what()));
+                    std::string("Error in getServerInfo: ") + ex.what()));
             }
             catch (...)
             {
@@ -5111,15 +5124,15 @@ namespace cpp_dbc
             {
                 return runCommand(std::nothrow, "{\"serverStatus\": 1}");
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "5E6F7A8B9C0D",
-                    std::string("Error in getServerStatus: ") + e.what()));
+                    std::string("Error in getServerStatus: ") + ex.what()));
             }
             catch (...)
             {
@@ -5164,7 +5177,7 @@ namespace cpp_dbc
 
         bool MongoDBDriver::acceptsURL(const std::string &url)
         {
-            return url.substr(0, 18) == "cpp_dbc:mongodb://";
+            return url.starts_with("cpp_dbc:mongodb://");
         }
 
         std::shared_ptr<DocumentDBConnection> MongoDBDriver::connectDocument(
@@ -5183,7 +5196,7 @@ namespace cpp_dbc
 
             // Strip the 'cpp_dbc:' prefix if present
             std::string mongoUrl = url;
-            if (url.substr(0, 8) == "cpp_dbc:")
+            if (url.starts_with("cpp_dbc:"))
             {
                 mongoUrl = url.substr(8); // Remove "cpp_dbc:" prefix
             }
@@ -5270,10 +5283,10 @@ namespace cpp_dbc
 
             // Add options
             bool firstOption = true;
-            for (const auto &opt : options)
+            for (const auto &[key, value] : options)
             {
                 uri << (firstOption ? "?" : "&");
-                uri << opt.first << "=" << opt.second;
+                uri << key << "=" << value;
                 firstOption = false;
             }
 
@@ -5350,7 +5363,7 @@ namespace cpp_dbc
 
                 // Strip the 'cpp_dbc:' prefix if present
                 std::string mongoUrl = url;
-                if (url.substr(0, 8) == "cpp_dbc:")
+                if (url.starts_with("cpp_dbc:"))
                 {
                     mongoUrl = url.substr(8);
                 }
@@ -5359,21 +5372,21 @@ namespace cpp_dbc
                 MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection established");
                 return std::static_pointer_cast<DocumentDBConnection>(conn);
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "2D3E4F5A6B7C",
                     "Memory allocation failed in connectDocument"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "3E4F5A6B7C8D",
-                    std::string("Error in connectDocument: ") + e.what()));
+                    std::string("Error in connectDocument: ") + ex.what()));
             }
             catch (...)
             {
@@ -5426,21 +5439,21 @@ namespace cpp_dbc
 
                 return result;
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                return unexpected<DBException>(e);
+                return unexpected<DBException>(ex);
             }
-            catch (const std::bad_alloc &e)
+            catch ([[maybe_unused]] const std::bad_alloc &ex)
             {
                 return unexpected<DBException>(DBException(
                     "6B7C8D9E0F1A",
                     "Memory allocation failed in parseURI"));
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
                 return unexpected<DBException>(DBException(
                     "7C8D9E0F1A2B",
-                    std::string("Error in parseURI: ") + e.what()));
+                    std::string("Error in parseURI: ") + ex.what()));
             }
             catch (...)
             {
