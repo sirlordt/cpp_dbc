@@ -223,7 +223,7 @@ namespace cpp_dbc
         private:
             std::weak_ptr<MYSQL> m_mysql; // Safe weak reference to connection - detects when connection is closed
             std::string m_sql;
-            MySQLStmtHandle m_stmt; // Smart pointer for MYSQL_STMT - automatically calls mysql_stmt_close
+            MySQLStmtHandle m_stmt{nullptr}; // Smart pointer for MYSQL_STMT - automatically calls mysql_stmt_close
             std::vector<MYSQL_BIND> m_binds;
             std::vector<std::string> m_stringValues;                   // To keep string values alive
             std::vector<std::string> m_parameterValues;                // To store parameter values for query reconstruction
@@ -313,7 +313,7 @@ namespace cpp_dbc
             bool m_closed{true};
             bool m_autoCommit{true};
             bool m_transactionActive{false};
-            TransactionIsolationLevel m_isolationLevel;
+            TransactionIsolationLevel m_isolationLevel{TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ}; // MySQL default
 
             // Cached URL string
             std::string m_url;
