@@ -275,7 +275,7 @@ namespace cpp_dbc
             bool m_autoCommit{true};
             bool m_transactionActive{false};
             int m_statementCounter{0};
-            TransactionIsolationLevel m_isolationLevel;
+            TransactionIsolationLevel m_isolationLevel{TransactionIsolationLevel::TRANSACTION_READ_COMMITTED};
 
             // Cached URL string
             std::string m_url;

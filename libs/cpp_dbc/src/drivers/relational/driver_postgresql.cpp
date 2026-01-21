@@ -19,6 +19,7 @@
 */
 
 #include "cpp_dbc/drivers/relational/driver_postgresql.hpp"
+#include <array>
 #include <cstring>
 #include <sstream>
 #include <iostream>
@@ -34,10 +35,15 @@
 #define USE_STD_FORMAT
 #endif
 
-namespace cpp_dbc
+// Debug output is controlled by -DDEBUG_POSTGRESQL=1 or -DDEBUG_ALL=1 CMake option
+#if (defined(DEBUG_POSTGRESQL) && DEBUG_POSTGRESQL) || (defined(DEBUG_ALL) && DEBUG_ALL)
+#define PG_DEBUG(x) std::cout << "[PostgreSQL] " << x << std::endl
+#else
+#define PG_DEBUG(x)
+#endif
+
+namespace cpp_dbc::PostgreSQL
 {
-    namespace PostgreSQL
-    {
 
         // PostgreSQLDBResultSet implementation
         PostgreSQLDBResultSet::PostgreSQLDBResultSet(PGresult *res) : m_result(res)
@@ -70,7 +76,7 @@ namespace cpp_dbc
         bool PostgreSQLDBResultSet::next()
         {
             auto result = this->next(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -80,7 +86,7 @@ namespace cpp_dbc
         bool PostgreSQLDBResultSet::isBeforeFirst()
         {
             auto result = this->isBeforeFirst(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -90,7 +96,7 @@ namespace cpp_dbc
         bool PostgreSQLDBResultSet::isAfterLast()
         {
             auto result = this->isAfterLast(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -100,7 +106,7 @@ namespace cpp_dbc
         uint64_t PostgreSQLDBResultSet::getRow()
         {
             auto result = this->getRow(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -110,7 +116,7 @@ namespace cpp_dbc
         int PostgreSQLDBResultSet::getInt(size_t columnIndex)
         {
             auto result = this->getInt(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -120,7 +126,7 @@ namespace cpp_dbc
         int PostgreSQLDBResultSet::getInt(const std::string &columnName)
         {
             auto result = this->getInt(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -130,7 +136,7 @@ namespace cpp_dbc
         long PostgreSQLDBResultSet::getLong(size_t columnIndex)
         {
             auto result = this->getLong(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -140,7 +146,7 @@ namespace cpp_dbc
         long PostgreSQLDBResultSet::getLong(const std::string &columnName)
         {
             auto result = this->getLong(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -150,7 +156,7 @@ namespace cpp_dbc
         double PostgreSQLDBResultSet::getDouble(size_t columnIndex)
         {
             auto result = this->getDouble(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -160,7 +166,7 @@ namespace cpp_dbc
         double PostgreSQLDBResultSet::getDouble(const std::string &columnName)
         {
             auto result = this->getDouble(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -170,7 +176,7 @@ namespace cpp_dbc
         std::string PostgreSQLDBResultSet::getString(size_t columnIndex)
         {
             auto result = this->getString(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -180,7 +186,7 @@ namespace cpp_dbc
         std::string PostgreSQLDBResultSet::getString(const std::string &columnName)
         {
             auto result = this->getString(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -190,7 +196,7 @@ namespace cpp_dbc
         bool PostgreSQLDBResultSet::getBoolean(size_t columnIndex)
         {
             auto result = this->getBoolean(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -200,7 +206,7 @@ namespace cpp_dbc
         bool PostgreSQLDBResultSet::getBoolean(const std::string &columnName)
         {
             auto result = this->getBoolean(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -210,7 +216,7 @@ namespace cpp_dbc
         bool PostgreSQLDBResultSet::isNull(size_t columnIndex)
         {
             auto result = this->isNull(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -220,7 +226,7 @@ namespace cpp_dbc
         bool PostgreSQLDBResultSet::isNull(const std::string &columnName)
         {
             auto result = this->isNull(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -230,7 +236,7 @@ namespace cpp_dbc
         std::vector<std::string> PostgreSQLDBResultSet::getColumnNames()
         {
             auto result = this->getColumnNames(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -240,7 +246,7 @@ namespace cpp_dbc
         size_t PostgreSQLDBResultSet::getColumnCount()
         {
             auto result = this->getColumnCount(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -322,11 +328,11 @@ namespace cpp_dbc
                 if (paramCount > 0)
                 {
                     std::string newSql;
-                    pos = 0;
                     size_t lastPos = 0;
                     int paramIdx = 1;
 
-                    while ((pos = sqlQuery.find("?", lastPos)) != std::string::npos)
+                    pos = sqlQuery.find("?", lastPos);
+                    while (pos != std::string::npos)
                     {
                         newSql.append(sqlQuery, lastPos, pos - lastPos);
 #ifdef USE_STD_FORMAT
@@ -335,6 +341,7 @@ namespace cpp_dbc
                         newSql.append("$" + std::to_string(paramIdx++));
 #endif
                         lastPos = pos + 1;
+                        pos = sqlQuery.find("?", lastPos);
                     }
 
                     // Append the rest of the SQL
@@ -355,7 +362,7 @@ namespace cpp_dbc
             : m_conn(conn_handle), m_sql(sql_stmt), m_stmtName(stmt_name)
         {
             // Verify connection is valid by trying to lock it
-            PGconn *connPtr = getPGConnection();
+            const PGconn *connPtr = getPGConnection();
             if (!connPtr)
             {
                 throw DBException("5Q6R7S8T9U0V", "Invalid PostgreSQL connection", system_utils::captureCallStack());
@@ -393,7 +400,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::close()
         {
             auto result = this->close(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -409,7 +416,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setInt(int parameterIndex, int value)
         {
             auto result = this->setInt(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -418,7 +425,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setLong(int parameterIndex, long value)
         {
             auto result = this->setLong(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -427,7 +434,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setDouble(int parameterIndex, double value)
         {
             auto result = this->setDouble(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -436,7 +443,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setString(int parameterIndex, const std::string &value)
         {
             auto result = this->setString(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -478,7 +485,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setBoolean(int parameterIndex, bool value)
         {
             auto result = this->setBoolean(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -520,7 +527,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setNull(int parameterIndex, Types type)
         {
             auto result = this->setNull(std::nothrow, parameterIndex, type);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -543,31 +550,32 @@ namespace cpp_dbc
                 m_paramValues[idx] = "";
 
                 // Set the OID type based on our Types enum
+                using enum Types;
                 Oid pgType;
                 switch (type)
                 {
-                case Types::INTEGER:
+                case INTEGER:
                     pgType = 23; // INT4OID
                     break;
-                case Types::FLOAT:
+                case FLOAT:
                     pgType = 700; // FLOAT4OID
                     break;
-                case Types::DOUBLE:
+                case DOUBLE:
                     pgType = 701; // FLOAT8OID
                     break;
-                case Types::VARCHAR:
+                case VARCHAR:
                     pgType = 25; // TEXTOID
                     break;
-                case Types::DATE:
+                case DATE:
                     pgType = 1082; // DATEOID
                     break;
-                case Types::TIMESTAMP:
+                case TIMESTAMP:
                     pgType = 1114; // TIMESTAMPOID
                     break;
-                case Types::BOOLEAN:
+                case BOOLEAN:
                     pgType = 16; // BOOLOID
                     break;
-                case Types::BLOB:
+                case BLOB:
                     pgType = 17; // BYTEAOID
                     break;
                 default:
@@ -597,7 +605,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setDate(int parameterIndex, const std::string &value)
         {
             auto result = this->setDate(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -606,7 +614,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
         {
             auto result = this->setTimestamp(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -615,7 +623,7 @@ namespace cpp_dbc
         std::shared_ptr<RelationalDBResultSet> PostgreSQLDBPreparedStatement::executeQuery()
         {
             auto result = this->executeQuery(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -702,7 +710,7 @@ namespace cpp_dbc
         uint64_t PostgreSQLDBPreparedStatement::executeUpdate()
         {
             auto result = this->executeUpdate(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -765,7 +773,7 @@ namespace cpp_dbc
                 }
 
                 // Get the number of affected rows
-                char *affectedRows = PQcmdTuples(result);
+                const char *affectedRows = PQcmdTuples(result);
                 uint64_t rowCount = 0;
                 if (affectedRows && affectedRows[0] != '\0')
                 {
@@ -797,7 +805,7 @@ namespace cpp_dbc
         bool PostgreSQLDBPreparedStatement::execute()
         {
             auto result = this->execute(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -808,7 +816,7 @@ namespace cpp_dbc
         std::shared_ptr<Blob> PostgreSQLDBResultSet::getBlob(size_t columnIndex)
         {
             auto result = this->getBlob(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -818,7 +826,7 @@ namespace cpp_dbc
         std::shared_ptr<Blob> PostgreSQLDBResultSet::getBlob(const std::string &columnName)
         {
             auto result = this->getBlob(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -828,7 +836,7 @@ namespace cpp_dbc
         std::shared_ptr<InputStream> PostgreSQLDBResultSet::getBinaryStream(size_t columnIndex)
         {
             auto result = this->getBinaryStream(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -838,7 +846,7 @@ namespace cpp_dbc
         std::shared_ptr<InputStream> PostgreSQLDBResultSet::getBinaryStream(const std::string &columnName)
         {
             auto result = this->getBinaryStream(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -848,7 +856,7 @@ namespace cpp_dbc
         std::vector<uint8_t> PostgreSQLDBResultSet::getBytes(size_t columnIndex)
         {
             auto result = this->getBytes(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1579,8 +1587,8 @@ namespace cpp_dbc
                                 if (i + 1 < hexLength)
                                 {
                                     // Convert hex pair to byte
-                                    char hexPair[3] = {hexData[i], hexData[i + 1], 0};
-                                    auto byte = static_cast<uint8_t>(strtol(hexPair, nullptr, 16));
+                                    std::array<char, 3> hexPair = {hexData[i], hexData[i + 1], 0};
+                                    auto byte = static_cast<uint8_t>(strtol(hexPair.data(), nullptr, 16));
                                     data.push_back(byte);
                                 }
                             }
@@ -1653,7 +1661,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
         {
             auto result = this->setBlob(std::nothrow, parameterIndex, x);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1718,7 +1726,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
         {
             auto result = this->setBinaryStream(std::nothrow, parameterIndex, x);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1752,11 +1760,11 @@ namespace cpp_dbc
 
                 // Read all data from the stream
                 std::vector<uint8_t> data;
-                uint8_t buffer[4096];
-                int bytesRead;
-                while ((bytesRead = x->read(buffer, sizeof(buffer))) > 0)
+                std::array<uint8_t, 4096> buffer{};
+                int bytesRead = 0;
+                while ((bytesRead = x->read(buffer.data(), buffer.size())) > 0)
                 {
-                    data.insert(data.end(), buffer, buffer + bytesRead);
+                    data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
                 }
 
                 // Store the data in our vector to keep it alive
@@ -1789,7 +1797,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
         {
             auto result = this->setBinaryStream(std::nothrow, parameterIndex, x, length);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1824,12 +1832,17 @@ namespace cpp_dbc
                 // Read up to 'length' bytes from the stream
                 std::vector<uint8_t> data;
                 data.reserve(length);
-                uint8_t buffer[4096];
+                std::array<uint8_t, 4096> buffer{};
                 size_t totalBytesRead = 0;
-                int bytesRead;
-                while (totalBytesRead < length && (bytesRead = x->read(buffer, std::min(sizeof(buffer), length - totalBytesRead))) > 0)
+                int bytesRead = 0;
+                while (totalBytesRead < length)
                 {
-                    data.insert(data.end(), buffer, buffer + bytesRead);
+                    bytesRead = x->read(buffer.data(), std::min(buffer.size(), length - totalBytesRead));
+                    if (bytesRead <= 0)
+                    {
+                        break;
+                    }
+                    data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
                     totalBytesRead += bytesRead;
                 }
 
@@ -1863,7 +1876,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
         {
             auto result = this->setBytes(std::nothrow, parameterIndex, x);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1872,7 +1885,7 @@ namespace cpp_dbc
         void PostgreSQLDBPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
         {
             auto result = this->setBytes(std::nothrow, parameterIndex, x, length);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2254,8 +2267,7 @@ namespace cpp_dbc
                                                        const std::string &user,
                                                        const std::string &password,
                                                        const std::map<std::string, std::string> &options)
-            : m_closed(false), m_autoCommit(true), m_transactionActive(false), m_statementCounter(0),
-              m_isolationLevel(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) // PostgreSQL default
+            : m_closed(false)
         {
             // Build connection string
             std::stringstream conninfo;
@@ -2265,11 +2277,11 @@ namespace cpp_dbc
             conninfo << "user=" << user << " ";
             conninfo << "password=" << password << " ";
 
-            for (const auto &option : options)
+            for (const auto &[key, value] : options)
             {
-                if (option.first.starts_with("query__") == false)
+                if (!key.starts_with("query__"))
                 {
-                    conninfo << option.first << "=" << option.second << " ";
+                    conninfo << key << "=" << value << " ";
                 }
             }
 
@@ -2291,14 +2303,14 @@ namespace cpp_dbc
             m_conn = std::shared_ptr<PGconn>(rawConn, PGconnDeleter());
 
             // Set up a notice processor to suppress NOTICE messages
-            PQsetNoticeProcessor(m_conn.get(), [](void *, const char *)
+            PQsetNoticeProcessor(m_conn.get(), []([[maybe_unused]] void *arg, [[maybe_unused]] const char *message)
                                  {
                                      // Do nothing with the notice message
                                  },
                                  nullptr);
 
             // Set auto-commit mode
-            setAutoCommit(true);
+            PostgreSQLDBConnection::setAutoCommit(true);
 
             // Initialize URL string once
             std::stringstream urlBuilder;
@@ -2364,9 +2376,13 @@ namespace cpp_dbc
                 // We don't set m_closed = true because we want to keep the connection open
                 // Just mark it as available for reuse
             }
+            catch ([[maybe_unused]] const std::exception &ex)
+            {
+                PG_DEBUG("PostgreSQLDBConnection::returnToPool - Exception during cleanup: " << ex.what());
+            }
             catch (...)
             {
-                // Ignore errors during cleanup
+                PG_DEBUG("PostgreSQLDBConnection::returnToPool - Unknown exception during cleanup");
             }
         }
 
@@ -2378,7 +2394,7 @@ namespace cpp_dbc
         std::shared_ptr<RelationalDBPreparedStatement> PostgreSQLDBConnection::prepareStatement(const std::string &sql)
         {
             auto result = prepareStatement(std::nothrow, sql);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2388,7 +2404,7 @@ namespace cpp_dbc
         std::shared_ptr<RelationalDBResultSet> PostgreSQLDBConnection::executeQuery(const std::string &sql)
         {
             auto result = executeQuery(std::nothrow, sql);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2398,7 +2414,7 @@ namespace cpp_dbc
         uint64_t PostgreSQLDBConnection::executeUpdate(const std::string &sql)
         {
             auto result = executeUpdate(std::nothrow, sql);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2408,7 +2424,7 @@ namespace cpp_dbc
         bool PostgreSQLDBConnection::beginTransaction()
         {
             auto result = this->beginTransaction(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2418,7 +2434,7 @@ namespace cpp_dbc
         bool PostgreSQLDBConnection::transactionActive()
         {
             auto result = this->transactionActive(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2428,7 +2444,7 @@ namespace cpp_dbc
         void PostgreSQLDBConnection::setAutoCommit(bool autoCommitFlag)
         {
             auto result = setAutoCommit(std::nothrow, autoCommitFlag);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2437,7 +2453,7 @@ namespace cpp_dbc
         bool PostgreSQLDBConnection::getAutoCommit()
         {
             auto result = getAutoCommit(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2447,7 +2463,7 @@ namespace cpp_dbc
         void PostgreSQLDBConnection::commit()
         {
             auto result = this->commit(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2456,7 +2472,7 @@ namespace cpp_dbc
         void PostgreSQLDBConnection::rollback()
         {
             auto result = this->rollback(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2465,7 +2481,7 @@ namespace cpp_dbc
         void PostgreSQLDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
         {
             auto result = this->setTransactionIsolation(std::nothrow, level);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2474,7 +2490,7 @@ namespace cpp_dbc
         TransactionIsolationLevel PostgreSQLDBConnection::getTransactionIsolation()
         {
             auto result = this->getTransactionIsolation(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2483,8 +2499,9 @@ namespace cpp_dbc
 
         std::string PostgreSQLDBConnection::generateStatementName()
         {
+            int counter = m_statementCounter++;
             std::stringstream ss;
-            ss << "stmt_" << m_statementCounter++;
+            ss << "stmt_" << counter;
             return ss.str();
         }
 
@@ -2506,10 +2523,7 @@ namespace cpp_dbc
         }
 
         // PostgreSQLDBDriver implementation
-        PostgreSQLDBDriver::PostgreSQLDBDriver()
-        {
-            // PostgreSQL doesn't require explicit initialization like MySQL
-        }
+        PostgreSQLDBDriver::PostgreSQLDBDriver() = default;
 
         PostgreSQLDBDriver::~PostgreSQLDBDriver()
         {
@@ -2523,7 +2537,7 @@ namespace cpp_dbc
                                                                                       const std::map<std::string, std::string> &options)
         {
             auto result = connectRelational(std::nothrow, url, user, password, options);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2782,7 +2796,7 @@ namespace cpp_dbc
                 }
 
                 // Get the number of affected rows
-                char *affectedRows = PQcmdTuples(result);
+                const char *affectedRows = PQcmdTuples(result);
                 uint64_t rowCount = 0;
                 if (affectedRows && affectedRows[0] != '\0')
                 {
@@ -3092,20 +3106,21 @@ namespace cpp_dbc
                     return cpp_dbc::unexpected<DBException>(DBException("3O4P5Q6R7S8T", "Connection is closed", system_utils::captureCallStack()));
                 }
 
+                using enum TransactionIsolationLevel;
                 std::string query;
                 switch (level)
                 {
-                case TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED:
+                case TRANSACTION_READ_UNCOMMITTED:
                     // PostgreSQL treats READ UNCOMMITTED the same as READ COMMITTED
                     query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";
                     break;
-                case TransactionIsolationLevel::TRANSACTION_READ_COMMITTED:
+                case TRANSACTION_READ_COMMITTED:
                     query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED";
                     break;
-                case TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ:
+                case TRANSACTION_REPEATABLE_READ:
                     query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ";
                     break;
-                case TransactionIsolationLevel::TRANSACTION_SERIALIZABLE:
+                case TRANSACTION_SERIALIZABLE:
                     query = "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE";
                     break;
                 default:
@@ -3137,7 +3152,7 @@ namespace cpp_dbc
                     PQclear(result);
 
                     // For SERIALIZABLE isolation, we need special handling
-                    if (m_isolationLevel == TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
+                    if (m_isolationLevel == TRANSACTION_SERIALIZABLE)
                     {
                         std::string beginCmd = "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE";
                         result = PQexec(m_conn.get(), beginCmd.c_str());
@@ -3221,9 +3236,9 @@ namespace cpp_dbc
                 // Convert the string value to the enum - handle both formats
                 std::string levelLower = level;
                 // Convert to lowercase for case-insensitive comparison
-                std::transform(levelLower.begin(), levelLower.end(), levelLower.begin(),
-                               [](unsigned char c)
-                               { return std::tolower(c); });
+                std::ranges::transform(levelLower, levelLower.begin(),
+                                       [](unsigned char c)
+                                       { return std::tolower(c); });
 
                 if (levelLower == "read uncommitted" || levelLower == "read_uncommitted")
                     return TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED;
@@ -3250,5 +3265,4 @@ namespace cpp_dbc
             }
         }
 
-    } // namespace PostgreSQL
-} // namespace cpp_dbc
+} // namespace cpp_dbc::PostgreSQL
