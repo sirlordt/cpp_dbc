@@ -278,35 +278,44 @@ namespace cpp_dbc
         }
         else
         {
-            // Replace invalid connection with a new one
+            // Close the invalid connection to avoid resource leak
             try
             {
-                // Close the invalid connection to avoid resource leak
+                conn->getUnderlyingColumnarConnection()->close();
+            }
+            catch (const DBException &ex)
+            {
+                // Drop the invalid connection so capacity can recover
+                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
+                if (it != m_allConnections.end())
+                {
+                    m_allConnections.erase(it);
+                }
+                conn->setActive(false);
+                m_activeConnections--;
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception closing invalid connection: " << ex.what());
+            }
+
+            {
+                // Use scoped_lock for consistent lock ordering to prevent deadlock
+                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                // Replace invalid connection with a new one
                 try
                 {
-                    conn->getUnderlyingColumnarConnection()->close();
-                }
-                catch (const DBException &ex)
-                {
-                    CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception closing invalid connection: " << ex.what());
-                }
-
-                // Use scoped_lock for consistent lock ordering to prevent deadlock
-                {
-                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
                     auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
                     if (it != m_allConnections.end())
                     {
                         *it = createPooledDBConnection();
                         m_idleConnections.push(*it);
                     }
+                    m_activeConnections--;
                 }
-                m_activeConnections--;
-            }
-            catch (const std::exception &ex)
-            {
-                m_activeConnections--;
-                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception replacing invalid connection: " << ex.what());
+                catch (const std::exception &ex)
+                {
+                    m_activeConnections--;
+                    CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception replacing invalid connection: " << ex.what());
+                }
             }
         }
 
