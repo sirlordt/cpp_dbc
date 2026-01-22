@@ -52,7 +52,7 @@ namespace cpp_dbc
         // ============================================================================
 
         std::once_flag RedisDriver::s_initFlag;
-        std::atomic<bool> RedisDriver::s_initialized{false};
+        std::atomic<bool> RedisDriver::s_initialized{false};  // NOSONAR - Must match declaration in header
 
         // ============================================================================
         // RedisReplyDeleter Implementation
@@ -121,7 +121,7 @@ namespace cpp_dbc
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options)
-            : m_url(uri), m_dbIndex(0)
+            : m_url(uri)
         {
             REDIS_DEBUG("RedisConnection::constructor - Connecting to: " << uri);
 
@@ -214,13 +214,13 @@ namespace cpp_dbc
             }
 
             // Handle connection options
-            for (const auto &option : options)
+            for (const auto &[key, value] : options)
             {
-                if (option.first == "client_name" && !option.second.empty())
+                if (key == "client_name" && !value.empty())
                 {
-                    redisReply *reply = (redisReply *)redisCommand(m_context.get(),
-                                                                   "CLIENT SETNAME %s",
-                                                                   option.second.c_str());
+                    auto *reply = static_cast<redisReply *>(redisCommand(m_context.get(),
+                                                                         "CLIENT SETNAME %s",
+                                                                         value.c_str()));
                     if (reply)
                     {
                         freeReplyObject(reply);
@@ -235,15 +235,22 @@ namespace cpp_dbc
         RedisConnection::~RedisConnection()
         {
             REDIS_DEBUG("RedisConnection::destructor - Destroying connection");
+            // Inline close() logic to avoid virtual call in destructor (S1699)
             if (!m_closed)
             {
                 try
                 {
-                    close();
+                    std::lock_guard<std::mutex> lock_(m_mutex);
+                    m_context.reset();
+                    m_closed = true;
+                }
+                catch ([[maybe_unused]] const std::exception &ex)
+                {
+                    REDIS_DEBUG("RedisConnection::~RedisConnection - Exception: " << ex.what());
                 }
                 catch (...)
                 {
-                    // Suppress exceptions in destructor
+                    REDIS_DEBUG("RedisConnection::~RedisConnection - Unknown exception");
                 }
             }
             REDIS_DEBUG("RedisConnection::destructor - Done");
@@ -326,13 +333,32 @@ namespace cpp_dbc
                 {
                     return std::stoll(std::string(reply.get()->str, reply.get()->len));
                 }
-                catch (...)
+                catch ([[maybe_unused]] const std::exception &ex)
                 {
+                    REDIS_DEBUG("RedisConnection::extractInteger - Failed to parse: " << ex.what());
                     return 0;
                 }
             }
 
             return 0;
+        }
+
+        std::optional<double> RedisConnection::tryParseDouble(const std::string &str) noexcept
+        {
+            try
+            {
+                return std::stod(str);
+            }
+            catch ([[maybe_unused]] const std::exception &ex)
+            {
+                REDIS_DEBUG("RedisConnection::tryParseDouble - Failed to parse: " << str << " error: " << ex.what());
+                return std::nullopt;
+            }
+            catch (...)
+            {
+                REDIS_DEBUG("RedisConnection::tryParseDouble - Failed to parse: " << str << " unknown error");
+                return std::nullopt;
+            }
         }
 
         std::vector<std::string> RedisConnection::extractArray(const RedisReplyHandle &reply)
@@ -353,11 +379,11 @@ namespace cpp_dbc
                 }
                 else if (element->type == REDIS_REPLY_INTEGER)
                 {
-                    result.push_back(std::to_string(element->integer));
+                    result.emplace_back(std::to_string(element->integer));
                 }
                 else if (element->type == REDIS_REPLY_NIL)
                 {
-                    result.push_back("");
+                    result.emplace_back("");
                 }
             }
 
@@ -428,8 +454,8 @@ namespace cpp_dbc
                 argvlen.push_back(arg.length());
             }
 
-            redisReply *reply = (redisReply *)redisCommandArgv(
-                m_context.get(), static_cast<int>(argv.size()), argv.data(), argvlen.data());
+            auto *reply = static_cast<redisReply *>(redisCommandArgv(
+                m_context.get(), static_cast<int>(argv.size()), argv.data(), argvlen.data()));
 
             if (!reply)
             {
@@ -452,7 +478,7 @@ namespace cpp_dbc
                                         std::optional<int64_t> expirySeconds)
         {
             auto result = setString(std::nothrow, key, value, expirySeconds);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -462,7 +488,7 @@ namespace cpp_dbc
         std::string RedisConnection::getString(const std::string &key)
         {
             auto result = getString(std::nothrow, key);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -472,7 +498,7 @@ namespace cpp_dbc
         bool RedisConnection::exists(const std::string &key)
         {
             auto result = exists(std::nothrow, key);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -482,7 +508,7 @@ namespace cpp_dbc
         bool RedisConnection::deleteKey(const std::string &key)
         {
             auto result = deleteKey(std::nothrow, key);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -492,7 +518,7 @@ namespace cpp_dbc
         int64_t RedisConnection::deleteKeys(const std::vector<std::string> &keys)
         {
             auto result = deleteKeys(std::nothrow, keys);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -502,7 +528,7 @@ namespace cpp_dbc
         bool RedisConnection::expire(const std::string &key, int64_t seconds)
         {
             auto result = expire(std::nothrow, key, seconds);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -512,7 +538,7 @@ namespace cpp_dbc
         int64_t RedisConnection::getTTL(const std::string &key)
         {
             auto result = getTTL(std::nothrow, key);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -524,7 +550,7 @@ namespace cpp_dbc
         int64_t RedisConnection::increment(const std::string &key, int64_t by)
         {
             auto result = increment(std::nothrow, key, by);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -534,7 +560,7 @@ namespace cpp_dbc
         int64_t RedisConnection::decrement(const std::string &key, int64_t by)
         {
             auto result = decrement(std::nothrow, key, by);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -546,7 +572,7 @@ namespace cpp_dbc
         int64_t RedisConnection::listPushLeft(const std::string &key, const std::string &value)
         {
             auto result = listPushLeft(std::nothrow, key, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -556,7 +582,7 @@ namespace cpp_dbc
         int64_t RedisConnection::listPushRight(const std::string &key, const std::string &value)
         {
             auto result = listPushRight(std::nothrow, key, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -566,7 +592,7 @@ namespace cpp_dbc
         std::string RedisConnection::listPopLeft(const std::string &key)
         {
             auto result = listPopLeft(std::nothrow, key);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -576,7 +602,7 @@ namespace cpp_dbc
         std::string RedisConnection::listPopRight(const std::string &key)
         {
             auto result = listPopRight(std::nothrow, key);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -587,7 +613,7 @@ namespace cpp_dbc
             const std::string &key, int64_t start, int64_t stop)
         {
             auto result = listRange(std::nothrow, key, start, stop);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -597,7 +623,7 @@ namespace cpp_dbc
         int64_t RedisConnection::listLength(const std::string &key)
         {
             auto result = listLength(std::nothrow, key);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -610,7 +636,7 @@ namespace cpp_dbc
             const std::string &key, const std::string &field, const std::string &value)
         {
             auto result = hashSet(std::nothrow, key, field, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -620,7 +646,7 @@ namespace cpp_dbc
         std::string RedisConnection::hashGet(const std::string &key, const std::string &field)
         {
             auto result = hashGet(std::nothrow, key, field);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -630,7 +656,7 @@ namespace cpp_dbc
         bool RedisConnection::hashDelete(const std::string &key, const std::string &field)
         {
             auto result = hashDelete(std::nothrow, key, field);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -640,7 +666,7 @@ namespace cpp_dbc
         bool RedisConnection::hashExists(const std::string &key, const std::string &field)
         {
             auto result = hashExists(std::nothrow, key, field);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -650,7 +676,7 @@ namespace cpp_dbc
         std::map<std::string, std::string> RedisConnection::hashGetAll(const std::string &key)
         {
             auto result = hashGetAll(std::nothrow, key);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -660,7 +686,7 @@ namespace cpp_dbc
         int64_t RedisConnection::hashLength(const std::string &key)
         {
             auto result = hashLength(std::nothrow, key);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -672,7 +698,7 @@ namespace cpp_dbc
         bool RedisConnection::setAdd(const std::string &key, const std::string &member)
         {
             auto result = setAdd(std::nothrow, key, member);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -682,7 +708,7 @@ namespace cpp_dbc
         bool RedisConnection::setRemove(const std::string &key, const std::string &member)
         {
             auto result = setRemove(std::nothrow, key, member);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -692,7 +718,7 @@ namespace cpp_dbc
         bool RedisConnection::setIsMember(const std::string &key, const std::string &member)
         {
             auto result = setIsMember(std::nothrow, key, member);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -702,7 +728,7 @@ namespace cpp_dbc
         std::vector<std::string> RedisConnection::setMembers(const std::string &key)
         {
             auto result = setMembers(std::nothrow, key);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -712,7 +738,7 @@ namespace cpp_dbc
         int64_t RedisConnection::setSize(const std::string &key)
         {
             auto result = setSize(std::nothrow, key);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -725,7 +751,7 @@ namespace cpp_dbc
             const std::string &key, double score, const std::string &member)
         {
             auto result = sortedSetAdd(std::nothrow, key, score, member);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -735,7 +761,7 @@ namespace cpp_dbc
         bool RedisConnection::sortedSetRemove(const std::string &key, const std::string &member)
         {
             auto result = sortedSetRemove(std::nothrow, key, member);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -746,7 +772,7 @@ namespace cpp_dbc
             const std::string &key, const std::string &member)
         {
             auto result = sortedSetScore(std::nothrow, key, member);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -757,7 +783,7 @@ namespace cpp_dbc
             const std::string &key, int64_t start, int64_t stop)
         {
             auto result = sortedSetRange(std::nothrow, key, start, stop);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -767,7 +793,7 @@ namespace cpp_dbc
         int64_t RedisConnection::sortedSetSize(const std::string &key)
         {
             auto result = sortedSetSize(std::nothrow, key);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -779,7 +805,7 @@ namespace cpp_dbc
         std::vector<std::string> RedisConnection::scanKeys(const std::string &pattern, int64_t count)
         {
             auto result = scanKeys(std::nothrow, pattern, count);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -792,7 +818,7 @@ namespace cpp_dbc
             const std::string &command, const std::vector<std::string> &args)
         {
             auto result = executeCommand(std::nothrow, command, args);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -802,7 +828,7 @@ namespace cpp_dbc
         bool RedisConnection::flushDB(bool async)
         {
             auto result = flushDB(std::nothrow, async);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -812,7 +838,7 @@ namespace cpp_dbc
         std::string RedisConnection::ping()
         {
             auto result = ping(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -822,7 +848,7 @@ namespace cpp_dbc
         std::map<std::string, std::string> RedisConnection::getServerInfo()
         {
             auto result = getServerInfo(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -880,7 +906,7 @@ namespace cpp_dbc
 
         bool RedisDriver::acceptsURL(const std::string &url)
         {
-            return url.substr(0, 16) == "cpp_dbc:redis://";
+            return url.starts_with("cpp_dbc:redis://");
         }
 
         std::shared_ptr<KVDBConnection> RedisDriver::connectKV(
@@ -890,7 +916,7 @@ namespace cpp_dbc
             const std::map<std::string, std::string> &options)
         {
             auto result = connectKV(std::nothrow, url, user, password, options);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -910,7 +936,7 @@ namespace cpp_dbc
         std::map<std::string, std::string> RedisDriver::parseURI(const std::string &uri)
         {
             auto result = parseURI(std::nothrow, uri);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -989,8 +1015,8 @@ namespace cpp_dbc
 
                 if (expirySeconds.has_value())
                 {
-                    args.push_back("EX");
-                    args.push_back(std::to_string(*expirySeconds));
+                    args.emplace_back("EX");
+                    args.emplace_back(std::to_string(*expirySeconds));
                 }
 
                 auto reply = executeRaw("SET", args);
@@ -1800,15 +1826,7 @@ namespace cpp_dbc
 
                 if (reply.get()->type == REDIS_REPLY_STRING)
                 {
-                    try
-                    {
-                        double score = std::stod(std::string(reply.get()->str, reply.get()->len));
-                        return std::optional<double>(score);
-                    }
-                    catch (...)
-                    {
-                        return std::optional<double>(std::nullopt);
-                    }
+                    return tryParseDouble(std::string(reply.get()->str, reply.get()->len));
                 }
 
                 return std::optional<double>(std::nullopt);
@@ -2140,7 +2158,7 @@ namespace cpp_dbc
                 }
 
                 std::string redisUrl = url;
-                if (url.substr(0, 8) == "cpp_dbc:")
+                if (url.starts_with("cpp_dbc:"))
                 {
                     redisUrl = url.substr(8);
                 }

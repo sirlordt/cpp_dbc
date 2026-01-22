@@ -359,9 +359,17 @@ namespace cpp_dbc
              */
             std::vector<std::string> extractArray(const RedisReplyHandle &reply);
 
+            /**
+             * @brief Try to parse a double from a string
+             *
+             * @param str The string to parse
+             * @return std::optional<double> The parsed double, or nullopt on failure
+             */
+            static std::optional<double> tryParseDouble(const std::string &str) noexcept;
+
             std::shared_ptr<redisContext> m_context;
             std::string m_url;
-            int m_dbIndex;
+            int m_dbIndex{0};
             std::atomic<bool> m_closed{false};
             bool m_pooled{false};
             mutable std::mutex m_mutex;
