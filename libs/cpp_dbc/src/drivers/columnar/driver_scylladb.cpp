@@ -21,6 +21,7 @@
 #if USE_SCYLLADB
 
 #include <array>
+#include <cctype>
 #include <cstring>
 #include <algorithm>
 #include <sstream>
@@ -1563,7 +1564,7 @@ namespace cpp_dbc::ScyllaDB
 
                 // Analyze the query to determine appropriate return value
                 std::string queryUpper = m_query;
-                std::ranges::transform(queryUpper, queryUpper.begin(), ::toupper);
+                std::ranges::transform(queryUpper, queryUpper.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
 
                 // DDL statements conventionally return 0 affected rows
                 if (queryUpper.starts_with("CREATE ") ||
@@ -1744,21 +1745,57 @@ namespace cpp_dbc::ScyllaDB
                 CassStatement *stmt = cass_prepared_bind(m_prepared.get());
                 statements.emplace_back(stmt);
 
-                // Bind params
+                // Bind params with error checking
                 for (const auto &[idx, val] : entry.intParams)
-                    cass_statement_bind_int32(stmt, idx, val);
+                {
+                    if (cass_statement_bind_int32(stmt, idx, val) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A001", "Failed to bind int32 at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
                 for (const auto &[idx, val] : entry.longParams)
-                    cass_statement_bind_int64(stmt, idx, val);
+                {
+                    if (cass_statement_bind_int64(stmt, idx, val) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A002", "Failed to bind int64 at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
                 for (const auto &[idx, val] : entry.doubleParams)
-                    cass_statement_bind_double(stmt, idx, val);
+                {
+                    if (cass_statement_bind_double(stmt, idx, val) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A003", "Failed to bind double at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
                 for (const auto &[idx, val] : entry.stringParams)
-                    cass_statement_bind_string(stmt, idx, val.c_str());
+                {
+                    if (cass_statement_bind_string(stmt, idx, val.c_str()) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A004", "Failed to bind string at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
                 for (const auto &[idx, val] : entry.boolParams)
-                    cass_statement_bind_bool(stmt, idx, val ? cass_true : cass_false);
+                {
+                    if (cass_statement_bind_bool(stmt, idx, val ? cass_true : cass_false) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A005", "Failed to bind bool at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
                 for (const auto &[idx, val] : entry.bytesParams)
-                    cass_statement_bind_bytes(stmt, idx, val.data(), val.size());
+                {
+                    if (cass_statement_bind_bytes(stmt, idx, val.data(), val.size()) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A006", "Failed to bind bytes at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
                 for (const auto &[idx, unused] : entry.nullParams)
-                    cass_statement_bind_null(stmt, idx);
+                {
+                    (void)unused;
+                    if (cass_statement_bind_null(stmt, idx) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A007", "Failed to bind null at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
 
                 cass_batch_add_statement(batch.get(), stmt);
             }
@@ -1980,7 +2017,7 @@ namespace cpp_dbc::ScyllaDB
 
             // Analyze the query to determine appropriate return value
             std::string queryUpper = query;
-            std::ranges::transform(queryUpper, queryUpper.begin(), ::toupper);
+            std::ranges::transform(queryUpper, queryUpper.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
 
             // DDL statements conventionally return 0 affected rows
             if (queryUpper.starts_with("CREATE ") ||
