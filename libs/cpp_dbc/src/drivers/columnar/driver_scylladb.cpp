@@ -1308,8 +1308,13 @@ namespace cpp_dbc::ScyllaDB
 
                 if (!ss.fail())
                 {
-                    // Convert to epoch milliseconds for Cassandra
-                    auto timePoint = std::chrono::system_clock::from_time_t(std::mktime(&tm));
+                    // Convert to epoch milliseconds for Cassandra using UTC
+#ifdef _WIN32
+                    std::time_t epoch_seconds = _mkgmtime(&tm);
+#else
+                    std::time_t epoch_seconds = timegm(&tm);
+#endif
+                    auto timePoint = std::chrono::system_clock::from_time_t(epoch_seconds);
                     timestamp_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                        timePoint.time_since_epoch())
                                        .count();
@@ -2112,12 +2117,12 @@ namespace cpp_dbc::ScyllaDB
                 return cpp_dbc::unexpected(params.error());
             }
 
-            std::string host = (*params)["host"];
-            int port = std::stoi((*params)["port"]);
-            std::string keyspace = (*params)["database"];
-
             try
             {
+                std::string host = (*params)["host"];
+                int port = std::stoi((*params)["port"]);
+                std::string keyspace = (*params)["database"];
+
                 SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Creating connection object");
                 return std::shared_ptr<ColumnarDBConnection>(std::make_shared<ScyllaDBConnection>(host, port, keyspace, user, password, options));
             }
