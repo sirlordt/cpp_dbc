@@ -172,8 +172,8 @@ namespace cpp_dbc
             mutable std::recursive_mutex m_mutex;
 #endif
 
-            void validateResultState() const;
-            void validateCurrentRow() const;
+            cpp_dbc::expected<void, DBException> validateResultState(std::nothrow_t) const noexcept;
+            cpp_dbc::expected<void, DBException> validateCurrentRow(std::nothrow_t) const noexcept;
 
         public:
             explicit ScyllaDBResultSet(const CassResult *res);
