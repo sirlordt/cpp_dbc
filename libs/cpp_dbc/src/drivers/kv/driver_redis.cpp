@@ -240,7 +240,7 @@ namespace cpp_dbc
             {
                 try
                 {
-                    std::lock_guard<std::mutex> lock_(m_mutex);
+                    std::scoped_lock lock_(m_mutex);
                     m_context.reset();
                     m_closed = true;
                 }
