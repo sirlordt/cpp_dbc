@@ -111,7 +111,8 @@ namespace cpp_dbc
             }
 
             // Start maintenance thread
-            m_maintenanceThread = std::jthread([this] { maintenanceTask(); });
+            m_maintenanceThread = std::jthread([this]
+                                               { maintenanceTask(); });
         }
         catch (const std::exception &ex)
         {
@@ -349,6 +350,16 @@ namespace cpp_dbc
             // Test connection before use if configured
             if (m_testOnBorrow && !validateConnection(conn->getUnderlyingRelationalConnection()))
             {
+                // Close the invalid underlying connection to prevent resource leak
+                try
+                {
+                    conn->getUnderlyingRelationalConnection()->close();
+                }
+                catch ([[maybe_unused]] const std::exception &ex)
+                {
+                    CP_DEBUG("RelationalDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: " << ex.what());
+                }
+
                 // Remove from allConnections
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
@@ -696,7 +707,7 @@ namespace cpp_dbc
                 else
                 {
                     // Return to pool - use qualified call to avoid virtual dispatch in destructor
-                    RelationalPooledDBConnection::returnToPool();
+                    returnToPool();
                 }
             }
             catch ([[maybe_unused]] const std::exception &ex)

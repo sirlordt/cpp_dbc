@@ -330,20 +330,30 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
         {
             const uint64_t numOperations = 50;
             std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
             std::vector<std::thread> threads;
 
             for (uint64_t i = 0; i < numOperations; i++)
             {
-                threads.push_back(std::thread([&pool, &successCount, i]()
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
                                               {
                     try {
                         // Get connection from pool
                         auto loadConn = pool->getRelationalDBConnection();
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
 
                         // Execute a simple query
                         auto rs = loadConn->executeQuery("SELECT 1");
-                        REQUIRE(rs != nullptr);
-                        REQUIRE(rs->next());
+                        if (!rs || !rs->next())
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
 
                         // Simulate some work
                         std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
@@ -354,6 +364,7 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
                         successCount++;
                     }
                     catch (const std::exception& ex) {
+                        failureCount++;
                         std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
                     } }));
             }
@@ -367,7 +378,8 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
                 }
             }
 
-            // Verify all operations succeeded
+            // Verify all operations succeeded (thread-safe assertions on main thread)
+            REQUIRE(failureCount == 0);
             REQUIRE(successCount == numOperations);
 
             // Verify pool returned to initial state
@@ -654,22 +666,35 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
         {
             const uint64_t numOperations = 50;
             std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
             std::vector<std::thread> threads;
 
             for (uint64_t i = 0; i < numOperations; i++)
             {
-                threads.push_back(std::thread([&pool, &successCount, i]()
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
                                               {
                     try {
                         auto loadConn = pool->getRelationalDBConnection();
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
                         auto rs = loadConn->executeQuery("SELECT 1");
-                        REQUIRE(rs != nullptr);
-                        REQUIRE(rs->next());
+                        if (!rs || !rs->next())
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
                         std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
                         loadConn->close();
                         successCount++;
                     }
                     catch (const std::exception& ex) {
+                        failureCount++;
                         std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
                     } }));
             }
@@ -682,6 +707,8 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
                 }
             }
 
+            // Thread-safe assertions on main thread
+            REQUIRE(failureCount == 0);
             REQUIRE(successCount == numOperations);
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             auto idleCount = pool->getIdleDBConnectionCount();
@@ -990,22 +1017,35 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
         {
             const uint64_t numOperations = 20; // Fewer operations for SQLite
             std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
             std::vector<std::thread> threads;
 
             for (uint64_t i = 0; i < numOperations; i++)
             {
-                threads.push_back(std::thread([&pool, &successCount, i]()
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
                                               {
                     try {
                         auto loadConn = pool->getRelationalDBConnection();
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
                         auto rs = loadConn->executeQuery("SELECT 1");
-                        REQUIRE(rs != nullptr);
-                        REQUIRE(rs->next());
+                        if (!rs || !rs->next())
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
                         std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
                         loadConn->close();
                         successCount++;
                     }
                     catch (const std::exception& ex) {
+                        failureCount++;
                         std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
                     } }));
             }
@@ -1018,6 +1058,8 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
                 }
             }
 
+            // Thread-safe assertions on main thread
+            REQUIRE(failureCount == 0);
             REQUIRE(successCount == numOperations);
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             auto idleCount = pool->getIdleDBConnectionCount();
@@ -1314,22 +1356,35 @@ TEST_CASE("Real Firebird connection pool tests", "[firebird_connection_pool_real
         {
             const uint64_t numOperations = 50;
             std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
             std::vector<std::thread> threads;
 
             for (uint64_t i = 0; i < numOperations; i++)
             {
-                threads.push_back(std::thread([&pool, &successCount, i]()
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
                                               {
                     try {
                         auto loadConn = pool->getRelationalDBConnection();
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
                         auto rs = loadConn->executeQuery("SELECT 1 FROM RDB$DATABASE");
-                        REQUIRE(rs != nullptr);
-                        REQUIRE(rs->next());
+                        if (!rs || !rs->next())
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
                         std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
                         loadConn->close();
                         successCount++;
                     }
                     catch (const std::exception& ex) {
+                        failureCount++;
                         std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
                     } }));
             }
@@ -1342,6 +1397,8 @@ TEST_CASE("Real Firebird connection pool tests", "[firebird_connection_pool_real
                 }
             }
 
+            // Thread-safe assertions on main thread
+            REQUIRE(failureCount == 0);
             REQUIRE(successCount == numOperations);
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             auto idleCount = pool->getIdleDBConnectionCount();
