@@ -62,7 +62,7 @@ namespace cpp_dbc
         RelationalDBConnectionPool &pool;
         std::map<std::string, std::shared_ptr<TransactionContext>> activeTransactions;
         std::mutex transactionMutex;
-        std::thread cleanupThread;
+        std::jthread cleanupThread;
         std::atomic<bool> running{true}; // WARNING MUST BE TRUE. NOT Change to false
         std::condition_variable cleanupCondition;
         std::mutex cleanupMutex;
