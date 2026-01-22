@@ -296,11 +296,12 @@ namespace cpp_dbc
     {
         // Simple UUID generation using random numbers
         // In a production environment, consider using a proper UUID library
+        // Using thread_local to ensure thread-safety when called concurrently
 
-        static std::random_device rd;
-        static std::mt19937 gen(rd());
-        static std::uniform_int_distribution dis(0, 15);
-        static std::uniform_int_distribution dis2(8, 11);
+        thread_local std::random_device rd;
+        thread_local std::mt19937 gen(rd());
+        thread_local std::uniform_int_distribution dis(0, 15);
+        thread_local std::uniform_int_distribution dis2(8, 11);
 
         std::stringstream ss;
         ss << std::hex;
