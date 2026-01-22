@@ -23,6 +23,7 @@
 
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <string>
+#include <string_view>
 #include <map>
 #include <vector>
 #include <memory>
@@ -35,10 +36,8 @@ namespace cpp_dbc
     class RelationalDBConnectionPool;
 }
 
-namespace cpp_dbc
+namespace cpp_dbc::config
 {
-    namespace config
-    {
 
         /**
          * @brief Class representing database connection options
@@ -56,9 +55,9 @@ namespace cpp_dbc
              * @param key Option name
              * @param value Option value
              */
-            void setOption(const std::string &key, const std::string &value)
+            void setOption(std::string_view key, std::string_view value)
             {
-                options[key] = value;
+                options[std::string(key)] = std::string(value);
             }
 
             /**
@@ -84,7 +83,7 @@ namespace cpp_dbc
              */
             bool hasOption(const std::string &key) const
             {
-                return options.find(key) != options.end();
+                return options.contains(key);
             }
 
             /**
@@ -113,7 +112,7 @@ namespace cpp_dbc
             DBConnectionOptions m_options;
 
         public:
-            DatabaseConfig() : m_port(0) {}
+            DatabaseConfig() = default;
 
             /**
              * @brief Constructor with parameters
@@ -152,20 +151,20 @@ namespace cpp_dbc
             const std::map<std::string, std::string> &getOptions() const { return m_options.getAllOptions(); }
 
             // Setters
-            void setName(const std::string &value) { m_name = value; }
-            void setType(const std::string &value) { m_type = value; }
-            void setHost(const std::string &value) { m_host = value; }
+            void setName(std::string_view value) { m_name = value; }
+            void setType(std::string_view value) { m_type = value; }
+            void setHost(std::string_view value) { m_host = value; }
             void setPort(unsigned int value) { m_port = value; }
-            void setDatabase(const std::string &value) { m_database = value; }
-            void setUsername(const std::string &value) { m_username = value; }
-            void setPassword(const std::string &value) { m_password = value; }
+            void setDatabase(std::string_view value) { m_database = value; }
+            void setUsername(std::string_view value) { m_username = value; }
+            void setPassword(std::string_view value) { m_password = value; }
 
             /**
              * @brief Set a connection option
              * @param key Option name
              * @param value Option value
              */
-            void setOption(const std::string &key, const std::string &value)
+            void setOption(std::string_view key, std::string_view value)
             {
                 m_options.setOption(key, value);
             }
@@ -225,23 +224,11 @@ namespace cpp_dbc
             unsigned long m_maxLifetimeMillis{1800000};
             bool m_testOnBorrow{true};
             bool m_testOnReturn{false};
-            std::string m_validationQuery;
-            TransactionIsolationLevel m_transactionIsolation;
+            std::string m_validationQuery{"SELECT 1"};
+            TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_READ_COMMITTED};
 
         public:
-            DBConnectionPoolConfig() : /*initialSize(5),
-                                     maxSize(20),
-                                     minIdle(3),
-                                     connectionTimeout(30000),
-                                     idleTimeout(300000),
-                                     validationInterval(5000),
-                                     maxLifetimeMillis(1800000),
-                                     testOnBorrow(true),
-                                     testOnReturn(false),*/
-                                       m_validationQuery("SELECT 1"),
-                                       m_transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
-            {
-            }
+            DBConnectionPoolConfig() = default;
 
             /**
              * @brief Constructor with basic parameters
@@ -261,15 +248,9 @@ namespace cpp_dbc
                 unsigned long validationInterval) : m_name(name),
                                                     m_initialSize(initialSize),
                                                     m_maxSize(maxSize),
-                                                    // m_minIdle(3),
                                                     m_connectionTimeout(connectionTimeout),
                                                     m_idleTimeout(idleTimeout),
-                                                    m_validationInterval(validationInterval),
-                                                    // m_maxLifetimeMillis(1800000),
-                                                    // m_testOnBorrow(true),
-                                                    // m_testOnReturn(false),
-                                                    m_validationQuery("SELECT 1"),
-                                                    m_transactionIsolation(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
+                                                    m_validationInterval(validationInterval)
             {
             }
 
@@ -326,10 +307,10 @@ namespace cpp_dbc
             const std::map<std::string, std::string> &getOptions() const { return m_options; }
 
             // Setters
-            void setName(const std::string &value) { m_name = value; }
-            void setUrl(const std::string &value) { m_url = value; }
-            void setUsername(const std::string &value) { m_username = value; }
-            void setPassword(const std::string &value) { m_password = value; }
+            void setName(std::string_view value) { m_name = value; }
+            void setUrl(std::string_view value) { m_url = value; }
+            void setUsername(std::string_view value) { m_username = value; }
+            void setPassword(std::string_view value) { m_password = value; }
             void setInitialSize(unsigned int value) { m_initialSize = value; }
             void setMaxSize(unsigned int value) { m_maxSize = value; }
             void setMinIdle(unsigned int value) { m_minIdle = value; }
@@ -339,7 +320,7 @@ namespace cpp_dbc
             void setMaxLifetimeMillis(unsigned long value) { m_maxLifetimeMillis = value; }
             void setTestOnBorrow(bool value) { m_testOnBorrow = value; }
             void setTestOnReturn(bool value) { m_testOnReturn = value; }
-            void setValidationQuery(const std::string &value) { m_validationQuery = value; }
+            void setValidationQuery(std::string_view value) { m_validationQuery = value; }
             void setTransactionIsolation(TransactionIsolationLevel value) { m_transactionIsolation = value; }
             void setOptions(const std::map<std::string, std::string> &value) { m_options = value; }
 
@@ -374,7 +355,7 @@ namespace cpp_dbc
              * @brief Set connection test query
              * @param query Query string
              */
-            void setConnectionTest(const std::string &query)
+            void setConnectionTest(std::string_view query)
             {
                 m_connectionTest = query;
             }
@@ -394,9 +375,9 @@ namespace cpp_dbc
              * @param queryName Query name
              * @param query Query string
              */
-            void setQuery(const std::string &dbType, const std::string &queryName, const std::string &query)
+            void setQuery(std::string_view dbType, std::string_view queryName, std::string_view query)
             {
-                m_databaseQueries[dbType][queryName] = query;
+                m_databaseQueries[std::string(dbType)][std::string(queryName)] = std::string(query);
             }
 
             /**
@@ -472,7 +453,7 @@ namespace cpp_dbc
              * @param type Database type (mysql, postgresql, etc.)
              * @return Vector of database configurations
              */
-            std::vector<DatabaseConfig> getDatabasesByType(const std::string &type) const
+            std::vector<DatabaseConfig> getDatabasesByType(std::string_view type) const
             {
                 std::vector<DatabaseConfig> result;
                 for (const auto &db : m_databases)
@@ -490,7 +471,7 @@ namespace cpp_dbc
              * @param name Database configuration name
              * @return Optional reference to database configuration, empty if not found
              */
-            std::optional<std::reference_wrapper<const DatabaseConfig>> getDatabaseByName(const std::string &name) const
+            std::optional<std::reference_wrapper<const DatabaseConfig>> getDatabaseByName(std::string_view name) const
             {
                 for (const auto &db : m_databases)
                 {
@@ -561,7 +542,6 @@ namespace cpp_dbc
                                                                                const std::string &poolConfigName = "default") const;
         };
 
-    } // namespace config
-} // namespace cpp_dbc
+} // namespace cpp_dbc::config
 
 #endif // CPP_DBC_DATABASE_CONFIG_HPP

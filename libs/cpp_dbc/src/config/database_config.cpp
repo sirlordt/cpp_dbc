@@ -22,10 +22,8 @@
 #include "cpp_dbc/cpp_dbc.hpp"
 #include "cpp_dbc/core/relational/relational_db_connection_pool.hpp"
 
-namespace cpp_dbc
+namespace cpp_dbc::config
 {
-    namespace config
-    {
         // DatabaseConfig implementation
         std::shared_ptr<DBConnection> DatabaseConfig::createDBConnection() const
         {
@@ -76,5 +74,4 @@ namespace cpp_dbc
             // Create the connection pool
             return cpp_dbc::RelationalDBConnectionPool::create(config);
         }
-    }
-}
+} // namespace cpp_dbc::config

@@ -44,10 +44,8 @@
 #define DB_DRIVER_UNIQUE_LOCK(mutex) (void)0
 #endif
 
-namespace cpp_dbc
+namespace cpp_dbc::MySQL
 {
-    namespace MySQL
-    {
         /**
          * @brief Custom deleter for MYSQL_RES* to use with unique_ptr
          *
@@ -220,7 +218,6 @@ namespace cpp_dbc
         {
             friend class MySQLDBConnection;
 
-        private:
             std::weak_ptr<MYSQL> m_mysql; // Safe weak reference to connection - detects when connection is closed
             std::string m_sql;
             MySQLStmtHandle m_stmt{nullptr}; // Smart pointer for MYSQL_STMT - automatically calls mysql_stmt_close
@@ -339,6 +336,12 @@ namespace cpp_dbc
                               const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
             ~MySQLDBConnection() override;
 
+            // Rule of 5: Non-copyable and non-movable (mutex member prevents copying/moving)
+            MySQLDBConnection(const MySQLDBConnection &) = delete;
+            MySQLDBConnection &operator=(const MySQLDBConnection &) = delete;
+            MySQLDBConnection(MySQLDBConnection &&) = delete;
+            MySQLDBConnection &operator=(MySQLDBConnection &&) = delete;
+
             // DBConnection interface
             void close() override;
             bool isClosed() override;
@@ -408,16 +411,13 @@ namespace cpp_dbc
             std::string getName() const noexcept override;
         };
 
-    } // namespace MySQL
-} // namespace cpp_dbc
+} // namespace cpp_dbc::MySQL
 
 #else // USE_MYSQL
 
 // Stub implementations when MySQL is disabled
-namespace cpp_dbc
+namespace cpp_dbc::MySQL
 {
-    namespace MySQL
-    {
         // Forward declarations only
         class MySQLDBDriver : public RelationalDBDriver
         {
@@ -441,8 +441,7 @@ namespace cpp_dbc
                 return false;
             }
         };
-    } // namespace MySQL
-} // namespace cpp_dbc
+} // namespace cpp_dbc::MySQL
 
 #endif // USE_MYSQL
 

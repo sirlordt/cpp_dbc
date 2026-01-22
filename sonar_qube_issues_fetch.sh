@@ -723,54 +723,92 @@ fetch_issues() {
 }
 
 # -----------------------------------------------------------------------------
+# Get default branch name for the project
+# -----------------------------------------------------------------------------
+get_default_branch() {
+    local url="${API_URL}/project_branches/list"
+    url="${url}?project=${PROJECT}"
+    
+    local response
+    response=$(api_request "$url" 2>/dev/null) || true
+    
+    if [[ -n "$response" ]]; then
+        local main_branch
+        main_branch=$(echo "$response" | jq -r '.branches[] | select(.isMain == true) | .name' 2>/dev/null | head -n1)
+        if [[ -n "$main_branch" && "$main_branch" != "null" ]]; then
+            echo "$main_branch"
+            return
+        fi
+    fi
+    
+    # Fallback to "main"
+    echo "main"
+}
+
+# -----------------------------------------------------------------------------
 # Extract filename from API response (fallback)
 # -----------------------------------------------------------------------------
 extract_filename() {
     local response="$1"
     local filename
-    local suffix=""
+    local extension=""
+    local branch_suffix=""
     
-    # Add branch or PR suffix
+    # Determine branch/PR suffix (always include it)
     if [[ -n "$PULL_REQUEST" ]]; then
-        suffix="_pr${PULL_REQUEST}"
+        branch_suffix="_pr${PULL_REQUEST}"
     elif [[ -n "$BRANCH" ]]; then
         # Sanitize branch name for filename (replace / with _)
         local safe_branch="${BRANCH//\//_}"
-        suffix="_${safe_branch}"
+        branch_suffix="_${safe_branch}"
+    else
+        # Get default branch name
+        local default_branch
+        default_branch=$(get_default_branch)
+        local safe_branch="${default_branch//\//_}"
+        branch_suffix="_${safe_branch}"
     fi
     
-    # Use resolved filename if available
+    # Extract extension from resolved filename
     if [[ -n "${RESOLVED_FILENAME:-}" ]]; then
-        filename=$(basename "$RESOLVED_FILENAME" | sed 's/\.[^.]*$//')
-        echo "${filename}${suffix}_issues.json"
-        return
-    fi
-    
-    # Try to get filename from component key
-    if [[ -n "${FILE_COMPONENT_KEY:-}" ]]; then
-        filename=$(echo "$FILE_COMPONENT_KEY" | sed 's/.*://' | sed 's/.*\///')
-        filename=$(basename "$filename" | sed 's/\.[^.]*$//')
-        if [[ -n "$filename" ]]; then
-            echo "${filename}${suffix}_issues.json"
-            return
+        local base
+        base=$(basename "$RESOLVED_FILENAME")
+        # Extract extension (e.g., .cpp -> _cpp, .hpp -> _hpp)
+        if [[ "$base" == *.* ]]; then
+            extension="_${base##*.}"
+        fi
+        # Get filename without extension
+        filename="${base%.*}"
+    elif [[ -n "${FILE_COMPONENT_KEY:-}" ]]; then
+        local base
+        base=$(echo "$FILE_COMPONENT_KEY" | sed 's/.*://' | sed 's/.*\///')
+        base=$(basename "$base")
+        if [[ "$base" == *.* ]]; then
+            extension="_${base##*.}"
+        fi
+        filename="${base%.*}"
+    else
+        # Fallback: try to get from issues[].component
+        local component
+        component=$(echo "$response" | jq -r '.issues[0]?.component // empty' 2>/dev/null)
+        if [[ -n "$component" ]]; then
+            local base
+            base=$(echo "$component" | sed 's/.*://' | sed 's/.*\///')
+            base=$(basename "$base")
+            if [[ "$base" == *.* ]]; then
+                extension="_${base##*.}"
+            fi
+            filename="${base%.*}"
         fi
     fi
     
-    # Fallback: try to get from issues[].component
-    filename=$(echo "$response" | jq -r '
-        .issues[0]?.component // empty
-    ' 2>/dev/null | sed 's/.*://' | sed 's/.*\///')
-    
     # Final fallback: use timestamp
-    if [[ -z "$filename" || "$filename" == "null" ]]; then
+    if [[ -z "$filename" ]]; then
         filename="issues_$(date +%Y%m%d_%H%M%S)"
         log_warning "Could not determine filename, using timestamp" >&2
     fi
     
-    # Clean filename
-    filename=$(basename "$filename" | sed 's/\.[^.]*$//')
-    
-    echo "${filename}${suffix}_issues.json"
+    echo "${filename}${extension}${branch_suffix}_issues.json"
 }
 
 # -----------------------------------------------------------------------------
