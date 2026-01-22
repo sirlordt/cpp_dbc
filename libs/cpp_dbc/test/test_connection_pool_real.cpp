@@ -74,24 +74,24 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
     SECTION("Basic connection pool operations")
     {
         // Create a connection pool configuration
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        // poolConfig.setPort(port);
-        poolConfig.setUsername(username);
-        poolConfig.setPassword(password);
-        poolConfig.setInitialSize(5);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(3);
-        poolConfig.setConnectionTimeout(5000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setIdleTimeout(30000);
-        poolConfig.setMaxLifetimeMillis(60000);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(false);
-        poolConfig.setValidationQuery("SELECT 1");
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUrl(connStr);
+        // poolConfigLocal.setPort(port);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(5);
+        poolConfigLocal.setMaxSize(10);
+        poolConfigLocal.setMinIdle(3);
+        poolConfigLocal.setConnectionTimeout(5000);
+        poolConfigLocal.setValidationInterval(1000);
+        poolConfigLocal.setIdleTimeout(30000);
+        poolConfigLocal.setMaxLifetimeMillis(60000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(false);
+        poolConfigLocal.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto pool = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
+        auto pool = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfigLocal);
 
         // Create a test table
         auto conn = pool->getRelationalDBConnection();
@@ -141,6 +141,259 @@ TEST_CASE("Real MySQL connection pool tests", "[mysql_connection_pool_real]")
 
         // Close the pool
         pool->close();
+    }
+
+    // Test advanced pool features
+    SECTION("Advanced pool features")
+    {
+        // Create a connection pool configuration with testOnReturn enabled
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(5);
+        poolConfigLocal.setMaxSize(10);
+        poolConfigLocal.setMinIdle(3);
+        poolConfigLocal.setConnectionTimeout(2000);
+        poolConfigLocal.setIdleTimeout(10000);
+        poolConfigLocal.setMaxLifetimeMillis(30000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(true); // Enable test on return to detect invalid connections
+        poolConfigLocal.setValidationQuery("SELECT 1");
+
+        // Create a connection pool
+        auto pool = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfigLocal);
+
+        // Test connection validation
+        SECTION("Connection validation")
+        {
+            // Get a connection
+            auto conn = pool->getRelationalDBConnection();
+            REQUIRE(conn != nullptr);
+
+            // Verify connection works
+            auto rs = conn->executeQuery("SELECT 1");
+            REQUIRE(rs != nullptr);
+            REQUIRE(rs->next());
+
+            // Return it to the pool
+            conn->close();
+
+            // Pool stats should reflect the return
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getIdleDBConnectionCount() >= 1);
+        }
+
+        // Test pool growth
+        SECTION("Pool growth")
+        {
+            // Get initial stats
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
+
+            // Get more connections than initialSize (should cause pool to grow)
+            const size_t numConnectionsToRequest = initialTotalCount + 2;
+            for (size_t i = 0; i < numConnectionsToRequest; i++)
+            {
+                connections.push_back(pool->getRelationalDBConnection());
+                REQUIRE(connections.back() != nullptr);
+            }
+
+            // Verify pool grew
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnectionsToRequest);
+            REQUIRE(pool->getTotalDBConnectionCount() > initialTotalCount);
+
+            // Return all connections
+            for (auto &conn : connections)
+            {
+                conn->close();
+            }
+
+            // Verify all returned
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getIdleDBConnectionCount() >= initialIdleCount);
+        }
+
+        // Test invalid connection replacement on return
+        SECTION("Invalid connection replacement on return")
+        {
+            // Get initial pool statistics
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+
+            // Get a connection from the pool
+            auto conn = pool->getRelationalDBConnection();
+            REQUIRE(conn != nullptr);
+            REQUIRE(pool->getActiveDBConnectionCount() == 1);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 1);
+
+            // Get the underlying connection and close it directly to invalidate
+            auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
+            REQUIRE(pooledConn != nullptr);
+
+            auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+            REQUIRE(underlyingConn != nullptr);
+
+            // Close the underlying connection directly - this invalidates the pooled connection
+            underlyingConn->close();
+
+            // Now return the (now invalid) connection to the pool
+            // The pool should detect it's invalid and replace it
+            conn->close();
+
+            // Give the pool a moment to process the replacement
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+            // Verify pool statistics:
+            // - activeConnections should be 0 (connection was returned)
+            // - totalConnections should remain the same (invalid connection was replaced)
+            // - idleConnections should be back to initial (replacement went to idle)
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify we can still get a working connection from the pool
+            auto newConn = pool->getRelationalDBConnection();
+            REQUIRE(newConn != nullptr);
+            auto rs = newConn->executeQuery("SELECT 1");
+            REQUIRE(rs != nullptr);
+            REQUIRE(rs->next());
+            newConn->close();
+        }
+
+        // Test multiple invalid connections replacement
+        SECTION("Multiple invalid connections replacement")
+        {
+            // Get initial pool statistics
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(initialIdleCount >= 3); // Need at least 3 idle connections for this test
+
+            // Get multiple connections
+            std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
+            const size_t numConnections = 3;
+
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto conn = pool->getRelationalDBConnection();
+                REQUIRE(conn != nullptr);
+                connections.push_back(conn);
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnections);
+            REQUIRE(pool->getIdleDBConnectionCount() == (initialIdleCount - numConnections));
+
+            // Invalidate all connections by closing their underlying connections
+            for (auto &conn : connections)
+            {
+                auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
+                REQUIRE(pooledConn != nullptr);
+
+                auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+                underlyingConn->close();
+            }
+
+            // Return all invalid connections to the pool
+            for (auto &conn : connections)
+            {
+                conn->close();
+            }
+
+            // Give the pool time to process replacements
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+            // Verify pool statistics
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify all replacement connections work
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto newConn = pool->getRelationalDBConnection();
+                REQUIRE(newConn != nullptr);
+                auto rs = newConn->executeQuery("SELECT 1");
+                REQUIRE(rs != nullptr);
+                REQUIRE(rs->next());
+                newConn->close();
+            }
+        }
+
+        // Test concurrent connections under load
+        SECTION("Connection pool under load")
+        {
+            const uint64_t numOperations = 50;
+            std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
+            std::vector<std::thread> threads;
+
+            for (uint64_t i = 0; i < numOperations; i++)
+            {
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
+                                              {
+                    try {
+                        // Get connection from pool
+                        auto loadConn = pool->getRelationalDBConnection();
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
+                        // Execute a simple query
+                        auto rs = loadConn->executeQuery("SELECT 1");
+                        if (!rs || !rs->next())
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
+                        // Simulate some work
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
+
+                        // Close the connection
+                        loadConn->close();
+
+                        successCount++;
+                    }
+                    catch (const std::exception& ex) {
+                        failureCount++;
+                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
+                    } }));
+            }
+
+            // Wait for all threads to complete
+            for (auto &t : threads)
+            {
+                if (t.joinable())
+                {
+                    t.join();
+                }
+            }
+
+            // Verify all operations succeeded (thread-safe assertions on main thread)
+            REQUIRE(failureCount == 0);
+            REQUIRE(successCount == numOperations);
+
+            // Verify pool returned to initial state
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            auto idleCount = pool->getIdleDBConnectionCount();
+            REQUIRE(idleCount >= 3);  // At least minIdle connections
+            REQUIRE(idleCount <= 10); // No more than maxSize connections
+        }
+
+        // Close the pool
+        pool->close();
+
+        // Verify pool is no longer running
+        REQUIRE_FALSE(pool->isRunning());
     }
 }
 #endif
@@ -181,23 +434,23 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
     SECTION("Basic connection pool operations")
     {
         // Create a connection pool configuration
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        poolConfig.setUsername(username);
-        poolConfig.setPassword(password);
-        poolConfig.setInitialSize(5);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(3);
-        poolConfig.setConnectionTimeout(5000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setIdleTimeout(30000);
-        poolConfig.setMaxLifetimeMillis(60000);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(false);
-        poolConfig.setValidationQuery("SELECT 1");
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(5);
+        poolConfigLocal.setMaxSize(10);
+        poolConfigLocal.setMinIdle(3);
+        poolConfigLocal.setConnectionTimeout(5000);
+        poolConfigLocal.setValidationInterval(1000);
+        poolConfigLocal.setIdleTimeout(30000);
+        poolConfigLocal.setMaxLifetimeMillis(60000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(false);
+        poolConfigLocal.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
+        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfigLocal);
 
         // Create a test table
         auto conn = pool->getRelationalDBConnection();
@@ -247,6 +500,224 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[postgresql_connection_pool_
 
         // Close the pool
         pool->close();
+    }
+
+    // Test advanced pool features
+    SECTION("Advanced pool features")
+    {
+        // Create a connection pool configuration with testOnReturn enabled
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(5);
+        poolConfigLocal.setMaxSize(10);
+        poolConfigLocal.setMinIdle(3);
+        poolConfigLocal.setConnectionTimeout(2000);
+        poolConfigLocal.setIdleTimeout(10000);
+        poolConfigLocal.setMaxLifetimeMillis(30000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(true);
+        poolConfigLocal.setValidationQuery("SELECT 1");
+
+        // Create a connection pool
+        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfigLocal);
+
+        // Test connection validation
+        SECTION("Connection validation")
+        {
+            auto conn = pool->getRelationalDBConnection();
+            REQUIRE(conn != nullptr);
+
+            auto rs = conn->executeQuery("SELECT 1");
+            REQUIRE(rs != nullptr);
+            REQUIRE(rs->next());
+
+            conn->close();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getIdleDBConnectionCount() >= 1);
+        }
+
+        // Test pool growth
+        SECTION("Pool growth")
+        {
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
+
+            const size_t numConnectionsToRequest = initialTotalCount + 2;
+            for (size_t i = 0; i < numConnectionsToRequest; i++)
+            {
+                connections.push_back(pool->getRelationalDBConnection());
+                REQUIRE(connections.back() != nullptr);
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnectionsToRequest);
+            REQUIRE(pool->getTotalDBConnectionCount() > initialTotalCount);
+
+            for (auto &conn : connections)
+            {
+                conn->close();
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getIdleDBConnectionCount() >= initialIdleCount);
+        }
+
+        // Test invalid connection replacement on return
+        SECTION("Invalid connection replacement on return")
+        {
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+
+            auto conn = pool->getRelationalDBConnection();
+            REQUIRE(conn != nullptr);
+            REQUIRE(pool->getActiveDBConnectionCount() == 1);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 1);
+
+            auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
+            REQUIRE(pooledConn != nullptr);
+
+            auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+            REQUIRE(underlyingConn != nullptr);
+
+            // Close the underlying connection directly - this invalidates the pooled connection
+            underlyingConn->close();
+
+            // Return the invalid connection to the pool
+            conn->close();
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify replacement connection works
+            auto newConn = pool->getRelationalDBConnection();
+            REQUIRE(newConn != nullptr);
+            auto rs = newConn->executeQuery("SELECT 1");
+            REQUIRE(rs != nullptr);
+            REQUIRE(rs->next());
+            newConn->close();
+        }
+
+        // Test multiple invalid connections replacement
+        SECTION("Multiple invalid connections replacement")
+        {
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(initialIdleCount >= 3);
+
+            std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
+            const size_t numConnections = 3;
+
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto conn = pool->getRelationalDBConnection();
+                REQUIRE(conn != nullptr);
+                connections.push_back(conn);
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnections);
+            REQUIRE(pool->getIdleDBConnectionCount() == (initialIdleCount - numConnections));
+
+            // Invalidate all connections
+            for (auto &conn : connections)
+            {
+                auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
+                REQUIRE(pooledConn != nullptr);
+                auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+                underlyingConn->close();
+            }
+
+            // Return all invalid connections
+            for (auto &conn : connections)
+            {
+                conn->close();
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify all replacement connections work
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto newConn = pool->getRelationalDBConnection();
+                REQUIRE(newConn != nullptr);
+                auto rs = newConn->executeQuery("SELECT 1");
+                REQUIRE(rs != nullptr);
+                REQUIRE(rs->next());
+                newConn->close();
+            }
+        }
+
+        // Test concurrent connections under load
+        SECTION("Connection pool under load")
+        {
+            const uint64_t numOperations = 50;
+            std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
+            std::vector<std::thread> threads;
+
+            for (uint64_t i = 0; i < numOperations; i++)
+            {
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
+                                              {
+                    try {
+                        auto loadConn = pool->getRelationalDBConnection();
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
+                        auto rs = loadConn->executeQuery("SELECT 1");
+                        if (!rs || !rs->next())
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
+                        loadConn->close();
+                        successCount++;
+                    }
+                    catch (const std::exception& ex) {
+                        failureCount++;
+                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
+                    } }));
+            }
+
+            for (auto &t : threads)
+            {
+                if (t.joinable())
+                {
+                    t.join();
+                }
+            }
+
+            // Thread-safe assertions on main thread
+            REQUIRE(failureCount == 0);
+            REQUIRE(successCount == numOperations);
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            auto idleCount = pool->getIdleDBConnectionCount();
+            REQUIRE(idleCount >= 3);
+            REQUIRE(idleCount <= 10);
+        }
+
+        pool->close();
+        REQUIRE_FALSE(pool->isRunning());
     }
 }
 #endif
@@ -379,6 +850,226 @@ TEST_CASE("Real SQLite connection pool tests", "[sqlite_connection_pool_real]")
         // Close the pool
         pool->close();
     }
+
+    // Test advanced pool features
+    SECTION("Advanced pool features")
+    {
+        // Create a connection pool configuration with testOnReturn enabled
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(5);
+        poolConfigLocal.setMaxSize(10);
+        poolConfigLocal.setMinIdle(3);
+        poolConfigLocal.setConnectionTimeout(2000);
+        poolConfigLocal.setIdleTimeout(10000);
+        poolConfigLocal.setMaxLifetimeMillis(30000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(true);
+        poolConfigLocal.setValidationQuery("SELECT 1");
+        poolConfigLocal.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+
+        // Create a connection pool
+        auto pool = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfigLocal);
+
+        // Test connection validation
+        SECTION("Connection validation")
+        {
+            auto conn = pool->getRelationalDBConnection();
+            REQUIRE(conn != nullptr);
+
+            auto rs = conn->executeQuery("SELECT 1");
+            REQUIRE(rs != nullptr);
+            REQUIRE(rs->next());
+
+            conn->close();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getIdleDBConnectionCount() >= 1);
+        }
+
+        // Test pool growth
+        SECTION("Pool growth")
+        {
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
+
+            const size_t numConnectionsToRequest = initialTotalCount + 2;
+            for (size_t i = 0; i < numConnectionsToRequest; i++)
+            {
+                connections.push_back(pool->getRelationalDBConnection());
+                REQUIRE(connections.back() != nullptr);
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnectionsToRequest);
+            REQUIRE(pool->getTotalDBConnectionCount() > initialTotalCount);
+
+            for (auto &conn : connections)
+            {
+                conn->close();
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getIdleDBConnectionCount() >= initialIdleCount);
+        }
+
+        // Test invalid connection replacement on return
+        SECTION("Invalid connection replacement on return")
+        {
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+
+            auto conn = pool->getRelationalDBConnection();
+            REQUIRE(conn != nullptr);
+            REQUIRE(pool->getActiveDBConnectionCount() == 1);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 1);
+
+            auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
+            REQUIRE(pooledConn != nullptr);
+
+            auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+            REQUIRE(underlyingConn != nullptr);
+
+            // Close the underlying connection directly - this invalidates the pooled connection
+            underlyingConn->close();
+
+            // Return the invalid connection to the pool
+            conn->close();
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify replacement connection works
+            auto newConn = pool->getRelationalDBConnection();
+            REQUIRE(newConn != nullptr);
+            auto rs = newConn->executeQuery("SELECT 1");
+            REQUIRE(rs != nullptr);
+            REQUIRE(rs->next());
+            newConn->close();
+        }
+
+        // Test multiple invalid connections replacement
+        SECTION("Multiple invalid connections replacement")
+        {
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(initialIdleCount >= 3);
+
+            std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
+            const size_t numConnections = 3;
+
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto conn = pool->getRelationalDBConnection();
+                REQUIRE(conn != nullptr);
+                connections.push_back(conn);
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnections);
+            REQUIRE(pool->getIdleDBConnectionCount() == (initialIdleCount - numConnections));
+
+            // Invalidate all connections
+            for (auto &conn : connections)
+            {
+                auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
+                REQUIRE(pooledConn != nullptr);
+                auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+                underlyingConn->close();
+            }
+
+            // Return all invalid connections
+            for (auto &conn : connections)
+            {
+                conn->close();
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify all replacement connections work
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto newConn = pool->getRelationalDBConnection();
+                REQUIRE(newConn != nullptr);
+                auto rs = newConn->executeQuery("SELECT 1");
+                REQUIRE(rs != nullptr);
+                REQUIRE(rs->next());
+                newConn->close();
+            }
+        }
+
+        // Test concurrent connections under load
+        // Note: SQLite has limited concurrency support, so we use fewer operations
+        SECTION("Connection pool under load")
+        {
+            const uint64_t numOperations = 20; // Fewer operations for SQLite
+            std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
+            std::vector<std::thread> threads;
+
+            for (uint64_t i = 0; i < numOperations; i++)
+            {
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
+                                              {
+                    try {
+                        auto loadConn = pool->getRelationalDBConnection();
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
+                        auto rs = loadConn->executeQuery("SELECT 1");
+                        if (!rs || !rs->next())
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
+                        loadConn->close();
+                        successCount++;
+                    }
+                    catch (const std::exception& ex) {
+                        failureCount++;
+                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
+                    } }));
+            }
+
+            for (auto &t : threads)
+            {
+                if (t.joinable())
+                {
+                    t.join();
+                }
+            }
+
+            // Thread-safe assertions on main thread
+            REQUIRE(failureCount == 0);
+            REQUIRE(successCount == numOperations);
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            auto idleCount = pool->getIdleDBConnectionCount();
+            REQUIRE(idleCount >= 3);
+            REQUIRE(idleCount <= 10);
+        }
+
+        pool->close();
+        REQUIRE_FALSE(pool->isRunning());
+    }
 }
 #endif
 
@@ -419,23 +1110,23 @@ TEST_CASE("Real Firebird connection pool tests", "[firebird_connection_pool_real
     SECTION("Basic connection pool operations")
     {
         // Create a connection pool configuration
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        poolConfig.setUsername(username);
-        poolConfig.setPassword(password);
-        poolConfig.setInitialSize(5);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(3);
-        poolConfig.setConnectionTimeout(5000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setIdleTimeout(30000);
-        poolConfig.setMaxLifetimeMillis(60000);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(false);
-        poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(5);
+        poolConfigLocal.setMaxSize(10);
+        poolConfigLocal.setMinIdle(3);
+        poolConfigLocal.setConnectionTimeout(5000);
+        poolConfigLocal.setValidationInterval(1000);
+        poolConfigLocal.setIdleTimeout(30000);
+        poolConfigLocal.setMaxLifetimeMillis(60000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(false);
+        poolConfigLocal.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
         // Create a connection pool using factory method
-        auto pool = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
+        auto pool = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfigLocal);
 
         // Create a test table (drop first if exists using exception handling)
         auto conn = pool->getRelationalDBConnection();
@@ -499,6 +1190,224 @@ TEST_CASE("Real Firebird connection pool tests", "[firebird_connection_pool_real
 
         // Close the pool
         pool->close();
+    }
+
+    // Test advanced pool features
+    SECTION("Advanced pool features")
+    {
+        // Create a connection pool configuration with testOnReturn enabled
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(5);
+        poolConfigLocal.setMaxSize(10);
+        poolConfigLocal.setMinIdle(3);
+        poolConfigLocal.setConnectionTimeout(2000);
+        poolConfigLocal.setIdleTimeout(10000);
+        poolConfigLocal.setMaxLifetimeMillis(30000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(true);
+        poolConfigLocal.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
+
+        // Create a connection pool
+        auto pool = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfigLocal);
+
+        // Test connection validation
+        SECTION("Connection validation")
+        {
+            auto conn = pool->getRelationalDBConnection();
+            REQUIRE(conn != nullptr);
+
+            auto rs = conn->executeQuery("SELECT 1 FROM RDB$DATABASE");
+            REQUIRE(rs != nullptr);
+            REQUIRE(rs->next());
+
+            conn->close();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getIdleDBConnectionCount() >= 1);
+        }
+
+        // Test pool growth
+        SECTION("Pool growth")
+        {
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
+
+            const size_t numConnectionsToRequest = initialTotalCount + 2;
+            for (size_t i = 0; i < numConnectionsToRequest; i++)
+            {
+                connections.push_back(pool->getRelationalDBConnection());
+                REQUIRE(connections.back() != nullptr);
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnectionsToRequest);
+            REQUIRE(pool->getTotalDBConnectionCount() > initialTotalCount);
+
+            for (auto &conn : connections)
+            {
+                conn->close();
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getIdleDBConnectionCount() >= initialIdleCount);
+        }
+
+        // Test invalid connection replacement on return
+        SECTION("Invalid connection replacement on return")
+        {
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+
+            auto conn = pool->getRelationalDBConnection();
+            REQUIRE(conn != nullptr);
+            REQUIRE(pool->getActiveDBConnectionCount() == 1);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 1);
+
+            auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
+            REQUIRE(pooledConn != nullptr);
+
+            auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+            REQUIRE(underlyingConn != nullptr);
+
+            // Close the underlying connection directly - this invalidates the pooled connection
+            underlyingConn->close();
+
+            // Return the invalid connection to the pool
+            conn->close();
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify replacement connection works
+            auto newConn = pool->getRelationalDBConnection();
+            REQUIRE(newConn != nullptr);
+            auto rs = newConn->executeQuery("SELECT 1 FROM RDB$DATABASE");
+            REQUIRE(rs != nullptr);
+            REQUIRE(rs->next());
+            newConn->close();
+        }
+
+        // Test multiple invalid connections replacement
+        SECTION("Multiple invalid connections replacement")
+        {
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(initialIdleCount >= 3);
+
+            std::vector<std::shared_ptr<cpp_dbc::RelationalDBConnection>> connections;
+            const size_t numConnections = 3;
+
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto conn = pool->getRelationalDBConnection();
+                REQUIRE(conn != nullptr);
+                connections.push_back(conn);
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnections);
+            REQUIRE(pool->getIdleDBConnectionCount() == (initialIdleCount - numConnections));
+
+            // Invalidate all connections
+            for (auto &conn : connections)
+            {
+                auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::RelationalPooledDBConnection>(conn);
+                REQUIRE(pooledConn != nullptr);
+                auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+                underlyingConn->close();
+            }
+
+            // Return all invalid connections
+            for (auto &conn : connections)
+            {
+                conn->close();
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify all replacement connections work
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto newConn = pool->getRelationalDBConnection();
+                REQUIRE(newConn != nullptr);
+                auto rs = newConn->executeQuery("SELECT 1 FROM RDB$DATABASE");
+                REQUIRE(rs != nullptr);
+                REQUIRE(rs->next());
+                newConn->close();
+            }
+        }
+
+        // Test concurrent connections under load
+        SECTION("Connection pool under load")
+        {
+            const uint64_t numOperations = 50;
+            std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
+            std::vector<std::thread> threads;
+
+            for (uint64_t i = 0; i < numOperations; i++)
+            {
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
+                                              {
+                    try {
+                        auto loadConn = pool->getRelationalDBConnection();
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
+                        auto rs = loadConn->executeQuery("SELECT 1 FROM RDB$DATABASE");
+                        if (!rs || !rs->next())
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
+                        loadConn->close();
+                        successCount++;
+                    }
+                    catch (const std::exception& ex) {
+                        failureCount++;
+                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
+                    } }));
+            }
+
+            for (auto &t : threads)
+            {
+                if (t.joinable())
+                {
+                    t.join();
+                }
+            }
+
+            // Thread-safe assertions on main thread
+            REQUIRE(failureCount == 0);
+            REQUIRE(successCount == numOperations);
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            auto idleCount = pool->getIdleDBConnectionCount();
+            REQUIRE(idleCount >= 3);
+            REQUIRE(idleCount <= 10);
+        }
+
+        pool->close();
+        REQUIRE_FALSE(pool->isRunning());
     }
 }
 #endif

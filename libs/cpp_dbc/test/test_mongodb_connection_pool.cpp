@@ -259,31 +259,43 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
         {
             const uint64_t numOperations = 50; // More operations than max connections
             std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
             std::vector<std::thread> threads;
 
             for (uint64_t i = 0; i < numOperations; i++)
             {
-                threads.push_back(std::thread([&pool, &successCount, i]()
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
                                               {
                     try {
                         // Get connection from pool (may block if pool is exhausted)
                         auto loadConn = pool->getDocumentDBConnection();
-                        
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
                         // Do some quick work
                         bool isAlive = loadConn->ping();
-                        REQUIRE(isAlive);
-                        
+                        if (!isAlive)
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
                         // Simulate some work
                         std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
-                        
+
                         // Close the connection
                         loadConn->close();
-                        
+
                         // Increment success count
                         successCount++;
                     }
-                    catch (const std::exception& e) {
-                        std::cerr << "Load operation " << i << " error: " << e.what() << std::endl;
+                    catch (const std::exception& ex) {
+                        failureCount++;
+                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
                     } }));
             }
 
@@ -296,7 +308,8 @@ TEST_CASE("Real MongoDB connection pool tests", "[mongodb_connection_pool_real]"
                 }
             }
 
-            // Verify all operations succeeded
+            // Thread-safe assertions on main thread
+            REQUIRE(failureCount == 0);
             REQUIRE(successCount == numOperations);
 
             // Verify pool returned to initial state
