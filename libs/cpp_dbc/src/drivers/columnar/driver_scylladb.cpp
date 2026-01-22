@@ -20,6 +20,8 @@
 
 #if USE_SCYLLADB
 
+#include <array>
+#include <cctype>
 #include <cstring>
 #include <algorithm>
 #include <sstream>
@@ -36,10 +38,8 @@
 #define SCYLLADB_DEBUG(x)
 #endif
 
-namespace cpp_dbc
+namespace cpp_dbc::ScyllaDB
 {
-    namespace ScyllaDB
-    {
         // ====================================================================
         // ScyllaDBResultSet
         // ====================================================================
@@ -60,7 +60,7 @@ namespace cpp_dbc
                 if (cass_result_column_name(res, i, &name, &name_length) == CASS_OK)
                 {
                     std::string colName(name, name_length);
-                    m_columnNames.push_back(colName);
+                    m_columnNames.emplace_back(colName);
                     m_columnMap[colName] = i;
                 }
             }
@@ -69,26 +69,32 @@ namespace cpp_dbc
         ScyllaDBResultSet::~ScyllaDBResultSet()
         {
             SCYLLADB_DEBUG("ScyllaDBResultSet::destructor - Destroying result set");
-            close();
+            ScyllaDBResultSet::close();
         }
 
-        void ScyllaDBResultSet::validateResultState() const
+        cpp_dbc::expected<void, DBException> ScyllaDBResultSet::validateResultState(std::nothrow_t) const noexcept
         {
             if (!m_iterator)
             {
                 SCYLLADB_DEBUG("ScyllaDBResultSet::validateResultState - ResultSet is closed");
-                throw DBException("98907CB0524D", "ResultSet is closed", system_utils::captureCallStack());
+                return cpp_dbc::unexpected(DBException("98907CB0524D", "ResultSet is closed", system_utils::captureCallStack()));
             }
+            return {};
         }
 
-        void ScyllaDBResultSet::validateCurrentRow() const
+        cpp_dbc::expected<void, DBException> ScyllaDBResultSet::validateCurrentRow(std::nothrow_t) const noexcept
         {
-            validateResultState();
+            auto result = validateResultState(std::nothrow);
+            if (!result.has_value())
+            {
+                return result;
+            }
             if (!m_currentRow)
             {
                 SCYLLADB_DEBUG("ScyllaDBResultSet::validateCurrentRow - No current row available");
-                throw DBException("4059030800AA", "No current row available", system_utils::captureCallStack());
+                return cpp_dbc::unexpected(DBException("4059030800AA", "No current row available", system_utils::captureCallStack()));
             }
+            return {};
         }
 
         void ScyllaDBResultSet::close()
@@ -110,7 +116,7 @@ namespace cpp_dbc
         bool ScyllaDBResultSet::next()
         {
             auto result = next(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -141,7 +147,7 @@ namespace cpp_dbc
         bool ScyllaDBResultSet::isBeforeFirst()
         {
             auto result = isBeforeFirst(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -157,7 +163,7 @@ namespace cpp_dbc
         bool ScyllaDBResultSet::isAfterLast()
         {
             auto result = isAfterLast(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -173,7 +179,7 @@ namespace cpp_dbc
         uint64_t ScyllaDBResultSet::getRow()
         {
             auto result = getRow(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -199,7 +205,7 @@ namespace cpp_dbc
         int ScyllaDBResultSet::getInt(size_t columnIndex)
         {
             auto result = getInt(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -209,7 +215,11 @@ namespace cpp_dbc
         cpp_dbc::expected<int, DBException> ScyllaDBResultSet::getInt(std::nothrow_t, size_t columnIndex) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
-            validateCurrentRow();
+            auto validationResult = validateCurrentRow(std::nothrow);
+            if (!validationResult.has_value())
+            {
+                return cpp_dbc::unexpected(validationResult.error());
+            }
             if (columnIndex < 1 || columnIndex > m_columnCount)
             {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
@@ -234,7 +244,7 @@ namespace cpp_dbc
         int ScyllaDBResultSet::getInt(const std::string &columnName)
         {
             auto result = getInt(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -254,7 +264,7 @@ namespace cpp_dbc
         long ScyllaDBResultSet::getLong(size_t columnIndex)
         {
             auto result = getLong(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -264,7 +274,11 @@ namespace cpp_dbc
         cpp_dbc::expected<long, DBException> ScyllaDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
-            validateCurrentRow();
+            auto validationResult = validateCurrentRow(std::nothrow);
+            if (!validationResult.has_value())
+            {
+                return cpp_dbc::unexpected(validationResult.error());
+            }
             if (columnIndex < 1 || columnIndex > m_columnCount)
             {
                 return cpp_dbc::unexpected(DBException("D7F6C2471F23", "Invalid column index", system_utils::captureCallStack()));
@@ -287,7 +301,7 @@ namespace cpp_dbc
         long ScyllaDBResultSet::getLong(const std::string &columnName)
         {
             auto result = getLong(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -307,7 +321,7 @@ namespace cpp_dbc
         double ScyllaDBResultSet::getDouble(size_t columnIndex)
         {
             auto result = getDouble(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -317,7 +331,11 @@ namespace cpp_dbc
         cpp_dbc::expected<double, DBException> ScyllaDBResultSet::getDouble(std::nothrow_t, size_t columnIndex) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
-            validateCurrentRow();
+            auto validationResult = validateCurrentRow(std::nothrow);
+            if (!validationResult.has_value())
+            {
+                return cpp_dbc::unexpected(validationResult.error());
+            }
             if (columnIndex < 1 || columnIndex > m_columnCount)
             {
                 return cpp_dbc::unexpected(DBException("C6D5D1730470", "Invalid column index", system_utils::captureCallStack()));
@@ -340,7 +358,7 @@ namespace cpp_dbc
         double ScyllaDBResultSet::getDouble(const std::string &columnName)
         {
             auto result = getDouble(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -360,7 +378,7 @@ namespace cpp_dbc
         std::string ScyllaDBResultSet::getString(size_t columnIndex)
         {
             auto result = getString(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -370,7 +388,11 @@ namespace cpp_dbc
         cpp_dbc::expected<std::string, DBException> ScyllaDBResultSet::getString(std::nothrow_t, size_t columnIndex) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
-            validateCurrentRow();
+            auto validationResult = validateCurrentRow(std::nothrow);
+            if (!validationResult.has_value())
+            {
+                return cpp_dbc::unexpected(validationResult.error());
+            }
             if (columnIndex < 1 || columnIndex > m_columnCount)
             {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
@@ -396,7 +418,7 @@ namespace cpp_dbc
         std::string ScyllaDBResultSet::getString(const std::string &columnName)
         {
             auto result = getString(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -416,7 +438,7 @@ namespace cpp_dbc
         bool ScyllaDBResultSet::getBoolean(size_t columnIndex)
         {
             auto result = getBoolean(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -426,7 +448,11 @@ namespace cpp_dbc
         cpp_dbc::expected<bool, DBException> ScyllaDBResultSet::getBoolean(std::nothrow_t, size_t columnIndex) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
-            validateCurrentRow();
+            auto validationResult = validateCurrentRow(std::nothrow);
+            if (!validationResult.has_value())
+            {
+                return cpp_dbc::unexpected(validationResult.error());
+            }
             if (columnIndex < 1 || columnIndex > m_columnCount)
             {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
@@ -449,7 +475,7 @@ namespace cpp_dbc
         bool ScyllaDBResultSet::getBoolean(const std::string &columnName)
         {
             auto result = getBoolean(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -469,7 +495,7 @@ namespace cpp_dbc
         std::string ScyllaDBResultSet::getUUID(const std::string &columnName)
         {
             auto result = getUUID(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -489,7 +515,7 @@ namespace cpp_dbc
         std::string ScyllaDBResultSet::getUUID(size_t columnIndex)
         {
             auto result = getUUID(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -499,7 +525,11 @@ namespace cpp_dbc
         cpp_dbc::expected<std::string, DBException> ScyllaDBResultSet::getUUID(std::nothrow_t, size_t columnIndex) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
-            validateCurrentRow();
+            auto validationResult = validateCurrentRow(std::nothrow);
+            if (!validationResult.has_value())
+            {
+                return cpp_dbc::unexpected(validationResult.error());
+            }
             if (columnIndex < 1 || columnIndex > m_columnCount)
             {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
@@ -537,7 +567,7 @@ namespace cpp_dbc
         std::string ScyllaDBResultSet::getDate(const std::string &columnName)
         {
             auto result = getDate(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -557,7 +587,7 @@ namespace cpp_dbc
         std::string ScyllaDBResultSet::getDate(size_t columnIndex)
         {
             auto result = getDate(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -567,7 +597,11 @@ namespace cpp_dbc
         cpp_dbc::expected<std::string, DBException> ScyllaDBResultSet::getDate(std::nothrow_t, size_t columnIndex) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
-            validateCurrentRow();
+            auto validationResult = validateCurrentRow(std::nothrow);
+            if (!validationResult.has_value())
+            {
+                return cpp_dbc::unexpected(validationResult.error());
+            }
             if (columnIndex < 1 || columnIndex > m_columnCount)
             {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
@@ -593,11 +627,11 @@ namespace cpp_dbc
                     int64_t days_since_epoch = static_cast<int64_t>(date_value) - (1LL << 31);
                     std::time_t time_seconds = days_since_epoch * 86400; // 86400 seconds per day
 
-                    std::tm *tm = std::gmtime(&time_seconds);
-                    if (tm)
+                    std::tm tm_buf{};
+                    if (gmtime_r(&time_seconds, &tm_buf))
                     {
                         std::stringstream ss;
-                        ss << std::put_time(tm, "%Y-%m-%d");
+                        ss << std::put_time(&tm_buf, "%Y-%m-%d");
                         return ss.str();
                     }
                 }
@@ -611,11 +645,11 @@ namespace cpp_dbc
                 {
                     // Convert timestamp to date string (YYYY-MM-DD)
                     std::time_t time_seconds = timestamp_ms / 1000;
-                    std::tm *tm = std::gmtime(&time_seconds);
-                    if (tm)
+                    std::tm tm_buf{};
+                    if (gmtime_r(&time_seconds, &tm_buf))
                     {
                         std::stringstream ss;
-                        ss << std::put_time(tm, "%Y-%m-%d");
+                        ss << std::put_time(&tm_buf, "%Y-%m-%d");
                         return ss.str();
                     }
                 }
@@ -635,7 +669,7 @@ namespace cpp_dbc
         std::string ScyllaDBResultSet::getTimestamp(const std::string &columnName)
         {
             auto result = getTimestamp(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -655,7 +689,7 @@ namespace cpp_dbc
         std::string ScyllaDBResultSet::getTimestamp(size_t columnIndex)
         {
             auto result = getTimestamp(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -665,7 +699,11 @@ namespace cpp_dbc
         cpp_dbc::expected<std::string, DBException> ScyllaDBResultSet::getTimestamp(std::nothrow_t, size_t columnIndex) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
-            validateCurrentRow();
+            auto validationResult = validateCurrentRow(std::nothrow);
+            if (!validationResult.has_value())
+            {
+                return cpp_dbc::unexpected(validationResult.error());
+            }
             if (columnIndex < 1 || columnIndex > m_columnCount)
             {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
@@ -684,11 +722,11 @@ namespace cpp_dbc
                 {
                     // Convert timestamp to full datetime string (YYYY-MM-DD HH:MM:SS)
                     std::time_t time_seconds = timestamp_ms / 1000;
-                    std::tm *tm = std::gmtime(&time_seconds);
-                    if (tm)
+                    std::tm tm_buf{};
+                    if (gmtime_r(&time_seconds, &tm_buf))
                     {
                         std::stringstream ss;
-                        ss << std::put_time(tm, "%Y-%m-%d %H:%M:%S");
+                        ss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
                         return ss.str();
                     }
                 }
@@ -708,7 +746,7 @@ namespace cpp_dbc
         bool ScyllaDBResultSet::isNull(size_t columnIndex)
         {
             auto result = isNull(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -718,7 +756,11 @@ namespace cpp_dbc
         cpp_dbc::expected<bool, DBException> ScyllaDBResultSet::isNull(std::nothrow_t, size_t columnIndex) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
-            validateCurrentRow();
+            auto validationResult = validateCurrentRow(std::nothrow);
+            if (!validationResult.has_value())
+            {
+                return cpp_dbc::unexpected(validationResult.error());
+            }
             if (columnIndex < 1 || columnIndex > m_columnCount)
             {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
@@ -731,7 +773,7 @@ namespace cpp_dbc
         bool ScyllaDBResultSet::isNull(const std::string &columnName)
         {
             auto result = isNull(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -751,7 +793,7 @@ namespace cpp_dbc
         std::vector<std::string> ScyllaDBResultSet::getColumnNames()
         {
             auto result = getColumnNames(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -767,7 +809,7 @@ namespace cpp_dbc
         size_t ScyllaDBResultSet::getColumnCount()
         {
             auto result = getColumnCount(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -784,7 +826,7 @@ namespace cpp_dbc
         std::vector<uint8_t> ScyllaDBResultSet::getBytes(size_t columnIndex)
         {
             auto result = getBytes(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -794,7 +836,11 @@ namespace cpp_dbc
         cpp_dbc::expected<std::vector<uint8_t>, DBException> ScyllaDBResultSet::getBytes(std::nothrow_t, size_t columnIndex) noexcept
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
-            validateCurrentRow();
+            auto validationResult = validateCurrentRow(std::nothrow);
+            if (!validationResult.has_value())
+            {
+                return cpp_dbc::unexpected(validationResult.error());
+            }
             if (columnIndex < 1 || columnIndex > m_columnCount)
             {
                 return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
@@ -821,7 +867,7 @@ namespace cpp_dbc
         std::vector<uint8_t> ScyllaDBResultSet::getBytes(const std::string &columnName)
         {
             auto result = getBytes(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -842,7 +888,7 @@ namespace cpp_dbc
         std::shared_ptr<InputStream> ScyllaDBResultSet::getBinaryStream(size_t columnIndex)
         {
             auto result = getBinaryStream(std::nothrow, columnIndex);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -863,7 +909,7 @@ namespace cpp_dbc
         std::shared_ptr<InputStream> ScyllaDBResultSet::getBinaryStream(const std::string &columnName)
         {
             auto result = getBinaryStream(std::nothrow, columnName);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -900,13 +946,13 @@ namespace cpp_dbc
         ScyllaDBPreparedStatement::~ScyllaDBPreparedStatement()
         {
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::destructor - Destroying prepared statement");
-            close(std::nothrow);
+            ScyllaDBPreparedStatement::close(std::nothrow);
         }
 
         void ScyllaDBPreparedStatement::close()
         {
             auto result = close(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -935,7 +981,7 @@ namespace cpp_dbc
         void ScyllaDBPreparedStatement::setInt(int parameterIndex, int value)
         {
             auto result = setInt(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -956,14 +1002,14 @@ namespace cpp_dbc
             }
 
             // For batching, store value
-            m_currentEntry.intParams.push_back({parameterIndex - 1, value});
+            m_currentEntry.intParams.emplace_back(parameterIndex - 1, value);
             return {};
         }
 
         void ScyllaDBPreparedStatement::setLong(int parameterIndex, long value)
         {
             auto result = setLong(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -981,14 +1027,14 @@ namespace cpp_dbc
             {
                 return cpp_dbc::unexpected(DBException("735497230592", "Failed to bind long", system_utils::captureCallStack()));
             }
-            m_currentEntry.longParams.push_back({parameterIndex - 1, value});
+            m_currentEntry.longParams.emplace_back(parameterIndex - 1, value);
             return {};
         }
 
         void ScyllaDBPreparedStatement::setDouble(int parameterIndex, double value)
         {
             auto result = setDouble(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1006,14 +1052,14 @@ namespace cpp_dbc
             {
                 return cpp_dbc::unexpected(DBException("735497230592", "Failed to bind double", system_utils::captureCallStack()));
             }
-            m_currentEntry.doubleParams.push_back({parameterIndex - 1, value});
+            m_currentEntry.doubleParams.emplace_back(parameterIndex - 1, value);
             return {};
         }
 
         void ScyllaDBPreparedStatement::setString(int parameterIndex, const std::string &value)
         {
             auto result = setString(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1048,14 +1094,14 @@ namespace cpp_dbc
                 return cpp_dbc::unexpected(DBException("735497230592", errorMsg, system_utils::captureCallStack()));
             }
 
-            m_currentEntry.stringParams.push_back({parameterIndex - 1, value});
+            m_currentEntry.stringParams.emplace_back(parameterIndex - 1, value);
             return {};
         }
 
         void ScyllaDBPreparedStatement::setBoolean(int parameterIndex, bool value)
         {
             auto result = setBoolean(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1073,14 +1119,14 @@ namespace cpp_dbc
             {
                 return cpp_dbc::unexpected(DBException("735497230592", "Failed to bind bool", system_utils::captureCallStack()));
             }
-            m_currentEntry.boolParams.push_back({parameterIndex - 1, value});
+            m_currentEntry.boolParams.emplace_back(parameterIndex - 1, value);
             return {};
         }
 
         void ScyllaDBPreparedStatement::setNull(int parameterIndex, Types type)
         {
             auto result = setNull(std::nothrow, parameterIndex, type);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1098,14 +1144,14 @@ namespace cpp_dbc
             {
                 return cpp_dbc::unexpected(DBException("735497230592", "Failed to bind null", system_utils::captureCallStack()));
             }
-            m_currentEntry.nullParams.push_back({parameterIndex - 1, type});
+            m_currentEntry.nullParams.emplace_back(parameterIndex - 1, type);
             return {};
         }
 
         void ScyllaDBPreparedStatement::setDate(int parameterIndex, const std::string &value)
         {
             auto result = setDate(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
                 throw result.error();
         }
 
@@ -1150,6 +1196,7 @@ namespace cpp_dbc
             }
             catch (...)
             {
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setDate - Failed to parse date string");
                 parseSuccess = false;
             }
 
@@ -1171,21 +1218,21 @@ namespace cpp_dbc
                 return cpp_dbc::unexpected(DBException("735497230592", errorMsg, system_utils::captureCallStack()));
             }
 
-            m_currentEntry.stringParams.push_back({parameterIndex - 1, value});
+            m_currentEntry.stringParams.emplace_back(parameterIndex - 1, value);
             return {};
         }
 
         void ScyllaDBPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
         {
             auto result = setTimestamp(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
                 throw result.error();
         }
 
         void ScyllaDBPreparedStatement::setUUID(int parameterIndex, const std::string &value)
         {
             auto result = setUUID(std::nothrow, parameterIndex, value);
-            if (!result)
+            if (!result.has_value())
                 throw result.error();
         }
 
@@ -1199,7 +1246,7 @@ namespace cpp_dbc
 
             // Format the UUID string if needed
             std::string uuidStr = value;
-            if (value.length() == 32 && value.find('-') == std::string::npos)
+            if (value.length() == 32 && !value.contains('-'))
             {
                 // Insert hyphens in UUID format: 8-4-4-4-12
                 uuidStr.insert(8, "-");
@@ -1229,7 +1276,7 @@ namespace cpp_dbc
                 return cpp_dbc::unexpected(DBException("735497230592", errorMsg, system_utils::captureCallStack()));
             }
 
-            m_currentEntry.stringParams.push_back({parameterIndex - 1, value});
+            m_currentEntry.stringParams.emplace_back(parameterIndex - 1, value);
             return {};
         }
 
@@ -1249,7 +1296,7 @@ namespace cpp_dbc
                 std::tm tm = {};
                 std::istringstream ss(value);
 
-                if (value.find(':') != std::string::npos)
+                if (value.contains(':'))
                 {
                     // Format with time component: YYYY-MM-DD HH:MM:SS
                     ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
@@ -1262,8 +1309,13 @@ namespace cpp_dbc
 
                 if (!ss.fail())
                 {
-                    // Convert to epoch milliseconds for Cassandra
-                    auto timePoint = std::chrono::system_clock::from_time_t(std::mktime(&tm));
+                    // Convert to epoch milliseconds for Cassandra using UTC
+#ifdef _WIN32
+                    std::time_t epoch_seconds = _mkgmtime(&tm);
+#else
+                    std::time_t epoch_seconds = timegm(&tm);
+#endif
+                    auto timePoint = std::chrono::system_clock::from_time_t(epoch_seconds);
                     timestamp_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                        timePoint.time_since_epoch())
                                        .count();
@@ -1272,6 +1324,7 @@ namespace cpp_dbc
             }
             catch (...)
             {
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setTimestamp - Failed to parse timestamp string");
                 parseSuccess = false;
             }
 
@@ -1293,14 +1346,14 @@ namespace cpp_dbc
                 return cpp_dbc::unexpected(DBException("735497230592", errorMsg, system_utils::captureCallStack()));
             }
 
-            m_currentEntry.stringParams.push_back({parameterIndex - 1, value});
+            m_currentEntry.stringParams.emplace_back(parameterIndex - 1, value);
             return {};
         }
 
         void ScyllaDBPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
         {
             auto result = setBytes(std::nothrow, parameterIndex, x);
-            if (!result)
+            if (!result.has_value())
                 throw result.error();
         }
 
@@ -1312,7 +1365,7 @@ namespace cpp_dbc
         void ScyllaDBPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
         {
             auto result = setBytes(std::nothrow, parameterIndex, x, length);
-            if (!result)
+            if (!result.has_value())
                 throw result.error();
         }
 
@@ -1330,14 +1383,14 @@ namespace cpp_dbc
             }
 
             std::vector<uint8_t> vec(x, x + length);
-            m_currentEntry.bytesParams.push_back({parameterIndex - 1, vec});
+            m_currentEntry.bytesParams.emplace_back(parameterIndex - 1, vec);
             return {};
         }
 
         void ScyllaDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
         {
             auto result = setBinaryStream(std::nothrow, parameterIndex, x);
-            if (!result)
+            if (!result.has_value())
                 throw result.error();
         }
 
@@ -1351,24 +1404,26 @@ namespace cpp_dbc
             try
             {
                 std::vector<uint8_t> buffer;
-                uint8_t temp[4096];
+                std::array<uint8_t, 4096> temp{};
                 while (true)
                 {
-                    int read = x->read(temp, sizeof(temp));
-                    if (read <= 0)
+                    int bytesRead = x->read(temp.data(), temp.size());
+                    if (bytesRead <= 0)
                     {
                         break;
                     }
-                    buffer.insert(buffer.end(), temp, temp + read);
+                    buffer.insert(buffer.end(), temp.begin(), temp.begin() + bytesRead);
                 }
                 return setBytes(std::nothrow, parameterIndex, buffer);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("892374892374", e.what(), system_utils::captureCallStack()));
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setBinaryStream - Exception: " << ex.what());
+                return cpp_dbc::unexpected(DBException("892374892374", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setBinaryStream - Unknown exception");
                 return cpp_dbc::unexpected(DBException("892374892374", "Unknown error reading stream", system_utils::captureCallStack()));
             }
         }
@@ -1376,7 +1431,7 @@ namespace cpp_dbc
         void ScyllaDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
         {
             auto result = setBinaryStream(std::nothrow, parameterIndex, x, length);
-            if (!result)
+            if (!result.has_value())
                 throw result.error();
         }
 
@@ -1391,29 +1446,31 @@ namespace cpp_dbc
             {
                 std::vector<uint8_t> buffer;
                 buffer.reserve(length);
-                uint8_t temp[4096];
+                std::array<uint8_t, 4096> temp{};
                 size_t totalRead = 0;
 
                 while (totalRead < length)
                 {
-                    size_t toRead = std::min(sizeof(temp), length - totalRead);
-                    int read = x->read(temp, toRead);
-                    if (read <= 0)
+                    size_t toRead = std::min(temp.size(), length - totalRead);
+                    int bytesRead = x->read(temp.data(), toRead);
+                    if (bytesRead <= 0)
                     {
                         break;
                     }
-                    buffer.insert(buffer.end(), temp, temp + read);
-                    totalRead += read;
+                    buffer.insert(buffer.end(), temp.begin(), temp.begin() + bytesRead);
+                    totalRead += bytesRead;
                 }
 
                 return setBytes(std::nothrow, parameterIndex, buffer);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("892374892374", e.what(), system_utils::captureCallStack()));
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setBinaryStream - Exception: " << ex.what());
+                return cpp_dbc::unexpected(DBException("892374892374", ex.what(), system_utils::captureCallStack()));
             }
             catch (...)
             {
+                SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setBinaryStream - Unknown exception");
                 return cpp_dbc::unexpected(DBException("892374892374", "Unknown error reading stream", system_utils::captureCallStack()));
             }
         }
@@ -1423,7 +1480,7 @@ namespace cpp_dbc
         std::shared_ptr<ColumnarDBResultSet> ScyllaDBPreparedStatement::executeQuery()
         {
             auto result = executeQuery(std::nothrow);
-            if (!result)
+            if (!result.has_value())
                 throw result.error();
             return *result;
         }
@@ -1482,7 +1539,7 @@ namespace cpp_dbc
         uint64_t ScyllaDBPreparedStatement::executeUpdate()
         {
             auto result = executeUpdate(std::nothrow);
-            if (!result)
+            if (!result.has_value())
                 throw result.error();
             return *result;
         }
@@ -1507,23 +1564,23 @@ namespace cpp_dbc
 
                 // Analyze the query to determine appropriate return value
                 std::string queryUpper = m_query;
-                std::transform(queryUpper.begin(), queryUpper.end(), queryUpper.begin(), ::toupper);
+                std::ranges::transform(queryUpper, queryUpper.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
 
                 // DDL statements conventionally return 0 affected rows
-                if (queryUpper.find("CREATE ") == 0 ||
-                    queryUpper.find("DROP ") == 0 ||
-                    queryUpper.find("ALTER ") == 0 ||
-                    queryUpper.find("TRUNCATE ") == 0)
+                if (queryUpper.starts_with("CREATE ") ||
+                    queryUpper.starts_with("DROP ") ||
+                    queryUpper.starts_with("ALTER ") ||
+                    queryUpper.starts_with("TRUNCATE "))
                 {
                     SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeUpdate - DDL statement, returning 0 affected rows");
                     return 0;
                 }
 
                 // For DELETE operations, we need to handle multi-row deletes correctly
-                if (queryUpper.find("DELETE ") == 0)
+                if (queryUpper.starts_with("DELETE "))
                 {
                     // Special case for 'WHERE id IN' to handle multiple rows for tests
-                    if (queryUpper.find("WHERE ID IN") != std::string::npos || queryUpper.find("WHERE id IN") != std::string::npos)
+                    if (queryUpper.contains("WHERE ID IN") || queryUpper.contains("WHERE id IN"))
                     {
                         // Count the number of elements in the IN clause
                         size_t inStart = queryUpper.find("IN (");
@@ -1550,14 +1607,14 @@ namespace cpp_dbc
                 }
 
                 // For UPDATE operations, similar to DELETE
-                if (queryUpper.find("UPDATE ") == 0)
+                if (queryUpper.starts_with("UPDATE "))
                 {
                     SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeUpdate - UPDATE operation, assuming 1 affected row");
                     return 1;
                 }
 
                 // For INSERT operations
-                if (queryUpper.find("INSERT ") == 0)
+                if (queryUpper.starts_with("INSERT "))
                 {
                     SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeUpdate - INSERT operation, assuming 1 affected row");
                     return 1;
@@ -1575,7 +1632,7 @@ namespace cpp_dbc
         bool ScyllaDBPreparedStatement::execute()
         {
             auto result = execute(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1598,7 +1655,7 @@ namespace cpp_dbc
         void ScyllaDBPreparedStatement::addBatch()
         {
             auto result = addBatch(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1608,7 +1665,7 @@ namespace cpp_dbc
         {
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::addBatch - Adding current parameters to batch");
             DB_DRIVER_LOCK_GUARD(m_mutex);
-            m_batchEntries.push_back(m_currentEntry);
+            m_batchEntries.emplace_back(m_currentEntry);
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::addBatch - Batch now contains " << m_batchEntries.size() << " entries");
 
             // Clear current entry for next set of params
@@ -1629,7 +1686,7 @@ namespace cpp_dbc
         void ScyllaDBPreparedStatement::clearBatch()
         {
             auto result = clearBatch(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1647,7 +1704,7 @@ namespace cpp_dbc
         std::vector<uint64_t> ScyllaDBPreparedStatement::executeBatch()
         {
             auto result = executeBatch(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1686,23 +1743,59 @@ namespace cpp_dbc
                 SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Binding parameters for batch entry " << i + 1);
 
                 CassStatement *stmt = cass_prepared_bind(m_prepared.get());
-                statements.push_back(CassStatementHandle(stmt));
+                statements.emplace_back(stmt);
 
-                // Bind params
-                for (auto &p : entry.intParams)
-                    cass_statement_bind_int32(stmt, p.first, p.second);
-                for (auto &p : entry.longParams)
-                    cass_statement_bind_int64(stmt, p.first, p.second);
-                for (auto &p : entry.doubleParams)
-                    cass_statement_bind_double(stmt, p.first, p.second);
-                for (auto &p : entry.stringParams)
-                    cass_statement_bind_string(stmt, p.first, p.second.c_str());
-                for (auto &p : entry.boolParams)
-                    cass_statement_bind_bool(stmt, p.first, p.second ? cass_true : cass_false);
-                for (auto &p : entry.bytesParams)
-                    cass_statement_bind_bytes(stmt, p.first, p.second.data(), p.second.size());
-                for (auto &p : entry.nullParams)
-                    cass_statement_bind_null(stmt, p.first);
+                // Bind params with error checking
+                for (const auto &[idx, val] : entry.intParams)
+                {
+                    if (cass_statement_bind_int32(stmt, idx, val) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A001", "Failed to bind int32 at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
+                for (const auto &[idx, val] : entry.longParams)
+                {
+                    if (cass_statement_bind_int64(stmt, idx, val) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A002", "Failed to bind int64 at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
+                for (const auto &[idx, val] : entry.doubleParams)
+                {
+                    if (cass_statement_bind_double(stmt, idx, val) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A003", "Failed to bind double at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
+                for (const auto &[idx, val] : entry.stringParams)
+                {
+                    if (cass_statement_bind_string(stmt, idx, val.c_str()) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A004", "Failed to bind string at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
+                for (const auto &[idx, val] : entry.boolParams)
+                {
+                    if (cass_statement_bind_bool(stmt, idx, val ? cass_true : cass_false) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A005", "Failed to bind bool at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
+                for (const auto &[idx, val] : entry.bytesParams)
+                {
+                    if (cass_statement_bind_bytes(stmt, idx, val.data(), val.size()) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A006", "Failed to bind bytes at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
+                for (const auto &[idx, unused] : entry.nullParams)
+                {
+                    (void)unused;
+                    if (cass_statement_bind_null(stmt, idx) != CASS_OK)
+                    {
+                        return cpp_dbc::unexpected(DBException("B7349823A007", "Failed to bind null at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    }
+                }
 
                 cass_batch_add_statement(batch.get(), stmt);
             }
@@ -1785,7 +1878,7 @@ namespace cpp_dbc
         ScyllaDBConnection::~ScyllaDBConnection()
         {
             SCYLLADB_DEBUG("ScyllaDBConnection::destructor - Destroying connection");
-            close();
+            ScyllaDBConnection::close();
         }
 
         void ScyllaDBConnection::close()
@@ -1827,7 +1920,7 @@ namespace cpp_dbc
         std::shared_ptr<ColumnarDBPreparedStatement> ScyllaDBConnection::prepareStatement(const std::string &query)
         {
             auto result = prepareStatement(std::nothrow, query);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1864,7 +1957,7 @@ namespace cpp_dbc
         std::shared_ptr<ColumnarDBResultSet> ScyllaDBConnection::executeQuery(const std::string &query)
         {
             auto result = executeQuery(std::nothrow, query);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1902,7 +1995,7 @@ namespace cpp_dbc
         uint64_t ScyllaDBConnection::executeUpdate(const std::string &query)
         {
             auto result = executeUpdate(std::nothrow, query);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -1924,23 +2017,23 @@ namespace cpp_dbc
 
             // Analyze the query to determine appropriate return value
             std::string queryUpper = query;
-            std::transform(queryUpper.begin(), queryUpper.end(), queryUpper.begin(), ::toupper);
+            std::ranges::transform(queryUpper, queryUpper.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
 
             // DDL statements conventionally return 0 affected rows
-            if (queryUpper.find("CREATE ") == 0 ||
-                queryUpper.find("DROP ") == 0 ||
-                queryUpper.find("ALTER ") == 0 ||
-                queryUpper.find("TRUNCATE ") == 0)
+            if (queryUpper.starts_with("CREATE ") ||
+                queryUpper.starts_with("DROP ") ||
+                queryUpper.starts_with("ALTER ") ||
+                queryUpper.starts_with("TRUNCATE "))
             {
                 SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - DDL statement, returning 0 affected rows");
                 return 0;
             }
 
             // For DELETE operations
-            if (queryUpper.find("DELETE ") == 0)
+            if (queryUpper.starts_with("DELETE "))
             {
                 // Special case for 'WHERE id IN' to handle multiple rows for tests
-                if (queryUpper.find("WHERE ID IN") != std::string::npos || queryUpper.find("WHERE id IN") != std::string::npos)
+                if (queryUpper.contains("WHERE ID IN") || queryUpper.contains("WHERE id IN"))
                 {
                     // Count the number of elements in the IN clause
                     size_t inStart = queryUpper.find("IN (");
@@ -1965,14 +2058,14 @@ namespace cpp_dbc
             }
 
             // For UPDATE operations
-            if (queryUpper.find("UPDATE ") == 0)
+            if (queryUpper.starts_with("UPDATE "))
             {
                 SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - UPDATE operation, returning 1");
                 return 1;
             }
 
             // For INSERT operations
-            if (queryUpper.find("INSERT ") == 0)
+            if (queryUpper.starts_with("INSERT "))
             {
                 SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - INSERT operation, returning 1");
                 return 1;
@@ -2038,7 +2131,7 @@ namespace cpp_dbc
             const std::map<std::string, std::string> &options)
         {
             auto result = connectColumnar(std::nothrow, url, user, password, options);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2061,24 +2154,29 @@ namespace cpp_dbc
                 return cpp_dbc::unexpected(params.error());
             }
 
-            std::string host = (*params)["host"];
-            int port = std::stoi((*params)["port"]);
-            std::string keyspace = (*params)["database"];
-
             try
             {
+                std::string host = (*params)["host"];
+                int port = std::stoi((*params)["port"]);
+                std::string keyspace = (*params)["database"];
+
                 SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Creating connection object");
                 return std::shared_ptr<ColumnarDBConnection>(std::make_shared<ScyllaDBConnection>(host, port, keyspace, user, password, options));
             }
-            catch (const DBException &e)
+            catch (const DBException &ex)
             {
-                SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - DBException: " << e.what());
-                return cpp_dbc::unexpected(e);
+                SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - DBException: " << ex.what());
+                return cpp_dbc::unexpected(ex);
             }
-            catch (const std::exception &e)
+            catch (const std::exception &ex)
             {
-                SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Exception: " << e.what());
-                return cpp_dbc::unexpected(DBException("891238912389", e.what(), system_utils::captureCallStack()));
+                SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Exception: " << ex.what());
+                return cpp_dbc::unexpected(DBException("891238912389", ex.what(), system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Unknown exception");
+                return cpp_dbc::unexpected(DBException("A91238912C90", "Unknown error connecting to ScyllaDB", system_utils::captureCallStack()));
             }
         }
 
@@ -2092,7 +2190,7 @@ namespace cpp_dbc
         std::map<std::string, std::string> ScyllaDBDriver::parseURI(const std::string &uri)
         {
             auto result = parseURI(std::nothrow, uri);
-            if (!result)
+            if (!result.has_value())
             {
                 throw result.error();
             }
@@ -2104,11 +2202,11 @@ namespace cpp_dbc
             SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Parsing URI: " << uri);
             std::map<std::string, std::string> result;
             // cpp_dbc:scylladb://host:port/keyspace
-            std::string scheme = "cpp_dbc:scylladb://";
-            if (uri.substr(0, scheme.length()) != scheme)
+            constexpr std::string_view scheme = "cpp_dbc:scylladb://";
+            if (!uri.starts_with(scheme))
             {
                 SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Invalid scheme");
-                return cpp_dbc::unexpected(DBException("123891238912", "Must start with " + scheme, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("123891238912", "Must start with cpp_dbc:scylladb://", system_utils::captureCallStack()));
             }
 
             std::string rest = uri.substr(scheme.length());
@@ -2161,10 +2259,9 @@ namespace cpp_dbc
 
         bool ScyllaDBDriver::acceptsURL(const std::string &url)
         {
-            return url.substr(0, 19) == "cpp_dbc:scylladb://";
+            return url.starts_with("cpp_dbc:scylladb://");
         }
 
-    } // namespace ScyllaDB
-} // namespace cpp_dbc
+} // namespace cpp_dbc::ScyllaDB
 
 #endif // USE_SCYLLADB
