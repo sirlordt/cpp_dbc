@@ -234,33 +234,43 @@ TEST_CASE("Real Redis connection pool tests", "[redis_connection_pool_real]")
         {
             const uint64_t numOperations = 50; // More operations than max connections
             std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
             std::vector<std::thread> threads;
 
             for (uint64_t i = 0; i < numOperations; i++)
             {
-                threads.push_back(std::thread([&pool, &successCount, i]()
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
                                               {
                     try {
                         // Get connection from pool (may block if pool is exhausted)
                         auto loadConn = pool->getKVDBConnection();
-                        
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
                         // Do a simple ping
                         std::string pong = loadConn->ping();
-                        bool pingOk = (pong == "PONG");
-                        
+                        if (pong != "PONG")
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
                         // Simulate some work
                         std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
-                        
+
                         // Close the connection
                         loadConn->close();
-                        
-                        // Increment success count if ping succeeded
-                        if (pingOk) {
-                            successCount++;
-                        }
+
+                        // Increment success count
+                        successCount++;
                     }
-                    catch (const std::exception& e) {
-                        std::cerr << "Load operation " << i << " error: " << e.what() << std::endl;
+                    catch (const std::exception& ex) {
+                        failureCount++;
+                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
                     } }));
             }
 
@@ -273,7 +283,8 @@ TEST_CASE("Real Redis connection pool tests", "[redis_connection_pool_real]")
                 }
             }
 
-            // Verify all operations succeeded
+            // Thread-safe assertions on main thread
+            REQUIRE(failureCount == 0);
             REQUIRE(successCount == numOperations);
 
             // Verify pool returned to initial state
@@ -386,6 +397,165 @@ TEST_CASE("Real Redis connection pool tests", "[redis_connection_pool_real]")
             // Verify all returned
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getIdleDBConnectionCount() >= initialIdleCount);
+        }
+
+        // Test invalid connection replacement on return
+        SECTION("Invalid connection replacement on return")
+        {
+            // Get initial pool statistics
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+
+            // Get a connection from the pool
+            auto conn = pool->getKVDBConnection();
+            REQUIRE(conn != nullptr);
+            REQUIRE(pool->getActiveDBConnectionCount() == 1);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 1);
+
+            // Get the underlying connection and close it directly to invalidate
+            auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::KVPooledDBConnection>(conn);
+            REQUIRE(pooledConn != nullptr);
+
+            auto underlyingConn = pooledConn->getUnderlyingKVConnection();
+            REQUIRE(underlyingConn != nullptr);
+
+            // Close the underlying connection directly - this invalidates the pooled connection
+            underlyingConn->close();
+
+            // Now return the (now invalid) connection to the pool
+            // The pool should detect it's invalid and replace it
+            conn->close();
+
+            // Give the pool a moment to process the replacement
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+            // Verify pool statistics:
+            // - activeConnections should be 0 (connection was returned)
+            // - totalConnections should remain the same (invalid connection was replaced)
+            // - idleConnections should be back to initial (replacement went to idle)
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify we can still get a working connection from the pool
+            auto newConn = pool->getKVDBConnection();
+            REQUIRE(newConn != nullptr);
+            REQUIRE(newConn->ping() == "PONG"); // Should work - it's the replacement connection
+            newConn->close();
+        }
+
+        // Test multiple invalid connections replacement
+        SECTION("Multiple invalid connections replacement")
+        {
+            // Get initial pool statistics
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(initialIdleCount >= 1); // Need at least 1 idle connection for this test
+
+            // Get multiple connections (use 2 since our pool is smaller)
+            std::vector<std::shared_ptr<cpp_dbc::KVDBConnection>> connections;
+            const size_t numConnections = 2;
+
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto conn = pool->getKVDBConnection();
+                REQUIRE(conn != nullptr);
+                connections.push_back(conn);
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnections);
+
+            // Invalidate all connections by closing their underlying connections
+            for (auto &conn : connections)
+            {
+                auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::KVPooledDBConnection>(conn);
+                REQUIRE(pooledConn != nullptr);
+
+                auto underlyingConn = pooledConn->getUnderlyingKVConnection();
+                underlyingConn->close();
+            }
+
+            // Return all invalid connections to the pool
+            for (auto &conn : connections)
+            {
+                conn->close();
+            }
+
+            // Give the pool time to process replacements
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+            // Verify pool statistics
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify all replacement connections work
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto newConn = pool->getKVDBConnection();
+                REQUIRE(newConn != nullptr);
+                REQUIRE(newConn->ping() == "PONG");
+                newConn->close();
+            }
+        }
+
+        // Test connection pool under load (advanced pool)
+        SECTION("Connection pool under load")
+        {
+            const uint64_t numOperations = 20; // Fewer operations for smaller pool
+            std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
+            std::vector<std::thread> threads;
+
+            for (uint64_t i = 0; i < numOperations; i++)
+            {
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
+                                              {
+                    try {
+                        auto loadConn = pool->getKVDBConnection();
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
+                        std::string pong = loadConn->ping();
+                        if (pong != "PONG")
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
+                        loadConn->close();
+                        successCount++;
+                    }
+                    catch (const std::exception& ex) {
+                        failureCount++;
+                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
+                    } }));
+            }
+
+            for (auto &t : threads)
+            {
+                if (t.joinable())
+                {
+                    t.join();
+                }
+            }
+
+            // Thread-safe assertions on main thread
+            REQUIRE(failureCount == 0);
+            REQUIRE(successCount == numOperations);
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            auto idleCount = pool->getIdleDBConnectionCount();
+            REQUIRE(idleCount >= 1);  // At least minIdle connections
+            REQUIRE(idleCount <= 5);  // No more than maxSize connections
         }
 
         // Clean up test keys
