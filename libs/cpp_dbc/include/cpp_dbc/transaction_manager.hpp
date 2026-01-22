@@ -62,10 +62,11 @@ namespace cpp_dbc
         RelationalDBConnectionPool &pool;
         std::map<std::string, std::shared_ptr<TransactionContext>> activeTransactions;
         std::mutex transactionMutex;
-        std::jthread cleanupThread;
+        // Note: Declaration order matters for initialization - these must come before cleanupThread
         std::atomic<bool> running{true}; // WARNING MUST BE TRUE. NOT Change to false
         std::condition_variable cleanupCondition;
         std::mutex cleanupMutex;
+        std::jthread cleanupThread;  // Must be declared after running/cleanupCondition/cleanupMutex
 
         // Configuration
         long transactionTimeoutMillis{300000}; // 5 minutes by default
