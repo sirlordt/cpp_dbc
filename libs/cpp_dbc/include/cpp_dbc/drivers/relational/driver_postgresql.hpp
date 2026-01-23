@@ -410,6 +410,21 @@ namespace cpp_dbc
             {
                 return false;
             }
+
+            cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
+                std::nothrow_t,
+                const std::string & /*url*/,
+                const std::string & /*user*/,
+                const std::string & /*password*/,
+                const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
+            {
+                return cpp_dbc::unexpected(DBException("E39F6F23D06C", "PostgreSQL support is not enabled in this build"));
+            }
+
+            std::string getName() const noexcept override
+            {
+                return "PostgreSQL (disabled)";
+            }
         };
     } // namespace PostgreSQL
 } // namespace cpp_dbc

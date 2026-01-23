@@ -660,6 +660,21 @@ namespace cpp_dbc
             {
                 return false;
             }
+
+            cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
+                std::nothrow_t,
+                const std::string & /*url*/,
+                const std::string & /*user*/,
+                const std::string & /*password*/,
+                const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
+            {
+                return cpp_dbc::unexpected(DBException("S0U4V6W2X8Y6", "Firebird support is not enabled in this build", system_utils::captureCallStack()));
+            }
+
+            std::string getName() const noexcept override
+            {
+                return "Firebird (disabled)";
+            }
         };
     } // namespace Firebird
 } // namespace cpp_dbc
