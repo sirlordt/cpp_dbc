@@ -428,7 +428,7 @@ namespace cpp_dbc::MySQL
             }
             ~MySQLDBDriver() override = default;
 
-            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
+            [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
                                                                       const std::string &,
                                                                       const std::string &,
                                                                       const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
@@ -436,7 +436,7 @@ namespace cpp_dbc::MySQL
                 throw DBException("23D2107DA64F", "MySQL support is not enabled in this build");
             }
 
-            bool acceptsURL(const std::string &) override
+            bool acceptsURL(const std::string & /*url*/) override
             {
                 return false;
             }

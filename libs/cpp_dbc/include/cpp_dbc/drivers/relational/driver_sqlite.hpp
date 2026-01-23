@@ -443,7 +443,7 @@ namespace cpp_dbc
             }
             ~SQLiteDBDriver() override = default;
 
-            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+            [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                       const std::string &user,
                                                                       const std::string &password,
                                                                       const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
@@ -451,7 +451,7 @@ namespace cpp_dbc
                 throw DBException("269CC140F035", "SQLite support is not enabled in this build", system_utils::captureCallStack());
             }
 
-            bool acceptsURL(const std::string &url) override
+            bool acceptsURL(const std::string & /*url*/) override
             {
                 return false;
             }

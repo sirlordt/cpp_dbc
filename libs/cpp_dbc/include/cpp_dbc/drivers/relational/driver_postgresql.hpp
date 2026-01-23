@@ -393,7 +393,7 @@ namespace cpp_dbc
             }
             ~PostgreSQLDBDriver() override = default;
 
-            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
+            [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
                                                                       const std::string &,
                                                                       const std::string &,
                                                                       const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
@@ -401,7 +401,7 @@ namespace cpp_dbc
                 throw DBException("E39F6F23D06B", "PostgreSQL support is not enabled in this build");
             }
 
-            bool acceptsURL(const std::string &) override
+            bool acceptsURL(const std::string & /*url*/) override
             {
                 return false;
             }
