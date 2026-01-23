@@ -99,7 +99,7 @@ namespace cpp_dbc
          */
         using PGconnHandle = std::shared_ptr<PGconn>;
 
-        class PostgreSQLDBResultSet : public RelationalDBResultSet
+        class PostgreSQLDBResultSet final : public RelationalDBResultSet
         {
         private:
             /**
@@ -191,7 +191,7 @@ namespace cpp_dbc
             cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
         };
 
-        class PostgreSQLDBPreparedStatement : public RelationalDBPreparedStatement
+        class PostgreSQLDBPreparedStatement final : public RelationalDBPreparedStatement
         {
             friend class PostgreSQLDBConnection;
 
@@ -267,7 +267,7 @@ namespace cpp_dbc
             cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         };
 
-        class PostgreSQLDBConnection : public RelationalDBConnection
+        class PostgreSQLDBConnection final : public RelationalDBConnection
         {
         private:
             PGconnHandle m_conn; // shared_ptr allows PreparedStatements to use weak_ptr
@@ -343,7 +343,7 @@ namespace cpp_dbc
             cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
         };
 
-        class PostgreSQLDBDriver : public RelationalDBDriver
+        class PostgreSQLDBDriver final : public RelationalDBDriver
         {
         public:
             PostgreSQLDBDriver();
@@ -384,7 +384,7 @@ namespace cpp_dbc
     namespace PostgreSQL
     {
         // Forward declarations only
-        class PostgreSQLDBDriver : public RelationalDBDriver
+        class PostgreSQLDBDriver final : public RelationalDBDriver
         {
         public:
             PostgreSQLDBDriver()
@@ -393,7 +393,12 @@ namespace cpp_dbc
             }
             ~PostgreSQLDBDriver() override = default;
 
-            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
+            PostgreSQLDBDriver(const PostgreSQLDBDriver &) = delete;
+            PostgreSQLDBDriver &operator=(const PostgreSQLDBDriver &) = delete;
+            PostgreSQLDBDriver(PostgreSQLDBDriver &&) = delete;
+            PostgreSQLDBDriver &operator=(PostgreSQLDBDriver &&) = delete;
+
+            [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
                                                                       const std::string &,
                                                                       const std::string &,
                                                                       const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
@@ -401,9 +406,24 @@ namespace cpp_dbc
                 throw DBException("E39F6F23D06B", "PostgreSQL support is not enabled in this build");
             }
 
-            bool acceptsURL(const std::string &) override
+            bool acceptsURL(const std::string & /*url*/) override
             {
                 return false;
+            }
+
+            cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
+                std::nothrow_t,
+                const std::string & /*url*/,
+                const std::string & /*user*/,
+                const std::string & /*password*/,
+                const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
+            {
+                return cpp_dbc::unexpected(DBException("E39F6F23D06C", "PostgreSQL support is not enabled in this build"));
+            }
+
+            std::string getName() const noexcept override
+            {
+                return "PostgreSQL (disabled)";
             }
         };
     } // namespace PostgreSQL

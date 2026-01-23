@@ -114,7 +114,7 @@ namespace cpp_dbc
          */
         using SQLiteDbHandle = std::shared_ptr<sqlite3>;
 
-        class SQLiteDBResultSet : public RelationalDBResultSet
+        class SQLiteDBResultSet final : public RelationalDBResultSet
         {
         private:
             /**
@@ -230,7 +230,7 @@ namespace cpp_dbc
             cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
         };
 
-        class SQLiteDBPreparedStatement : public RelationalDBPreparedStatement
+        class SQLiteDBPreparedStatement final : public RelationalDBPreparedStatement
         {
             friend class SQLiteDBConnection;
 
@@ -313,7 +313,7 @@ namespace cpp_dbc
             cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         };
 
-        class SQLiteDBConnection : public RelationalDBConnection, public std::enable_shared_from_this<SQLiteDBConnection>
+        class SQLiteDBConnection final : public RelationalDBConnection, public std::enable_shared_from_this<SQLiteDBConnection>
         {
             friend class SQLiteDBPreparedStatement;
             friend class SQLiteDBResultSet;
@@ -391,7 +391,7 @@ namespace cpp_dbc
             cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
         };
 
-        class SQLiteDBDriver : public RelationalDBDriver
+        class SQLiteDBDriver final : public RelationalDBDriver
         {
         private:
             // Static members to ensure SQLite is configured only once
@@ -434,7 +434,7 @@ namespace cpp_dbc
     namespace SQLite
     {
         // Forward declarations only
-        class SQLiteDBDriver : public RelationalDBDriver
+        class SQLiteDBDriver final : public RelationalDBDriver
         {
         public:
             SQLiteDBDriver()
@@ -443,7 +443,12 @@ namespace cpp_dbc
             }
             ~SQLiteDBDriver() override = default;
 
-            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+            SQLiteDBDriver(const SQLiteDBDriver &) = delete;
+            SQLiteDBDriver &operator=(const SQLiteDBDriver &) = delete;
+            SQLiteDBDriver(SQLiteDBDriver &&) = delete;
+            SQLiteDBDriver &operator=(SQLiteDBDriver &&) = delete;
+
+            [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                       const std::string &user,
                                                                       const std::string &password,
                                                                       const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
@@ -451,9 +456,24 @@ namespace cpp_dbc
                 throw DBException("269CC140F035", "SQLite support is not enabled in this build", system_utils::captureCallStack());
             }
 
-            bool acceptsURL(const std::string &url) override
+            bool acceptsURL(const std::string & /*url*/) override
             {
                 return false;
+            }
+
+            cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
+                std::nothrow_t,
+                const std::string & /*url*/,
+                const std::string & /*user*/,
+                const std::string & /*password*/,
+                const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
+            {
+                return cpp_dbc::unexpected(DBException("269CC140F036", "SQLite support is not enabled in this build", system_utils::captureCallStack()));
+            }
+
+            std::string getName() const noexcept override
+            {
+                return "SQLite (disabled)";
             }
         };
     } // namespace SQLite

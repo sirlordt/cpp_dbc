@@ -44,10 +44,8 @@
 #define DB_DRIVER_UNIQUE_LOCK(mutex) (void)0
 #endif
 
-namespace cpp_dbc
+namespace cpp_dbc::MySQL
 {
-    namespace MySQL
-    {
         /**
          * @brief Custom deleter for MYSQL_RES* to use with unique_ptr
          *
@@ -73,7 +71,7 @@ namespace cpp_dbc
          */
         using MySQLResHandle = std::unique_ptr<MYSQL_RES, MySQLResDeleter>;
 
-        class MySQLDBResultSet : public RelationalDBResultSet
+        class MySQLDBResultSet final : public RelationalDBResultSet
         {
         private:
             /**
@@ -216,11 +214,10 @@ namespace cpp_dbc
         // Type alias for the smart pointer managing MYSQL_STMT
         using MySQLStmtHandle = std::unique_ptr<MYSQL_STMT, MySQLStmtDeleter>;
 
-        class MySQLDBPreparedStatement : public RelationalDBPreparedStatement
+        class MySQLDBPreparedStatement final : public RelationalDBPreparedStatement
         {
             friend class MySQLDBConnection;
 
-        private:
             std::weak_ptr<MYSQL> m_mysql; // Safe weak reference to connection - detects when connection is closed
             std::string m_sql;
             MySQLStmtHandle m_stmt{nullptr}; // Smart pointer for MYSQL_STMT - automatically calls mysql_stmt_close
@@ -306,7 +303,7 @@ namespace cpp_dbc
         // Note: The deleter is passed to the constructor, not as a template parameter
         using MySQLHandle = std::shared_ptr<MYSQL>;
 
-        class MySQLDBConnection : public RelationalDBConnection
+        class MySQLDBConnection final : public RelationalDBConnection
         {
         private:
             MySQLHandle m_mysql; // shared_ptr allows PreparedStatements to use weak_ptr
@@ -338,6 +335,12 @@ namespace cpp_dbc
                               const std::string &password,
                               const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
             ~MySQLDBConnection() override;
+
+            // Rule of 5: Non-copyable and non-movable (mutex member prevents copying/moving)
+            MySQLDBConnection(const MySQLDBConnection &) = delete;
+            MySQLDBConnection &operator=(const MySQLDBConnection &) = delete;
+            MySQLDBConnection(MySQLDBConnection &&) = delete;
+            MySQLDBConnection &operator=(MySQLDBConnection &&) = delete;
 
             // DBConnection interface
             void close() override;
@@ -378,7 +381,7 @@ namespace cpp_dbc
             cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
         };
 
-        class MySQLDBDriver : public RelationalDBDriver
+        class MySQLDBDriver final : public RelationalDBDriver
         {
         public:
             MySQLDBDriver();
@@ -408,18 +411,15 @@ namespace cpp_dbc
             std::string getName() const noexcept override;
         };
 
-    } // namespace MySQL
-} // namespace cpp_dbc
+} // namespace cpp_dbc::MySQL
 
 #else // USE_MYSQL
 
 // Stub implementations when MySQL is disabled
-namespace cpp_dbc
+namespace cpp_dbc::MySQL
 {
-    namespace MySQL
-    {
         // Forward declarations only
-        class MySQLDBDriver : public RelationalDBDriver
+        class MySQLDBDriver final : public RelationalDBDriver
         {
         public:
             MySQLDBDriver()
@@ -428,7 +428,12 @@ namespace cpp_dbc
             }
             ~MySQLDBDriver() override = default;
 
-            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
+            MySQLDBDriver(const MySQLDBDriver &) = delete;
+            MySQLDBDriver &operator=(const MySQLDBDriver &) = delete;
+            MySQLDBDriver(MySQLDBDriver &&) = delete;
+            MySQLDBDriver &operator=(MySQLDBDriver &&) = delete;
+
+            [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
                                                                       const std::string &,
                                                                       const std::string &,
                                                                       const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
@@ -436,13 +441,27 @@ namespace cpp_dbc
                 throw DBException("23D2107DA64F", "MySQL support is not enabled in this build");
             }
 
-            bool acceptsURL(const std::string &) override
+            bool acceptsURL(const std::string & /*url*/) override
             {
                 return false;
             }
+
+            cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
+                std::nothrow_t,
+                const std::string & /*url*/,
+                const std::string & /*user*/,
+                const std::string & /*password*/,
+                const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
+            {
+                return cpp_dbc::unexpected(DBException("23D2107DA650", "MySQL support is not enabled in this build"));
+            }
+
+            std::string getName() const noexcept override
+            {
+                return "MySQL (disabled)";
+            }
         };
-    } // namespace MySQL
-} // namespace cpp_dbc
+} // namespace cpp_dbc::MySQL
 
 #endif // USE_MYSQL
 

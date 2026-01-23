@@ -175,7 +175,7 @@ namespace cpp_dbc
         /**
          * @brief Firebird ResultSet implementation
          */
-        class FirebirdDBResultSet : public RelationalDBResultSet
+        class FirebirdDBResultSet final : public RelationalDBResultSet
         {
             friend class FirebirdDBConnection;
 
@@ -303,7 +303,7 @@ namespace cpp_dbc
         // Forward declaration
         class FirebirdDBConnection;
 
-        class FirebirdDBPreparedStatement : public RelationalDBPreparedStatement
+        class FirebirdDBPreparedStatement final : public RelationalDBPreparedStatement
         {
             friend class FirebirdDBConnection;
 
@@ -408,7 +408,7 @@ namespace cpp_dbc
         /**
          * @brief Firebird Connection implementation
          */
-        class FirebirdDBConnection : public RelationalDBConnection, public std::enable_shared_from_this<FirebirdDBConnection>
+        class FirebirdDBConnection final : public RelationalDBConnection, public std::enable_shared_from_this<FirebirdDBConnection>
         {
             friend class FirebirdDBPreparedStatement;
             friend class FirebirdDBResultSet;
@@ -523,7 +523,7 @@ namespace cpp_dbc
         /**
          * @brief Firebird Driver implementation
          */
-        class FirebirdDBDriver : public RelationalDBDriver
+        class FirebirdDBDriver final : public RelationalDBDriver
         {
         private:
             static std::atomic<bool> s_initialized;
@@ -634,7 +634,7 @@ namespace cpp_dbc
 {
     namespace Firebird
     {
-        class FirebirdDBDriver : public RelationalDBDriver
+        class FirebirdDBDriver final : public RelationalDBDriver
         {
         public:
             FirebirdDBDriver()
@@ -643,7 +643,12 @@ namespace cpp_dbc
             }
             ~FirebirdDBDriver() override = default;
 
-            std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
+            FirebirdDBDriver(const FirebirdDBDriver &) = delete;
+            FirebirdDBDriver &operator=(const FirebirdDBDriver &) = delete;
+            FirebirdDBDriver(FirebirdDBDriver &&) = delete;
+            FirebirdDBDriver &operator=(FirebirdDBDriver &&) = delete;
+
+            [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                       const std::string &user,
                                                                       const std::string &password,
                                                                       const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
@@ -651,9 +656,24 @@ namespace cpp_dbc
                 throw DBException("S0U4V6W2X8Y5", "Firebird support is not enabled in this build", system_utils::captureCallStack());
             }
 
-            bool acceptsURL(const std::string &url) override
+            bool acceptsURL(const std::string & /*url*/) override
             {
                 return false;
+            }
+
+            cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
+                std::nothrow_t,
+                const std::string & /*url*/,
+                const std::string & /*user*/,
+                const std::string & /*password*/,
+                const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
+            {
+                return cpp_dbc::unexpected(DBException("S0U4V6W2X8Y6", "Firebird support is not enabled in this build", system_utils::captureCallStack()));
+            }
+
+            std::string getName() const noexcept override
+            {
+                return "Firebird (disabled)";
             }
         };
     } // namespace Firebird

@@ -123,7 +123,7 @@ namespace cpp_dbc
         using CassResultHandle = std::unique_ptr<const CassResult, CassResultDeleter>;
         using CassIteratorHandle = std::unique_ptr<CassIterator, CassIteratorDeleter>;
 
-        class ScyllaMemoryInputStream : public cpp_dbc::InputStream
+        class ScyllaMemoryInputStream final : public cpp_dbc::InputStream
         {
         private:
             std::vector<uint8_t> m_data;
@@ -155,7 +155,7 @@ namespace cpp_dbc
             }
         };
 
-        class ScyllaDBResultSet : public cpp_dbc::ColumnarDBResultSet
+        class ScyllaDBResultSet final : public cpp_dbc::ColumnarDBResultSet
         {
         private:
             CassResultHandle m_result;
@@ -254,7 +254,7 @@ namespace cpp_dbc
 
         class ScyllaDBConnection; // Forward declaration
 
-        class ScyllaDBPreparedStatement : public cpp_dbc::ColumnarDBPreparedStatement
+        class ScyllaDBPreparedStatement final : public cpp_dbc::ColumnarDBPreparedStatement
         {
             friend class ScyllaDBConnection;
 
@@ -338,7 +338,7 @@ namespace cpp_dbc
             cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         };
 
-        class ScyllaDBConnection : public cpp_dbc::ColumnarDBConnection
+        class ScyllaDBConnection final : public cpp_dbc::ColumnarDBConnection
         {
         private:
             std::shared_ptr<CassCluster> m_cluster; // Shared to keep cluster config alive if needed
@@ -381,7 +381,7 @@ namespace cpp_dbc
             cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
         };
 
-        class ScyllaDBDriver : public cpp_dbc::ColumnarDBDriver
+        class ScyllaDBDriver final : public cpp_dbc::ColumnarDBDriver
         {
         public:
             ScyllaDBDriver();
@@ -423,10 +423,16 @@ namespace cpp_dbc
 {
     namespace ScyllaDB
     {
-        class ScyllaDBDriver : public ColumnarDBDriver
+        class ScyllaDBDriver final : public ColumnarDBDriver
         {
         public:
             ScyllaDBDriver() { throw DBException("5F7826C0D4F2", "ScyllaDB support is not enabled in this build"); }
+            ~ScyllaDBDriver() override = default;
+
+            ScyllaDBDriver(const ScyllaDBDriver &) = delete;
+            ScyllaDBDriver &operator=(const ScyllaDBDriver &) = delete;
+            ScyllaDBDriver(ScyllaDBDriver &&) = delete;
+            ScyllaDBDriver &operator=(ScyllaDBDriver &&) = delete;
 
             std::shared_ptr<ColumnarDBConnection> connectColumnar(const std::string &, const std::string &, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
             {

@@ -26,6 +26,7 @@
 #if USE_MYSQL
 
 #include "cpp_dbc/drivers/relational/mysql_blob.hpp"
+#include <array>
 #include <cstring>
 #include <sstream>
 #include <iostream>
@@ -1441,7 +1442,7 @@ namespace cpp_dbc::MySQL
                 if (!x)
                 {
                     auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                    if (!nullResult)
+                    if (!nullResult.has_value())
                     {
                         return cpp_dbc::unexpected(nullResult.error());
                     }
@@ -1511,7 +1512,7 @@ namespace cpp_dbc::MySQL
                 if (!x)
                 {
                     auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                    if (!nullResult)
+                    if (!nullResult.has_value())
                     {
                         return cpp_dbc::unexpected(nullResult.error());
                     }
@@ -1520,11 +1521,11 @@ namespace cpp_dbc::MySQL
 
                 // Read all data from the stream
                 std::vector<uint8_t> data;
-                uint8_t buffer[4096];
-                int bytesRead;
-                while ((bytesRead = x->read(buffer, sizeof(buffer))) > 0)
+                std::array<uint8_t, 4096> buffer{};
+                int bytesRead = 0;
+                while ((bytesRead = x->read(buffer.data(), buffer.size())) > 0)
                 {
-                    data.insert(data.end(), buffer, buffer + bytesRead);
+                    data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
                 }
 
                 // Store the data in our vector to keep it alive
@@ -1587,7 +1588,7 @@ namespace cpp_dbc::MySQL
                 if (!x)
                 {
                     auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                    if (!nullResult)
+                    if (!nullResult.has_value())
                     {
                         return cpp_dbc::unexpected(nullResult.error());
                     }
@@ -1597,12 +1598,17 @@ namespace cpp_dbc::MySQL
                 // Read up to 'length' bytes from the stream
                 std::vector<uint8_t> data;
                 data.reserve(length);
-                uint8_t buffer[4096];
+                std::array<uint8_t, 4096> buffer{};
                 size_t totalBytesRead = 0;
-                int bytesRead;
-                while (totalBytesRead < length && (bytesRead = x->read(buffer, std::min(sizeof(buffer), length - totalBytesRead))) > 0)
+                int bytesRead = 0;
+                while (totalBytesRead < length)
                 {
-                    data.insert(data.end(), buffer, buffer + bytesRead);
+                    bytesRead = x->read(buffer.data(), std::min(buffer.size(), length - totalBytesRead));
+                    if (bytesRead <= 0)
+                    {
+                        break;
+                    }
+                    data.insert(data.end(), buffer.begin(), buffer.begin() + bytesRead);
                     totalBytesRead += bytesRead;
                 }
 
@@ -1677,7 +1683,7 @@ namespace cpp_dbc::MySQL
                 if (!x)
                 {
                     auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                    if (!nullResult)
+                    if (!nullResult.has_value())
                     {
                         return cpp_dbc::unexpected(nullResult.error());
                     }
@@ -1796,8 +1802,7 @@ namespace cpp_dbc::MySQL
                 m_stringValues[idx] = value;
 
                 m_binds[idx].buffer_type = MYSQL_TYPE_STRING;
-                // WARNING_CHECK: Check more carefully
-                m_binds[idx].buffer = const_cast<char *>(m_stringValues[idx].c_str());
+                m_binds[idx].buffer = m_stringValues[idx].data();
                 m_binds[idx].buffer_length = m_stringValues[idx].length();
                 m_binds[idx].is_null = nullptr;
                 m_binds[idx].length = nullptr;
@@ -1909,31 +1914,32 @@ namespace cpp_dbc::MySQL
                 int idx = parameterIndex - 1;
 
                 // Setup MySQL type based on our Types enum
+                using enum Types;
                 enum_field_types mysqlType;
                 switch (type)
                 {
-                case Types::INTEGER:
+                case INTEGER:
                     mysqlType = MYSQL_TYPE_LONG;
                     break;
-                case Types::FLOAT:
+                case FLOAT:
                     mysqlType = MYSQL_TYPE_FLOAT;
                     break;
-                case Types::DOUBLE:
+                case DOUBLE:
                     mysqlType = MYSQL_TYPE_DOUBLE;
                     break;
-                case Types::VARCHAR:
+                case VARCHAR:
                     mysqlType = MYSQL_TYPE_STRING;
                     break;
-                case Types::DATE:
+                case DATE:
                     mysqlType = MYSQL_TYPE_DATE;
                     break;
-                case Types::TIMESTAMP:
+                case TIMESTAMP:
                     mysqlType = MYSQL_TYPE_TIMESTAMP;
                     break;
-                case Types::BOOLEAN:
+                case BOOLEAN:
                     mysqlType = MYSQL_TYPE_TINY;
                     break;
-                case Types::BLOB:
+                case BLOB:
                     mysqlType = MYSQL_TYPE_BLOB;
                     break;
                 default:
@@ -1944,7 +1950,8 @@ namespace cpp_dbc::MySQL
                 m_nullFlags[idx] = 1;
 
                 m_binds[idx].buffer_type = mysqlType;
-                m_binds[idx].is_null = reinterpret_cast<bool *>(&m_nullFlags[idx]);
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) - Required for MySQL C API interop
+                m_binds[idx].is_null = reinterpret_cast<bool *>(&m_nullFlags[idx]); // NOSONAR
                 m_binds[idx].buffer = nullptr;
                 m_binds[idx].buffer_length = 0;
                 m_binds[idx].length = nullptr;
@@ -1995,8 +2002,7 @@ namespace cpp_dbc::MySQL
                 m_stringValues[idx] = value;
 
                 m_binds[idx].buffer_type = MYSQL_TYPE_DATE;
-                // WARNING_CHECK: Check more carefully
-                m_binds[idx].buffer = const_cast<char *>(m_stringValues[idx].c_str());
+                m_binds[idx].buffer = m_stringValues[idx].data();
                 m_binds[idx].buffer_length = m_stringValues[idx].length();
                 m_binds[idx].is_null = nullptr;
                 m_binds[idx].length = nullptr;
@@ -2047,8 +2053,7 @@ namespace cpp_dbc::MySQL
                 m_stringValues[idx] = value;
 
                 m_binds[idx].buffer_type = MYSQL_TYPE_TIMESTAMP;
-                // WARNING_CHECK: Check more carefully
-                m_binds[idx].buffer = const_cast<char *>(m_stringValues[idx].c_str());
+                m_binds[idx].buffer = m_stringValues[idx].data();
                 m_binds[idx].buffer_length = m_stringValues[idx].length();
                 m_binds[idx].is_null = nullptr;
                 m_binds[idx].length = nullptr;
@@ -2101,12 +2106,12 @@ namespace cpp_dbc::MySQL
                 std::string finalQuery = m_sql;
 
                 // Replace each '?' with the corresponding parameter value
-                for (size_t i = 0; i < m_parameterValues.size(); i++)
+                for (const auto &paramValue : m_parameterValues)
                 {
                     size_t pos = finalQuery.find('?');
                     if (pos != std::string::npos)
                     {
-                        finalQuery.replace(pos, 1, m_parameterValues[i]);
+                        finalQuery.replace(pos, 1, paramValue);
                     }
                 }
 
@@ -2325,8 +2330,8 @@ namespace cpp_dbc::MySQL
                 throw DBException("5W6X7Y8Z9A0B", "Failed to select database: " + error, system_utils::captureCallStack());
             }
 
-            // Disable auto-commit by default to match JDBC behavior
-            setAutoCommit(true);
+            // Enable auto-commit by default
+            setAutoCommit(true); // NOSONAR - safe: during construction, dynamic type is exactly MySQLDBConnection
 
             // Initialize URL string once
             std::stringstream urlBuilder;
@@ -2590,7 +2595,7 @@ namespace cpp_dbc::MySQL
                     {
                         // Si estamos desactivando autocommit, usar beginTransaction para iniciar la transacción
                         auto beginResult = beginTransaction(std::nothrow);
-                        if (!beginResult)
+                        if (!beginResult.has_value())
                         {
                             return cpp_dbc::unexpected(beginResult.error());
                         }
@@ -2886,19 +2891,20 @@ namespace cpp_dbc::MySQL
                     return cpp_dbc::unexpected(DBException("47FCEE77D4F3", "Connection is closed", system_utils::captureCallStack()));
                 }
 
+                using enum TransactionIsolationLevel;
                 std::string query;
                 switch (level)
                 {
-                case TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED:
+                case TRANSACTION_READ_UNCOMMITTED:
                     query = "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";
                     break;
-                case TransactionIsolationLevel::TRANSACTION_READ_COMMITTED:
+                case TRANSACTION_READ_COMMITTED:
                     query = "SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED";
                     break;
-                case TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ:
+                case TRANSACTION_REPEATABLE_READ:
                     query = "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ";
                     break;
-                case TransactionIsolationLevel::TRANSACTION_SERIALIZABLE:
+                case TRANSACTION_SERIALIZABLE:
                     query = "SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE";
                     break;
                 default:
@@ -2980,17 +2986,14 @@ namespace cpp_dbc::MySQL
 
                 inGetTransactionIsolation = true;
 
-                try
+                try // NOSONAR - nested try is intentional for separate cleanup logic
                 {
-                    // Query the current isolation level
-                    if (mysql_query(m_mysql.get(), "SELECT @@transaction_isolation") != 0)
+                    // Query the current isolation level (try newer syntax first, then fall back to older MySQL versions)
+                    if (mysql_query(m_mysql.get(), "SELECT @@transaction_isolation") != 0 &&
+                        mysql_query(m_mysql.get(), "SELECT @@tx_isolation") != 0)
                     {
-                        // Fall back to older MySQL versions that use tx_isolation
-                        if (mysql_query(m_mysql.get(), "SELECT @@tx_isolation") != 0)
-                        {
-                            inGetTransactionIsolation = false;
-                            return cpp_dbc::unexpected(DBException("5I6J7K8L9M0N", std::string("Failed to get transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
-                        }
+                        inGetTransactionIsolation = false;
+                        return cpp_dbc::unexpected(DBException("5I6J7K8L9M0N", std::string("Failed to get transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
                     }
 
                     MYSQL_RES *result = mysql_store_result(m_mysql.get());
@@ -3101,8 +3104,22 @@ namespace cpp_dbc::MySQL
             try
             {
                 std::string host;
-                int port;
+                int port = 0;
                 std::string database = ""; // Default to empty database
+
+                // Helper lambda to parse port string safely
+                auto parsePort = [&url](const std::string &portStr) -> cpp_dbc::expected<int, DBException>
+                {
+                    try
+                    {
+                        return std::stoi(portStr);
+                    }
+                    catch ([[maybe_unused]] const std::exception &ex)
+                    {
+                        MYSQL_DEBUG("MySQLDBDriver::connectRelational - Invalid port in URL: " << ex.what());
+                        return cpp_dbc::unexpected(DBException("3A4B5C6D7E8F", "Invalid port in URL: " + url, system_utils::captureCallStack()));
+                    }
+                };
 
                 // Simple parsing for common URL formats
                 if (url.starts_with("cpp_dbc:mysql://"))
@@ -3122,15 +3139,12 @@ namespace cpp_dbc::MySQL
                         {
                             // Extract port
                             std::string portStr = temp.substr(colonPos + 1, slashPos - colonPos - 1);
-                            try
+                            auto portResult = parsePort(portStr);
+                            if (!portResult.has_value())
                             {
-                                port = std::stoi(portStr);
+                                return cpp_dbc::unexpected(portResult.error());
                             }
-                            catch ([[maybe_unused]] const std::exception &ex)
-                            {
-                                MYSQL_DEBUG("MySQLDBDriver::connectRelational - Invalid port in URL: " << ex.what());
-                                return cpp_dbc::unexpected(DBException("3A4B5C6D7E8F", "Invalid port in URL: " + url, system_utils::captureCallStack()));
-                            }
+                            port = *portResult;
 
                             // Extract database (if any)
                             if (slashPos + 1 < temp.length())
@@ -3142,15 +3156,12 @@ namespace cpp_dbc::MySQL
                         {
                             // No database specified, just port
                             std::string portStr = temp.substr(colonPos + 1);
-                            try
+                            auto portResult = parsePort(portStr);
+                            if (!portResult.has_value())
                             {
-                                port = std::stoi(portStr);
+                                return cpp_dbc::unexpected(portResult.error());
                             }
-                            catch ([[maybe_unused]] const std::exception &ex)
-                            {
-                                MYSQL_DEBUG("MySQLDBDriver::connectRelational - Invalid port in URL: " << ex.what());
-                                return cpp_dbc::unexpected(DBException("9G0H1I2J3K4L", "Invalid port in URL: " + url, system_utils::captureCallStack()));
-                            }
+                            port = *portResult;
                         }
                     }
                     else

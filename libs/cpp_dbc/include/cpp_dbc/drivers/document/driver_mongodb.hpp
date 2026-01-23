@@ -282,7 +282,7 @@ namespace cpp_dbc
          * - Deep copies are made when necessary to prevent dangling references
          * - Thread-safe when DB_DRIVER_THREAD_SAFE is enabled
          */
-        class MongoDBDocument : public DocumentDBData
+        class MongoDBDocument final : public DocumentDBData
         {
         private:
             /**
@@ -463,7 +463,7 @@ namespace cpp_dbc
          * - Thread-safe iteration when DB_DRIVER_THREAD_SAFE is enabled
          * - Automatic resource cleanup via RAII
          */
-        class MongoDBCursor : public DocumentDBCursor
+        class MongoDBCursor final : public DocumentDBCursor
         {
         private:
             /**
@@ -629,7 +629,7 @@ namespace cpp_dbc
          * - Thread-safe operations when DB_DRIVER_THREAD_SAFE is enabled
          * - All operations validate connection state before proceeding
          */
-        class MongoDBCollection : public DocumentDBCollection
+        class MongoDBCollection final : public DocumentDBCollection
         {
         private:
             /**
@@ -933,7 +933,7 @@ namespace cpp_dbc
          * - Proper cleanup of all resources on close
          * - Session management for transactions
          */
-        class MongoDBConnection : public DocumentDBConnection, public std::enable_shared_from_this<MongoDBConnection>
+        class MongoDBConnection final : public DocumentDBConnection, public std::enable_shared_from_this<MongoDBConnection>
         {
         private:
             /**
@@ -1149,7 +1149,7 @@ namespace cpp_dbc
          * - Proper library cleanup on destruction
          * - URI parsing and validation
          */
-        class MongoDBDriver : public DocumentDBDriver
+        class MongoDBDriver final : public DocumentDBDriver
         {
         private:
             /**
@@ -1273,7 +1273,7 @@ namespace cpp_dbc
          * This class throws an exception on any operation, indicating that
          * MongoDB support was not compiled into the library.*
          */
-        class MongoDBDriver : public DocumentDBDriver
+        class MongoDBDriver final : public DocumentDBDriver
         {
         public:
             MongoDBDriver()
@@ -1282,6 +1282,11 @@ namespace cpp_dbc
             }
 
             ~MongoDBDriver() override = default;
+
+            MongoDBDriver(const MongoDBDriver &) = delete;
+            MongoDBDriver &operator=(const MongoDBDriver &) = delete;
+            MongoDBDriver(MongoDBDriver &&) = delete;
+            MongoDBDriver &operator=(MongoDBDriver &&) = delete;
 
             std::shared_ptr<DBConnection> connect(
                 const std::string &,
