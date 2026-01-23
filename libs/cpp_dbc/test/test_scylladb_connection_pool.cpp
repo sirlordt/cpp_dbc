@@ -321,13 +321,13 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[scylladb_connection_pool_real
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
 
             // Get a connection from the pool
-            auto conn = pool->getColumnarDBConnection();
-            REQUIRE(conn != nullptr);
+            auto conn_local = pool->getColumnarDBConnection();
+            REQUIRE(conn_local != nullptr);
             REQUIRE(pool->getActiveDBConnectionCount() == 1);
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 1);
 
             // Get the underlying connection and close it directly to invalidate
-            auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarPooledDBConnection>(conn);
+            auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarPooledDBConnection>(conn_local);
             REQUIRE(pooledConn != nullptr);
 
             auto underlyingConn = pooledConn->getUnderlyingColumnarConnection();
@@ -338,7 +338,7 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[scylladb_connection_pool_real
 
             // Now return the (now invalid) connection to the pool
             // The pool should detect it's invalid and replace it
-            conn->close();
+            conn_local->close();
 
             // Give the pool a moment to process the replacement
             std::this_thread::sleep_for(std::chrono::milliseconds(100));

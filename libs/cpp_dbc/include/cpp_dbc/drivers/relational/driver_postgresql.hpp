@@ -393,6 +393,11 @@ namespace cpp_dbc
             }
             ~PostgreSQLDBDriver() override = default;
 
+            PostgreSQLDBDriver(const PostgreSQLDBDriver &) = delete;
+            PostgreSQLDBDriver &operator=(const PostgreSQLDBDriver &) = delete;
+            PostgreSQLDBDriver(PostgreSQLDBDriver &&) = delete;
+            PostgreSQLDBDriver &operator=(PostgreSQLDBDriver &&) = delete;
+
             [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
                                                                       const std::string &,
                                                                       const std::string &,

@@ -1283,6 +1283,11 @@ namespace cpp_dbc
 
             ~MongoDBDriver() override = default;
 
+            MongoDBDriver(const MongoDBDriver &) = delete;
+            MongoDBDriver &operator=(const MongoDBDriver &) = delete;
+            MongoDBDriver(MongoDBDriver &&) = delete;
+            MongoDBDriver &operator=(MongoDBDriver &&) = delete;
+
             std::shared_ptr<DBConnection> connect(
                 const std::string &,
                 const std::string &,

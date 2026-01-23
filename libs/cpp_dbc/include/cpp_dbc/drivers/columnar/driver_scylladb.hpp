@@ -427,6 +427,12 @@ namespace cpp_dbc
         {
         public:
             ScyllaDBDriver() { throw DBException("5F7826C0D4F2", "ScyllaDB support is not enabled in this build"); }
+            ~ScyllaDBDriver() override = default;
+
+            ScyllaDBDriver(const ScyllaDBDriver &) = delete;
+            ScyllaDBDriver &operator=(const ScyllaDBDriver &) = delete;
+            ScyllaDBDriver(ScyllaDBDriver &&) = delete;
+            ScyllaDBDriver &operator=(ScyllaDBDriver &&) = delete;
 
             std::shared_ptr<ColumnarDBConnection> connectColumnar(const std::string &, const std::string &, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
             {

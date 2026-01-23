@@ -443,6 +443,11 @@ namespace cpp_dbc
             }
             ~SQLiteDBDriver() override = default;
 
+            SQLiteDBDriver(const SQLiteDBDriver &) = delete;
+            SQLiteDBDriver &operator=(const SQLiteDBDriver &) = delete;
+            SQLiteDBDriver(SQLiteDBDriver &&) = delete;
+            SQLiteDBDriver &operator=(SQLiteDBDriver &&) = delete;
+
             [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                       const std::string &user,
                                                                       const std::string &password,

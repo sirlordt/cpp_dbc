@@ -643,6 +643,11 @@ namespace cpp_dbc
             }
             ~FirebirdDBDriver() override = default;
 
+            FirebirdDBDriver(const FirebirdDBDriver &) = delete;
+            FirebirdDBDriver &operator=(const FirebirdDBDriver &) = delete;
+            FirebirdDBDriver(FirebirdDBDriver &&) = delete;
+            FirebirdDBDriver &operator=(FirebirdDBDriver &&) = delete;
+
             [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                       const std::string &user,
                                                                       const std::string &password,

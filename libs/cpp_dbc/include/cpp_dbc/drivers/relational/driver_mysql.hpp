@@ -428,6 +428,11 @@ namespace cpp_dbc::MySQL
             }
             ~MySQLDBDriver() override = default;
 
+            MySQLDBDriver(const MySQLDBDriver &) = delete;
+            MySQLDBDriver &operator=(const MySQLDBDriver &) = delete;
+            MySQLDBDriver(MySQLDBDriver &&) = delete;
+            MySQLDBDriver &operator=(MySQLDBDriver &&) = delete;
+
             [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
                                                                       const std::string &,
                                                                       const std::string &,

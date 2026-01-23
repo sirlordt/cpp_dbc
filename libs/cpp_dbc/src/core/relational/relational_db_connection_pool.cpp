@@ -699,7 +699,8 @@ namespace cpp_dbc
             {
                 // If the pool is no longer alive, close the physical connection
                 // Use qualified call to avoid virtual dispatch in destructor
-                if (!RelationalPooledDBConnection::isPoolValid()) // NOSONAR - intentional qualified call in destructor
+                // NOSONAR(cpp:S1699) - intentional qualified call in destructor to avoid virtual dispatch
+                if (!RelationalPooledDBConnection::isPoolValid())
                 {
                     m_conn->close();
                 }
