@@ -114,7 +114,7 @@ namespace cpp_dbc
          */
         using SQLiteDbHandle = std::shared_ptr<sqlite3>;
 
-        class SQLiteDBResultSet : public RelationalDBResultSet
+        class SQLiteDBResultSet final : public RelationalDBResultSet
         {
         private:
             /**
@@ -230,7 +230,7 @@ namespace cpp_dbc
             cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
         };
 
-        class SQLiteDBPreparedStatement : public RelationalDBPreparedStatement
+        class SQLiteDBPreparedStatement final : public RelationalDBPreparedStatement
         {
             friend class SQLiteDBConnection;
 
@@ -313,7 +313,7 @@ namespace cpp_dbc
             cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         };
 
-        class SQLiteDBConnection : public RelationalDBConnection, public std::enable_shared_from_this<SQLiteDBConnection>
+        class SQLiteDBConnection final : public RelationalDBConnection, public std::enable_shared_from_this<SQLiteDBConnection>
         {
             friend class SQLiteDBPreparedStatement;
             friend class SQLiteDBResultSet;
@@ -391,7 +391,7 @@ namespace cpp_dbc
             cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
         };
 
-        class SQLiteDBDriver : public RelationalDBDriver
+        class SQLiteDBDriver final : public RelationalDBDriver
         {
         private:
             // Static members to ensure SQLite is configured only once
@@ -434,7 +434,7 @@ namespace cpp_dbc
     namespace SQLite
     {
         // Forward declarations only
-        class SQLiteDBDriver : public RelationalDBDriver
+        class SQLiteDBDriver final : public RelationalDBDriver
         {
         public:
             SQLiteDBDriver()

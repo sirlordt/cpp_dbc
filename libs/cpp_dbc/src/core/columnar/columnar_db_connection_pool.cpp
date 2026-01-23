@@ -111,7 +111,7 @@ namespace cpp_dbc
             }
 
             // Start maintenance thread
-            m_maintenanceThread = std::thread(&ColumnarDBConnectionPool::maintenanceTask, this);
+            m_maintenanceThread = std::jthread(&ColumnarDBConnectionPool::maintenanceTask, this);
         }
         catch (const std::exception &e)
         {
@@ -136,7 +136,7 @@ namespace cpp_dbc
                                                                                const std::string &validationQuery,
                                                                                TransactionIsolationLevel transactionIsolation)
     {
-        auto pool = std::shared_ptr<ColumnarDBConnectionPool>(new ColumnarDBConnectionPool(
+        auto pool = std::shared_ptr<ColumnarDBConnectionPool>(new ColumnarDBConnectionPool( // NOSONAR - make_shared cannot be used with private constructor
             url, username, password, options, initialSize, maxSize, minIdle,
             maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
             testOnBorrow, testOnReturn, validationQuery, transactionIsolation));
@@ -149,7 +149,7 @@ namespace cpp_dbc
 
     std::shared_ptr<ColumnarDBConnectionPool> ColumnarDBConnectionPool::create(const config::DBConnectionPoolConfig &config)
     {
-        auto pool = std::shared_ptr<ColumnarDBConnectionPool>(new ColumnarDBConnectionPool(config));
+        auto pool = std::shared_ptr<ColumnarDBConnectionPool>(new ColumnarDBConnectionPool(config)); // NOSONAR - make_shared cannot be used with private constructor
 
         // Initialize the pool after construction (creates connections and starts maintenance thread)
         pool->initializePool();
@@ -194,10 +194,11 @@ namespace cpp_dbc
             // This works if the pool is managed by a shared_ptr
             weakPool = shared_from_this();
         }
-        catch (const std::bad_weak_ptr &)
+        catch ([[maybe_unused]] const std::bad_weak_ptr &ex)
         {
             // Pool is not managed by shared_ptr, weakPool remains empty
             // This can happen if the pool is stack-allocated
+            CP_DEBUG("ColumnarDBConnectionPool::createPooledDBConnection - bad_weak_ptr: " << ex.what());
         }
 
         // Create the pooled connection
@@ -250,7 +251,7 @@ namespace cpp_dbc
         // Additional safety check: verify connection is in allConnections
         {
             std::scoped_lock lockAll(m_mutexAllConnections);
-            auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
+            auto it = std::ranges::find(m_allConnections, conn);
             if (it == m_allConnections.end())
             {
                 return;
@@ -284,7 +285,7 @@ namespace cpp_dbc
             // Replace invalid connection with a new one
             try
             {
-                auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
+                auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
                     *it = createPooledDBConnection();
@@ -338,7 +339,7 @@ namespace cpp_dbc
                 }
 
                 // Remove from allConnections
-                auto it = std::find(m_allConnections.begin(), m_allConnections.end(), conn);
+                auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
                     m_allConnections.erase(it);
@@ -619,11 +620,10 @@ namespace cpp_dbc
         // Use scoped_lock for consistent lock ordering to prevent deadlock
         std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
 
-        for (size_t i = 0; i < m_allConnections.size(); ++i)
+        for (const auto &conn : m_allConnections)
         {
             try
             {
-                auto &conn = m_allConnections[i];
                 if (conn && conn->getUnderlyingConnection())
                 {
                     // Mark connection as inactive before closing
@@ -639,9 +639,9 @@ namespace cpp_dbc
                     }
                 }
             }
-            catch (...)
+            catch ([[maybe_unused]] const std::exception &ex)
             {
-                // Ignore errors during close
+                CP_DEBUG("ColumnarDBConnectionPool::close - Exception during connection close: " << ex.what());
             }
         }
 
@@ -691,9 +691,9 @@ namespace cpp_dbc
                     returnToPool();
                 }
             }
-            catch (const std::exception &)
+            catch ([[maybe_unused]] const std::exception &ex)
             {
-                // Ignore exceptions in destructor
+                CP_DEBUG("ColumnarPooledDBConnection::~ColumnarPooledDBConnection - Exception: " << ex.what());
             }
         }
     }
@@ -1076,14 +1076,14 @@ namespace cpp_dbc
                                                                            const std::string &username,
                                                                            const std::string &password)
         {
-            auto pool = std::shared_ptr<ScyllaConnectionPool>(new ScyllaConnectionPool(url, username, password));
+            auto pool = std::shared_ptr<ScyllaConnectionPool>(new ScyllaConnectionPool(url, username, password)); // NOSONAR - make_shared cannot be used with private constructor
             pool->initializePool();
             return pool;
         }
 
         std::shared_ptr<ScyllaConnectionPool> ScyllaConnectionPool::create(const config::DBConnectionPoolConfig &config)
         {
-            auto pool = std::shared_ptr<ScyllaConnectionPool>(new ScyllaConnectionPool(config));
+            auto pool = std::shared_ptr<ScyllaConnectionPool>(new ScyllaConnectionPool(config)); // NOSONAR - make_shared cannot be used with private constructor
             pool->initializePool();
             return pool;
         }

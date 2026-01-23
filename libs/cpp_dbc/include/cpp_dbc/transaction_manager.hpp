@@ -66,11 +66,12 @@ namespace cpp_dbc
         std::atomic<bool> running{true}; // WARNING MUST BE TRUE. NOT Change to false
         std::condition_variable cleanupCondition;
         std::mutex cleanupMutex;
-        std::jthread cleanupThread;  // Must be declared after running/cleanupCondition/cleanupMutex
 
-        // Configuration
+        // Configuration - must be declared before cleanupThread since it uses cleanupIntervalMillis
         long transactionTimeoutMillis{300000}; // 5 minutes by default
         long cleanupIntervalMillis{60000};     // 1 minute by default
+
+        std::jthread cleanupThread;  // Must be declared after running/cleanupCondition/cleanupMutex/cleanupIntervalMillis
 
         // Helper methods
         void cleanupTask();

@@ -83,7 +83,7 @@ namespace cpp_dbc
          *
          * This class implements the KVDBConnection interface for Redis.
          */
-        class RedisConnection : public KVDBConnection, public std::enable_shared_from_this<RedisConnection>
+        class RedisConnection final : public KVDBConnection, public std::enable_shared_from_this<RedisConnection>
         {
         public:
             /**
@@ -380,7 +380,7 @@ namespace cpp_dbc
          *
          * This class implements the KVDBDriver interface for Redis.
          */
-        class RedisDriver : public KVDBDriver
+        class RedisDriver final : public KVDBDriver
         {
         public:
             /**

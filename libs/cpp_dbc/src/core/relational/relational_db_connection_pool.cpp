@@ -137,7 +137,7 @@ namespace cpp_dbc
                                                                                    const std::string &validationQuery,
                                                                                    TransactionIsolationLevel transactionIsolation)
     {
-        auto pool = std::shared_ptr<RelationalDBConnectionPool>(new RelationalDBConnectionPool(
+        auto pool = std::shared_ptr<RelationalDBConnectionPool>(new RelationalDBConnectionPool( // NOSONAR - make_shared cannot be used with private constructor
             url, username, password, options, initialSize, maxSize, minIdle,
             maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
             testOnBorrow, testOnReturn, validationQuery, transactionIsolation));
@@ -150,7 +150,7 @@ namespace cpp_dbc
 
     std::shared_ptr<RelationalDBConnectionPool> RelationalDBConnectionPool::create(const config::DBConnectionPoolConfig &config)
     {
-        auto pool = std::shared_ptr<RelationalDBConnectionPool>(new RelationalDBConnectionPool(config));
+        auto pool = std::shared_ptr<RelationalDBConnectionPool>(new RelationalDBConnectionPool(config)); // NOSONAR - make_shared cannot be used with private constructor
 
         // Initialize the pool after construction (creates connections and starts maintenance thread)
         pool->initializePool();
@@ -163,7 +163,7 @@ namespace cpp_dbc
         CP_DEBUG("RelationalDBConnectionPool::~RelationalDBConnectionPool - Starting destructor at "
                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
-        close();
+        RelationalDBConnectionPool::close();
 
         CP_DEBUG("RelationalDBConnectionPool::~RelationalDBConnectionPool - Destructor completed at "
                  << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
@@ -281,9 +281,9 @@ namespace cpp_dbc
                     }
                 }
             }
-            catch (...)
+            catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception resetting transaction isolation");
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception resetting transaction isolation: " << ex.what());
             }
 
             // Mark as inactive and update last used time
@@ -637,11 +637,10 @@ namespace cpp_dbc
         // Use scoped_lock for consistent lock ordering to prevent deadlock
         std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
 
-        for (size_t i = 0; i < m_allConnections.size(); ++i)
+        for (const auto &conn : m_allConnections)
         {
             try
             {
-                auto &conn = m_allConnections[i];
                 if (conn && conn->getUnderlyingConnection())
                 {
                     // Mark connection as inactive before closing
@@ -657,9 +656,9 @@ namespace cpp_dbc
                     }
                 }
             }
-            catch (...)
+            catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("RelationalDBConnectionPool::close - Exception during connection close");
+                CP_DEBUG("RelationalDBConnectionPool::close - Exception during connection close: " << ex.what());
             }
         }
 
@@ -707,7 +706,7 @@ namespace cpp_dbc
                 else
                 {
                     // Return to pool - use qualified call to avoid virtual dispatch in destructor
-                    returnToPool();
+                    RelationalPooledDBConnection::returnToPool();
                 }
             }
             catch ([[maybe_unused]] const std::exception &ex)
@@ -1300,14 +1299,14 @@ namespace cpp_dbc
                                                                          const std::string &username,
                                                                          const std::string &password)
         {
-            auto pool = std::shared_ptr<MySQLConnectionPool>(new MySQLConnectionPool(url, username, password));
+            auto pool = std::shared_ptr<MySQLConnectionPool>(new MySQLConnectionPool(url, username, password)); // NOSONAR - make_shared cannot be used with private constructor
             pool->initializePool();
             return pool;
         }
 
         std::shared_ptr<MySQLConnectionPool> MySQLConnectionPool::create(const config::DBConnectionPoolConfig &config)
         {
-            auto pool = std::shared_ptr<MySQLConnectionPool>(new MySQLConnectionPool(config));
+            auto pool = std::shared_ptr<MySQLConnectionPool>(new MySQLConnectionPool(config)); // NOSONAR - make_shared cannot be used with private constructor
             pool->initializePool();
             return pool;
         }
@@ -1334,14 +1333,14 @@ namespace cpp_dbc
                                                                                    const std::string &username,
                                                                                    const std::string &password)
         {
-            auto pool = std::shared_ptr<PostgreSQLConnectionPool>(new PostgreSQLConnectionPool(url, username, password));
+            auto pool = std::shared_ptr<PostgreSQLConnectionPool>(new PostgreSQLConnectionPool(url, username, password)); // NOSONAR - make_shared cannot be used with private constructor
             pool->initializePool();
             return pool;
         }
 
         std::shared_ptr<PostgreSQLConnectionPool> PostgreSQLConnectionPool::create(const config::DBConnectionPoolConfig &config)
         {
-            auto pool = std::shared_ptr<PostgreSQLConnectionPool>(new PostgreSQLConnectionPool(config));
+            auto pool = std::shared_ptr<PostgreSQLConnectionPool>(new PostgreSQLConnectionPool(config)); // NOSONAR - make_shared cannot be used with private constructor
             pool->initializePool();
             return pool;
         }
@@ -1357,7 +1356,7 @@ namespace cpp_dbc
         {
             // SQLite only supports SERIALIZABLE isolation level
             // Override the isolation level from the constructor
-            this->setPoolTransactionIsolation(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+            SQLiteConnectionPool::setPoolTransactionIsolation(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
         }
 
         SQLiteConnectionPool::SQLiteConnectionPool(const config::DBConnectionPoolConfig &config)
@@ -1365,21 +1364,21 @@ namespace cpp_dbc
         {
             // SQLite only supports SERIALIZABLE isolation level
             // Override the isolation level from the config
-            this->setPoolTransactionIsolation(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+            SQLiteConnectionPool::setPoolTransactionIsolation(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
         }
 
         std::shared_ptr<SQLiteConnectionPool> SQLiteConnectionPool::create(const std::string &url,
                                                                            const std::string &username,
                                                                            const std::string &password)
         {
-            auto pool = std::shared_ptr<SQLiteConnectionPool>(new SQLiteConnectionPool(url, username, password));
+            auto pool = std::shared_ptr<SQLiteConnectionPool>(new SQLiteConnectionPool(url, username, password)); // NOSONAR - make_shared cannot be used with private constructor
             pool->initializePool();
             return pool;
         }
 
         std::shared_ptr<SQLiteConnectionPool> SQLiteConnectionPool::create(const config::DBConnectionPoolConfig &config)
         {
-            auto pool = std::shared_ptr<SQLiteConnectionPool>(new SQLiteConnectionPool(config));
+            auto pool = std::shared_ptr<SQLiteConnectionPool>(new SQLiteConnectionPool(config)); // NOSONAR - make_shared cannot be used with private constructor
             pool->initializePool();
             return pool;
         }
@@ -1406,14 +1405,14 @@ namespace cpp_dbc
                                                                                const std::string &username,
                                                                                const std::string &password)
         {
-            auto pool = std::shared_ptr<FirebirdConnectionPool>(new FirebirdConnectionPool(url, username, password));
+            auto pool = std::shared_ptr<FirebirdConnectionPool>(new FirebirdConnectionPool(url, username, password)); // NOSONAR - make_shared cannot be used with private constructor
             pool->initializePool();
             return pool;
         }
 
         std::shared_ptr<FirebirdConnectionPool> FirebirdConnectionPool::create(const config::DBConnectionPoolConfig &config)
         {
-            auto pool = std::shared_ptr<FirebirdConnectionPool>(new FirebirdConnectionPool(config));
+            auto pool = std::shared_ptr<FirebirdConnectionPool>(new FirebirdConnectionPool(config)); // NOSONAR - make_shared cannot be used with private constructor
             pool->initializePool();
             return pool;
         }

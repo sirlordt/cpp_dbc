@@ -728,9 +728,10 @@ fetch_issues() {
 get_default_branch() {
     local url="${API_URL}/project_branches/list"
     url="${url}?project=${PROJECT}"
-    
+
     local response
-    response=$(api_request "$url" 2>/dev/null) || true
+    # Run api_request in a subshell so any exit only affects the subshell, not the whole script
+    response=$( (api_request "$url" 2>/dev/null) ) || true
     
     if [[ -n "$response" ]]; then
         local main_branch

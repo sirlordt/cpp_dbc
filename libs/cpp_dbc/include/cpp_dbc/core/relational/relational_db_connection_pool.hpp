@@ -78,13 +78,11 @@ namespace cpp_dbc
         TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
         std::vector<std::shared_ptr<RelationalPooledDBConnection>> m_allConnections;
         std::queue<std::shared_ptr<RelationalPooledDBConnection>> m_idleConnections;
-        // std::unordered_set<std::shared_ptr<RelationalPooledDBConnection>> m_idleConnectionsSet; // Track what's in the queue
         mutable std::mutex m_mutexGetConnection;
         mutable std::mutex m_mutexReturnConnection;
         mutable std::mutex m_mutexAllConnections;
         mutable std::mutex m_mutexIdleConnections;
         mutable std::mutex m_mutexMaintenance;
-        // std::condition_variable m_condition;
         std::condition_variable m_maintenanceCondition;
         std::atomic<bool> m_running{true};
         std::atomic<int> m_activeConnections{0};
@@ -137,7 +135,7 @@ namespace cpp_dbc
                                    TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
         // Constructor that accepts a configuration object
-        RelationalDBConnectionPool(const config::DBConnectionPoolConfig &config);
+        explicit RelationalDBConnectionPool(const config::DBConnectionPoolConfig &config);
 
     public:
         // Static factory methods - use these to create pools
@@ -159,7 +157,7 @@ namespace cpp_dbc
 
         static std::shared_ptr<RelationalDBConnectionPool> create(const config::DBConnectionPoolConfig &config);
 
-        ~RelationalDBConnectionPool();
+        ~RelationalDBConnectionPool() override;
 
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
@@ -265,7 +263,7 @@ namespace cpp_dbc
                                 const std::string &username,
                                 const std::string &password);
 
-            MySQLConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit MySQLConnectionPool(const config::DBConnectionPoolConfig &config);
 
         public:
             static std::shared_ptr<MySQLConnectionPool> create(const std::string &url,
@@ -285,7 +283,7 @@ namespace cpp_dbc
                                      const std::string &username,
                                      const std::string &password);
 
-            PostgreSQLConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit PostgreSQLConnectionPool(const config::DBConnectionPoolConfig &config);
 
         public:
             static std::shared_ptr<PostgreSQLConnectionPool> create(const std::string &url,
@@ -305,7 +303,7 @@ namespace cpp_dbc
                                  const std::string &username,
                                  const std::string &password);
 
-            SQLiteConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit SQLiteConnectionPool(const config::DBConnectionPoolConfig &config);
 
         public:
             static std::shared_ptr<SQLiteConnectionPool> create(const std::string &url,
@@ -325,7 +323,7 @@ namespace cpp_dbc
                                    const std::string &username,
                                    const std::string &password);
 
-            FirebirdConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit FirebirdConnectionPool(const config::DBConnectionPoolConfig &config);
 
         public:
             static std::shared_ptr<FirebirdConnectionPool> create(const std::string &url,

@@ -311,6 +311,118 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[scylladb_connection_pool_real
             REQUIRE(idleCount <= 10); // No more than maxSize connections
         }
 
+        // Test invalid connection replacement on return
+        SECTION("Invalid connection replacement on return")
+        {
+            // Get initial pool statistics
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+
+            // Get a connection from the pool
+            auto conn = pool->getColumnarDBConnection();
+            REQUIRE(conn != nullptr);
+            REQUIRE(pool->getActiveDBConnectionCount() == 1);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 1);
+
+            // Get the underlying connection and close it directly to invalidate
+            auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarPooledDBConnection>(conn);
+            REQUIRE(pooledConn != nullptr);
+
+            auto underlyingConn = pooledConn->getUnderlyingColumnarConnection();
+            REQUIRE(underlyingConn != nullptr);
+
+            // Close the underlying connection directly - this invalidates the pooled connection
+            underlyingConn->close();
+
+            // Now return the (now invalid) connection to the pool
+            // The pool should detect it's invalid and replace it
+            conn->close();
+
+            // Give the pool a moment to process the replacement
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+            // Verify pool statistics:
+            // - activeConnections should be 0 (connection was returned)
+            // - totalConnections should remain the same (invalid connection was replaced)
+            // - idleConnections should be back to initial (replacement went to idle)
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify we can still get a working connection from the pool
+            auto newConn = pool->getColumnarDBConnection();
+            REQUIRE(newConn != nullptr);
+
+            // Validate by executing a simple query (ScyllaDB doesn't have ping like Redis)
+            auto rs = newConn->executeQuery("SELECT now() FROM system.local");
+            REQUIRE(rs != nullptr);
+            REQUIRE(rs->next());
+            newConn->close();
+        }
+
+        // Test multiple invalid connections replacement
+        SECTION("Multiple invalid connections replacement")
+        {
+            // Get initial pool statistics
+            auto initialIdleCount = pool->getIdleDBConnectionCount();
+            auto initialTotalCount = pool->getTotalDBConnectionCount();
+
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(initialIdleCount >= 2); // Need at least 2 idle connections for this test
+
+            // Get multiple connections
+            std::vector<std::shared_ptr<cpp_dbc::ColumnarDBConnection>> connections;
+            const size_t numConnections = 2;
+
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto invalidConn = pool->getColumnarDBConnection();
+                REQUIRE(invalidConn != nullptr);
+                connections.push_back(invalidConn);
+            }
+
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnections);
+
+            // Invalidate all connections by closing their underlying connections
+            for (auto &invalidConn : connections)
+            {
+                auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarPooledDBConnection>(invalidConn);
+                REQUIRE(pooledConn != nullptr);
+
+                auto underlyingConn = pooledConn->getUnderlyingColumnarConnection();
+                underlyingConn->close();
+            }
+
+            // Return all invalid connections to the pool
+            for (auto &invalidConn : connections)
+            {
+                invalidConn->close();
+            }
+
+            // Give the pool time to process replacements
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+            // Verify pool statistics
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
+            REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
+
+            // Verify all replacement connections work
+            for (size_t i = 0; i < numConnections; i++)
+            {
+                auto newConn = pool->getColumnarDBConnection();
+                REQUIRE(newConn != nullptr);
+
+                // Validate by executing a simple query
+                auto rs = newConn->executeQuery("SELECT now() FROM system.local");
+                REQUIRE(rs != nullptr);
+                REQUIRE(rs->next());
+                newConn->close();
+            }
+        }
+
         // Clean up
         auto cleanupConn = pool->getColumnarDBConnection();
         try

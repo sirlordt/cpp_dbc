@@ -89,7 +89,7 @@ namespace cpp_dbc
         std::condition_variable m_maintenanceCondition;
         std::atomic<bool> m_running{true};
         std::atomic<int> m_activeConnections{0};
-        std::thread m_maintenanceThread;
+        std::jthread m_maintenanceThread;
 
         // Creates a new physical connection
         std::shared_ptr<ColumnarDBConnection> createDBConnection();

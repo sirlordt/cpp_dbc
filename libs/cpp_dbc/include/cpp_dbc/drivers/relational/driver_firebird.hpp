@@ -175,7 +175,7 @@ namespace cpp_dbc
         /**
          * @brief Firebird ResultSet implementation
          */
-        class FirebirdDBResultSet : public RelationalDBResultSet
+        class FirebirdDBResultSet final : public RelationalDBResultSet
         {
             friend class FirebirdDBConnection;
 
@@ -303,7 +303,7 @@ namespace cpp_dbc
         // Forward declaration
         class FirebirdDBConnection;
 
-        class FirebirdDBPreparedStatement : public RelationalDBPreparedStatement
+        class FirebirdDBPreparedStatement final : public RelationalDBPreparedStatement
         {
             friend class FirebirdDBConnection;
 
@@ -408,7 +408,7 @@ namespace cpp_dbc
         /**
          * @brief Firebird Connection implementation
          */
-        class FirebirdDBConnection : public RelationalDBConnection, public std::enable_shared_from_this<FirebirdDBConnection>
+        class FirebirdDBConnection final : public RelationalDBConnection, public std::enable_shared_from_this<FirebirdDBConnection>
         {
             friend class FirebirdDBPreparedStatement;
             friend class FirebirdDBResultSet;
@@ -523,7 +523,7 @@ namespace cpp_dbc
         /**
          * @brief Firebird Driver implementation
          */
-        class FirebirdDBDriver : public RelationalDBDriver
+        class FirebirdDBDriver final : public RelationalDBDriver
         {
         private:
             static std::atomic<bool> s_initialized;
@@ -634,7 +634,7 @@ namespace cpp_dbc
 {
     namespace Firebird
     {
-        class FirebirdDBDriver : public RelationalDBDriver
+        class FirebirdDBDriver final : public RelationalDBDriver
         {
         public:
             FirebirdDBDriver()

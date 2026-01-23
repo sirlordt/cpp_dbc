@@ -71,7 +71,7 @@ namespace cpp_dbc::MySQL
          */
         using MySQLResHandle = std::unique_ptr<MYSQL_RES, MySQLResDeleter>;
 
-        class MySQLDBResultSet : public RelationalDBResultSet
+        class MySQLDBResultSet final : public RelationalDBResultSet
         {
         private:
             /**
@@ -214,7 +214,7 @@ namespace cpp_dbc::MySQL
         // Type alias for the smart pointer managing MYSQL_STMT
         using MySQLStmtHandle = std::unique_ptr<MYSQL_STMT, MySQLStmtDeleter>;
 
-        class MySQLDBPreparedStatement : public RelationalDBPreparedStatement
+        class MySQLDBPreparedStatement final : public RelationalDBPreparedStatement
         {
             friend class MySQLDBConnection;
 
@@ -303,7 +303,7 @@ namespace cpp_dbc::MySQL
         // Note: The deleter is passed to the constructor, not as a template parameter
         using MySQLHandle = std::shared_ptr<MYSQL>;
 
-        class MySQLDBConnection : public RelationalDBConnection
+        class MySQLDBConnection final : public RelationalDBConnection
         {
         private:
             MySQLHandle m_mysql; // shared_ptr allows PreparedStatements to use weak_ptr
@@ -381,7 +381,7 @@ namespace cpp_dbc::MySQL
             cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
         };
 
-        class MySQLDBDriver : public RelationalDBDriver
+        class MySQLDBDriver final : public RelationalDBDriver
         {
         public:
             MySQLDBDriver();
@@ -419,7 +419,7 @@ namespace cpp_dbc::MySQL
 namespace cpp_dbc::MySQL
 {
         // Forward declarations only
-        class MySQLDBDriver : public RelationalDBDriver
+        class MySQLDBDriver final : public RelationalDBDriver
         {
         public:
             MySQLDBDriver()

@@ -99,7 +99,7 @@ namespace cpp_dbc
          */
         using PGconnHandle = std::shared_ptr<PGconn>;
 
-        class PostgreSQLDBResultSet : public RelationalDBResultSet
+        class PostgreSQLDBResultSet final : public RelationalDBResultSet
         {
         private:
             /**
@@ -191,7 +191,7 @@ namespace cpp_dbc
             cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
         };
 
-        class PostgreSQLDBPreparedStatement : public RelationalDBPreparedStatement
+        class PostgreSQLDBPreparedStatement final : public RelationalDBPreparedStatement
         {
             friend class PostgreSQLDBConnection;
 
@@ -267,7 +267,7 @@ namespace cpp_dbc
             cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         };
 
-        class PostgreSQLDBConnection : public RelationalDBConnection
+        class PostgreSQLDBConnection final : public RelationalDBConnection
         {
         private:
             PGconnHandle m_conn; // shared_ptr allows PreparedStatements to use weak_ptr
@@ -343,7 +343,7 @@ namespace cpp_dbc
             cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
         };
 
-        class PostgreSQLDBDriver : public RelationalDBDriver
+        class PostgreSQLDBDriver final : public RelationalDBDriver
         {
         public:
             PostgreSQLDBDriver();
@@ -384,7 +384,7 @@ namespace cpp_dbc
     namespace PostgreSQL
     {
         // Forward declarations only
-        class PostgreSQLDBDriver : public RelationalDBDriver
+        class PostgreSQLDBDriver final : public RelationalDBDriver
         {
         public:
             PostgreSQLDBDriver()

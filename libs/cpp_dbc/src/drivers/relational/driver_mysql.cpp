@@ -2331,8 +2331,7 @@ namespace cpp_dbc::MySQL
             }
 
             // Enable auto-commit by default
-            // Using explicit class qualification to avoid virtual call in constructor
-            MySQLDBConnection::setAutoCommit(true);
+            setAutoCommit(true); // NOSONAR - safe: during construction, dynamic type is exactly MySQLDBConnection
 
             // Initialize URL string once
             std::stringstream urlBuilder;
