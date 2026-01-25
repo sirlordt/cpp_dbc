@@ -389,10 +389,13 @@ namespace cpp_dbc::Firebird
     {
         void operator()(isc_db_handle *db) const noexcept
         {
-            if (db && *db)
+            if (db)
             {
-                ISC_STATUS_ARRAY status;
-                isc_detach_database(status, db);
+                if (*db)
+                {
+                    ISC_STATUS_ARRAY status;
+                    isc_detach_database(status, db);
+                }
                 delete db;
             }
         }
