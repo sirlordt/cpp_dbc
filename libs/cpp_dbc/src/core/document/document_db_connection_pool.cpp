@@ -334,6 +334,16 @@ namespace cpp_dbc
             // Test connection before use if configured
             if (m_testOnBorrow && !validateConnection(conn->getUnderlyingDocumentConnection()))
             {
+                // Close the invalid underlying connection to prevent resource leak
+                try
+                {
+                    conn->getUnderlyingDocumentConnection()->close();
+                }
+                catch ([[maybe_unused]] const std::exception &ex)
+                {
+                    CP_DEBUG("DocumentDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: " << ex.what());
+                }
+
                 // Remove invalid connection from allConnections
                 // Let the caller (getDocumentDBConnection) create replacement outside locks
                 auto it = std::ranges::find(m_allConnections, conn);
