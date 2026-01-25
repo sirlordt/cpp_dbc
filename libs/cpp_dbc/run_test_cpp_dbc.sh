@@ -69,6 +69,8 @@ DEBUG_REDIS=OFF
 RUN_COUNT=1
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
+SHOW_PROGRESS=false
+SKIP_BUILD=false
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -237,6 +239,14 @@ while [[ $# -gt 0 ]]; do
             DB_DRIVER_THREAD_SAFE=OFF
             shift
             ;;
+        --progress)
+            SHOW_PROGRESS=true
+            shift
+            ;;
+        --skip-build)
+            SKIP_BUILD=true
+            shift
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
@@ -277,6 +287,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
+            echo "  --progress             Show visual progress bar during test execution"
             echo "  --help                 Show this help message"
             exit 0
             ;;
@@ -372,6 +383,131 @@ if ! conan profile list | grep -q default; then
     conan profile detect
 fi
 
+# Progress bar variables for scroll region mode
+PROGRESS_SCROLL_SETUP=false
+PROGRESS_ROWS=0
+PROGRESS_COLS=0
+PROGRESS_SCROLL_END=0
+
+# Setup scroll region for sticky progress bar at bottom
+setup_progress_scroll_region() {
+    if [ "$PROGRESS_SCROLL_SETUP" = false ]; then
+        PROGRESS_ROWS=$(tput lines)
+        PROGRESS_COLS=$(tput cols)
+        PROGRESS_SCROLL_END=$((PROGRESS_ROWS - 2))
+
+        # Clear screen and set scroll region (leave 2 lines at bottom for progress)
+        clear
+        printf "\033[1;${PROGRESS_SCROLL_END}r"
+        printf "\033[1;1H"
+        PROGRESS_SCROLL_SETUP=true
+    fi
+}
+
+# Restore normal scroll region
+restore_progress_scroll_region() {
+    if [ "$PROGRESS_SCROLL_SETUP" = true ]; then
+        printf "\033[1;${PROGRESS_ROWS}r"
+        printf "\033[${PROGRESS_ROWS};1H"
+        # Clear the last two lines (progress bar area)
+        printf "\033[K"
+        printf "\033[$((PROGRESS_ROWS - 1));1H"
+        printf "\033[K"
+        printf "\033[${PROGRESS_ROWS};1H"
+        printf "\n"
+        PROGRESS_SCROLL_SETUP=false
+    fi
+}
+
+# Function to display progress bar (only to terminal, not to log)
+# Usage: show_progress_bar current_run total_runs current_test total_tests test_name start_time last_test_duration last_test_name
+show_progress_bar() {
+    local current_run=$1
+    local total_runs=$2
+    local current_test=$3
+    local total_tests=$4
+    local test_name=$5
+    local start_time=$6
+    local last_duration=${7:-0}
+    local last_test_name=${8:-""}
+
+    # Calculate total elapsed time
+    local current_time=$(date +%s)
+    local elapsed=$((current_time - start_time))
+    local hours=$((elapsed / 3600))
+    local minutes=$(((elapsed % 3600) / 60))
+    local seconds=$((elapsed % 60))
+    local elapsed_total_str=$(printf "%02d:%02d:%02d" $hours $minutes $seconds)
+
+    # Format last test duration
+    local lt_hours=$((last_duration / 3600))
+    local lt_minutes=$(((last_duration % 3600) / 60))
+    local lt_seconds=$((last_duration % 60))
+    local elapsed_last_str=$(printf "%02d:%02d:%02d" $lt_hours $lt_minutes $lt_seconds)
+
+    # Truncate last test name if too long (max 20 chars)
+    local display_last_name="$last_test_name"
+    if [ ${#display_last_name} -gt 20 ]; then
+        display_last_name="${display_last_name:0:17}..."
+    fi
+
+    # Calculate percentage
+    local total_progress=$(( (current_run - 1) * total_tests + current_test ))
+    local total_items=$((total_runs * total_tests))
+    local percentage=0
+    if [ $total_items -gt 0 ]; then
+        percentage=$(( (total_progress * 100) / total_items ))
+    fi
+
+    # Build progress bar (20 characters wide)
+    local bar_width=20
+    local filled=$(( (percentage * bar_width) / 100 ))
+    local empty=$((bar_width - filled))
+
+    local bar=""
+    for ((i=0; i<filled; i++)); do
+        bar="${bar}█"
+    done
+    for ((i=0; i<empty; i++)); do
+        bar="${bar}░"
+    done
+
+    # Truncate test name if too long (max 30 chars)
+    local display_name="$test_name"
+    if [ ${#display_name} -gt 30 ]; then
+        display_name="${display_name:0:27}..."
+    fi
+
+    # Use scroll region mode with sticky progress bar at bottom
+    # The @@PROGRESS@@ marker is for log filtering - we print it then use \r to overwrite it visually
+    # Save cursor position
+    printf "\033[s"
+    # Move to progress line (row ROWS-1) and clear it
+    printf "\033[$((PROGRESS_ROWS-1));1H\033[K"
+    # Print marker for log filtering, then carriage return to overwrite, then visible separator
+    printf "@@PROGRESS@@\r"
+    printf "─%.0s" $(seq 1 $PROGRESS_COLS)
+    # Move to last row and clear it
+    printf "\033[${PROGRESS_ROWS};1H\033[K"
+    # Print marker for log filtering, then carriage return to overwrite, then visible progress bar
+    printf "@@PROGRESS@@\r"
+    # Format the last test info (name + duration) or show "N/A" if no previous test
+    local last_info="N/A"
+    if [ -n "$display_last_name" ]; then
+        last_info="${display_last_name} ${elapsed_last_str}"
+    fi
+    printf "[Run: %d/%d] [Test: %d/%d] %-30s %s %3d%% [Total: %s] [Last: %-32s]" \
+        "$current_run" "$total_runs" \
+        "$current_test" "$total_tests" \
+        "$display_name" \
+        "$bar" \
+        "$percentage" \
+        "$elapsed_total_str" \
+        "$last_info"
+    # Restore cursor position
+    printf "\033[u"
+}
+
 # Set paths
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 CPP_DBC_DIR="${SCRIPT_DIR}"
@@ -379,8 +515,8 @@ CPP_DBC_DIR="${SCRIPT_DIR}"
 TEST_BUILD_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/test"
 TEST_EXECUTABLE="${TEST_BUILD_DIR}/test/cpp_dbc_tests"
 
-# Check if the tests are built
-if [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; then
+# Check if the tests are built (skip if --skip-build was passed)
+if [ "$SKIP_BUILD" = false ] && { [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = true ]; }; then
     # Build with appropriate options
     BUILD_CMD="${SCRIPT_DIR}/build_test_cpp_dbc.sh --test"  # Always include --test to ensure tests are built
     if [ "$ENABLE_ASAN" = true ]; then
@@ -553,10 +689,34 @@ if [ "$LIST_ONLY" = true ]; then
     exit 0
 fi
 
+# Initialize progress tracking variables
+PROGRESS_START_TIME=$(date +%s)
+CURRENT_TEST_START_TIME=$(date +%s)
+LAST_TEST_DURATION=0
+LAST_TEST_NAME=""
+TOTAL_TESTS=0
+TAGS_ARRAY=()
+
+# Setup scroll region for progress bar if enabled
+if [ "$SHOW_PROGRESS" = true ]; then
+    setup_progress_scroll_region
+    # Set trap to restore scroll region on exit
+    trap restore_progress_scroll_region EXIT
+fi
+
+# Pre-count tests for progress bar if enabled
+if [ "$SHOW_PROGRESS" = true ] && [ "$RUN_CTEST" = false ]; then
+    echo -e "Counting available tests for progress tracking...\n"
+    TAGS=$(run_test --list-tags 2>/dev/null | grep -oP '\[\K[^\]]+' | sort -u)
+    TAGS_ARRAY=($TAGS)
+    TOTAL_TESTS=${#TAGS_ARRAY[@]}
+    echo -e "Found $TOTAL_TESTS test tags to run.\n"
+fi
+
 # Run all test sets multiple times
 for ((run=1; run<=RUN_COUNT; run++)); do
     echo -e "\n========== Run $run of $RUN_COUNT ==========\n"
-    
+
     # Run tests with CTest if requested
     if [ "$RUN_CTEST" = true ]; then
         echo -e "Running tests with CTest (Run $run of $RUN_COUNT)...\n"
@@ -607,10 +767,26 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                     echo -e "No tags found matching pattern '$RUN_SPECIFIC_TEST'"
                 else
                     echo -e "Found matching tags: $MATCHING_TAGS\n"
+                    # Count matching tags for progress
+                    MATCHING_TAGS_ARRAY=($MATCHING_TAGS)
+                    TOTAL_TESTS=${#MATCHING_TAGS_ARRAY[@]}
+                    CURRENT_TEST=0
                     # Run each matching tag as an exact tag
                     for MATCH_TAG in $MATCHING_TAGS; do
+                        CURRENT_TEST=$((CURRENT_TEST + 1))
+                        # Show progress bar and track test timing if enabled
+                        if [ "$SHOW_PROGRESS" = true ]; then
+                            show_progress_bar "$run" "$RUN_COUNT" "$CURRENT_TEST" "$TOTAL_TESTS" "$MATCH_TAG" "$PROGRESS_START_TIME" "$LAST_TEST_DURATION" "$LAST_TEST_NAME"
+                        fi
+                        # Always track test start time for duration logging
+                        CURRENT_TEST_START_TIME=$(date +%s)
                         echo -e "\nRunning tests with tag [$MATCH_TAG] (Run $run of $RUN_COUNT)...\n"
                         run_test -s -r compact "[$MATCH_TAG]"
+                        # Calculate and log duration of this test
+                        LAST_TEST_DURATION=$(($(date +%s) - CURRENT_TEST_START_TIME))
+                        LAST_TEST_NAME="$MATCH_TAG"
+                        # Print duration marker for log parsing
+                        printf "@@TEST_DURATION:${MATCH_TAG}:${LAST_TEST_DURATION}@@\n"
                     done
                 fi
             # Check if there are multiple tags separated by plus sign
@@ -618,31 +794,76 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                 # Multiple tags separated by plus sign
                 IFS='+' read -ra TEST_TAGS <<< "$RUN_SPECIFIC_TEST"
                 echo -e "Debug: Multiple tags detected: ${#TEST_TAGS[@]}"
+                TOTAL_TESTS=${#TEST_TAGS[@]}
+                CURRENT_TEST=0
 
                 # Run each tag separately
                 for TEST_TAG in "${TEST_TAGS[@]}"; do
+                    CURRENT_TEST=$((CURRENT_TEST + 1))
+                    # Show progress bar and track test timing if enabled
+                    if [ "$SHOW_PROGRESS" = true ]; then
+                        show_progress_bar "$run" "$RUN_COUNT" "$CURRENT_TEST" "$TOTAL_TESTS" "$TEST_TAG" "$PROGRESS_START_TIME" "$LAST_TEST_DURATION" "$LAST_TEST_NAME"
+                    fi
+                    # Always track test start time for duration logging
+                    CURRENT_TEST_START_TIME=$(date +%s)
                     echo -e "\nRunning tests with tag [$TEST_TAG] (Run $run of $RUN_COUNT)...\n"
                     run_test -s -r compact "[$TEST_TAG]"
+                    # Calculate and log duration of this test
+                    LAST_TEST_DURATION=$(($(date +%s) - CURRENT_TEST_START_TIME))
+                    LAST_TEST_NAME="$TEST_TAG"
+                    # Print duration marker for log parsing
+                    printf "@@TEST_DURATION:${TEST_TAG}:${LAST_TEST_DURATION}@@\n"
                 done
             else
                 # Single tag - add brackets
+                TOTAL_TESTS=1
+                CURRENT_TEST=1
+                # Show progress bar and track test timing if enabled
+                if [ "$SHOW_PROGRESS" = true ]; then
+                    show_progress_bar "$run" "$RUN_COUNT" "$CURRENT_TEST" "$TOTAL_TESTS" "$RUN_SPECIFIC_TEST" "$PROGRESS_START_TIME" "$LAST_TEST_DURATION" "$LAST_TEST_NAME"
+                fi
+                # Always track test start time for duration logging
+                CURRENT_TEST_START_TIME=$(date +%s)
                 echo -e "\nRunning tests with tag [$RUN_SPECIFIC_TEST] (Run $run of $RUN_COUNT)...\n"
                 run_test -s -r compact "[$RUN_SPECIFIC_TEST]"
+                # Calculate and log duration of this test
+                LAST_TEST_DURATION=$(($(date +%s) - CURRENT_TEST_START_TIME))
+                LAST_TEST_NAME="$RUN_SPECIFIC_TEST"
+                # Print duration marker for log parsing
+                printf "@@TEST_DURATION:${RUN_SPECIFIC_TEST}:${LAST_TEST_DURATION}@@\n"
             fi
         else
             # Then run the tests with detailed output
             echo -e "\nRunning tests with detailed output (Run $run of $RUN_COUNT):\n"
-            
-            # Get all test tags (only on first run)
-            if [ "$run" -eq 1 ]; then
+
+            # Get all test tags (only on first run, or if not already obtained for progress)
+            if [ "$run" -eq 1 ] && [ ${#TAGS_ARRAY[@]} -eq 0 ]; then
                 echo -e "Getting all test tags...\n"
                 TAGS=$(run_test --list-tags | grep -oP '\[\K[^\]]+' | sort -u)
+                TAGS_ARRAY=($TAGS)
+                TOTAL_TESTS=${#TAGS_ARRAY[@]}
+            elif [ ${#TAGS_ARRAY[@]} -gt 0 ]; then
+                # Use pre-computed tags array
+                TAGS="${TAGS_ARRAY[*]}"
             fi
-            
+
+            # Initialize test counter for this run
+            CURRENT_TEST=0
+
             # Run tests by tags to avoid hanging
             for TAG in $TAGS; do
+                # Increment test counter
+                CURRENT_TEST=$((CURRENT_TEST + 1))
+
+                # Show progress bar and track test timing if enabled (before test output)
+                if [ "$SHOW_PROGRESS" = true ]; then
+                    show_progress_bar "$run" "$RUN_COUNT" "$CURRENT_TEST" "$TOTAL_TESTS" "$TAG" "$PROGRESS_START_TIME" "$LAST_TEST_DURATION" "$LAST_TEST_NAME"
+                fi
+                # Always track test start time for duration logging
+                CURRENT_TEST_START_TIME=$(date +%s)
+
                 echo -e "\nRunning tests with tag [$TAG] (Run $run of $RUN_COUNT)...\n"
-                
+
                 # Run the test with real-time output while also capturing it for validation
                 echo -e "\nRunning test with tag [$TAG] (Run $run of $RUN_COUNT)...\n"
                 # Use a temporary file to capture output
@@ -661,12 +882,12 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                 
                 # Check if this is just a skipped test (not a failure)
                 SKIPPED_TEST=false
-                
+
                 # Exit code 4 is used by Catch2 for skipped tests
                 if [ $TEST_RESULT -eq 4 ]; then
                     SKIPPED_TEST=true
                 fi
-                
+
                 # Also check output patterns as a backup
                 if echo "$TEST_OUTPUT" | grep -q "skipped:" && echo "$TEST_OUTPUT" | grep -q "test cases: .* | .* skipped"; then
                     # Also check that there are no failures reported
@@ -674,15 +895,24 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                         SKIPPED_TEST=true
                     fi
                 fi
-                
+
+                # Helper function to log test duration (must be called before any continue)
+                log_test_duration() {
+                    LAST_TEST_DURATION=$(($(date +%s) - CURRENT_TEST_START_TIME))
+                    LAST_TEST_NAME="$TAG"
+                    # Print duration marker for log parsing
+                    printf "@@TEST_DURATION:${TAG}:${LAST_TEST_DURATION}@@\n"
+                }
+
                 # Check if we should continue automatically
                 if [ "$AUTO_CONTINUE" = true ]; then
                     # Check if this is a skipped test - should continue automatically regardless of exit code
                     if [ "$SKIPPED_TEST" = true ]; then
                         echo -e "\nTest [$TAG] (Run $run of $RUN_COUNT): Test skipped. Continuing automatically..."
+                        log_test_duration
                         continue
                     fi
-                    
+
                     # Check if tests passed based on exit code
                     if [ $TEST_RESULT -eq 0 ]; then
                         # If valgrind is enabled, check for memory leaks
@@ -692,10 +922,11 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                                 # Check if there are no errors despite the GSSAPI leaks
                                 if echo "$TEST_OUTPUT" | grep -q "ERROR SUMMARY: 0 errors from 0 contexts"; then
                                     echo -e "\nGSSAPI leaks detected but ignored as requested. Continuing to next test..."
+                                    log_test_duration
                                     continue
                                 fi
                             fi
-                            
+
                                 # Standard case - check for no real memory leaks
                                 # Check for either:
                                 # 1. All heap blocks were freed (perfect case), OR
@@ -706,6 +937,7 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                                        echo "$TEST_OUTPUT" | grep -q "indirectly lost: 0 bytes in 0 blocks" && \
                                        echo "$TEST_OUTPUT" | grep -q "possibly lost: 0 bytes in 0 blocks"; }; }; then
                                     echo -e "\nNo real memory leaks detected. Continuing to next test..."
+                                    log_test_duration
                                     continue
                                 else
                                 echo -e "\nTest [$TAG] (Run $run of $RUN_COUNT): Memory leaks or errors detected. Press Enter to continue or ESC to abort..."
@@ -718,6 +950,7 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                         else
                             # No valgrind, just continue if tests passed
                             echo -e "\nAll tests passed. Continuing to next test..."
+                            log_test_duration
                             continue
                         fi
                     else
@@ -725,10 +958,11 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                         if echo "$TEST_OUTPUT" | grep -q "skipped:" && ! echo "$TEST_OUTPUT" | grep -q "failed:"; then
                             if [ "$AUTO_CONTINUE" = true ]; then
                                 echo -e "\nTest [$TAG] (Run $run of $RUN_COUNT): Test skipped (alt detection). Continuing automatically..."
+                                log_test_duration
                                 continue
                             fi
                         fi
-                        
+
                         echo -e "\nTest [$TAG] (Run $run of $RUN_COUNT): Tests failed. Press Enter to continue or ESC to abort..."
                         read -n 1 key
                         if [[ $key = $'\e' ]]; then
@@ -740,10 +974,21 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                     # Original behavior - always wait for user input
                     read -p "Press Enter to continue with the next test..."
                 fi
+                # Log duration for cases that didn't continue early
+                log_test_duration
             done
         fi
     fi
 done
+
+# Show final progress bar at 100% and restore scroll region if enabled
+if [ "$SHOW_PROGRESS" = true ] && [ "$TOTAL_TESTS" -gt 0 ]; then
+    show_progress_bar "$RUN_COUNT" "$RUN_COUNT" "$TOTAL_TESTS" "$TOTAL_TESTS" "Completed" "$PROGRESS_START_TIME" "$LAST_TEST_DURATION" "$LAST_TEST_NAME"
+    # Small delay to let user see the 100% progress
+    sleep 1
+    # Restore scroll region (trap will also call this, but calling explicitly is cleaner)
+    restore_progress_scroll_region
+fi
 
 echo -e "\n========== All Test Runs Completed ($RUN_COUNT total runs) ==========\n"
 echo -e "Test execution completed. All $RUN_COUNT runs have been executed. Check the output above for any errors."

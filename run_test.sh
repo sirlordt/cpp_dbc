@@ -68,6 +68,7 @@ DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
 DW_OFF=false
 DB_DRIVER_THREAD_SAFE_OFF=false
+SHOW_PROGRESS=false
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -236,6 +237,10 @@ while [[ $# -gt 0 ]]; do
             DB_DRIVER_THREAD_SAFE_OFF=true
             shift
             ;;
+        --progress)
+            SHOW_PROGRESS=true
+            shift
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo "Options:"
@@ -276,6 +281,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-all            Enable all debug output"
             echo "  --dw-off               Disable libdw support for stack traces"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
+            echo "  --progress             Show visual progress bar during test execution"
             echo "  --help                 Show this help message"
             exit 0
             ;;
@@ -288,81 +294,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Check if the project has been built
-# Get the binary name from .dist_build
-if [ -f ".dist_build" ]; then
-    BIN_NAME=$(awk -F'"' '/^Container_Bin_Name=/{print $2}' .dist_build)
-else
-    BIN_NAME="cpp_dbc_demo"  # Default name if .dist_build is not found
-fi
-
-MAIN_EXECUTABLE="build/${BIN_NAME}"
-if [ ! -f "$MAIN_EXECUTABLE" ]; then
-    echo "Project has not been built yet. Building the project first..."
-    
-    # Build the project with appropriate options
-    BUILD_CMD="./build.sh"
-    
-    # Pass the same database options to build.sh
-    if [ "$USE_MYSQL" = "OFF" ]; then
-        BUILD_CMD="$BUILD_CMD --mysql-off"
-    else
-        BUILD_CMD="$BUILD_CMD --mysql"
-    fi
-    
-    if [ "$USE_POSTGRESQL" = "ON" ]; then
-        BUILD_CMD="$BUILD_CMD --postgres-on"
-    fi
-    
-    if [ "$USE_SQLITE" = "ON" ]; then
-        BUILD_CMD="$BUILD_CMD --sqlite"
-    fi
-    
-    if [ "$USE_FIREBIRD" = "ON" ]; then
-        BUILD_CMD="$BUILD_CMD --firebird"
-    fi
-    
-    if [ "$USE_MONGODB" = "ON" ]; then
-        BUILD_CMD="$BUILD_CMD --mongodb"
-    fi
-
-    if [ "$USE_SCYLLADB" = "ON" ]; then
-        BUILD_CMD="$BUILD_CMD --scylladb"
-    fi
-    
-    if [ "$USE_REDIS" = "ON" ]; then
-        BUILD_CMD="$BUILD_CMD --redis"
-    fi
-    
-    if [ "$USE_YAML" = "ON" ]; then
-        BUILD_CMD="$BUILD_CMD --yaml"
-    else 
-        BUILD_CMD="$BUILD_CMD --yaml-off"
-    fi
-    
-    if [ "$BUILD_TYPE" = "Release" ]; then
-        BUILD_CMD="$BUILD_CMD --release"
-    fi
-
-    if [ "$ENABLE_GCC_ANALYZER" = "ON" ]; then
-        BUILD_CMD="$BUILD_CMD --gcc-analyzer"
-    fi
-    
-    # Always include --test to ensure tests are built
-    BUILD_CMD="$BUILD_CMD --test"
-    
-    echo "$0 => Running build command: $BUILD_CMD"
-    $BUILD_CMD
-    
-    # Check if build was successful
-    if [ $? -ne 0 ]; then
-        echo "Error: Project build failed. Cannot run tests."
-        exit 1
-    fi
-    
-    echo "Project built successfully. Continuing with tests..."
-    echo ""
-fi
+# Note: We don't build the main project here anymore.
+# run_test_cpp_dbc.sh will handle building both the library and tests in one place,
+# avoiding double compilation of the cpp_dbc library.
 
 # Check for incompatible options
 if [ "$USE_VALGRIND" = true ] && [ "$ENABLE_ASAN" = true ]; then
@@ -507,6 +441,11 @@ fi
 # Add db-driver-thread-safe-off option if specified
 if [ "$DB_DRIVER_THREAD_SAFE_OFF" = true ]; then
     CMD="$CMD --db-driver-thread-safe-off"
+fi
+
+# Add progress option if specified
+if [ "$SHOW_PROGRESS" = true ]; then
+    CMD="$CMD --progress"
 fi
 
 # Execute the command

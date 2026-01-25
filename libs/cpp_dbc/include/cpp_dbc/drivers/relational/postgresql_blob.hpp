@@ -27,19 +27,18 @@
 #if USE_POSTGRESQL
 #include <libpq-fe.h>
 
-// Define constants for large object access modes if not already defined
+namespace cpp_dbc::PostgreSQL
+{
+        // Constants for large object access modes if not already defined by libpq
 #ifndef INV_READ
-#define INV_READ 0x00040000
+        inline constexpr int INV_READ_VALUE = 0x00040000;
+#define INV_READ INV_READ_VALUE
 #endif
 
 #ifndef INV_WRITE
-#define INV_WRITE 0x00020000
+        inline constexpr int INV_WRITE_VALUE = 0x00020000;
+#define INV_WRITE INV_WRITE_VALUE
 #endif
-
-namespace cpp_dbc
-{
-    namespace PostgreSQL
-    {
         // PostgreSQL implementation of InputStream
         class PostgreSQLInputStream : public InputStream
         {
@@ -49,7 +48,7 @@ namespace cpp_dbc
 
         public:
             PostgreSQLInputStream(const char *buffer, size_t length)
-                : m_data(buffer, buffer + length), m_position(0) {}
+                : m_data(buffer, buffer + length) {}
 
             int read(uint8_t *buffer, size_t length) override
             {
@@ -115,8 +114,8 @@ namespace cpp_dbc
              * @brief Constructor for creating a new BLOB
              * @param conn Shared pointer to the PostgreSQL connection handle
              */
-            PostgreSQLBlob(std::shared_ptr<PGconn> conn)
-                : m_conn(conn), m_lobOid(0), m_loaded(true) {}
+            explicit PostgreSQLBlob(std::shared_ptr<PGconn> conn)
+                : m_conn(conn), m_loaded(true) {}
 
             /**
              * @brief Constructor for loading an existing BLOB by OID
@@ -124,7 +123,7 @@ namespace cpp_dbc
              * @param oid The OID of the large object to load
              */
             PostgreSQLBlob(std::shared_ptr<PGconn> conn, Oid oid)
-                : m_conn(conn), m_lobOid(oid), m_loaded(false) {}
+                : m_conn(conn), m_lobOid(oid) {}
 
             /**
              * @brief Constructor for creating a BLOB from existing data
@@ -132,7 +131,7 @@ namespace cpp_dbc
              * @param initialData The initial data for the BLOB
              */
             PostgreSQLBlob(std::shared_ptr<PGconn> conn, const std::vector<uint8_t> &initialData)
-                : MemoryBlob(initialData), m_conn(conn), m_lobOid(0), m_loaded(true) {}
+                : MemoryBlob(initialData), m_conn(conn), m_loaded(true) {}
 
             /**
              * @brief Check if the connection is still valid
@@ -370,8 +369,7 @@ namespace cpp_dbc
             }
         };
 
-    } // namespace PostgreSQL
-} // namespace cpp_dbc
+} // namespace cpp_dbc::PostgreSQL
 
 #endif // USE_POSTGRESQL
 

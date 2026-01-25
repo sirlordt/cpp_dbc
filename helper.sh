@@ -71,7 +71,7 @@ show_usage() {
   echo "  --run-test               Build (if needed) and run the tests"
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
   echo "                           Available options: clean,release,gcc-analyzer,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,valgrind,"
-  echo "                                              yaml,auto,asan,ctest,check,run=N,test=FILTER,"
+  echo "                                              yaml,auto,asan,ctest,check,progress,run=N,test=FILTER,"
   echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Test filter formats (test=FILTER):"
   echo "                             - Wildcard: test=*mysql* matches test names containing 'mysql'"
@@ -79,6 +79,8 @@ show_usage() {
   echo "                           Example: --run-test=rebuild,mysql,valgrind,run=1,test=*mysql*"
   echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3,test=integration+mysql_real_right_join"
   echo "                           Example: --run-test=clean,rebuild,sqlite,mysql,postgres,yaml,valgrind,auto,run=1"
+  echo "                           Example: --run-test=rebuild,sqlite,mysql,postgres,yaml,auto,progress,run=1"
+  echo "                           Note: progress option shows visual progress bar [Run: 1/5] [Test: 3/10] name ████░░░░ 30% [Elapsed: 00:05:23]"
   echo "  --run-benchmarks         Run the benchmarks"
   echo "  --run-benchmarks=OPTIONS Run benchmarks with comma-separated options"
   echo "                           Available options: clean,release,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,"
@@ -101,6 +103,8 @@ show_usage() {
   echo "  --bk-combo-06            Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,auto,run=1"
   echo "  --bk-combo-07            Equivalent to --run-test=sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,run=1"
   echo "  --bk-combo-08            Equivalent to --run-test=sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,auto,run=1"
+  echo "  --bk-combo-09            Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,run=1"
+  echo "  --bk-combo-10            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,run=5"
   echo "  --mc-combo-01            Equivalent to --run-build=clean,postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples"
   echo "  --mc-combo-02            Equivalent to --run-build=postgres,sqlite,mysql,scylladb,redis,yaml,test,examples"
   echo "  --kfc-combo-01           Equivalent to --run-build-dist=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,test,examples"
@@ -407,6 +411,10 @@ cmd_run_test() {
         check)
           run_test_cmd="$run_test_cmd --check"
           ;;
+        progress)
+          run_test_cmd="$run_test_cmd --progress"
+          echo "Enabling progress bar display"
+          ;;
         debug-pool)
           run_test_cmd="$run_test_cmd --debug-pool"
           echo "Enabling debug output for ConnectionPool"
@@ -470,21 +478,80 @@ cmd_run_test() {
   fi
   
   echo "$0 => running: $run_test_cmd"
-  
+
+  # Create a temporary file to capture raw output
+  local raw_log_file=$(mktemp)
+
+  # Function to process raw log into final log file
+  process_raw_log() {
+    if [ -f "$raw_log_file" ]; then
+      # Sync to ensure all data is written to disk
+      sync
+
+      # # DEBUG: Show raw log stats before processing
+      # echo ""
+      # echo "=== DEBUG: Raw log file stats ==="
+      # echo "Raw log file: $raw_log_file"
+      # echo "Raw log size: $(wc -c < "$raw_log_file") bytes"
+      # echo "Raw log lines: $(wc -l < "$raw_log_file")"
+      # echo "Filters count in raw: $(grep -c 'Filters:' "$raw_log_file" 2>/dev/null || echo 0)"
+      # echo "All Test Runs in raw: $(grep -c 'All Test Runs Completed' "$raw_log_file" 2>/dev/null || echo 0)"
+      # echo "================================="
+
+      # Process the raw log:
+      # 1. Remove null bytes (can be introduced by terminal scroll region commands)
+      # 2. Strip ANSI escape sequences
+      # 3. Remove carriage returns
+      # 4. Filter out progress bar lines
+      tr -d '\0' < "$raw_log_file" | sed -r "s/\x1B\[[0-9;]*[a-zA-Z]//g; s/\x1B\[[@-~]//g; s/\r//g" | grep -v '@@PROGRESS@@' > "$log_file"
+
+      # # DEBUG: Show processed log stats
+      # echo ""
+      # echo "=== DEBUG: Processed log file stats ==="
+      # echo "Processed log file: $log_file"
+      # echo "Processed log size: $(wc -c < "$log_file") bytes"
+      # echo "Processed log lines: $(wc -l < "$log_file")"
+      # echo "Filters count in processed: $(grep -c 'Filters:' "$log_file" 2>/dev/null || echo 0)"
+      # echo "All Test Runs in processed: $(grep -c 'All Test Runs Completed' "$log_file" 2>/dev/null || echo 0)"
+      # echo "========================================"
+
+      # Clean up temporary raw log file (comment out to keep for debugging)
+      rm -f "$raw_log_file"
+      # echo "DEBUG: Raw log kept at: $raw_log_file"
+    fi
+  }
+
+  # Set trap to process log even on interruption (Ctrl+C)
+  trap 'process_raw_log; exit 130' INT TERM
+
   # Check if terminal supports colors
   if check_color_support; then
-    # Run with colors in terminal but without colors in log file
-    # Use unbuffer to preserve colors in terminal output and sed to strip ANSI color codes from log file
-    unbuffer $run_test_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    # Run with colors in terminal, capture raw output to temp file
+    # Use unbuffer to preserve colors in terminal output
+    # The key fix: use tee with -i to ignore interrupt signals and ensure complete write
+    unbuffer $run_test_cmd 2>&1 | tee -i "$raw_log_file"
   else
-    # Terminal doesn't support colors, just run normally and strip any color codes that might be present
-    $run_test_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    # Terminal doesn't support colors, just run normally
+    $run_test_cmd 2>&1 | tee -i "$raw_log_file"
   fi
-  
+
+  # Capture the exit status of the pipeline
+  local pipe_status=${PIPESTATUS[0]}
+
+  # Ensure all data is flushed to disk before processing
+  sync
+  sleep 0.5
+
+  # Process the raw log (normal exit)
+  process_raw_log
+
+  # Remove the trap
+  trap - INT TERM
+
   echo ""
   echo "Command runned: $run_test_cmd"
   echo "Log file: $log_file."
-  
+
   # Automatically check the test log after running tests
   # Ejecutar check-test-log como un comando separado para asegurar la misma salida
   echo ""
@@ -545,10 +612,36 @@ extract_available_tests() {
   rm -f "$temp_file"
 }
 
-# Helper function to extract executed test cases from log file
-# Returns: tag|line_number for each executed test
+# Helper function to count total runs in log file
+count_total_runs() {
+  local log_file="$1"
+
+  # Primary method: Look for "(Run X of Y)" patterns and get the max Y value
+  # This is the most reliable way to detect the number of runs
+  local max_runs=$(grep -o "(Run [0-9]* of [0-9]*)" "$log_file" 2>/dev/null | sed 's/.* of \([0-9]*\))/\1/' | sort -rn | head -1)
+  if [ -n "$max_runs" ] && [ "$max_runs" -gt 0 ]; then
+    echo "$max_runs"
+    return
+  fi
+
+  # Fallback: Check if "All Test Runs Completed" exists (indicates at least 1 run completed)
+  if grep -q "All Test Runs Completed" "$log_file" 2>/dev/null; then
+    echo "1"
+    return
+  fi
+
+  # Default: assume 1 run
+  echo "1"
+}
+
+# Helper function to extract executed test cases from log file for a specific run
+# Returns: tag|line_number|duration_seconds for each executed test
+# Parameters:
+#   $1 - log_file path
+#   $2 - run_number (optional, if not provided returns all runs aggregated)
 extract_executed_tests() {
   local log_file="$1"
+  local run_number="${2:-}"
 
   # Create a temporary file to store the executed tags with line numbers
   local temp_file=$(mktemp)
@@ -557,6 +650,9 @@ extract_executed_tests() {
   # Format: line_number:Filters: [tag]
   grep -a -n "Filters: \[[^]]*\]" "$log_file" > "$temp_file" 2>/dev/null || true
 
+  # Track which tags we've already seen (for run filtering)
+  declare -A tag_count
+
   # For each tag, check if there are any passed or failed tests
   while IFS= read -r line; do
     [ -z "$line" ] && continue
@@ -564,16 +660,56 @@ extract_executed_tests() {
     local line_number=$(echo "$line" | cut -d: -f1)
     local tag=$(echo "$line" | sed 's/.*Filters: \[\([^]]*\)\]/\1/')
 
+    # Track occurrence count for this tag
+    tag_count[$tag]=$((${tag_count[$tag]:-0} + 1))
+    local current_occurrence=${tag_count[$tag]}
+
+    # If run_number is specified, only process tags from that run
+    if [ -n "$run_number" ] && [ "$current_occurrence" -ne "$run_number" ]; then
+      continue
+    fi
+
     # Look for lines with passed/failed starting from this specific line_number
     # and stopping at the next "Filters:" boundary (or end of file)
     # This ensures we only inspect tests for this specific Filters block
     if sed -n "${line_number},\$p" "$log_file" | sed '/^.*Filters: \[/{ 1!q }' | grep -a -q "\.cpp:[0-9]\+: passed:\|\.cpp:[0-9]\+: failed:"; then
-      echo "${tag}|${line_number}"
+      # Try to find the duration marker for this tag at the specific occurrence
+      local duration=""
+      if [ -n "$run_number" ]; then
+        # Get the Nth occurrence of the duration marker for this tag
+        duration=$(grep -a "@@TEST_DURATION:${tag}:" "$log_file" 2>/dev/null | sed -n "${run_number}p" | sed 's/.*@@TEST_DURATION:[^:]*:\([0-9]*\)@@.*/\1/')
+      else
+        # Get the first occurrence (legacy behavior)
+        duration=$(grep -a "@@TEST_DURATION:${tag}:" "$log_file" 2>/dev/null | head -1 | sed 's/.*@@TEST_DURATION:[^:]*:\([0-9]*\)@@.*/\1/')
+      fi
+      if [ -z "$duration" ]; then
+        duration="0"
+      fi
+      echo "${tag}|${line_number}|${duration}"
     fi
   done < "$temp_file"
 
   # Clean up
   rm -f "$temp_file"
+}
+
+# Helper function to extract total duration for each test across all runs
+# Returns: tag|total_duration_seconds for each executed test
+extract_total_durations() {
+  local log_file="$1"
+
+  # Get all unique tags
+  local tags=$(grep -a "@@TEST_DURATION:" "$log_file" 2>/dev/null | sed 's/.*@@TEST_DURATION:\([^:]*\):.*/\1/' | sort -u)
+
+  for tag in $tags; do
+    # Sum all durations for this tag
+    local total=0
+    while IFS= read -r duration; do
+      [ -z "$duration" ] && continue
+      total=$((total + duration))
+    done < <(grep -a "@@TEST_DURATION:${tag}:" "$log_file" 2>/dev/null | sed 's/.*@@TEST_DURATION:[^:]*:\([0-9]*\)@@.*/\1/')
+    echo "${tag}|${total}"
+  done
 }
 
 # Helper function to check for test failures in log file
@@ -679,7 +815,101 @@ check_valgrind_errors() {
   return $found_issues
 }
 
-# Helper function to display test execution table
+# Helper function to format seconds as HH:MM:SS
+format_duration() {
+  local seconds=$1
+  local hours=$((seconds / 3600))
+  local minutes=$(((seconds % 3600) / 60))
+  local secs=$((seconds % 60))
+  printf "%02d:%02d:%02d" $hours $minutes $secs
+}
+
+# Helper function to display a single test execution table
+# Parameters:
+#   $1 - log_file
+#   $2 - available_tests (pre-extracted)
+#   $3 - executed_tests (pre-extracted for specific run)
+#   $4 - max_tag_len
+#   $5 - desc_col_width
+#   $6 - relative_log_file
+#   $7 - title (e.g., "Run 1" or "Total")
+#   $8 - total_durations (optional, for total summary)
+display_single_table() {
+  local log_file="$1"
+  local available_tests="$2"
+  local executed_tests="$3"
+  local max_tag_len="$4"
+  local desc_col_width="$5"
+  local relative_log_file="$6"
+  local title="$7"
+  local total_durations="${8:-}"
+
+  echo ""
+  echo "=== $title ==="
+
+  # Calculate total time for this run
+  local total_seconds=0
+
+  # Process each available test for display
+  while IFS= read -r test_line; do
+    # Skip empty lines
+    if [ -z "$test_line" ]; then
+      continue
+    fi
+
+    # Split the line by the pipe character
+    IFS='|' read -r test_name tag <<< "$test_line"
+
+    # Default to not executed
+    local executed="[Not Executed]"
+    local log_location=""
+
+    # Check if this tag was executed (format: tag|line_number|duration)
+    while IFS= read -r executed_entry; do
+      [ -z "$executed_entry" ] && continue
+      # Split by pipe to get tag, line number, and duration
+      local exec_tag=$(echo "$executed_entry" | cut -d'|' -f1)
+      local exec_line=$(echo "$executed_entry" | cut -d'|' -f2)
+      local exec_duration=$(echo "$executed_entry" | cut -d'|' -f3)
+
+      if [ "$tag" = "$exec_tag" ]; then
+        # Format duration as HH:MM:SS
+        local duration_str=$(format_duration "${exec_duration:-0}")
+        executed="[Executed ${duration_str}]"
+        log_location=" => ${relative_log_file}:${exec_line}"
+        total_seconds=$((total_seconds + exec_duration))
+        break
+      fi
+    done <<< "$executed_tests"
+
+    # For total summary, use total_durations if provided
+    if [ -n "$total_durations" ]; then
+      while IFS= read -r total_entry; do
+        [ -z "$total_entry" ] && continue
+        local total_tag=$(echo "$total_entry" | cut -d'|' -f1)
+        local total_dur=$(echo "$total_entry" | cut -d'|' -f2)
+
+        if [ "$tag" = "$total_tag" ]; then
+          local duration_str=$(format_duration "${total_dur:-0}")
+          executed="[Executed ${duration_str}]"
+          log_location=""  # No specific line for total
+          total_seconds=$((total_seconds + total_dur))
+          break
+        fi
+      done <<< "$total_durations"
+    fi
+
+    # Format the output with optional log location for executed tests
+    printf "  [%-${max_tag_len}s] %-${desc_col_width}s %s%s\n" "$tag" "$test_name" "$executed" "$log_location"
+  done <<< "$available_tests"
+
+  # Show total time for this table
+  local total_str=$(format_duration "$total_seconds")
+  echo "  ─────────────────────────────────────────────────────────────────────"
+  printf "  Total time: %s (%d seconds)\n" "$total_str" "$total_seconds"
+}
+
+# Helper function to display test execution table (with per-run support)
 display_test_execution_table() {
   local log_file="$1"
 
@@ -691,19 +921,19 @@ display_test_execution_table() {
     relative_log_file="./${relative_log_file}"
   fi
 
-  echo "All available test cases:"
-
   # Get available tests
   local available_tests=$(extract_available_tests "$log_file")
-
-  # Get executed tests (now returns tag|line_number)
-  local executed_tests=$(extract_executed_tests "$log_file")
 
   # If no available tests were found, show a message
   if [ -z "$available_tests" ]; then
     echo "  No test cases found in the log file."
     return
   fi
+
+  # Count total runs
+  local total_runs=$(count_total_runs "$log_file")
+
+  echo "All available test cases (${total_runs} run(s) detected):"
 
   # First pass: find the longest tag and description
   local max_tag_len=0
@@ -733,39 +963,20 @@ display_test_execution_table() {
   done <<< "$available_tests"
 
   # Add padding to the description column length (1 space after)
-  desc_col_width=$((max_desc_len + 1))
+  local desc_col_width=$((max_desc_len + 1))
 
-  # Process each available test for display
-  while IFS= read -r test_line; do
-    # Skip empty lines
-    if [ -z "$test_line" ]; then
-      continue
-    fi
+  # Display a table for each run
+  for ((run=1; run<=total_runs; run++)); do
+    local executed_tests=$(extract_executed_tests "$log_file" "$run")
+    display_single_table "$log_file" "$available_tests" "$executed_tests" "$max_tag_len" "$desc_col_width" "$relative_log_file" "Run $run of $total_runs"
+  done
 
-    # Split the line by the pipe character
-    IFS='|' read -r test_name tag <<< "$test_line"
-
-    # Default to not executed
-    local executed="[Not Executed]"
-    local log_location=""
-
-    # Check if this tag was executed (format: tag|line_number)
-    while IFS= read -r executed_entry; do
-      [ -z "$executed_entry" ] && continue
-      # Split by pipe to get tag and line number
-      local exec_tag=$(echo "$executed_entry" | cut -d'|' -f1)
-      local exec_line=$(echo "$executed_entry" | cut -d'|' -f2)
-
-      if [ "$tag" = "$exec_tag" ]; then
-        executed="[Executed]"
-        log_location=" => ${relative_log_file}:${exec_line}"
-        break
-      fi
-    done <<< "$executed_tests"
-
-    # Format the output with optional log location for executed tests
-    printf "  [%-${max_tag_len}s] %-${desc_col_width}s %s%s\n" "$tag" "$test_name" "$executed" "$log_location"
-  done <<< "$available_tests"
+  # If there are multiple runs, display total summary
+  if [ "$total_runs" -gt 1 ]; then
+    local total_durations=$(extract_total_durations "$log_file")
+    # For total, we pass empty executed_tests and use total_durations instead
+    display_single_table "$log_file" "$available_tests" "" "$max_tag_len" "$desc_col_width" "$relative_log_file" "TOTAL (All $total_runs runs)" "$total_durations"
+  fi
 }
 
 # Synchronize VSCode IntelliSense with last build configuration
@@ -1513,6 +1724,16 @@ while [ $i -lt ${#args[@]} ]; do
     --bk-combo-08)
       # Equivalent to --run-test=sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,auto,run=1
       TEST_OPTIONS="sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,auto,run=1"
+      cmd_run_test
+      ;;
+    --bk-combo-09)
+      # Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,run=1
+      TEST_OPTIONS="clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,run=1"
+      cmd_run_test
+      ;;
+    --bk-combo-10)
+      # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,run=5
+      TEST_OPTIONS="rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,run=5"
       cmd_run_test
       ;;
     --kfc-combo-01)

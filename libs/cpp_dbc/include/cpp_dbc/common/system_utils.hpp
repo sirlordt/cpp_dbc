@@ -30,11 +30,8 @@
 #include <string>
 #include <vector>
 
-namespace cpp_dbc
+namespace cpp_dbc::system_utils
 {
-
-    namespace system_utils
-    {
 
         // Declare the mutex as external
         extern std::mutex global_cout_mutex;
@@ -49,7 +46,7 @@ namespace cpp_dbc
         // Thread-safe print function
         inline void safePrint(const std::string &mark, const std::string &message)
         {
-            std::lock_guard<std::mutex> lock(global_cout_mutex);
+            std::scoped_lock lock(global_cout_mutex);
             std::cout << mark << ": " << message << std::endl;
         }
 
@@ -62,7 +59,8 @@ namespace cpp_dbc
 
             // Convert to time_t for formatting hours/minutes/seconds
             std::time_t now_c = system_clock::to_time_t(now);
-            std::tm tm = *std::localtime(&now_c);
+            std::tm tm{};
+            localtime_r(&now_c, &tm);
 
             // Extract milliseconds
             auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
@@ -86,8 +84,11 @@ namespace cpp_dbc
                           now.time_since_epoch()) %
                       1000;
 
+            std::tm tm{};
+            localtime_r(&time_t_now, &tm);
+
             std::stringstream ss;
-            ss << std::put_time(std::localtime(&time_t_now), "[%Y-%m-%d %H:%M:%S");
+            ss << std::put_time(&tm, "[%Y-%m-%d %H:%M:%S");
             ss << "." << std::setfill('0') << std::setw(3) << ms.count() << "]";
 
             return ss.str();
@@ -149,11 +150,8 @@ namespace cpp_dbc
             logWithTimestamp("[EXCEPTION] [" + mark + "]", message);
         }
 
-        // bool shouldSkipFrame(const std::string &filename, const std::string &function);
         std::vector<StackFrame> captureCallStack(bool captureAll = false, int skip = 1);
         void printCallStack(const std::vector<StackFrame> &frames);
-    }
-
-}
+} // namespace cpp_dbc::system_utils
 
 #endif // SYSTEM_UTILS_HPP
