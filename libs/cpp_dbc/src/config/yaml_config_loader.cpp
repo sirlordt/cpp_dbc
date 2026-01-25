@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file yaml_config_loader.cpp
- @brief Tests for YAML configuration loading
+ @brief Implementation of YAML configuration loading
 
 */
 
