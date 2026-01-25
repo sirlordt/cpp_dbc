@@ -429,15 +429,13 @@ namespace cpp_dbc
 #else // USE_SQLITE
 
 // Stub implementations when SQLite is disabled
-namespace cpp_dbc
+namespace cpp_dbc::SQLite
 {
-    namespace SQLite
-    {
         // Forward declarations only
         class SQLiteDBDriver final : public RelationalDBDriver
         {
         public:
-            SQLiteDBDriver()
+            [[noreturn]] SQLiteDBDriver()
             {
                 throw DBException("C27AD46A860B", "SQLite support is not enabled in this build", system_utils::captureCallStack());
             }
@@ -476,8 +474,7 @@ namespace cpp_dbc
                 return "SQLite (disabled)";
             }
         };
-    } // namespace SQLite
-} // namespace cpp_dbc
+} // namespace cpp_dbc::SQLite
 
 #endif // USE_SQLITE
 

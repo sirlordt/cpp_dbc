@@ -45,7 +45,7 @@ namespace cpp_dbc
         virtual bool isPoolValid() const = 0;
 
     public:
-        virtual ~DBConnectionPooled() = default;
+        ~DBConnectionPooled() override = default;
 
         // The following methods are already defined in DBConnection and must be implemented
         // virtual void close() override = 0;

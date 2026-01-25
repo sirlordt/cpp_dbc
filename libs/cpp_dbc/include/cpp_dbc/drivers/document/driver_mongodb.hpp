@@ -590,7 +590,7 @@ namespace cpp_dbc
             DocumentDBCursor &sort(const std::string &fieldPath, bool ascending = true) override;
 
             bool isExhausted() override;
-            void rewind() override;
+            [[noreturn]] void rewind() override;
 
             // MongoDB-specific methods
 

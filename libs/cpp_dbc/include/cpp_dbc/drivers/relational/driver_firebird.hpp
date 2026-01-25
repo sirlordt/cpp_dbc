@@ -630,14 +630,12 @@ namespace cpp_dbc
 #else // USE_FIREBIRD
 
 // Stub implementations when Firebird is disabled
-namespace cpp_dbc
+namespace cpp_dbc::Firebird
 {
-    namespace Firebird
-    {
         class FirebirdDBDriver final : public RelationalDBDriver
         {
         public:
-            FirebirdDBDriver()
+            [[noreturn]] FirebirdDBDriver()
             {
                 throw DBException("R9T3U5V1W7X4", "Firebird support is not enabled in this build", system_utils::captureCallStack());
             }
@@ -676,8 +674,7 @@ namespace cpp_dbc
                 return "Firebird (disabled)";
             }
         };
-    } // namespace Firebird
-} // namespace cpp_dbc
+} // namespace cpp_dbc::Firebird
 
 #endif // USE_FIREBIRD
 

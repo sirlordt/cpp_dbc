@@ -44,10 +44,8 @@
 #define DB_DRIVER_UNIQUE_LOCK(mutex) (void)0
 #endif
 
-namespace cpp_dbc
+namespace cpp_dbc::PostgreSQL
 {
-    namespace PostgreSQL
-    {
         /**
          * @brief Custom deleter for PGresult* to use with unique_ptr
          *
@@ -120,7 +118,7 @@ namespace cpp_dbc
 #endif
 
         public:
-            PostgreSQLDBResultSet(PGresult *res);
+            explicit PostgreSQLDBResultSet(PGresult *res);
             ~PostgreSQLDBResultSet() override;
 
             // DBResultSet interface
@@ -269,7 +267,6 @@ namespace cpp_dbc
 
         class PostgreSQLDBConnection final : public RelationalDBConnection
         {
-        private:
             PGconnHandle m_conn; // shared_ptr allows PreparedStatements to use weak_ptr
             bool m_closed{true};
             bool m_autoCommit{true};
@@ -373,16 +370,13 @@ namespace cpp_dbc
             std::string getName() const noexcept override;
         };
 
-    } // namespace PostgreSQL
-} // namespace cpp_dbc
+} // namespace cpp_dbc::PostgreSQL
 
 #else // USE_POSTGRESQL
 
 // Stub implementations when PostgreSQL is disabled
-namespace cpp_dbc
+namespace cpp_dbc::PostgreSQL
 {
-    namespace PostgreSQL
-    {
         // Forward declarations only
         class PostgreSQLDBDriver final : public RelationalDBDriver
         {
@@ -426,8 +420,7 @@ namespace cpp_dbc
                 return "PostgreSQL (disabled)";
             }
         };
-    } // namespace PostgreSQL
-} // namespace cpp_dbc
+} // namespace cpp_dbc::PostgreSQL
 
 #endif // USE_POSTGRESQL
 

@@ -27,10 +27,8 @@
 #include <iostream>
 #include <stdexcept>
 
-namespace cpp_dbc
+namespace cpp_dbc::config
 {
-    namespace config
-    {
 
         DatabaseConfigManager YamlConfigLoader::loadFromFile(const std::string &filePath)
         {
@@ -179,7 +177,7 @@ namespace cpp_dbc
 
                             // Convert to lowercase for case-insensitive comparison
                             std::string isolationLower = isolationStr;
-                            std::transform(isolationLower.begin(), isolationLower.end(), isolationLower.begin(),
+                            std::ranges::transform(isolationLower, isolationLower.begin(),
                                            [](unsigned char c)
                                            { return std::tolower(c); });
 
@@ -263,7 +261,6 @@ namespace cpp_dbc
             }
         }
 
-    } // namespace config
-} // namespace cpp_dbc
+} // namespace cpp_dbc::config
 
 #endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1

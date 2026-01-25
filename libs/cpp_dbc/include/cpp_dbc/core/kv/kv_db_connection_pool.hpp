@@ -142,7 +142,7 @@ namespace cpp_dbc
                            TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
         // Constructor that accepts a configuration object
-        KVDBConnectionPool(const config::DBConnectionPoolConfig &config);
+        explicit KVDBConnectionPool(const config::DBConnectionPoolConfig &config);
 
     public:
         // Static factory methods - use these to create pools
@@ -164,7 +164,7 @@ namespace cpp_dbc
 
         static std::shared_ptr<KVDBConnectionPool> create(const config::DBConnectionPoolConfig &config);
 
-        ~KVDBConnectionPool();
+        ~KVDBConnectionPool() override;
 
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
@@ -407,7 +407,7 @@ namespace cpp_dbc
                                 const std::string &username,
                                 const std::string &password);
 
-            RedisConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit RedisConnectionPool(const config::DBConnectionPoolConfig &config);
 
         public:
             static std::shared_ptr<RedisConnectionPool> create(const std::string &url,

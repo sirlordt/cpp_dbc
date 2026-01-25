@@ -336,10 +336,11 @@ namespace cpp_dbc::PostgreSQL
                 {
                     newSql.append(sqlQuery, lastPos, pos - lastPos);
 #ifdef USE_STD_FORMAT
-                    newSql.append(std::format("${}", paramIdx++)); // C++20 required
+                    newSql.append(std::format("${}", paramIdx)); // C++20 required
 #else
-                    newSql.append("$" + std::to_string(paramIdx++));
+                    newSql.append("$" + std::to_string(paramIdx));
 #endif
+                    paramIdx++;
                     lastPos = pos + 1;
                     pos = sqlQuery.find("?", lastPos);
                 }

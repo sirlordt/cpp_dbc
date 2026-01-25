@@ -56,7 +56,7 @@ namespace cpp_dbc
               m_mark(mark),
               m_callstack(callstack) {}
 
-        virtual ~DBException() = default;
+        ~DBException() override = default;
 
         /**
          * @brief Get the error message as a C-string

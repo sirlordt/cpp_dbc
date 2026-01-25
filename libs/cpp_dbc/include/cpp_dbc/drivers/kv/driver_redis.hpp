@@ -33,10 +33,8 @@
 struct redisContext;
 struct redisReply;
 
-namespace cpp_dbc
+namespace cpp_dbc::Redis
 {
-    namespace Redis
-    {
         /**
          * @brief Custom deleter for redisReply
          */
@@ -53,7 +51,7 @@ namespace cpp_dbc
         class RedisReplyHandle
         {
         public:
-            RedisReplyHandle(redisReply *reply);
+            explicit RedisReplyHandle(redisReply *reply);
             ~RedisReplyHandle();
 
             // Disable copy operations
@@ -103,7 +101,7 @@ namespace cpp_dbc
             /**
              * @brief Destructor
              */
-            ~RedisConnection();
+            ~RedisConnection() override;
 
             // Delete copy operations
             RedisConnection(const RedisConnection &) = delete;
@@ -449,7 +447,6 @@ namespace cpp_dbc
             std::mutex m_mutex;
         };
 
-    } // namespace Redis
-} // namespace cpp_dbc
+} // namespace cpp_dbc::Redis
 
 #endif // CPP_DBC_DRIVER_REDIS_HPP

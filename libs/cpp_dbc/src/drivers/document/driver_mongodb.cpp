@@ -1771,7 +1771,7 @@ namespace cpp_dbc
 
         bool MongoDBCursor::isExhausted() { return m_exhausted; }
 
-        void MongoDBCursor::rewind()
+        [[noreturn]] void MongoDBCursor::rewind()
         {
             throw DBException("D2E8F7A6B1C0", "MongoDB cursors do not support rewinding", system_utils::captureCallStack());
         }
