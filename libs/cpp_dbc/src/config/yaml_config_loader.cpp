@@ -23,6 +23,7 @@
 
 #include <cpp_dbc/config/yaml_config_loader.hpp>
 #include <yaml-cpp/yaml.h>
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -164,10 +165,41 @@ namespace cpp_dbc::config
 
                         DBConnectionPoolConfig poolCfg;
                         poolCfg.setName(name);
+
+                        // Validate required connection pool fields
+                        if (!poolConfig["initial_size"] || !poolConfig["initial_size"].IsDefined())
+                        {
+                            throw cpp_dbc::DBException("A1B2C3D4E5F6", "Missing required field 'initial_size' in connection pool '" + name + "'",
+                                                       cpp_dbc::system_utils::captureCallStack());
+                        }
                         poolCfg.setInitialSize(poolConfig["initial_size"].as<int>());
+
+                        if (!poolConfig["max_size"] || !poolConfig["max_size"].IsDefined())
+                        {
+                            throw cpp_dbc::DBException("B2C3D4E5F6A1", "Missing required field 'max_size' in connection pool '" + name + "'",
+                                                       cpp_dbc::system_utils::captureCallStack());
+                        }
                         poolCfg.setMaxSize(poolConfig["max_size"].as<int>());
+
+                        if (!poolConfig["connection_timeout"] || !poolConfig["connection_timeout"].IsDefined())
+                        {
+                            throw cpp_dbc::DBException("C3D4E5F6A1B2", "Missing required field 'connection_timeout' in connection pool '" + name + "'",
+                                                       cpp_dbc::system_utils::captureCallStack());
+                        }
                         poolCfg.setConnectionTimeout(poolConfig["connection_timeout"].as<int>());
+
+                        if (!poolConfig["idle_timeout"] || !poolConfig["idle_timeout"].IsDefined())
+                        {
+                            throw cpp_dbc::DBException("D4E5F6A1B2C3", "Missing required field 'idle_timeout' in connection pool '" + name + "'",
+                                                       cpp_dbc::system_utils::captureCallStack());
+                        }
                         poolCfg.setIdleTimeout(poolConfig["idle_timeout"].as<int>());
+
+                        if (!poolConfig["validation_interval"] || !poolConfig["validation_interval"].IsDefined())
+                        {
+                            throw cpp_dbc::DBException("E5F6A1B2C3D4", "Missing required field 'validation_interval' in connection pool '" + name + "'",
+                                                       cpp_dbc::system_utils::captureCallStack());
+                        }
                         poolCfg.setValidationInterval(poolConfig["validation_interval"].as<int>());
 
                         // Load transaction isolation level if present

@@ -55,10 +55,8 @@
 #define DB_DRIVER_UNIQUE_LOCK(mutex) (void)0
 #endif
 
-namespace cpp_dbc
+namespace cpp_dbc::Firebird
 {
-    namespace Firebird
-    {
         // Forward declarations
         class FirebirdDBConnection;
         class FirebirdDBPreparedStatement;
@@ -624,8 +622,7 @@ namespace cpp_dbc
             return &conn->m_tr;
         }
 
-    } // namespace Firebird
-} // namespace cpp_dbc
+} // namespace cpp_dbc::Firebird
 
 #else // USE_FIREBIRD
 
