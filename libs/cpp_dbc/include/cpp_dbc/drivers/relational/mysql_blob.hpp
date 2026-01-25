@@ -27,10 +27,8 @@
 #if USE_MYSQL
 #include <mysql/mysql.h>
 
-namespace cpp_dbc
+namespace cpp_dbc::MySQL
 {
-    namespace MySQL
-    {
         // MySQL implementation of InputStream
         class MySQLInputStream : public InputStream
         {
@@ -40,7 +38,7 @@ namespace cpp_dbc
 
         public:
             MySQLInputStream(const char *buffer, size_t length)
-                : m_data(buffer, buffer + length), m_position(0) {}
+                : m_data(buffer, buffer + length) {}
 
             int read(uint8_t *buffer, size_t length) override
             {
@@ -108,7 +106,7 @@ namespace cpp_dbc
              * @brief Constructor for creating a new BLOB
              * @param mysql Shared pointer to the MySQL connection handle
              */
-            MySQLBlob(std::shared_ptr<MYSQL> mysql)
+            explicit MySQLBlob(std::shared_ptr<MYSQL> mysql)
                 : m_mysql(mysql), m_loaded(true) {}
 
             /**
@@ -121,7 +119,7 @@ namespace cpp_dbc
             MySQLBlob(std::shared_ptr<MYSQL> mysql, const std::string &tableName,
                       const std::string &columnName, const std::string &whereClause)
                 : m_mysql(mysql), m_tableName(tableName), m_columnName(columnName),
-                  m_whereClause(whereClause), m_loaded(false) {}
+                  m_whereClause(whereClause) {}
 
             /**
              * @brief Constructor for creating a BLOB from existing data
@@ -181,7 +179,7 @@ namespace cpp_dbc
                 }
 
                 // Get the BLOB data
-                unsigned long *lengths = mysql_fetch_lengths(result);
+                const unsigned long *lengths = mysql_fetch_lengths(result);
                 if (!lengths)
                 {
                     mysql_free_result(result);
@@ -313,8 +311,7 @@ namespace cpp_dbc
             }
         };
 
-    } // namespace MySQL
-} // namespace cpp_dbc
+} // namespace cpp_dbc::MySQL
 
 #endif // USE_MYSQL
 

@@ -91,9 +91,9 @@ namespace cpp_dbc
         mutable std::mutex m_mutexIdleConnections;
         mutable std::mutex m_mutexMaintenance;
         std::condition_variable m_maintenanceCondition;
-        std::atomic<bool> m_running;
-        std::atomic<int> m_activeConnections;
-        std::thread m_maintenanceThread;
+        std::atomic<bool> m_running{true};
+        std::atomic<int> m_activeConnections{0};
+        std::jthread m_maintenanceThread;
 
         // Creates a new physical connection
         std::shared_ptr<DocumentDBConnection> createDBConnection();
@@ -199,8 +199,8 @@ namespace cpp_dbc
         std::shared_ptr<std::atomic<bool>> m_poolAlive; // Shared flag to check if pool is still alive
         std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
         std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
-        std::atomic<bool> m_active;
-        std::atomic<bool> m_closed;
+        std::atomic<bool> m_active{false};
+        std::atomic<bool> m_closed{false};
 
         friend class DocumentDBConnectionPool;
 

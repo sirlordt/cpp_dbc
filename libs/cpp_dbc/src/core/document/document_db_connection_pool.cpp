@@ -64,9 +64,7 @@ namespace cpp_dbc
           m_testOnBorrow(testOnBorrow),
           m_testOnReturn(testOnReturn),
           m_validationQuery(validationQuery),
-          m_transactionIsolation(transactionIsolation),
-          m_running(true),
-          m_activeConnections(0)
+          m_transactionIsolation(transactionIsolation)
     {
         m_allConnections.reserve(m_maxSize);
         // Note: Initial connections are created in the factory method after construction
@@ -89,9 +87,7 @@ namespace cpp_dbc
           m_testOnBorrow(config.getTestOnBorrow()),
           m_testOnReturn(config.getTestOnReturn()),
           m_validationQuery(config.getValidationQuery()),
-          m_transactionIsolation(config.getTransactionIsolation()),
-          m_running(true),
-          m_activeConnections(0)
+          m_transactionIsolation(config.getTransactionIsolation())
     {
         m_allConnections.reserve(m_maxSize);
         // Note: Initial connections are created in the factory method after construction
@@ -117,7 +113,7 @@ namespace cpp_dbc
             }
 
             // Start maintenance thread
-            m_maintenanceThread = std::thread(&DocumentDBConnectionPool::maintenanceTask, this);
+            m_maintenanceThread = std::jthread(&DocumentDBConnectionPool::maintenanceTask, this);
         }
         catch (const std::exception &ex)
         {
@@ -336,35 +332,43 @@ namespace cpp_dbc
             m_idleConnections.pop();
 
             // Test connection before use if configured
-            if (m_testOnBorrow)
+            if (m_testOnBorrow && !validateConnection(conn->getUnderlyingDocumentConnection()))
             {
-                if (!validateConnection(conn->getUnderlyingDocumentConnection()))
+                // Close the invalid underlying connection to prevent resource leak
+                try
                 {
-                    // Remove from allConnections
-                    auto it = std::ranges::find(m_allConnections, conn);
-                    if (it != m_allConnections.end())
-                    {
-                        m_allConnections.erase(it);
-                    }
-
-                    // Create new connection if we're still running
-                    if (m_running.load())
-                    {
-                        try
-                        {
-                            auto newConn = createPooledDBConnection();
-                            // Register the replacement connection in m_allConnections
-                            m_allConnections.push_back(newConn);
-                            return newConn;
-                        }
-                        catch ([[maybe_unused]] const std::exception &ex)
-                        {
-                            CP_DEBUG("DocumentDBConnectionPool::getIdleDBConnection - Exception creating replacement connection: " << ex.what());
-                            return nullptr;
-                        }
-                    }
-                    return nullptr;
+                    conn->getUnderlyingDocumentConnection()->close();
                 }
+                catch ([[maybe_unused]] const std::exception &ex)
+                {
+                    CP_DEBUG("DocumentDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: " << ex.what());
+                }
+
+                // Remove invalid connection from allConnections
+                // Let the caller (getDocumentDBConnection) create replacement outside locks
+                auto it = std::ranges::find(m_allConnections, conn);
+                if (it != m_allConnections.end())
+                {
+                    m_allConnections.erase(it);
+                }
+
+                // NOSONAR - Original code that created connection inside locks (kept for reference):
+                // if (m_running.load())
+                // {
+                //     try
+                //     {
+                //         auto newConn = createPooledDBConnection();
+                //         m_allConnections.push_back(newConn);
+                //         return newConn;
+                //     }
+                //     catch ([[maybe_unused]] const std::exception &ex)
+                //     {
+                //         CP_DEBUG("DocumentDBConnectionPool::getIdleDBConnection - Exception creating replacement connection: " << ex.what());
+                //         return nullptr;
+                //     }
+                // }
+
+                return nullptr;
             }
 
             return conn;
@@ -661,7 +665,7 @@ namespace cpp_dbc
         std::shared_ptr<DocumentDBConnection> connection,
         std::weak_ptr<DocumentDBConnectionPool> connectionPool,
         std::shared_ptr<std::atomic<bool>> poolAlive)
-        : m_conn(connection), m_pool(connectionPool), m_poolAlive(poolAlive), m_active(false), m_closed(false)
+        : m_conn(connection), m_pool(connectionPool), m_poolAlive(poolAlive)
     {
         m_creationTime = std::chrono::steady_clock::now();
         m_lastUsedTime = m_creationTime;

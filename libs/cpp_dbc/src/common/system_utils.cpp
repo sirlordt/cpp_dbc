@@ -22,49 +22,46 @@
 #include <vector>
 #include "cpp_dbc/backward.hpp"
 
-namespace cpp_dbc
+namespace cpp_dbc::system_utils
 {
-
-    namespace system_utils
-    {
 
         // Define the global mutex
         std::mutex global_cout_mutex;
 
-        bool shouldSkipFrame(const std::string &filename, const std::string &function)
+        bool shouldSkipFrame(std::string_view filename, std::string_view function)
         {
 
             // Skip backward-cpp internals
-            if (filename.find("backward.hpp") != std::string::npos)
+            if (filename.contains("backward.hpp"))
             {
                 return true;
             }
 
             // Skip libc/system frames
-            if (filename.find("libc") != std::string::npos ||
-                filename.find("csu/") != std::string::npos ||
-                filename.find("sysdeps/") != std::string::npos)
+            if (filename.contains("libc") ||
+                filename.contains("csu/") ||
+                filename.contains("sysdeps/"))
             {
                 return true;
             }
 
             // Skip system functions
-            if (function.find("__libc") != std::string::npos ||
-                function.find("_start") == 0 ||
+            if (function.contains("__libc") ||
+                function.starts_with("_start") ||
                 function == "??")
-            { // <-- Esta línea ya lo debería filtrar
+            {
                 return true;
             }
 
             // Skip unresolved frames (??:0)
             if (filename == "??" || filename.empty())
-            { // <-- Agregar esta línea
+            {
                 return true;
             }
 
             // Skip our own tracing infrastructure
-            if (function.find("captureCallStack") != std::string::npos ||
-                function.find("printCallStack") != std::string::npos)
+            if (function.contains("captureCallStack") ||
+                function.contains("printCallStack"))
             {
                 return true;
             }
@@ -118,6 +115,4 @@ namespace cpp_dbc
         // getCurrentTimestamp and logWithTimestamp are already defined as inline in the header file
         // No need to redefine them here
 
-    }
-
-}
+} // namespace cpp_dbc::system_utils
