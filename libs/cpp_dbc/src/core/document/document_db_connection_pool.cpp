@@ -334,29 +334,30 @@ namespace cpp_dbc
             // Test connection before use if configured
             if (m_testOnBorrow && !validateConnection(conn->getUnderlyingDocumentConnection()))
             {
-                // Remove from allConnections
+                // Remove invalid connection from allConnections
+                // Let the caller (getDocumentDBConnection) create replacement outside locks
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
                     m_allConnections.erase(it);
                 }
 
-                // Create new connection if we're still running
-                if (m_running.load())
-                {
-                    try
-                    {
-                        auto newConn = createPooledDBConnection();
-                        // Register the replacement connection in m_allConnections
-                        m_allConnections.push_back(newConn);
-                        return newConn;
-                    }
-                    catch ([[maybe_unused]] const std::exception &ex)
-                    {
-                        CP_DEBUG("DocumentDBConnectionPool::getIdleDBConnection - Exception creating replacement connection: " << ex.what());
-                        return nullptr;
-                    }
-                }
+                // NOSONAR - Original code that created connection inside locks (kept for reference):
+                // if (m_running.load())
+                // {
+                //     try
+                //     {
+                //         auto newConn = createPooledDBConnection();
+                //         m_allConnections.push_back(newConn);
+                //         return newConn;
+                //     }
+                //     catch ([[maybe_unused]] const std::exception &ex)
+                //     {
+                //         CP_DEBUG("DocumentDBConnectionPool::getIdleDBConnection - Exception creating replacement connection: " << ex.what());
+                //         return nullptr;
+                //     }
+                // }
+
                 return nullptr;
             }
 

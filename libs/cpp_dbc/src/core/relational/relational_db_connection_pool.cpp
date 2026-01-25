@@ -360,28 +360,30 @@ namespace cpp_dbc
                     CP_DEBUG("RelationalDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: " << ex.what());
                 }
 
-                // Remove from allConnections
+                // Remove invalid connection from allConnections
+                // Let the caller (getRelationalDBConnection) create replacement outside locks
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
                     m_allConnections.erase(it);
                 }
 
-                // Create new connection and register it if we're still running
-                if (m_running.load())
-                {
-                    try
-                    {
-                        auto newConn = createPooledDBConnection();
-                        m_allConnections.push_back(newConn);
-                        return newConn;
-                    }
-                    catch ([[maybe_unused]] const std::exception &ex)
-                    {
-                        CP_DEBUG("RelationalDBConnectionPool::getIdleDBConnection - Exception creating new connection: " << ex.what());
-                        return nullptr;
-                    }
-                }
+                // NOSONAR - Original code that created connection inside locks (kept for reference):
+                // if (m_running.load())
+                // {
+                //     try
+                //     {
+                //         auto newConn = createPooledDBConnection();
+                //         m_allConnections.push_back(newConn);
+                //         return newConn;
+                //     }
+                //     catch ([[maybe_unused]] const std::exception &ex)
+                //     {
+                //         CP_DEBUG("RelationalDBConnectionPool::getIdleDBConnection - Exception creating new connection: " << ex.what());
+                //         return nullptr;
+                //     }
+                // }
+
                 return nullptr;
             }
 

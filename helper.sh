@@ -535,9 +535,6 @@ cmd_run_test() {
     $run_test_cmd 2>&1 | tee -i "$raw_log_file"
   fi
 
-  # Capture the exit status of the pipeline
-  local pipe_status=${PIPESTATUS[0]}
-
   # Ensure all data is flushed to disk before processing
   sync
   sleep 0.5
