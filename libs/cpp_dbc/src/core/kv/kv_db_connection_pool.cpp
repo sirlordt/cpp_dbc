@@ -438,7 +438,7 @@ namespace cpp_dbc
         do
         {
             // Wait for 30 seconds or until notified (e.g., when close() is called)
-            std::unique_lock<std::mutex> lock(m_mutexMaintenance);
+            std::unique_lock lock(m_mutexMaintenance);
             m_maintenanceCondition.wait_for(lock, std::chrono::seconds(30), [this]
                                             { return !m_running; });
 

@@ -119,7 +119,6 @@ namespace cpp_dbc
         // This must be called after the pool is managed by a shared_ptr
         void initializePool();
 
-    protected:
         // Protected constructors - pools must be created via factory methods
         // Constructor that takes individual parameters
         ColumnarDBConnectionPool(const std::string &url,
@@ -139,7 +138,7 @@ namespace cpp_dbc
                                  TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
         // Constructor that accepts a configuration object
-        ColumnarDBConnectionPool(const config::DBConnectionPoolConfig &config);
+        explicit ColumnarDBConnectionPool(const config::DBConnectionPoolConfig &config);
 
     public:
         // Static factory methods - use these to create pools
@@ -161,7 +160,7 @@ namespace cpp_dbc
 
         static std::shared_ptr<ColumnarDBConnectionPool> create(const config::DBConnectionPoolConfig &config);
 
-        ~ColumnarDBConnectionPool();
+        ~ColumnarDBConnectionPool() override;
 
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
@@ -259,7 +258,7 @@ namespace cpp_dbc
                                  const std::string &username,
                                  const std::string &password);
 
-            ScyllaConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit ScyllaConnectionPool(const config::DBConnectionPoolConfig &config);
 
         public:
             static std::shared_ptr<ScyllaConnectionPool> create(const std::string &url,

@@ -23,15 +23,15 @@
 
 // Configuration macros for conditional compilation
 #ifndef USE_MYSQL
-#define USE_MYSQL 1 // Default to enabled
+#define USE_MYSQL 1 // NOSONAR - Macro required for conditional compilation
 #endif
 
 #ifndef USE_POSTGRESQL
-#define USE_POSTGRESQL 1 // Default to enabled
+#define USE_POSTGRESQL 1 // NOSONAR - Macro required for conditional compilation
 #endif
 
 #ifndef USE_SQLITE
-#define USE_SQLITE 0 // Default to disabled
+#define USE_SQLITE 0 // NOSONAR - Macro required for conditional compilation
 #endif
 
 #include <string>
@@ -61,13 +61,10 @@
 #include "cpp_dbc/common/system_utils.hpp"
 
 // Forward declaration of configuration classes
-namespace cpp_dbc
+namespace cpp_dbc::config
 {
-    namespace config
-    {
-        class DatabaseConfig;
-        class DatabaseConfigManager;
-    }
+    class DatabaseConfig;
+    class DatabaseConfigManager;
 }
 
 namespace cpp_dbc

@@ -1024,16 +1024,7 @@ namespace cpp_dbc
             FIREBIRD_DEBUG("  Attached successfully, dbHandle=" << dbHandle << ", *dbHandle=" << *dbHandle);
 
             // Create shared_ptr with custom deleter
-            m_db = std::shared_ptr<isc_db_handle>(dbHandle, [](isc_db_handle *db)
-                                                  {
-                FIREBIRD_DEBUG("FirebirdConnection deleter - Detaching database");
-                if (db && *db)
-                {
-                    ISC_STATUS_ARRAY detachStatus;
-                    isc_detach_database(detachStatus, db);
-                }
-                delete db;
-                FIREBIRD_DEBUG("FirebirdConnection deleter - Done"); });
+            m_db = std::shared_ptr<isc_db_handle>(dbHandle, FirebirdDbDeleter{});
 
             // Cache URL
             m_url = "cpp_dbc:firebird://" + host + ":" + std::to_string(port) + "/" + database;

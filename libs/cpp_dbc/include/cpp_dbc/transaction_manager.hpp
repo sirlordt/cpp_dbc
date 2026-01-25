@@ -40,15 +40,13 @@ namespace cpp_dbc
     struct TransactionContext
     {
         std::shared_ptr<RelationalDBConnection> connection;
-        std::chrono::steady_clock::time_point creationTime;
-        std::chrono::steady_clock::time_point lastAccessTime;
+        std::chrono::steady_clock::time_point creationTime{std::chrono::steady_clock::now()};
+        std::chrono::steady_clock::time_point lastAccessTime{std::chrono::steady_clock::now()};
         std::string transactionId;
         bool active{false};
 
         TransactionContext(std::shared_ptr<RelationalDBConnection> conn, std::string id)
             : connection(conn),
-              creationTime(std::chrono::steady_clock::now()),
-              lastAccessTime(std::chrono::steady_clock::now()),
               transactionId(std::move(id)),
               active(true)
         {
@@ -78,7 +76,7 @@ namespace cpp_dbc
         std::string generateUUID() const;
 
     public:
-        TransactionManager(RelationalDBConnectionPool &connectionPool);
+        explicit TransactionManager(RelationalDBConnectionPool &connectionPool);
         ~TransactionManager();
 
         // Start a new transaction and return its ID

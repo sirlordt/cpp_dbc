@@ -31,7 +31,7 @@ namespace cpp_dbc
     {
         // std::cout << "Registering driver: " << name << std::endl;
         // Only register if not already registered to avoid conflicts
-        if (drivers.find(name) == drivers.end())
+        if (!drivers.contains(name))
         {
             drivers[name] = driver;
         }
@@ -41,7 +41,7 @@ namespace cpp_dbc
     {
         // std::cout << "Registering driver: " << name << std::endl;
         // Only register if not already registered to avoid conflicts
-        if (drivers.find(driver->getName()) == drivers.end())
+        if (!drivers.contains(driver->getName()))
         {
             drivers[driver->getName()] = driver;
         }
@@ -125,9 +125,9 @@ namespace cpp_dbc
         std::vector<std::string> driverNames;
         driverNames.reserve(drivers.size());
 
-        for (const auto &driver : drivers)
+        for (const auto &[name, driverPtr] : drivers)
         {
-            driverNames.push_back(driver.first);
+            driverNames.push_back(name);
         }
 
         return driverNames;
