@@ -13,7 +13,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
 
- @file test_mongodb_common.cpp
+ @file 25_001_test_mongodb_real_common.cpp
  @brief Implementation of MongoDB test helpers
 
 */

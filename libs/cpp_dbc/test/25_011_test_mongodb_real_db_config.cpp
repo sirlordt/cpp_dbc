@@ -13,7 +13,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
 
- @file test_mongodb_db_config.cpp
+ @file 25_011_test_mongodb_real_db_config.cpp
  @brief Tests for MongoDB database configuration handling
 
 */

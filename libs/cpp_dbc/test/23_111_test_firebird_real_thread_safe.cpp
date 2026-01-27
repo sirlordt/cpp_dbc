@@ -13,7 +13,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
 
- @file test_firebird_thread_safe.cpp
+ @file 23_111_test_firebird_real_thread_safe.cpp
  @brief Thread-safety stress tests for Firebird database driver
 
 */

@@ -13,7 +13,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
 
- @file test_postgresql_common.cpp
+ @file 21_001_test_postgresql_real_common.cpp
  @brief Implementation of PostgreSQL test helpers
 
 */

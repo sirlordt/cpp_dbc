@@ -13,7 +13,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
 
- @file test_mysql_connection.cpp
+ @file 20_041_test_mysql_real_connection.cpp
  @brief Tests for MySQL database operations with real connections
 
 */

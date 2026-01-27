@@ -13,7 +13,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
 
- @file test_mysql_thread_safe.cpp
+ @file 20_111_test_mysql_real_thread_safe.cpp
  @brief Thread-safety stress tests for MySQL database driver
 
 */

@@ -12,7 +12,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
  *
- * @file test_scylla_connection.cpp
+ * @file 26_041_test_scylladb_real_connection.cpp
  * @brief Tests for ScyllaDB database operations with real connections
  */
 

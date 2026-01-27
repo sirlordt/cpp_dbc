@@ -13,7 +13,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
 
- @file test_postgresql_driver.cpp
+ @file 21_021_test_postgresql_real_driver.cpp
  @brief Tests for PostgreSQL driver
 
 */

@@ -1,7 +1,7 @@
 /**
  * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
  *
- * @file test_expected.cpp
+ * @file 10_041_test_expected.cpp
  * @brief Comprehensive tests for cpp_dbc::expected implementation
  */
 

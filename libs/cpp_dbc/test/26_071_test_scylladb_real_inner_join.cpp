@@ -12,7 +12,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
  *
- * @file test_scylla_real_inner_join.cpp
+ * @file 26_071_test_scylladb_real_inner_join.cpp
  * @brief Tests for ScyllaDB operations that emulate INNER JOIN functionality
  */
 

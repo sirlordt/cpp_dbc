@@ -13,7 +13,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
 
- @file test_sqlite_db_config.cpp
+ @file 22_011_test_sqlite_real_db_config.cpp
  @brief Tests for SQLite database configuration handling
 
 */
