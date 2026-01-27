@@ -434,8 +434,12 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             pstmt->setString(2, "Timeout Test");
             pstmt->executeUpdate();
 
-            // Wait for the transaction to timeout
-            std::this_thread::sleep_for(std::chrono::seconds(2));
+            // Poll for transaction timeout instead of using a fixed sleep
+            auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            while (manager.isTransactionActive(txId) && std::chrono::steady_clock::now() < deadline)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
 
             // The transaction should no longer be active
             REQUIRE_FALSE(manager.isTransactionActive(txId));

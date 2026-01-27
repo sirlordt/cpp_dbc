@@ -91,8 +91,8 @@ namespace cpp_dbc::PostgreSQL
              * so we must ensure it's still valid before using it.
              */
             std::weak_ptr<PGconn> m_conn;
-            Oid m_lobOid{0};
-            bool m_loaded{false};
+            mutable Oid m_lobOid{0};
+            mutable bool m_loaded{false};
 
             /**
              * @brief Get a locked pointer to the PostgreSQL connection handle
@@ -148,7 +148,7 @@ namespace cpp_dbc::PostgreSQL
              * This method safely accesses the connection through the weak_ptr,
              * ensuring the connection is still valid before attempting to read.
              */
-            void ensureLoaded()
+            void ensureLoaded() const
             {
                 if (m_loaded || m_lobOid == 0)
                     return;
@@ -214,19 +214,19 @@ namespace cpp_dbc::PostgreSQL
             // Override methods that need to ensure the BLOB is loaded
             size_t length() const override
             {
-                const_cast<PostgreSQLBlob *>(this)->ensureLoaded();
+                ensureLoaded();
                 return MemoryBlob::length();
             }
 
             std::vector<uint8_t> getBytes(size_t pos, size_t length) const override
             {
-                const_cast<PostgreSQLBlob *>(this)->ensureLoaded();
+                ensureLoaded();
                 return MemoryBlob::getBytes(pos, length);
             }
 
             std::shared_ptr<InputStream> getBinaryStream() const override
             {
-                const_cast<PostgreSQLBlob *>(this)->ensureLoaded();
+                ensureLoaded();
                 return MemoryBlob::getBinaryStream();
             }
 

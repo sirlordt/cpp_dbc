@@ -123,6 +123,7 @@ TEST_CASE("MongoDB LEFT JOIN operations", "[25_081_01_mongodb_real_left_join]")
         ])";
 
         auto cursor = ordersCollection->aggregate(pipeline);
+        REQUIRE(cursor);
 
         // Count results and verify data
         int count = 0;

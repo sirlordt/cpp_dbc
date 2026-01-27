@@ -166,7 +166,7 @@ namespace cpp_dbc
     class MemoryBlob : public Blob
     {
     protected:
-        std::vector<uint8_t> m_data;
+        mutable std::vector<uint8_t> m_data;
 
     public:
         MemoryBlob() = default;
