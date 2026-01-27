@@ -23,6 +23,7 @@
 #include <iostream>
 #include <vector>
 #include <map>
+#include <set>
 #include <algorithm>
 #include <filesystem>
 
@@ -79,6 +80,10 @@ TEST_CASE("Database configurations - verify all", "[10_011_02_db_config]")
         // Check that we have the expected number of databases
         REQUIRE(allDatabases.size() == 17); // 3 MySQL + 3 PostgreSQL + 3 SQLite + 2 Firebird + 2 MongoDB + 2 Redis + 2 ScyllaDB
 
+        // Define sets for different engine categories
+        const std::set<std::string> networkEngines = {"mysql", "postgresql", "firebird", "scylladb", "mongodb", "redis"};
+        const std::set<std::string> credentialEngines = {"mysql", "postgresql", "firebird", "scylladb"};
+
         // Check that each database has the required fields
         for (const auto &db : allDatabases)
         {
@@ -89,11 +94,16 @@ TEST_CASE("Database configurations - verify all", "[10_011_02_db_config]")
             REQUIRE(!db.getType().empty());
             REQUIRE(!db.getDatabase().empty());
 
-            // Host and port are only required for MySQL, PostgreSQL, Firebird and ScyllaDB
-            if (type == "mysql" || type == "postgresql" || type == "firebird" || type == "scylladb")
+            // Host and port are required for network-based engines
+            if (networkEngines.count(type) > 0)
             {
                 REQUIRE(!db.getHost().empty());
                 REQUIRE(db.getPort() > 0);
+            }
+
+            // Username and password are required for engines that need credentials
+            if (credentialEngines.count(type) > 0)
+            {
                 REQUIRE(!db.getUsername().empty());
                 REQUIRE(!db.getPassword().empty());
             }
