@@ -21,7 +21,9 @@
 #ifndef CPP_DBC_BLOB_HPP
 #define CPP_DBC_BLOB_HPP
 
-#include "cpp_dbc.hpp"
+#include "cpp_dbc/core/streams.hpp"
+#include "cpp_dbc/core/db_exception.hpp"
+#include "cpp_dbc/common/system_utils.hpp"
 #include <fstream>
 #include <sstream>
 #include <cstring>

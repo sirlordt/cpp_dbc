@@ -49,78 +49,135 @@ endif()
 
 # Define test executable
 add_executable(cpp_dbc_tests
-    test_main.cpp
-    test_basic.cpp
-    test_expected.cpp
-    test_yaml.cpp
-    test_db_config.cpp
-    test_mysql_connection.cpp
-    test_postgresql_connection.cpp
-    test_sqlite_connection.cpp
-    test_connection_pool.cpp
-    test_transaction_manager.cpp
-    test_database_config.cpp
-    test_drivers.cpp
-    test_integration.cpp
-    test_mysql_common.cpp
-    test_postgresql_common.cpp
-    test_sqlite_common.cpp
-    test_firebird_common.cpp
-    test_mongodb_common.cpp
-    test_redis_common.cpp
-    test_mysql_real.cpp
-    test_mysql_real_inner_join.cpp
-    test_mysql_real_left_join.cpp
-    test_mysql_real_right_join.cpp
-    test_mysql_real_full_join.cpp
-    test_mysql_real_blob.cpp
-    test_postgresql_real.cpp
-    test_postgresql_real_inner_join.cpp
-    test_postgresql_real_left_join.cpp
-    test_postgresql_real_right_join.cpp
-    test_postgresql_real_full_join.cpp
-    test_postgresql_real_blob.cpp
-    test_postgresql_real_json.cpp
-    test_mysql_real_json.cpp
-    test_sqlite_real.cpp
-    test_sqlite_real_inner_join.cpp
-    test_sqlite_real_left_join.cpp
-    test_sqlite_real_blob.cpp
-    test_firebird_real.cpp
-    test_firebird_connection.cpp
-    test_firebird_real_blob.cpp
-    test_firebird_real_inner_join.cpp
-    test_firebird_real_left_join.cpp
-    test_firebird_real_right_join.cpp
-    test_firebird_real_full_join.cpp
-    test_firebird_real_json.cpp
-    test_firebird_thread_safe.cpp
-    test_connection_pool_real.cpp
-    test_transaction_manager_real.cpp
-    test_transaction_isolation.cpp
-    test_mysql_thread_safe.cpp
-    test_postgresql_thread_safe.cpp
-    test_sqlite_thread_safe.cpp
-    test_mongodb_real.cpp
-    test_mongodb_connection.cpp
-    test_mongodb_thread_safe.cpp
-    test_mongodb_real_blob.cpp
-    test_mongodb_real_json.cpp
-    test_mongodb_real_join.cpp
-    test_mongodb_connection_pool.cpp
-    test_redis_connection.cpp
-    test_redis_connection_pool.cpp
-    test_scylladb_common.cpp
-    test_scylladb_connection.cpp
-    test_scylladb_real.cpp
-    test_scylladb_real_blob.cpp
-    test_scylladb_real_json.cpp
-    test_scylladb_thread_safe.cpp
-    test_scylladb_real_inner_join.cpp
-    test_scylladb_real_left_join.cpp
-    test_scylladb_real_right_join.cpp
-    test_scylladb_real_full_join.cpp
-    test_scylladb_connection_pool.cpp
+
+    # Core test files
+    10_000_test_main.cpp
+    10_001_test_database_config.cpp
+    10_011_test_db_config.cpp
+    10_021_test_db_connection_pool_config.cpp
+    10_031_test_db_exception.cpp
+    10_041_test_expected.cpp
+    10_051_test_yaml.cpp
+    10_061_test_integration.cpp
+
+    # MySQL tests
+    20_001_test_mysql_real_common.cpp
+    20_011_test_mysql_real_db_config.cpp
+    20_021_test_mysql_real_driver.cpp
+    20_031_test_mysql_real.cpp
+    20_041_test_mysql_real_connection.cpp
+    20_051_test_mysql_real_json.cpp
+    20_061_test_mysql_real_blob.cpp
+    20_071_test_mysql_real_inner_join.cpp
+    20_081_test_mysql_real_left_join.cpp
+    20_091_test_mysql_real_right_join.cpp
+    20_101_test_mysql_real_full_join.cpp
+    20_111_test_mysql_real_thread_safe.cpp
+    20_121_test_mysql_real_transaction_isolation.cpp
+    20_131_test_mysql_real_transaction_manager.cpp
+    20_141_test_mysql_real_connection_pool.cpp
+
+    # PostgreSQL tests
+    21_001_test_postgresql_real_common.cpp
+    21_011_test_postgresql_real_db_config.cpp
+    21_021_test_postgresql_real_driver.cpp
+    21_031_test_postgresql_real.cpp
+    21_041_test_postgresql_real_connection.cpp
+    21_051_test_postgresql_real_json.cpp
+    21_061_test_postgresql_real_blob.cpp
+    21_071_test_postgresql_real_inner_join.cpp
+    21_081_test_postgresql_real_left_join.cpp
+    21_091_test_postgresql_real_right_join.cpp
+    21_101_test_postgresql_real_full_join.cpp
+    21_111_test_postgresql_real_thread_safe.cpp
+    21_121_test_postgresql_real_transaction_isolation.cpp
+    21_131_test_postgresql_real_transaction_manager.cpp
+    21_141_test_postgresql_real_connection_pool.cpp
+
+    # SQLite tests
+    22_001_test_sqlite_real_common.cpp
+    22_011_test_sqlite_real_db_config.cpp
+    22_021_test_sqlite_real_driver.cpp
+    22_031_test_sqlite_real.cpp
+    22_041_test_sqlite_real_connection.cpp
+    # 22_051_test_sqlite_real_json.cpp
+    22_061_test_sqlite_real_blob.cpp
+    22_071_test_sqlite_real_inner_join.cpp
+    22_081_test_sqlite_real_left_join.cpp
+    # 22_091_test_sqlite_real_right_join.cpp
+    # 22_101_test_sqlite_real_full_join.cpp
+    22_111_test_sqlite_real_thread_safe.cpp
+    # 22_121_test_sqlite_real_transaction_isolation.cpp
+    22_131_test_sqlite_real_transaction_manager.cpp
+    22_141_test_sqlite_real_connection_pool.cpp
+
+    # Firebird tests
+    23_001_test_firebird_real_common.cpp
+    23_011_test_firebird_real_db_config.cpp
+    23_021_test_firebird_real_driver.cpp
+    23_031_test_firebird_real.cpp
+    23_041_test_firebird_real_connection.cpp
+    23_051_test_firebird_real_json.cpp
+    23_061_test_firebird_real_blob.cpp
+    23_071_test_firebird_real_inner_join.cpp
+    23_081_test_firebird_real_left_join.cpp
+    23_091_test_firebird_real_right_join.cpp
+    23_101_test_firebird_real_full_join.cpp
+    23_111_test_firebird_real_thread_safe.cpp
+    23_121_test_firebird_real_transaction_isolation.cpp
+    23_131_test_firebird_real_transaction_manager.cpp
+    23_141_test_firebird_real_connection_pool.cpp
+
+    # Redis tests
+    24_001_test_redis_real_common.cpp
+    # 24_011_test_redis_real_db_config.cpp
+    24_021_test_redis_real_driver.cpp
+    # 24_031_test_redis_real.cpp
+    24_041_test_redis_real_connection.cpp
+    # 24_051_test_redis_real_json.cpp
+    # 24_061_test_redis_real_blob.cpp
+    # 24_071_test_redis_real_inner_join.cpp
+    # 24_081_test_redis_real_left_join.cpp
+    # 24_091_test_redis_real_right_join.cpp
+    # 24_101_test_redis_real_full_join.cpp
+    # 24_111_test_redis_real_thread_safe.cpp
+    # 24_121_test_redis_real_transaction_isolation.cpp
+    # 24_131_test_redis_real_transaction_manager.cpp
+    24_141_test_redis_real_connection_pool.cpp
+
+    # MongoDB tests
+    25_001_test_mongodb_real_common.cpp
+    25_011_test_mongodb_real_db_config.cpp
+    25_021_test_mongodb_real_driver.cpp
+    25_031_test_mongodb_real.cpp
+    25_041_test_mongodb_real_connection.cpp
+    25_051_test_mongodb_real_json.cpp
+    25_061_test_mongodb_real_blob.cpp
+    25_071_test_mongodb_real_inner_join.cpp
+    25_081_test_mongodb_real_left_join.cpp
+    25_091_test_mongodb_real_right_join.cpp
+    25_101_test_mongodb_real_full_join.cpp
+    25_111_test_mongodb_real_thread_safe.cpp
+    # 25_121_test_mongodb_real_transaction_isolation.cpp
+    # 25_131_test_mongodb_real_transaction_manager.cpp
+    25_141_test_mongodb_real_connection_pool.cpp
+
+    # ScyllaDB tests
+    26_001_test_scylladb_real_common.cpp
+    26_011_test_scylladb_real_db_config.cpp
+    26_021_test_scylladb_real_driver.cpp
+    26_031_test_scylladb_real.cpp
+    26_041_test_scylladb_real_connection.cpp
+    26_051_test_scylladb_real_json.cpp
+    26_061_test_scylladb_real_blob.cpp
+    26_071_test_scylladb_real_inner_join.cpp
+    26_081_test_scylladb_real_left_join.cpp
+    26_091_test_scylladb_real_right_join.cpp
+    26_101_test_scylladb_real_full_join.cpp
+    26_111_test_scylladb_real_thread_safe.cpp
+    # 26_121_test_scylladb_real_transaction_isolation.cpp
+    # 26_131_test_scylladb_real_transaction_manager.cpp
+    26_141_test_scylladb_real_connection_pool.cpp
 )
 
 # Link against Catch2 and cpp_dbc
