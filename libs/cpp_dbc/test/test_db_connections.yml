@@ -250,22 +250,22 @@ test_queries:
   # MySQL specific test queries
   mysql:
     create_database: "CREATE DATABASE IF NOT EXISTS Test01DB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100))"
-    insert_data: "INSERT INTO test_table (id, name) VALUES (?, ?)"
+    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE)"
+    insert_data: "INSERT INTO test_table (id, name, value) VALUES (?, ?, ?)"
     select_data: "SELECT * FROM test_table WHERE id = ?"
     drop_table: "DROP TABLE IF EXISTS test_table"
   
   # PostgreSQL specific test queries
   postgresql:
-    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100))"
-    insert_data: "INSERT INTO test_table (id, name) VALUES ($1, $2)"
+    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE PRECISION)"
+    insert_data: "INSERT INTO test_table (id, name, value) VALUES ($1, $2, $3)"
     select_data: "SELECT * FROM test_table WHERE id = $1"
     drop_table: "DROP TABLE IF EXISTS test_table"
-    
+
   # SQLite specific test queries
   sqlite:
-    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)"
-    insert_data: "INSERT INTO test_table (id, name) VALUES (?, ?)"
+    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT, value REAL)"
+    insert_data: "INSERT INTO test_table (id, name, value) VALUES (?, ?, ?)"
     select_data: "SELECT * FROM test_table WHERE id = ?"
     drop_table: "DROP TABLE IF EXISTS test_table"
     

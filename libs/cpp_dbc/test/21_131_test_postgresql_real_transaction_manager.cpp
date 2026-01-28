@@ -273,6 +273,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
             auto pstmt = txConn->prepareStatement(insertDataQuery);
             pstmt->setInt(1, 1);
             pstmt->setString(2, "Transaction Test");
+            pstmt->setDouble(3, 1.5);
             auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
 
@@ -304,6 +305,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
             auto pstmt = txConn->prepareStatement(insertDataQuery);
             pstmt->setInt(1, 2);
             pstmt->setString(2, "Rollback Test");
+            pstmt->setDouble(3, 2.5);
             auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
 
@@ -344,16 +346,19 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
             auto pstmt1 = txConn1->prepareStatement(insertDataQuery);
             pstmt1->setInt(1, 10);
             pstmt1->setString(2, "Transaction 1");
+            pstmt1->setDouble(3, 10.5);
             pstmt1->executeUpdate();
 
             auto pstmt2 = txConn2->prepareStatement(insertDataQuery);
             pstmt2->setInt(1, 20);
             pstmt2->setString(2, "Transaction 2");
+            pstmt2->setDouble(3, 20.5);
             pstmt2->executeUpdate();
 
             auto pstmt3 = txConn3->prepareStatement(insertDataQuery);
             pstmt3->setInt(1, 30);
             pstmt3->setString(2, "Transaction 3");
+            pstmt3->setDouble(3, 30.5);
             pstmt3->executeUpdate();
 
             // Commit first transaction
@@ -395,11 +400,13 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
             // Begin a transaction
             std::string txId = manager.beginTransaction();
             auto txConn = manager.getTransactionDBConnection(txId);
+            REQUIRE(txConn != nullptr);
 
             // Insert data within the transaction
             auto pstmt = txConn->prepareStatement(insertDataQuery);
             pstmt->setInt(1, 100);
             pstmt->setString(2, "Isolation Test");
+            pstmt->setDouble(3, 100.5);
             pstmt->executeUpdate();
 
             // Get a separate connection (not in the transaction)
@@ -428,11 +435,13 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
             // Begin a transaction
             std::string txId = manager.beginTransaction();
             auto txConn = manager.getTransactionDBConnection(txId);
+            REQUIRE(txConn != nullptr);
 
             // Insert data within the transaction
             auto pstmt = txConn->prepareStatement(insertDataQuery);
             pstmt->setInt(1, 200);
             pstmt->setString(2, "Timeout Test");
+            pstmt->setDouble(3, 200.5);
             pstmt->executeUpdate();
 
             // Wait for the transaction to timeout

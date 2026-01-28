@@ -92,6 +92,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         {
             pstmt->setInt(1, i);
             pstmt->setString(2, "Test Name " + std::to_string(i));
+            pstmt->setDouble(3, i * 1.5);
             auto insertResult = pstmt->executeUpdate();
             REQUIRE(insertResult == 1); // Each insert should affect 1 row
         }
@@ -216,6 +217,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
                         pstmt->setInt(1, id);
                         pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
+                        pstmt->setDouble(3, id * 1.5);
                         pstmt->executeUpdate();
 
                         // // PreparedStatement is automatically closed after executeUpdate() (single-use)
@@ -332,6 +334,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
             auto pstmt = conn->prepareStatement(insertDataQuery);
             pstmt->setInt(1, 1);
             pstmt->setString(2, "Transaction Test");
+            pstmt->setDouble(3, 1.5);
             auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
 
@@ -358,6 +361,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
             auto pstmt = conn->prepareStatement(insertDataQuery);
             pstmt->setInt(1, 2);
             pstmt->setString(2, "Rollback Test");
+            pstmt->setDouble(3, 2.5);
             auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
 
@@ -510,6 +514,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
                         int id = i * 1000 + j;
                         pstmt->setInt(1, id);
                         pstmt->setString(2, "Stress Test " + std::to_string(id));
+                        pstmt->setDouble(3, id * 1.5);
                         pstmt->executeUpdate();
 
                         // Select the row back
