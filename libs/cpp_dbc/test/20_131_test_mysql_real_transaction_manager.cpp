@@ -162,6 +162,9 @@ TEST_CASE("MySQL TransactionManager multi-threaded tests", "[20_131_02_mysql_rea
 
                         // Get the connection
                         auto conn = manager.getTransactionDBConnection(txId);
+                        if (conn == nullptr) {
+                            throw std::runtime_error("getTransactionDBConnection returned nullptr for txId: " + txId);
+                        }
 
                         // Execute a query
                         auto rs = conn->executeQuery("SELECT 1 as test_value");

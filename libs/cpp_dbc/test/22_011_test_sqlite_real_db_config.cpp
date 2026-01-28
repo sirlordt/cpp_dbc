@@ -25,7 +25,6 @@
 #include <map>
 #include <algorithm>
 #include <filesystem>
-#include <unistd.h>
 
 #include <catch2/catch_test_macros.hpp>
 

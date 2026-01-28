@@ -136,46 +136,26 @@ TEST_CASE("Real database integration with all drivers", "[10_061_02_integration]
                 std::string username = (type == "sqlite") ? "" : dbConfig.getUsername();
                 std::string password = (type == "sqlite") ? "" : dbConfig.getPassword();
 
-                // Special handling for MongoDB - make sure authSource is included
-                if (type == "mongodb")
-                {
-                    // Add authSource parameter if not already in the connection string
-                    if (connStr.find("authSource") == std::string::npos && !username.empty())
-                    {
-                        connStr += (connStr.find("?") != std::string::npos) ? "&" : "?";
-                        connStr += "authSource=admin";
-                    }
-                }
+                // Note: MongoDB authSource handling was removed as MongoDB is non-relational
+                // and is skipped earlier in this test (line 124-128)
 
                 if (type == "sqlite")
                 {
                     try
                     {
-                        // std::cout << "DEBUG: Processing SQLite connection" << std::endl;
-                        // std::cout << "DEBUG: SQLite database path: " << dbConfig.getDatabase() << std::endl;
-                        // std::cout << "DEBUG: SQLite connection string: " << connStr << std::endl;
-
-                        // Attempt to connect with extra debug info
-                        // std::cout << "DEBUG: About to get SQLite connection" << std::endl;
+                        // Attempt to connect
                         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
-                        // std::cout << "DEBUG: SQLite connection obtained successfully" << std::endl;
+                        REQUIRE(conn != nullptr);
 
                         // Execute a simple query to verify the connection
-                        // std::cout << "DEBUG: About to execute SQLite query" << std::endl;
                         auto resultSet = conn->executeQuery("SELECT 1 as test_value");
-                        // std::cout << "DEBUG: SQLite query executed successfully" << std::endl;
 
-                        if (resultSet->next())
-                        {
-                            // std::cout << "DEBUG: SQLite result set has data" << std::endl;
-                            // std::cout << "Connection to " << name << " successful" << std::endl;
-                            REQUIRE(resultSet->getInt("test_value") == 1);
-                        }
+                        // Assert that we got a result row
+                        REQUIRE(resultSet->next());
+                        REQUIRE(resultSet->getInt("test_value") == 1);
 
                         // Close the connection
-                        // std::cout << "DEBUG: About to close SQLite connection" << std::endl;
                         conn->close();
-                        // std::cout << "DEBUG: SQLite connection closed successfully" << std::endl;
                     }
                     catch (const std::exception &e)
                     {
@@ -194,17 +174,16 @@ TEST_CASE("Real database integration with all drivers", "[10_061_02_integration]
                     {
                         // Attempt to connect
                         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+                        REQUIRE(conn != nullptr);
 
                         // Execute a simple query to verify the connection
                         // Firebird uses "SELECT 1 FROM RDB$DATABASE" for a simple test query
                         auto resultSet = conn->executeQuery("SELECT 1 as test_value FROM RDB$DATABASE");
 
-                        if (resultSet->next())
-                        {
-                            // std::cout << "Connection to " << name << " successful" << std::endl;
-                            // Firebird returns uppercase column names
-                            REQUIRE(resultSet->getInt("TEST_VALUE") == 1);
-                        }
+                        // Assert that we got a result row
+                        REQUIRE(resultSet->next());
+                        // Firebird returns uppercase column names
+                        REQUIRE(resultSet->getInt("TEST_VALUE") == 1);
 
                         // Close the connection
                         conn->close();
@@ -224,14 +203,14 @@ TEST_CASE("Real database integration with all drivers", "[10_061_02_integration]
                 {
                     // Attempt to connect
                     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+                    REQUIRE(conn != nullptr);
 
                     // Execute a simple query to verify the connection
                     auto resultSet = conn->executeQuery("SELECT 1 as test_value");
-                    if (resultSet->next())
-                    {
-                        // std::cout << "Connection to " << name << " successful" << std::endl;
-                        REQUIRE(resultSet->getInt("test_value") == 1);
-                    }
+
+                    // Assert that we got a result row
+                    REQUIRE(resultSet->next());
+                    REQUIRE(resultSet->getInt("test_value") == 1);
 
                     // Close the connection
                     conn->close();

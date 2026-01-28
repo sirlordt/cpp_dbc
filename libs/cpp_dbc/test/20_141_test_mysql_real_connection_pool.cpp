@@ -242,13 +242,28 @@ TEST_CASE("Real MySQL connection pool tests", "[20_141_01_mysql_real_connection_
             // The pool should detect it's invalid and replace it
             conn->close();
 
-            // Give the pool a moment to process the replacement
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // Poll for the pool to process the replacement instead of fixed sleep
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(5000);
+            bool poolStateConverged = false;
+
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getActiveDBConnectionCount() == 0 &&
+                    pool->getTotalDBConnectionCount() == initialTotalCount &&
+                    pool->getIdleDBConnectionCount() == initialIdleCount)
+                {
+                    poolStateConverged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
 
             // Verify pool statistics:
             // - activeConnections should be 0 (connection was returned)
             // - totalConnections should remain the same (invalid connection was replaced)
             // - idleConnections should be back to initial (replacement went to idle)
+            REQUIRE(poolStateConverged);
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
@@ -302,10 +317,25 @@ TEST_CASE("Real MySQL connection pool tests", "[20_141_01_mysql_real_connection_
                 conn->close();
             }
 
-            // Give the pool time to process replacements
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            // Poll for the pool to process replacements instead of fixed sleep
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(5000);
+            bool poolStateConverged = false;
+
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getActiveDBConnectionCount() == 0 &&
+                    pool->getTotalDBConnectionCount() == initialTotalCount &&
+                    pool->getIdleDBConnectionCount() == initialIdleCount)
+                {
+                    poolStateConverged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
 
             // Verify pool statistics
+            REQUIRE(poolStateConverged);
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
