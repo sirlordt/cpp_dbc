@@ -50,8 +50,6 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
     auto dbConfig = firebird_test_helpers::getFirebirdConfig("dev_firebird");
 
     // Create connection parameters
-    std::string host = dbConfig.getHost();
-    std::string database = dbConfig.getDatabase();
     std::string username = dbConfig.getUsername();
     std::string password = dbConfig.getPassword();
 

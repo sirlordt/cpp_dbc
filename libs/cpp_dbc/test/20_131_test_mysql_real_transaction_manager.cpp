@@ -403,6 +403,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[20_131_03_mysql_real_transac
             // Begin a transaction
             std::string txId = manager.beginTransaction();
             auto txConn = manager.getTransactionDBConnection(txId);
+            REQUIRE(txConn != nullptr);
 
             // Insert data within the transaction
             auto pstmt = txConn->prepareStatement(insertDataQuery);
