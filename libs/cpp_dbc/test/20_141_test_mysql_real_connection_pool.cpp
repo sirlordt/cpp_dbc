@@ -308,6 +308,7 @@ TEST_CASE("Real MySQL connection pool tests", "[20_141_01_mysql_real_connection_
                 REQUIRE(pooledConn != nullptr);
 
                 auto underlyingConn = pooledConn->getUnderlyingRelationalConnection();
+                REQUIRE(underlyingConn != nullptr);
                 underlyingConn->close();
             }
 
