@@ -79,7 +79,7 @@ namespace cpp_dbc
             std::string m_tableName;
             std::string m_columnName;
             std::string m_rowId;
-            bool m_loaded{false};
+            mutable bool m_loaded{false};
 
             /**
              * @brief Helper method to get sqlite3* safely, throws if connection is closed
@@ -121,7 +121,7 @@ namespace cpp_dbc
                 : MemoryBlob(initialData), m_db(db), m_loaded(true) {}
 
             // Load the BLOB data from the database if not already loaded
-            void ensureLoaded()
+            void ensureLoaded() const
             {
                 if (m_loaded || m_tableName.empty() || m_columnName.empty() || m_rowId.empty())
                     return;
@@ -173,19 +173,19 @@ namespace cpp_dbc
             // Override methods that need to ensure the BLOB is loaded
             size_t length() const override
             {
-                const_cast<SQLiteBlob *>(this)->ensureLoaded();
+                ensureLoaded();
                 return MemoryBlob::length();
             }
 
             std::vector<uint8_t> getBytes(size_t pos, size_t length) const override
             {
-                const_cast<SQLiteBlob *>(this)->ensureLoaded();
+                ensureLoaded();
                 return MemoryBlob::getBytes(pos, length);
             }
 
             std::shared_ptr<InputStream> getBinaryStream() const override
             {
-                const_cast<SQLiteBlob *>(this)->ensureLoaded();
+                ensureLoaded();
                 return MemoryBlob::getBinaryStream();
             }
 

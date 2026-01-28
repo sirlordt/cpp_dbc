@@ -91,8 +91,8 @@ namespace cpp_dbc
              */
             std::weak_ptr<FirebirdDBConnection> m_connection;
 
-            ISC_QUAD m_blobId;
-            bool m_loaded{false};
+            mutable ISC_QUAD m_blobId;
+            mutable bool m_loaded{false};
             bool m_hasValidId{false};
 
             /**
@@ -162,7 +162,7 @@ namespace cpp_dbc
              * This method safely accesses the connection through the weak_ptr,
              * ensuring the connection is still valid before attempting to read.
              */
-            void ensureLoaded()
+            void ensureLoaded() const
             {
                 if (m_loaded || !m_hasValidId)
                     return;
@@ -221,19 +221,19 @@ namespace cpp_dbc
             // Override methods that need to ensure the BLOB is loaded
             size_t length() const override
             {
-                const_cast<FirebirdBlob *>(this)->ensureLoaded();
+                ensureLoaded();
                 return MemoryBlob::length();
             }
 
             std::vector<uint8_t> getBytes(size_t pos, size_t length) const override
             {
-                const_cast<FirebirdBlob *>(this)->ensureLoaded();
+                ensureLoaded();
                 return MemoryBlob::getBytes(pos, length);
             }
 
             std::shared_ptr<InputStream> getBinaryStream() const override
             {
-                const_cast<FirebirdBlob *>(this)->ensureLoaded();
+                ensureLoaded();
                 // Use FirebirdInputStream which stores a COPY of the data,
                 // not MemoryInputStream which stores a reference.
                 // This ensures the data remains valid even after the blob is destroyed.

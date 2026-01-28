@@ -34,6 +34,22 @@
 #define USE_SQLITE 0 // NOSONAR - Macro required for conditional compilation
 #endif
 
+#ifndef USE_FIREBIRD
+#define USE_FIREBIRD 0 // NOSONAR - Macro required for conditional compilation
+#endif
+
+#ifndef USE_MONGODB
+#define USE_MONGODB 0 // NOSONAR - Macro required for conditional compilation
+#endif
+
+#ifndef USE_SCYLLADB
+#define USE_SCYLLADB 0 // NOSONAR - Macro required for conditional compilation
+#endif
+
+#ifndef USE_REDIS
+#define USE_REDIS 0 // NOSONAR - Macro required for conditional compilation
+#endif
+
 #include <string>
 #include <vector>
 #include <memory>
@@ -46,6 +62,7 @@
 // Core headers
 #include "cpp_dbc/core/db_types.hpp"
 #include "cpp_dbc/core/db_exception.hpp"
+#include "cpp_dbc/core/streams.hpp"
 #include "cpp_dbc/core/db_result_set.hpp"
 #include "cpp_dbc/core/db_connection.hpp"
 #include "cpp_dbc/core/db_driver.hpp"
@@ -60,6 +77,35 @@
 #include "cpp_dbc/backward.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
 
+// Driver implementations (conditionally included)
+#if USE_MYSQL
+#include "cpp_dbc/drivers/relational/driver_mysql.hpp"
+#endif
+
+#if USE_POSTGRESQL
+#include "cpp_dbc/drivers/relational/driver_postgresql.hpp"
+#endif
+
+#if USE_SQLITE
+#include "cpp_dbc/drivers/relational/driver_sqlite.hpp"
+#endif
+
+#if USE_FIREBIRD
+#include "cpp_dbc/drivers/relational/driver_firebird.hpp"
+#endif
+
+#if USE_MONGODB
+#include "cpp_dbc/drivers/document/driver_mongodb.hpp"
+#endif
+
+#if USE_SCYLLADB
+#include "cpp_dbc/drivers/columnar/driver_scylladb.hpp"
+#endif
+
+#if USE_REDIS
+#include "cpp_dbc/drivers/kv/driver_redis.hpp"
+#endif
+
 // Forward declaration of configuration classes
 namespace cpp_dbc::config
 {
@@ -69,75 +115,6 @@ namespace cpp_dbc::config
 
 namespace cpp_dbc
 {
-
-    // Forward declarations for stream classes
-    class InputStream;
-    class OutputStream;
-    class Blob;
-
-    // Abstract base class for input streams
-    class InputStream
-    {
-    public:
-        virtual ~InputStream() = default;
-
-        // Read up to length bytes into the buffer
-        // Returns the number of bytes actually read, or -1 if end of stream
-        virtual int read(uint8_t *buffer, size_t length) = 0;
-
-        // Skip n bytes
-        virtual void skip(size_t n) = 0;
-
-        // Close the stream
-        virtual void close() = 0;
-    };
-
-    // Abstract base class for output streams
-    class OutputStream
-    {
-    public:
-        virtual ~OutputStream() = default;
-
-        // Write length bytes from the buffer
-        virtual void write(const uint8_t *buffer, size_t length) = 0;
-
-        // Flush any buffered data
-        virtual void flush() = 0;
-
-        // Close the stream
-        virtual void close() = 0;
-    };
-
-    // Abstract base class for BLOB objects
-    class Blob
-    {
-    public:
-        virtual ~Blob() = default;
-
-        // Get the length of the BLOB
-        virtual size_t length() const = 0;
-
-        // Get a portion of the BLOB as a vector of bytes
-        virtual std::vector<uint8_t> getBytes(size_t pos, size_t length) const = 0;
-
-        // Get a stream to read from the BLOB
-        virtual std::shared_ptr<InputStream> getBinaryStream() const = 0;
-
-        // Get a stream to write to the BLOB starting at position pos
-        virtual std::shared_ptr<OutputStream> setBinaryStream(size_t pos) = 0;
-
-        // Write bytes to the BLOB starting at position pos
-        virtual void setBytes(size_t pos, const std::vector<uint8_t> &bytes) = 0;
-
-        // Write bytes to the BLOB starting at position pos
-        virtual void setBytes(size_t pos, const uint8_t *bytes, size_t length) = 0;
-
-        // Truncate the BLOB to the specified length
-        virtual void truncate(size_t len) = 0;
-
-        // Free resources associated with the BLOB
-        virtual void free() = 0;
-    };
 
     // Manager class to retrieve driver instances
     class DriverManager

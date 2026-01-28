@@ -84,7 +84,7 @@ namespace cpp_dbc::MySQL
             std::string m_tableName;
             std::string m_columnName;
             std::string m_whereClause;
-            bool m_loaded{false};
+            mutable bool m_loaded{false};
 
             /**
              * @brief Get a locked pointer to the MySQL handle
@@ -144,7 +144,7 @@ namespace cpp_dbc::MySQL
              * This method safely accesses the connection through the weak_ptr,
              * ensuring the connection is still valid before attempting to read.
              */
-            void ensureLoaded()
+            void ensureLoaded() const
             {
                 if (m_loaded)
                     return;
@@ -205,19 +205,19 @@ namespace cpp_dbc::MySQL
             // Override methods that need to ensure the BLOB is loaded
             size_t length() const override
             {
-                const_cast<MySQLBlob *>(this)->ensureLoaded();
+                ensureLoaded();
                 return MemoryBlob::length();
             }
 
             std::vector<uint8_t> getBytes(size_t pos, size_t length) const override
             {
-                const_cast<MySQLBlob *>(this)->ensureLoaded();
+                ensureLoaded();
                 return MemoryBlob::getBytes(pos, length);
             }
 
             std::shared_ptr<InputStream> getBinaryStream() const override
             {
-                const_cast<MySQLBlob *>(this)->ensureLoaded();
+                ensureLoaded();
                 return MemoryBlob::getBinaryStream();
             }
 

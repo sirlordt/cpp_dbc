@@ -2577,7 +2577,7 @@ namespace cpp_dbc
 
         bool SQLiteDBDriver::acceptsURL(const std::string &url)
         {
-            return url.substr(0, 18) == "cpp_dbc:sqlite://";
+            return url.starts_with("cpp_dbc:sqlite://");
         }
 
         bool SQLiteDBDriver::parseURL(const std::string &url, std::string &database)
@@ -2588,8 +2588,8 @@ namespace cpp_dbc
                 return false;
             }
 
-            // Extract database path
-            database = url.substr(18);
+            // Extract database path (prefix "cpp_dbc:sqlite://" is 17 chars)
+            database = url.substr(17);
             return true;
         }
 

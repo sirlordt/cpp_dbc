@@ -445,10 +445,10 @@ show_progress_bar() {
     local lt_seconds=$((last_duration % 60))
     local elapsed_last_str=$(printf "%02d:%02d:%02d" $lt_hours $lt_minutes $lt_seconds)
 
-    # Truncate last test name if too long (max 20 chars)
+    # Truncate last test name if too long (max 40 chars for second line)
     local display_last_name="$last_test_name"
-    if [ ${#display_last_name} -gt 20 ]; then
-        display_last_name="${display_last_name:0:17}..."
+    if [ ${#display_last_name} -gt 40 ]; then
+        display_last_name="${display_last_name:0:37}..."
     fi
 
     # Calculate percentage
@@ -459,8 +459,8 @@ show_progress_bar() {
         percentage=$(( (total_progress * 100) / total_items ))
     fi
 
-    # Build progress bar (20 characters wide)
-    local bar_width=20
+    # Build progress bar (30 characters wide - more space now)
+    local bar_width=30
     local filled=$(( (percentage * bar_width) / 100 ))
     local empty=$((bar_width - filled))
 
@@ -472,38 +472,39 @@ show_progress_bar() {
         bar="${bar}░"
     done
 
-    # Truncate test name if too long (max 30 chars)
+    # Truncate test name if too long (max 40 chars - more space now)
     local display_name="$test_name"
-    if [ ${#display_name} -gt 30 ]; then
-        display_name="${display_name:0:27}..."
+    if [ ${#display_name} -gt 40 ]; then
+        display_name="${display_name:0:37}..."
     fi
 
-    # Use scroll region mode with sticky progress bar at bottom
+    # Use scroll region mode with sticky progress bar at bottom (2 lines)
+    # Line 1 (ROWS-1): Main progress info
+    # Line 2 (ROWS): Last test info
     # The @@PROGRESS@@ marker is for log filtering - we print it then use \r to overwrite it visually
     # Save cursor position
     printf "\033[s"
-    # Move to progress line (row ROWS-1) and clear it
+    # Move to first progress line (row ROWS-1) and clear it
     printf "\033[$((PROGRESS_ROWS-1));1H\033[K"
-    # Print marker for log filtering, then carriage return to overwrite, then visible separator
-    printf "@@PROGRESS@@\r"
-    printf "─%.0s" $(seq 1 $PROGRESS_COLS)
-    # Move to last row and clear it
-    printf "\033[${PROGRESS_ROWS};1H\033[K"
     # Print marker for log filtering, then carriage return to overwrite, then visible progress bar
     printf "@@PROGRESS@@\r"
-    # Format the last test info (name + duration) or show "N/A" if no previous test
-    local last_info="N/A"
-    if [ -n "$display_last_name" ]; then
-        last_info="${display_last_name} ${elapsed_last_str}"
-    fi
-    printf "[Run: %d/%d] [Test: %d/%d] %-30s %s %3d%% [Total: %s] [Last: %-32s]" \
+    printf "[Run: %d/%d] [Test: %d/%d] %-40s %s %3d%% [Elapsed: %s]" \
         "$current_run" "$total_runs" \
         "$current_test" "$total_tests" \
         "$display_name" \
         "$bar" \
         "$percentage" \
-        "$elapsed_total_str" \
-        "$last_info"
+        "$elapsed_total_str"
+    # Move to second progress line (row ROWS) and clear it
+    printf "\033[${PROGRESS_ROWS};1H\033[K"
+    # Print marker for log filtering, then carriage return to overwrite, then last test info
+    printf "@@PROGRESS@@\r"
+    # Format the last test info (name + duration) or show "N/A" if no previous test
+    if [ -n "$display_last_name" ]; then
+        printf "[Last: %-40s %s]" "$display_last_name" "$elapsed_last_str"
+    else
+        printf "[Last: N/A]"
+    fi
     # Restore cursor position
     printf "\033[u"
 }
