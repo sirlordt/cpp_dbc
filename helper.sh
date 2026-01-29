@@ -508,8 +508,9 @@ cmd_run_test() {
     echo "Using parallel test runner with $parallel_count concurrent test prefixes"
 
     # Convert run_test.sh command to run_test_cpp_dbc.sh arguments
-    # Remove "./run_test.sh " prefix and pass the rest to parallel runner
-    local test_args="${run_test_cmd#./run_test.sh }"
+    # Remove "./run_test.sh" prefix (with or without trailing space) and trim leading whitespace
+    local test_args="${run_test_cmd#./run_test.sh}"
+    test_args="${test_args# }"  # Remove leading space if present
 
     # Build the parallel test command
     local parallel_cmd="./run_test_parallel.sh"

@@ -27,6 +27,8 @@ set -e  # Exit on error
 #   --check                Check shared library dependencies of test executable
 #   --clean                Clean build directories before building
 #   --rebuild              Rebuild the test targets before running
+#   --skip-build           Skip the build step
+#   --list                 List tests only (do not run)
 #   --run-test="tag"       Run only tests with the specified tag (use + to separate multiple tags, e.g. "tag1+tag2+tag3")
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
@@ -279,6 +281,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --check                Check shared library dependencies of test executable"
             echo "  --clean                Clean build directories before building (Always activate the --rebuild flag)"
             echo "  --rebuild              Rebuild the test targets before running"
+            echo "  --skip-build           Skip the build step"
+            echo "  --list                 List tests only (do not run)"
             echo "  --run=N                Run all test sets N times (default: 1)"
             echo "  --run-test=\"tag\"       Run only tests with the specified tag (use + to separate multiple tags, e.g. \"tag1+tag2+tag3\")"
             echo "  --debug-pool           Enable debug output for ConnectionPool"

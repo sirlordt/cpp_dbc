@@ -361,9 +361,11 @@ check_test_completion() {
 get_test_exit_code() {
     local prefix=$1
     local pid=${PREFIX_PIDS[$prefix]}
+    local rc=0
 
-    wait "$pid" 2>/dev/null
-    echo $?
+    # Use safe capture pattern to avoid set -e aborting on non-zero exit
+    wait "$pid" 2>/dev/null || rc=$?
+    echo "${rc}"
 }
 
 # Count running tests
