@@ -356,6 +356,8 @@ The project includes scripts for building and running tests:
 ./run_test.sh --ctest     # Run tests using CTest
 ./run_test.sh --rebuild   # Force rebuild of tests before running
 ./run_test.sh --run-test="tag1+tag2"  # Run specific tests by tag
+./run_test.sh --skip-build  # Skip the build step
+./run_test.sh --list        # List tests without running them
 ./run_test.sh --debug-pool  # Enable debug output for ConnectionPool
 ./run_test.sh --debug-txmgr  # Enable debug output for TransactionManager
 ./run_test.sh --debug-sqlite  # Enable debug output for SQLite driver
@@ -365,6 +367,36 @@ The project includes scripts for building and running tests:
 ```
 
 All test output is automatically logged to files in the `logs/test/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
+
+#### Parallel Test Execution
+
+The project supports running test prefixes (10_, 20_, 21_, 23_, 26_, etc.) in parallel for faster test execution:
+
+```bash
+# Run 4 test prefixes in parallel
+./helper.sh --run-test=parallel=4
+
+# Run 2 prefixes in parallel, prioritizing 23_ tests (slow tests first)
+./helper.sh --run-test=parallel=2,parallel-order=23_
+
+# Run with TUI progress display (real-time status of each parallel test)
+./helper.sh --run-test=parallel=4,progress
+
+# Run parallel tests with Valgrind
+./helper.sh --run-test=parallel=4,valgrind
+
+# Summarize past test runs from log directories
+./helper.sh --run-test=summarize
+```
+
+Parallel execution features:
+- Each prefix runs independently with separate log files
+- If a prefix fails, it stops but others continue running
+- Logs saved to `logs/test/YYYY-MM-DD-HH-MM-SS/PREFIX_RUNXX.log`
+- TUI mode provides split panel view with real-time test output
+- Summarize mode shows summary of all past parallel test runs
+- Valgrind error detection support
+- Color-coded output for test status (pass/fail)
 
 ### Running Benchmarks
 

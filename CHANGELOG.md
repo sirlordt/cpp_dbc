@@ -1,6 +1,36 @@
 # Changelog
 
-## 2026-01-20 15:17:41 [Current]
+## 2026-01-28 21:43:01 PST [Current]
+
+### Parallel Test Execution System
+* **New Parallel Test Runner (`run_test_parallel.sh`):**
+  * Added complete parallel test execution script (~1900 lines of bash)
+  * Runs test prefixes (10_, 20_, 21_, 23_, 26_, etc.) in parallel batches
+  * Each prefix runs independently with separate log files
+  * If a prefix fails, it stops but others continue running
+  * Logs saved to `logs/test/YYYY-MM-DD-HH-MM-SS/PREFIX_RUNXX.log`
+  * TUI (Text User Interface) mode with split panel view using `--progress` flag
+  * Summarize mode with `--summarize` to show summary of past test runs
+  * Valgrind error detection support
+  * Color-coded output for test status (pass/fail)
+  * Detailed test execution summary with timing information
+* **Helper Script Enhancement (`helper.sh`):**
+  * Added `parallel=N` option to run N test prefixes in parallel
+  * Added `parallel-order=P1_,P2_,...` option to prioritize specific prefixes
+  * Added comprehensive documentation and examples for parallel execution
+  * Integrated with `run_test_parallel.sh` when parallel mode is enabled
+  * Examples:
+    * `./helper.sh --run-test=parallel=4` - Run 4 prefixes in parallel
+    * `./helper.sh --run-test=parallel=2,parallel-order=23_` - Prioritize 23_ tests
+    * `./helper.sh --run-test=parallel=4,progress` - Run with TUI progress display
+* **Run Test Script Enhancement (`run_test.sh`):**
+  * Added `--skip-build` flag to skip the build step
+  * Added `--list` flag to list tests without running them
+* **ScyllaDB Test Fix:**
+  * Increased sleep time from 100ms to 250ms in `26_091_test_scylladb_real_right_join.cpp`
+  * Ensures proper time for ScyllaDB indexes/data consistency
+
+## 2026-01-20 15:17:41
 
 ### SonarCloud Code Quality Fixes and Helper Script Enhancement
 * **SonarCloud Configuration Updates:**

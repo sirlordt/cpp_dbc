@@ -13,6 +13,15 @@
 
 ## Completed Tasks
 
+- Parallel Test Execution System (2026-01-28):
+  - Added `run_test_parallel.sh` script for running test prefixes in parallel
+  - Added `parallel=N` option to helper.sh for running N prefixes concurrently
+  - Added `parallel-order=P1_,P2_,...` option to prioritize specific prefixes
+  - Added TUI mode with `progress` option for real-time split panel view
+  - Added `summarize` option to show summary of past test runs
+  - Added `--skip-build` and `--list` flags to run_test.sh
+  - Logs saved to `logs/test/YYYY-MM-DD-HH-MM-SS/PREFIX_RUNXX.log`
+
 - SonarCloud Code Quality Fixes (2026-01-20):
   - Consolidated SonarCloud configuration into `.sonarcloud.properties`
   - Deleted redundant `sonar-project.properties` file

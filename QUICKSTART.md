@@ -155,6 +155,39 @@ All build output is now automatically logged to files in the `logs/build/` direc
 
 All test output is now automatically logged to files in the `logs/test/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
 
+### Parallel Test Execution
+
+```bash
+# Run 4 test prefixes (10_, 20_, 21_, 23_, 26_, etc.) in parallel
+./helper.sh --run-test=parallel=4
+
+# Run 2 prefixes in parallel, prioritizing 23_ tests (slow tests run first)
+./helper.sh --run-test=parallel=2,parallel-order=23_
+
+# Run parallel tests with TUI progress display (real-time split panel view)
+./helper.sh --run-test=parallel=4,progress
+
+# Run parallel tests with Valgrind
+./helper.sh --run-test=parallel=4,valgrind
+
+# Run parallel tests with specific databases
+./helper.sh --run-test=parallel=4,sqlite,postgres,mysql
+
+# Combine parallel with other options
+./helper.sh --run-test=parallel=4,clean,rebuild,postgres,mysql,sqlite,yaml
+
+# Summarize past test runs (shows summary of all log directories)
+./helper.sh --run-test=summarize
+```
+
+Parallel execution features:
+- Each prefix runs independently with separate log files
+- If a prefix fails, it stops but others continue running
+- Logs saved to `logs/test/YYYY-MM-DD-HH-MM-SS/PREFIX_RUNXX.log`
+- TUI mode shows real-time output from each parallel test
+- Summarize mode shows pass/fail status of all past test runs
+- Valgrind error detection support
+
 ### Test Log Analysis
 
 ```bash
