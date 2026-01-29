@@ -55,6 +55,19 @@ DIM='\033[2m'
 REVERSE='\033[7m'
 NC='\033[0m' # No Color
 
+# Validate that a value is a non-negative integer
+# Usage: validate_numeric "value" "parameter_name"
+# Returns 0 if valid, exits with error if invalid
+validate_numeric() {
+    local value="$1"
+    local param_name="$2"
+
+    if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+        echo "Error: $param_name must be a non-negative integer, got: '$value'"
+        exit 1
+    fi
+}
+
 # Parse command line arguments
 # Extract --parallel and --run, pass everything else through
 parse_arguments() {
@@ -62,6 +75,7 @@ parse_arguments() {
         case $1 in
             --parallel=*)
                 PARALLEL_COUNT="${1#*=}"
+                validate_numeric "$PARALLEL_COUNT" "--parallel"
                 shift
                 ;;
             --parallel-order=*|--paralel-order=*)
@@ -70,6 +84,7 @@ parse_arguments() {
                 ;;
             --run=*)
                 RUN_COUNT="${1#*=}"
+                validate_numeric "$RUN_COUNT" "--run"
                 # Also pass --run to the test script for its internal use
                 PASS_THROUGH_ARGS="$PASS_THROUGH_ARGS $1"
                 shift
@@ -214,6 +229,9 @@ apply_parallel_order() {
 
 # Validate and adjust parallel count
 validate_parallel_count() {
+    # Ensure PARALLEL_COUNT is numeric before arithmetic comparisons
+    validate_numeric "$PARALLEL_COUNT" "PARALLEL_COUNT"
+
     local max_parallel=${#ALL_PREFIXES[@]}
 
     if [ "$PARALLEL_COUNT" -gt "$max_parallel" ]; then
