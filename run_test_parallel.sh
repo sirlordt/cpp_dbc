@@ -86,6 +86,11 @@ parse_arguments() {
             --run=*)
                 RUN_COUNT="${1#*=}"
                 validate_numeric "$RUN_COUNT" "--run"
+                # Ensure RUN_COUNT is at least 1
+                if [ "$RUN_COUNT" -lt 1 ]; then
+                    echo "Error: --run value must be >= 1, got: $RUN_COUNT"
+                    exit 1
+                fi
                 # Also pass --run to the test script for its internal use
                 PASS_THROUGH_ARGS+=("$1")
                 shift
@@ -349,8 +354,8 @@ start_test() {
             echo ""
 
             # Execute the test command (preserve ANSI colors for TUI display)
-            # Strip only carriage returns to clean up progress output
-            "${cmd[@]}" 2>&1 | sed -r "s/\r//g"
+            # Strip only carriage returns to clean up progress output (portable)
+            "${cmd[@]}" 2>&1 | tr -d '\r'
             exit_code=${PIPESTATUS[0]}
 
             echo ""
