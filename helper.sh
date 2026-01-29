@@ -71,15 +71,28 @@ show_usage() {
   echo "  --run-test               Build (if needed) and run the tests"
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
   echo "                           Available options: clean,release,gcc-analyzer,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,valgrind,"
-  echo "                                              yaml,auto,asan,ctest,check,progress,run=N,test=FILTER,"
+  echo "                                              yaml,auto,asan,ctest,check,progress,run=N,parallel=N,test=FILTER,"
   echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Test filter formats (test=FILTER):"
   echo "                             - Wildcard: test=*mysql* matches test names containing 'mysql'"
   echo "                             - Tags: test=tag1+tag2 runs tests with those specific tags"
+  echo "                           Parallel execution (parallel=N):"
+  echo "                             - Runs N test prefixes (10_, 20_, 21_, etc.) in parallel"
+  echo "                             - Each prefix runs independently with separate log files"
+  echo "                             - If a prefix fails, it stops but others continue"
+  echo "                             - Maximum N is the number of available prefixes"
+  echo "                             - Logs saved in logs/test/YYYY-MM-DD-HH-MM-SS/PREFIX_RUNXX.log"
+  echo "                           Parallel order (parallel-order=P1_,P2_,...):"
+  echo "                             - Specify which prefixes should run first"
+  echo "                             - Useful for prioritizing slow tests (e.g., 23_)"
+  echo "                             - Example: parallel=5,parallel-order=23_,24_ runs 5 parallel tasks"
+  echo "                               with 23_ and 24_ starting first"
   echo "                           Example: --run-test=rebuild,mysql,valgrind,run=1,test=*mysql*"
   echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3,test=integration+mysql_real_right_join"
   echo "                           Example: --run-test=clean,rebuild,sqlite,mysql,postgres,yaml,valgrind,auto,run=1"
   echo "                           Example: --run-test=rebuild,sqlite,mysql,postgres,yaml,auto,progress,run=1"
+  echo "                           Example: --run-test=rebuild,sqlite,postgres,mysql,valgrind,auto,parallel=3,run=2"
+  echo "                           Example: --run-test=rebuild,sqlite,mysql,valgrind,auto,parallel=5,parallel-order=23_,24_,run=2"
   echo "                           Note: progress option shows visual progress bar on 2 lines:"
   echo "                                 Line 1: [Run: 1/5] [Test: 3/10] name ██████████░░░░░░░░░░ 30% [Elapsed: 00:05:23]"
   echo "                                 Line 2: [Last: previous_test_name 00:01:45]"
@@ -304,17 +317,28 @@ cmd_run_test() {
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
   # Get current directory
   local current_dir=$(pwd)
-  # Ensure the test log directory exists
-  mkdir -p "${current_dir}/logs/test"
-  local log_file="${current_dir}/logs/test/output-${ts}.log"
-  echo "Running tests. Output logging to $log_file."
-  
-  # Clean up old logs in the test directory, keeping the 4 most recent
-  cleanup_old_logs "${current_dir}/logs/test" 4
-  
-  # Build command with options
+
+  # Check if parallel mode is requested
+  local parallel_count=0
+  local parallel_order=""
+  if [[ "$TEST_OPTIONS" =~ parallel=([0-9]+) ]]; then
+    parallel_count="${BASH_REMATCH[1]}"
+    # Remove parallel= from options (it will be passed separately)
+    TEST_OPTIONS=$(echo "$TEST_OPTIONS" | sed -E "s/parallel=[0-9]+,?//g" | sed -E "s/,+/,/g" | sed -E "s/^,|,$//g")
+  fi
+  # Check if parallel-order is specified (e.g., parallel-order=23_,24_ or parallel-order=23_)
+  # Also accept "paralel-order" (single 'l') as an alias
+  # The pattern matches prefixes like 23_ or 23_,24_,25_ (numbers followed by underscore)
+  if [[ "$TEST_OPTIONS" =~ parall?el-order=([0-9]+_)(,[0-9]+_)* ]]; then
+    # Extract the full match including all prefixes (try both spellings)
+    parallel_order=$(echo "$TEST_OPTIONS" | grep -oE 'parall?el-order=[0-9]+_(,[0-9]+_)*' | sed -E 's/parall?el-order=//')
+    # Remove parallel-order= or paralel-order= from options
+    TEST_OPTIONS=$(echo "$TEST_OPTIONS" | sed -E "s/parall?el-order=[0-9]+_(,[0-9]+_)*,?//g" | sed -E "s/,+/,/g" | sed -E "s/^,|,$//g")
+  fi
+
+  # Build command with options (same for both parallel and normal mode)
   local run_test_cmd="./run_test.sh"
-  
+
   # First, extract all test tags from the options string
   local test_tags=""
   if [[ "$TEST_OPTIONS" =~ test= ]]; then
@@ -478,7 +502,38 @@ cmd_run_test() {
     run_test_cmd="$run_test_cmd --run-test=$test_tags"
     echo "Setting test tags to: $test_tags"
   fi
-  
+
+  # If parallel mode is enabled, use the parallel runner
+  if [ "$parallel_count" -gt 0 ]; then
+    echo "Using parallel test runner with $parallel_count concurrent test prefixes"
+
+    # Convert run_test.sh command to run_test_cpp_dbc.sh arguments
+    # Remove "./run_test.sh" prefix (with or without trailing space) and trim leading whitespace
+    local test_args="${run_test_cmd#./run_test.sh}"
+    test_args="${test_args# }"  # Remove leading space if present
+
+    # Build the parallel test command
+    local parallel_cmd="./run_test_parallel.sh"
+    parallel_cmd="$parallel_cmd --parallel=$parallel_count"
+    if [ -n "$parallel_order" ]; then
+      parallel_cmd="$parallel_cmd --parallel-order=$parallel_order"
+    fi
+    parallel_cmd="$parallel_cmd $test_args"
+
+    echo "Running: $parallel_cmd"
+    $parallel_cmd
+    return $?
+  fi
+
+  # Normal (non-parallel) test execution continues below
+  # Ensure the test log directory exists
+  mkdir -p "${current_dir}/logs/test"
+  local log_file="${current_dir}/logs/test/output-${ts}.log"
+  echo "Running tests. Output logging to $log_file."
+
+  # Clean up old logs in the test directory, keeping the 4 most recent
+  cleanup_old_logs "${current_dir}/logs/test" 4
+
   echo "$0 => running: $run_test_cmd"
 
   # Create a temporary file to capture raw output
