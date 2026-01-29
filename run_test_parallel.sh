@@ -856,8 +856,9 @@ discover_prefixes_from_logs() {
         local basename=$(basename "$log_file")
         # Extract prefix (everything before _RUN)
         local prefix=$(echo "$basename" | sed 's/_RUN.*//')
-        # Extract run number
-        local run_num=$(echo "$basename" | grep -oP '_RUN\K[0-9]+' || echo "0")
+        # Extract run number (portable sed instead of grep -oP)
+        local run_num=$(echo "$basename" | sed -n 's/.*_RUN\([0-9][0-9]*\).*/\1/p')
+        run_num="${run_num:-0}"
         # Check if it's a failed log
         local is_failed=false
         [[ "$basename" == *"_fail.log" ]] && is_failed=true
@@ -1470,7 +1471,7 @@ run_parallel_tests_tui() {
                         mark_log_as_failed "$prefix"
                     fi
 
-                    unset PREFIX_PIDS[$prefix]
+                    unset "PREFIX_PIDS[$prefix]"
                 fi
             fi
         done
@@ -1794,7 +1795,7 @@ run_parallel_tests_simple() {
                     fi
 
                     # Clear PID
-                    unset PREFIX_PIDS[$prefix]
+                    unset "PREFIX_PIDS[$prefix]"
                 fi
             fi
         done
