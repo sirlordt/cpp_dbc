@@ -69,6 +69,8 @@ DEBUG_ALL=OFF
 DW_OFF=false
 DB_DRIVER_THREAD_SAFE_OFF=false
 SHOW_PROGRESS=false
+SKIP_BUILD=false
+LIST_ONLY=false
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -176,6 +178,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --rebuild)
             REBUILD=true
+            shift
+            ;;
+        --skip-build)
+            SKIP_BUILD=true
+            shift
+            ;;
+        --list)
+            LIST_ONLY=true
             shift
             ;;
         --run=*)
@@ -386,6 +396,14 @@ fi
 
 if [ "$REBUILD" = true ]; then
     CMD="$CMD --rebuild"
+fi
+
+if [ "$SKIP_BUILD" = true ]; then
+    CMD="$CMD --skip-build"
+fi
+
+if [ "$LIST_ONLY" = true ]; then
+    CMD="$CMD --list"
 fi
 
 # Add run count parameter

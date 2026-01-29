@@ -127,6 +127,11 @@ The project uses:
   - `--debug-all`: Enable all debug output at once (simplifies debugging across multiple components)
   - `--db-driver-thread-safe-off`: Disable thread-safe database driver operations (for single-threaded performance)
   - `--asan`: Enable AddressSanitizer (with known issues, see asan_issues.md)
+- Parallel test execution options (via `helper.sh --run-test=...`):
+  - `parallel=N`: Run N test prefixes (10_, 20_, 21_, etc.) in parallel
+  - `parallel-order=P1_,P2_,...`: Prioritize specific prefixes to run first
+  - `progress`: Enable TUI mode with split panel view showing real-time output
+  - `summarize`: Show summary of all past parallel test runs
 
 ### Development Environment
 The code is structured to be developed in any C++ IDE or text editor, with common options being:
