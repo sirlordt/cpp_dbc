@@ -21,7 +21,8 @@ SUMMARIZE_MODE=false
 SUMMARIZE_FOLDER=""
 
 # Arguments to pass to run_test.sh (everything except --parallel)
-PASS_THROUGH_ARGS=""
+# Using array to avoid word-splitting and glob expansion issues
+declare -a PASS_THROUGH_ARGS=()
 
 # Log directory for this run
 LOG_DIR="$SCRIPT_DIR/logs/test/$TIMESTAMP"
@@ -86,7 +87,7 @@ parse_arguments() {
                 RUN_COUNT="${1#*=}"
                 validate_numeric "$RUN_COUNT" "--run"
                 # Also pass --run to the test script for its internal use
-                PASS_THROUGH_ARGS="$PASS_THROUGH_ARGS $1"
+                PASS_THROUGH_ARGS+=("$1")
                 shift
                 ;;
             --help)
@@ -126,7 +127,7 @@ parse_arguments() {
                 ;;
             *)
                 # Pass through to run_test.sh
-                PASS_THROUGH_ARGS="$PASS_THROUGH_ARGS $1"
+                PASS_THROUGH_ARGS+=("$1")
                 shift
                 ;;
         esac
@@ -270,19 +271,20 @@ do_initial_build() {
 
     # Build command: use --list to just build without running tests
     # Call run_test.sh (which handles option conversion to run_test_cpp_dbc.sh)
-    local build_cmd="$SCRIPT_DIR/run_test.sh $PASS_THROUGH_ARGS --rebuild --list"
+    # Using array to avoid word-splitting and glob expansion
+    local -a build_cmd=("$SCRIPT_DIR/run_test.sh" "${PASS_THROUGH_ARGS[@]}" --rebuild --list)
 
     if [ "$SHOW_TUI" = false ]; then
-        echo "Build command: $build_cmd"
+        echo "Build command: ${build_cmd[*]}"
         echo ""
     fi
 
     # Execute build
     cd "$SCRIPT_DIR"
     if [ "$SHOW_TUI" = true ]; then
-        eval "$build_cmd" > /dev/null 2>&1
+        "${build_cmd[@]}" > /dev/null 2>&1
     else
-        eval "$build_cmd"
+        "${build_cmd[@]}"
     fi
 
     BUILD_DONE=true
@@ -317,14 +319,19 @@ start_test() {
 
     local filter="${prefix}_*"
 
-    # Build full command - pass through args directly to run_test.sh
+    # Build full command as array to avoid word-splitting and glob expansion
     # run_test.sh handles option conversion to run_test_cpp_dbc.sh
-    local cmd="$SCRIPT_DIR/run_test.sh"
-    cmd="$cmd $PASS_THROUGH_ARGS"
-    cmd="$cmd --skip-build"         # Skip build (already done)
-    cmd="$cmd --auto"               # Non-interactive mode
-    cmd="$cmd --run=1"              # Single run (we manage runs)
-    cmd="$cmd --run-test=$filter"   # Filter for this prefix
+    local -a cmd=(
+        "$SCRIPT_DIR/run_test.sh"
+        "${PASS_THROUGH_ARGS[@]}"
+        --skip-build              # Skip build (already done)
+        --auto                    # Non-interactive mode
+        --run=1                   # Single run (we manage runs)
+        "--run-test=$filter"      # Filter for this prefix
+    )
+
+    # For logging purposes, create a display string
+    local cmd_display="${cmd[*]}"
 
     # Run the test in background
     (
@@ -338,12 +345,12 @@ start_test() {
             echo "=== Test Prefix: ${prefix}_ ==="
             echo "=== Run: $run_num of $RUN_COUNT ==="
             echo "=== Started: $(date) ==="
-            echo "=== Command: $cmd ==="
+            echo "=== Command: $cmd_display ==="
             echo ""
 
             # Execute the test command (preserve ANSI colors for TUI display)
             # Strip only carriage returns to clean up progress output
-            eval "$cmd" 2>&1 | sed -r "s/\r//g"
+            "${cmd[@]}" 2>&1 | sed -r "s/\r//g"
             exit_code=${PIPESTATUS[0]}
 
             echo ""
@@ -1730,7 +1737,7 @@ run_parallel_tests_simple() {
     echo "Run count per prefix: $RUN_COUNT"
     echo "Timestamp: $TIMESTAMP"
     echo "Log directory: $LOG_DIR/"
-    echo "Pass-through args: $PASS_THROUGH_ARGS"
+    echo "Pass-through args: ${PASS_THROUGH_ARGS[*]}"
     echo "========================================"
 
     # Create log directory
