@@ -638,7 +638,7 @@ count_total_tests_in_log() {
 
     # Count "All tests passed" or "test case(s) failed" result lines
     local count
-    count=$(grep -cE "All tests passed|[0-9]+ test case(s)? failed" "$log_file" 2>/dev/null || echo "0")
+    count=$(grep -cE "All tests passed|[0-9]+ test case(s)? failed" "$log_file" 2>/dev/null) || true
     echo "$count"
 }
 
@@ -1649,7 +1649,7 @@ get_test_progress_info() {
     fi
 
     # Count completed tests by counting "All tests passed" or "test case(s) failed" result lines
-    completed_tests=$(grep -cE "All tests passed|[0-9]+ test case(s)? failed" "$log_file" 2>/dev/null || echo "0")
+    completed_tests=$(grep -cE "All tests passed|[0-9]+ test case(s)? failed" "$log_file" 2>/dev/null) || true
     completed_tests=$(echo "$completed_tests" | tr -d '\n\r')
     completed_tests="${completed_tests:-0}"
 
