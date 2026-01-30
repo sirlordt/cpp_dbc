@@ -144,7 +144,6 @@ namespace cpp_dbc
 
         explicit KVDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-    public:
         // Static factory methods - use these to create pools
         static std::shared_ptr<KVDBConnectionPool> create(const std::string &url,
                                                           const std::string &username,

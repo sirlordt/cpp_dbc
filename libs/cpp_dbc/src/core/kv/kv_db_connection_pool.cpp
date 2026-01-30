@@ -839,6 +839,7 @@ namespace cpp_dbc
             {
                 // Unknown exception, just close the connection
                 CP_DEBUG("KVPooledDBConnection::close - Unknown exception");
+                m_closed.store(true);
                 if (m_conn)
                 {
                     m_conn->close();

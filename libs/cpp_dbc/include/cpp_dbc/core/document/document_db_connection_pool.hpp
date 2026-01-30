@@ -146,7 +146,6 @@ namespace cpp_dbc
         // Constructor that accepts a configuration object
         explicit DocumentDBConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-    public:
         // Static factory methods - use these to create pools
         static std::shared_ptr<DocumentDBConnectionPool> create(const std::string &url,
                                                                 const std::string &username,

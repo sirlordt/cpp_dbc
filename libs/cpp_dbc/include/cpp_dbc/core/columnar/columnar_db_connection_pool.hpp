@@ -140,7 +140,6 @@ namespace cpp_dbc
 
         explicit ColumnarDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-    public:
         // Static factory methods - use these to create pools
         static std::shared_ptr<ColumnarDBConnectionPool> create(const std::string &url,
                                                                 const std::string &username,
