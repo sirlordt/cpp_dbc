@@ -44,7 +44,7 @@ namespace cpp_dbc
     class RelationalDBConnection : public DBConnection
     {
     public:
-        virtual ~RelationalDBConnection() = default;
+        ~RelationalDBConnection() override = default;
 
         // SQL execution
         /**

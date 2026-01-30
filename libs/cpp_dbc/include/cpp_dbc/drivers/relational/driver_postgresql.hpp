@@ -193,7 +193,6 @@ namespace cpp_dbc::PostgreSQL
         {
             friend class PostgreSQLDBConnection;
 
-        private:
             std::weak_ptr<PGconn> m_conn; // Safe weak reference to connection - detects when connection is closed
             std::string m_sql;
             std::string m_stmtName;
@@ -345,6 +344,12 @@ namespace cpp_dbc::PostgreSQL
         public:
             PostgreSQLDBDriver();
             ~PostgreSQLDBDriver() override;
+
+            // Rule of 5: disable copy and move operations
+            PostgreSQLDBDriver(const PostgreSQLDBDriver &) = delete;
+            PostgreSQLDBDriver &operator=(const PostgreSQLDBDriver &) = delete;
+            PostgreSQLDBDriver(PostgreSQLDBDriver &&) = delete;
+            PostgreSQLDBDriver &operator=(PostgreSQLDBDriver &&) = delete;
 
             std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                       const std::string &user,

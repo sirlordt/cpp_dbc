@@ -49,7 +49,7 @@ namespace cpp_dbc
     class ColumnarDBDriver : public DBDriver
     {
     public:
-        virtual ~ColumnarDBDriver() = default;
+        ~ColumnarDBDriver() override = default;
 
         /**
          * @brief Get the database type

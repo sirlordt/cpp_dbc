@@ -48,7 +48,7 @@ namespace cpp_dbc::Redis
          *
          * This class ensures that redisReply is freed when it goes out of scope.
          */
-        class RedisReplyHandle
+        class RedisReplyHandle // NOSONAR - Rule of 5 satisfied: destructor is = default because unique_ptr handles resource
         {
         public:
             explicit RedisReplyHandle(redisReply *reply);
@@ -389,7 +389,7 @@ namespace cpp_dbc::Redis
             /**
              * @brief Destructor
              */
-            ~RedisDriver();
+            ~RedisDriver() override;
 
             // DBDriver interface implementation
             bool acceptsURL(const std::string &url) override;

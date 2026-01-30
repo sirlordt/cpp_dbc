@@ -46,7 +46,7 @@ namespace cpp_dbc
     class RelationalDBResultSet : public DBResultSet
     {
     public:
-        virtual ~RelationalDBResultSet() = default;
+        ~RelationalDBResultSet() override = default;
 
         // Row navigation
         /**

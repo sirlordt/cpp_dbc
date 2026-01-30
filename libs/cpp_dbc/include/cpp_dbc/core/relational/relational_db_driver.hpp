@@ -42,7 +42,7 @@ namespace cpp_dbc
     class RelationalDBDriver : public DBDriver
     {
     public:
-        virtual ~RelationalDBDriver() = default;
+        ~RelationalDBDriver() override = default;
 
         /**
          * @brief Get the database type

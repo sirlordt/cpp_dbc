@@ -48,7 +48,7 @@ namespace cpp_dbc
     class DocumentDBCursor : public DBResultSet
     {
     public:
-        virtual ~DocumentDBCursor() = default;
+        ~DocumentDBCursor() override = default;
 
         // Navigation
         /**

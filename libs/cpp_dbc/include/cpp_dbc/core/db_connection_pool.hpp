@@ -51,6 +51,20 @@ namespace cpp_dbc
     {
     protected:
         /**
+         * @brief PassKey idiom tag for enabling std::make_shared with protected constructors
+         *
+         * This empty struct serves as an access token that allows derived pool classes
+         * to have "public" constructors that can only be called from within the class
+         * hierarchy (since the tag is in the protected section). This enables the use of
+         * std::make_shared while still enforcing the factory pattern.
+         */
+        struct ConstructorTag
+        {
+            ConstructorTag() = default;
+        };
+
+    protected:
+        /**
          * @brief Set the transaction isolation level for all connections in the pool
          *
          * @param level The transaction isolation level to use

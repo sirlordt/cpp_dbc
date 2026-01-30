@@ -123,9 +123,11 @@ namespace cpp_dbc
         // This must be called after the pool is managed by a shared_ptr
         void initializePool();
 
-        // Protected constructors - pools must be created via factory methods
+    public:
+        // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
         // Constructor that takes individual parameters
-        DocumentDBConnectionPool(const std::string &url,
+        DocumentDBConnectionPool(ConstructorTag,
+                                 const std::string &url,
                                  const std::string &username,
                                  const std::string &password,
                                  const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
@@ -142,7 +144,7 @@ namespace cpp_dbc
                                  TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
         // Constructor that accepts a configuration object
-        explicit DocumentDBConnectionPool(const config::DBConnectionPoolConfig &config);
+        explicit DocumentDBConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
 
     public:
         // Static factory methods - use these to create pools
@@ -292,14 +294,15 @@ namespace cpp_dbc
          */
         class MongoDBConnectionPool : public DocumentDBConnectionPool
         {
-        protected:
-            MongoDBConnectionPool(const std::string &url,
+        public:
+            // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
+            MongoDBConnectionPool(ConstructorTag,
+                                  const std::string &url,
                                   const std::string &username,
                                   const std::string &password);
 
-            explicit MongoDBConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit MongoDBConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-        public:
             static std::shared_ptr<MongoDBConnectionPool> create(const std::string &url,
                                                                  const std::string &username,
                                                                  const std::string &password);

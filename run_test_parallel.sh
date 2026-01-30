@@ -16,6 +16,7 @@ RUN_COUNT=1
 TIMESTAMP=$(date '+%Y-%m-%d-%H-%M-%S')
 BUILD_DONE=false
 SHOW_TUI=false
+TUI_ACTIVE=false  # Track if TUI has been initialized (for cleanup)
 GLOBAL_START_TIME=0
 SUMMARIZE_MODE=false
 SUMMARIZE_FOLDER=""
@@ -266,39 +267,31 @@ do_initial_build() {
         return 0
     fi
 
-    if [ "$SHOW_TUI" = false ]; then
-        echo ""
-        echo -e "${CYAN}========================================"
-        echo "  Building tests (once before parallel execution)"
-        echo "========================================${NC}"
-        echo ""
-    fi
+    # Always show build output, even when TUI mode is enabled
+    # TUI will be activated only after build completes
+    echo ""
+    echo -e "${CYAN}========================================"
+    echo "  Building tests (once before parallel execution)"
+    echo "========================================${NC}"
+    echo ""
 
     # Build command: use --list to just build without running tests
     # Call run_test.sh (which handles option conversion to run_test_cpp_dbc.sh)
     # Using array to avoid word-splitting and glob expansion
     local -a build_cmd=("$SCRIPT_DIR/run_test.sh" "${PASS_THROUGH_ARGS[@]}" --rebuild --list)
 
-    if [ "$SHOW_TUI" = false ]; then
-        echo "Build command: ${build_cmd[*]}"
-        echo ""
-    fi
+    echo "Build command: ${build_cmd[*]}"
+    echo ""
 
-    # Execute build
+    # Execute build (always show output)
     cd "$SCRIPT_DIR"
-    if [ "$SHOW_TUI" = true ]; then
-        "${build_cmd[@]}" > /dev/null 2>&1
-    else
-        "${build_cmd[@]}"
-    fi
+    "${build_cmd[@]}"
 
     BUILD_DONE=true
 
-    if [ "$SHOW_TUI" = false ]; then
-        echo ""
-        echo -e "${GREEN}Build completed successfully${NC}"
-        echo ""
-    fi
+    echo ""
+    echo -e "${GREEN}Build completed successfully${NC}"
+    echo ""
 }
 
 # Create log file path for a prefix and run
@@ -324,11 +317,25 @@ start_test() {
 
     local filter="${prefix}_*"
 
+    # Filter out --clean and --rebuild from pass-through args for individual tests
+    # These flags are only used during the initial build, not per-test execution
+    local -a filtered_args=()
+    for arg in "${PASS_THROUGH_ARGS[@]}"; do
+        case "$arg" in
+            --clean|--rebuild)
+                # Skip these flags for individual test runs
+                ;;
+            *)
+                filtered_args+=("$arg")
+                ;;
+        esac
+    done
+
     # Build full command as array to avoid word-splitting and glob expansion
     # run_test.sh handles option conversion to run_test_cpp_dbc.sh
     local -a cmd=(
         "$SCRIPT_DIR/run_test.sh"
-        "${PASS_THROUGH_ARGS[@]}"
+        "${filtered_args[@]}"
         --skip-build              # Skip build (already done)
         --auto                    # Non-interactive mode
         --run=1                   # Single run (we manage runs)
@@ -1030,10 +1037,16 @@ tui_init() {
 
     # Set up alternate screen buffer
     tput smcup
+
+    # Mark TUI as active (for cleanup on interrupt)
+    TUI_ACTIVE=true
 }
 
 # Cleanup TUI
 tui_cleanup() {
+    # Mark TUI as inactive (prevent multiple cleanup calls)
+    TUI_ACTIVE=false
+
     # Restore original terminal settings (re-enables echo)
     if [ -n "$ORIGINAL_STTY_SETTINGS" ]; then
         stty "$ORIGINAL_STTY_SETTINGS"
@@ -1436,14 +1449,14 @@ tui_handle_input() {
 
 # Run TUI main loop
 run_parallel_tests_tui() {
-    # Initialize TUI
-    tui_init
-
     # Create log directory
     mkdir -p "$LOG_DIR"
 
-    # Do initial build (silently for TUI)
+    # Do initial build BEFORE initializing TUI (so user can see build output)
     do_initial_build
+
+    # Initialize TUI only after build is complete
+    tui_init
 
     # Set global start time for total elapsed tracking
     GLOBAL_START_TIME=$(date +%s)
@@ -1898,8 +1911,8 @@ run_parallel_tests_simple() {
 
 # Cleanup function for Ctrl+C
 cleanup() {
-    # Restore TUI if active
-    if [ "$SHOW_TUI" = true ]; then
+    # Restore TUI only if it was actually initialized
+    if [ "$TUI_ACTIVE" = true ]; then
         tui_cleanup
     fi
 

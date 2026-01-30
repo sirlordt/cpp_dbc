@@ -48,7 +48,7 @@ namespace cpp_dbc
     class KVDBDriver : public DBDriver
     {
     public:
-        virtual ~KVDBDriver() = default;
+        ~KVDBDriver() override = default;
 
         /**
          * @brief Get the database type

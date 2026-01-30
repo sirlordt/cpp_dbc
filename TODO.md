@@ -13,6 +13,17 @@
 
 ## Completed Tasks
 
+- SonarCloud Code Quality Fixes and Connection Pool Improvements (2026-01-29):
+  - Fixed critical race condition in connection pool return flow (m_closed reset before returnConnection)
+  - Added ConstructorTag pattern (PassKey idiom) to enable std::make_shared while enforcing factory pattern
+  - Added NOSONAR comments with explanations for intentional code patterns
+  - Added [[noreturn]] attributes to stub methods that always throw exceptions
+  - Changed virtual destructors to override in derived classes
+  - Added Rule of 5 to MySQLDBDriver and PostgreSQLDBDriver
+  - Changed nested namespace declarations to modern C++17 syntax
+  - Fixed TUI initialization in parallel test script to occur after build
+  - Enhanced sonar_qube_issues_fetch.sh to fetch all issues when --file not specified
+
 - Parallel Test Execution System (2026-01-28):
   - Added `run_test_parallel.sh` script for running test prefixes in parallel
   - Added `parallel=N` option to helper.sh for running N prefixes concurrently

@@ -217,6 +217,11 @@ The project now includes an automatic synchronization system for IntelliSense:
   - Added `isPoolValid()` helper method to check if pool is still alive
   - Pool sets `m_poolAlive` to `false` in `close()` before cleanup
   - Prevents use-after-free when pool is destroyed while connections are in use
+  - ConstructorTag pattern (PassKey idiom) enables `std::make_shared` while enforcing factory pattern:
+    - Single memory allocation instead of separate allocations with `new`
+    - Protected `ConstructorTag` struct acts as access token for constructors
+  - Race condition prevention in connection return flow:
+    - `m_closed` flag reset BEFORE `returnConnection()` to prevent race window
 - Relies on RAII for proper cleanup even in case of exceptions
 - No explicit memory management required from client code
 - Comprehensive warning flags to catch memory-related issues:

@@ -123,9 +123,10 @@ namespace cpp_dbc
         // This must be called after the pool is managed by a shared_ptr
         void initializePool();
 
-        // Protected constructors - pools must be created via factory methods
-        // Constructor that takes individual parameters
-        KVDBConnectionPool(const std::string &url,
+    public:
+        // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
+        KVDBConnectionPool(DBConnectionPool::ConstructorTag,
+                           const std::string &url,
                            const std::string &username,
                            const std::string &password,
                            const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
@@ -141,8 +142,7 @@ namespace cpp_dbc
                            const std::string &validationQuery = "PING",
                            TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
-        // Constructor that accepts a configuration object
-        explicit KVDBConnectionPool(const config::DBConnectionPoolConfig &config);
+        explicit KVDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
     public:
         // Static factory methods - use these to create pools
@@ -402,14 +402,15 @@ namespace cpp_dbc
          */
         class RedisConnectionPool : public KVDBConnectionPool
         {
-        protected:
-            RedisConnectionPool(const std::string &url,
+        public:
+            // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
+            RedisConnectionPool(DBConnectionPool::ConstructorTag,
+                                const std::string &url,
                                 const std::string &username,
                                 const std::string &password);
 
-            explicit RedisConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit RedisConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-        public:
             static std::shared_ptr<RedisConnectionPool> create(const std::string &url,
                                                                const std::string &username,
                                                                const std::string &password);

@@ -46,7 +46,7 @@ namespace cpp_dbc
     class DocumentDBDriver : public DBDriver
     {
     public:
-        virtual ~DocumentDBDriver() = default;
+        ~DocumentDBDriver() override = default;
 
         /**
          * @brief Get the database type

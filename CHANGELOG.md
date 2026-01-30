@@ -1,6 +1,43 @@
 # Changelog
 
-## 2026-01-28 21:43:01 PST [Current]
+## 2026-01-29 16:23:21 PST [Current]
+
+### SonarCloud Code Quality Fixes and Connection Pool Improvements
+* **Critical Race Condition Fix in Connection Pool Return Flow:**
+  * Fixed race condition in `close()` and `returnToPool()` methods across all pool types (Relational, Document, Columnar, KV)
+  * Bug: `m_closed` was reset to `false` AFTER `returnConnection()` completed, creating a window where another thread could get a connection with `m_closed=true`
+  * Fix: Reset `m_closed` to `false` BEFORE calling `returnConnection()` to ensure connection state is correct when available in idle queue
+  * Added catch-all exception handlers to ensure `m_closed` is always set correctly on any exception
+  * Added detailed documentation comments explaining the race condition and fix
+* **Connection Pool ConstructorTag Pattern (PassKey Idiom):**
+  * Added `DBConnectionPool::ConstructorTag` protected struct to enable `std::make_shared` while enforcing factory pattern
+  * Updated all connection pool classes to use ConstructorTag in constructors
+  * Enables single memory allocation with `std::make_shared` instead of separate allocations with `new`
+  * Removed NOSONAR comments that were needed for the previous `new` usage
+  * Applied to: `ColumnarDBConnectionPool`, `DocumentDBConnectionPool`, `KVDBConnectionPool`, `RelationalDBConnectionPool`
+  * Applied to all derived pools: `ScyllaConnectionPool`, `MongoDBConnectionPool`, `RedisConnectionPool`, `MySQLConnectionPool`, `PostgreSQLConnectionPool`, `SQLiteConnectionPool`, `FirebirdConnectionPool`
+* **SonarCloud Code Quality Fixes:**
+  * Added NOSONAR comments with explanations for intentional code patterns
+  * Added `[[noreturn]]` attributes to stub methods that always throw exceptions (ScyllaDB disabled driver)
+  * Changed `virtual ~Class()` to `~Class() override` for derived classes (ColumnarDBDriver, DocumentDBDriver, KVDBDriver, RelationalDBDriver, etc.)
+  * Added Rule of 5 (delete copy/move operations) to `MySQLDBDriver` and `PostgreSQLDBDriver`
+  * Changed nested namespace declarations to modern C++17 syntax (`namespace cpp_dbc::config` instead of `namespace cpp_dbc { namespace config {`)
+  * Fixed catch blocks to use specific exception types instead of bare `catch(...)` in PostgreSQL driver
+  * Added `NOSONAR` comments for `RedisReplyHandle` class (Rule of 5 satisfied via unique_ptr)
+* **Parallel Test Script Improvements (`run_test_parallel.sh`):**
+  * Fixed TUI initialization to occur after build completes (so build output is visible)
+  * Added `TUI_ACTIVE` flag to track if TUI was initialized for proper cleanup on interrupt
+  * Fixed cleanup to only run if TUI was actually initialized
+  * Fixed `--clean` and `--rebuild` flags to only apply during initial build, not per-test execution
+* **SonarQube Issues Fetch Script Enhancement (`sonar_qube_issues_fetch.sh`):**
+  * Made `--file` parameter optional
+  * When `--file` is not specified, fetches ALL issues from ALL files in the project
+  * Added pagination support for fetching all issues (handles large projects)
+  * Issues are organized by file in timestamped folders
+* **Test Fixes:**
+  * Fixed Firebird connection pool test to use `initialIdleCount` instead of hardcoded value 3
+
+## 2026-01-28 21:43:01 PST
 
 ### Parallel Test Execution System
 * **New Parallel Test Runner (`run_test_parallel.sh`):**

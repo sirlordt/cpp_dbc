@@ -387,6 +387,12 @@ namespace cpp_dbc::MySQL
             MySQLDBDriver();
             ~MySQLDBDriver() override;
 
+            // Rule of 5: disable copy and move operations
+            MySQLDBDriver(const MySQLDBDriver &) = delete;
+            MySQLDBDriver &operator=(const MySQLDBDriver &) = delete;
+            MySQLDBDriver(MySQLDBDriver &&) = delete;
+            MySQLDBDriver &operator=(MySQLDBDriver &&) = delete;
+
             std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                       const std::string &user,
                                                                       const std::string &password,
