@@ -297,7 +297,33 @@ Based on the current state of the project, potential areas for enhancement inclu
 
 #### This PR (test_parallel)
 
-1. **Parallel Test Execution System** (2026-01-28 21:43:01 PST):
+1. **SonarCloud Code Quality Fixes and Connection Pool Improvements** (2026-01-29 16:23:21 PST):
+   - **Critical Race Condition Fix in Connection Pool Return Flow:**
+     - Fixed race condition in `close()` and `returnToPool()` methods across all pool types
+     - Bug: `m_closed` was reset to `false` AFTER `returnConnection()` completed
+     - Fix: Reset `m_closed` to `false` BEFORE calling `returnConnection()`
+     - Added catch-all exception handlers to ensure correct state on any exception
+   - **Connection Pool ConstructorTag Pattern (PassKey Idiom):**
+     - Added `DBConnectionPool::ConstructorTag` struct to enable `std::make_shared` while enforcing factory pattern
+     - Updated all connection pool classes to use ConstructorTag
+     - Enables single memory allocation with `std::make_shared`
+   - **SonarCloud Code Quality Fixes:**
+     - Added NOSONAR comments with explanations for intentional code patterns
+     - Added `[[noreturn]]` attributes to stub methods that always throw exceptions
+     - Changed `virtual ~Class()` to `~Class() override` for derived classes
+     - Added Rule of 5 to `MySQLDBDriver` and `PostgreSQLDBDriver`
+     - Changed nested namespace declarations to modern C++17 syntax
+   - **Parallel Test Script Improvements:**
+     - Fixed TUI initialization to occur after build completes
+     - Added `TUI_ACTIVE` flag for proper cleanup on interrupt
+     - Fixed `--clean` and `--rebuild` flags to only apply during initial build
+   - **SonarQube Issues Fetch Script Enhancement:**
+     - Made `--file` parameter optional (fetches ALL issues when not specified)
+     - Added pagination support for fetching all issues
+   - **Test Fixes:**
+     - Fixed Firebird connection pool test to use `initialIdleCount` instead of hardcoded value
+
+2. **Parallel Test Execution System** (2026-01-28 21:43:01 PST):
    - **New Parallel Test Runner (`run_test_parallel.sh`):**
      - Added complete parallel test execution script (~1900 lines of bash)
      - Runs test prefixes (10_, 20_, 21_, 23_, 26_, etc.) in parallel batches

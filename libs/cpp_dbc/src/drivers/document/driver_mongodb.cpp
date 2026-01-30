@@ -45,7 +45,7 @@ namespace cpp_dbc
         // ============================================================================
 
         std::once_flag MongoDBDriver::s_initFlag;
-        std::atomic<bool> MongoDBDriver::s_initialized{false};
+        std::atomic<bool> MongoDBDriver::s_initialized{false}; // NOSONAR - Explicit template arg for clarity in static member definition
 
         // ============================================================================
         // MongoDBDocument Implementation

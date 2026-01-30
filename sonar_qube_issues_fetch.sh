@@ -76,16 +76,16 @@ load_project_from_properties() {
 # -----------------------------------------------------------------------------
 show_usage() {
     cat << EOF
-Usage: ${SCRIPT_NAME} --file=<filename|component_key> [OPTIONS]
+Usage: ${SCRIPT_NAME} [--file=<filename|component_key>] [OPTIONS]
 
-Fetch SonarCloud issues for a specific file and save them as JSON.
+Fetch SonarCloud issues and save them as JSON.
+If --file is not specified, fetches ALL issues from ALL files in the project.
 
-Required:
+Options:
   --file=NAME|KEY       Filename (e.g., driver_mysql.cpp) or component key
                         If a filename is provided, the script will resolve
                         it to a component key automatically
-
-Options:
+                        If omitted, fetches issues from all files
   --token=TOKEN         SonarCloud API token (optional)
                         Falls back to SONAR_QUBE_TOKEN env variable
                         If neither available, attempts unauthenticated request
@@ -109,6 +109,11 @@ Configuration:
     sonar.projectKey=your_project_key
 
 Examples:
+  # Fetch ALL issues from ALL files (organized by file in timestamped folder)
+  ${SCRIPT_NAME}
+  ${SCRIPT_NAME} --branch=develop
+  ${SCRIPT_NAME} --pr=42
+
   # Using filename (uses main/master branch by default)
   ${SCRIPT_NAME} --file=driver_mysql.cpp
 
@@ -299,12 +304,7 @@ parse_arguments() {
         PULL_REQUEST=$(resolve_pr_from_branch "$current_branch")
     fi
     
-    # Validate required arguments (unless listing)
-    if [[ "$LIST_FILES" == "false" && "$LIST_BRANCHES" == "false" && "$LIST_PRS" == "false" && -z "$FILE_INPUT" ]]; then
-        log_error "Missing required argument: --file"
-        show_usage
-        exit 1
-    fi
+    # Note: --file is now optional. If not provided, all issues will be fetched
     
     # Token fallback to environment variable
     if [[ -z "$TOKEN" ]]; then
@@ -723,6 +723,194 @@ fetch_issues() {
 }
 
 # -----------------------------------------------------------------------------
+# Fetch ALL issues from all files in the project (with pagination)
+# -----------------------------------------------------------------------------
+fetch_all_issues() {
+    log_info "Fetching ALL issues from project: ${PROJECT}" >&2
+    if [[ -n "$PULL_REQUEST" ]]; then
+        log_info "Pull Request: ${PULL_REQUEST}" >&2
+    elif [[ -n "$BRANCH" ]]; then
+        log_info "Branch: ${BRANCH}" >&2
+    else
+        log_info "Branch: (default/main)" >&2
+    fi
+    log_info "Statuses: ${STATUSES}" >&2
+    log_info "Qualities: ${QUALITIES}" >&2
+
+    local page=1
+    local page_size=500
+    local all_issues="[]"
+    local total=0
+    local fetched=0
+
+    while true; do
+        local url="${API_URL}/issues/search"
+        url="${url}?componentKeys=${PROJECT}"
+        url="${url}&issueStatuses=${STATUSES}"
+        url="${url}&impactSoftwareQualities=${QUALITIES}"
+        url="${url}&ps=${page_size}"
+        url="${url}&p=${page}"
+
+        # Add branch or pull request filter
+        if [[ -n "$PULL_REQUEST" ]]; then
+            url="${url}&pullRequest=${PULL_REQUEST}"
+        elif [[ -n "$BRANCH" ]]; then
+            url="${url}&branch=${BRANCH}"
+        fi
+
+        local response
+        response=$(api_request "$url")
+
+        if [[ $page -eq 1 ]]; then
+            total=$(echo "$response" | jq '.total // 0')
+            log_info "Total issues in project: ${total}" >&2
+        fi
+
+        local page_issues
+        page_issues=$(echo "$response" | jq '.issues // []')
+        local count
+        count=$(echo "$page_issues" | jq 'length')
+
+        if [[ $count -eq 0 ]]; then
+            break
+        fi
+
+        # Merge issues
+        all_issues=$(echo "$all_issues" "$page_issues" | jq -s 'add')
+
+        fetched=$((fetched + count))
+        log_info "Fetched ${fetched}/${total} issues..." >&2
+
+        if [[ $fetched -ge $total ]]; then
+            break
+        fi
+
+        page=$((page + 1))
+    done
+
+    # Return combined response
+    echo "{\"total\": ${total}, \"issues\": ${all_issues}}"
+}
+
+# -----------------------------------------------------------------------------
+# Create timestamped output directory
+# -----------------------------------------------------------------------------
+create_timestamped_dir() {
+    local timestamp
+    timestamp=$(date +%Y-%m-%d-%H-%M-%S)
+    local timestamped_dir="${OUTPUT_DIR}/${timestamp}"
+
+    if [[ ! -d "$timestamped_dir" ]]; then
+        log_info "Creating timestamped directory: ${timestamped_dir}" >&2
+        mkdir -p "$timestamped_dir"
+    fi
+
+    echo "$timestamped_dir"
+}
+
+# -----------------------------------------------------------------------------
+# Organize issues by file and save to separate JSON files
+# -----------------------------------------------------------------------------
+save_issues_by_file() {
+    local response="$1"
+    local output_dir="$2"
+
+    local total_issues
+    total_issues=$(echo "$response" | jq '.total // 0')
+    local issues_count
+    issues_count=$(echo "$response" | jq '.issues | length')
+
+    log_info "Organizing ${issues_count} issues by file..."
+
+    # Get unique component keys (files) from issues
+    local components
+    components=$(echo "$response" | jq -r '.issues[].component // empty' | sort -u)
+
+    if [[ -z "$components" ]]; then
+        log_warning "No issues found to organize"
+        return
+    fi
+
+    local file_count=0
+    local branch_suffix=""
+
+    # Determine branch/PR suffix
+    if [[ -n "$PULL_REQUEST" ]]; then
+        branch_suffix="_pr${PULL_REQUEST}"
+    elif [[ -n "$BRANCH" ]]; then
+        local safe_branch="${BRANCH//\//_}"
+        branch_suffix="_${safe_branch}"
+    else
+        local default_branch
+        default_branch=$(get_default_branch)
+        local safe_branch="${default_branch//\//_}"
+        branch_suffix="_${safe_branch}"
+    fi
+
+    while IFS= read -r component; do
+        if [[ -z "$component" ]]; then
+            continue
+        fi
+
+        # Extract filename from component key (format: project:path/to/file.ext)
+        local file_path
+        file_path=$(echo "$component" | sed 's/.*://')
+
+        # Get just the filename (basename), not the full path
+        local base_filename
+        base_filename=$(basename "$file_path")
+
+        # Replace dots with underscores except for the extension
+        # e.g., system_utils.hpp -> system_utils_hpp
+        local safe_filename
+        safe_filename=$(echo "$base_filename" | sed 's/\./_/g')
+
+        # Filter issues for this component
+        local file_issues
+        file_issues=$(echo "$response" | jq --arg comp "$component" '{
+            total: ([.issues[] | select(.component == $comp)] | length),
+            component: $comp,
+            file_path: ($comp | split(":") | .[1] // $comp),
+            issues: [.issues[] | select(.component == $comp)]
+        }')
+
+        local issue_count
+        issue_count=$(echo "$file_issues" | jq '.total')
+
+        if [[ "$issue_count" -gt 0 ]]; then
+            # Format: {issue_count}_{filename}_{branch}_issues.json
+            local output_file="${output_dir}/${issue_count}_${safe_filename}${branch_suffix}_issues.json"
+            echo "$file_issues" | jq '.' > "$output_file"
+            log_success "  Saved ${issue_count} issues to: $(basename "$output_file")"
+            file_count=$((file_count + 1))
+        fi
+    done <<< "$components"
+
+    echo ""
+    log_info "Summary:"
+    echo -e "  Total issues found: ${YELLOW}${total_issues}${NC}"
+    echo -e "  Files with issues: ${YELLOW}${file_count}${NC}"
+    echo -e "  Output directory: ${YELLOW}${output_dir}${NC}"
+
+    # Show issue types breakdown if issues exist
+    if [[ "$issues_count" -gt 0 ]]; then
+        echo -e "  ${BLUE}Issues by severity:${NC}"
+        echo "$response" | jq -r '
+            .issues | group_by(.severity) |
+            map({severity: .[0].severity, count: length}) |
+            .[] | "    \(.severity // "UNKNOWN"): \(.count)"
+        ' 2>/dev/null || true
+
+        echo -e "  ${BLUE}Issues by type:${NC}"
+        echo "$response" | jq -r '
+            .issues | group_by(.type) |
+            map({type: .[0].type, count: length}) |
+            .[] | "    \(.type // "UNKNOWN"): \(.count)"
+        ' 2>/dev/null || true
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Get default branch name for the project
 # -----------------------------------------------------------------------------
 get_default_branch() {
@@ -892,29 +1080,81 @@ main() {
         list_project_prs
         exit 0
     fi
-    
-    # Resolve filename to component key if needed
-    if is_component_key "$FILE_INPUT"; then
-        log_info "Input appears to be a component key"
-        FILE_COMPONENT_KEY="$FILE_INPUT"
-        RESOLVED_FILENAME=""
+
+    # Create timestamped output directory
+    local timestamped_dir
+    timestamped_dir=$(create_timestamped_dir)
+
+    # Check if --file was provided
+    if [[ -z "$FILE_INPUT" ]]; then
+        # Fetch ALL issues from all files
+        log_info "No --file specified, fetching ALL issues from project..."
+        echo ""
+
+        local response
+        response=$(fetch_all_issues)
+
+        echo ""
+
+        # Save issues organized by file
+        save_issues_by_file "$response" "$timestamped_dir"
     else
-        log_info "Input appears to be a filename, resolving component key..."
-        resolve_file_uuid "$FILE_INPUT"
+        # Resolve filename to component key if needed
+        if is_component_key "$FILE_INPUT"; then
+            log_info "Input appears to be a component key"
+            FILE_COMPONENT_KEY="$FILE_INPUT"
+            RESOLVED_FILENAME=""
+        else
+            log_info "Input appears to be a filename, resolving component key..."
+            resolve_file_uuid "$FILE_INPUT"
+        fi
+
+        echo ""
+
+        local response
+        response=$(fetch_issues)
+
+        local output_file
+        output_file=$(extract_filename "$response")
+
+        log_info "Output filename: ${output_file}"
+
+        # Save to timestamped directory
+        local full_path="${timestamped_dir}/${output_file}"
+
+        # Pretty print and save
+        echo "$response" | jq '.' > "$full_path"
+
+        log_success "Issues saved to: ${full_path}"
+
+        # Show summary
+        local total_issues
+        local open_issues
+        total_issues=$(echo "$response" | jq '.total // 0')
+        open_issues=$(echo "$response" | jq '.issues | length')
+
+        log_info "Summary:"
+        echo -e "  Total issues found: ${YELLOW}${total_issues}${NC}"
+        echo -e "  Issues in response: ${YELLOW}${open_issues}${NC}"
+
+        # Show issue types breakdown if issues exist
+        if [[ "$open_issues" -gt 0 ]]; then
+            echo -e "  ${BLUE}Issues by severity:${NC}"
+            echo "$response" | jq -r '
+                .issues | group_by(.severity) |
+                map({severity: .[0].severity, count: length}) |
+                .[] | "    \(.severity // "UNKNOWN"): \(.count)"
+            ' 2>/dev/null || true
+
+            echo -e "  ${BLUE}Issues by type:${NC}"
+            echo "$response" | jq -r '
+                .issues | group_by(.type) |
+                map({type: .[0].type, count: length}) |
+                .[] | "    \(.type // "UNKNOWN"): \(.count)"
+            ' 2>/dev/null || true
+        fi
     fi
-    
-    echo ""
-    
-    local response
-    response=$(fetch_issues)
-    
-    local output_file
-    output_file=$(extract_filename "$response")
-    
-    log_info "Output filename: ${output_file}"
-    
-    save_issues "$response" "$output_file"
-    
+
     echo ""
     log_success "Done!"
 }

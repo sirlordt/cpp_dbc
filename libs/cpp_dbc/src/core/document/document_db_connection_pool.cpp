@@ -34,7 +34,8 @@ namespace cpp_dbc
 {
 
     // DocumentDBConnectionPool implementation
-    DocumentDBConnectionPool::DocumentDBConnectionPool(const std::string &url,
+    DocumentDBConnectionPool::DocumentDBConnectionPool(DBConnectionPool::ConstructorTag,
+                                                       const std::string &url,
                                                        const std::string &username,
                                                        const std::string &password,
                                                        const std::map<std::string, std::string> &options,
@@ -71,7 +72,7 @@ namespace cpp_dbc
         // to ensure shared_from_this() works correctly
     }
 
-    DocumentDBConnectionPool::DocumentDBConnectionPool(const config::DBConnectionPoolConfig &config)
+    DocumentDBConnectionPool::DocumentDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config)
         : m_poolAlive(std::make_shared<std::atomic<bool>>(true)),
           m_url(config.getUrl()),
           m_username(config.getUsername()),
@@ -138,10 +139,10 @@ namespace cpp_dbc
                                                                                const std::string &validationQuery,
                                                                                TransactionIsolationLevel transactionIsolation)
     {
-        auto pool = std::shared_ptr<DocumentDBConnectionPool>(new DocumentDBConnectionPool(
-            url, username, password, options, initialSize, maxSize, minIdle,
+        auto pool = std::make_shared<DocumentDBConnectionPool>(
+            DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
             maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
-            testOnBorrow, testOnReturn, validationQuery, transactionIsolation));
+            testOnBorrow, testOnReturn, validationQuery, transactionIsolation);
 
         // Initialize the pool after construction (creates connections and starts maintenance thread)
         pool->initializePool();
@@ -151,7 +152,7 @@ namespace cpp_dbc
 
     std::shared_ptr<DocumentDBConnectionPool> DocumentDBConnectionPool::create(const config::DBConnectionPoolConfig &config)
     {
-        auto pool = std::shared_ptr<DocumentDBConnectionPool>(new DocumentDBConnectionPool(config));
+        auto pool = std::make_shared<DocumentDBConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
 
         // Initialize the pool after construction (creates connections and starts maintenance thread)
         pool->initializePool();
@@ -715,8 +716,45 @@ namespace cpp_dbc
                 // Try to obtain a shared_ptr from the weak_ptr
                 if (auto poolShared = m_pool.lock())
                 {
-                    poolShared->returnConnection(std::static_pointer_cast<DocumentPooledDBConnection>(this->shared_from_this()));
+                    // ============================================================================
+                    // CRITICAL FIX: Race Condition in Connection Pool Return Flow
+                    // ============================================================================
+                    //
+                    // BUG DESCRIPTION:
+                    // ----------------
+                    // A race condition existed where m_closed was reset to false AFTER
+                    // returnConnection() completed. This created a window where another thread
+                    // could obtain the connection from the idle queue while m_closed was still
+                    // true, causing spurious "Connection is closed" errors.
+                    //
+                    // SEQUENCE OF EVENTS (BUG):
+                    // -------------------------
+                    // Thread A (returning connection):
+                    //   1. close() sets m_closed = true (compare_exchange)
+                    //   2. returnConnection() is called
+                    //   3. Inside returnConnection():
+                    //      - LOCK(m_mutexIdleConnections)
+                    //      - m_idleConnections.push(conn)  <-- Connection available with m_closed=TRUE
+                    //      - UNLOCK(m_mutexIdleConnections) <-- Race window opens here
+                    //   4. m_closed.store(false)  <-- Too late if Thread B already got the connection
+                    //
+                    // Thread B (acquiring connection) - executes between steps 3 and 4:
+                    //   1. getIdleDBConnection() acquires m_mutexIdleConnections
+                    //   2. Pops connection from idle queue (m_closed is still TRUE)
+                    //   3. Returns connection to caller
+                    //   4. Caller calls ping() -> sees m_closed=true -> throws "Connection is closed"
+                    //
+                    // FIX:
+                    // ----
+                    // Reset m_closed to false BEFORE calling returnConnection(). This ensures
+                    // that when the connection becomes available in the idle queue, m_closed
+                    // is already false and any thread that obtains it will see the correct state.
+                    //
+                    // If returnConnection() fails or throws an exception, the catch blocks below
+                    // will set m_closed back to true, maintaining correct error handling semantics.
+                    // ============================================================================
                     m_closed.store(false);
+                    poolShared->returnConnection(std::static_pointer_cast<DocumentPooledDBConnection>(this->shared_from_this()));
                 }
             }
         }
@@ -728,6 +766,11 @@ namespace cpp_dbc
         catch ([[maybe_unused]] const std::exception &ex)
         {
             CP_DEBUG("DocumentPooledDBConnection::close - Exception: " << ex.what());
+            m_closed = true;
+        }
+        catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
+        {
+            CP_DEBUG("DocumentPooledDBConnection::close - Unknown exception caught");
             m_closed = true;
         }
     }
@@ -1134,16 +1177,17 @@ namespace cpp_dbc
     // MongoDB connection pool implementation
     namespace MongoDB
     {
-        MongoDBConnectionPool::MongoDBConnectionPool(const std::string &url,
+        MongoDBConnectionPool::MongoDBConnectionPool(DBConnectionPool::ConstructorTag tag,
+                                                     const std::string &url,
                                                      const std::string &username,
                                                      const std::string &password)
-            : DocumentDBConnectionPool(url, username, password)
+            : DocumentDBConnectionPool(tag, url, username, password)
         {
             // MongoDB-specific initialization if needed
         }
 
-        MongoDBConnectionPool::MongoDBConnectionPool(const config::DBConnectionPoolConfig &config)
-            : DocumentDBConnectionPool(config)
+        MongoDBConnectionPool::MongoDBConnectionPool(DBConnectionPool::ConstructorTag tag, const config::DBConnectionPoolConfig &config)
+            : DocumentDBConnectionPool(tag, config)
         {
             // MongoDB-specific initialization if needed
         }
@@ -1152,14 +1196,14 @@ namespace cpp_dbc
                                                                              const std::string &username,
                                                                              const std::string &password)
         {
-            auto pool = std::shared_ptr<MongoDBConnectionPool>(new MongoDBConnectionPool(url, username, password));
+            auto pool = std::make_shared<MongoDBConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
             pool->initializePool();
             return pool;
         }
 
         std::shared_ptr<MongoDBConnectionPool> MongoDBConnectionPool::create(const config::DBConnectionPoolConfig &config)
         {
-            auto pool = std::shared_ptr<MongoDBConnectionPool>(new MongoDBConnectionPool(config));
+            auto pool = std::make_shared<MongoDBConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
             pool->initializePool();
             return pool;
         }

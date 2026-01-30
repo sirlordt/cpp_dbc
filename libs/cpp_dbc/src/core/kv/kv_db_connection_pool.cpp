@@ -39,7 +39,8 @@ namespace cpp_dbc
 {
     // KVDBConnectionPool implementation
 
-    KVDBConnectionPool::KVDBConnectionPool(const std::string &url,
+    KVDBConnectionPool::KVDBConnectionPool(DBConnectionPool::ConstructorTag,
+                                           const std::string &url,
                                            const std::string &username,
                                            const std::string &password,
                                            const std::map<std::string, std::string> &options,
@@ -74,7 +75,7 @@ namespace cpp_dbc
         // Pool initialization will be done in the factory method
     }
 
-    KVDBConnectionPool::KVDBConnectionPool(const config::DBConnectionPoolConfig &config)
+    KVDBConnectionPool::KVDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config)
         : m_poolAlive(std::make_shared<std::atomic<bool>>(true)),
           m_url(config.getUrl()),
           m_username(config.getUsername()),
@@ -180,11 +181,11 @@ namespace cpp_dbc
                                                                    const std::string &validationQuery,
                                                                    TransactionIsolationLevel transactionIsolation)
     {
-        auto pool = std::shared_ptr<KVDBConnectionPool>(  // NOSONAR - Cannot use make_shared with protected constructor (factory pattern)
-            new KVDBConnectionPool(url, username, password, options, initialSize, maxSize, minIdle,
-                                   maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis,
-                                   maxLifetimeMillis, testOnBorrow, testOnReturn, validationQuery,
-                                   transactionIsolation));
+        auto pool = std::make_shared<KVDBConnectionPool>(
+            DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
+            maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis,
+            maxLifetimeMillis, testOnBorrow, testOnReturn, validationQuery,
+            transactionIsolation);
 
         pool->initializePool();
         return pool;
@@ -192,7 +193,7 @@ namespace cpp_dbc
 
     std::shared_ptr<KVDBConnectionPool> KVDBConnectionPool::create(const config::DBConnectionPoolConfig &config)
     {
-        auto pool = std::shared_ptr<KVDBConnectionPool>(new KVDBConnectionPool(config));  // NOSONAR - Cannot use make_shared with protected constructor (factory pattern)
+        auto pool = std::make_shared<KVDBConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
         pool->initializePool();
         return pool;
     }
@@ -716,6 +717,7 @@ namespace cpp_dbc
                 else
                 {
                     // Return to pool - inline the logic to avoid virtual call (S1699)
+                    // See close() method for detailed documentation of the race condition fix
                     bool expected = false;
                     if (m_closed.compare_exchange_strong(expected, true))
                     {
@@ -723,8 +725,10 @@ namespace cpp_dbc
 
                         if (auto poolShared = m_pool.lock())
                         {
-                            poolShared->returnConnection(std::static_pointer_cast<KVPooledDBConnection>(shared_from_this()));
+                            // FIX: Reset m_closed BEFORE returnConnection() to prevent race condition
+                            // (see close() method for full explanation)
                             m_closed.store(false);
+                            poolShared->returnConnection(std::static_pointer_cast<KVPooledDBConnection>(shared_from_this()));
                         }
                     }
                 }
@@ -732,6 +736,12 @@ namespace cpp_dbc
             catch ([[maybe_unused]] const std::exception &ex)
             {
                 CP_DEBUG("KVPooledDBConnection::~KVPooledDBConnection - Exception: " << ex.what());
+                m_closed.store(true);
+            }
+            catch (...) // NOSONAR - Catch-all to ensure no exception escapes destructor
+            {
+                CP_DEBUG("KVPooledDBConnection::~KVPooledDBConnection - Unknown exception caught");
+                m_closed.store(true);
             }
         }
     }
@@ -758,8 +768,45 @@ namespace cpp_dbc
                     // Try to obtain a shared_ptr from the weak_ptr
                     if (auto poolShared = m_pool.lock())
                     {
+                        // ============================================================================
+                        // CRITICAL FIX: Race Condition in Connection Pool Return Flow
+                        // ============================================================================
+                        //
+                        // BUG DESCRIPTION:
+                        // ----------------
+                        // A race condition existed where m_closed was reset to false AFTER
+                        // returnConnection() completed. This created a window where another thread
+                        // could obtain the connection from the idle queue while m_closed was still
+                        // true, causing spurious "Connection is closed" errors.
+                        //
+                        // SEQUENCE OF EVENTS (BUG):
+                        // -------------------------
+                        // Thread A (returning connection):
+                        //   1. close() sets m_closed = true (compare_exchange)
+                        //   2. returnConnection() is called
+                        //   3. Inside returnConnection():
+                        //      - LOCK(m_mutexIdleConnections)
+                        //      - m_idleConnections.push(conn)  <-- Connection available with m_closed=TRUE
+                        //      - UNLOCK(m_mutexIdleConnections) <-- Race window opens here
+                        //   4. m_closed.store(false)  <-- Too late if Thread B already got the connection
+                        //
+                        // Thread B (acquiring connection) - executes between steps 3 and 4:
+                        //   1. getIdleDBConnection() acquires m_mutexIdleConnections
+                        //   2. Pops connection from idle queue (m_closed is still TRUE)
+                        //   3. Returns connection to caller
+                        //   4. Caller calls ping() -> sees m_closed=true -> throws "Connection is closed"
+                        //
+                        // FIX:
+                        // ----
+                        // Reset m_closed to false BEFORE calling returnConnection(). This ensures
+                        // that when the connection becomes available in the idle queue, m_closed
+                        // is already false and any thread that obtains it will see the correct state.
+                        //
+                        // If returnConnection() fails or throws an exception, the catch blocks below
+                        // will close the underlying connection, maintaining correct error handling.
+                        // ============================================================================
+                        m_closed.store(false);
                         poolShared->returnConnection(std::static_pointer_cast<KVPooledDBConnection>(shared_from_this()));
-                        m_closed.store(false); // Connection has been returned to pool, mark as not closed
                     }
                 }
                 else if (m_conn)
@@ -772,6 +819,7 @@ namespace cpp_dbc
             {
                 // shared_from_this failed, just close the connection
                 CP_DEBUG("KVPooledDBConnection::close - shared_from_this failed: " << ex.what());
+                m_closed.store(true);
                 if (m_conn)
                 {
                     m_conn->close();
@@ -781,15 +829,17 @@ namespace cpp_dbc
             {
                 // Any other exception, just close the connection
                 CP_DEBUG("KVPooledDBConnection::close - Exception: " << ex.what());
+                m_closed.store(true);
                 if (m_conn)
                 {
                     m_conn->close();
                 }
             }
-            catch (...)
+            catch (...) // NOSONAR - Intentional catch-all for non-std::exception types during cleanup
             {
                 // Unknown exception, just close the connection
                 CP_DEBUG("KVPooledDBConnection::close - Unknown exception");
+                m_closed.store(true);
                 if (m_conn)
                 {
                     m_conn->close();
@@ -823,18 +873,27 @@ namespace cpp_dbc
                 // Try to obtain a shared_ptr from the weak_ptr
                 if (auto poolShared = m_pool.lock())
                 {
-                    poolShared->returnConnection(std::static_pointer_cast<KVPooledDBConnection>(this->shared_from_this()));
+                    // FIX: Reset m_closed BEFORE returnConnection() to prevent race condition
+                    // (see close() method for full explanation of the bug)
                     m_closed.store(false);
+                    poolShared->returnConnection(std::static_pointer_cast<KVPooledDBConnection>(this->shared_from_this()));
                 }
             }
         }
         catch ([[maybe_unused]] const std::bad_weak_ptr &ex)
         {
             CP_DEBUG("KVPooledDBConnection::returnToPool - shared_from_this failed: " << ex.what());
+            m_closed.store(true);
         }
         catch ([[maybe_unused]] const std::exception &ex)
         {
             CP_DEBUG("KVPooledDBConnection::returnToPool - Exception: " << ex.what());
+            m_closed.store(true);
+        }
+        catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
+        {
+            CP_DEBUG("KVPooledDBConnection::returnToPool - Unknown exception caught");
+            m_closed.store(true);
         }
     }
 
@@ -1368,15 +1427,17 @@ namespace cpp_dbc
 
     namespace Redis
     {
-        RedisConnectionPool::RedisConnectionPool(const std::string &url,
+        RedisConnectionPool::RedisConnectionPool(DBConnectionPool::ConstructorTag,
+                                                 const std::string &url,
                                                  const std::string &username,
                                                  const std::string &password)
-            : KVDBConnectionPool(url, username, password, {}, 5, 20, 3, 5000, 5000, 300000, 1800000, true, false, "PING")
+            : KVDBConnectionPool(DBConnectionPool::ConstructorTag{}, url, username, password, {}, 5, 20, 3, 5000, 5000, 300000, 1800000, true, false, "PING")
         {
         }
 
-        RedisConnectionPool::RedisConnectionPool(const config::DBConnectionPoolConfig &config)
-            : KVDBConnectionPool(config.getUrl(),
+        RedisConnectionPool::RedisConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config)
+            : KVDBConnectionPool(DBConnectionPool::ConstructorTag{},
+                                 config.getUrl(),
                                  config.getUsername(),
                                  config.getPassword(),
                                  config.getOptions(),
@@ -1399,14 +1460,14 @@ namespace cpp_dbc
                                                                          const std::string &username,
                                                                          const std::string &password)
         {
-            auto pool = std::shared_ptr<RedisConnectionPool>(new RedisConnectionPool(url, username, password));  // NOSONAR - Cannot use make_shared with protected constructor (factory pattern)
+            auto pool = std::make_shared<RedisConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
             pool->initializePool();
             return pool;
         }
 
         std::shared_ptr<RedisConnectionPool> RedisConnectionPool::create(const config::DBConnectionPoolConfig &config)
         {
-            auto pool = std::shared_ptr<RedisConnectionPool>(new RedisConnectionPool(config));  // NOSONAR - Cannot use make_shared with protected constructor (factory pattern)
+            auto pool = std::make_shared<RedisConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
             pool->initializePool();
             return pool;
         }

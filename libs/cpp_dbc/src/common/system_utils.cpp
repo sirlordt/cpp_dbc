@@ -26,7 +26,7 @@ namespace cpp_dbc::system_utils
 {
 
         // Define the global mutex
-        std::mutex global_cout_mutex;
+        std::mutex global_cout_mutex; // NOSONAR - Mutex cannot be const as it needs to be locked/unlocked
 
         bool shouldSkipFrame(std::string_view filename, std::string_view function)
         {

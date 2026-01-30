@@ -51,7 +51,7 @@ namespace cpp_dbc
     class DocumentDBConnection : public DBConnection
     {
     public:
-        virtual ~DocumentDBConnection() = default;
+        ~DocumentDBConnection() override = default;
 
         // Database information
         /**

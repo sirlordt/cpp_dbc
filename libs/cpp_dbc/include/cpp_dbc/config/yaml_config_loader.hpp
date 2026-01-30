@@ -26,28 +26,25 @@
 #include <cpp_dbc/config/database_config.hpp>
 #include <string>
 
-namespace cpp_dbc
+namespace cpp_dbc::config
 {
-    namespace config
+
+    /**
+     * @brief Class for loading database configuration from YAML files
+     */
+    class YamlConfigLoader
     {
-
+    public:
         /**
-         * @brief Class for loading database configuration from YAML files
+         * @brief Load database configuration from a YAML file
+         * @param filePath Path to the YAML file
+         * @return DatabaseConfigManager with loaded configuration
+         * @throws std::runtime_error if file cannot be loaded or has invalid format
          */
-        class YamlConfigLoader
-        {
-        public:
-            /**
-             * @brief Load database configuration from a YAML file
-             * @param filePath Path to the YAML file
-             * @return DatabaseConfigManager with loaded configuration
-             * @throws std::runtime_error if file cannot be loaded or has invalid format
-             */
-            static DatabaseConfigManager loadFromFile(const std::string &filePath);
-        };
+        static DatabaseConfigManager loadFromFile(const std::string &filePath);
+    };
 
-    } // namespace config
-} // namespace cpp_dbc
+} // namespace cpp_dbc::config
 
 #endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 

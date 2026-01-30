@@ -310,7 +310,7 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
             REQUIRE(poolStateConverged);
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getTotalDBConnectionCount() >= initialTotalCount);
-            REQUIRE(pool->getIdleDBConnectionCount() >= 3);
+            REQUIRE(pool->getIdleDBConnectionCount() >= initialIdleCount);
 
             // Verify replacement connection works
             auto newConn = pool->getRelationalDBConnection();

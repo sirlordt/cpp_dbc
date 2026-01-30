@@ -34,7 +34,7 @@ namespace cpp_dbc::system_utils
 {
 
         // Declare the mutex as external
-        extern std::mutex global_cout_mutex;
+        extern std::mutex global_cout_mutex; // NOSONAR - Mutex cannot be const as it needs to be locked/unlocked
 
         struct StackFrame
         {

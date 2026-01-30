@@ -153,8 +153,14 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Abstract base class defining the pool interface
   - Concrete implementations for specific database types (PostgreSQLConnectionPool, MongoDBConnectionPool, ScyllaConnectionPool, RedisConnectionPool, etc.)
   - Factory methods (`create`) for creating pool instances with shared_ptr ownership
-  - Protected constructors to enforce factory method usage
+  - ConstructorTag pattern (PassKey idiom) to enable `std::make_shared` while enforcing factory pattern:
+    - `DBConnectionPool::ConstructorTag` is a protected struct that acts as an access token
+    - Constructors are public but require the tag, which can only be created within the class hierarchy
+    - Enables single memory allocation with `std::make_shared` instead of separate allocations
   - Resource cleanup with proper exception handling
+  - Race condition prevention in connection return flow:
+    - `m_closed` flag reset BEFORE `returnConnection()` to prevent race window
+    - Catch-all exception handlers ensure correct state on any exception
 
 ### Transaction Management
 - Unique transaction IDs for tracking transactions across threads

@@ -33,7 +33,7 @@
 // Try to use std::expected if available (C++23)
 #if __cplusplus >= 202302L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202302L)
 #if __has_include(<expected>)
-#define CPP_DBC_HAS_STD_EXPECTED 1
+#define CPP_DBC_HAS_STD_EXPECTED 1 // NOSONAR - Macro needed for conditional compilation
 #endif
 #endif
 

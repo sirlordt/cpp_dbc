@@ -49,7 +49,7 @@ namespace cpp_dbc
     class KVDBConnection : public DBConnection
     {
     public:
-        virtual ~KVDBConnection() = default;
+        ~KVDBConnection() override = default;
 
         // Basic key-value operations
         /**

@@ -116,9 +116,11 @@ namespace cpp_dbc
         // This must be called after the pool is managed by a shared_ptr
         void initializePool();
 
-        // Protected constructors - pools must be created via factory methods
+    public:
+        // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
         // Constructor that takes individual parameters
-        RelationalDBConnectionPool(const std::string &url,
+        RelationalDBConnectionPool(ConstructorTag,
+                                   const std::string &url,
                                    const std::string &username,
                                    const std::string &password,
                                    const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
@@ -135,9 +137,8 @@ namespace cpp_dbc
                                    TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
         // Constructor that accepts a configuration object
-        explicit RelationalDBConnectionPool(const config::DBConnectionPoolConfig &config);
+        explicit RelationalDBConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-    public:
         // Static factory methods - use these to create pools
         static std::shared_ptr<RelationalDBConnectionPool> create(const std::string &url,
                                                                   const std::string &username,
@@ -258,14 +259,15 @@ namespace cpp_dbc
     {
         class MySQLConnectionPool : public RelationalDBConnectionPool
         {
-        protected:
-            MySQLConnectionPool(const std::string &url,
+        public:
+            // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
+            MySQLConnectionPool(ConstructorTag,
+                                const std::string &url,
                                 const std::string &username,
                                 const std::string &password);
 
-            explicit MySQLConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit MySQLConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-        public:
             static std::shared_ptr<MySQLConnectionPool> create(const std::string &url,
                                                                const std::string &username,
                                                                const std::string &password);
@@ -278,14 +280,15 @@ namespace cpp_dbc
     {
         class PostgreSQLConnectionPool : public RelationalDBConnectionPool
         {
-        protected:
-            PostgreSQLConnectionPool(const std::string &url,
+        public:
+            // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
+            PostgreSQLConnectionPool(ConstructorTag,
+                                     const std::string &url,
                                      const std::string &username,
                                      const std::string &password);
 
-            explicit PostgreSQLConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit PostgreSQLConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-        public:
             static std::shared_ptr<PostgreSQLConnectionPool> create(const std::string &url,
                                                                     const std::string &username,
                                                                     const std::string &password);
@@ -298,14 +301,15 @@ namespace cpp_dbc
     {
         class SQLiteConnectionPool : public RelationalDBConnectionPool
         {
-        protected:
-            SQLiteConnectionPool(const std::string &url,
+        public:
+            // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
+            SQLiteConnectionPool(ConstructorTag,
+                                 const std::string &url,
                                  const std::string &username,
                                  const std::string &password);
 
-            explicit SQLiteConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit SQLiteConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-        public:
             static std::shared_ptr<SQLiteConnectionPool> create(const std::string &url,
                                                                 const std::string &username,
                                                                 const std::string &password);
@@ -318,14 +322,15 @@ namespace cpp_dbc
     {
         class FirebirdConnectionPool : public RelationalDBConnectionPool
         {
-        protected:
-            FirebirdConnectionPool(const std::string &url,
+        public:
+            // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
+            FirebirdConnectionPool(ConstructorTag,
+                                   const std::string &url,
                                    const std::string &username,
                                    const std::string &password);
 
-            explicit FirebirdConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit FirebirdConnectionPool(ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-        public:
             static std::shared_ptr<FirebirdConnectionPool> create(const std::string &url,
                                                                   const std::string &username,
                                                                   const std::string &password);

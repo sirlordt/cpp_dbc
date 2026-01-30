@@ -2381,7 +2381,7 @@ namespace cpp_dbc::PostgreSQL
         {
             PG_DEBUG("PostgreSQLDBConnection::returnToPool - Exception during cleanup: " << ex.what());
         }
-        catch (...)
+        catch (...) // NOSONAR - Intentional catch-all for non-std::exception types during cleanup
         {
             PG_DEBUG("PostgreSQLDBConnection::returnToPool - Unknown exception during cleanup");
         }
@@ -2595,8 +2595,19 @@ namespace cpp_dbc::PostgreSQL
             {
                 port = std::stoi(portStr);
             }
-            catch (...)
+            catch ([[maybe_unused]] const std::invalid_argument &ex)
             {
+                PG_DEBUG("PostgreSQLDBDriver::parseURL - Invalid port number: " << ex.what());
+                return false;
+            }
+            catch ([[maybe_unused]] const std::out_of_range &ex)
+            {
+                PG_DEBUG("PostgreSQLDBDriver::parseURL - Port number out of range: " << ex.what());
+                return false;
+            }
+            catch (...) // NOSONAR - Intentional catch-all for unexpected exceptions during port parsing
+            {
+                PG_DEBUG("PostgreSQLDBDriver::parseURL - Unknown exception during port parsing");
                 return false;
             }
 

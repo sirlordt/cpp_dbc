@@ -119,9 +119,10 @@ namespace cpp_dbc
         // This must be called after the pool is managed by a shared_ptr
         void initializePool();
 
-        // Protected constructors - pools must be created via factory methods
-        // Constructor that takes individual parameters
-        ColumnarDBConnectionPool(const std::string &url,
+    public:
+        // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
+        ColumnarDBConnectionPool(DBConnectionPool::ConstructorTag,
+                                 const std::string &url,
                                  const std::string &username,
                                  const std::string &password,
                                  const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
@@ -137,10 +138,8 @@ namespace cpp_dbc
                                  const std::string &validationQuery = "SELECT now() FROM system.local",
                                  TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
-        // Constructor that accepts a configuration object
-        explicit ColumnarDBConnectionPool(const config::DBConnectionPoolConfig &config);
+        explicit ColumnarDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-    public:
         // Static factory methods - use these to create pools
         static std::shared_ptr<ColumnarDBConnectionPool> create(const std::string &url,
                                                                 const std::string &username,
@@ -253,14 +252,15 @@ namespace cpp_dbc
          */
         class ScyllaConnectionPool : public ColumnarDBConnectionPool
         {
-        protected:
-            ScyllaConnectionPool(const std::string &url,
+        public:
+            // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
+            ScyllaConnectionPool(DBConnectionPool::ConstructorTag,
+                                 const std::string &url,
                                  const std::string &username,
                                  const std::string &password);
 
-            explicit ScyllaConnectionPool(const config::DBConnectionPoolConfig &config);
+            explicit ScyllaConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-        public:
             static std::shared_ptr<ScyllaConnectionPool> create(const std::string &url,
                                                                 const std::string &username,
                                                                 const std::string &password);
