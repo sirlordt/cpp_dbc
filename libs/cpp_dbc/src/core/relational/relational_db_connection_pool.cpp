@@ -1293,7 +1293,8 @@ namespace cpp_dbc
             m_lastUsedTime = std::chrono::steady_clock::now();
 
             // Check if pool is still alive using the shared atomic flag
-            if (isPoolValid())
+            // Use qualified call to avoid virtual dispatch issues when called from destructor
+            if (RelationalPooledDBConnection::isPoolValid())
             {
                 // Try to obtain a shared_ptr from the weak_ptr
                 if (auto poolShared = m_pool.lock())
