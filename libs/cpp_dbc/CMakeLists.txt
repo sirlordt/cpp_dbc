@@ -127,7 +127,25 @@ target_compile_definitions(cpp_dbc PUBLIC
 # Conditionally add MySQL driver files and dependencies
 if(USE_MYSQL)
     target_sources(cpp_dbc PRIVATE
-        src/drivers/relational/driver_mysql.cpp
+
+        # src/drivers/relational/driver_mysql.cpp
+        # MySQLDBResultSet
+        src/drivers/relational/mysql/result_set_01.cpp
+        src/drivers/relational/mysql/result_set_02.cpp
+        src/drivers/relational/mysql/result_set_03.cpp
+
+        # MySQLDBPreparedStatement
+        src/drivers/relational/mysql/prepared_statement_01.cpp
+        src/drivers/relational/mysql/prepared_statement_02.cpp
+        src/drivers/relational/mysql/prepared_statement_03.cpp
+
+        # MySQLDBConnection
+        src/drivers/relational/mysql/connection_01.cpp
+        src/drivers/relational/mysql/connection_02.cpp
+        src/drivers/relational/mysql/connection_03.cpp
+
+        # MySQLDBDriver
+        src/drivers/relational/mysql/driver_01.cpp
     )
 
     # Find MySQL package
@@ -139,7 +157,26 @@ endif()
 # Conditionally add PostgreSQL driver files and dependencies
 if(USE_POSTGRESQL)
     target_sources(cpp_dbc PRIVATE
-        src/drivers/relational/driver_postgresql.cpp
+
+        # src/drivers/relational/driver_postgresql.cpp
+        # PostgreSQLDBResultSet
+        src/drivers/relational/postgresql/result_set_01.cpp
+        src/drivers/relational/postgresql/result_set_02.cpp
+        src/drivers/relational/postgresql/result_set_03.cpp
+
+        # PostgreSQLDBPreparedStatement
+        src/drivers/relational/postgresql/prepared_statement_01.cpp
+        src/drivers/relational/postgresql/prepared_statement_02.cpp
+        src/drivers/relational/postgresql/prepared_statement_03.cpp
+        src/drivers/relational/postgresql/prepared_statement_04.cpp
+
+        # PostgreSQLDBConnection
+        src/drivers/relational/postgresql/connection_01.cpp
+        src/drivers/relational/postgresql/connection_02.cpp
+        src/drivers/relational/postgresql/connection_03.cpp
+
+        # PostgreSQLDBDriver
+        src/drivers/relational/postgresql/driver_01.cpp
     )
 
     # Find PostgreSQL package
@@ -151,7 +188,25 @@ endif()
 # Conditionally add SQLite driver files and dependencies
 if(USE_SQLITE)
     target_sources(cpp_dbc PRIVATE
-        src/drivers/relational/driver_sqlite.cpp
+
+        # src/drivers/relational/driver_sqlite.cpp
+        # SQLiteDBResultSet
+        src/drivers/relational/sqlite/result_set_01.cpp
+        src/drivers/relational/sqlite/result_set_02.cpp
+        src/drivers/relational/sqlite/result_set_03.cpp
+
+        # SQLiteDBPreparedStatement
+        src/drivers/relational/sqlite/prepared_statement_01.cpp
+        src/drivers/relational/sqlite/prepared_statement_02.cpp
+        src/drivers/relational/sqlite/prepared_statement_03.cpp
+        src/drivers/relational/sqlite/prepared_statement_04.cpp
+
+        # SQLiteDBConnection
+        src/drivers/relational/sqlite/connection_01.cpp
+        src/drivers/relational/sqlite/connection_02.cpp
+
+        # SQLiteDBDriver
+        src/drivers/relational/sqlite/driver_01.cpp
     )
 
     # Find SQLite package
@@ -163,7 +218,26 @@ endif()
 # Conditionally add Firebird driver files and dependencies
 if(USE_FIREBIRD)
     target_sources(cpp_dbc PRIVATE
-        src/drivers/relational/driver_firebird.cpp
+
+        # src/drivers/relational/driver_firebird.cpp
+        # FirebirdDBResultSet
+        src/drivers/relational/firebird/result_set_01.cpp
+        src/drivers/relational/firebird/result_set_02.cpp
+        src/drivers/relational/firebird/result_set_03.cpp
+        src/drivers/relational/firebird/result_set_04.cpp
+
+        # FirebirdDBPreparedStatement
+        src/drivers/relational/firebird/prepared_statement_01.cpp
+        src/drivers/relational/firebird/prepared_statement_02.cpp
+        src/drivers/relational/firebird/prepared_statement_03.cpp
+
+        # FirebirdDBConnection
+        src/drivers/relational/firebird/connection_01.cpp
+        src/drivers/relational/firebird/connection_02.cpp
+        src/drivers/relational/firebird/connection_03.cpp
+
+        # FirebirdDBDriver
+        src/drivers/relational/firebird/driver_01.cpp
     )
 
     # Find Firebird package
@@ -177,7 +251,37 @@ endif()
 # Conditionally add MongoDB driver files and dependencies
 if(USE_MONGODB)
     target_sources(cpp_dbc PRIVATE
-        src/drivers/document/driver_mongodb.cpp
+
+        # src/drivers/document/driver_mongodb.cpp
+        # MongoDBDocument
+        src/drivers/document/mongodb/document_01.cpp
+        src/drivers/document/mongodb/document_02.cpp
+        src/drivers/document/mongodb/document_03.cpp
+        src/drivers/document/mongodb/document_04.cpp
+        src/drivers/document/mongodb/document_05.cpp
+        src/drivers/document/mongodb/document_06.cpp
+
+        # MongoDBCursor
+        src/drivers/document/mongodb/cursor_01.cpp
+        src/drivers/document/mongodb/cursor_02.cpp
+
+        # MongoDBConnection
+        src/drivers/document/mongodb/connection_01.cpp
+        src/drivers/document/mongodb/connection_02.cpp
+        src/drivers/document/mongodb/connection_03.cpp
+        src/drivers/document/mongodb/connection_04.cpp
+
+        # MongoDBDriver
+        src/drivers/document/mongodb/driver_01.cpp
+
+        # MongoDBCollection
+        src/drivers/document/mongodb/collection_01.cpp
+        src/drivers/document/mongodb/collection_02.cpp
+        src/drivers/document/mongodb/collection_03.cpp
+        src/drivers/document/mongodb/collection_04.cpp
+        src/drivers/document/mongodb/collection_05.cpp
+        src/drivers/document/mongodb/collection_06.cpp
+        src/drivers/document/mongodb/collection_07.cpp
     )
 
     # Find MongoDB C driver package
@@ -191,7 +295,23 @@ endif()
 # Conditionally add ScyllaDB driver files and dependencies
 if(USE_SCYLLADB)
     target_sources(cpp_dbc PRIVATE
-        src/drivers/columnar/driver_scylladb.cpp
+
+        # src/drivers/columnar/driver_scylladb.cpp
+        # ScyllaDBResultSet
+        src/drivers/columnar/scylladb/result_set_01.cpp
+        src/drivers/columnar/scylladb/result_set_02.cpp
+        src/drivers/columnar/scylladb/result_set_03.cpp
+
+        # ScyllaDBPreparedStatement
+        src/drivers/columnar/scylladb/prepared_statement_01.cpp
+        src/drivers/columnar/scylladb/prepared_statement_02.cpp
+        src/drivers/columnar/scylladb/prepared_statement_03.cpp
+
+        # ScyllaDBConnection
+        src/drivers/columnar/scylladb/connection_01.cpp
+
+        # ScyllaDBDriver
+        src/drivers/columnar/scylladb/driver_01.cpp
     )
 
     # Find Cassandra/ScyllaDB C driver package
@@ -205,7 +325,28 @@ endif()
 # Conditionally add Redis driver files and dependencies
 if(USE_REDIS)
     target_sources(cpp_dbc PRIVATE
-        src/drivers/kv/driver_redis.cpp
+
+        # src/drivers/kv/driver_redis.cpp
+        # RedisReplyDeleter, RedisReplyHandle, RedisContextDeleter, RedisConnection constructor, destructor, move ops, helpers
+        src/drivers/kv/redis/connection_01.cpp
+
+        # RedisConnection - DBConnection interface, executeRaw, basic KV, counter, list throwing
+        src/drivers/kv/redis/connection_02.cpp
+
+        # RedisConnection - hash, set, sorted set, scan, server throwing
+        src/drivers/kv/redis/connection_03.cpp
+
+        # RedisConnection - NOTHROW basic, counter, list
+        src/drivers/kv/redis/connection_04.cpp
+
+        # RedisConnection - NOTHROW hash, set
+        src/drivers/kv/redis/connection_05.cpp
+
+        # RedisConnection - NOTHROW sorted set, scan, server
+        src/drivers/kv/redis/connection_06.cpp
+
+        # RedisDriver
+        src/drivers/kv/redis/driver_01.cpp
     )
 
     # Find Redis package (hiredis)
