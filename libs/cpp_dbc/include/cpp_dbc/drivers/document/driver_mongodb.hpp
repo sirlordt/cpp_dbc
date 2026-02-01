@@ -52,24 +52,13 @@
 #endif
 
 #include <atomic>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <string>
 #include <vector>
-
-// Thread-safety macros for conditional mutex locking
-// Using recursive_mutex to allow the same thread to acquire the lock multiple times
-#if DB_DRIVER_THREAD_SAFE
-#define MONGODB_MUTEX mutable std::recursive_mutex
-#define MONGODB_LOCK_GUARD(mutex) std::lock_guard<std::recursive_mutex> lock(mutex)
-#define MONGODB_UNIQUE_LOCK(mutex) std::unique_lock<std::recursive_mutex> lock(mutex)
-#else
-#define MONGODB_MUTEX
-#define MONGODB_LOCK_GUARD(mutex) (void)0
-#define MONGODB_UNIQUE_LOCK(mutex) (void)0
-#endif
 
 namespace cpp_dbc
 {

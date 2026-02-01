@@ -294,6 +294,45 @@ do_initial_build() {
     echo ""
 }
 
+# Maximum number of log folders to keep
+MAX_LOG_FOLDERS=5
+
+# Cleanup old log folders, keeping only the latest MAX_LOG_FOLDERS
+cleanup_old_log_folders() {
+    local log_base="$SCRIPT_DIR/logs/test"
+
+    if [ ! -d "$log_base" ]; then
+        return
+    fi
+
+    # Get all log folders sorted by name (which is a timestamp, so oldest first)
+    local -a all_folders=()
+    while IFS= read -r folder; do
+        [ -n "$folder" ] && all_folders+=("$folder")
+    done < <(find "$log_base" -maxdepth 1 -type d -name "20*" | sort)
+
+    local folder_count=${#all_folders[@]}
+
+    # If we have more than MAX_LOG_FOLDERS, delete the oldest ones
+    if [ "$folder_count" -gt "$MAX_LOG_FOLDERS" ]; then
+        local to_delete=$((folder_count - MAX_LOG_FOLDERS))
+
+        if [ "$SHOW_TUI" = false ]; then
+            echo "Cleaning up old log folders (keeping last $MAX_LOG_FOLDERS)..."
+        fi
+
+        for ((i=0; i<to_delete; i++)); do
+            local folder_to_delete="${all_folders[$i]}"
+            if [ -d "$folder_to_delete" ]; then
+                if [ "$SHOW_TUI" = false ]; then
+                    echo "  Removing: $(basename "$folder_to_delete")"
+                fi
+                rm -rf "$folder_to_delete"
+            fi
+        done
+    fi
+}
+
 # Create log file path for a prefix and run
 get_log_file_path() {
     local prefix=$1
@@ -1452,6 +1491,9 @@ run_parallel_tests_tui() {
     # Create log directory
     mkdir -p "$LOG_DIR"
 
+    # Cleanup old log folders (keep only last MAX_LOG_FOLDERS)
+    cleanup_old_log_folders
+
     # Do initial build BEFORE initializing TUI (so user can see build output)
     do_initial_build
 
@@ -1760,6 +1802,9 @@ run_parallel_tests_simple() {
 
     # Create log directory
     mkdir -p "$LOG_DIR"
+
+    # Cleanup old log folders (keep only last MAX_LOG_FOLDERS)
+    cleanup_old_log_folders
 
     # Do initial build
     do_initial_build

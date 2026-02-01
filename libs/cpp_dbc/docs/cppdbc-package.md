@@ -45,13 +45,58 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `include/cpp_dbc/config/yaml_config_loader.hpp` - YAML configuration loader
 
 ### Implementation Files
-- `src/drivers/relational/driver_mysql.cpp` - MySQL implementation using libmysqlclient
-- `src/drivers/relational/driver_postgresql.cpp` - PostgreSQL implementation using libpq
-- `src/drivers/relational/driver_sqlite.cpp` - SQLite implementation using libsqlite3
-- `src/drivers/relational/driver_firebird.cpp` - Firebird implementation using libfbclient
-- `src/drivers/document/driver_mongodb.cpp` - MongoDB implementation using libmongocxx
-- `src/drivers/columnar/driver_scylladb.cpp` - ScyllaDB implementation using Cassandra C++ driver
-- `src/drivers/kv/driver_redis.cpp` - Redis implementation using hiredis
+
+Each database driver implementation is split into multiple focused files within dedicated subdirectories:
+
+**SQLite Driver** (`src/drivers/relational/sqlite/`):
+- `sqlite_internal.hpp` - Internal declarations and shared definitions
+- `driver_01.cpp` - SQLiteDBDriver implementation
+- `connection_01.cpp`, `connection_02.cpp` - SQLiteConnection implementation
+- `prepared_statement_01.cpp` to `prepared_statement_04.cpp` - SQLitePreparedStatement implementation
+- `result_set_01.cpp` to `result_set_03.cpp` - SQLiteResultSet implementation
+
+**MySQL Driver** (`src/drivers/relational/mysql/`):
+- `mysql_internal.hpp` - Internal declarations and shared definitions
+- `driver_01.cpp` - MySQLDBDriver implementation
+- `connection_01.cpp` to `connection_03.cpp` - MySQLConnection implementation
+- `prepared_statement_01.cpp` to `prepared_statement_03.cpp` - MySQLPreparedStatement implementation
+- `result_set_01.cpp` to `result_set_03.cpp` - MySQLResultSet implementation
+
+**PostgreSQL Driver** (`src/drivers/relational/postgresql/`):
+- `postgresql_internal.hpp` - Internal declarations and shared definitions
+- `driver_01.cpp` - PostgreSQLDBDriver implementation
+- `connection_01.cpp` to `connection_03.cpp` - PostgreSQLConnection implementation
+- `prepared_statement_01.cpp` to `prepared_statement_04.cpp` - PostgreSQLPreparedStatement implementation
+- `result_set_01.cpp` to `result_set_03.cpp` - PostgreSQLResultSet implementation
+
+**Firebird Driver** (`src/drivers/relational/firebird/`):
+- `firebird_internal.hpp` - Internal declarations and shared definitions
+- `driver_01.cpp` - FirebirdDBDriver implementation
+- `connection_01.cpp` to `connection_03.cpp` - FirebirdConnection implementation
+- `prepared_statement_01.cpp` to `prepared_statement_03.cpp` - FirebirdPreparedStatement implementation
+- `result_set_01.cpp` to `result_set_04.cpp` - FirebirdResultSet implementation
+
+**MongoDB Driver** (`src/drivers/document/mongodb/`):
+- `mongodb_internal.hpp` - Internal declarations and shared definitions
+- `driver_01.cpp` - MongoDBDriver implementation
+- `connection_01.cpp` to `connection_04.cpp` - MongoDBConnection implementation
+- `collection_01.cpp` to `collection_07.cpp` - MongoDBCollection implementation
+- `cursor_01.cpp`, `cursor_02.cpp` - MongoDBCursor implementation
+- `document_01.cpp` to `document_06.cpp` - MongoDBData implementation
+
+**Redis Driver** (`src/drivers/kv/redis/`):
+- `redis_internal.hpp` - Internal declarations and shared definitions
+- `driver_01.cpp` - RedisDriver implementation
+- `connection_01.cpp` to `connection_06.cpp` - RedisConnection implementation
+
+**ScyllaDB Driver** (`src/drivers/columnar/scylladb/`):
+- `scylladb_internal.hpp` - Internal declarations and shared definitions
+- `driver_01.cpp` - ScyllaDBDriver implementation
+- `connection_01.cpp` - ScyllaDBConnection implementation
+- `prepared_statement_01.cpp` to `prepared_statement_03.cpp` - ScyllaDBPreparedStatement implementation
+- `result_set_01.cpp` to `result_set_03.cpp` - ScyllaDBResultSet implementation
+
+**Other Implementation Files:**
 - `src/core/document/document_db_connection_pool.cpp` - Document database connection pool implementation
 - `src/core/columnar/columnar_db_connection_pool.cpp` - Columnar database connection pool implementation
 - `src/core/kv/kv_db_connection_pool.cpp` - Key-value database connection pool implementation

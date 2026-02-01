@@ -26,6 +26,7 @@
 #include <vector>
 #include <map>
 #include <optional>
+#include <iostream>
 #include "cpp_dbc/core/kv/kv_db_driver.hpp"
 #include "cpp_dbc/core/kv/kv_db_connection.hpp"
 

@@ -18,6 +18,13 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
    - `drivers/graph/`: Graph database drivers (placeholder for future)
    - `drivers/kv/`: Key-Value database drivers (Redis)
    - `drivers/timeseries/`: Time-series database drivers (placeholder for future)
+   - **Code Split Architecture**: Each driver implementation is split into multiple focused files within dedicated subdirectories:
+     - `*_internal.hpp`: Internal declarations and shared definitions
+     - `driver_*.cpp`: Driver class implementation
+     - `connection_*.cpp`: Connection class implementation
+     - `prepared_statement_*.cpp`: PreparedStatement class implementation
+     - `result_set_*.cpp`: ResultSet class implementation
+     - MongoDB-specific: `collection_*.cpp`, `cursor_*.cpp`, `document_*.cpp`
 3. **Connection Management Layer**: Connection pooling and transaction management in the `src/` directory
 4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/` directory and database-specific implementations in the `drivers/relational/` directory
 5. **Key-Value Layer**: Key-Value operations support in `drivers/kv/` directory

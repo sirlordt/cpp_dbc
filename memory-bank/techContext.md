@@ -112,6 +112,12 @@ The project uses:
 - Conan for dependency management
 - Custom build scripts (`build.sh`, `libs/cpp_dbc/build_cpp_dbc.sh`, and `build.dist.sh`) for simplified building
 - Debug mode by default, with option for Release mode
+- **Driver Code Split Architecture:**
+  - Each database driver implementation is split into multiple focused files within dedicated subdirectories
+  - Internal headers (`*_internal.hpp`) contain shared declarations and definitions
+  - Split files: `driver_*.cpp`, `connection_*.cpp`, `prepared_statement_*.cpp`, `result_set_*.cpp`
+  - MongoDB-specific: `collection_*.cpp`, `cursor_*.cpp`, `document_*.cpp`
+  - Benefits: faster incremental compilation, better code organization, easier navigation
 - Conditional compilation options:
   - `--yaml`: Enable YAML configuration support
   - `--examples`: Build example applications

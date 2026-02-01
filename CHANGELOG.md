@@ -1,6 +1,74 @@
 # Changelog
 
-## 2026-01-29 16:23:21 PST [Current]
+## 2026-01-31 23:41:14 PST [Current]
+
+### Driver Code Split Refactoring
+* **Major Code Reorganization:**
+  * Split all database driver implementations from single large files into multiple smaller, focused files
+  * This improves code maintainability, compilation speed, and makes it easier to navigate the codebase
+  * Each driver now has dedicated files for Connection, Driver, PreparedStatement, and ResultSet implementations
+
+* **SQLite Driver Split:**
+  * `src/drivers/relational/sqlite/sqlite_internal.hpp` - Internal declarations and shared definitions
+  * `src/drivers/relational/sqlite/driver_01.cpp` - SQLiteDBDriver implementation
+  * `src/drivers/relational/sqlite/connection_01.cpp`, `connection_02.cpp` - SQLiteConnection implementation
+  * `src/drivers/relational/sqlite/prepared_statement_01.cpp` to `prepared_statement_04.cpp` - SQLitePreparedStatement implementation
+  * `src/drivers/relational/sqlite/result_set_01.cpp` to `result_set_03.cpp` - SQLiteResultSet implementation
+
+* **MySQL Driver Split:**
+  * `src/drivers/relational/mysql/mysql_internal.hpp` - Internal declarations and shared definitions
+  * `src/drivers/relational/mysql/driver_01.cpp` - MySQLDBDriver implementation
+  * `src/drivers/relational/mysql/connection_01.cpp` to `connection_03.cpp` - MySQLConnection implementation
+  * `src/drivers/relational/mysql/prepared_statement_01.cpp` to `prepared_statement_03.cpp` - MySQLPreparedStatement implementation
+  * `src/drivers/relational/mysql/result_set_01.cpp` to `result_set_03.cpp` - MySQLResultSet implementation
+
+* **PostgreSQL Driver Split:**
+  * `src/drivers/relational/postgresql/postgresql_internal.hpp` - Internal declarations and shared definitions
+  * `src/drivers/relational/postgresql/driver_01.cpp` - PostgreSQLDBDriver implementation
+  * `src/drivers/relational/postgresql/connection_01.cpp` to `connection_03.cpp` - PostgreSQLConnection implementation
+  * `src/drivers/relational/postgresql/prepared_statement_01.cpp` to `prepared_statement_04.cpp` - PostgreSQLPreparedStatement implementation
+  * `src/drivers/relational/postgresql/result_set_01.cpp` to `result_set_03.cpp` - PostgreSQLResultSet implementation
+
+* **Firebird Driver Split:**
+  * `src/drivers/relational/firebird/firebird_internal.hpp` - Internal declarations and shared definitions
+  * `src/drivers/relational/firebird/driver_01.cpp` - FirebirdDBDriver implementation
+  * `src/drivers/relational/firebird/connection_01.cpp` to `connection_03.cpp` - FirebirdConnection implementation
+  * `src/drivers/relational/firebird/prepared_statement_01.cpp` to `prepared_statement_03.cpp` - FirebirdPreparedStatement implementation
+  * `src/drivers/relational/firebird/result_set_01.cpp` to `result_set_04.cpp` - FirebirdResultSet implementation
+
+* **MongoDB Driver Split:**
+  * `src/drivers/document/mongodb/mongodb_internal.hpp` - Internal declarations and shared definitions
+  * `src/drivers/document/mongodb/driver_01.cpp` - MongoDBDriver implementation
+  * `src/drivers/document/mongodb/connection_01.cpp` to `connection_04.cpp` - MongoDBConnection implementation
+  * `src/drivers/document/mongodb/collection_01.cpp` to `collection_07.cpp` - MongoDBCollection implementation
+  * `src/drivers/document/mongodb/cursor_01.cpp`, `cursor_02.cpp` - MongoDBCursor implementation
+  * `src/drivers/document/mongodb/document_01.cpp` to `document_06.cpp` - MongoDBData implementation
+
+* **Redis Driver Split:**
+  * `src/drivers/kv/redis/redis_internal.hpp` - Internal declarations and shared definitions
+  * `src/drivers/kv/redis/driver_01.cpp` - RedisDriver implementation
+  * `src/drivers/kv/redis/connection_01.cpp` to `connection_06.cpp` - RedisConnection implementation
+
+* **ScyllaDB Driver Split:**
+  * `src/drivers/columnar/scylladb/scylladb_internal.hpp` - Internal declarations and shared definitions
+  * `src/drivers/columnar/scylladb/driver_01.cpp` - ScyllaDBDriver implementation
+  * `src/drivers/columnar/scylladb/connection_01.cpp` - ScyllaDBConnection implementation
+  * `src/drivers/columnar/scylladb/prepared_statement_01.cpp` to `prepared_statement_03.cpp` - ScyllaDBPreparedStatement implementation
+  * `src/drivers/columnar/scylladb/result_set_01.cpp` to `result_set_03.cpp` - ScyllaDBResultSet implementation
+
+* **Build System Updates:**
+  * Updated `libs/cpp_dbc/CMakeLists.txt` to compile all new split source files
+  * Each driver's source files are now organized in dedicated subdirectories
+  * Original monolithic driver files now just include the split files
+
+* **Benefits of Code Split:**
+  * Faster incremental compilation - only changed files need to be recompiled
+  * Better code organization - each class component has dedicated files
+  * Easier navigation - find specific functionality quickly
+  * Reduced file complexity - smaller, more focused files
+  * Better IDE support - smaller files load and parse faster
+
+## 2026-01-29 16:23:21 PST
 
 ### SonarCloud Code Quality Fixes and Connection Pool Improvements
 * **Critical Race Condition Fix in Connection Pool Return Flow:**

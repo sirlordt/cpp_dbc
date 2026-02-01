@@ -120,6 +120,8 @@ show_usage() {
   echo "  --bk-combo-08            Equivalent to --run-test=sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,auto,run=1"
   echo "  --bk-combo-09            Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,run=1"
   echo "  --bk-combo-10            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,run=5"
+  echo "  --bk-combo-11            Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,parallel=5,run=1"
+  echo "  --bk-combo-12            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,parallel=5,run=5"
   echo "  --mc-combo-01            Equivalent to --run-build=clean,postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples"
   echo "  --mc-combo-02            Equivalent to --run-build=postgres,sqlite,mysql,scylladb,redis,yaml,test,examples"
   echo "  --kfc-combo-01           Equivalent to --run-build-dist=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,test,examples"
@@ -1788,6 +1790,16 @@ while [ $i -lt ${#args[@]} ]; do
     --bk-combo-10)
       # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,run=5
       TEST_OPTIONS="rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,run=5"
+      cmd_run_test
+      ;;
+    --bk-combo-11)
+      # Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,parallel=5,run=1
+      TEST_OPTIONS="clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,parallel=5,run=1"
+      cmd_run_test
+      ;;
+    --bk-combo-12)
+      # Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,parallel=5,run=5
+      TEST_OPTIONS="rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,parallel=5,run=5"
       cmd_run_test
       ;;
     --kfc-combo-01)
