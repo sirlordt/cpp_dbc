@@ -80,6 +80,40 @@ namespace cpp_dbc::Firebird
                 }
             }
 
+            // Check if this is a DDL statement that requires metadata lock cleanup
+            // DDL operations like DROP, ALTER, CREATE, RECREATE need exclusive metadata locks
+            // If there are active prepared statements holding metadata locks, we get deadlock
+            bool isDDL = (upperSql.find("DROP ") == 0 ||
+                          upperSql.find("ALTER ") == 0 ||
+                          upperSql.find("CREATE ") == 0 ||
+                          upperSql.find("RECREATE ") == 0);
+
+            if (isDDL)
+            {
+                FIREBIRD_DEBUG("FirebirdConnection::executeUpdate(nothrow) - Detected DDL statement, cleaning up metadata locks");
+
+                // Close all active prepared statements to release metadata locks
+                closeAllActivePreparedStatements();
+
+                // Commit current transaction to ensure all metadata locks are released
+                if (m_tr)
+                {
+                    FIREBIRD_DEBUG("  Committing current transaction before DDL");
+                    try
+                    {
+                        endTransaction(true);
+                        startTransaction();
+                    }
+                    catch (const DBException &e)
+                    {
+                        FIREBIRD_DEBUG("  Commit before DDL failed: " << e.what());
+                        return cpp_dbc::unexpected(e);
+                    }
+                }
+
+                FIREBIRD_DEBUG("  Metadata locks cleanup completed");
+            }
+
             // First, prepare the statement using the nothrow version
             auto stmtResult = prepareStatement(std::nothrow, sql);
             if (!stmtResult)

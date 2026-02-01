@@ -183,33 +183,36 @@ namespace cpp_dbc::MongoDB
                 BSON_APPEND_OID(bson, "_id", &oid);
             }
 
+            // Build options document for MongoDB
+            bson_t opts;
+            bson_init(&opts);
+            if (options.bypassValidation)
+            {
+                BSON_APPEND_BOOL(&opts, "bypassDocumentValidation", true);
+            }
+
             bson_error_t error;
             bson_t reply;
             bson_init(&reply);
 
             bool success = mongoc_collection_insert_one(
-                m_collection.get(), bson, nullptr, &reply, &error);
+                m_collection.get(), bson, &opts, &reply, &error);
 
-            DocumentInsertResult result;
-            result.acknowledged = success;
+            bson_destroy(&opts);
 
-            if (success)
-            {
-                result.insertedId = mongoDoc->getId();
-                result.insertedCount = 1;
-            }
-            else
+            if (!success)
             {
                 bson_destroy(&reply);
-                if (options.ordered)
-                {
-                    return unexpected<DBException>(DBException(
-                        "F7G8H9I0J1K2",
-                        std::string("Insert failed: ") + error.message,
-                        system_utils::captureCallStack()));
-                }
-                result.insertedCount = 0;
+                return unexpected<DBException>(DBException(
+                    "F7G8H9I0J1K2",
+                    std::string("Insert failed: ") + error.message,
+                    system_utils::captureCallStack()));
             }
+
+            DocumentInsertResult result;
+            result.acknowledged = true;
+            result.insertedId = mongoDoc->getId();
+            result.insertedCount = 1;
 
             bson_destroy(&reply);
             return result;

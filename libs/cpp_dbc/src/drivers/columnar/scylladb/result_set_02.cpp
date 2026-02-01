@@ -39,10 +39,11 @@ namespace cpp_dbc::ScyllaDB
     cpp_dbc::expected<bool, DBException> ScyllaDBResultSet::next(std::nothrow_t) noexcept
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);
-        if (!m_iterator)
+        auto validationResult = validateResultState(std::nothrow);
+        if (!validationResult.has_value())
         {
-            SCYLLADB_DEBUG("ScyllaDBResultSet::next - Iterator is null, returning false");
-            return false;
+            SCYLLADB_DEBUG("ScyllaDBResultSet::next - ResultSet is closed");
+            return cpp_dbc::unexpected(validationResult.error());
         }
 
         if (cass_iterator_next(m_iterator.get()))
@@ -60,18 +61,33 @@ namespace cpp_dbc::ScyllaDB
     cpp_dbc::expected<bool, DBException> ScyllaDBResultSet::isBeforeFirst(std::nothrow_t) noexcept
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);
+        auto validationResult = validateResultState(std::nothrow);
+        if (!validationResult.has_value())
+        {
+            return cpp_dbc::unexpected(validationResult.error());
+        }
         return m_rowPosition == 0;
     }
 
     cpp_dbc::expected<bool, DBException> ScyllaDBResultSet::isAfterLast(std::nothrow_t) noexcept
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);
+        auto validationResult = validateResultState(std::nothrow);
+        if (!validationResult.has_value())
+        {
+            return cpp_dbc::unexpected(validationResult.error());
+        }
         return !m_currentRow && m_rowPosition > 0; // Approximate
     }
 
     cpp_dbc::expected<uint64_t, DBException> ScyllaDBResultSet::getRow(std::nothrow_t) noexcept
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);
+        auto validationResult = validateResultState(std::nothrow);
+        if (!validationResult.has_value())
+        {
+            return cpp_dbc::unexpected(validationResult.error());
+        }
         return m_rowPosition;
     }
 

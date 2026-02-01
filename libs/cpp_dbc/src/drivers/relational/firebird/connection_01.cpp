@@ -284,6 +284,31 @@ namespace cpp_dbc::Firebird
         FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets - Closed " << closedCount << " result sets");
     }
 
+    void FirebirdDBConnection::closeAllActivePreparedStatements()
+    {
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements - Starting");
+        std::lock_guard<std::mutex> lock(m_statementsMutex);
+
+        int invalidatedCount = 0;
+        for (auto &weakStmt : m_activeStatements)
+        {
+            if (auto stmt = weakStmt.lock())
+            {
+                try
+                {
+                    stmt->invalidate();
+                    invalidatedCount++;
+                }
+                catch (...)
+                {
+                    FIREBIRD_DEBUG("  Exception while invalidating PreparedStatement, ignoring");
+                }
+            }
+        }
+        m_activeStatements.clear();
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements - Invalidated " << invalidatedCount << " prepared statements");
+    }
+
     void FirebirdDBConnection::close()
     {
 
@@ -322,7 +347,7 @@ namespace cpp_dbc::Firebird
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
-    bool FirebirdDBConnection::isClosed()
+    bool FirebirdDBConnection::isClosed() const
     {
 
         DB_DRIVER_LOCK_GUARD(m_connMutex);

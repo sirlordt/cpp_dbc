@@ -149,7 +149,7 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
-    bool PostgreSQLDBConnection::isClosed()
+    bool PostgreSQLDBConnection::isClosed() const
     {
         return m_closed;
     }

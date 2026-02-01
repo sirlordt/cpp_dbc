@@ -143,8 +143,15 @@ namespace cpp_dbc::Redis
 
         std::string RedisDriver::getDriverVersion() const
         {
-            // Get the hiredis version
-            return std::to_string(HIREDIS_SONAME);
+            // Build version string from hiredis version macros
+#if defined(HIREDIS_MAJOR) && defined(HIREDIS_MINOR) && defined(HIREDIS_PATCH)
+            return std::to_string(HIREDIS_MAJOR) + "." +
+                   std::to_string(HIREDIS_MINOR) + "." +
+                   std::to_string(HIREDIS_PATCH);
+#else
+            // Fallback if individual version macros are not available
+            return "unknown";
+#endif
         }
 
         void RedisDriver::cleanup()

@@ -225,6 +225,12 @@ namespace cpp_dbc::ScyllaDB
             return cpp_dbc::unexpected(DBException("C5082FD562CF", "Session closed", system_utils::captureCallStack()));
         }
 
+        if (!m_prepared)
+        {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Prepared statement closed");
+            return cpp_dbc::unexpected(DBException("D6193GE673DG", "Prepared statement has been closed", system_utils::captureCallStack()));
+        }
+
         if (m_batchEntries.empty())
         {
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Batch is empty, returning empty result");

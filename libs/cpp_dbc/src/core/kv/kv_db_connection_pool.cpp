@@ -848,7 +848,7 @@ namespace cpp_dbc
         }
     }
 
-    bool KVPooledDBConnection::isClosed()
+    bool KVPooledDBConnection::isClosed() const
     {
         return m_closed || (m_conn && m_conn->isClosed());
     }

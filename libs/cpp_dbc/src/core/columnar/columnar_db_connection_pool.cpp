@@ -784,7 +784,7 @@ namespace cpp_dbc
         }
     }
 
-    bool ColumnarPooledDBConnection::isClosed()
+    bool ColumnarPooledDBConnection::isClosed() const
     {
         return m_closed || m_conn->isClosed();
     }

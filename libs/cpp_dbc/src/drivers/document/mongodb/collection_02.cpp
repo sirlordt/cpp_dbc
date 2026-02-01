@@ -116,8 +116,15 @@ namespace cpp_dbc::MongoDB
             if (mongoc_cursor_next(cursor, &doc))
             {
                 bson_t *docCopy = bson_copy(doc);
-                if (docCopy)
-                    result = std::make_shared<MongoDBDocument>(docCopy);
+                if (!docCopy)
+                {
+                    mongoc_cursor_destroy(cursor);
+                    return unexpected<DBException>(DBException(
+                        "D5E6F7A8B9C1",
+                        "Failed to copy BSON document in findOne (memory allocation failure)",
+                        system_utils::captureCallStack()));
+                }
+                result = std::make_shared<MongoDBDocument>(docCopy);
             }
 
             bson_error_t error;

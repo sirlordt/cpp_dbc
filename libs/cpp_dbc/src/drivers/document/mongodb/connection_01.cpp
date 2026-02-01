@@ -281,7 +281,7 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBConnection::close - Connection closed");
     }
 
-    bool MongoDBConnection::isClosed()
+    bool MongoDBConnection::isClosed() const
     {
         return m_closed;
     }

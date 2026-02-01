@@ -302,6 +302,7 @@ namespace cpp_dbc::Firebird
         XSQLDAHandle m_outputSqlda;
         bool m_closed{true};
         bool m_prepared{false};
+        std::atomic<bool> m_invalidated{false}; // Set to true when connection invalidates this statement due to DDL
 
         // Parameter storage
         std::vector<std::vector<char>> m_paramBuffers;
@@ -319,6 +320,12 @@ namespace cpp_dbc::Firebird
         void prepareStatement();
         void allocateInputSqlda();
         void setParameter(int parameterIndex, const void *data, size_t length, short sqlType);
+
+        /**
+         * @brief Invalidate this prepared statement (called by connection before DDL operations)
+         * After invalidation, any attempt to use this statement will throw/return an error.
+         */
+        void invalidate();
 
     public:
         FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db, isc_tr_handle *trPtr, const std::string &sql,
@@ -430,6 +437,12 @@ namespace cpp_dbc::Firebird
         void closeAllActiveResultSets();
 
         /**
+         * @brief Close and invalidate all active prepared statements
+         * Called before DDL operations to release metadata locks
+         */
+        void closeAllActivePreparedStatements();
+
+        /**
          * @brief Execute a CREATE DATABASE statement using isc_dsql_execute_immediate
          * @param sql The CREATE DATABASE SQL statement
          * @return 0 (CREATE DATABASE doesn't return affected rows)
@@ -446,7 +459,7 @@ namespace cpp_dbc::Firebird
         ~FirebirdDBConnection() override;
 
         void close() override;
-        bool isClosed() override;
+        bool isClosed() const override;
         void returnToPool() override;
         bool isPooled() override;
 

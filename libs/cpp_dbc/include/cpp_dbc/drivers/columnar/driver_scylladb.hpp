@@ -28,10 +28,11 @@
 
 #if USE_SCYLLADB
 #include <cassandra.h>
+#include <atomic>
 #include <map>
 #include <memory>
-#include <set>
 #include <mutex>
+#include <set>
 #include <vector>
 #include <algorithm>
 #include <cstring>
@@ -333,7 +334,7 @@ namespace cpp_dbc
             std::shared_ptr<CassCluster> m_cluster; // Shared to keep cluster config alive if needed
             std::shared_ptr<CassSession> m_session; // Shared for PreparedStatement weak_ptr
             std::string m_url;
-            bool m_closed{true};
+            std::atomic<bool> m_closed{true};
 
 #if DB_DRIVER_THREAD_SAFE
             mutable std::recursive_mutex m_connMutex;
@@ -347,7 +348,7 @@ namespace cpp_dbc
 
             // DBConnection interface
             void close() override;
-            bool isClosed() override;
+            bool isClosed() const override;
             void returnToPool() override;
             bool isPooled() override;
             std::string getURL() const override;

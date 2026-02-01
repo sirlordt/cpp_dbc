@@ -188,7 +188,6 @@ namespace cpp_dbc::PostgreSQL
         std::vector<int> m_paramFormats;
         std::vector<Oid> m_paramTypes;
         bool m_prepared{false};
-        int m_statementCounter{0};
         std::vector<std::vector<uint8_t>> m_blobValues;            // To keep blob values alive
         std::vector<std::shared_ptr<Blob>> m_blobObjects;          // To keep blob objects alive
         std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
@@ -292,7 +291,7 @@ namespace cpp_dbc::PostgreSQL
 
         // DBConnection interface
         void close() override;
-        bool isClosed() override;
+        bool isClosed() const override;
         void returnToPool() override;
         bool isPooled() override;
         std::string getURL() const override;

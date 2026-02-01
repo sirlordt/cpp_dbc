@@ -114,7 +114,7 @@ namespace cpp_dbc::Redis
 
             // DBConnection interface implementation
             void close() override;
-            bool isClosed() override;
+            bool isClosed() const override;
             void returnToPool() override;
             bool isPooled() override;
             std::string getURL() const override;

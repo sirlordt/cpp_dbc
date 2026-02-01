@@ -51,7 +51,7 @@ namespace cpp_dbc::MongoDB
 #if (defined(DEBUG_MONGODB) && DEBUG_MONGODB) || (defined(DEBUG_ALL) && DEBUG_ALL)
 #define MONGODB_DEBUG(x) std::cout << "[MongoDB] " << x << std::endl
 #else
-#define MONGODB_DEBUG(x)
+#define MONGODB_DEBUG(x) ((void)0)
 #endif
 
 #endif // USE_MONGODB

@@ -159,7 +159,7 @@ namespace cpp_dbc::MySQL
         }
     }
 
-    bool MySQLDBConnection::isClosed()
+    bool MySQLDBConnection::isClosed() const
     {
         return m_closed;
     }

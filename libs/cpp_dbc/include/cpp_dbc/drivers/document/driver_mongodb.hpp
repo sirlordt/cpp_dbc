@@ -425,6 +425,24 @@ namespace cpp_dbc
              */
             static std::shared_ptr<MongoDBDocument> fromBsonCopy(const bson_t *bson);
 
+            /**
+             * @brief Get an array of documents with optional strict type checking
+             * @param fieldPath The path to the field
+             * @param strict If true, fails if any element is not a document; if false, skips non-document elements
+             * @return Vector of documents or error
+             */
+            expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> getDocumentArray(
+                std::nothrow_t, const std::string &fieldPath, bool strict) const noexcept;
+
+            /**
+             * @brief Get an array of strings with optional strict type checking
+             * @param fieldPath The path to the field
+             * @param strict If true, fails if any element is not a string; if false, skips non-string elements
+             * @return Vector of strings or error
+             */
+            expected<std::vector<std::string>, DBException> getStringArray(
+                std::nothrow_t, const std::string &fieldPath, bool strict) const noexcept;
+
             // Nothrow versions
             expected<std::string, DBException> getString(std::nothrow_t, const std::string &fieldPath) const noexcept override;
             expected<int64_t, DBException> getInt(std::nothrow_t, const std::string &fieldPath) const noexcept override;
@@ -1040,7 +1058,7 @@ namespace cpp_dbc
 
             // DBConnection interface
             void close() override;
-            bool isClosed() override;
+            bool isClosed() const override;
             void returnToPool() override;
             bool isPooled() override;
             std::string getURL() const override;

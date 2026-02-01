@@ -58,7 +58,7 @@ namespace cpp_dbc
          * @return true if the connection is closed
          * @return false if the connection is still open
          */
-        virtual bool isClosed() = 0;
+        virtual bool isClosed() const = 0;
 
         /**
          * @brief Return the connection to its connection pool

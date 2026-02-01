@@ -108,8 +108,9 @@ namespace cpp_dbc::Redis
         {
             REDIS_DEBUG("RedisConnection::constructor - Connecting to: " << uri);
 
-            // Parse the URI
-            std::regex uriRegex("redis://([^:/]+)(?::([0-9]+))?(?:/([0-9]+))?");
+            // Parse the URI - supports both IPv4 and IPv6 (IPv6 addresses must be in brackets)
+            // Examples: redis://localhost:6379/0, redis://192.168.1.1:6379, redis://[::1]:6379/0, redis://[2001:db8::1]:6379
+            std::regex uriRegex(R"(redis://(\[[^\]]+\]|[^:/]+)(?::([0-9]+))?(?:/([0-9]+))?)");
             std::smatch matches;
 
             std::string host = "localhost";
@@ -120,6 +121,11 @@ namespace cpp_dbc::Redis
                 if (matches.size() > 1 && matches[1].matched)
                 {
                     host = matches[1].str();
+                    // Strip brackets from IPv6 addresses (e.g., "[::1]" -> "::1")
+                    if (host.size() >= 2 && host.front() == '[' && host.back() == ']')
+                    {
+                        host = host.substr(1, host.size() - 2);
+                    }
                 }
 
                 if (matches.size() > 2 && matches[2].matched)
@@ -157,8 +163,33 @@ namespace cpp_dbc::Redis
             REDIS_DEBUG("RedisConnection::constructor - Connecting to host: " << host
                                                                               << " port: " << port << " db: " << m_dbIndex);
 
-            // Connect to Redis server
-            struct timeval timeout = {3, 0}; // 3 seconds timeout
+            // Connect to Redis server with configurable timeout
+            // Default: 3 seconds, can be overridden via "connect_timeout" option (in milliseconds)
+            int64_t timeoutMs = 3000; // Default 3000ms = 3 seconds
+            auto timeoutIt = options.find("connect_timeout");
+            if (timeoutIt != options.end() && !timeoutIt->second.empty())
+            {
+                try
+                {
+                    timeoutMs = std::stoll(timeoutIt->second);
+                    if (timeoutMs <= 0)
+                    {
+                        timeoutMs = 3000; // Reset to default if invalid
+                        REDIS_DEBUG("RedisConnection::constructor - Invalid connect_timeout value, using default 3000ms");
+                    }
+                }
+                catch (const std::exception &ex)
+                {
+                    REDIS_DEBUG("RedisConnection::constructor - Failed to parse connect_timeout: " << ex.what() << ", using default 3000ms");
+                    timeoutMs = 3000;
+                }
+            }
+
+            struct timeval timeout;
+            timeout.tv_sec = static_cast<time_t>(timeoutMs / 1000);
+            timeout.tv_usec = static_cast<suseconds_t>((timeoutMs % 1000) * 1000);
+
+            REDIS_DEBUG("RedisConnection::constructor - Using connect timeout: " << timeoutMs << "ms");
             redisContext *context = redisConnectWithTimeout(host.c_str(), port, timeout);
 
             if (!context || context->err)
@@ -222,6 +253,10 @@ namespace cpp_dbc::Redis
                                                                          value.c_str()));
                     if (reply)
                     {
+                        if (reply->type == REDIS_REPLY_ERROR)
+                        {
+                            REDIS_DEBUG("RedisConnection::constructor - CLIENT SETNAME failed: " << reply->str);
+                        }
                         freeReplyObject(reply);
                     }
                 }
@@ -270,7 +305,20 @@ namespace cpp_dbc::Redis
             if (this != &other)
             {
                 if (!m_closed)
-                    close();
+                {
+                    try
+                    {
+                        close();
+                    }
+                    catch (...)
+                    {
+                        // Swallow exception to maintain noexcept guarantee
+                        // Connection cleanup failed but we must continue with move
+                        REDIS_DEBUG("RedisConnection::operator= - Exception during close(), continuing with move");
+                        m_context.reset();
+                        m_closed = true;
+                    }
+                }
 
                 m_context = std::move(other.m_context);
                 m_url = std::move(other.m_url);
@@ -301,7 +349,7 @@ namespace cpp_dbc::Redis
             REDIS_DEBUG("RedisConnection::close - Connection closed");
         }
 
-        bool RedisConnection::isClosed()
+        bool RedisConnection::isClosed() const
         {
             return m_closed;
         }

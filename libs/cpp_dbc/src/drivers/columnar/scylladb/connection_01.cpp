@@ -111,7 +111,7 @@ namespace cpp_dbc::ScyllaDB
         }
     }
 
-    bool ScyllaDBConnection::isClosed()
+    bool ScyllaDBConnection::isClosed() const
     {
         return m_closed;
     }

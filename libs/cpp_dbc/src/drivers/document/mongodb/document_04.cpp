@@ -175,6 +175,10 @@ namespace cpp_dbc::MongoDB
 
     std::shared_ptr<MongoDBDocument> MongoDBDocument::fromBson(bson_t *bson)
     {
+        if (!bson)
+        {
+            throw DBException("B8C4D3E2F5A7", "Cannot create document from null BSON pointer", system_utils::captureCallStack());
+        }
         return std::make_shared<MongoDBDocument>(bson);
     }
 

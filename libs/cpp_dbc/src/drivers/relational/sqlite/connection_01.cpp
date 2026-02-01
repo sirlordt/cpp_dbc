@@ -236,7 +236,7 @@ namespace cpp_dbc::SQLite
         }
     }
 
-    bool SQLiteDBConnection::isClosed()
+    bool SQLiteDBConnection::isClosed() const
     {
         return m_closed;
     }

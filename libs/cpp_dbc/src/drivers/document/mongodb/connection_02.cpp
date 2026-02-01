@@ -203,6 +203,11 @@ namespace cpp_dbc::MongoDB
         bson_t *replyCopy = bson_copy(&reply);
         bson_destroy(&reply);
 
+        if (!replyCopy)
+        {
+            throw DBException("E6F7G8H9I0J1", "Failed to copy command reply (memory allocation failure)", system_utils::captureCallStack());
+        }
+
         return std::make_shared<MongoDBDocument>(replyCopy);
     }
 
@@ -343,9 +348,66 @@ namespace cpp_dbc::MongoDB
 
     bool MongoDBConnection::supportsTransactions()
     {
-        // MongoDB 4.0+ supports multi-document transactions
-        // For simplicity, return true (actual check would require server version)
-        return true;
+        MONGODB_LOCK_GUARD(m_connMutex);
+
+        if (!m_client)
+        {
+            return false;
+        }
+
+        // Select a server to get its description
+        bson_error_t error;
+        mongoc_server_description_t *serverDesc = mongoc_client_select_server(
+            m_client.get(), false, nullptr, &error);
+
+        if (!serverDesc)
+        {
+            MONGODB_DEBUG("supportsTransactions: Failed to select server - " << error.message);
+            return false;
+        }
+
+        // Get the hello/ismaster response
+        const bson_t *helloResponse = mongoc_server_description_hello_response(serverDesc);
+        if (!helloResponse)
+        {
+            mongoc_server_description_destroy(serverDesc);
+            return false;
+        }
+
+        // Check for logicalSessionTimeoutMinutes (required for transactions)
+        bson_iter_t iter;
+        if (!bson_iter_init_find(&iter, helloResponse, "logicalSessionTimeoutMinutes"))
+        {
+            mongoc_server_description_destroy(serverDesc);
+            return false;
+        }
+
+        // Get maxWireVersion
+        int32_t maxWireVersion = 0;
+        if (bson_iter_init_find(&iter, helloResponse, "maxWireVersion"))
+        {
+            maxWireVersion = bson_iter_int32(&iter);
+        }
+
+        // Check server type
+        bool isMongos = false;
+        if (bson_iter_init_find(&iter, helloResponse, "msg"))
+        {
+            const char *msg = bson_iter_utf8(&iter, nullptr);
+            isMongos = (msg && strcmp(msg, "isdbgrid") == 0);
+        }
+
+        mongoc_server_description_destroy(serverDesc);
+
+        // Transactions require:
+        // - Replica set: maxWireVersion >= 7 (MongoDB 4.0+)
+        // - Mongos (sharded): maxWireVersion >= 8 (MongoDB 4.2+)
+        if (isMongos)
+        {
+            return maxWireVersion >= 8;
+        }
+
+        return maxWireVersion >= 7;
     }
 
 } // namespace cpp_dbc::MongoDB

@@ -209,7 +209,7 @@ namespace cpp_dbc
 
         // Overridden DBConnection interface methods
         void close() final;
-        bool isClosed() override;
+        bool isClosed() const override;
         void returnToPool() final;
         bool isPooled() override;
         std::string getURL() const override;

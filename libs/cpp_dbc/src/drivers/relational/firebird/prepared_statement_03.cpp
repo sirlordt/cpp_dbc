@@ -121,6 +121,13 @@ namespace cpp_dbc::Firebird
                 return cpp_dbc::unexpected(DBException("D4E0F6A2B9C5", "Statement is closed", system_utils::captureCallStack()));
             }
 
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                FIREBIRD_DEBUG("  Statement was invalidated by DDL operation!");
+                return cpp_dbc::unexpected(DBException("FB1NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
+
             ISC_STATUS_ARRAY status;
 
             // Execute the statement
@@ -232,6 +239,13 @@ namespace cpp_dbc::Firebird
             if (m_closed)
             {
                 return cpp_dbc::unexpected(DBException("F6A2B8C4D1E7", "Statement is closed", system_utils::captureCallStack()));
+            }
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                FIREBIRD_DEBUG("  Statement was invalidated by DDL operation!");
+                return cpp_dbc::unexpected(DBException("FB2NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
             }
 
             ISC_STATUS_ARRAY status;
@@ -372,6 +386,12 @@ namespace cpp_dbc::Firebird
                 return cpp_dbc::unexpected(DBException("B8C4D0E6F3A9", "Statement is closed", system_utils::captureCallStack()));
             }
 
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FB3NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
+
             ISC_STATUS_ARRAY status;
 
             if (isc_dsql_execute(status, m_trPtr, &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
@@ -453,6 +473,23 @@ namespace cpp_dbc::Firebird
         {
             return cpp_dbc::unexpected(DBException("9C4BC01FFDD7", "Unknown exception in close", system_utils::captureCallStack()));
         }
+    }
+
+    void FirebirdDBPreparedStatement::invalidate()
+    {
+        FIREBIRD_DEBUG("FirebirdPreparedStatement::invalidate - Starting");
+
+        // Set the invalidated flag first (atomic operation)
+        m_invalidated.store(true, std::memory_order_release);
+
+        // Close the statement to release metadata locks
+        auto closeResult = close(std::nothrow);
+        if (!closeResult)
+        {
+            FIREBIRD_DEBUG("  close() failed during invalidation: " << closeResult.error().what());
+        }
+
+        FIREBIRD_DEBUG("FirebirdPreparedStatement::invalidate - Done");
     }
 
 } // namespace cpp_dbc::Firebird

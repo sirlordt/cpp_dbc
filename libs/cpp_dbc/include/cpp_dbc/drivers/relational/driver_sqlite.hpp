@@ -341,7 +341,7 @@ namespace cpp_dbc
             ~SQLiteDBConnection() override;
 
             void close() override;
-            bool isClosed() override;
+            bool isClosed() const override;
             void returnToPool() override;
             bool isPooled() override;
 

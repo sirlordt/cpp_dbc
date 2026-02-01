@@ -33,7 +33,8 @@
 namespace cpp_dbc::MongoDB
 {
 
-    expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> MongoDBDocument::getDocumentArray(std::nothrow_t, const std::string &fieldPath) const noexcept
+    expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> MongoDBDocument::getDocumentArray(
+        std::nothrow_t, const std::string &fieldPath, bool strict) const noexcept
     {
         try
         {
@@ -89,6 +90,13 @@ namespace cpp_dbc::MongoDB
                         }
                         result.push_back(std::make_shared<MongoDBDocument>(subdoc));
                     }
+                    else if (strict)
+                    {
+                        return unexpected<DBException>(DBException(
+                            "7A8B9C0D1E2F",
+                            "Unexpected element type at index " + std::to_string(elementIndex) + " in array field: " + fieldPath + " (expected document)"));
+                    }
+                    // If not strict, skip non-document elements
                     elementIndex++;
                 }
             }
@@ -119,7 +127,15 @@ namespace cpp_dbc::MongoDB
         }
     }
 
-    expected<std::vector<std::string>, DBException> MongoDBDocument::getStringArray(std::nothrow_t, const std::string &fieldPath) const noexcept
+    expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> MongoDBDocument::getDocumentArray(
+        std::nothrow_t, const std::string &fieldPath) const noexcept
+    {
+        // Default: tolerant mode (skip non-document elements)
+        return getDocumentArray(std::nothrow, fieldPath, false);
+    }
+
+    expected<std::vector<std::string>, DBException> MongoDBDocument::getStringArray(
+        std::nothrow_t, const std::string &fieldPath, bool strict) const noexcept
     {
         try
         {
@@ -157,6 +173,7 @@ namespace cpp_dbc::MongoDB
 
             if (bson_iter_init(&arrayIter, &arrayBson))
             {
+                size_t elementIndex = 0;
                 while (bson_iter_next(&arrayIter))
                 {
                     if (BSON_ITER_HOLDS_UTF8(&arrayIter))
@@ -165,6 +182,14 @@ namespace cpp_dbc::MongoDB
                         const char *str = bson_iter_utf8(&arrayIter, &strLength);
                         result.emplace_back(str, strLength);
                     }
+                    else if (strict)
+                    {
+                        return unexpected<DBException>(DBException(
+                            "8B9C0D1E2F3G",
+                            "Unexpected element type at index " + std::to_string(elementIndex) + " in array field: " + fieldPath + " (expected string)"));
+                    }
+                    // If not strict, skip non-string elements
+                    elementIndex++;
                 }
             }
 
@@ -192,6 +217,13 @@ namespace cpp_dbc::MongoDB
                 "5C6D7E8F9A0B",
                 "Unknown error in getStringArray"));
         }
+    }
+
+    expected<std::vector<std::string>, DBException> MongoDBDocument::getStringArray(
+        std::nothrow_t, const std::string &fieldPath) const noexcept
+    {
+        // Default: tolerant mode (skip non-string elements)
+        return getStringArray(std::nothrow, fieldPath, false);
     }
 
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBDocument::clone(std::nothrow_t) const noexcept
