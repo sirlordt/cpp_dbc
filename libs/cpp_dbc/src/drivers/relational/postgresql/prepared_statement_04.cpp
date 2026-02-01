@@ -49,7 +49,7 @@ namespace cpp_dbc::PostgreSQL
             auto connPtr = m_conn.lock();
             if (!connPtr)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("4EB26050A94C", "PostgreSQL connection has been closed", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("J6K7L8M9N0O1", "PostgreSQL connection has been closed", system_utils::captureCallStack()));
             }
 
             // Prepare the statement if not already prepared
@@ -126,7 +126,7 @@ namespace cpp_dbc::PostgreSQL
             auto connPtr = m_conn.lock();
             if (!connPtr)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("4EB26050A94C", "PostgreSQL connection has been closed", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("K7L8M9N0O1P2", "PostgreSQL connection has been closed", system_utils::captureCallStack()));
             }
 
             // Prepare the statement if not already prepared
@@ -211,7 +211,7 @@ namespace cpp_dbc::PostgreSQL
             auto connPtr = m_conn.lock();
             if (!connPtr)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("4EB26050A94C", "PostgreSQL connection has been closed", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("L8M9N0O1P2Q3", "PostgreSQL connection has been closed", system_utils::captureCallStack()));
             }
 
             // Prepare the statement if not already prepared

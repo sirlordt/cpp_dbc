@@ -92,6 +92,7 @@ namespace cpp_dbc::MongoDB
 
     MongoDBCollection::MongoDBCollection(MongoDBCollection &&other) noexcept
         : m_client(std::move(other.m_client)),
+          m_connection(std::move(other.m_connection)),
           m_collection(std::move(other.m_collection)),
           m_name(std::move(other.m_name)),
           m_databaseName(std::move(other.m_databaseName)) {}
@@ -101,6 +102,7 @@ namespace cpp_dbc::MongoDB
         if (this != &other)
         {
             m_client = std::move(other.m_client);
+            m_connection = std::move(other.m_connection);
             m_collection = std::move(other.m_collection);
             m_name = std::move(other.m_name);
             m_databaseName = std::move(other.m_databaseName);

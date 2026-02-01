@@ -323,6 +323,7 @@ namespace cpp_dbc::Redis
 
         void RedisConnection::setPooled(bool pooled)
         {
+            REDIS_LOCK_GUARD(m_mutex);
             m_pooled = pooled;
         }
 

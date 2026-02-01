@@ -41,13 +41,18 @@ namespace cpp_dbc::ScyllaDB
         DB_DRIVER_LOCK_GUARD(m_mutex);
         if (!m_statement)
         {
-            return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("A1B2C3D4E5F1", "Statement closed", system_utils::captureCallStack()));
+        }
+
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("B3C4D5E6F7G8", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         // Check bounds... Cassandra binds by index 0-based, JDBC is 1-based
         if (cass_statement_bind_int32(m_statement.get(), parameterIndex - 1, value) != CASS_OK)
         {
-            return cpp_dbc::unexpected(DBException("735497230592", "Failed to bind int", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B2C3D4E5F6A1", "Failed to bind int", system_utils::captureCallStack()));
         }
 
         // For batching, store value
@@ -60,12 +65,17 @@ namespace cpp_dbc::ScyllaDB
         DB_DRIVER_LOCK_GUARD(m_mutex);
         if (!m_statement)
         {
-            return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("A1B2C3D4E5F2", "Statement closed", system_utils::captureCallStack()));
+        }
+
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("C4D5E6F7G8H9", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         if (cass_statement_bind_int64(m_statement.get(), parameterIndex - 1, value) != CASS_OK)
         {
-            return cpp_dbc::unexpected(DBException("735497230592", "Failed to bind long", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B2C3D4E5F6A2", "Failed to bind long", system_utils::captureCallStack()));
         }
         m_currentEntry.longParams.emplace_back(parameterIndex - 1, value);
         return {};
@@ -76,12 +86,17 @@ namespace cpp_dbc::ScyllaDB
         DB_DRIVER_LOCK_GUARD(m_mutex);
         if (!m_statement)
         {
-            return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("A1B2C3D4E5F3", "Statement closed", system_utils::captureCallStack()));
+        }
+
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("D5E6F7G8H9I0", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         if (cass_statement_bind_double(m_statement.get(), parameterIndex - 1, value) != CASS_OK)
         {
-            return cpp_dbc::unexpected(DBException("735497230592", "Failed to bind double", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B2C3D4E5F6A3", "Failed to bind double", system_utils::captureCallStack()));
         }
         m_currentEntry.doubleParams.emplace_back(parameterIndex - 1, value);
         return {};
@@ -92,7 +107,12 @@ namespace cpp_dbc::ScyllaDB
         DB_DRIVER_LOCK_GUARD(m_mutex);
         if (!m_statement)
         {
-            return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("A1B2C3D4E5F4", "Statement closed", system_utils::captureCallStack()));
+        }
+
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("E6F7G8H9I0J1", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         // Simple string binding without type detection
@@ -113,7 +133,7 @@ namespace cpp_dbc::ScyllaDB
         if (rc != CASS_OK)
         {
             std::string errorMsg = "Failed to bind string value '" + value + "'";
-            return cpp_dbc::unexpected(DBException("735497230592", errorMsg, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B2C3D4E5F6A4", errorMsg, system_utils::captureCallStack()));
         }
 
         m_currentEntry.stringParams.emplace_back(parameterIndex - 1, value);
@@ -125,12 +145,17 @@ namespace cpp_dbc::ScyllaDB
         DB_DRIVER_LOCK_GUARD(m_mutex);
         if (!m_statement)
         {
-            return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("A1B2C3D4E5F5", "Statement closed", system_utils::captureCallStack()));
+        }
+
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("F7G8H9I0J1K2", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         if (cass_statement_bind_bool(m_statement.get(), parameterIndex - 1, value ? cass_true : cass_false) != CASS_OK)
         {
-            return cpp_dbc::unexpected(DBException("735497230592", "Failed to bind bool", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B2C3D4E5F6A5", "Failed to bind bool", system_utils::captureCallStack()));
         }
         m_currentEntry.boolParams.emplace_back(parameterIndex - 1, value);
         return {};
@@ -141,12 +166,17 @@ namespace cpp_dbc::ScyllaDB
         DB_DRIVER_LOCK_GUARD(m_mutex);
         if (!m_statement)
         {
-            return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("SC1A2B3C4D5E", "Statement closed", system_utils::captureCallStack()));
+        }
+
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("G8H9I0J1K2L3", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         if (cass_statement_bind_null(m_statement.get(), parameterIndex - 1) != CASS_OK)
         {
-            return cpp_dbc::unexpected(DBException("735497230592", "Failed to bind null", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B2C3D4E5F6A6", "Failed to bind null", system_utils::captureCallStack()));
         }
         m_currentEntry.nullParams.emplace_back(parameterIndex - 1, type);
         return {};
@@ -157,7 +187,12 @@ namespace cpp_dbc::ScyllaDB
         DB_DRIVER_LOCK_GUARD(m_mutex);
         if (!m_statement)
         {
-            return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("A1B2C3D4E5F7", "Statement closed", system_utils::captureCallStack()));
+        }
+
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("H9I0J1K2L3M4", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         bool parseSuccess = false;
@@ -212,7 +247,7 @@ namespace cpp_dbc::ScyllaDB
         if (rc != CASS_OK)
         {
             std::string errorMsg = "Failed to bind date value '" + value + "'";
-            return cpp_dbc::unexpected(DBException("735497230592", errorMsg, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B2C3D4E5F6A7", errorMsg, system_utils::captureCallStack()));
         }
 
         m_currentEntry.stringParams.emplace_back(parameterIndex - 1, value);
@@ -224,7 +259,12 @@ namespace cpp_dbc::ScyllaDB
         DB_DRIVER_LOCK_GUARD(m_mutex);
         if (!m_statement)
         {
-            return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("A1B2C3D4E5F8", "Statement closed", system_utils::captureCallStack()));
+        }
+
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("I0J1K2L3M4N5", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         bool parseSuccess = false;
@@ -282,7 +322,7 @@ namespace cpp_dbc::ScyllaDB
         if (rc != CASS_OK)
         {
             std::string errorMsg = "Failed to bind timestamp value '" + value + "'";
-            return cpp_dbc::unexpected(DBException("735497230592", errorMsg, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B2C3D4E5F6A8", errorMsg, system_utils::captureCallStack()));
         }
 
         m_currentEntry.stringParams.emplace_back(parameterIndex - 1, value);
@@ -294,7 +334,12 @@ namespace cpp_dbc::ScyllaDB
         DB_DRIVER_LOCK_GUARD(m_mutex);
         if (!m_statement)
         {
-            return cpp_dbc::unexpected(DBException("869623869235", "Statement closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("A1B2C3D4E5F9", "Statement closed", system_utils::captureCallStack()));
+        }
+
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("J1K2L3M4N5O6", "Invalid parameter index", system_utils::captureCallStack()));
         }
 
         // Format the UUID string if needed
@@ -326,7 +371,7 @@ namespace cpp_dbc::ScyllaDB
         if (rc != CASS_OK)
         {
             std::string errorMsg = "Failed to bind UUID value '" + value + "'";
-            return cpp_dbc::unexpected(DBException("735497230592", errorMsg, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B2C3D4E5F6A9", errorMsg, system_utils::captureCallStack()));
         }
 
         m_currentEntry.stringParams.emplace_back(parameterIndex - 1, value);
@@ -335,9 +380,14 @@ namespace cpp_dbc::ScyllaDB
 
     cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept
     {
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("K2L3M4N5O6P7", "Invalid parameter index", system_utils::captureCallStack()));
+        }
+
         if (!x)
         {
-            return cpp_dbc::unexpected(DBException("982374982374", "InputStream is null", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("C3D4E5F6A7B1", "InputStream is null", system_utils::captureCallStack()));
         }
 
         try
@@ -358,20 +408,25 @@ namespace cpp_dbc::ScyllaDB
         catch (const std::exception &ex)
         {
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setBinaryStream - Exception: " << ex.what());
-            return cpp_dbc::unexpected(DBException("892374892374", ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("D4E5F6A7B2C3", ex.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setBinaryStream - Unknown exception");
-            return cpp_dbc::unexpected(DBException("892374892374", "Unknown error reading stream", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("E5F6A7B2C3D4", "Unknown error reading stream", system_utils::captureCallStack()));
         }
     }
 
     cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept
     {
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("L3M4N5O6P7Q8", "Invalid parameter index", system_utils::captureCallStack()));
+        }
+
         if (!x)
         {
-            return cpp_dbc::unexpected(DBException("982374982374", "InputStream is null", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("N5O6P7Q8R9S0", "InputStream is null", system_utils::captureCallStack()));
         }
 
         try
@@ -398,17 +453,22 @@ namespace cpp_dbc::ScyllaDB
         catch (const std::exception &ex)
         {
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setBinaryStream - Exception: " << ex.what());
-            return cpp_dbc::unexpected(DBException("892374892374", ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("F6A7B2C3D4E5", ex.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setBinaryStream - Unknown exception");
-            return cpp_dbc::unexpected(DBException("892374892374", "Unknown error reading stream", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("G7A8B2C3D4E5", "Unknown error reading stream", system_utils::captureCallStack()));
         }
     }
 
     cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept
     {
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("M4N5O6P7Q8R9", "Invalid parameter index", system_utils::captureCallStack()));
+        }
+
         return setBytes(std::nothrow, parameterIndex, x.data(), x.size());
     }
 
@@ -420,9 +480,19 @@ namespace cpp_dbc::ScyllaDB
             return cpp_dbc::unexpected(DBException("0DD0D3E7440E", "Statement closed", system_utils::captureCallStack()));
         }
 
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("0DD0D3E7440F", "Invalid parameter index", system_utils::captureCallStack()));
+        }
+
+        if (x == nullptr && length > 0)
+        {
+            return cpp_dbc::unexpected(DBException("0DD0D3E74410", "Null pointer passed for bytes parameter", system_utils::captureCallStack()));
+        }
+
         if (cass_statement_bind_bytes(m_statement.get(), parameterIndex - 1, x, length) != CASS_OK)
         {
-            return cpp_dbc::unexpected(DBException("735497230592", "Failed to bind bytes", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("H8B9C3D4E5F6", "Failed to bind bytes", system_utils::captureCallStack()));
         }
 
         std::vector<uint8_t> vec(x, x + length);

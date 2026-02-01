@@ -103,7 +103,7 @@ namespace cpp_dbc::SQLite
                 std::string error = sqlite3_errmsg(rawDb);
                 SQLITE_DEBUG("1I2J3K4L5M6N: Failed to open database: " << error);
                 sqlite3_close_v2(rawDb);
-                throw DBException("9O0P1Q2R3S4T", "Failed to connect to SQLite database: " + error,
+                throw DBException("SLGP6Q7R8S9T", "Failed to connect to SQLite database: " + error,
                                   system_utils::captureCallStack());
             }
 

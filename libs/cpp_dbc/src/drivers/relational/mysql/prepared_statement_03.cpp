@@ -247,7 +247,7 @@ namespace cpp_dbc::MySQL
 
             if (!m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("3G4H5I6J7K8L", "Statement is applied", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("P1Z2A3B4C5D6", "Statement is applied", system_utils::captureCallStack()));
             }
 
             // Get the MySQL connection safely (throws if connection is closed)
@@ -269,7 +269,7 @@ namespace cpp_dbc::MySQL
             // Execute the reconstructed query using the regular connection interface
             if (mysql_query(mysqlPtr, finalQuery.c_str()) != 0)
             {
-                return cpp_dbc::unexpected(DBException("9M0N1O2P3Q4R", std::string("Query failed: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("P2Z3A4B5C6D7", std::string("Query failed: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
             }
 
             MYSQL_RES *result = mysql_store_result(mysqlPtr);
@@ -357,19 +357,19 @@ namespace cpp_dbc::MySQL
 
             if (!m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("5S6T7U8V9W0X", "Statement is not initialized", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("P3Z4A5B6C7D8", "Statement is not initialized", system_utils::captureCallStack()));
             }
 
             // Bind parameters
             if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
             {
-                return cpp_dbc::unexpected(DBException("1Y2Z3A4B5C6D", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("P4Z5A6B7C8D9", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
             }
 
             // Execute the query
             if (mysql_stmt_execute(m_stmt.get()) != 0)
             {
-                return cpp_dbc::unexpected(DBException("7E8F9G0H1I2J", std::string("Failed to execute statement: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("P5Z6A7B8C9D0", std::string("Failed to execute statement: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
             }
 
             // Return whether there's a result set

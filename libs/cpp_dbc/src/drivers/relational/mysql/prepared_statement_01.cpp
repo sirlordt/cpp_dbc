@@ -69,7 +69,7 @@ namespace cpp_dbc::MySQL
         {
             std::string error = mysql_stmt_error(m_stmt.get());
             m_stmt.reset(); // Smart pointer will call mysql_stmt_close via deleter
-            throw DBException("9E0F1G2H3I4J", "Failed to prepare statement: " + error, system_utils::captureCallStack());
+            throw DBException("P0Z1A2B3C4D5", "Failed to prepare statement: " + error, system_utils::captureCallStack());
         }
 
         // Count parameters (question marks) in the SQL

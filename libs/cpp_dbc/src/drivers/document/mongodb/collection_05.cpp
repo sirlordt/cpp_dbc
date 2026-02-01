@@ -106,21 +106,26 @@ namespace cpp_dbc::MongoDB
                     static_cast<ssize_t>(options.length()),
                     &parseError);
 
-                if (optsBson)
+                if (!optsBson)
                 {
-                    bson_iter_t iter;
-                    if (bson_iter_init_find(&iter, optsBson, "unique") && BSON_ITER_HOLDS_BOOL(&iter))
-                        isUnique = bson_iter_bool(&iter);
-                    if (bson_iter_init_find(&iter, optsBson, "sparse") && BSON_ITER_HOLDS_BOOL(&iter))
-                        isSparse = bson_iter_bool(&iter);
-                    if (bson_iter_init_find(&iter, optsBson, "name") && BSON_ITER_HOLDS_UTF8(&iter))
-                    {
-                        uint32_t len = 0;
-                        const char *name = bson_iter_utf8(&iter, &len);
-                        indexName = std::string(name, len);
-                    }
-                    bson_destroy(optsBson);
+                    return unexpected<DBException>(DBException(
+                        "B5C6D7E8F9A1",
+                        std::string("Failed to parse index options JSON: ") + parseError.message,
+                        system_utils::captureCallStack()));
                 }
+
+                bson_iter_t iter;
+                if (bson_iter_init_find(&iter, optsBson, "unique") && BSON_ITER_HOLDS_BOOL(&iter))
+                    isUnique = bson_iter_bool(&iter);
+                if (bson_iter_init_find(&iter, optsBson, "sparse") && BSON_ITER_HOLDS_BOOL(&iter))
+                    isSparse = bson_iter_bool(&iter);
+                if (bson_iter_init_find(&iter, optsBson, "name") && BSON_ITER_HOLDS_UTF8(&iter))
+                {
+                    uint32_t len = 0;
+                    const char *name = bson_iter_utf8(&iter, &len);
+                    indexName = std::string(name, len);
+                }
+                bson_destroy(optsBson);
             }
 
             indexOpts.unique = isUnique;

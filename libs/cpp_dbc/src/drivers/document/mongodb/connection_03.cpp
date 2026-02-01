@@ -307,7 +307,7 @@ namespace cpp_dbc::MongoDB
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "7A8B9C0D1E2F",
+                "Q3R4S5T6U7V8",
                 "Unknown error in createCollection"));
         }
     }

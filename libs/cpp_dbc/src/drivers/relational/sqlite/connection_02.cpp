@@ -47,7 +47,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_db)
             {
-                return cpp_dbc::unexpected(DBException("5U6V7W8X9Y0Z", "Connection is closed",
+                return cpp_dbc::unexpected(DBException("R0Z1A2B3C4D5", "Connection is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -81,7 +81,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_db)
             {
-                return cpp_dbc::unexpected(DBException("1A2B3C4D5E6F", "Connection is closed",
+                return cpp_dbc::unexpected(DBException("R1Z2A3B4C5D6", "Connection is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -90,7 +90,7 @@ namespace cpp_dbc::SQLite
             if (result != SQLITE_OK)
             {
                 std::string errorMsg = sqlite3_errmsg(m_db.get());
-                return cpp_dbc::unexpected(DBException("7G8H9I0J1K2L", "Failed to prepare query: " + errorMsg,
+                return cpp_dbc::unexpected(DBException("R2Z3A4B5C6D7", "Failed to prepare query: " + errorMsg,
                                                        system_utils::captureCallStack()));
             }
 
@@ -130,7 +130,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_db)
             {
-                return cpp_dbc::unexpected(DBException("3M4N5O6P7Q8R", "Connection is closed",
+                return cpp_dbc::unexpected(DBException("R3Z4A5B6C7D8", "Connection is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -141,7 +141,7 @@ namespace cpp_dbc::SQLite
             {
                 std::string error = errmsg ? errmsg : "Unknown error";
                 sqlite3_free(errmsg);
-                return cpp_dbc::unexpected(DBException("9S0T1U2V3W4X", "Failed to execute update: " + error,
+                return cpp_dbc::unexpected(DBException("R4Z5A6B7C8D9", "Failed to execute update: " + error,
                                                        system_utils::captureCallStack()));
             }
 
@@ -173,7 +173,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_db)
             {
-                return cpp_dbc::unexpected(DBException("5Y6Z7A8B9C0D", "Connection is closed",
+                return cpp_dbc::unexpected(DBException("R5Z6A7B8C9D0", "Connection is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -306,7 +306,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_db)
             {
-                return cpp_dbc::unexpected(DBException("1E2F3G4H5I6J", "Connection is closed",
+                return cpp_dbc::unexpected(DBException("R6Z7A8B9C0D1", "Connection is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -346,7 +346,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_db)
             {
-                return cpp_dbc::unexpected(DBException("7K8L9M0N1O2P", "Connection is closed",
+                return cpp_dbc::unexpected(DBException("R7Z8A9B0C1D2", "Connection is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -386,14 +386,14 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_db)
             {
-                return cpp_dbc::unexpected(DBException("3Q4R5S6T7U8V", "Connection is closed",
+                return cpp_dbc::unexpected(DBException("R8Z9A0B1C2D3", "Connection is closed",
                                                        system_utils::captureCallStack()));
             }
 
             // SQLite only supports SERIALIZABLE isolation level
             if (level != TransactionIsolationLevel::TRANSACTION_SERIALIZABLE)
             {
-                return cpp_dbc::unexpected(DBException("9W0X1Y2Z3A4B", "SQLite only supports SERIALIZABLE isolation level",
+                return cpp_dbc::unexpected(DBException("R9Z0A1B2C3D4", "SQLite only supports SERIALIZABLE isolation level",
                                                        system_utils::captureCallStack()));
             }
 

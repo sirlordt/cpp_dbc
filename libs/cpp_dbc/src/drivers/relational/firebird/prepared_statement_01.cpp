@@ -407,11 +407,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("A1B2C3D4E5F6", std::string("Exception in setInt: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("FP1A2B3C4D5E", std::string("Exception in setInt: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("B2C3D4E5F6A7", "Unknown exception in setInt", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("FP2B3C4D5E6F", "Unknown exception in setInt", system_utils::captureCallStack()));
         }
     }
 
@@ -430,11 +430,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("C3D4E5F6A7B8", std::string("Exception in setLong: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("FBAV2W3X4Y5Z", std::string("Exception in setLong: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("D4E5F6A7B8C9", "Unknown exception in setLong", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("FBBW3X4Y5Z6A", "Unknown exception in setLong", system_utils::captureCallStack()));
         }
     }
 

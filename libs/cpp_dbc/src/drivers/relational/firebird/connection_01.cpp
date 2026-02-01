@@ -105,7 +105,7 @@ namespace cpp_dbc::Firebird
             std::string errorMsg = interpretStatusVector(status);
             FIREBIRD_DEBUG("  Failed to attach: " << errorMsg);
             delete dbHandle;
-            throw DBException("D0E6F2A8B5C1", "Failed to connect to database: " + errorMsg,
+            throw DBException("FB7A8B9C0D1E", "Failed to connect to database: " + errorMsg,
                               system_utils::captureCallStack());
         }
         FIREBIRD_DEBUG("  Attached successfully, dbHandle=" << dbHandle << ", *dbHandle=" << *dbHandle);
@@ -206,7 +206,7 @@ namespace cpp_dbc::Firebird
         {
             std::string errorMsg = interpretStatusVector(status);
             FIREBIRD_DEBUG("  Failed to start transaction: " << errorMsg);
-            throw DBException("E1F7A3B9C6D2", "Failed to start transaction: " + errorMsg,
+            throw DBException("FB8B9C0D1E2F", "Failed to start transaction: " + errorMsg,
                               system_utils::captureCallStack());
         }
 
@@ -237,7 +237,7 @@ namespace cpp_dbc::Firebird
             if (isc_commit_transaction(status, &m_tr))
             {
                 FIREBIRD_DEBUG("  isc_commit_transaction failed: " << interpretStatusVector(status));
-                throw DBException("F2A8B4C0D7E3", "Failed to commit transaction: " + interpretStatusVector(status),
+                throw DBException("FB9C0D1E2F3A", "Failed to commit transaction: " + interpretStatusVector(status),
                                   system_utils::captureCallStack());
             }
             FIREBIRD_DEBUG("  isc_commit_transaction succeeded");
@@ -248,7 +248,7 @@ namespace cpp_dbc::Firebird
             if (isc_rollback_transaction(status, &m_tr))
             {
                 FIREBIRD_DEBUG("  isc_rollback_transaction failed: " << interpretStatusVector(status));
-                throw DBException("A3B9C5D1E8F4", "Failed to rollback transaction: " + interpretStatusVector(status),
+                throw DBException("FB0D1E2F3A4B", "Failed to rollback transaction: " + interpretStatusVector(status),
                                   system_utils::captureCallStack());
             }
             FIREBIRD_DEBUG("  isc_rollback_transaction succeeded");

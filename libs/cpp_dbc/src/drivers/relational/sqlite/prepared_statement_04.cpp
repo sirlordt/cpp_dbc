@@ -47,7 +47,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("1S2T3U4V5W6X", "Statement is closed",
+                return cpp_dbc::unexpected(DBException("SL6F7G8H9I0J", "Statement is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -58,7 +58,7 @@ namespace cpp_dbc::SQLite
             int resetResult = sqlite3_reset(m_stmt.get());
             if (resetResult != SQLITE_OK)
             {
-                return cpp_dbc::unexpected(DBException("7Y8Z9A0B1C2D", "Failed to reset statement: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
+                return cpp_dbc::unexpected(DBException("SL7G8H9I0J1K", "Failed to reset statement: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
                                                        system_utils::captureCallStack()));
             }
 
@@ -91,7 +91,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("3E4F5G6H7I8J", "Statement is closed",
+                return cpp_dbc::unexpected(DBException("SL8H9I0J1K2L", "Statement is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -102,7 +102,7 @@ namespace cpp_dbc::SQLite
             int resetResult = sqlite3_reset(m_stmt.get());
             if (resetResult != SQLITE_OK)
             {
-                return cpp_dbc::unexpected(DBException("9K0L1M2N3O4P", "Failed to reset statement: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
+                return cpp_dbc::unexpected(DBException("SL9I0J1K2L3M", "Failed to reset statement: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
                                                        system_utils::captureCallStack()));
             }
 
@@ -110,7 +110,7 @@ namespace cpp_dbc::SQLite
             int result = sqlite3_step(m_stmt.get());
             if (result != SQLITE_DONE)
             {
-                return cpp_dbc::unexpected(DBException("5Q6R7S8T9U0V", "Failed to execute update: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(result) + ")",
+                return cpp_dbc::unexpected(DBException("SLAJ0K1L2M3N", "Failed to execute update: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(result) + ")",
                                                        system_utils::captureCallStack()));
             }
 
@@ -121,7 +121,7 @@ namespace cpp_dbc::SQLite
             resetResult = sqlite3_reset(m_stmt.get());
             if (resetResult != SQLITE_OK)
             {
-                return cpp_dbc::unexpected(DBException("1W2X3Y4Z5A6B", "Failed to reset statement after execution: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
+                return cpp_dbc::unexpected(DBException("SLBK1L2M3N4O", "Failed to reset statement after execution: " + std::string(sqlite3_errmsg(dbPtr)) + " (result=" + std::to_string(resetResult) + ")",
                                                        system_utils::captureCallStack()));
             }
 
@@ -153,7 +153,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("7C8D9E0F1G2H", "Statement is closed",
+                return cpp_dbc::unexpected(DBException("SLCL2M3N4O5P", "Statement is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -179,7 +179,7 @@ namespace cpp_dbc::SQLite
             }
             else
             {
-                return cpp_dbc::unexpected(DBException("3I4J5K6L7M8N", "Failed to execute statement: " + std::string(sqlite3_errmsg(dbPtr)),
+                return cpp_dbc::unexpected(DBException("SLDM3N4O5P6Q", "Failed to execute statement: " + std::string(sqlite3_errmsg(dbPtr)),
                                                        system_utils::captureCallStack()));
             }
         }

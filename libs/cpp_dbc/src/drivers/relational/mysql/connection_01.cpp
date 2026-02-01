@@ -61,7 +61,7 @@ namespace cpp_dbc::MySQL
         m_mysql = std::shared_ptr<MYSQL>(mysql_init(nullptr), MySQLDeleter());
         if (!m_mysql)
         {
-            throw DBException("3K4L5M6N7O8P", "Failed to initialize MySQL connection", system_utils::captureCallStack());
+            throw DBException("N3Z4A5B6C7D8", "Failed to initialize MySQL connection", system_utils::captureCallStack());
         }
 
         // Force TCP/IP connection
@@ -104,7 +104,7 @@ namespace cpp_dbc::MySQL
             std::string error = mysql_error(m_mysql.get());
             // unique_ptr will automatically call mysql_close via the deleter
             m_mysql.reset();
-            throw DBException("9Q0R1S2T3U4V", "Failed to connect to MySQL: " + error, system_utils::captureCallStack());
+            throw DBException("N4Z5A6B7C8D9", "Failed to connect to MySQL: " + error, system_utils::captureCallStack());
         }
 
         // Select the database if provided
@@ -113,7 +113,7 @@ namespace cpp_dbc::MySQL
             std::string error = mysql_error(m_mysql.get());
             // unique_ptr will automatically call mysql_close via the deleter
             m_mysql.reset();
-            throw DBException("5W6X7Y8Z9A0B", "Failed to select database: " + error, system_utils::captureCallStack());
+            throw DBException("N5Z6A7B8C9D0", "Failed to select database: " + error, system_utils::captureCallStack());
         }
 
         // Enable auto-commit by default

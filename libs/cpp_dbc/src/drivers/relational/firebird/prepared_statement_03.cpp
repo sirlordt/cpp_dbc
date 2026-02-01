@@ -377,7 +377,7 @@ namespace cpp_dbc::Firebird
             if (isc_dsql_execute(status, m_trPtr, &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
             {
                 std::string errorMsg = interpretStatusVector(status);
-                return cpp_dbc::unexpected(DBException("C9D5E1F7A4B0", "Failed to execute statement: " + errorMsg,
+                return cpp_dbc::unexpected(DBException("FBCX4Y5Z6A7B", "Failed to execute statement: " + errorMsg,
                                                        system_utils::captureCallStack()));
             }
 

@@ -47,7 +47,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("X9Y0Z1A2B3C4", "Statement is closed",
+                return cpp_dbc::unexpected(DBException("U1A2B3C4D5E6", "Statement is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -56,14 +56,14 @@ namespace cpp_dbc::SQLite
 
             if (parameterIndex <= 0)
             {
-                return cpp_dbc::unexpected(DBException("D5E6F7G8H9I0", "Invalid parameter index: " + std::to_string(parameterIndex),
+                return cpp_dbc::unexpected(DBException("U2A3B4C5D6E7", "Invalid parameter index: " + std::to_string(parameterIndex),
                                                        system_utils::captureCallStack()));
             }
 
             int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
-                return cpp_dbc::unexpected(DBException("J1K2L3M4N5O6", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
+                return cpp_dbc::unexpected(DBException("U3A4B5C6D7E8", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
                                                        system_utils::captureCallStack()));
             }
 
@@ -88,7 +88,7 @@ namespace cpp_dbc::SQLite
                                            SQLITE_STATIC);
             if (result != SQLITE_OK)
             {
-                return cpp_dbc::unexpected(DBException("V3W4X5Y6Z7A8", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(dbPtr)),
+                return cpp_dbc::unexpected(DBException("SLHQ7R8S9T0U", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(dbPtr)),
                                                        system_utils::captureCallStack()));
             }
             return {};
@@ -283,7 +283,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("H3I4J5K6L7M8", "Statement is closed",
+                return cpp_dbc::unexpected(DBException("U4A5B6C7D8E9", "Statement is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -291,14 +291,14 @@ namespace cpp_dbc::SQLite
 
             if (parameterIndex <= 0)
             {
-                return cpp_dbc::unexpected(DBException("N9O0P1Q2R3S4", "Invalid parameter index: " + std::to_string(parameterIndex),
+                return cpp_dbc::unexpected(DBException("U5A6B7C8D9E0", "Invalid parameter index: " + std::to_string(parameterIndex),
                                                        system_utils::captureCallStack()));
             }
 
             int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
-                return cpp_dbc::unexpected(DBException("T5U6V7W8X9Y0", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
+                return cpp_dbc::unexpected(DBException("U6A7B8C9D0E1", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
                                                        system_utils::captureCallStack()));
             }
 
@@ -321,7 +321,7 @@ namespace cpp_dbc::SQLite
                                            SQLITE_STATIC);
             if (result != SQLITE_OK)
             {
-                return cpp_dbc::unexpected(DBException("F7G8H9I0J1K2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(dbPtr)),
+                return cpp_dbc::unexpected(DBException("U7A8B9C0D1E2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(dbPtr)),
                                                        system_utils::captureCallStack()));
             }
             return {};

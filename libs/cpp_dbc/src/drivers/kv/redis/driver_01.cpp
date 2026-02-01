@@ -107,8 +107,8 @@ namespace cpp_dbc::Redis
         {
             std::ostringstream uri;
 
-            // Start with scheme
-            uri << "redis://";
+            // Start with scheme (use cpp_dbc: prefix for consistency with acceptsURL/connectKV)
+            uri << "cpp_dbc:redis://";
 
             // Add host
             uri << (host.empty() ? "localhost" : host);
@@ -193,13 +193,13 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("P0Q1R2S3T4U5",
+                return cpp_dbc::unexpected(DBException("RE1K8C9D0E1F",
                                                        std::string("connectKV failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("V6W7X8Y9Z0A1",
+                return cpp_dbc::unexpected(DBException("RD7A8B9C0D1E",
                                                        "connectKV failed: unknown error",
                                                        system_utils::captureCallStack()));
             }
@@ -257,13 +257,13 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("B2C3D4E5F6G7",
+                return cpp_dbc::unexpected(DBException("RD8B9C0D1E2F",
                                                        std::string("parseURI failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("H8I9J0K1L2M3",
+                return cpp_dbc::unexpected(DBException("RD9C0D1E2F3A",
                                                        "parseURI failed: unknown error",
                                                        system_utils::captureCallStack()));
             }

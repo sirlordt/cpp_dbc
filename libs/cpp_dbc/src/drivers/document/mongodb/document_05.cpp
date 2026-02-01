@@ -47,7 +47,7 @@ namespace cpp_dbc::MongoDB
             if (!navigateToField(fieldPath, iter))
             {
                 return unexpected<DBException>(DBException(
-                    "7A8B9C0D1E2F",
+                    "P2Q3R4S5T6U7",
                     "Field not found: " + fieldPath));
             }
 

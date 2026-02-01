@@ -177,7 +177,7 @@ namespace cpp_dbc::MySQL
                 catch ([[maybe_unused]] const std::exception &ex)
                 {
                     MYSQL_DEBUG("MySQLDBDriver::connectRelational - Invalid port in URL: " << ex.what());
-                    return cpp_dbc::unexpected(DBException("3A4B5C6D7E8F", "Invalid port in URL: " + url, system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected(DBException("P6Z7A8B9C0D1", "Invalid port in URL: " + url, system_utils::captureCallStack()));
                 }
             };
 
@@ -262,13 +262,13 @@ namespace cpp_dbc::MySQL
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("D6E2F8A4B1CE",
+            return cpp_dbc::unexpected(DBException("MY2B3C4D5E6F",
                                                    std::string("connectRelational failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("D6E2F8A4B1CF",
+            return cpp_dbc::unexpected(DBException("MY3C4D5E6F7G",
                                                    "connectRelational failed: unknown error",
                                                    system_utils::captureCallStack()));
         }

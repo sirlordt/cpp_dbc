@@ -71,6 +71,7 @@ namespace cpp_dbc::MongoDB
 
             if (bson_iter_init(&arrayIter, &arrayBson))
             {
+                size_t elementIndex = 0;
                 while (bson_iter_next(&arrayIter))
                 {
                     if (BSON_ITER_HOLDS_DOCUMENT(&arrayIter))
@@ -80,11 +81,15 @@ namespace cpp_dbc::MongoDB
                         bson_iter_document(&arrayIter, &docLength, &docData);
 
                         bson_t *subdoc = bson_new_from_data(docData, docLength);
-                        if (subdoc)
+                        if (!subdoc)
                         {
-                            result.push_back(std::make_shared<MongoDBDocument>(subdoc));
+                            return unexpected<DBException>(DBException(
+                                "6F7A8B9C0D1F",
+                                "Failed to construct subdocument at index " + std::to_string(elementIndex) + " in array field: " + fieldPath));
                         }
+                        result.push_back(std::make_shared<MongoDBDocument>(subdoc));
                     }
+                    elementIndex++;
                 }
             }
 
@@ -97,7 +102,7 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "7A8B9C0D1E2F",
+                "M9N0O1P2Q3R4",
                 "Memory allocation failed in getDocumentArray"));
         }
         catch (const std::exception &ex)

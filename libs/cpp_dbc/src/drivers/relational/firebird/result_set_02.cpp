@@ -427,7 +427,7 @@ namespace cpp_dbc::Firebird
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("B8C4D0E6F2A5", "Unknown exception in next", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("FBEZ6A7B8C9D", "Unknown exception in next", system_utils::captureCallStack()));
         }
     }
 

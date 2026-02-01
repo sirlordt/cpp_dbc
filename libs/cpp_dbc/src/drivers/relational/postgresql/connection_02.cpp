@@ -101,11 +101,11 @@ namespace cpp_dbc::PostgreSQL
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected<DBException>(DBException("2D7F9A3E8C1B", ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected<DBException>(DBException("PG3J1K2L3M4N", ex.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected<DBException>(DBException("6B2A5F9D3C7E", "Unknown error in PostgreSQLDBConnection::executeQuery", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected<DBException>(DBException("PG4K2L3M4N5O", "Unknown error in PostgreSQLDBConnection::executeQuery", system_utils::captureCallStack()));
         }
     }
 
@@ -162,7 +162,7 @@ namespace cpp_dbc::PostgreSQL
 
             if (m_closed || !m_conn)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7A8B9C0D1E2F", "Connection is closed", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("R4S5T6U7V8W9", "Connection is closed", system_utils::captureCallStack()));
             }
 
             // Only take action if the flag is actually changing
@@ -245,7 +245,7 @@ namespace cpp_dbc::PostgreSQL
 
             if (m_closed || !m_conn)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7A8B9C0D1E2F", "Connection is closed", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("S5T6U7V8W9X0", "Connection is closed", system_utils::captureCallStack()));
             }
 
             // If transaction is already active, just return true

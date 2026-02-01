@@ -66,7 +66,7 @@ namespace cpp_dbc::ScyllaDB
             cass_future_error_message(connect_future.get(), &message, &length);
             std::string errorMsg(message, length);
             SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connection failed: " << errorMsg);
-            throw DBException("109238502385", errorMsg, system_utils::captureCallStack());
+            throw DBException("Q8R9S0T1U2V3", errorMsg, system_utils::captureCallStack());
         }
 
         SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connected successfully");
@@ -81,7 +81,7 @@ namespace cpp_dbc::ScyllaDB
             if (cass_future_error_code(future.get()) != CASS_OK)
             {
                 SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Failed to use keyspace: " << keyspace);
-                throw DBException("912830912830", "Failed to use keyspace " + keyspace, system_utils::captureCallStack());
+                throw DBException("R9S0T1U2V3W4", "Failed to use keyspace " + keyspace, system_utils::captureCallStack());
             }
         }
 
@@ -189,7 +189,7 @@ namespace cpp_dbc::ScyllaDB
         if (m_closed || !m_session)
         {
             SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Connection closed");
-            return cpp_dbc::unexpected(DBException("981230918230", "Connection closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("S0T1U2V3W4X5", "Connection closed", system_utils::captureCallStack()));
         }
 
         CassFutureHandle future(cass_session_prepare(m_session.get(), query.c_str()));
@@ -201,7 +201,7 @@ namespace cpp_dbc::ScyllaDB
             cass_future_error_message(future.get(), &message, &length);
             std::string errorMsg(message, length);
             SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Prepare failed: " << errorMsg);
-            return cpp_dbc::unexpected(DBException("192830192830", errorMsg, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("T1U2V3W4X5Y6", errorMsg, system_utils::captureCallStack()));
         }
 
         const CassPrepared *prepared = cass_future_get_prepared(future.get());
@@ -269,7 +269,7 @@ namespace cpp_dbc::ScyllaDB
         if (queryUpper.starts_with("DELETE "))
         {
             // Special case for 'WHERE id IN' to handle multiple rows for tests
-            if (queryUpper.contains("WHERE ID IN") || queryUpper.contains("WHERE id IN"))
+            if (queryUpper.contains("WHERE ID IN"))
             {
                 // Count the number of elements in the IN clause
                 size_t inStart = queryUpper.find("IN (");

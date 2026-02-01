@@ -68,7 +68,7 @@ namespace cpp_dbc::SQLite
             else
             {
                 // Error occurred
-                return cpp_dbc::unexpected(DBException("A1B2C3D4E5F6", "Error stepping through SQLite result set: " + std::string(sqlite3_errmsg(sqlite3_db_handle(stmt))),
+                return cpp_dbc::unexpected(DBException("SL1A2B3C4D5E", "Error stepping through SQLite result set: " + std::string(sqlite3_errmsg(sqlite3_db_handle(stmt))),
                                                        system_utils::captureCallStack()));
             }
         }
@@ -78,13 +78,13 @@ namespace cpp_dbc::SQLite
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("A1B2C3D4E5F7",
+            return cpp_dbc::unexpected(DBException("SL2B3C4D5E6F",
                                                    std::string("next failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("A1B2C3D4E5F8",
+            return cpp_dbc::unexpected(DBException("SL3C4D5E6F7G",
                                                    "next failed: unknown error",
                                                    system_utils::captureCallStack()));
         }
@@ -252,7 +252,7 @@ namespace cpp_dbc::SQLite
             sqlite3_stmt *stmt = getStmt();
             if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
-                return cpp_dbc::unexpected(DBException("9M0N1O2P3Q4R", "Invalid column index or row position",
+                return cpp_dbc::unexpected(DBException("SL4D5E6F7G8H", "Invalid column index or row position",
                                                        system_utils::captureCallStack()));
             }
 
@@ -333,7 +333,7 @@ namespace cpp_dbc::SQLite
             sqlite3_stmt *stmt = getStmt();
             if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
-                return cpp_dbc::unexpected(DBException("7A8B9C0D1E2F", "Invalid column index or row position",
+                return cpp_dbc::unexpected(DBException("O1P2Q3R4S5T6", "Invalid column index or row position",
                                                        system_utils::captureCallStack()));
             }
 
@@ -405,7 +405,7 @@ namespace cpp_dbc::SQLite
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
             {
-                return cpp_dbc::unexpected(DBException("3G4H5I6J7K8L", "Column not found: " + columnName,
+                return cpp_dbc::unexpected(DBException("SLIR8S9T0U1V", "Column not found: " + columnName,
                                                        system_utils::captureCallStack()));
             }
 

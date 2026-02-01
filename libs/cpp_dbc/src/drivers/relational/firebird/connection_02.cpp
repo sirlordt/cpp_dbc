@@ -276,7 +276,7 @@ namespace cpp_dbc::Firebird
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("A2B3C4D5E6F7", "Unknown exception in executeQuery", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("FBDY5Z6A7B8C", "Unknown exception in executeQuery", system_utils::captureCallStack()));
         }
     }
 

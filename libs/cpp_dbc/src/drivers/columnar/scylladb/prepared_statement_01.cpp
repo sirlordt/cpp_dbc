@@ -45,7 +45,7 @@ namespace cpp_dbc::ScyllaDB
         if (m_session.expired())
         {
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::checkSession - Session is closed");
-            throw DBException("285435967910", "Session is closed", system_utils::captureCallStack());
+            throw DBException("A2B3C4D5E6F7", "Session is closed", system_utils::captureCallStack());
         }
     }
 

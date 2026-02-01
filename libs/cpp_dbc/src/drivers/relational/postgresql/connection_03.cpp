@@ -193,7 +193,7 @@ namespace cpp_dbc::PostgreSQL
                     {
                         std::string error = PQresultErrorMessage(result);
                         PQclear(result);
-                        return cpp_dbc::unexpected<DBException>(DBException("7M8N9O0P1Q2R", "Failed to start SERIALIZABLE transaction: " + error, system_utils::captureCallStack()));
+                        return cpp_dbc::unexpected<DBException>(DBException("V8W9X0Y1Z2A3", "Failed to start SERIALIZABLE transaction: " + error, system_utils::captureCallStack()));
                     }
                     PQclear(result);
 

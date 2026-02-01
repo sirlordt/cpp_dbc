@@ -124,12 +124,28 @@ namespace cpp_dbc::Redis
 
                 if (matches.size() > 2 && matches[2].matched)
                 {
-                    port = std::stoi(matches[2].str());
+                    try
+                    {
+                        port = std::stoi(matches[2].str());
+                    }
+                    catch (const std::exception &e)
+                    {
+                        throw DBException("C58E02D9F1A8", "Invalid port in Redis URI: " + matches[2].str(),
+                                          system_utils::captureCallStack());
+                    }
                 }
 
                 if (matches.size() > 3 && matches[3].matched)
                 {
-                    m_dbIndex = std::stoi(matches[3].str());
+                    try
+                    {
+                        m_dbIndex = std::stoi(matches[3].str());
+                    }
+                    catch (const std::exception &e)
+                    {
+                        throw DBException("C58E02D9F1A9", "Invalid database index in Redis URI: " + matches[3].str(),
+                                          system_utils::captureCallStack());
+                    }
                 }
             }
             else

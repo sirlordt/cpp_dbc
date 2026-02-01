@@ -88,7 +88,7 @@ namespace cpp_dbc::MongoDB
 
         if (!acceptsURL(url))
         {
-            throw DBException("I9J0K1L2M3N4", "Invalid MongoDB URL: " + url, system_utils::captureCallStack());
+            throw DBException("MG1L2M3N4O5P", "Invalid MongoDB URL: " + url, system_utils::captureCallStack());
         }
 
         // Strip the 'cpp_dbc:' prefix if present
@@ -126,12 +126,12 @@ namespace cpp_dbc::MongoDB
         }
 
         // Extract components
-        const char *host = mongoc_uri_get_hosts(mongoUri.get())->host;
-        if (host)
-            result["host"] = host;
-
-        uint16_t port = mongoc_uri_get_hosts(mongoUri.get())->port;
-        result["port"] = std::to_string(port);
+        const mongoc_host_list_t *hosts = mongoc_uri_get_hosts(mongoUri.get());
+        if (hosts && hosts->host)
+        {
+            result["host"] = hosts->host;
+            result["port"] = std::to_string(hosts->port);
+        }
 
         const char *database = mongoc_uri_get_database(mongoUri.get());
         if (database)
@@ -311,12 +311,12 @@ namespace cpp_dbc::MongoDB
             }
 
             // Extract components
-            const char *host = mongoc_uri_get_hosts(mongoUri.get())->host;
-            if (host)
-                result["host"] = host;
-
-            uint16_t port = mongoc_uri_get_hosts(mongoUri.get())->port;
-            result["port"] = std::to_string(port);
+            const mongoc_host_list_t *hosts = mongoc_uri_get_hosts(mongoUri.get());
+            if (hosts && hosts->host)
+            {
+                result["host"] = hosts->host;
+                result["port"] = std::to_string(hosts->port);
+            }
 
             const char *database = mongoc_uri_get_database(mongoUri.get());
             if (database)

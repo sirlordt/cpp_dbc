@@ -153,7 +153,7 @@ namespace cpp_dbc::SQLite
             {
                 if (!parseURL(url, database))
                 {
-                    return cpp_dbc::unexpected(DBException("5C6D7E8F9G0H", "Invalid SQLite connection URL: " + url,
+                    return cpp_dbc::unexpected(DBException("SLEN4O5P6Q7R", "Invalid SQLite connection URL: " + url,
                                                            system_utils::captureCallStack()));
                 }
             }
@@ -166,7 +166,7 @@ namespace cpp_dbc::SQLite
                 }
                 else
                 {
-                    return cpp_dbc::unexpected(DBException("1I2J3K4L5M6N", "Invalid SQLite connection URL: " + url,
+                    return cpp_dbc::unexpected(DBException("SLFO5P6Q7R8S", "Invalid SQLite connection URL: " + url,
                                                            system_utils::captureCallStack()));
                 }
             }

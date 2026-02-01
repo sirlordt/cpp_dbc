@@ -284,6 +284,12 @@ namespace cpp_dbc::PostgreSQL
                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
         ~PostgreSQLDBConnection() override;
 
+        // Rule of 5: Non-copyable and non-movable (mutex member prevents copying/moving)
+        PostgreSQLDBConnection(const PostgreSQLDBConnection &) = delete;
+        PostgreSQLDBConnection &operator=(const PostgreSQLDBConnection &) = delete;
+        PostgreSQLDBConnection(PostgreSQLDBConnection &&) = delete;
+        PostgreSQLDBConnection &operator=(PostgreSQLDBConnection &&) = delete;
+
         // DBConnection interface
         void close() override;
         bool isClosed() override;

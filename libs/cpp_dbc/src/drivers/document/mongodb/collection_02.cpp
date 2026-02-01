@@ -166,15 +166,42 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            std::string filter;
+            // Use BSON construction to prevent JSON injection
+            bson_t *filterBson = bson_new();
+            if (!filterBson)
+            {
+                return unexpected<DBException>(DBException(
+                    "A8B9C0D1E2F2",
+                    "Failed to allocate BSON for filter",
+                    system_utils::captureCallStack()));
+            }
+
             if (bson_oid_is_valid(id.c_str(), id.length()))
             {
-                filter = R"({"_id": {"$oid": ")" + id + R"("}})";
+                bson_oid_t oid;
+                bson_oid_init_from_string(&oid, id.c_str());
+                BSON_APPEND_OID(filterBson, "_id", &oid);
             }
             else
             {
-                filter = R"({"_id": ")" + id + R"("})";
+                BSON_APPEND_UTF8(filterBson, "_id", id.c_str());
             }
+
+            size_t length = 0;
+            char *json = bson_as_json(filterBson, &length);
+            bson_destroy(filterBson);
+
+            if (!json)
+            {
+                return unexpected<DBException>(DBException(
+                    "A8B9C0D1E2F4",
+                    "Failed to convert BSON filter to JSON",
+                    system_utils::captureCallStack()));
+            }
+
+            std::string filter(json, length);
+            bson_free(json);
+
             return findOne(std::nothrow, filter);
         }
         catch (const DBException &ex)

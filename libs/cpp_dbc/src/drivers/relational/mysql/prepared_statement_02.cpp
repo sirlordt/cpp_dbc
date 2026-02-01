@@ -46,7 +46,7 @@ namespace cpp_dbc::MySQL
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
-                return cpp_dbc::unexpected(DBException("5K6L7M8N9O0P", "Invalid parameter index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("O2Z3A4B5C6D7", "Invalid parameter index", system_utils::captureCallStack()));
             }
 
             int idx = parameterIndex - 1;
@@ -90,7 +90,7 @@ namespace cpp_dbc::MySQL
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
-                return cpp_dbc::unexpected(DBException("1Q2R3S4T5U6V", "Invalid parameter index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("O3Z4A5B6C7D8", "Invalid parameter index", system_utils::captureCallStack()));
             }
 
             int idx = parameterIndex - 1;
@@ -134,7 +134,7 @@ namespace cpp_dbc::MySQL
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
-                return cpp_dbc::unexpected(DBException("7W8X9Y0Z1A2B", "Invalid parameter index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("O4Z5A6B7C8D9", "Invalid parameter index", system_utils::captureCallStack()));
             }
 
             int idx = parameterIndex - 1;
@@ -178,7 +178,7 @@ namespace cpp_dbc::MySQL
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
-                return cpp_dbc::unexpected(DBException("3C4D5E6F7G8H", "Invalid parameter index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("O5Z6A7B8C9D0", "Invalid parameter index", system_utils::captureCallStack()));
             }
 
             int idx = parameterIndex - 1;
@@ -231,7 +231,7 @@ namespace cpp_dbc::MySQL
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
-                return cpp_dbc::unexpected(DBException("9I0J1K2L3M4N", "Invalid parameter index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("O6Z7A8B9C0D1", "Invalid parameter index", system_utils::captureCallStack()));
             }
 
             int idx = parameterIndex - 1;
@@ -275,7 +275,7 @@ namespace cpp_dbc::MySQL
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
-                return cpp_dbc::unexpected(DBException("5O6P7Q8R9S0T", "Invalid parameter index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("O7Z8A9B0C1D2", "Invalid parameter index", system_utils::captureCallStack()));
             }
 
             int idx = parameterIndex - 1;
@@ -351,7 +351,7 @@ namespace cpp_dbc::MySQL
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
-                return cpp_dbc::unexpected(DBException("1U2V3W4X5Y6Z", "Invalid parameter index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("O8Z9A0B1C2D3", "Invalid parameter index", system_utils::captureCallStack()));
             }
 
             int idx = parameterIndex - 1;
@@ -393,7 +393,7 @@ namespace cpp_dbc::MySQL
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
-                return cpp_dbc::unexpected(DBException("7A8B9C0D1E2F", "Invalid parameter index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("O9Z0A1B2C3D4", "Invalid parameter index", system_utils::captureCallStack()));
             }
 
             int idx = parameterIndex - 1;

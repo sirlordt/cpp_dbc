@@ -96,7 +96,7 @@ namespace cpp_dbc::PostgreSQL
         m_conn = std::shared_ptr<PGconn>(rawConn, PGconnDeleter());
 
         // Set up a notice processor to suppress NOTICE messages
-        PQsetNoticeProcessor(m_conn.get(), []([[maybe_unused]] void *arg, [[maybe_unused]] const char *message)
+        PQsetNoticeProcessor(m_conn.get(), []([[maybe_unused]] void *arg, [[maybe_unused]] const char *message) // NOSONAR - void* signature required by PostgreSQL libpq API (PQnoticeProcessor typedef)
                              {
                                  // Do nothing with the notice message
                              },

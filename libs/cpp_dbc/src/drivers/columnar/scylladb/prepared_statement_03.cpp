@@ -42,7 +42,7 @@ namespace cpp_dbc::ScyllaDB
         if (!session)
         {
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Session closed");
-            return cpp_dbc::unexpected(DBException("285435967910", "Session closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("W8X9Y0Z1A2B3", "Session closed", system_utils::captureCallStack()));
         }
         if (!m_statement)
         {
@@ -61,7 +61,7 @@ namespace cpp_dbc::ScyllaDB
             cass_future_error_message(future.get(), &message, &length);
             std::string errorMsg(message, length);
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Error: " << errorMsg);
-            return cpp_dbc::unexpected(DBException("923573205723", errorMsg, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("X9Y0Z1A2B3C4", errorMsg, system_utils::captureCallStack()));
         }
 
         const CassResult *result = cass_future_get_result(future.get());
@@ -69,7 +69,7 @@ namespace cpp_dbc::ScyllaDB
         {
             // Should not happen if error_code is OK, but safety first
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Failed to get result");
-            return cpp_dbc::unexpected(DBException("823507305723", "Failed to get result", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("Y0Z1A2B3C4D5", "Failed to get result", system_utils::captureCallStack()));
         }
 
         size_t rowCount = cass_result_row_count(result);
@@ -122,7 +122,7 @@ namespace cpp_dbc::ScyllaDB
             if (queryUpper.starts_with("DELETE "))
             {
                 // Special case for 'WHERE id IN' to handle multiple rows for tests
-                if (queryUpper.contains("WHERE ID IN") || queryUpper.contains("WHERE id IN"))
+                if (queryUpper.contains("WHERE ID IN"))
                 {
                     // Count the number of elements in the IN clause
                     size_t inStart = queryUpper.find("IN (");
@@ -313,7 +313,7 @@ namespace cpp_dbc::ScyllaDB
             cass_future_error_message(future.get(), &message, &length);
             std::string errorMsg(message, length);
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Error executing batch: " << errorMsg);
-            return cpp_dbc::unexpected(DBException("295872350923", errorMsg, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("Z1A2B3C4D5E6", errorMsg, system_utils::captureCallStack()));
         }
 
         SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeBatch - Batch executed successfully");

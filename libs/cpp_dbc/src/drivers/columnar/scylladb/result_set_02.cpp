@@ -85,7 +85,7 @@ namespace cpp_dbc::ScyllaDB
         }
         if (columnIndex < 1 || columnIndex > m_columnCount)
         {
-            return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("Q7R8S9T0U1V2", "Invalid column index", system_utils::captureCallStack()));
         }
 
         const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
@@ -98,7 +98,7 @@ namespace cpp_dbc::ScyllaDB
         if (cass_value_get_int32(val, &output) != CASS_OK)
         {
             // Try parsing from other types? For now, strict.
-            return cpp_dbc::unexpected(DBException("45963E8203E7", "Failed to get int32", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("I9J0K1L2M3N4", "Failed to get int32", system_utils::captureCallStack()));
         }
         return output;
     }
@@ -125,7 +125,7 @@ namespace cpp_dbc::ScyllaDB
         cass_int64_t output;
         if (cass_value_get_int64(val, &output) != CASS_OK)
         {
-            return cpp_dbc::unexpected(DBException("45963E8203E7", "Failed to get int64", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("SC2B3C4D5E6F", "Failed to get int64", system_utils::captureCallStack()));
         }
         return output;
     }
@@ -152,7 +152,7 @@ namespace cpp_dbc::ScyllaDB
         cass_double_t output;
         if (cass_value_get_double(val, &output) != CASS_OK)
         {
-            return cpp_dbc::unexpected(DBException("45963E8203E7", "Failed to get double", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("K1L2M3N4O5P6", "Failed to get double", system_utils::captureCallStack()));
         }
         return output;
     }
@@ -167,7 +167,7 @@ namespace cpp_dbc::ScyllaDB
         }
         if (columnIndex < 1 || columnIndex > m_columnCount)
         {
-            return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("R8S9T0U1V2W3", "Invalid column index", system_utils::captureCallStack()));
         }
 
         const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
@@ -182,7 +182,7 @@ namespace cpp_dbc::ScyllaDB
         size_t output_length;
         if (cass_value_get_string(val, &output, &output_length) != CASS_OK)
         {
-            return cpp_dbc::unexpected(DBException("45963E8203E7", "Failed to get string", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("L2M3N4O5P6Q7", "Failed to get string", system_utils::captureCallStack()));
         }
         return std::string(output, output_length);
     }
@@ -197,7 +197,7 @@ namespace cpp_dbc::ScyllaDB
         }
         if (columnIndex < 1 || columnIndex > m_columnCount)
         {
-            return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("S9T0U1V2W3X4", "Invalid column index", system_utils::captureCallStack()));
         }
 
         const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
@@ -209,7 +209,7 @@ namespace cpp_dbc::ScyllaDB
         cass_bool_t output;
         if (cass_value_get_bool(val, &output) != CASS_OK)
         {
-            return cpp_dbc::unexpected(DBException("45963E8203E7", "Failed to get boolean", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("M3N4O5P6Q7R8", "Failed to get boolean", system_utils::captureCallStack()));
         }
         return output == cass_true;
     }
@@ -224,7 +224,7 @@ namespace cpp_dbc::ScyllaDB
         }
         if (columnIndex < 1 || columnIndex > m_columnCount)
         {
-            return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("T0U1V2W3X4Y5", "Invalid column index", system_utils::captureCallStack()));
         }
 
         const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
@@ -241,7 +241,7 @@ namespace cpp_dbc::ScyllaDB
         }
         if (columnIndex < 1 || columnIndex > m_columnCount)
         {
-            return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("U1V2W3X4Y5Z6", "Invalid column index", system_utils::captureCallStack()));
         }
 
         const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
@@ -270,7 +270,7 @@ namespace cpp_dbc::ScyllaDB
             return std::string(output, output_length);
         }
 
-        return cpp_dbc::unexpected(DBException("45963E8203E7", "Failed to get UUID", system_utils::captureCallStack()));
+        return cpp_dbc::unexpected(DBException("N4O5P6Q7R8S9", "Failed to get UUID", system_utils::captureCallStack()));
     }
 
     cpp_dbc::expected<std::string, DBException> ScyllaDBResultSet::getDate(std::nothrow_t, size_t columnIndex) noexcept
@@ -283,7 +283,7 @@ namespace cpp_dbc::ScyllaDB
         }
         if (columnIndex < 1 || columnIndex > m_columnCount)
         {
-            return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("V2W3X4Y5Z6A7", "Invalid column index", system_utils::captureCallStack()));
         }
 
         const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
@@ -307,7 +307,11 @@ namespace cpp_dbc::ScyllaDB
                 std::time_t time_seconds = days_since_epoch * 86400; // 86400 seconds per day
 
                 std::tm tm_buf{};
+#ifdef _WIN32
+                if (gmtime_s(&tm_buf, &time_seconds) == 0)
+#else
                 if (gmtime_r(&time_seconds, &tm_buf))
+#endif
                 {
                     std::stringstream ss;
                     ss << std::put_time(&tm_buf, "%Y-%m-%d");
@@ -325,7 +329,11 @@ namespace cpp_dbc::ScyllaDB
                 // Convert timestamp to date string (YYYY-MM-DD)
                 std::time_t time_seconds = timestamp_ms / 1000;
                 std::tm tm_buf{};
+#ifdef _WIN32
+                if (gmtime_s(&tm_buf, &time_seconds) == 0)
+#else
                 if (gmtime_r(&time_seconds, &tm_buf))
+#endif
                 {
                     std::stringstream ss;
                     ss << std::put_time(&tm_buf, "%Y-%m-%d");
@@ -342,7 +350,7 @@ namespace cpp_dbc::ScyllaDB
             return std::string(output, output_length);
         }
 
-        return cpp_dbc::unexpected(DBException("45963E8203E7", "Failed to get date", system_utils::captureCallStack()));
+        return cpp_dbc::unexpected(DBException("O5P6Q7R8S9T0", "Failed to get date", system_utils::captureCallStack()));
     }
 
     cpp_dbc::expected<std::string, DBException> ScyllaDBResultSet::getTimestamp(std::nothrow_t, size_t columnIndex) noexcept
@@ -355,7 +363,7 @@ namespace cpp_dbc::ScyllaDB
         }
         if (columnIndex < 1 || columnIndex > m_columnCount)
         {
-            return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("W3X4Y5Z6A7B8", "Invalid column index", system_utils::captureCallStack()));
         }
 
         const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
@@ -372,7 +380,11 @@ namespace cpp_dbc::ScyllaDB
                 // Convert timestamp to full datetime string (YYYY-MM-DD HH:MM:SS)
                 std::time_t time_seconds = timestamp_ms / 1000;
                 std::tm tm_buf{};
+#ifdef _WIN32
+                if (gmtime_s(&tm_buf, &time_seconds) == 0)
+#else
                 if (gmtime_r(&time_seconds, &tm_buf))
+#endif
                 {
                     std::stringstream ss;
                     ss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
@@ -389,7 +401,7 @@ namespace cpp_dbc::ScyllaDB
             return std::string(output, output_length);
         }
 
-        return cpp_dbc::unexpected(DBException("45963E8203E7", "Failed to get timestamp", system_utils::captureCallStack()));
+        return cpp_dbc::unexpected(DBException("P6Q7R8S9T0U1", "Failed to get timestamp", system_utils::captureCallStack()));
     }
 
 } // namespace cpp_dbc::ScyllaDB

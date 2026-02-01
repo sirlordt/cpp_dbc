@@ -325,7 +325,7 @@ namespace cpp_dbc::PostgreSQL
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            throw DBException("599349A7DAA4", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw DBException("PG1H9I0J1K2L", "Column not found: " + columnName, system_utils::captureCallStack());
         }
 
         return getBytes(it->second + 1); // +1 because getBytes(int) is 1-based

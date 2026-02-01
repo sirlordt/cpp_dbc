@@ -29,7 +29,9 @@
 #define REDIS_DEBUG(x)
 #endif
 
-// Macro for mutex lock guard
-#define REDIS_LOCK_GUARD(mtx) std::lock_guard<std::mutex> lock_(mtx)
+// Macro for mutex lock guard with unique variable name to prevent shadowing
+#define REDIS_LOCK_GUARD_CONCAT_IMPL(x, y) x##y
+#define REDIS_LOCK_GUARD_CONCAT(x, y) REDIS_LOCK_GUARD_CONCAT_IMPL(x, y)
+#define REDIS_LOCK_GUARD(mtx) std::lock_guard<std::mutex> REDIS_LOCK_GUARD_CONCAT(lock_, __LINE__)(mtx)
 
 #endif // CPP_DBC_REDIS_INTERNAL_HPP

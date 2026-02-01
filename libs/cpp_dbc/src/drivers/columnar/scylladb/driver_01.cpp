@@ -81,7 +81,16 @@ namespace cpp_dbc::ScyllaDB
 
     bool ScyllaDBDriver::supportsClustering() const { return true; }
     bool ScyllaDBDriver::supportsAsync() const { return true; }
-    std::string ScyllaDBDriver::getDriverVersion() const { return "2.16.0"; } // Example version of underlying driver
+    std::string ScyllaDBDriver::getDriverVersion() const
+    {
+#if defined(CASS_VERSION_MAJOR) && defined(CASS_VERSION_MINOR) && defined(CASS_VERSION_PATCH)
+        return std::to_string(CASS_VERSION_MAJOR) + "." +
+               std::to_string(CASS_VERSION_MINOR) + "." +
+               std::to_string(CASS_VERSION_PATCH);
+#else
+        return "unknown";
+#endif
+    }
 
     // Nothrow API
 
@@ -118,7 +127,7 @@ namespace cpp_dbc::ScyllaDB
         catch (const std::exception &ex)
         {
             SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Exception: " << ex.what());
-            return cpp_dbc::unexpected(DBException("891238912389", ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("O6P7Q8R9S0T1", ex.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
@@ -136,7 +145,7 @@ namespace cpp_dbc::ScyllaDB
         if (!uri.starts_with(scheme))
         {
             SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Invalid scheme");
-            return cpp_dbc::unexpected(DBException("123891238912", "Must start with cpp_dbc:scylladb://", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("P7Q8R9S0T1U2", "Must start with cpp_dbc:scylladb://", system_utils::captureCallStack()));
         }
 
         std::string rest = uri.substr(scheme.length());

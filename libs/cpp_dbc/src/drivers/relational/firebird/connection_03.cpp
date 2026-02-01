@@ -75,7 +75,7 @@ namespace cpp_dbc::Firebird
                 }
                 catch (const std::exception &e)
                 {
-                    return cpp_dbc::unexpected(DBException("B2C3D4E5F6A7", std::string("Exception in executeCreateDatabase: ") + e.what(),
+                    return cpp_dbc::unexpected(DBException("FC1A2B3C4D5E", std::string("Exception in executeCreateDatabase: ") + e.what(),
                                                            system_utils::captureCallStack()));
                 }
             }
@@ -173,12 +173,12 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("E5F6A7B8C9D0", std::string("Exception in setAutoCommit: ") + e.what(),
+            return cpp_dbc::unexpected(DBException("FB7S9T0U1V2W", std::string("Exception in setAutoCommit: ") + e.what(),
                                                    system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("F6A7B8C9D0E1", "Unknown exception in setAutoCommit",
+            return cpp_dbc::unexpected(DBException("FB8T0U1V2W3X", "Unknown exception in setAutoCommit",
                                                    system_utils::captureCallStack()));
         }
     }
@@ -199,7 +199,7 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("A7B8C9D0E1F2", std::string("Exception in getAutoCommit: ") + e.what(),
+            return cpp_dbc::unexpected(DBException("FB9U1V2W3X4Y", std::string("Exception in getAutoCommit: ") + e.what(),
                                                    system_utils::captureCallStack()));
         }
         catch (...)

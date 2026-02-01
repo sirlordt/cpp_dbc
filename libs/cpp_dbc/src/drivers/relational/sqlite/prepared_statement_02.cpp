@@ -47,7 +47,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("9Q0R1S2T3U4V", "Statement is closed",
+                return cpp_dbc::unexpected(DBException("S0Z1A2B3C4D5", "Statement is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -58,7 +58,7 @@ namespace cpp_dbc::SQLite
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
             {
-                return cpp_dbc::unexpected(DBException("5W6X7Y8Z9A0B", "Invalid parameter index: " + std::to_string(parameterIndex),
+                return cpp_dbc::unexpected(DBException("S1Z2A3B4C5D6", "Invalid parameter index: " + std::to_string(parameterIndex),
                                                        system_utils::captureCallStack()));
             }
 
@@ -66,14 +66,14 @@ namespace cpp_dbc::SQLite
             int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
-                return cpp_dbc::unexpected(DBException("1C2D3E4F5G6H", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
+                return cpp_dbc::unexpected(DBException("S2Z3A4B5C6D7", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
                                                        system_utils::captureCallStack()));
             }
 
             int result = sqlite3_bind_int(m_stmt.get(), parameterIndex, value);
             if (result != SQLITE_OK)
             {
-                return cpp_dbc::unexpected(DBException("7I8J9K0L1M2N", "Failed to bind integer parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value=" + std::to_string(value) + ", result=" + std::to_string(result) + ")",
+                return cpp_dbc::unexpected(DBException("S3Z4A5B6C7D8", "Failed to bind integer parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value=" + std::to_string(value) + ", result=" + std::to_string(result) + ")",
                                                        system_utils::captureCallStack()));
             }
             return {};
@@ -104,7 +104,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("3O4P5Q6R7S8T", "Statement is closed",
+                return cpp_dbc::unexpected(DBException("S4Z5A6B7C8D9", "Statement is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -115,14 +115,14 @@ namespace cpp_dbc::SQLite
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
             {
-                return cpp_dbc::unexpected(DBException("9U0V1W2X3Y4Z", "Invalid parameter index: " + std::to_string(parameterIndex),
+                return cpp_dbc::unexpected(DBException("S5Z6A7B8C9D0", "Invalid parameter index: " + std::to_string(parameterIndex),
                                                        system_utils::captureCallStack()));
             }
 
             int result = sqlite3_bind_int64(m_stmt.get(), parameterIndex, value);
             if (result != SQLITE_OK)
             {
-                return cpp_dbc::unexpected(DBException("5A6B7C8D9E0F", "Failed to bind long parameter: " + std::string(sqlite3_errmsg(dbPtr)),
+                return cpp_dbc::unexpected(DBException("S6Z7A8B9C0D1", "Failed to bind long parameter: " + std::string(sqlite3_errmsg(dbPtr)),
                                                        system_utils::captureCallStack()));
             }
             return {};
@@ -153,7 +153,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("1G2H3I4J5K6L", "Statement is closed",
+                return cpp_dbc::unexpected(DBException("S7Z8A9B0C1D2", "Statement is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -172,14 +172,14 @@ namespace cpp_dbc::SQLite
             int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
-                return cpp_dbc::unexpected(DBException("3S4T5U6V7W8X", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
+                return cpp_dbc::unexpected(DBException("S8Z9A0B1C2D3", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
                                                        system_utils::captureCallStack()));
             }
 
             int result = sqlite3_bind_double(m_stmt.get(), parameterIndex, value);
             if (result != SQLITE_OK)
             {
-                return cpp_dbc::unexpected(DBException("9Y0Z1A2B3C4D", "Failed to bind double parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value=" + std::to_string(value) + ", result=" + std::to_string(result) + ")",
+                return cpp_dbc::unexpected(DBException("S9Z0A1B2C3D4", "Failed to bind double parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value=" + std::to_string(value) + ", result=" + std::to_string(result) + ")",
                                                        system_utils::captureCallStack()));
             }
             return {};
@@ -210,7 +210,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("5E6F7G8H9I0J", "Statement is closed",
+                return cpp_dbc::unexpected(DBException("T0Z1A2B3C4D5", "Statement is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -221,7 +221,7 @@ namespace cpp_dbc::SQLite
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
             {
-                return cpp_dbc::unexpected(DBException("1K2L3M4N5O6P", "Invalid parameter index: " + std::to_string(parameterIndex),
+                return cpp_dbc::unexpected(DBException("T1Z2A3B4C5D6", "Invalid parameter index: " + std::to_string(parameterIndex),
                                                        system_utils::captureCallStack()));
             }
 
@@ -229,7 +229,7 @@ namespace cpp_dbc::SQLite
             int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
-                return cpp_dbc::unexpected(DBException("7Q8R9S0T1U2V", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
+                return cpp_dbc::unexpected(DBException("T2Z3A4B5C6D7", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
                                                        system_utils::captureCallStack()));
             }
 
@@ -237,7 +237,7 @@ namespace cpp_dbc::SQLite
             int result = sqlite3_bind_text(m_stmt.get(), parameterIndex, value.c_str(), -1, SQLITE_TRANSIENT);
             if (result != SQLITE_OK)
             {
-                return cpp_dbc::unexpected(DBException("3W4X5Y6Z7A8B", "Failed to bind string parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value='" + value + "'" + ", result=" + std::to_string(result) + ")",
+                return cpp_dbc::unexpected(DBException("T3Z4A5B6C7D8", "Failed to bind string parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value='" + value + "'" + ", result=" + std::to_string(result) + ")",
                                                        system_utils::captureCallStack()));
             }
             return {};
@@ -268,7 +268,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("9C0D1E2F3G4H", "Statement is closed",
+                return cpp_dbc::unexpected(DBException("T4Z5A6B7C8D9", "Statement is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -279,7 +279,7 @@ namespace cpp_dbc::SQLite
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
             {
-                return cpp_dbc::unexpected(DBException("5I6J7K8L9M0N", "Invalid parameter index: " + std::to_string(parameterIndex),
+                return cpp_dbc::unexpected(DBException("T5Z6A7B8C9D0", "Invalid parameter index: " + std::to_string(parameterIndex),
                                                        system_utils::captureCallStack()));
             }
 
@@ -287,7 +287,7 @@ namespace cpp_dbc::SQLite
             int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
             if (parameterIndex > paramCount)
             {
-                return cpp_dbc::unexpected(DBException("1O2P3Q4R5S6T", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
+                return cpp_dbc::unexpected(DBException("T6Z7A8B9C0D1", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
                                                        system_utils::captureCallStack()));
             }
 
@@ -295,7 +295,7 @@ namespace cpp_dbc::SQLite
             int result = sqlite3_bind_int(m_stmt.get(), parameterIndex, intValue);
             if (result != SQLITE_OK)
             {
-                return cpp_dbc::unexpected(DBException("7U8V9W0X1Y2Z", "Failed to bind boolean parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value=" + (value ? "true" : "false") + ", result=" + std::to_string(result) + ")",
+                return cpp_dbc::unexpected(DBException("T7Z8A9B0C1D2", "Failed to bind boolean parameter: " + std::string(sqlite3_errmsg(dbPtr)) + " (index=" + std::to_string(parameterIndex) + ", value=" + (value ? "true" : "false") + ", result=" + std::to_string(result) + ")",
                                                        system_utils::captureCallStack()));
             }
             return {};
@@ -326,7 +326,7 @@ namespace cpp_dbc::SQLite
 
             if (m_closed || !m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("3A4B5C6D7E8F", "Statement is closed",
+                return cpp_dbc::unexpected(DBException("T8Z9A0B1C2D3", "Statement is closed",
                                                        system_utils::captureCallStack()));
             }
 
@@ -344,7 +344,7 @@ namespace cpp_dbc::SQLite
             int result = sqlite3_bind_null(m_stmt.get(), parameterIndex);
             if (result != SQLITE_OK)
             {
-                return cpp_dbc::unexpected(DBException("5M6N7O8P9Q0R", "Failed to bind null parameter: " + std::string(sqlite3_errmsg(dbPtr)),
+                return cpp_dbc::unexpected(DBException("T9Z0A1B2C3D4", "Failed to bind null parameter: " + std::string(sqlite3_errmsg(dbPtr)),
                                                        system_utils::captureCallStack()));
             }
             return {};

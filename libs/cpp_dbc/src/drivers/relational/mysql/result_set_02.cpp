@@ -210,7 +210,7 @@ namespace cpp_dbc::MySQL
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
-                return cpp_dbc::unexpected(DBException("9A0B1C2D3E4F", "Invalid column index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("P7Z8A9B0C1D2", "Invalid column index", system_utils::captureCallStack()));
             }
 
             size_t idx = columnIndex - 1;
@@ -250,7 +250,7 @@ namespace cpp_dbc::MySQL
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
-                return cpp_dbc::unexpected(DBException("1M2N3O4P5Q6R", "Invalid column index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("P8Z9A0B1C2D3", "Invalid column index", system_utils::captureCallStack()));
             }
 
             size_t idx = columnIndex - 1;
@@ -330,7 +330,7 @@ namespace cpp_dbc::MySQL
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
-                return cpp_dbc::unexpected(DBException("089F37F0D90E", "Invalid column index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("V3W4X5Y6Z7A8", "Invalid column index", system_utils::captureCallStack()));
             }
 
             size_t idx = columnIndex - 1;
@@ -383,13 +383,13 @@ namespace cpp_dbc::MySQL
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("B4C0D6E2F9AC",
+            return cpp_dbc::unexpected(DBException("MY4D5E6F7G8H",
                                                    std::string("isNull failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("B4C0D6E2F9AD",
+            return cpp_dbc::unexpected(DBException("MY5E6F7G8H9I",
                                                    "isNull failed: unknown error",
                                                    system_utils::captureCallStack()));
         }
@@ -402,7 +402,7 @@ namespace cpp_dbc::MySQL
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
             {
-                return cpp_dbc::unexpected(DBException("3U4V5W6X7Y8Z", "Column not found: " + columnName, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("P9Z0A1B2C3D4", "Column not found: " + columnName, system_utils::captureCallStack()));
             }
             return getInt(std::nothrow, it->second + 1); // +1 because getInt(int) is 1-based
         }

@@ -56,13 +56,13 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("X8Y9Z0A1B2C3",
+                return cpp_dbc::unexpected(DBException("RDFO6G7H8I9J",
                                                        std::string("hashSet failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("D4E5F6G7H8I9",
+                return cpp_dbc::unexpected(DBException("RDGP7H8I9J0K",
                                                        "hashSet failed: unknown error",
                                                        system_utils::captureCallStack()));
             }
@@ -82,13 +82,13 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("J0K1L2M3N4O5",
+                return cpp_dbc::unexpected(DBException("RD0E1F2A3B4C",
                                                        std::string("hashGet failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("P6Q7R8S9T0U1",
+                return cpp_dbc::unexpected(DBException("RDHQ8I9J0K1L",
                                                        "hashGet failed: unknown error",
                                                        system_utils::captureCallStack()));
             }
@@ -108,13 +108,13 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("V2W3X4Y5Z6A7",
+                return cpp_dbc::unexpected(DBException("RDIR9J0K1L2M",
                                                        std::string("hashDelete failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("B8C9D0E1F2G3",
+                return cpp_dbc::unexpected(DBException("RDJS0K1L2M3N",
                                                        "hashDelete failed: unknown error",
                                                        system_utils::captureCallStack()));
             }
@@ -134,7 +134,7 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("H4I5J6K7L8M9",
+                return cpp_dbc::unexpected(DBException("RDKT1L2M3N4O",
                                                        std::string("hashExists failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
@@ -352,13 +352,13 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("N8O9P0Q1R2S3",
+                return cpp_dbc::unexpected(DBException("RDLU2M3N4O5P",
                                                        std::string("setSize failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("T4U5V6W7X8Y9",
+                return cpp_dbc::unexpected(DBException("RDMV3N4O5P6Q",
                                                        "setSize failed: unknown error",
                                                        system_utils::captureCallStack()));
             }

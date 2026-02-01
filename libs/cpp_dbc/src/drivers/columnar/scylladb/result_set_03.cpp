@@ -39,7 +39,7 @@ namespace cpp_dbc::ScyllaDB
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("X4Y5Z6A7B8C9", columnName, system_utils::captureCallStack()));
         }
         return getInt(std::nothrow, it->second + 1);
     }
@@ -59,7 +59,7 @@ namespace cpp_dbc::ScyllaDB
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("Y5Z6A7B8C9D0", columnName, system_utils::captureCallStack()));
         }
         return getDouble(std::nothrow, it->second + 1);
     }
@@ -69,7 +69,7 @@ namespace cpp_dbc::ScyllaDB
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("Z6A7B8C9D0E1", columnName, system_utils::captureCallStack()));
         }
         return getString(std::nothrow, it->second + 1);
     }
@@ -79,7 +79,7 @@ namespace cpp_dbc::ScyllaDB
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("A7B8C9D0E1F2", columnName, system_utils::captureCallStack()));
         }
         return getBoolean(std::nothrow, it->second + 1);
     }
@@ -89,7 +89,7 @@ namespace cpp_dbc::ScyllaDB
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B8C9D0E1F2G3", columnName, system_utils::captureCallStack()));
         }
         return isNull(std::nothrow, it->second + 1);
     }
@@ -99,7 +99,7 @@ namespace cpp_dbc::ScyllaDB
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("C9D0E1F2G3H4", columnName, system_utils::captureCallStack()));
         }
         return getUUID(std::nothrow, it->second + 1);
     }
@@ -109,7 +109,7 @@ namespace cpp_dbc::ScyllaDB
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("D0E1F2G3H4I5", columnName, system_utils::captureCallStack()));
         }
         return getDate(std::nothrow, it->second + 1);
     }
@@ -119,7 +119,7 @@ namespace cpp_dbc::ScyllaDB
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("E1F2G3H4I5J6", columnName, system_utils::captureCallStack()));
         }
         return getTimestamp(std::nothrow, it->second + 1);
     }
@@ -152,7 +152,7 @@ namespace cpp_dbc::ScyllaDB
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("F2G3H4I5J6K7", columnName, system_utils::captureCallStack()));
         }
         return getBinaryStream(std::nothrow, it->second + 1);
     }
@@ -167,7 +167,7 @@ namespace cpp_dbc::ScyllaDB
         }
         if (columnIndex < 1 || columnIndex > m_columnCount)
         {
-            return cpp_dbc::unexpected(DBException("54EA422997C2", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("G3H4I5J6K7L8", "Invalid column index", system_utils::captureCallStack()));
         }
 
         const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
@@ -180,7 +180,7 @@ namespace cpp_dbc::ScyllaDB
         size_t output_size;
         if (cass_value_get_bytes(val, &output, &output_size) != CASS_OK)
         {
-            return cpp_dbc::unexpected(DBException("45963E8203E7", "Failed to get bytes", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("H4I5J6K7L8M9", "Failed to get bytes", system_utils::captureCallStack()));
         }
 
         std::vector<uint8_t> data(output_size);
@@ -193,7 +193,7 @@ namespace cpp_dbc::ScyllaDB
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())
         {
-            return cpp_dbc::unexpected(DBException("0950375E0258", columnName, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("I5J6K7L8M9N0", columnName, system_utils::captureCallStack()));
         }
         return getBytes(std::nothrow, it->second + 1);
     }

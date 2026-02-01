@@ -137,11 +137,12 @@ namespace cpp_dbc::MongoDB
     {
         MONGODB_LOCK_GUARD(m_mutex);
 
-        m_bson.reset(bson_new());
-        if (!m_bson)
+        bson_t *empty = bson_new();
+        if (!empty)
         {
             throw DBException("1672D32248D8", "Failed to create empty BSON document", system_utils::captureCallStack());
         }
+        m_bson.reset(empty);
 
         m_idCached = false;
         m_cachedId.clear();

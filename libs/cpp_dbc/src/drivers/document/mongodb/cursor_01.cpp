@@ -109,6 +109,12 @@ namespace cpp_dbc::MongoDB
           m_iterationStarted(other.m_iterationStarted),
           m_exhausted(other.m_exhausted)
     {
+        // Update connection registration: unregister moved-from, register moved-to
+        if (auto conn = m_connection.lock())
+        {
+            conn->unregisterCursor(&other);
+            conn->registerCursor(this);
+        }
         other.m_connection.reset();
         other.m_exhausted = true;
     }
@@ -130,6 +136,13 @@ namespace cpp_dbc::MongoDB
             m_position = other.m_position;
             m_iterationStarted = other.m_iterationStarted;
             m_exhausted = other.m_exhausted;
+
+            // Update connection registration: unregister moved-from, register moved-to
+            if (auto conn = m_connection.lock())
+            {
+                conn->unregisterCursor(&other);
+                conn->registerCursor(this);
+            }
 
             other.m_connection.reset();
             other.m_exhausted = true;
@@ -157,7 +170,11 @@ namespace cpp_dbc::MongoDB
         validateCursor();
         if (!m_iterationStarted)
         {
-            return !hasNext();
+            // Inline hasNext() logic to avoid self-deadlock (mutex is non-recursive)
+            validateConnection();
+            if (m_exhausted)
+                return true;
+            return !mongoc_cursor_more(m_cursor.get());
         }
         return m_exhausted && !m_currentDoc;
     }

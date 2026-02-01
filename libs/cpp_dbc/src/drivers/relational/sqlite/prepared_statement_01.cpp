@@ -68,7 +68,7 @@ namespace cpp_dbc::SQLite
         int result = sqlite3_prepare_v2(dbPtr, m_sql.c_str(), -1, &rawStmt, nullptr);
         if (result != SQLITE_OK)
         {
-            throw DBException("3K4L5M6N7O8P", "Failed to prepare SQLite statement: " + std::string(sqlite3_errmsg(dbPtr)),
+            throw DBException("U0A1B2C3D4E5", "Failed to prepare SQLite statement: " + std::string(sqlite3_errmsg(dbPtr)),
                               system_utils::captureCallStack());
         }
 

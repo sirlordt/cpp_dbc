@@ -31,9 +31,20 @@
 #define MONGODB_LOCK_GUARD(mutex) std::lock_guard<std::recursive_mutex> lock(mutex)
 #define MONGODB_UNIQUE_LOCK(mutex) std::unique_lock<std::recursive_mutex> lock(mutex)
 #else
-#define MONGODB_MUTEX
-#define MONGODB_LOCK_GUARD(mutex) (void)0
-#define MONGODB_UNIQUE_LOCK(mutex) (void)0
+// Dummy mutex type for when thread safety is disabled
+// Allows MONGODB_MUTEX member declarations to remain well-formed
+namespace cpp_dbc::MongoDB
+{
+    struct DummyRecursiveMutex
+    {
+        void lock() noexcept {}
+        void unlock() noexcept {}
+        bool try_lock() noexcept { return true; }
+    };
+} // namespace cpp_dbc::MongoDB
+#define MONGODB_MUTEX mutable cpp_dbc::MongoDB::DummyRecursiveMutex
+#define MONGODB_LOCK_GUARD(mutex) std::lock_guard<cpp_dbc::MongoDB::DummyRecursiveMutex> lock(mutex)
+#define MONGODB_UNIQUE_LOCK(mutex) std::unique_lock<cpp_dbc::MongoDB::DummyRecursiveMutex> lock(mutex)
 #endif
 
 // Debug output is controlled by -DDEBUG_MONGODB=1 or -DDEBUG_ALL=1 CMake option

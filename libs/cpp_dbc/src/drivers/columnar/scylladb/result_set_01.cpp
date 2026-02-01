@@ -58,7 +58,7 @@ namespace cpp_dbc::ScyllaDB
         if (!m_currentRow)
         {
             SCYLLADB_DEBUG("ScyllaDBResultSet::validateCurrentRow - No current row available");
-            return cpp_dbc::unexpected(DBException("4059030800AA", "No current row available", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("U2V3W4X5Y6Z7", "No current row available", system_utils::captureCallStack()));
         }
         return {};
     }

@@ -106,11 +106,12 @@ namespace cpp_dbc::MongoDB
 
         MongoDatabaseHandle db(mongoc_client_get_database(m_client.get(), m_databaseName.c_str()));
 
-        bson_t *opts = nullptr;
+        // Use RAII for options BSON to prevent memory leaks
+        BsonHandle optsHandle;
         if (!options.empty())
         {
             bson_error_t parseError;
-            opts = bson_new_from_json(
+            bson_t *opts = bson_new_from_json(
                 reinterpret_cast<const uint8_t *>(options.c_str()),
                 static_cast<ssize_t>(options.length()),
                 &parseError);
@@ -118,14 +119,12 @@ namespace cpp_dbc::MongoDB
             {
                 throw DBException("U5V6W7X8Y9Z0", std::string("Invalid options JSON: ") + parseError.message, system_utils::captureCallStack());
             }
+            optsHandle.reset(opts);
         }
 
         bson_error_t error;
         mongoc_collection_t *coll = mongoc_database_create_collection(
-            db.get(), collectionName.c_str(), opts, &error);
-
-        if (opts)
-            bson_destroy(opts);
+            db.get(), collectionName.c_str(), optsHandle.get(), &error);
 
         if (!coll)
         {

@@ -43,7 +43,7 @@ namespace cpp_dbc::Firebird
 
             if (columnIndex >= m_fieldCount)
             {
-                return cpp_dbc::unexpected(DBException("D6E2F8A4B1C7", "Column index out of range: " + std::to_string(columnIndex),
+                return cpp_dbc::unexpected(DBException("FB1M3N4O5P6Q", "Column index out of range: " + std::to_string(columnIndex),
                                                        system_utils::captureCallStack()));
             }
 
@@ -55,13 +55,13 @@ namespace cpp_dbc::Firebird
             XSQLVAR *var = &m_sqlda->sqlvar[columnIndex];
             if ((var->sqltype & ~1) != SQL_BLOB)
             {
-                return cpp_dbc::unexpected(DBException("E7F3A9B5C2D8", "Column is not a BLOB type", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("FB2N4O5P6Q7R", "Column is not a BLOB type", system_utils::captureCallStack()));
             }
 
             auto conn = m_connection.lock();
             if (!conn)
             {
-                return cpp_dbc::unexpected(DBException("F8A4B0C6D3E9", "Connection has been closed", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("FB3O5P6Q7R8S", "Connection has been closed", system_utils::captureCallStack()));
             }
 
             ISC_QUAD *blobId = reinterpret_cast<ISC_QUAD *>(var->sqldata);
@@ -88,7 +88,7 @@ namespace cpp_dbc::Firebird
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
             {
-                return cpp_dbc::unexpected(DBException("A9B5C1D7E4F0", "Column not found: " + columnName, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("FB4P6Q7R8S9T", "Column not found: " + columnName, system_utils::captureCallStack()));
             }
             return getBlob(std::nothrow, it->second);
         }
@@ -141,7 +141,7 @@ namespace cpp_dbc::Firebird
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
             {
-                return cpp_dbc::unexpected(DBException("B0C6D2E8F5A1", "Column not found: " + columnName, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("FB5Q7R8S9T0U", "Column not found: " + columnName, system_utils::captureCallStack()));
             }
             return getBinaryStream(std::nothrow, it->second);
         }
@@ -194,7 +194,7 @@ namespace cpp_dbc::Firebird
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
             {
-                return cpp_dbc::unexpected(DBException("C1D7E3F9A6B2", "Column not found: " + columnName, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("FB6R8S9T0U1V", "Column not found: " + columnName, system_utils::captureCallStack()));
             }
             return getBytes(std::nothrow, it->second);
         }

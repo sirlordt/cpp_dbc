@@ -58,6 +58,12 @@ namespace cpp_dbc::Redis
                 }
 
                 auto reply = executeRaw("SET", args);
+                if (!reply || !reply.get())
+                {
+                    return cpp_dbc::unexpected(DBException("E8A9B0C1D2E4",
+                                                           "setString failed: null reply",
+                                                           system_utils::captureCallStack()));
+                }
                 bool result = reply.get()->type == REDIS_REPLY_STATUS &&
                               std::string(reply.get()->str, reply.get()->len) == "OK";
                 return result;
@@ -146,13 +152,13 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("J4K5L6M7N8O9",
+                return cpp_dbc::unexpected(DBException("RD1A2B3C4D5E",
                                                        std::string("deleteKey failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("P0Q1R2S3T4U5",
+                return cpp_dbc::unexpected(DBException("RD2B3C4D5E6F",
                                                        "deleteKey failed: unknown error",
                                                        system_utils::captureCallStack()));
             }
@@ -177,13 +183,13 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("V6W7X8Y9Z0A1",
+                return cpp_dbc::unexpected(DBException("RD3C4D5E6F7A",
                                                        std::string("deleteKeys failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("B2C3D4E5F6G7",
+                return cpp_dbc::unexpected(DBException("RD4D5E6F7A8B",
                                                        "deleteKeys failed: unknown error",
                                                        system_utils::captureCallStack()));
             }
@@ -203,13 +209,13 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("H8I9J0K1L2M3",
+                return cpp_dbc::unexpected(DBException("RD5E6F7A8B9C",
                                                        std::string("expire failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("N4O5P6Q7R8S9",
+                return cpp_dbc::unexpected(DBException("RD6F7A8B9C0D",
                                                        "expire failed: unknown error",
                                                        system_utils::captureCallStack()));
             }
@@ -229,13 +235,13 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("T0U1V2W3X4Y5",
+                return cpp_dbc::unexpected(DBException("RD7G8A9B0C1D",
                                                        std::string("getTTL failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("Z6A7B8C9D0E1",
+                return cpp_dbc::unexpected(DBException("RD8H9A0B1C2D",
                                                        "getTTL failed: unknown error",
                                                        system_utils::captureCallStack()));
             }
@@ -263,13 +269,13 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("F2G3H4I5J6K7",
+                return cpp_dbc::unexpected(DBException("RD9I0A1B2C3D",
                                                        std::string("increment failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("L8M9N0O1P2Q3",
+                return cpp_dbc::unexpected(DBException("RDAJ1B2C3D4E",
                                                        "increment failed: unknown error",
                                                        system_utils::captureCallStack()));
             }
@@ -297,7 +303,7 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("R4S5T6U7V8W9",
+                return cpp_dbc::unexpected(DBException("RDBK2C3D4E5F",
                                                        std::string("decrement failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
@@ -331,7 +337,7 @@ namespace cpp_dbc::Redis
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("J2K3L4M5N6O7",
+                return cpp_dbc::unexpected(DBException("RDCL3D4E5F6G",
                                                        "listPushLeft failed: unknown error",
                                                        system_utils::captureCallStack()));
             }
@@ -457,13 +463,13 @@ namespace cpp_dbc::Redis
             }
             catch (const std::exception &ex)
             {
-                return cpp_dbc::unexpected(DBException("L6M7N8O9P0Q1",
+                return cpp_dbc::unexpected(DBException("RDDM4E5F6G7H",
                                                        std::string("listLength failed: ") + ex.what(),
                                                        system_utils::captureCallStack()));
             }
             catch (...)
             {
-                return cpp_dbc::unexpected(DBException("R2S3T4U5V6W7",
+                return cpp_dbc::unexpected(DBException("RDEN5F6G7H8I",
                                                        "listLength failed: unknown error",
                                                        system_utils::captureCallStack()));
             }

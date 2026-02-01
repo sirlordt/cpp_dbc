@@ -112,7 +112,7 @@ namespace cpp_dbc::PostgreSQL
 
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("5K6L7M8N9O0P", "Invalid column index or row position for getBlob", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("PG2I0J1K2L3M", "Invalid column index or row position for getBlob", system_utils::captureCallStack()));
             }
 
             // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)

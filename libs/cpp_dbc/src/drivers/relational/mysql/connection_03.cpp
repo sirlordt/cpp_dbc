@@ -64,12 +64,12 @@ namespace cpp_dbc::MySQL
                 query = "SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE";
                 break;
             default:
-                return cpp_dbc::unexpected(DBException("7Q8R9S0T1U2V", "Unsupported transaction isolation level", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("N6Z7A8B9C0D1", "Unsupported transaction isolation level", system_utils::captureCallStack()));
             }
 
             if (mysql_query(m_mysql.get(), query.c_str()) != 0)
             {
-                return cpp_dbc::unexpected(DBException("3W4X5Y6Z7A8B", std::string("Failed to set transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("N7Z8A9B0C1D2", std::string("Failed to set transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
             }
 
             // Verify that the isolation level was actually set
@@ -119,7 +119,7 @@ namespace cpp_dbc::MySQL
 
             if (m_closed || !m_mysql)
             {
-                return cpp_dbc::unexpected(DBException("9C0D1E2F3G4H", "Connection is closed", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("N8Z9A0B1C2D3", "Connection is closed", system_utils::captureCallStack()));
             }
 
             // If we're being called from setTransactionIsolation, return the cached value
@@ -139,14 +139,14 @@ namespace cpp_dbc::MySQL
                     mysql_query(m_mysql.get(), "SELECT @@tx_isolation") != 0)
                 {
                     inGetTransactionIsolation = false;
-                    return cpp_dbc::unexpected(DBException("5I6J7K8L9M0N", std::string("Failed to get transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected(DBException("N9Z0A1B2C3D4", std::string("Failed to get transaction isolation level: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
                 }
 
                 MYSQL_RES *result = mysql_store_result(m_mysql.get());
                 if (!result)
                 {
                     inGetTransactionIsolation = false;
-                    return cpp_dbc::unexpected(DBException("1O2P3Q4R5S6T", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected(DBException("O0Z1A2B3C4D5", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
                 }
 
                 MYSQL_ROW row = mysql_fetch_row(result);
@@ -154,7 +154,7 @@ namespace cpp_dbc::MySQL
                 {
                     mysql_free_result(result);
                     inGetTransactionIsolation = false;
-                    return cpp_dbc::unexpected(DBException("7U8V9W0X1Y2Z", "Failed to fetch transaction isolation level", system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected(DBException("O1Z2A3B4C5D6", "Failed to fetch transaction isolation level", system_utils::captureCallStack()));
                 }
 
                 std::string level = row[0];
