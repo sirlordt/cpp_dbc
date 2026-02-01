@@ -128,9 +128,9 @@ namespace cpp_dbc::Redis
                     {
                         port = std::stoi(matches[2].str());
                     }
-                    catch (const std::exception &e)
+                    catch (const std::exception &ex)
                     {
-                        throw DBException("C58E02D9F1A8", "Invalid port in Redis URI: " + matches[2].str(),
+                        throw DBException("C58E02D9F1A8", "Invalid port in Redis URI: " + matches[2].str() + " - " + ex.what(),
                                           system_utils::captureCallStack());
                     }
                 }
@@ -141,9 +141,9 @@ namespace cpp_dbc::Redis
                     {
                         m_dbIndex = std::stoi(matches[3].str());
                     }
-                    catch (const std::exception &e)
+                    catch (const std::exception &ex)
                     {
-                        throw DBException("C58E02D9F1A9", "Invalid database index in Redis URI: " + matches[3].str(),
+                        throw DBException("C58E02D9F1A9", "Invalid database index in Redis URI: " + matches[3].str() + " - " + ex.what(),
                                           system_utils::captureCallStack());
                     }
                 }

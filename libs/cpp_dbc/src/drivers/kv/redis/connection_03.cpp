@@ -58,12 +58,6 @@ namespace cpp_dbc::Redis
                 }
 
                 auto reply = executeRaw("SET", args);
-                if (!reply || !reply.get())
-                {
-                    return cpp_dbc::unexpected(DBException("E8A9B0C1D2E4",
-                                                           "setString failed: null reply",
-                                                           system_utils::captureCallStack()));
-                }
                 bool result = reply.get()->type == REDIS_REPLY_STATUS &&
                               std::string(reply.get()->str, reply.get()->len) == "OK";
                 return result;

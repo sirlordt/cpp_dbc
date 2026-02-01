@@ -37,9 +37,9 @@ namespace cpp_dbc::MongoDB
 {
     struct DummyRecursiveMutex
     {
-        void lock() noexcept {}
-        void unlock() noexcept {}
-        bool try_lock() noexcept { return true; }
+        void lock() const noexcept { /* No-op: thread safety disabled */ }
+        void unlock() const noexcept { /* No-op: thread safety disabled */ }
+        bool try_lock() const noexcept { return true; }
     };
 } // namespace cpp_dbc::MongoDB
 #define MONGODB_MUTEX mutable cpp_dbc::MongoDB::DummyRecursiveMutex
