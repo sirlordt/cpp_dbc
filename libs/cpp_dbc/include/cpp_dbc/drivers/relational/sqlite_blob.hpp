@@ -27,10 +27,8 @@
 #if USE_SQLITE
 #include <sqlite3.h>
 
-namespace cpp_dbc
+namespace cpp_dbc::SQLite
 {
-    namespace SQLite
-    {
         // SQLite implementation of InputStream
         class SQLiteInputStream : public InputStream
         {
@@ -260,8 +258,7 @@ namespace cpp_dbc
             }
         };
 
-    } // namespace SQLite
-} // namespace cpp_dbc
+} // namespace cpp_dbc::SQLite
 
 #endif // USE_SQLITE
 

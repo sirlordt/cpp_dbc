@@ -197,7 +197,7 @@ namespace cpp_dbc::MongoDB
         if (!success)
         {
             bson_destroy(&reply);
-            throw DBException("A1B2C3D4E5F6", std::string("Command failed: ") + error.message, system_utils::captureCallStack());
+            throw DBException("GWZKCW7PLOKY", std::string("Command failed: ") + error.message, system_utils::captureCallStack());
         }
 
         bson_t *replyCopy = bson_copy(&reply);
@@ -205,7 +205,7 @@ namespace cpp_dbc::MongoDB
 
         if (!replyCopy)
         {
-            throw DBException("E6F7G8H9I0J1", "Failed to copy command reply (memory allocation failure)", system_utils::captureCallStack());
+            throw DBException("JADHTSVC5KEH", "Failed to copy command reply (memory allocation failure)", system_utils::captureCallStack());
         }
 
         return std::make_shared<MongoDBDocument>(replyCopy);

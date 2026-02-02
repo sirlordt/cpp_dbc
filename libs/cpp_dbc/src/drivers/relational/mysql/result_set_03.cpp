@@ -216,7 +216,7 @@ namespace cpp_dbc::MySQL
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
-                return cpp_dbc::unexpected(DBException("B7C8D9E0F1G2", "Invalid column index for getBlob", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("LB0WW5CDQLVI", "Invalid column index for getBlob", system_utils::captureCallStack()));
             }
 
             // MySQL column indexes are 0-based, but our API is 1-based (like JDBC)

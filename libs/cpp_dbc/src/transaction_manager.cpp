@@ -87,7 +87,7 @@ namespace cpp_dbc
         auto it = activeTransactions.find(transactionId);
         if (it == activeTransactions.end())
         {
-            throw DBException("3A4B5C6D7E8F", "Transaction not found: " + transactionId, system_utils::captureCallStack());
+            throw DBException("I9KJVWRX4H2I", "Transaction not found: " + transactionId, system_utils::captureCallStack());
         }
 
         // Update last access time

@@ -337,7 +337,7 @@ namespace cpp_dbc::SQLite
             // Make sure parameterIndex is valid
             if (parameterIndex <= 0)
             {
-                return cpp_dbc::unexpected(DBException("9G0H1I2J3K4L", "Invalid parameter index: " + std::to_string(parameterIndex),
+                return cpp_dbc::unexpected(DBException("JIHL7D5UH98N", "Invalid parameter index: " + std::to_string(parameterIndex),
                                                        system_utils::captureCallStack()));
             }
 

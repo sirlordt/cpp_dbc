@@ -171,7 +171,7 @@ namespace cpp_dbc::SQLite
             sqlite3_stmt *stmt = getStmt();
             if (!stmt || m_closed || !m_hasData || columnIndex < 1 || columnIndex > m_fieldCount)
             {
-                return cpp_dbc::unexpected(DBException("7A8B9C0D1E2F", "Invalid column index or row position",
+                return cpp_dbc::unexpected(DBException("0A7LU8DS9WF3", "Invalid column index or row position",
                                                        system_utils::captureCallStack()));
             }
 

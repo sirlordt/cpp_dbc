@@ -52,7 +52,7 @@ namespace cpp_dbc::ScyllaDB
         // Check bounds... Cassandra binds by index 0-based, JDBC is 1-based
         if (cass_statement_bind_int32(m_statement.get(), parameterIndex - 1, value) != CASS_OK)
         {
-            return cpp_dbc::unexpected(DBException("B2C3D4E5F6A1", "Failed to bind int", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B74K09BQYIIL", "Failed to bind int", system_utils::captureCallStack()));
         }
 
         // For batching, store value

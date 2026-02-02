@@ -142,7 +142,7 @@ namespace cpp_dbc::PostgreSQL
         const PGconn *connPtr = getPGConnection();
         if (!connPtr)
         {
-            throw DBException("5Q6R7S8T9U0V", "Invalid PostgreSQL connection", system_utils::captureCallStack());
+            throw DBException("E2L06693IILH", "Invalid PostgreSQL connection", system_utils::captureCallStack());
         }
 
         // Process SQL and count parameters

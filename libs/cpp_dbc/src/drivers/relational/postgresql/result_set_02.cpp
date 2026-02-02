@@ -119,7 +119,7 @@ namespace cpp_dbc::PostgreSQL
 
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("1S2T3U4V5W6X", "Invalid column index or row position", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("H3NT10D8LP66", "Invalid column index or row position", system_utils::captureCallStack()));
             }
 
             // PostgreSQL column indexes are 0-based, but our API is 1-based (like JDBC)
@@ -138,7 +138,7 @@ namespace cpp_dbc::PostgreSQL
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("7Y8Z9A0B1C2D", "Failed to convert value to int", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("GV1IE638SARF", "Failed to convert value to int", system_utils::captureCallStack()));
             }
         }
         catch (const DBException &ex)
@@ -163,7 +163,7 @@ namespace cpp_dbc::PostgreSQL
 
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("9K0L1M2N3O4P", "Invalid column index or row position", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("1ZO5W2I6K57A", "Invalid column index or row position", system_utils::captureCallStack()));
             }
 
             auto idx = static_cast<int>(columnIndex - 1);
@@ -181,7 +181,7 @@ namespace cpp_dbc::PostgreSQL
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("1W2X3Y4Z5A6B", "Failed to convert value to long", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("PRTK87X1YSDK", "Failed to convert value to long", system_utils::captureCallStack()));
             }
         }
         catch (const DBException &ex)
@@ -349,7 +349,7 @@ namespace cpp_dbc::PostgreSQL
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
             {
-                return cpp_dbc::unexpected<DBException>(DBException("3E4F5G6H7I8J", "Column not found: " + columnName, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("LFNW4BOER18E", "Column not found: " + columnName, system_utils::captureCallStack()));
             }
 
             return getInt(std::nothrow, it->second + 1); // +1 because getInt(int) is 1-based

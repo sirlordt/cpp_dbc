@@ -366,7 +366,7 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("A4B5C6D7E8F9", std::string("Exception in setTimestamp: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("8ZTEHNFCHUP7", std::string("Exception in setTimestamp: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {

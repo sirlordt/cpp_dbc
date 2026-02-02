@@ -59,10 +59,8 @@
 #include <string>
 #include <vector>
 
-namespace cpp_dbc
+namespace cpp_dbc::MongoDB
 {
-    namespace MongoDB
-    {
         // Forward declarations
         class MongoDBConnection;
         class MongoDBCollection;
@@ -1264,16 +1262,13 @@ namespace cpp_dbc
             std::string getName() const noexcept override;
         };
 
-    } // namespace MongoDB
-} // namespace cpp_dbc
+} // namespace cpp_dbc::MongoDB
 
 #else // USE_MONGODB
 
 // Stub implementations when MongoDB is disabled
-namespace cpp_dbc
+namespace cpp_dbc::MongoDB
 {
-    namespace MongoDB
-    {
         /**
          * @brief Stub MongoDB driver when MongoDB support is disabled
          * This class throws an exception on any operation, indicating that
@@ -1359,9 +1354,7 @@ namespace cpp_dbc
             std::string getName() const noexcept override;
         };
 
-    } // namespace MongoDB
-
-} // namespace cpp_dbc
+} // namespace cpp_dbc::MongoDB
 
 #endif // USE_MONGODB
 

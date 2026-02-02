@@ -137,7 +137,7 @@ namespace cpp_dbc::PostgreSQL
                 {
                     std::string error = PQresultErrorMessage(prepareResult);
                     PQclear(prepareResult);
-                    return cpp_dbc::unexpected<DBException>(DBException("1M2N3O4P5Q6R", "Failed to prepare statement: " + error, system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected<DBException>(DBException("LV8VBI4QT5XS", "Failed to prepare statement: " + error, system_utils::captureCallStack()));
                 }
                 PQclear(prepareResult);
                 m_prepared = true;

@@ -37,10 +37,8 @@
 #include <algorithm>
 #include <cstring>
 
-namespace cpp_dbc
+namespace cpp_dbc::ScyllaDB
 {
-    namespace ScyllaDB
-    {
         // Custom deleters for Cassandra objects
         struct CassClusterDeleter
         {
@@ -419,8 +417,7 @@ namespace cpp_dbc
             bool acceptsURL(const std::string &url) override;
             std::string getName() const noexcept override;
         };
-    }
-}
+} // namespace cpp_dbc::ScyllaDB
 
 #else // USE_SCYLLADB
 
@@ -460,7 +457,7 @@ namespace cpp_dbc::ScyllaDB
         bool acceptsURL(const std::string &) override { return false; }
         std::string getName() const noexcept override { return "scylladb"; }
     };
-}
+} // namespace cpp_dbc::ScyllaDB
 
 #endif // USE_SCYLLADB
 
