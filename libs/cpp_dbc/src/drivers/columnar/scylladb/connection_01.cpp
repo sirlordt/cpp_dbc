@@ -40,7 +40,7 @@ namespace cpp_dbc::ScyllaDB
 
     ScyllaDBConnection::ScyllaDBConnection(const std::string &host, int port, const std::string &keyspace,
                                            const std::string &user, const std::string &password,
-                                           const std::map<std::string, std::string> &)
+                                           [[maybe_unused]] const std::map<std::string, std::string> &options)
     {
         SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connecting to " << host << ":" << port);
         m_cluster = std::shared_ptr<CassCluster>(cass_cluster_new(), CassClusterDeleter());
@@ -74,6 +74,16 @@ namespace cpp_dbc::ScyllaDB
         // Use keyspace if provided
         if (!keyspace.empty())
         {
+            // Validate keyspace name to prevent CQL injection
+            // Keyspace names should only contain alphanumeric characters and underscores
+            bool isValidKeyspace = std::ranges::all_of(keyspace, [](unsigned char c) {
+                return std::isalnum(c) || c == '_';
+            });
+            if (!isValidKeyspace)
+            {
+                throw DBException("7A3F9E2B5C8D", "Invalid keyspace name: " + keyspace, system_utils::captureCallStack());
+            }
+
             SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Using keyspace: " << keyspace);
             std::string query = "USE " + keyspace;
             CassStatementHandle statement(cass_statement_new(query.c_str(), 0));

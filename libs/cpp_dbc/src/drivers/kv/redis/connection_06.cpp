@@ -112,6 +112,14 @@ namespace cpp_dbc::Redis
         for (size_t i = 0; i < reply.get()->elements; ++i)
         {
             redisReply *element = reply.get()->element[i];
+
+            // Defensive null check to prevent crashes
+            if (!element)
+            {
+                result.emplace_back("");
+                continue;
+            }
+
             if (element->type == REDIS_REPLY_STRING || element->type == REDIS_REPLY_STATUS)
             {
                 result.emplace_back(element->str, element->len);

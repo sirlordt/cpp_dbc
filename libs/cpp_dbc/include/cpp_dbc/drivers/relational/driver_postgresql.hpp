@@ -359,7 +359,7 @@ namespace cpp_dbc::PostgreSQL
 
         bool acceptsURL(const std::string &url) override;
 
-        // Parses a JDBC-like URL: jdbc:postgresql://host:port/database
+        // Parses a JDBC-like URL: cpp_dbc:postgresql://host:port/database
         bool parseURL(const std::string &url,
                       std::string &host,
                       int &port,

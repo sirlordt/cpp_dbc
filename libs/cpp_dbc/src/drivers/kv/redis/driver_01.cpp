@@ -55,7 +55,7 @@ namespace cpp_dbc::Redis
         // that can be reset by cleanup()
         if (!s_initialized.load(std::memory_order_acquire))
         {
-            std::lock_guard<std::mutex> lock(s_initMutex);
+            std::scoped_lock lock(s_initMutex);
             if (!s_initialized.load(std::memory_order_relaxed))
             {
                 initialize();
@@ -167,7 +167,7 @@ namespace cpp_dbc::Redis
     {
         REDIS_DEBUG("RedisDriver::cleanup - Cleaning up Redis driver");
         // No specific cleanup needed for hiredis
-        s_initialized = false;
+        s_initialized.store(false, std::memory_order_release);
         REDIS_DEBUG("RedisDriver::cleanup - Done");
     }
 
@@ -305,7 +305,7 @@ namespace cpp_dbc::Redis
     {
         REDIS_DEBUG("RedisDriver::initialize - Initializing Redis driver");
         // No specific initialization needed for hiredis
-        s_initialized = true;
+        s_initialized.store(true, std::memory_order_release);
         REDIS_DEBUG("RedisDriver::initialize - Done");
     }
 

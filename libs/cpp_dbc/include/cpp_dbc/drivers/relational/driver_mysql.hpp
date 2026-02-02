@@ -30,7 +30,6 @@
 #include <memory>
 #include <set>
 #include <mutex>
-#include <iostream>
 
 namespace cpp_dbc::MySQL
 {

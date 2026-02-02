@@ -416,8 +416,10 @@ namespace cpp_dbc
 #else // USE_SQLITE
 
 // Stub implementations when SQLite is disabled
-namespace cpp_dbc::SQLite
+namespace cpp_dbc
 {
+    namespace SQLite
+    {
         // Forward declarations only
         class SQLiteDBDriver final : public RelationalDBDriver
         {
@@ -461,7 +463,8 @@ namespace cpp_dbc::SQLite
                 return "SQLite (disabled)";
             }
         };
-} // namespace cpp_dbc::SQLite
+    } // namespace SQLite
+} // namespace cpp_dbc
 
 #endif // USE_SQLITE
 

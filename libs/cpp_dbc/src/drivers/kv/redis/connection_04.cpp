@@ -167,6 +167,12 @@ namespace cpp_dbc::Redis
                     redisReply *fieldReply = reply.get()->element[i];
                     redisReply *valueReply = reply.get()->element[i + 1];
 
+                    // Defensive null checks to prevent crashes
+                    if (!fieldReply || !valueReply)
+                    {
+                        continue;
+                    }
+
                     std::string field;
                     if (fieldReply->type == REDIS_REPLY_STRING)
                     {

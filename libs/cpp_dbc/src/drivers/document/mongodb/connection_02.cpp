@@ -366,6 +366,30 @@ namespace cpp_dbc::MongoDB
             return false;
         }
 
+        // Check server type using mongoc_server_description_type()
+        // Transactions are only supported on replica sets and mongos (sharded clusters)
+        const char *serverType = mongoc_server_description_type(serverDesc);
+        if (!serverType)
+        {
+            mongoc_server_description_destroy(serverDesc);
+            return false;
+        }
+
+        // Standalone servers do NOT support transactions
+        // Only RSPrimary, RSSecondary, and Mongos support transactions
+        bool isReplicaSet = (strcmp(serverType, "RSPrimary") == 0 ||
+                             strcmp(serverType, "RSSecondary") == 0 ||
+                             strcmp(serverType, "RSArbiter") == 0 ||
+                             strcmp(serverType, "RSOther") == 0);
+        bool isMongos = (strcmp(serverType, "Mongos") == 0);
+
+        if (!isReplicaSet && !isMongos)
+        {
+            MONGODB_DEBUG("supportsTransactions: Server type '" << serverType << "' does not support transactions");
+            mongoc_server_description_destroy(serverDesc);
+            return false;
+        }
+
         // Get the hello/ismaster response
         const bson_t *helloResponse = mongoc_server_description_hello_response(serverDesc);
         if (!helloResponse)
@@ -375,26 +399,21 @@ namespace cpp_dbc::MongoDB
         }
 
         // Check for logicalSessionTimeoutMinutes (required for transactions)
+        // Also verify it's not BSON_TYPE_NULL
         bson_iter_t iter;
-        if (!bson_iter_init_find(&iter, helloResponse, "logicalSessionTimeoutMinutes"))
+        if (!bson_iter_init_find(&iter, helloResponse, "logicalSessionTimeoutMinutes") ||
+            bson_iter_type(&iter) == BSON_TYPE_NULL)
         {
             mongoc_server_description_destroy(serverDesc);
             return false;
         }
 
-        // Get maxWireVersion
+        // Get maxWireVersion safely
         int32_t maxWireVersion = 0;
-        if (bson_iter_init_find(&iter, helloResponse, "maxWireVersion"))
+        if (bson_iter_init_find(&iter, helloResponse, "maxWireVersion") &&
+            BSON_ITER_HOLDS_INT32(&iter))
         {
             maxWireVersion = bson_iter_int32(&iter);
-        }
-
-        // Check server type
-        bool isMongos = false;
-        if (bson_iter_init_find(&iter, helloResponse, "msg"))
-        {
-            const char *msg = bson_iter_utf8(&iter, nullptr);
-            isMongos = (msg && strcmp(msg, "isdbgrid") == 0);
         }
 
         mongoc_server_description_destroy(serverDesc);

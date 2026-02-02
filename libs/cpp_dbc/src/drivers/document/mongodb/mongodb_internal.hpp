@@ -37,11 +37,10 @@ namespace cpp_dbc::MongoDB
 {
     struct DummyRecursiveMutex
     {
-        // Methods are non-const to match std::mutex interface required by
-        // std::lock_guard and std::unique_lock
-        void lock() noexcept { /* No-op: thread safety disabled */ }
-        void unlock() noexcept { /* No-op: thread safety disabled */ }
-        bool try_lock() noexcept { return true; }
+        // No-op methods: thread safety disabled
+        void lock() const noexcept { /* No-op */ }
+        void unlock() const noexcept { /* No-op */ }
+        bool try_lock() const noexcept { return true; }
     };
 } // namespace cpp_dbc::MongoDB
 #define MONGODB_MUTEX mutable cpp_dbc::MongoDB::DummyRecursiveMutex

@@ -126,7 +126,9 @@ namespace cpp_dbc::MongoDB
                         "Failed to copy BSON document in findOne (memory allocation failure)",
                         system_utils::captureCallStack()));
                 }
-                result = std::make_shared<MongoDBDocument>(docCopy);
+                // Use RAII guard to prevent leak if make_shared throws
+                BsonHandle guard(docCopy);
+                result = std::make_shared<MongoDBDocument>(guard.release());
             }
 
             bson_error_t error;

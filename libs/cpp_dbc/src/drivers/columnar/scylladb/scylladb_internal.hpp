@@ -105,15 +105,16 @@ namespace cpp_dbc::ScyllaDB
         // For DELETE operations
         if (queryUpper.starts_with("DELETE "))
         {
-            // Special case for 'WHERE id IN' to handle multiple rows
-            if (queryUpper.contains("WHERE ID IN"))
+            // Special case for 'IN (...)' clause to handle multiple rows (any column)
+            size_t inStart = queryUpper.find(" IN (");
+            if (inStart != std::string::npos)
             {
                 // Count the number of elements in the IN clause
-                size_t inStart = queryUpper.find("IN (");
-                size_t inEnd = queryUpper.find(")", inStart);
-                if (inStart != std::string::npos && inEnd != std::string::npos)
+                size_t parenPos = inStart + 4; // Position of '(' in " IN ("
+                size_t inEnd = queryUpper.find(")", parenPos);
+                if (inEnd != std::string::npos)
                 {
-                    std::string inClause = queryUpper.substr(inStart + 3, inEnd - inStart - 3);
+                    std::string inClause = queryUpper.substr(parenPos + 1, inEnd - parenPos - 1);
                     size_t commaCount = 0;
                     for (char c : inClause)
                     {
