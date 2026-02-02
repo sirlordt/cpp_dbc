@@ -5,7 +5,7 @@
 #   ./check_dbexception_codes.sh --list    # List all codes with their locations
 #   ./check_dbexception_codes.sh --fix     # Auto-fix problematic duplicates
 
-PROJECT_ROOT="${PROJECT_ROOT:-$(dirname "$(realpath "$0")")}"
+PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$(dirname "$0")" && pwd -P)}"
 LIBS_DIR="$PROJECT_ROOT/libs"
 GENERATE_SCRIPT="$PROJECT_ROOT/generate_dbexception_code.sh"
 
@@ -104,8 +104,8 @@ case "$1" in
 
                 echo "  Replacing in $file:$line with $new_code"
 
-                # Use sed to replace the code in the specific file
-                sed -i "s/DBException(\"$old_code\"/DBException(\"$new_code\"/g" "$file"
+                # Use sed to replace the code in the specific file (portable for Linux and macOS)
+                sed "s/DBException(\"$old_code\"/DBException(\"$new_code\"/g" "$file" > "$file.tmp" && mv "$file.tmp" "$file"
             done
 
             echo ""

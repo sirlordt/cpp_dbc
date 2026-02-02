@@ -108,7 +108,7 @@ namespace cpp_dbc::SQLite
             }
 
             // Create shared_ptr with custom deleter for sqlite3*
-            m_db = std::shared_ptr<sqlite3>(rawDb, SQLiteDbDeleter());
+            m_db = makeSQLiteDbHandle(rawDb);
 
             SQLITE_DEBUG("Database opened successfully");
 

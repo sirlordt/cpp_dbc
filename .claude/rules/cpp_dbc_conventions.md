@@ -68,7 +68,7 @@ namespace cpp_dbc
 - Defensively check for nulls before dereferencing pointers from external libraries
 - Use `std::atomic` with explicit memory ordering (`memory_order_acquire`/`release`)
 - Avoid raw pointers. Use `std::shared_ptr`, `std::unique_ptr`, and `std::weak_ptr` where possible, especially in member/class variables.
-- Always try to use C++17 style constructs and functions for more secure code.
+- Always try to use C++17-style constructs and functions for more secure code.
 - Use ranges and avoid index loops where possible.
 
 ## Thread Safety

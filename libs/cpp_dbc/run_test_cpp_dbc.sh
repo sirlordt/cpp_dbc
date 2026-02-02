@@ -698,6 +698,74 @@ LAST_TEST_NAME=""
 TOTAL_TESTS=0
 TAGS_ARRAY=()
 
+# Track skipped tests globally
+declare -a SKIPPED_TESTS=()
+declare -a SKIPPED_REASONS=()
+HAD_REAL_FAILURE=false
+
+# Helper function to run a test and handle skips
+# Usage: run_test_with_skip_handling TAG
+run_test_with_skip_handling() {
+    local TAG=$1
+    local TEST_OUTPUT_FILE=$(mktemp)
+    local TEST_RESULT=0
+
+    # Force color output
+    export CLICOLOR_FORCE=1
+    export FORCE_COLOR=1
+
+    # Run the test, capturing output and exit code
+    run_test -s -r compact "[$TAG]" 2>&1 | tee "$TEST_OUTPUT_FILE" || true
+    TEST_RESULT=${PIPESTATUS[0]}
+
+    # Read the output
+    local TEST_OUTPUT=$(cat "$TEST_OUTPUT_FILE")
+    rm -f "$TEST_OUTPUT_FILE"
+
+    # Check if this is a skipped test
+    local SKIPPED_TEST=false
+    local SKIP_REASON=""
+
+    # Exit code 4 is used by Catch2 for skipped tests
+    if [ $TEST_RESULT -eq 4 ]; then
+        SKIPPED_TEST=true
+    fi
+
+    # Also check output patterns as a backup
+    if echo "$TEST_OUTPUT" | grep -q "skipped:" && echo "$TEST_OUTPUT" | grep -q "test cases: .* | .* skipped"; then
+        if ! echo "$TEST_OUTPUT" | grep -q "failed"; then
+            SKIPPED_TEST=true
+        fi
+    fi
+
+    # Extract skip reason and track it
+    if [ "$SKIPPED_TEST" = true ]; then
+        # Strip ANSI codes for parsing
+        local CLEAN_OUTPUT=$(echo "$TEST_OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
+
+        # Extract skip info: file:line and reason
+        # Format: /path/file.cpp:123: skipped: 'reason'
+        local SKIP_LINE=$(echo "$CLEAN_OUTPUT" | grep -E "\.cpp:[0-9]+:.*skipped:" | head -1)
+        local SKIP_FILE_LINE=$(echo "$SKIP_LINE" | grep -oE "[^[:space:]]+\.cpp:[0-9]+" | head -1)
+        SKIP_REASON=$(echo "$SKIP_LINE" | sed "s/.*skipped: '\\(.*\\)'.*/\\1/")
+
+        if [ -z "$SKIP_REASON" ] || [ "$SKIP_REASON" = "$SKIP_LINE" ]; then
+            SKIP_REASON="Unknown reason"
+        fi
+        if [ -z "$SKIP_FILE_LINE" ]; then
+            SKIP_FILE_LINE="unknown location"
+        fi
+
+        SKIPPED_TESTS+=("$TAG")
+        SKIPPED_REASONS+=("$SKIP_FILE_LINE: $SKIP_REASON")
+        # Use | as delimiter since paths contain :
+        printf "@@SKIP|${TAG}|${SKIP_FILE_LINE}|${SKIP_REASON}@@\n"
+    elif [ $TEST_RESULT -ne 0 ]; then
+        # Real failure (not a skip)
+        HAD_REAL_FAILURE=true
+    fi
+}
+
 # Setup scroll region for progress bar if enabled
 if [ "$SHOW_PROGRESS" = true ]; then
     setup_progress_scroll_region
@@ -782,7 +850,7 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                         # Always track test start time for duration logging
                         CURRENT_TEST_START_TIME=$(date +%s)
                         echo -e "\nRunning tests with tag [$MATCH_TAG] (Run $run of $RUN_COUNT)...\n"
-                        run_test -s -r compact "[$MATCH_TAG]"
+                        run_test_with_skip_handling "$MATCH_TAG"
                         # Calculate and log duration of this test
                         LAST_TEST_DURATION=$(($(date +%s) - CURRENT_TEST_START_TIME))
                         LAST_TEST_NAME="$MATCH_TAG"
@@ -808,7 +876,7 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                     # Always track test start time for duration logging
                     CURRENT_TEST_START_TIME=$(date +%s)
                     echo -e "\nRunning tests with tag [$TEST_TAG] (Run $run of $RUN_COUNT)...\n"
-                    run_test -s -r compact "[$TEST_TAG]"
+                    run_test_with_skip_handling "$TEST_TAG"
                     # Calculate and log duration of this test
                     LAST_TEST_DURATION=$(($(date +%s) - CURRENT_TEST_START_TIME))
                     LAST_TEST_NAME="$TEST_TAG"
@@ -826,7 +894,7 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                 # Always track test start time for duration logging
                 CURRENT_TEST_START_TIME=$(date +%s)
                 echo -e "\nRunning tests with tag [$RUN_SPECIFIC_TEST] (Run $run of $RUN_COUNT)...\n"
-                run_test -s -r compact "[$RUN_SPECIFIC_TEST]"
+                run_test_with_skip_handling "$RUN_SPECIFIC_TEST"
                 # Calculate and log duration of this test
                 LAST_TEST_DURATION=$(($(date +%s) - CURRENT_TEST_START_TIME))
                 LAST_TEST_NAME="$RUN_SPECIFIC_TEST"
@@ -883,6 +951,7 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                 
                 # Check if this is just a skipped test (not a failure)
                 SKIPPED_TEST=false
+                SKIP_REASON=""
 
                 # Exit code 4 is used by Catch2 for skipped tests
                 if [ $TEST_RESULT -eq 4 ]; then
@@ -895,6 +964,31 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                     if ! echo "$TEST_OUTPUT" | grep -q "failed"; then
                         SKIPPED_TEST=true
                     fi
+                fi
+
+                # Extract skip reason from output (format: "skipped: 'reason'")
+                if [ "$SKIPPED_TEST" = true ]; then
+                    # Strip ANSI codes for parsing
+                    local CLEAN_OUTPUT=$(echo "$TEST_OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
+
+                    # Extract skip info: file:line and reason
+                    # Format: /path/file.cpp:123: skipped: 'reason'
+                    local SKIP_LINE=$(echo "$CLEAN_OUTPUT" | grep -E "\.cpp:[0-9]+:.*skipped:" | head -1)
+                    local SKIP_FILE_LINE=$(echo "$SKIP_LINE" | grep -oE "[^[:space:]]+\.cpp:[0-9]+" | head -1)
+                    SKIP_REASON=$(echo "$SKIP_LINE" | sed "s/.*skipped: '\\(.*\\)'.*/\\1/")
+
+                    if [ -z "$SKIP_REASON" ] || [ "$SKIP_REASON" = "$SKIP_LINE" ]; then
+                        SKIP_REASON="Unknown reason"
+                    fi
+                    if [ -z "$SKIP_FILE_LINE" ]; then
+                        SKIP_FILE_LINE="unknown location"
+                    fi
+
+                    # Track skipped test globally
+                    SKIPPED_TESTS+=("$TAG")
+                    SKIPPED_REASONS+=("$SKIP_FILE_LINE: $SKIP_REASON")
+                    # Print skip marker for log parsing (use | as delimiter since paths contain :)
+                    printf "@@SKIP|${TAG}|${SKIP_FILE_LINE}|${SKIP_REASON}@@\n"
                 fi
 
                 # Helper function to log test duration (must be called before any continue)
@@ -964,6 +1058,8 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                             fi
                         fi
 
+                        # Mark that we had a real failure (not just a skip)
+                        HAD_REAL_FAILURE=true
                         echo -e "\nTest [$TAG] (Run $run of $RUN_COUNT): Tests failed. Press Enter to continue or ESC to abort..."
                         read -n 1 key
                         if [[ $key = $'\e' ]]; then
@@ -992,4 +1088,23 @@ if [ "$SHOW_PROGRESS" = true ] && [ "$TOTAL_TESTS" -gt 0 ]; then
 fi
 
 echo -e "\n========== All Test Runs Completed ($RUN_COUNT total runs) ==========\n"
+
+# Report skipped tests as warnings
+if [ ${#SKIPPED_TESTS[@]} -gt 0 ]; then
+    echo -e "\n========== WARNINGS: Skipped Tests ==========\n"
+    for i in "${!SKIPPED_TESTS[@]}"; do
+        echo -e "  [WARNING] Test [${SKIPPED_TESTS[$i]}] was skipped: ${SKIPPED_REASONS[$i]}"
+    done
+    echo ""
+fi
+
 echo -e "Test execution completed. All $RUN_COUNT runs have been executed. Check the output above for any errors."
+
+# Exit with appropriate code:
+# - If there were real failures, exit with 1
+# - If there were only skips (no real failures), exit with 0
+if [ "$HAD_REAL_FAILURE" = true ]; then
+    exit 1
+else
+    exit 0
+fi

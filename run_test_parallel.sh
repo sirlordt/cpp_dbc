@@ -502,6 +502,48 @@ mark_log_as_failed() {
     fi
 }
 
+# Strip ANSI escape codes from log file for clean reading
+# Preserves the log content but removes color codes
+strip_ansi_from_log() {
+    local prefix=$1
+    local log_file="${PREFIX_LOG_FILE[$prefix]}"
+
+    if [ -f "$log_file" ]; then
+        # Create temp file, strip ANSI codes, replace original
+        local temp_file=$(mktemp)
+        sed 's/\x1b\[[0-9;]*m//g' "$log_file" > "$temp_file"
+        mv "$temp_file" "$log_file"
+    fi
+}
+
+# Extract skipped tests from log file
+# Returns lines in format: tag|file_line|reason|log_file|log_line
+extract_skipped_tests() {
+    local log_file=$1
+
+    if [ ! -f "$log_file" ]; then
+        return
+    fi
+
+    # Look for @@SKIP|tag|file_line|reason@@ pattern (uses | as delimiter)
+    grep -a "@@SKIP|" "$log_file" 2>/dev/null | while IFS= read -r line; do
+        # Extract content between @@SKIP| and @@
+        local content=$(echo "$line" | sed 's/.*@@SKIP|\(.*\)@@.*/\1/')
+        # Split by | to get tag, file_line, reason
+        local tag=$(echo "$content" | cut -d'|' -f1)
+        local file_line=$(echo "$content" | cut -d'|' -f2)
+        local reason=$(echo "$content" | cut -d'|' -f3-)
+
+        # Find the line number in the log where "skipped:" appears for this tag
+        local log_line=$(grep -n "skipped:" "$log_file" 2>/dev/null | head -1 | cut -d':' -f1)
+        if [ -z "$log_line" ]; then
+            log_line="?"
+        fi
+
+        echo "${tag}|${file_line}|${reason}|${log_file}|${log_line}"
+    done
+}
+
 # Check for Valgrind errors in log file
 # Returns 0 if no Valgrind errors found, 1 if errors found
 # Sets VALGRIND_ERROR_MSG with the error description if found
@@ -1013,13 +1055,40 @@ run_summarize_mode() {
     local completed=0
     local failed=0
 
+    local has_warnings=false
+    declare -A prefix_warnings
+
     for prefix in "${ALL_PREFIXES[@]}"; do
         local status="${PREFIX_STATUS[$prefix]}"
         local runs=$((10#${PREFIX_CURRENT_RUN[$prefix]}))
 
+        # Check for skipped tests in all log files for this prefix
+        local skipped_info=""
+        for ((run=1; run<=runs; run++)); do
+            local log_file=$(get_log_file_path "$prefix" "$run")
+            if [ ! -f "$log_file" ]; then
+                local fail_log="${log_file%.log}_fail.log"
+                if [ -f "$fail_log" ]; then
+                    log_file="$fail_log"
+                fi
+            fi
+            if [ -f "$log_file" ]; then
+                local skips=$(extract_skipped_tests "$log_file")
+                if [ -n "$skips" ]; then
+                    skipped_info="$skips"
+                    has_warnings=true
+                fi
+            fi
+        done
+
         if [ "$status" = "completed" ]; then
             ((completed++)) || true
-            echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $runs run(s)"
+            if [ -n "$skipped_info" ]; then
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $runs run(s) ${YELLOW}(with warnings)${NC}"
+                prefix_warnings[$prefix]="$skipped_info"
+            else
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $runs run(s)"
+            fi
         else
             ((failed++)) || true
             local failed_run=$((10#${PREFIX_FAILED_RUN[$prefix]:-$runs}))
@@ -1048,8 +1117,29 @@ run_summarize_mode() {
         fi
     done
 
+    # Show warnings section if there were any skipped tests
+    if [ "$has_warnings" = true ]; then
+        echo ""
+        echo -e "${YELLOW}========================================"
+        echo -e "  Warnings: Skipped Tests"
+        echo -e "========================================${NC}"
+        for prefix in "${!prefix_warnings[@]}"; do
+            echo -e "\n  ${YELLOW}[${prefix}_]${NC}"
+            echo "${prefix_warnings[$prefix]}" | while IFS='|' read -r tag file_line reason log_file log_line; do
+                [ -z "$tag" ] && continue
+                echo -e "    - Test [$tag] skipped at $file_line"
+                echo -e "      Reason: $reason"
+                echo -e "      Log: $log_file:$log_line"
+            done
+        done
+    fi
+
     echo ""
-    echo "Summary: $completed passed, $failed failed"
+    if [ "$has_warnings" = true ]; then
+        echo "Summary: $completed passed, $failed failed (with warnings - some tests were skipped)"
+    else
+        echo "Summary: $completed passed, $failed failed"
+    fi
     echo ""
 }
 
@@ -1538,6 +1628,8 @@ run_parallel_tests_tui() {
                         mark_log_as_failed "$prefix"
                     fi
 
+                    # Clean ANSI codes from log for readable files
+                    strip_ansi_from_log "$prefix"
                     unset "PREFIX_PIDS[$prefix]"
                 fi
             fi
@@ -1614,11 +1706,38 @@ run_parallel_tests_tui() {
     local completed=0
     local failed=0
     local interrupted=0
+    local has_warnings=false
+    declare -A prefix_warnings
 
     for prefix in "${ALL_PREFIXES[@]}"; do
+        # Check for skipped tests in log files
+        local skipped_info=""
+        local total_runs=${PREFIX_CURRENT_RUN[$prefix]}
+        for ((run=1; run<=total_runs; run++)); do
+            local log_file=$(get_log_file_path "$prefix" "$run")
+            if [ ! -f "$log_file" ]; then
+                local fail_log="${log_file%.log}_fail.log"
+                if [ -f "$fail_log" ]; then
+                    log_file="$fail_log"
+                fi
+            fi
+            if [ -f "$log_file" ]; then
+                local skips=$(extract_skipped_tests "$log_file")
+                if [ -n "$skips" ]; then
+                    skipped_info="$skips"
+                    has_warnings=true
+                fi
+            fi
+        done
+
         if [ "${PREFIX_STATUS[$prefix]}" = "completed" ]; then
             ((completed++)) || true
-            echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs"
+            if [ -n "$skipped_info" ]; then
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs ${YELLOW}(with warnings)${NC}"
+                prefix_warnings[$prefix]="$skipped_info"
+            else
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs"
+            fi
         elif [ "${PREFIX_STATUS[$prefix]}" = "failed" ]; then
             ((failed++)) || true
             local run_num=${PREFIX_CURRENT_RUN[$prefix]}
@@ -1655,11 +1774,36 @@ run_parallel_tests_tui() {
         fi
     done
 
+    # Show warnings section if there were any skipped tests
+    if [ "$has_warnings" = true ]; then
+        echo ""
+        echo -e "${YELLOW}========================================"
+        echo -e "  Warnings: Skipped Tests"
+        echo -e "========================================${NC}"
+        for prefix in "${!prefix_warnings[@]}"; do
+            echo -e "\n  ${YELLOW}[${prefix}_]${NC}"
+            echo "${prefix_warnings[$prefix]}" | while IFS='|' read -r tag file_line reason log_file log_line; do
+                [ -z "$tag" ] && continue
+                echo -e "    - Test [$tag] skipped at $file_line"
+                echo -e "      Reason: $reason"
+                echo -e "      Log: $log_file:$log_line"
+            done
+        done
+    fi
+
     echo ""
     if [ $interrupted -gt 0 ]; then
-        echo "Summary: $completed passed, $failed failed, $interrupted interrupted"
+        if [ "$has_warnings" = true ]; then
+            echo "Summary: $completed passed, $failed failed, $interrupted interrupted (with warnings - some tests were skipped)"
+        else
+            echo "Summary: $completed passed, $failed failed, $interrupted interrupted"
+        fi
     else
-        echo "Summary: $completed passed, $failed failed"
+        if [ "$has_warnings" = true ]; then
+            echo "Summary: $completed passed, $failed failed (with warnings - some tests were skipped)"
+        else
+            echo "Summary: $completed passed, $failed failed"
+        fi
     fi
     echo "Total time: $total_elapsed_str"
     echo "Logs saved in: $LOG_DIR/"
@@ -1864,6 +2008,8 @@ run_parallel_tests_simple() {
                         echo "  Log: ${PREFIX_LOG_FILE[$prefix]}"
                     fi
 
+                    # Clean ANSI codes from log for readable files
+                    strip_ansi_from_log "$prefix"
                     # Clear PID
                     unset "PREFIX_PIDS[$prefix]"
                 fi
@@ -1906,11 +2052,38 @@ run_parallel_tests_simple() {
     # Summary
     local completed=0
     local failed=0
+    local has_warnings=false
+    declare -A prefix_warnings
 
     for prefix in "${ALL_PREFIXES[@]}"; do
+        # Check for skipped tests in log files
+        local skipped_info=""
+        local total_runs=${PREFIX_CURRENT_RUN[$prefix]}
+        for ((run=1; run<=total_runs; run++)); do
+            local log_file=$(get_log_file_path "$prefix" "$run")
+            if [ ! -f "$log_file" ]; then
+                local fail_log="${log_file%.log}_fail.log"
+                if [ -f "$fail_log" ]; then
+                    log_file="$fail_log"
+                fi
+            fi
+            if [ -f "$log_file" ]; then
+                local skips=$(extract_skipped_tests "$log_file")
+                if [ -n "$skips" ]; then
+                    skipped_info="$skips"
+                    has_warnings=true
+                fi
+            fi
+        done
+
         if [ "${PREFIX_STATUS[$prefix]}" = "completed" ]; then
             ((completed++)) || true
-            echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs"
+            if [ -n "$skipped_info" ]; then
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs ${YELLOW}(with warnings)${NC}"
+                prefix_warnings[$prefix]="$skipped_info"
+            else
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs"
+            fi
         elif [ "${PREFIX_STATUS[$prefix]}" = "failed" ]; then
             ((failed++)) || true
             local run_num=${PREFIX_CURRENT_RUN[$prefix]}
@@ -1939,8 +2112,29 @@ run_parallel_tests_simple() {
         fi
     done
 
+    # Show warnings section if there were any skipped tests
+    if [ "$has_warnings" = true ]; then
+        echo ""
+        echo -e "${YELLOW}========================================"
+        echo -e "  Warnings: Skipped Tests"
+        echo -e "========================================${NC}"
+        for prefix in "${!prefix_warnings[@]}"; do
+            echo -e "\n  ${YELLOW}[${prefix}_]${NC}"
+            echo "${prefix_warnings[$prefix]}" | while IFS='|' read -r tag file_line reason log_file log_line; do
+                [ -z "$tag" ] && continue
+                echo -e "    - Test [$tag] skipped at $file_line"
+                echo -e "      Reason: $reason"
+                echo -e "      Log: $log_file:$log_line"
+            done
+        done
+    fi
+
     echo ""
-    echo "Summary: $completed passed, $failed failed"
+    if [ "$has_warnings" = true ]; then
+        echo "Summary: $completed passed, $failed failed (with warnings - some tests were skipped)"
+    else
+        echo "Summary: $completed passed, $failed failed"
+    fi
     echo "Total time: $total_elapsed_str"
     echo "Logs saved in: $LOG_DIR/"
     echo ""

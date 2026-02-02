@@ -176,12 +176,14 @@ TEST_CASE("MongoDB binary data operations", "[25_061_01_mongodb_real_blob]")
         // Note: GridFS functionality is not directly exposed in the cpp_dbc API
         // This test demonstrates handling large binary data using regular collections
 
-        // Skip if the MongoDB driver doesn't support large binary storage
-        if (!conn->supportsTransactions()) // Using this as a proxy for modern MongoDB features
-        {
-            SKIP("Skipping large binary test for older MongoDB versions");
-            return;
-        }
+        // NOTE: The following skip condition was incorrect - supportsTransactions() returns false
+        // for standalone MongoDB servers (not replica sets), but binary data storage works fine
+        // on all MongoDB deployments. Commenting out to allow test to run on standalone servers.
+        // if (!conn->supportsTransactions()) // Using this as a proxy for modern MongoDB features
+        // {
+        //     SKIP("Skipping large binary test for older MongoDB versions");
+        //     return;
+        // }
 
         // Use a separate collection for this test
         std::string largeCollName = collectionName + "_large";

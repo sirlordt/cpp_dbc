@@ -6,10 +6,15 @@
 PROJECT_ROOT="${1:-$(pwd)}"
 COUNT="${2:-1}"
 
+if [[ ! -d "$PROJECT_ROOT" ]]; then
+    echo "ERROR: Project root directory does not exist: $PROJECT_ROOT" >&2
+    exit 1
+fi
+
 generate_code() {
     while true; do
         # Generate random 12-char code with A-Z and 0-9
-        CODE=$(cat /dev/urandom | tr -dc 'A-Z0-9' | fold -w 12 | head -n 1)
+        CODE=$(tr -dc 'A-Z0-9' < /dev/urandom | fold -w 12 | head -n 1)
 
         # Count letters in the code
         LETTER_COUNT=$(echo "$CODE" | tr -cd 'A-Z' | wc -c)

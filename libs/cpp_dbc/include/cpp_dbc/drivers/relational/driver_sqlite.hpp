@@ -99,6 +99,20 @@ namespace cpp_dbc::SQLite
      */
     using SQLiteDbHandle = std::shared_ptr<sqlite3>;
 
+    /**
+     * @brief Factory helper to create SQLiteDbHandle with proper deleter
+     *
+     * This ensures that sqlite3_close_v2() is always called correctly when
+     * the handle is destroyed. Use this instead of constructing SQLiteDbHandle directly.
+     *
+     * @param db Raw pointer to sqlite3 connection (takes ownership)
+     * @return SQLiteDbHandle with proper deleter attached
+     */
+    inline SQLiteDbHandle makeSQLiteDbHandle(sqlite3 *db)
+    {
+        return SQLiteDbHandle(db, SQLiteDbDeleter{});
+    }
+
     class SQLiteDBResultSet final : public RelationalDBResultSet
     {
     private:
