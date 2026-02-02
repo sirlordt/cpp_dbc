@@ -16,7 +16,11 @@ find_problematic_duplicates() {
         grep -oP '"[A-Z0-9]+"' | tr -d '"' | sort | uniq -d | while read code; do
         # Get files where this code appears
         files=$(grep -rl --include="*.cpp" --include="*.hpp" "DBException.*\"$code\"" "$LIBS_DIR" 2>/dev/null | sort -u)
-        file_count=$(echo "$files" | wc -l)
+        if [ -z "$files" ]; then
+            file_count=0
+        else
+            file_count=$(echo "$files" | wc -l)
+        fi
 
         # If code appears in more than one file, it's problematic
         if [ "$file_count" -gt 1 ]; then

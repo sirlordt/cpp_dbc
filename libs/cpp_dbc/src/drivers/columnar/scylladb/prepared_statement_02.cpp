@@ -495,7 +495,11 @@ namespace cpp_dbc::ScyllaDB
             return cpp_dbc::unexpected(DBException("H8B9C3D4E5F6", "Failed to bind bytes", system_utils::captureCallStack()));
         }
 
-        std::vector<uint8_t> vec(x, x + length);
+        std::vector<uint8_t> vec;
+        if (length > 0)
+        {
+            vec.assign(x, x + length);
+        }
         m_currentEntry.bytesParams.emplace_back(parameterIndex - 1, vec);
         return {};
     }
