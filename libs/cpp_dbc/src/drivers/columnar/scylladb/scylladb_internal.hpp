@@ -24,6 +24,9 @@
 #include <cassandra.h>
 #include <mutex>
 #include <iostream>
+#include <string>
+#include <algorithm>
+#include <cctype>
 
 // Thread-safety macros for conditional mutex locking
 #if DB_DRIVER_THREAD_SAFE
@@ -53,6 +56,98 @@ namespace cpp_dbc::ScyllaDB
             return nullptr;
         }
         return cass_row_get_column(row, index);
+    }
+
+    /**
+     * @brief Estimates the number of affected rows for a CQL statement
+     *
+     * Cassandra/ScyllaDB does not provide affected row counts natively.
+     * This function provides a best-effort heuristic based on query analysis.
+     *
+     * @param query The CQL query string to analyze
+     * @return Estimated number of affected rows
+     *
+     * @note Limitations and edge cases:
+     *   - DDL statements (CREATE, DROP, ALTER, TRUNCATE): Always returns 0
+     *   - DELETE with "WHERE id IN (...)": Counts comma-separated values as affected rows.
+     *     This is a heuristic and may be inaccurate if:
+     *       - Some IDs don't exist in the database (over-counting)
+     *       - The IN clause contains nested structures or expressions
+     *       - The column is not named "id" (case-insensitive match on "ID")
+     *   - DELETE/UPDATE/INSERT without IN clause: Returns 1 (assumes single row)
+     *     This is inaccurate for:
+     *       - Range deletes (e.g., WHERE timestamp > ...)
+     *       - Partition-level deletes
+     *       - Batch operations processed as single statements
+     *   - Unknown statements: Returns 1 to indicate success
+     *
+     * @warning This function cannot determine actual affected rows. For accurate
+     *          counts, consider using Lightweight Transactions (LWT) with IF EXISTS/
+     *          IF NOT EXISTS and checking the [applied] column in the result.
+     */
+    inline uint64_t estimateAffectedRows(const std::string &query)
+    {
+        // Convert to uppercase for case-insensitive matching
+        std::string queryUpper = query;
+        std::ranges::transform(queryUpper, queryUpper.begin(), [](unsigned char c)
+                               { return static_cast<char>(std::toupper(c)); });
+
+        // DDL statements conventionally return 0 affected rows
+        if (queryUpper.starts_with("CREATE ") ||
+            queryUpper.starts_with("DROP ") ||
+            queryUpper.starts_with("ALTER ") ||
+            queryUpper.starts_with("TRUNCATE "))
+        {
+            SCYLLADB_DEBUG("estimateAffectedRows - DDL statement, returning 0");
+            return 0;
+        }
+
+        // For DELETE operations
+        if (queryUpper.starts_with("DELETE "))
+        {
+            // Special case for 'WHERE id IN' to handle multiple rows
+            if (queryUpper.contains("WHERE ID IN"))
+            {
+                // Count the number of elements in the IN clause
+                size_t inStart = queryUpper.find("IN (");
+                size_t inEnd = queryUpper.find(")", inStart);
+                if (inStart != std::string::npos && inEnd != std::string::npos)
+                {
+                    std::string inClause = queryUpper.substr(inStart + 3, inEnd - inStart - 3);
+                    size_t commaCount = 0;
+                    for (char c : inClause)
+                    {
+                        if (c == ',')
+                        {
+                            commaCount++;
+                        }
+                    }
+                    uint64_t count = commaCount + 1;
+                    SCYLLADB_DEBUG("estimateAffectedRows - DELETE with IN clause, affected rows: " << count);
+                    return count;
+                }
+            }
+            SCYLLADB_DEBUG("estimateAffectedRows - DELETE operation, assuming 1 affected row");
+            return 1;
+        }
+
+        // For UPDATE operations
+        if (queryUpper.starts_with("UPDATE "))
+        {
+            SCYLLADB_DEBUG("estimateAffectedRows - UPDATE operation, assuming 1 affected row");
+            return 1;
+        }
+
+        // For INSERT operations
+        if (queryUpper.starts_with("INSERT "))
+        {
+            SCYLLADB_DEBUG("estimateAffectedRows - INSERT operation, assuming 1 affected row");
+            return 1;
+        }
+
+        // For any other operations, return 1 to indicate success
+        SCYLLADB_DEBUG("estimateAffectedRows - Other operation, returning 1");
+        return 1;
     }
 
 } // namespace cpp_dbc::ScyllaDB

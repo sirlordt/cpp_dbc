@@ -205,8 +205,21 @@ namespace cpp_dbc::MongoDB
     {
         if (this != &other)
         {
+            // Guard close() call since it can throw and this function is noexcept.
+            // We must ensure the object is in a valid state even if close() fails.
             if (!m_closed)
-                close();
+            {
+                try
+                {
+                    close();
+                }
+                catch (...)
+                {
+                    // close() threw - mark as closed to maintain invariants
+                    m_closed = true;
+                    MONGODB_DEBUG("MongoDBConnection::operator= - close() threw during move assignment, marking as closed");
+                }
+            }
 
             m_client = std::move(other.m_client);
             m_databaseName = std::move(other.m_databaseName);

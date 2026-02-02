@@ -37,7 +37,6 @@
 #include <vector>
 #include <string>
 #include <atomic>
-#include <iostream>
 
 namespace cpp_dbc
 {

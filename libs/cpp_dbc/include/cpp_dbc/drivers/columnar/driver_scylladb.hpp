@@ -179,6 +179,21 @@ namespace cpp_dbc
             bool isAfterLast() override;
             uint64_t getRow() override;
 
+            /**
+             * @brief Typed getters - NULL handling semantics
+             *
+             * When a column contains NULL, typed getters return default values:
+             * - getInt/getLong: returns 0
+             * - getDouble: returns 0.0
+             * - getBoolean: returns false
+             * - getString: returns empty string ""
+             *
+             * @note Unlike JDBC which requires checking wasNull() after each call,
+             *       callers should use isNull(columnIndex) BEFORE calling typed getters
+             *       if they need to distinguish NULL from actual default values.
+             *
+             * @see isNull()
+             */
             int getInt(size_t columnIndex) override;
             int getInt(const std::string &columnName) override;
             long getLong(size_t columnIndex) override;

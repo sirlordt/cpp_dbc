@@ -247,69 +247,9 @@ namespace cpp_dbc::ScyllaDB
             return cpp_dbc::unexpected(res.error());
         }
 
-        // The Cassandra C++ driver doesn't provide a direct way to get the exact number of affected rows
-        // See: https://github.com/apache/cassandra-cpp-driver/
-
-        // Analyze the query to determine appropriate return value
-        std::string queryUpper = query;
-        std::ranges::transform(queryUpper, queryUpper.begin(), [](unsigned char c)
-                               { return static_cast<char>(std::toupper(c)); });
-
-        // DDL statements conventionally return 0 affected rows
-        if (queryUpper.starts_with("CREATE ") ||
-            queryUpper.starts_with("DROP ") ||
-            queryUpper.starts_with("ALTER ") ||
-            queryUpper.starts_with("TRUNCATE "))
-        {
-            SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - DDL statement, returning 0 affected rows");
-            return 0;
-        }
-
-        // For DELETE operations
-        if (queryUpper.starts_with("DELETE "))
-        {
-            // Special case for 'WHERE id IN' to handle multiple rows for tests
-            if (queryUpper.contains("WHERE ID IN"))
-            {
-                // Count the number of elements in the IN clause
-                size_t inStart = queryUpper.find("IN (");
-                size_t inEnd = queryUpper.find(")", inStart);
-                if (inStart != std::string::npos && inEnd != std::string::npos)
-                {
-                    std::string inClause = queryUpper.substr(inStart + 3, inEnd - inStart - 3);
-                    size_t commaCount = 0;
-                    for (char c : inClause)
-                    {
-                        if (c == ',')
-                            commaCount++;
-                    }
-                    uint64_t count = commaCount + 1;
-                    SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - DELETE with IN clause, affected rows: " << count);
-                    return count; // Number of elements = number of commas + 1
-                }
-            }
-            // For other DELETE operations, return 1
-            SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - DELETE operation, returning 1");
-            return 1;
-        }
-
-        // For UPDATE operations
-        if (queryUpper.starts_with("UPDATE "))
-        {
-            SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - UPDATE operation, returning 1");
-            return 1;
-        }
-
-        // For INSERT operations
-        if (queryUpper.starts_with("INSERT "))
-        {
-            SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - INSERT operation, returning 1");
-            return 1;
-        }
-
-        // For any other DML operations, return 1 to indicate success
-        SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - Other operation, returning 1");
-        return 1;
+        // Use shared helper for consistent heuristic-based estimation
+        // (Cassandra/ScyllaDB doesn't provide actual affected row counts)
+        return estimateAffectedRows(query);
     }
 
     cpp_dbc::expected<bool, DBException> ScyllaDBConnection::beginTransaction(std::nothrow_t) noexcept

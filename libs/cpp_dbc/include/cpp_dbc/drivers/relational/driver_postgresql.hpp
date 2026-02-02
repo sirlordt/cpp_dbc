@@ -263,6 +263,15 @@ namespace cpp_dbc::PostgreSQL
         std::string m_url;
 
         // Registry of active prepared statements
+        // NOTE: Mutex asymmetry by design:
+        // - m_statementsMutex is ALWAYS present (unconditional) because statement
+        //   registration/unregistration can occur from different internal execution
+        //   paths even in single-threaded builds (e.g., during statement cleanup or
+        //   connection close).
+        // - m_connMutex is ONLY defined under DB_DRIVER_THREAD_SAFE because it provides
+        //   connection-level locking for concurrent access in thread-safe builds.
+        // This asymmetry ensures correctness in all build configurations while minimizing
+        // overhead when thread safety is not required.
         std::set<std::shared_ptr<PostgreSQLDBPreparedStatement>> m_activeStatements;
         std::mutex m_statementsMutex;
 

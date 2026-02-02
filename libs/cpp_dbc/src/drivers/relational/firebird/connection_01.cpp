@@ -287,25 +287,40 @@ namespace cpp_dbc::Firebird
     void FirebirdDBConnection::closeAllActivePreparedStatements()
     {
         FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements - Starting");
-        std::lock_guard<std::mutex> lock(m_statementsMutex);
 
-        int invalidatedCount = 0;
-        for (auto &weakStmt : m_activeStatements)
+        // Collect statements into a temporary vector while holding the lock,
+        // then release the lock before calling invalidate() to prevent deadlock.
+        // This is necessary because invalidate() may call close() which could
+        // re-enter the connection through unregisterStatement().
+        std::vector<std::shared_ptr<FirebirdDBPreparedStatement>> statementsToInvalidate;
+
         {
-            if (auto stmt = weakStmt.lock())
+            std::lock_guard<std::mutex> lock(m_statementsMutex);
+            for (auto &weakStmt : m_activeStatements)
             {
-                try
+                if (auto stmt = weakStmt.lock())
                 {
-                    stmt->invalidate();
-                    invalidatedCount++;
-                }
-                catch (...)
-                {
-                    FIREBIRD_DEBUG("  Exception while invalidating PreparedStatement, ignoring");
+                    statementsToInvalidate.push_back(stmt);
                 }
             }
+            m_activeStatements.clear();
         }
-        m_activeStatements.clear();
+
+        // Now invalidate statements outside the lock
+        int invalidatedCount = 0;
+        for (auto &stmt : statementsToInvalidate)
+        {
+            try
+            {
+                stmt->invalidate();
+                invalidatedCount++;
+            }
+            catch (...)
+            {
+                FIREBIRD_DEBUG("  Exception while invalidating PreparedStatement, ignoring");
+            }
+        }
+
         FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements - Invalidated " << invalidatedCount << " prepared statements");
     }
 

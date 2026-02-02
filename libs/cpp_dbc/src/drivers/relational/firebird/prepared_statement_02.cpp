@@ -45,6 +45,12 @@ namespace cpp_dbc::Firebird
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
 
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FB6NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
+
             if (parameterIndex < 1 || parameterIndex > m_inputSqlda->sqld)
             {
                 return cpp_dbc::unexpected(DBException("D8E4F0A6B3C8", "Parameter index out of range: " + std::to_string(parameterIndex),
@@ -139,6 +145,12 @@ namespace cpp_dbc::Firebird
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
 
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FB7NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
+
             if (parameterIndex < 1 || parameterIndex > m_inputSqlda->sqld)
             {
                 return cpp_dbc::unexpected(DBException("E9F5A1B7C4D0", "Parameter index out of range: " + std::to_string(parameterIndex),
@@ -219,6 +231,13 @@ namespace cpp_dbc::Firebird
         try
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FB8NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
+
             short val = value ? 1 : 0;
             setParameter(parameterIndex, &val, sizeof(short), SQL_SHORT);
             return {};
@@ -242,6 +261,12 @@ namespace cpp_dbc::Firebird
         try
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FBN1V4SN0L01", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
 
             if (parameterIndex < 1 || parameterIndex > m_inputSqlda->sqld)
             {
@@ -272,6 +297,12 @@ namespace cpp_dbc::Firebird
         try
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FBN1V4SDAT02", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
 
             // Parse date string (expected format: YYYY-MM-DD)
             struct tm time = {};
@@ -306,6 +337,12 @@ namespace cpp_dbc::Firebird
         try
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FBN1V4STMP03", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
 
             // Parse timestamp string (expected format: YYYY-MM-DD HH:MM:SS)
             struct tm time = {};
@@ -342,6 +379,12 @@ namespace cpp_dbc::Firebird
         try
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FBN1V4SBLB04", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
 
             if (!x)
             {
@@ -381,6 +424,12 @@ namespace cpp_dbc::Firebird
         try
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FBN1V4SBNS05", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
 
             if (!x)
             {
@@ -429,6 +478,12 @@ namespace cpp_dbc::Firebird
         try
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FBN1V4SBNL06", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
 
             if (!x)
             {
@@ -479,6 +534,12 @@ namespace cpp_dbc::Firebird
     {
         try
         {
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FBN1V4SBYT07", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
+
             return setBytes(std::nothrow, parameterIndex, x.data(), x.size());
         }
         catch (const DBException &e)

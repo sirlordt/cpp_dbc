@@ -397,6 +397,13 @@ namespace cpp_dbc::Firebird
         try
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FB4NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
+
             ISC_LONG val = static_cast<ISC_LONG>(value);
             setParameter(parameterIndex, &val, sizeof(ISC_LONG), SQL_LONG);
             return {};
@@ -420,6 +427,13 @@ namespace cpp_dbc::Firebird
         try
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FB5NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
+
             ISC_INT64 val = static_cast<ISC_INT64>(value);
             setParameter(parameterIndex, &val, sizeof(ISC_INT64), SQL_INT64);
             return {};

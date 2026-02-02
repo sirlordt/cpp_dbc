@@ -26,7 +26,6 @@
 #include <vector>
 #include <map>
 #include <optional>
-#include <iostream>
 #include "cpp_dbc/core/kv/kv_db_driver.hpp"
 #include "cpp_dbc/core/kv/kv_db_connection.hpp"
 
@@ -437,8 +436,11 @@ namespace cpp_dbc::Redis
             std::string getName() const noexcept override;
 
         private:
-            static std::once_flag s_initFlag;
+            // Note: Using atomic<bool> + mutex instead of std::once_flag because
+            // std::once_flag cannot be reset, but we need cleanup() to allow
+            // re-initialization on subsequent driver construction.
             static std::atomic<bool> s_initialized;
+            static std::mutex s_initMutex;
 
             /**
              * @brief Initialize Redis driver

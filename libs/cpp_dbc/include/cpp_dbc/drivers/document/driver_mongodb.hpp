@@ -52,7 +52,6 @@
 #endif
 
 #include <atomic>
-#include <iostream>
 #include <map>
 #include <memory>
 #include <mutex>

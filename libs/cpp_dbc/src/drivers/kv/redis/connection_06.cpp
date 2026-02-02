@@ -37,115 +37,115 @@
 namespace cpp_dbc::Redis
 {
 
-        // ============================================================================
-        // RedisConnection - Private helper methods
-        // ============================================================================
+    // ============================================================================
+    // RedisConnection - Private helper methods
+    // ============================================================================
 
-        void RedisConnection::validateConnection() const
+    void RedisConnection::validateConnection() const
+    {
+        if (m_closed || !m_context)
         {
-            if (m_closed || !m_context)
-            {
-                throw DBException("F92C4A6E7D10", "Redis connection is closed or invalid",
-                                  system_utils::captureCallStack());
-            }
+            throw DBException("F92C4A6E7D10", "Redis connection is closed or invalid",
+                              system_utils::captureCallStack());
         }
+    }
 
-        std::string RedisConnection::extractString(const RedisReplyHandle &reply)
+    std::string RedisConnection::extractString(const RedisReplyHandle &reply)
+    {
+        if (!reply.get())
         {
-            if (!reply.get())
-            {
-                return "";
-            }
-
-            if (reply.get()->type == REDIS_REPLY_STRING || reply.get()->type == REDIS_REPLY_STATUS)
-            {
-                return std::string(reply.get()->str, reply.get()->len);
-            }
-            else if (reply.get()->type == REDIS_REPLY_NIL)
-            {
-                return "";
-            }
-            else if (reply.get()->type == REDIS_REPLY_INTEGER)
-            {
-                return std::to_string(reply.get()->integer);
-            }
-
             return "";
         }
 
-        int64_t RedisConnection::extractInteger(const RedisReplyHandle &reply)
+        if (reply.get()->type == REDIS_REPLY_STRING || reply.get()->type == REDIS_REPLY_STATUS)
         {
-            if (!reply.get())
-            {
-                return 0;
-            }
+            return std::string(reply.get()->str, reply.get()->len);
+        }
+        else if (reply.get()->type == REDIS_REPLY_NIL)
+        {
+            return "";
+        }
+        else if (reply.get()->type == REDIS_REPLY_INTEGER)
+        {
+            return std::to_string(reply.get()->integer);
+        }
 
-            if (reply.get()->type == REDIS_REPLY_INTEGER)
-            {
-                return reply.get()->integer;
-            }
-            else if (reply.get()->type == REDIS_REPLY_STRING)
-            {
-                try
-                {
-                    return std::stoll(std::string(reply.get()->str, reply.get()->len));
-                }
-                catch ([[maybe_unused]] const std::exception &ex)
-                {
-                    REDIS_DEBUG("RedisConnection::extractInteger - Failed to parse: " << ex.what());
-                    return 0;
-                }
-            }
+        return "";
+    }
 
+    int64_t RedisConnection::extractInteger(const RedisReplyHandle &reply)
+    {
+        if (!reply.get())
+        {
             return 0;
         }
 
-        std::vector<std::string> RedisConnection::extractArray(const RedisReplyHandle &reply)
+        if (reply.get()->type == REDIS_REPLY_INTEGER)
         {
-            std::vector<std::string> result;
-
-            if (!reply.get() || reply.get()->type != REDIS_REPLY_ARRAY)
-            {
-                return result;
-            }
-
-            for (size_t i = 0; i < reply.get()->elements; ++i)
-            {
-                redisReply *element = reply.get()->element[i];
-                if (element->type == REDIS_REPLY_STRING || element->type == REDIS_REPLY_STATUS)
-                {
-                    result.emplace_back(element->str, element->len);
-                }
-                else if (element->type == REDIS_REPLY_INTEGER)
-                {
-                    result.emplace_back(std::to_string(element->integer));
-                }
-                else if (element->type == REDIS_REPLY_NIL)
-                {
-                    result.emplace_back("");
-                }
-            }
-
-            return result;
+            return reply.get()->integer;
         }
-
-        std::optional<double> RedisConnection::tryParseDouble(const std::string &str) noexcept
+        else if (reply.get()->type == REDIS_REPLY_STRING)
         {
             try
             {
-                return std::stod(str);
+                return std::stoll(std::string(reply.get()->str, reply.get()->len));
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                REDIS_DEBUG("RedisConnection::tryParseDouble - Failed to parse: " << str << " error: " << ex.what());
-                return std::nullopt;
-            }
-            catch (...)
-            {
-                REDIS_DEBUG("RedisConnection::tryParseDouble - Failed to parse: " << str << " unknown error");
-                return std::nullopt;
+                REDIS_DEBUG("RedisConnection::extractInteger - Failed to parse: " << ex.what());
+                return 0;
             }
         }
+
+        return 0;
+    }
+
+    std::vector<std::string> RedisConnection::extractArray(const RedisReplyHandle &reply)
+    {
+        std::vector<std::string> result;
+
+        if (!reply.get() || reply.get()->type != REDIS_REPLY_ARRAY)
+        {
+            return result;
+        }
+
+        for (size_t i = 0; i < reply.get()->elements; ++i)
+        {
+            redisReply *element = reply.get()->element[i];
+            if (element->type == REDIS_REPLY_STRING || element->type == REDIS_REPLY_STATUS)
+            {
+                result.emplace_back(element->str, element->len);
+            }
+            else if (element->type == REDIS_REPLY_INTEGER)
+            {
+                result.emplace_back(std::to_string(element->integer));
+            }
+            else if (element->type == REDIS_REPLY_NIL)
+            {
+                result.emplace_back("");
+            }
+        }
+
+        return result;
+    }
+
+    std::optional<double> RedisConnection::tryParseDouble(const std::string &str) noexcept
+    {
+        try
+        {
+            return std::stod(str);
+        }
+        catch ([[maybe_unused]] const std::exception &ex)
+        {
+            REDIS_DEBUG("RedisConnection::tryParseDouble - Failed to parse: " << str << " error: " << ex.what());
+            return std::nullopt;
+        }
+        catch (...)
+        {
+            REDIS_DEBUG("RedisConnection::tryParseDouble - Failed to parse: " << str << " unknown error");
+            return std::nullopt;
+        }
+    }
 
 } // namespace cpp_dbc::Redis
 

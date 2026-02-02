@@ -41,6 +41,12 @@ namespace cpp_dbc::Firebird
         {
             DB_DRIVER_LOCK_GUARD(m_mutex);
 
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FBN1V4SBYT08", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
+
             if (parameterIndex < 1 || parameterIndex > m_inputSqlda->sqld)
             {
                 return cpp_dbc::unexpected(DBException("C3D9E5F1A8B4", "Parameter index out of range: " + std::to_string(parameterIndex),

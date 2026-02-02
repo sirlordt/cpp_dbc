@@ -98,11 +98,11 @@ namespace cpp_dbc::MongoDB
             bson_t opts = BSON_INITIALIZER;
             BSON_APPEND_INT64(&opts, "limit", 1);
 
-            mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(
+            mongoc_cursor_t *rawCursor = mongoc_collection_find_with_opts(
                 m_collection.get(), filterBson.get(), &opts, nullptr);
             bson_destroy(&opts);
 
-            if (!cursor)
+            if (!rawCursor)
             {
                 return unexpected<DBException>(DBException(
                     "E9F5A4B3C8D7",
@@ -110,15 +110,17 @@ namespace cpp_dbc::MongoDB
                     system_utils::captureCallStack()));
             }
 
+            // Wrap cursor in RAII handle immediately to prevent leaks if exceptions occur
+            MongoCursorHandle cursor(rawCursor);
+
             const bson_t *doc = nullptr;
             std::shared_ptr<DocumentDBData> result;
 
-            if (mongoc_cursor_next(cursor, &doc))
+            if (mongoc_cursor_next(cursor.get(), &doc))
             {
                 bson_t *docCopy = bson_copy(doc);
                 if (!docCopy)
                 {
-                    mongoc_cursor_destroy(cursor);
                     return unexpected<DBException>(DBException(
                         "D5E6F7A8B9C1",
                         "Failed to copy BSON document in findOne (memory allocation failure)",
@@ -128,16 +130,14 @@ namespace cpp_dbc::MongoDB
             }
 
             bson_error_t error;
-            if (mongoc_cursor_error(cursor, &error))
+            if (mongoc_cursor_error(cursor.get(), &error))
             {
-                mongoc_cursor_destroy(cursor);
                 return unexpected<DBException>(DBException(
                     "F0A6B5C4D9E8",
                     std::string("findOne error: ") + error.message,
                     system_utils::captureCallStack()));
             }
 
-            mongoc_cursor_destroy(cursor);
             return result;
         }
         catch (const DBException &ex)
@@ -249,10 +249,10 @@ namespace cpp_dbc::MongoDB
             }
 
             BsonHandle filterBson = parseFilter(filter);
-            mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(
+            mongoc_cursor_t *rawCursor = mongoc_collection_find_with_opts(
                 m_collection.get(), filterBson.get(), nullptr, nullptr);
 
-            if (!cursor)
+            if (!rawCursor)
             {
                 return unexpected<DBException>(DBException(
                     "A1B7C6D5E0F9",
@@ -260,7 +260,11 @@ namespace cpp_dbc::MongoDB
                     system_utils::captureCallStack()));
             }
 
-            std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
+            // Wrap cursor in RAII handle immediately to prevent leaks if make_shared throws
+            MongoCursorHandle cursorHandle(rawCursor);
+
+            // Create the MongoDBCursor - it will take ownership via release()
+            std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursorHandle.release(), m_connection);
             return result;
         }
         catch (const DBException &ex)
@@ -314,11 +318,11 @@ namespace cpp_dbc::MongoDB
             bson_t opts = BSON_INITIALIZER;
             BSON_APPEND_DOCUMENT(&opts, "projection", projBson.get());
 
-            mongoc_cursor_t *cursor = mongoc_collection_find_with_opts(
+            mongoc_cursor_t *rawCursor = mongoc_collection_find_with_opts(
                 m_collection.get(), filterBson.get(), &opts, nullptr);
             bson_destroy(&opts);
 
-            if (!cursor)
+            if (!rawCursor)
             {
                 return unexpected<DBException>(DBException(
                     "B2C8D7E6F1A0",
@@ -326,7 +330,11 @@ namespace cpp_dbc::MongoDB
                     system_utils::captureCallStack()));
             }
 
-            std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursor, m_connection);
+            // Wrap cursor in RAII handle immediately to prevent leaks if make_shared throws
+            MongoCursorHandle cursorHandle(rawCursor);
+
+            // Create the MongoDBCursor - it will take ownership via release()
+            std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursorHandle.release(), m_connection);
             return result;
         }
         catch (const DBException &ex)
