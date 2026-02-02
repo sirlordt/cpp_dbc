@@ -707,7 +707,8 @@ HAD_REAL_FAILURE=false
 # Usage: run_test_with_skip_handling TAG
 run_test_with_skip_handling() {
     local TAG=$1
-    local TEST_OUTPUT_FILE=$(mktemp)
+    local TEST_OUTPUT_FILE
+    TEST_OUTPUT_FILE=$(mktemp) || { echo "ERROR: Failed to create temp file for test output" >&2; return 1; }
     local TEST_RESULT=0
 
     # Force color output
@@ -936,7 +937,7 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                 # Run the test with real-time output while also capturing it for validation
                 echo -e "\nRunning test with tag [$TAG] (Run $run of $RUN_COUNT)...\n"
                 # Use a temporary file to capture output
-                TEST_OUTPUT_FILE=$(mktemp)
+                TEST_OUTPUT_FILE=$(mktemp) || { echo "ERROR: Failed to create temp file for test output" >&2; continue; }
                 # Force color output
                 export CLICOLOR_FORCE=1
                 export FORCE_COLOR=1
@@ -969,12 +970,12 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                 # Extract skip reason from output (format: "skipped: 'reason'")
                 if [ "$SKIPPED_TEST" = true ]; then
                     # Strip ANSI codes for parsing
-                    local CLEAN_OUTPUT=$(echo "$TEST_OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
+                    CLEAN_OUTPUT=$(echo "$TEST_OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
 
                     # Extract skip info: file:line and reason
                     # Format: /path/file.cpp:123: skipped: 'reason'
-                    local SKIP_LINE=$(echo "$CLEAN_OUTPUT" | grep -E "\.cpp:[0-9]+:.*skipped:" | head -1)
-                    local SKIP_FILE_LINE=$(echo "$SKIP_LINE" | grep -oE "[^[:space:]]+\.cpp:[0-9]+" | head -1)
+                    SKIP_LINE=$(echo "$CLEAN_OUTPUT" | grep -E "\.cpp:[0-9]+:.*skipped:" | head -1)
+                    SKIP_FILE_LINE=$(echo "$SKIP_LINE" | grep -oE "[^[:space:]]+\.cpp:[0-9]+" | head -1)
                     SKIP_REASON=$(echo "$SKIP_LINE" | sed "s/.*skipped: '\\(.*\\)'.*/\\1/")
 
                     if [ -z "$SKIP_REASON" ] || [ "$SKIP_REASON" = "$SKIP_LINE" ]; then

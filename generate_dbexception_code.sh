@@ -12,7 +12,16 @@ if [[ ! -d "$PROJECT_ROOT" ]]; then
 fi
 
 generate_code() {
+    local MAX_ITERATIONS=1000
+    local iteration=0
+
     while true; do
+        iteration=$((iteration + 1))
+        if [[ $iteration -gt $MAX_ITERATIONS ]]; then
+            echo "ERROR: Failed to generate unique code after $MAX_ITERATIONS attempts" >&2
+            return 1
+        fi
+
         # Generate random 12-char code with A-Z and 0-9
         CODE=$(tr -dc 'A-Z0-9' < /dev/urandom | fold -w 12 | head -n 1)
 

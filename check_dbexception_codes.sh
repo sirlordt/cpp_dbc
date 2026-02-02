@@ -11,8 +11,11 @@ GENERATE_SCRIPT="$PROJECT_ROOT/generate_dbexception_code.sh"
 
 # Find duplicates that are in DIFFERENT files (problematic duplicates)
 find_problematic_duplicates() {
+    # Filter out commented lines (// or /* before DBException)
     grep -rnP --include="*.cpp" --include="*.hpp" \
         'DBException\s*\(\s*"[A-Z0-9]+"\s*,' "$LIBS_DIR" 2>/dev/null | \
+        grep -vP '^\s*(//|/\*)' | \
+        grep -vP ':\s*(//|/\*).*DBException' | \
         grep -oP '"[A-Z0-9]+"' | tr -d '"' | sort | uniq -d | while read code; do
         # Get files where this code appears
         files=$(grep -rl --include="*.cpp" --include="*.hpp" "DBException.*\"$code\"" "$LIBS_DIR" 2>/dev/null | sort -u)
@@ -29,10 +32,11 @@ find_problematic_duplicates() {
     done
 }
 
-# Get all locations for a specific code
+# Get all locations for a specific code (excluding commented lines)
 get_code_locations() {
     local code=$1
-    grep -rn --include="*.cpp" --include="*.hpp" "DBException.*\"$code\"" "$LIBS_DIR" 2>/dev/null
+    grep -rn --include="*.cpp" --include="*.hpp" "DBException.*\"$code\"" "$LIBS_DIR" 2>/dev/null | \
+        grep -vP ':\s*(//|/\*).*DBException'
 }
 
 case "$1" in
@@ -57,8 +61,10 @@ case "$1" in
     --list)
         echo "All DBException codes in the project:"
         echo ""
+        # Filter out commented lines (// or /* before DBException)
         grep -rnP --include="*.cpp" --include="*.hpp" \
             'DBException\s*\(\s*"[A-Z0-9]+"\s*,' "$LIBS_DIR" 2>/dev/null | \
+            grep -vP ':\s*(//|/\*).*DBException' | \
             sed -E 's|.*/libs/||' | \
             grep -oP '"[A-Z0-9]+".*' | \
             sed -E 's/"([A-Z0-9]+)".*/\1/' | \
