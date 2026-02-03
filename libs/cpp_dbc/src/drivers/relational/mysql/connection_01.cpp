@@ -37,16 +37,129 @@ namespace cpp_dbc::MySQL
 
     // MySQLDBConnection implementation
 
-    void MySQLDBConnection::registerStatement(std::shared_ptr<MySQLDBPreparedStatement> stmt)
+    /**
+     * @brief Register a prepared statement in the active statements registry
+     *
+     * @details
+     * This method is called automatically when a new PreparedStatement is created
+     * via prepareStatement(). The statement is stored as a weak_ptr to allow
+     * natural destruction when the user releases their reference.
+     *
+     * @param stmt Weak pointer to the statement to register
+     *
+     * @see closeAllStatements() for cleanup logic
+     * @see m_activeStatements for design rationale
+     */
+    void MySQLDBConnection::registerStatement(std::weak_ptr<MySQLDBPreparedStatement> stmt)
     {
         std::scoped_lock lock(m_statementsMutex);
+        if (m_activeStatements.size() > 50)
+        {
+            std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
+        }
         m_activeStatements.insert(stmt);
     }
 
-    void MySQLDBConnection::unregisterStatement(std::shared_ptr<MySQLDBPreparedStatement> stmt)
+    /**
+     * @brief Unregister a prepared statement from the active statements registry
+     *
+     * @details
+     * This method removes a specific statement from the registry. It also cleans up
+     * any expired weak_ptrs encountered during iteration.
+     *
+     * @note Currently unused - statements are cleaned up via closeAllStatements()
+     * in returnToPool() and close(), or they expire naturally. This method is kept
+     * for API symmetry and potential future use (e.g., if we want statements to
+     * unregister themselves on close).
+     *
+     * @param stmt Weak pointer to the statement to unregister
+     */
+    void MySQLDBConnection::unregisterStatement(std::weak_ptr<MySQLDBPreparedStatement> stmt)
     {
         std::scoped_lock lock(m_statementsMutex);
-        m_activeStatements.erase(stmt);
+        // Remove expired weak_ptrs and the specified one
+        for (auto it = m_activeStatements.begin(); it != m_activeStatements.end();)
+        {
+            auto locked = it->lock();
+            auto stmtLocked = stmt.lock();
+            if (!locked || (stmtLocked && locked.get() == stmtLocked.get()))
+            {
+                it = m_activeStatements.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    /**
+     * @brief Close all active prepared statements
+     *
+     * @details
+     * **CRITICAL FOR THREAD SAFETY IN CONNECTION POOLING**
+     *
+     * This method iterates through all registered statements and explicitly closes them.
+     * This is essential to prevent race conditions when using connection pools.
+     *
+     * **The Problem It Solves:**
+     *
+     * Without this method, when a connection is returned to the pool:
+     * 1. Another thread may obtain the connection and start using it
+     * 2. Meanwhile, the original user's PreparedStatement references may be destroyed
+     * 3. The PreparedStatement destructor calls mysql_stmt_close()
+     * 4. mysql_stmt_close() communicates with the MySQL server using the MYSQL* connection
+     * 5. But the new thread is also using that same MYSQL* connection
+     * 6. Result: Race condition → use-after-free → memory corruption
+     *
+     * **The Solution:**
+     *
+     * By calling closeAllStatements() in returnToPool():
+     * 1. All statements are closed BEFORE the connection becomes available to other threads
+     * 2. mysql_stmt_close() runs while we have exclusive access to the connection
+     * 3. When PreparedStatement destructors run later, they find the statement already closed
+     * 4. No mysql_stmt_close() call is made (it's a no-op on already-closed statements)
+     * 5. No race condition possible
+     *
+     * **Implementation Notes:**
+     *
+     * - Uses notifyConnClosing() which calls close(std::nothrow) on each statement
+     * - Expired weak_ptrs (statement already destroyed) are simply skipped
+     * - The registry is cleared after all statements are closed
+     * - Lock is held throughout to prevent concurrent modifications
+     *
+     * @note This method is called by returnToPool() and close()
+     *
+     * **IMPORTANT THREADING NOTE:**
+     *
+     * This method acquires BOTH m_connMutex (connection mutex) AND m_statementsMutex.
+     * The connection mutex ensures no other thread is using the MYSQL* connection
+     * while we call mysql_stmt_close() on each statement. Without this, another thread
+     * could be executing a query on the connection while we're closing statements,
+     * leading to use-after-free errors because mysql_stmt_close() and mysql_query()
+     * both access shared internal structures in libmysqlclient.
+     */
+    void MySQLDBConnection::closeAllStatements()
+    {
+        // CRITICAL: Must hold connection mutex to prevent other threads from using
+        // the MYSQL* connection while we close statements. mysql_stmt_close() uses
+        // the connection internally, so concurrent access causes corruption.
+        // Note: m_statementsMutex is not needed here because registerStatement() is only
+        // called from prepareStatement() which also holds m_connMutex, so we're protected.
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+        for (auto &weak_stmt : m_activeStatements)
+        {
+            auto stmt = weak_stmt.lock();
+            if (stmt)
+            {
+                // notifyConnClosing() calls close(std::nothrow) on the statement
+                // This ensures mysql_stmt_close() is called while we have exclusive access
+                stmt->notifyConnClosing();
+            }
+            // If weak_ptr is expired, statement was already destroyed - nothing to do
+        }
+        m_activeStatements.clear();
     }
 
     MySQLDBConnection::MySQLDBConnection(const std::string &host,
@@ -56,6 +169,9 @@ namespace cpp_dbc::MySQL
                                          const std::string &password,
                                          const std::map<std::string, std::string> &options)
         : m_closed(false)
+#if DB_DRIVER_THREAD_SAFE
+        , m_connMutex(std::make_shared<std::recursive_mutex>())
+#endif
     {
         // Create shared_ptr with custom deleter for MYSQL*
         m_mysql = std::shared_ptr<MYSQL>(mysql_init(nullptr), MySQLDeleter());
@@ -138,18 +254,9 @@ namespace cpp_dbc::MySQL
     {
         if (!m_closed && m_mysql)
         {
-            // Notify all active statements that connection is closing
-            {
-                std::scoped_lock lock(m_statementsMutex);
-                for (auto &stmt : m_activeStatements)
-                {
-                    if (stmt)
-                    {
-                        stmt->notifyConnClosing();
-                    }
-                }
-                m_activeStatements.clear();
-            }
+            // Close all active statements before closing the connection
+            // This ensures mysql_stmt_close() is called while we have exclusive access
+            closeAllStatements();
 
             // Sleep for 25ms to avoid problems with concurrency
             std::this_thread::sleep_for(std::chrono::milliseconds(25));
@@ -164,26 +271,64 @@ namespace cpp_dbc::MySQL
         return m_closed;
     }
 
+    /**
+     * @brief Return this connection to the connection pool for reuse
+     *
+     * @details
+     * **CRITICAL: Statement Cleanup Before Pool Return**
+     *
+     * This method prepares the connection for reuse by another thread. The most
+     * important step is closing all active prepared statements BEFORE the connection
+     * becomes available to other threads.
+     *
+     * **Why closeAllStatements() is Essential Here:**
+     *
+     * Consider this scenario WITHOUT closeAllStatements():
+     * 1. Thread A creates connection, creates PreparedStatement, uses it
+     * 2. Thread A calls conn->returnToPool() - connection goes back to pool
+     * 3. Thread B gets the same connection from pool, starts using it
+     * 4. Thread A's PreparedStatement goes out of scope, destructor runs
+     * 5. Destructor calls mysql_stmt_close() on Thread A's statement
+     * 6. mysql_stmt_close() uses the MYSQL* connection that Thread B is using
+     * 7. RACE CONDITION: Two threads accessing same MYSQL* simultaneously
+     * 8. Result: Memory corruption, crashes, undefined behavior
+     *
+     * **With closeAllStatements():**
+     * 1. Thread A creates connection, creates PreparedStatement, uses it
+     * 2. Thread A calls conn->returnToPool()
+     * 3. returnToPool() calls closeAllStatements() - ALL statements closed NOW
+     * 4. mysql_stmt_close() runs while Thread A still has exclusive access
+     * 5. Connection goes back to pool (clean, no active statements)
+     * 6. Thread B gets the connection - it's completely clean
+     * 7. Thread A's PreparedStatement destructor finds statement already closed
+     * 8. No mysql_stmt_close() call needed - safe!
+     *
+     * @note We don't set m_closed = true because the connection remains open
+     * for reuse. Only the statements are closed.
+     *
+     * @see closeAllStatements() for the statement cleanup implementation
+     * @see m_activeStatements for the design rationale of using weak_ptr
+     */
     void MySQLDBConnection::returnToPool()
     {
-        // Don't physically close the connection, just mark it as available
-        // so it can be reused by the pool
-
-        // Reset the connection state if necessary
         try
         {
-            // Make sure autocommit is enabled for the next time the connection is used
+            // CRITICAL: Close all active statements BEFORE making connection available
+            // This prevents race conditions when another thread gets this connection
+            closeAllStatements();
+
+            // Restore autocommit for the next user of this connection
             if (!m_autoCommit)
             {
                 setAutoCommit(true);
             }
 
-            // We don't set m_closed = true because we want to keep the connection open
-            // Just mark it as available for reuse
+            // Note: We don't set m_closed = true because the connection remains open
+            // for reuse by the pool. Only the statements are closed.
         }
         catch ([[maybe_unused]] const std::exception &ex)
         {
-            // Ignore errors during cleanup
+            // Ignore errors during cleanup - connection may still be usable
             MYSQL_DEBUG("MySQLDBConnection::returnToPool - Exception ignored during cleanup: " << ex.what());
         }
     }

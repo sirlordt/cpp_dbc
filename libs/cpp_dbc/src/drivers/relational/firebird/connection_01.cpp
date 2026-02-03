@@ -46,6 +46,9 @@ namespace cpp_dbc::Firebird
                                                const std::string &password,
                                                const std::map<std::string, std::string> &options)
         : m_tr(0), m_isolationLevel(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
+#if DB_DRIVER_THREAD_SAFE
+        , m_connMutex(std::make_shared<std::recursive_mutex>())
+#endif
     {
         FIREBIRD_DEBUG("FirebirdConnection::constructor - Starting");
         FIREBIRD_DEBUG("  host: " << host);
@@ -136,6 +139,10 @@ namespace cpp_dbc::Firebird
     void FirebirdDBConnection::registerStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt)
     {
         std::lock_guard<std::mutex> lock(m_statementsMutex);
+        if (m_activeStatements.size() > 50)
+        {
+            std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
+        }
         m_activeStatements.insert(stmt);
     }
 
@@ -148,6 +155,10 @@ namespace cpp_dbc::Firebird
     void FirebirdDBConnection::registerResultSet(std::weak_ptr<FirebirdDBResultSet> rs)
     {
         std::lock_guard<std::mutex> lock(m_resultSetsMutex);
+        if (m_activeResultSets.size() > 50)
+        {
+            std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
+        }
         m_activeResultSets.insert(rs);
     }
 
@@ -327,7 +338,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBConnection::close()
     {
 
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         if (m_closed)
             return;
@@ -365,7 +376,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBConnection::isClosed() const
     {
 
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         return m_closed;
     }
@@ -489,7 +500,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBConnection::getAutoCommit()
     {
 
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         return m_autoCommit;
     }

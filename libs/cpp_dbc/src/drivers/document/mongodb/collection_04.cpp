@@ -87,7 +87,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::deleteOne(nothrow) - Deleting from: " << m_name);
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {
@@ -161,7 +161,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::deleteMany(nothrow) - Deleting from: " << m_name);
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {

@@ -42,7 +42,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_conn)
             {
@@ -87,7 +87,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_conn)
             {
@@ -132,7 +132,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_conn)
             {
@@ -241,7 +241,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_conn)
             {

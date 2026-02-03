@@ -59,9 +59,16 @@ namespace cpp_dbc::SQLite
     }
 
     // Public methods - Constructor and destructor
+#if DB_DRIVER_THREAD_SAFE
+    SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, SharedConnMutex connMutex, const std::string &sql)
+        : m_db(db), m_sql(sql), m_stmt(nullptr), m_closed(false), m_blobValues(), m_blobObjects(), m_streamObjects(),
+          m_connMutex(std::move(connMutex))
+    {
+#else
     SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, const std::string &sql)
         : m_db(db), m_sql(sql), m_stmt(nullptr), m_closed(false), m_blobValues(), m_blobObjects(), m_streamObjects()
     {
+#endif
         sqlite3 *dbPtr = getSQLiteConnection();
 
         sqlite3_stmt *rawStmt = nullptr;

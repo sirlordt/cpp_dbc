@@ -252,6 +252,32 @@ namespace cpp_dbc::MongoDB
          */
         using MongoUriHandle = std::unique_ptr<mongoc_uri_t, MongoUriDeleter>;
 
+#if DB_DRIVER_THREAD_SAFE
+        /**
+         * @brief Shared connection mutex type for thread-safe MongoDB operations
+         *
+         * CRITICAL: MongoDB's libmongoc explicitly states that mongoc_client_t is NOT
+         * thread-safe and "You must only use a mongoc_client_t from one thread at a time."
+         *
+         * This creates a race condition when:
+         * - Thread A: cursor->next() uses mongoc_client_t
+         * - Thread B: collection->insertOne() uses SAME mongoc_client_t
+         * - Thread C: connection->ping() uses SAME mongoc_client_t
+         *
+         * Without a shared mutex, each object locks independently, but all operations
+         * go through the same underlying mongoc_client_t handle.
+         *
+         * The SharedConnMutex is:
+         * - Created by MongoDBConnection
+         * - Shared with MongoDBCollection when collections are obtained
+         * - Shared with MongoDBCursor when cursors are created
+         *
+         * This ensures ALL operations on the same mongoc_client_t are serialized,
+         * preventing data corruption and crashes from concurrent access.
+         */
+        using SharedConnMutex = std::shared_ptr<std::recursive_mutex>;
+#endif
+
         // ============================================================================
         // MongoDBDocument - Implements DocumentDBData
         // ============================================================================
@@ -532,7 +558,15 @@ namespace cpp_dbc::MongoDB
             bool m_modifiersApplied{false};
 
 #if DB_DRIVER_THREAD_SAFE
-            mutable std::recursive_mutex m_mutex;
+            /**
+             * @brief Shared mutex from the parent connection
+             *
+             * This mutex is shared with MongoDBConnection and other objects
+             * (MongoDBCollection) that access the same mongoc_client_t.
+             * All operations that access the client are synchronized through
+             * this shared mutex to prevent race conditions.
+             */
+            SharedConnMutex m_connMutex;
 #endif
 
             /**
@@ -560,8 +594,15 @@ namespace cpp_dbc::MongoDB
              * @param client Weak reference to the MongoDB client
              * @param cursor The MongoDB cursor (ownership is transferred)
              * @param connection Weak pointer to the connection for registration (optional)
+             * @param connMutex Shared mutex from the parent connection for thread safety
              */
-            MongoDBCursor(std::weak_ptr<mongoc_client_t> client, mongoc_cursor_t *cursor, std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>());
+#if DB_DRIVER_THREAD_SAFE
+            MongoDBCursor(std::weak_ptr<mongoc_client_t> client, mongoc_cursor_t *cursor,
+                          std::weak_ptr<MongoDBConnection> connection, SharedConnMutex connMutex);
+#else
+            MongoDBCursor(std::weak_ptr<mongoc_client_t> client, mongoc_cursor_t *cursor,
+                          std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>());
+#endif
 
             ~MongoDBCursor() override;
 
@@ -665,7 +706,16 @@ namespace cpp_dbc::MongoDB
             std::string m_databaseName;
 
 #if DB_DRIVER_THREAD_SAFE
-            mutable std::recursive_mutex m_mutex;
+            /**
+             * @brief Shared mutex from the parent connection
+             *
+             * This mutex is shared with MongoDBConnection and MongoDBCursor
+             * to synchronize all operations that access the same mongoc_client_t.
+             * This prevents race conditions when multiple threads use different
+             * objects (connection, collection, cursor) that all route through
+             * the same underlying client handle.
+             */
+            SharedConnMutex m_connMutex;
 #endif
 
             /**
@@ -705,12 +755,22 @@ namespace cpp_dbc::MongoDB
              * @param name The collection name
              * @param databaseName The database name
              * @param connection Weak pointer to the connection for cursor registration (optional)
+             * @param connMutex Shared mutex from the parent connection for thread safety
              */
+#if DB_DRIVER_THREAD_SAFE
+            MongoDBCollection(std::weak_ptr<mongoc_client_t> client,
+                              mongoc_collection_t *collection,
+                              const std::string &name,
+                              const std::string &databaseName,
+                              std::weak_ptr<MongoDBConnection> connection,
+                              SharedConnMutex connMutex);
+#else
             MongoDBCollection(std::weak_ptr<mongoc_client_t> client,
                               mongoc_collection_t *collection,
                               const std::string &name,
                               const std::string &databaseName,
                               std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>());
+#endif
 
             ~MongoDBCollection() override = default;
 
@@ -1002,7 +1062,14 @@ namespace cpp_dbc::MongoDB
             std::mutex m_cursorsMutex;
 
 #if DB_DRIVER_THREAD_SAFE
-            mutable std::recursive_mutex m_connMutex;
+            /**
+             * @brief Shared connection mutex for thread-safe operations
+             *
+             * This mutex is shared with all child objects (MongoDBCollection,
+             * MongoDBCursor) to ensure all operations on the same mongoc_client_t
+             * are properly serialized, regardless of which object initiates them.
+             */
+            SharedConnMutex m_connMutex;
 #endif
 
             /**

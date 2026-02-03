@@ -43,7 +43,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -143,7 +143,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -230,7 +230,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -260,7 +260,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -296,7 +296,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -336,7 +336,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -378,7 +378,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -423,7 +423,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -477,7 +477,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))

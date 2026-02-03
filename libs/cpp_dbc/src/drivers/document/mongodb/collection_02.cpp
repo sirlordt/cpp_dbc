@@ -84,7 +84,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::findOne(nothrow) - Finding in: " << m_name);
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {
@@ -240,7 +240,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::find(nothrow) - Finding in: " << m_name);
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {
@@ -266,7 +266,11 @@ namespace cpp_dbc::MongoDB
             MongoCursorHandle cursorHandle(rawCursor);
 
             // Create the MongoDBCursor - it will take ownership via release()
-            std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursorHandle.release(), m_connection);
+            std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursorHandle.release(), m_connection
+#if DB_DRIVER_THREAD_SAFE
+                , m_connMutex
+#endif
+            );
             return result;
         }
         catch (const DBException &ex)
@@ -304,7 +308,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::find(nothrow) with projection - Finding in: " << m_name);
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {
@@ -336,7 +340,11 @@ namespace cpp_dbc::MongoDB
             MongoCursorHandle cursorHandle(rawCursor);
 
             // Create the MongoDBCursor - it will take ownership via release()
-            std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursorHandle.release(), m_connection);
+            std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursorHandle.release(), m_connection
+#if DB_DRIVER_THREAD_SAFE
+                , m_connMutex
+#endif
+            );
             return result;
         }
         catch (const DBException &ex)

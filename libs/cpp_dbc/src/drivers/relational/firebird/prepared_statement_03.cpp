@@ -39,7 +39,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -114,7 +114,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeQuery(nothrow) - Starting");
             FIREBIRD_DEBUG("  m_closed: " << (m_closed ? "true" : "false"));
@@ -207,7 +207,14 @@ namespace cpp_dbc::Firebird
             FIREBIRD_DEBUG("  Creating FirebirdResultSet with ownStatement=true");
             // Pass the connection to the ResultSet so it can read BLOBs
             auto conn = m_connection.lock();
+#if DB_DRIVER_THREAD_SAFE
+            // Pass shared mutex to ResultSet - required because Firebird uses cursor-based iteration
+            // where isc_dsql_fetch() and isc_dsql_free_statement() access the connection handle.
+            // Unlike MySQL/PostgreSQL where results are fully loaded into client memory.
+            auto resultSet = std::make_shared<FirebirdDBResultSet>(std::move(stmtHandle), std::move(sqldaHandle), true, conn, m_connMutex);
+#else
             auto resultSet = std::make_shared<FirebirdDBResultSet>(std::move(stmtHandle), std::move(sqldaHandle), true, conn);
+#endif
 
             // Register the ResultSet with the connection for automatic cleanup
             if (conn)
@@ -238,7 +245,7 @@ namespace cpp_dbc::Firebird
         {
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate(nothrow) - Starting");
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("  m_closed: " << (m_closed ? "true" : "false"));
             FIREBIRD_DEBUG("  m_stmt: " << m_stmt);
@@ -385,7 +392,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed)
             {
@@ -427,7 +434,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("FirebirdPreparedStatement::close(nothrow) - Starting");
             FIREBIRD_DEBUG("  m_closed: " << (m_closed ? "true" : "false"));

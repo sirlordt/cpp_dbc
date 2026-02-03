@@ -43,7 +43,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Get the connection safely
             auto connPtr = m_conn.lock();
@@ -120,7 +120,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Get the connection safely
             auto connPtr = m_conn.lock();
@@ -205,7 +205,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Get the connection safely
             auto connPtr = m_conn.lock();
@@ -281,6 +281,11 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
+            // CRITICAL: Must hold the shared connection mutex to prevent race conditions.
+            // PQexec(DEALLOCATE) uses the PGconn* connection, so concurrent access from
+            // another thread (e.g., connection pool validation) causes protocol errors.
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
             if (m_prepared)
             {
                 // Try to deallocate the prepared statement if connection is still valid

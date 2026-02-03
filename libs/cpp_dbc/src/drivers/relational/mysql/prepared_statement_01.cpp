@@ -54,9 +54,15 @@ namespace cpp_dbc::MySQL
         return conn.get();
     }
 
+#if DB_DRIVER_THREAD_SAFE
+    MySQLDBPreparedStatement::MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql_conn, SharedConnMutex connMutex, const std::string &sql_stmt)
+        : m_mysql(mysql_conn), m_sql(sql_stmt), m_connMutex(std::move(connMutex))
+    {
+#else
     MySQLDBPreparedStatement::MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql_conn, const std::string &sql_stmt)
         : m_mysql(mysql_conn), m_sql(sql_stmt)
     {
+#endif
         MYSQL *mysqlPtr = getMySQLConnection();
 
         m_stmt.reset(mysql_stmt_init(mysqlPtr));

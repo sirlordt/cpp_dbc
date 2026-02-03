@@ -79,7 +79,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::createIndex(nothrow) - Creating index in: " << m_name);
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {
@@ -201,7 +201,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::dropIndex(nothrow) - Dropping index: " << indexName);
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {
@@ -250,7 +250,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::dropAllIndexes(nothrow)");
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {
@@ -312,7 +312,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::listIndexes(nothrow)");
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {

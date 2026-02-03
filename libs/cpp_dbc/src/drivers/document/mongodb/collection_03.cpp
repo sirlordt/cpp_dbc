@@ -92,7 +92,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::updateOne(nothrow) - Updating in: " << m_name);
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {
@@ -183,7 +183,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::updateMany(nothrow) - Updating in: " << m_name);
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {
@@ -267,7 +267,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_DEBUG("MongoDBCollection::replaceOne(nothrow) - Replacing in: " << m_name);
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {

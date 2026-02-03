@@ -41,7 +41,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (!m_cursor)
             {
@@ -111,7 +111,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {
@@ -179,7 +179,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_LOCK_GUARD(m_mutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {

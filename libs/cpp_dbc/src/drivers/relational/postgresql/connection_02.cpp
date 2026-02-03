@@ -43,7 +43,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_conn)
             {
@@ -53,9 +53,15 @@ namespace cpp_dbc::PostgreSQL
             // Generate a unique statement name and pass weak_ptr to the prepared statement
             // so it can safely detect when connection is closed
             std::string stmtName = generateStatementName();
+#if DB_DRIVER_THREAD_SAFE
+            auto stmt = std::make_shared<PostgreSQLDBPreparedStatement>(std::weak_ptr<PGconn>(m_conn), m_connMutex, sql, stmtName);
+#else
             auto stmt = std::make_shared<PostgreSQLDBPreparedStatement>(std::weak_ptr<PGconn>(m_conn), sql, stmtName);
+#endif
 
-            registerStatement(stmt);
+            // Register the statement as weak_ptr - allows natural destruction when user releases reference
+            // Statements will be explicitly closed in returnToPool() or close() before connection reuse
+            registerStatement(std::weak_ptr<PostgreSQLDBPreparedStatement>(stmt));
 
             return cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>(std::static_pointer_cast<RelationalDBPreparedStatement>(stmt));
         }
@@ -77,7 +83,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_conn)
             {
@@ -113,7 +119,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_conn)
             {
@@ -158,7 +164,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_conn)
             {
@@ -241,7 +247,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_conn)
             {

@@ -42,18 +42,24 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_mysql)
             {
                 return cpp_dbc::unexpected(DBException("M1Y2S3Q4L5C6", "Connection is closed", system_utils::captureCallStack()));
             }
 
-            // Pass weak_ptr to the PreparedStatement so it can safely detect when connection is closed
+            // Pass weak_ptr and shared mutex to the PreparedStatement
+            // The shared mutex ensures all operations (including destructor) are serialized
+#if DB_DRIVER_THREAD_SAFE
+            auto stmt = std::make_shared<MySQLDBPreparedStatement>(std::weak_ptr<MYSQL>(m_mysql), m_connMutex, sql);
+#else
             auto stmt = std::make_shared<MySQLDBPreparedStatement>(std::weak_ptr<MYSQL>(m_mysql), sql);
+#endif
 
-            // Register the statement in our registry
-            registerStatement(stmt);
+            // Register the statement as weak_ptr - allows natural destruction when user releases reference
+            // Statements will be explicitly closed in returnToPool() or close() before connection reuse
+            registerStatement(std::weak_ptr<MySQLDBPreparedStatement>(stmt));
 
             return std::shared_ptr<RelationalDBPreparedStatement>(stmt);
         }
@@ -80,7 +86,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_mysql)
             {
@@ -123,7 +129,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_mysql)
             {
@@ -160,7 +166,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_mysql)
             {
@@ -217,7 +223,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             return m_autoCommit;
         }
@@ -244,7 +250,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_mysql)
             {
@@ -291,7 +297,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             return m_transactionActive;
         }
@@ -318,7 +324,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_mysql)
             {
@@ -368,7 +374,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_mysql)
             {

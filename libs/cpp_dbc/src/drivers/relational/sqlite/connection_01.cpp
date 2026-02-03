@@ -42,6 +42,10 @@ namespace cpp_dbc::SQLite
     void SQLiteDBConnection::registerStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt)
     {
         std::lock_guard<std::mutex> lock(m_statementsMutex);
+        if (m_activeStatements.size() > 50)
+        {
+            std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
+        }
         m_activeStatements.insert(stmt);
     }
 
@@ -71,6 +75,9 @@ namespace cpp_dbc::SQLite
         : m_db(nullptr), m_closed(false), m_autoCommit(true), m_transactionActive(false),
           m_isolationLevel(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE), // SQLite default
           m_url("cpp_dbc:sqlite://" + database)
+#if DB_DRIVER_THREAD_SAFE
+        , m_connMutex(std::make_shared<std::recursive_mutex>())
+#endif
     {
         try
         {

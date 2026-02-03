@@ -135,9 +135,15 @@ namespace cpp_dbc::PostgreSQL
         return conn.get();
     }
 
+#if DB_DRIVER_THREAD_SAFE
+    PostgreSQLDBPreparedStatement::PostgreSQLDBPreparedStatement(std::weak_ptr<PGconn> conn_handle, SharedConnMutex connMutex, const std::string &sql_stmt, const std::string &stmt_name)
+        : m_conn(conn_handle), m_sql(sql_stmt), m_stmtName(stmt_name), m_connMutex(std::move(connMutex))
+    {
+#else
     PostgreSQLDBPreparedStatement::PostgreSQLDBPreparedStatement(std::weak_ptr<PGconn> conn_handle, const std::string &sql_stmt, const std::string &stmt_name)
         : m_conn(conn_handle), m_sql(sql_stmt), m_stmtName(stmt_name)
     {
+#endif
         // Verify connection is valid by trying to lock it
         const PGconn *connPtr = getPGConnection();
         if (!connPtr)

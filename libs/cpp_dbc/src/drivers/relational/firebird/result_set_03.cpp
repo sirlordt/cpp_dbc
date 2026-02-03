@@ -43,7 +43,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
             return !m_hasData && m_rowPosition > 0;
         }
         catch (const DBException &e)
@@ -64,7 +64,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
             return m_rowPosition;
         }
         catch (const DBException &e)
@@ -85,7 +85,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
             std::string value = getColumnValue(columnIndex);
             return value.empty() ? 0 : std::stoi(value);
         }
@@ -107,7 +107,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
             std::string value = getColumnValue(columnIndex);
             return value.empty() ? 0L : std::stol(value);
         }
@@ -129,7 +129,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
             FIREBIRD_DEBUG("getDouble(columnIndex=" << columnIndex << ")");
             std::string value = getColumnValue(columnIndex);
             FIREBIRD_DEBUG("  getColumnValue returned: '" << value << "'");
@@ -153,7 +153,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
             return getColumnValue(columnIndex);
         }
         catch (const DBException &e)
@@ -174,7 +174,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
             std::string value = getColumnValue(columnIndex);
             if (value.empty())
                 return false;
@@ -201,7 +201,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
             if (columnIndex >= m_fieldCount)
             {
                 return cpp_dbc::unexpected(DBException("B4C0D6E2F9A5", "Column index out of range: " + std::to_string(columnIndex),
@@ -377,7 +377,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
             return m_columnNames;
         }
         catch (const DBException &e)
@@ -398,7 +398,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
             return m_fieldCount;
         }
         catch (const DBException &e)

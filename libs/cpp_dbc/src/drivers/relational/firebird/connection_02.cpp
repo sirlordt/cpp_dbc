@@ -41,7 +41,7 @@ namespace cpp_dbc::Firebird
         FIREBIRD_DEBUG("  m_autoCommit before: " << (m_autoCommit ? "true" : "false"));
         FIREBIRD_DEBUG("  m_transactionActive: " << (m_transactionActive ? "true" : "false"));
 
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         // Disable autocommit when beginning a manual transaction
         // This prevents executeUpdate from auto-committing
@@ -65,7 +65,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBConnection::transactionActive()
     {
 
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         return m_transactionActive;
     }
@@ -75,7 +75,7 @@ namespace cpp_dbc::Firebird
         FIREBIRD_DEBUG("FirebirdConnection::commit - Starting");
 
         FIREBIRD_DEBUG("  Acquiring lock...");
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
         FIREBIRD_DEBUG("  Lock acquired");
 
         FIREBIRD_DEBUG("  Calling endTransaction(true)...");
@@ -94,7 +94,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBConnection::rollback()
     {
 
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         endTransaction(false);
 
@@ -107,7 +107,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
 
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         // If the isolation level is already set to the requested level, do nothing
         if (m_isolationLevel == level)
@@ -143,7 +143,7 @@ namespace cpp_dbc::Firebird
     TransactionIsolationLevel FirebirdDBConnection::getTransactionIsolation()
     {
 
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         return m_isolationLevel;
     }
@@ -192,7 +192,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("FirebirdConnection::prepareStatement(nothrow) - Starting");
             FIREBIRD_DEBUG("  SQL: " << sql);
@@ -218,8 +218,13 @@ namespace cpp_dbc::Firebird
             FIREBIRD_DEBUG("  Creating FirebirdDBPreparedStatement...");
             FIREBIRD_DEBUG("    m_db.get()=" << m_db.get() << ", *m_db.get()=" << (m_db.get() ? *m_db.get() : 0));
             FIREBIRD_DEBUG("    &m_tr=" << &m_tr << ", m_tr=" << m_tr);
+#if DB_DRIVER_THREAD_SAFE
+            auto stmt = std::make_shared<FirebirdDBPreparedStatement>(
+                std::weak_ptr<isc_db_handle>(m_db), &m_tr, sql, m_connMutex, shared_from_this());
+#else
             auto stmt = std::make_shared<FirebirdDBPreparedStatement>(
                 std::weak_ptr<isc_db_handle>(m_db), &m_tr, sql, shared_from_this());
+#endif
 
             FIREBIRD_DEBUG("FirebirdConnection::prepareStatement(nothrow) - Done");
             return cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>(std::static_pointer_cast<RelationalDBPreparedStatement>(stmt));
@@ -243,7 +248,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("FirebirdConnection::executeQuery(nothrow) - Starting");
             FIREBIRD_DEBUG("  SQL: " << sql);

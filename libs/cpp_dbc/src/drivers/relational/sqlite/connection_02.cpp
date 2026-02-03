@@ -43,7 +43,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_db)
             {
@@ -51,7 +51,11 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
+#if DB_DRIVER_THREAD_SAFE
+            auto stmt = std::make_shared<SQLiteDBPreparedStatement>(std::weak_ptr<sqlite3>(m_db), m_connMutex, sql);
+#else
             auto stmt = std::make_shared<SQLiteDBPreparedStatement>(std::weak_ptr<sqlite3>(m_db), sql);
+#endif
             registerStatement(std::weak_ptr<SQLiteDBPreparedStatement>(stmt));
             return std::shared_ptr<RelationalDBPreparedStatement>(stmt);
         }
@@ -77,7 +81,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_db)
             {
@@ -101,7 +105,14 @@ namespace cpp_dbc::SQLite
             }
 
             auto self = std::dynamic_pointer_cast<SQLiteDBConnection>(shared_from_this());
+#if DB_DRIVER_THREAD_SAFE
+            // Pass shared mutex to ResultSet - required because SQLite uses cursor-based iteration
+            // where sqlite3_step() and sqlite3_column_*() access the connection handle on every call.
+            // Unlike MySQL/PostgreSQL where results are fully loaded into client memory.
+            auto resultSet = std::make_shared<SQLiteDBResultSet>(stmt, true, self, m_connMutex);
+#else
             auto resultSet = std::make_shared<SQLiteDBResultSet>(stmt, true, self);
+#endif
             return std::shared_ptr<RelationalDBResultSet>(resultSet);
         }
         catch (const DBException &ex)
@@ -126,7 +137,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_db)
             {
@@ -169,7 +180,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_db)
             {
@@ -229,7 +240,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_db)
             {
@@ -302,7 +313,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_db)
             {
@@ -342,7 +353,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_db)
             {
@@ -382,7 +393,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_db)
             {

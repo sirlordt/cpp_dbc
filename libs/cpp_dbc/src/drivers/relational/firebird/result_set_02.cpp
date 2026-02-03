@@ -218,7 +218,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBResultSet::close()
     {
 
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         // Avoid double closing
         if (m_closed)
@@ -261,7 +261,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBResultSet::isEmpty()
     {
 
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         return !m_hasData && m_rowPosition == 0;
     }
@@ -269,7 +269,7 @@ namespace cpp_dbc::Firebird
     std::shared_ptr<Blob> FirebirdDBResultSet::getBlob(size_t columnIndex)
     {
 
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         if (columnIndex >= m_fieldCount)
         {
@@ -353,7 +353,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("FirebirdResultSet::next - Starting");
             FIREBIRD_DEBUG("  m_closed: " << (m_closed ? "true" : "false"));
@@ -435,7 +435,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
             return m_rowPosition == 0 && !m_hasData;
         }
         catch (const DBException &e)

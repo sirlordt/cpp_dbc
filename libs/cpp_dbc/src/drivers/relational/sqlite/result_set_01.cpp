@@ -40,10 +40,27 @@ namespace cpp_dbc::SQLite
     // No static members needed - connection tracking is done via weak_ptr in PreparedStatement
 
     // SQLiteDBResultSet implementation
+    //
+    // IMPORTANT: SQLite uses a CURSOR-BASED model where sqlite3_step() and sqlite3_column_*()
+    // communicate with the sqlite3* connection handle on every call. This is different from
+    // MySQL/PostgreSQL which load all results into client memory (MYSQL_RES*/PGresult*).
+    //
+    // Because of this, SQLiteDBResultSet MUST share the same mutex as SQLiteDBConnection
+    // to prevent race conditions when multiple threads access the same connection
+    // (e.g., one thread iterating results while another does pool validation).
+    //
+#if DB_DRIVER_THREAD_SAFE
+    SQLiteDBResultSet::SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteDBConnection> conn, SharedConnMutex connMutex)
+        : m_stmt(stmt), m_ownStatement(ownStatement), m_rowPosition(0), m_rowCount(0), m_fieldCount(0),
+          m_columnNames(), m_columnMap(), m_hasData(false), m_closed(false), m_connection(conn),
+          m_connMutex(std::move(connMutex))
+    {
+#else
     SQLiteDBResultSet::SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteDBConnection> conn)
         : m_stmt(stmt), m_ownStatement(ownStatement), m_rowPosition(0), m_rowCount(0), m_fieldCount(0),
           m_columnNames(), m_columnMap(), m_hasData(false), m_closed(false), m_connection(conn)
     {
+#endif
         if (m_stmt)
         {
             // Get column count
@@ -260,7 +277,10 @@ namespace cpp_dbc::SQLite
 
     void SQLiteDBResultSet::close()
     {
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        // CRITICAL: Must use shared connection mutex because sqlite3_reset() and
+        // sqlite3_finalize() access the sqlite3* connection handle internally.
+        // See class documentation for why SQLite needs SharedConnMutex but MySQL/PostgreSQL don't.
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         // Evitar cerrar dos veces o si ya está cerrado
         if (m_closed)
@@ -330,7 +350,7 @@ namespace cpp_dbc::SQLite
 
     bool SQLiteDBResultSet::isEmpty()
     {
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         return m_rowPosition == 0 && !m_hasData;
     }

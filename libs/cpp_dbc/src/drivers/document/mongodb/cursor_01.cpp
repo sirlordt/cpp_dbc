@@ -67,7 +67,31 @@ namespace cpp_dbc::MongoDB
     // MongoDBCursor Implementation - Constructor, Destructor, Move
     // ============================================================================
 
-    MongoDBCursor::MongoDBCursor(std::weak_ptr<mongoc_client_t> client, mongoc_cursor_t *cursor, std::weak_ptr<MongoDBConnection> connection)
+#if DB_DRIVER_THREAD_SAFE
+    MongoDBCursor::MongoDBCursor(std::weak_ptr<mongoc_client_t> client, mongoc_cursor_t *cursor,
+                                  std::weak_ptr<MongoDBConnection> connection, SharedConnMutex connMutex)
+        : m_client(std::move(client)),
+          m_connection(std::move(connection)),
+          m_cursor(cursor),
+          m_connMutex(std::move(connMutex))
+    {
+        MONGODB_DEBUG("MongoDBCursor::constructor - Creating cursor");
+        if (!m_cursor)
+        {
+            throw DBException("C9D5E4F3A7B8", "Cannot create cursor from null pointer", system_utils::captureCallStack());
+        }
+
+        // Register with connection for cleanup tracking
+        if (auto conn = m_connection.lock())
+        {
+            conn->registerCursor(this);
+        }
+
+        MONGODB_DEBUG("MongoDBCursor::constructor - Done");
+    }
+#else
+    MongoDBCursor::MongoDBCursor(std::weak_ptr<mongoc_client_t> client, mongoc_cursor_t *cursor,
+                                  std::weak_ptr<MongoDBConnection> connection)
         : m_client(std::move(client)),
           m_connection(std::move(connection)),
           m_cursor(cursor)
@@ -86,6 +110,7 @@ namespace cpp_dbc::MongoDB
 
         MONGODB_DEBUG("MongoDBCursor::constructor - Done");
     }
+#endif
 
     MongoDBCursor::~MongoDBCursor()
     {
@@ -108,6 +133,9 @@ namespace cpp_dbc::MongoDB
           m_position(other.m_position),
           m_iterationStarted(other.m_iterationStarted),
           m_exhausted(other.m_exhausted)
+#if DB_DRIVER_THREAD_SAFE
+          , m_connMutex(std::move(other.m_connMutex))
+#endif
     {
         // Update connection registration: unregister moved-from, register moved-to
         if (auto conn = m_connection.lock())
@@ -136,6 +164,9 @@ namespace cpp_dbc::MongoDB
             m_position = other.m_position;
             m_iterationStarted = other.m_iterationStarted;
             m_exhausted = other.m_exhausted;
+#if DB_DRIVER_THREAD_SAFE
+            m_connMutex = std::move(other.m_connMutex);
+#endif
 
             // Update connection registration: unregister moved-from, register moved-to
             if (auto conn = m_connection.lock())
@@ -157,7 +188,7 @@ namespace cpp_dbc::MongoDB
     void MongoDBCursor::close()
     {
         MONGODB_DEBUG("MongoDBCursor::close - Closing cursor");
-        MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         m_cursor.reset();
         m_currentDoc.reset();
         m_exhausted = true;
@@ -166,7 +197,7 @@ namespace cpp_dbc::MongoDB
 
     bool MongoDBCursor::isEmpty()
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateCursor();
         if (!m_iterationStarted)
         {
@@ -182,7 +213,7 @@ namespace cpp_dbc::MongoDB
     bool MongoDBCursor::next()
     {
         MONGODB_DEBUG("MongoDBCursor::next - Moving to next document, position: " << m_position);
-        MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
         validateCursor();
 
@@ -216,7 +247,7 @@ namespace cpp_dbc::MongoDB
 
     bool MongoDBCursor::hasNext()
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
         validateCursor();
         if (m_exhausted)
@@ -226,7 +257,7 @@ namespace cpp_dbc::MongoDB
 
     std::shared_ptr<DocumentDBData> MongoDBCursor::current()
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateCursor();
         if (!m_currentDoc)
         {
@@ -246,7 +277,7 @@ namespace cpp_dbc::MongoDB
 
     std::vector<std::shared_ptr<DocumentDBData>> MongoDBCursor::toVector()
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
         validateCursor();
 
@@ -274,7 +305,7 @@ namespace cpp_dbc::MongoDB
 
     std::vector<std::shared_ptr<DocumentDBData>> MongoDBCursor::getBatch(size_t batchSize)
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
         validateCursor();
 
@@ -311,7 +342,7 @@ namespace cpp_dbc::MongoDB
 
     DocumentDBCursor &MongoDBCursor::skip(uint64_t n)
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         if (m_iterationStarted)
         {
             throw DBException("A9B5C4D3E8F7", "Cannot modify cursor after iteration has begun", system_utils::captureCallStack());
@@ -322,7 +353,7 @@ namespace cpp_dbc::MongoDB
 
     DocumentDBCursor &MongoDBCursor::limit(uint64_t n)
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         if (m_iterationStarted)
         {
             throw DBException("B0C6D5E4F9A8", "Cannot modify cursor after iteration has begun", system_utils::captureCallStack());
@@ -333,7 +364,7 @@ namespace cpp_dbc::MongoDB
 
     DocumentDBCursor &MongoDBCursor::sort(const std::string &fieldPath, bool ascending)
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         if (m_iterationStarted)
         {
             throw DBException("C1D7E6F5A0B9", "Cannot modify cursor after iteration has begun", system_utils::captureCallStack());
@@ -355,7 +386,7 @@ namespace cpp_dbc::MongoDB
 
     std::string MongoDBCursor::getError() const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         if (!m_cursor)
             return "";
         bson_error_t error;

@@ -35,7 +35,7 @@ namespace cpp_dbc::MongoDB
 
     std::shared_ptr<DocumentDBCollection> MongoDBConnection::getCollection(const std::string &collectionName)
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
 
         if (m_databaseName.empty())
@@ -52,12 +52,16 @@ namespace cpp_dbc::MongoDB
         }
 
         return std::make_shared<MongoDBCollection>(
-            std::weak_ptr<mongoc_client_t>(m_client), coll, collectionName, m_databaseName, weak_from_this());
+            std::weak_ptr<mongoc_client_t>(m_client), coll, collectionName, m_databaseName, weak_from_this()
+#if DB_DRIVER_THREAD_SAFE
+            , m_connMutex
+#endif
+        );
     }
 
     std::vector<std::string> MongoDBConnection::listCollections()
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
 
         if (m_databaseName.empty())
@@ -96,7 +100,7 @@ namespace cpp_dbc::MongoDB
         const std::string &collectionName,
         const std::string &options)
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
 
         if (m_databaseName.empty())
@@ -132,12 +136,16 @@ namespace cpp_dbc::MongoDB
         }
 
         return std::make_shared<MongoDBCollection>(
-            std::weak_ptr<mongoc_client_t>(m_client), coll, collectionName, m_databaseName, weak_from_this());
+            std::weak_ptr<mongoc_client_t>(m_client), coll, collectionName, m_databaseName, weak_from_this()
+#if DB_DRIVER_THREAD_SAFE
+            , m_connMutex
+#endif
+        );
     }
 
     void MongoDBConnection::dropCollection(const std::string &collectionName)
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
 
         if (m_databaseName.empty())
@@ -176,7 +184,7 @@ namespace cpp_dbc::MongoDB
 
     std::shared_ptr<DocumentDBData> MongoDBConnection::runCommand(const std::string &command)
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
 
         if (m_databaseName.empty())
@@ -223,7 +231,7 @@ namespace cpp_dbc::MongoDB
 
     bool MongoDBConnection::ping()
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
 
         if (m_closed)
             return false;
@@ -247,7 +255,7 @@ namespace cpp_dbc::MongoDB
 
     std::string MongoDBConnection::startSession()
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
 
         mongoc_session_opt_t *opts = mongoc_session_opts_new();
@@ -348,7 +356,7 @@ namespace cpp_dbc::MongoDB
 
     bool MongoDBConnection::supportsTransactions()
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
 
         if (!m_client)
         {

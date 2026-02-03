@@ -42,7 +42,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::notifyConnClosing()
     {
 
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         m_closed = true;
     }
@@ -210,6 +210,16 @@ namespace cpp_dbc::Firebird
     // FirebirdDBPreparedStatement Implementation - Public Methods
     // ============================================================================
 
+#if DB_DRIVER_THREAD_SAFE
+    FirebirdDBPreparedStatement::FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db,
+                                                             isc_tr_handle *trPtr,
+                                                             const std::string &sql,
+                                                             SharedConnMutex connMutex,
+                                                             std::weak_ptr<FirebirdDBConnection> conn)
+        : m_dbHandle(db), m_connection(conn), m_trPtr(trPtr), m_stmt(0), m_sql(sql),
+          m_inputSqlda(nullptr), m_outputSqlda(nullptr), m_connMutex(std::move(connMutex))
+    {
+#else
     FirebirdDBPreparedStatement::FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db,
                                                              isc_tr_handle *trPtr,
                                                              const std::string &sql,
@@ -217,6 +227,7 @@ namespace cpp_dbc::Firebird
         : m_dbHandle(db), m_connection(conn), m_trPtr(trPtr), m_stmt(0), m_sql(sql),
           m_inputSqlda(nullptr), m_outputSqlda(nullptr)
     {
+#endif
         FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Creating statement");
         FIREBIRD_DEBUG("  SQL: " << sql);
         FIREBIRD_DEBUG("  trPtr: " << trPtr << ", *trPtr: " << (trPtr ? *trPtr : 0));
@@ -396,7 +407,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -426,7 +437,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))

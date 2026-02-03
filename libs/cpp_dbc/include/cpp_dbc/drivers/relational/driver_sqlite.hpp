@@ -40,6 +40,21 @@
 
 namespace cpp_dbc::SQLite
 {
+#if DB_DRIVER_THREAD_SAFE
+    /**
+     * @brief Shared mutex type for connection and prepared statements
+     *
+     * This shared_ptr to a recursive_mutex ensures that the Connection and all its
+     * PreparedStatements share the SAME mutex. This prevents race conditions when:
+     * - PreparedStatement destructor calls sqlite3_finalize()
+     * - Another thread uses the connection for queries or pool validation
+     *
+     * Although SQLite is an embedded database without network protocol concerns,
+     * concurrent access to the sqlite3* handle from multiple threads is still unsafe.
+     */
+    using SharedConnMutex = std::shared_ptr<std::recursive_mutex>;
+#endif
+
     /**
      * @brief Custom deleter for sqlite3_stmt* to use with unique_ptr
      *
@@ -113,6 +128,40 @@ namespace cpp_dbc::SQLite
         return SQLiteDbHandle(db, SQLiteDbDeleter{});
     }
 
+    /**
+     * @brief SQLite ResultSet implementation
+     *
+     * IMPORTANT: Thread-Safety and Shared Mutex Design
+     * ================================================
+     *
+     * Unlike MySQL and PostgreSQL, SQLite ResultSets REQUIRE a shared mutex with the
+     * Connection because SQLite uses a CURSOR-BASED model that maintains ongoing
+     * communication with the database connection.
+     *
+     * WHY SQLITE/FIREBIRD NEED SharedConnMutex (but MySQL/PostgreSQL don't):
+     *
+     * MySQL/PostgreSQL ("Store Result" model):
+     * - mysql_store_result() / PQexec() fetch ALL data into client memory (MYSQL_RES* / PGresult*)
+     * - next() just reads from in-memory structures, no DB communication
+     * - close() only frees client memory (mysql_free_result / PQclear)
+     * - The result is completely INDEPENDENT of the connection handle
+     * - Therefore, no shared mutex is needed
+     *
+     * SQLite/Firebird ("Cursor" model):
+     * - sqlite3_step() / isc_dsql_fetch() communicate with DB for EACH row
+     * - sqlite3_column_*() functions access the connection handle internally
+     * - sqlite3_finalize() / isc_dsql_free_statement() access the connection handle
+     * - Concurrent access from multiple threads causes undefined behavior/crashes
+     *
+     * RACE CONDITION SCENARIO (without SharedConnMutex):
+     * Thread A: resultSet->next() -> sqlite3_step() [uses sqlite3* handle]
+     * Thread B: connection->isValid() -> SELECT 1 [uses same sqlite3* handle]
+     * Result: Memory corruption, crashes, undefined behavior
+     *
+     * SOLUTION:
+     * ResultSet shares the SAME mutex as Connection and PreparedStatements,
+     * ensuring all operations on the sqlite3* handle are serialized.
+     */
     class SQLiteDBResultSet final : public RelationalDBResultSet
     {
     private:
@@ -148,7 +197,19 @@ namespace cpp_dbc::SQLite
         std::weak_ptr<SQLiteDBConnection> m_connection; // Weak reference to the connection
 
 #if DB_DRIVER_THREAD_SAFE
-        mutable std::recursive_mutex m_mutex; // Mutex for thread-safe ResultSet operations
+        /**
+         * @brief Shared mutex with the parent Connection
+         *
+         * CRITICAL: This is shared with Connection and PreparedStatements because
+         * SQLite uses cursor-based iteration. Unlike MySQL/PostgreSQL where results
+         * are fully loaded into client memory, SQLite's sqlite3_step() and
+         * sqlite3_column_*() functions communicate with the sqlite3* connection
+         * handle on every call. Without this shared mutex, concurrent operations
+         * (e.g., pool validation while iterating results) would cause race conditions.
+         *
+         * See class documentation above for detailed explanation.
+         */
+        SharedConnMutex m_connMutex;
 #endif
 
         /**
@@ -161,7 +222,11 @@ namespace cpp_dbc::SQLite
         }
 
     public:
+#if DB_DRIVER_THREAD_SAFE
+        SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteDBConnection> conn, SharedConnMutex connMutex);
+#else
         SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement = true, std::shared_ptr<SQLiteDBConnection> conn = nullptr);
+#endif
         ~SQLiteDBResultSet() override;
 
         bool next() override;
@@ -258,7 +323,14 @@ namespace cpp_dbc::SQLite
         std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
 
 #if DB_DRIVER_THREAD_SAFE
-        mutable std::recursive_mutex m_mutex; // Mutex for thread-safe PreparedStatement operations
+        /**
+         * @brief Shared mutex with the parent Connection
+         *
+         * This mutex is shared between the Connection and all PreparedStatements created from it.
+         * This ensures that when close() calls sqlite3_finalize(), no other thread can
+         * simultaneously use the same sqlite3* handle.
+         */
+        SharedConnMutex m_connMutex;
 #endif
 
         // Internal method called by connection when closing
@@ -268,7 +340,11 @@ namespace cpp_dbc::SQLite
         sqlite3 *getSQLiteConnection() const;
 
     public:
+#if DB_DRIVER_THREAD_SAFE
+        SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, SharedConnMutex connMutex, const std::string &sql);
+#else
         SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, const std::string &sql);
+#endif
         ~SQLiteDBPreparedStatement() override;
 
         void setInt(int parameterIndex, int value) override;
@@ -339,7 +415,14 @@ namespace cpp_dbc::SQLite
         std::mutex m_statementsMutex;
 
 #if DB_DRIVER_THREAD_SAFE
-        mutable std::recursive_mutex m_connMutex; // Mutex for thread-safe Connection operations
+        /**
+         * @brief Shared mutex for connection and all its prepared statements
+         *
+         * This mutex is shared with all PreparedStatements created from this connection.
+         * Ensures that statement close operations (sqlite3_finalize) don't race
+         * with other operations on the sqlite3* handle.
+         */
+        mutable SharedConnMutex m_connMutex;
 #endif
 
         // Internal methods for statement registry

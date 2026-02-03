@@ -37,12 +37,28 @@ namespace cpp_dbc::Firebird
 
     // ============================================================================
     // FirebirdDBResultSet Implementation
+    //
+    // IMPORTANT: Firebird uses a CURSOR-BASED model where isc_dsql_fetch()
+    // communicates with the database connection handle on every call. This is different
+    // from MySQL/PostgreSQL which load all results into client memory (MYSQL_RES*/PGresult*).
+    //
+    // Because of this, FirebirdDBResultSet MUST share the same mutex as FirebirdDBConnection
+    // to prevent race conditions when multiple threads access the same connection
+    // (e.g., one thread iterating results while another does pool validation).
     // ============================================================================
 
+#if DB_DRIVER_THREAD_SAFE
+    FirebirdDBResultSet::FirebirdDBResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement,
+                                             std::shared_ptr<FirebirdDBConnection> conn, SharedConnMutex connMutex)
+        : m_stmt(std::move(stmt)), m_sqlda(std::move(sqlda)), m_ownStatement(ownStatement), m_connection(conn),
+          m_connMutex(std::move(connMutex))
+    {
+#else
     FirebirdDBResultSet::FirebirdDBResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement,
                                              std::shared_ptr<FirebirdDBConnection> conn)
         : m_stmt(std::move(stmt)), m_sqlda(std::move(sqlda)), m_ownStatement(ownStatement), m_connection(conn)
     {
+#endif
         FIREBIRD_DEBUG("FirebirdResultSet::constructor - Creating ResultSet");
         FIREBIRD_DEBUG("  ownStatement: " << (ownStatement ? "true" : "false"));
         FIREBIRD_DEBUG("  m_stmt valid: " << (m_stmt ? "yes" : "no"));
@@ -262,7 +278,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBResultSet::notifyConnClosing()
     {
 
-        DB_DRIVER_LOCK_GUARD(m_mutex);
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
         FIREBIRD_DEBUG("FirebirdResultSet::notifyConnClosing - Marking as closed due to connection closing");
         // Don't actually free the statement since the connection is closing

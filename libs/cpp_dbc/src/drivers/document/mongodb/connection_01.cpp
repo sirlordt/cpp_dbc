@@ -86,6 +86,9 @@ namespace cpp_dbc::MongoDB
                                          const std::string &password,
                                          const std::map<std::string, std::string> &options)
         : m_url(uri)
+#if DB_DRIVER_THREAD_SAFE
+        , m_connMutex(std::make_shared<std::recursive_mutex>())
+#endif
     {
         MONGODB_DEBUG("MongoDBConnection::constructor - Connecting to: " << uri);
         // Build the connection URI with credentials if provided
@@ -240,7 +243,7 @@ namespace cpp_dbc::MongoDB
 
     void MongoDBConnection::close()
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
 
         if (m_closed)
             return;
@@ -325,13 +328,13 @@ namespace cpp_dbc::MongoDB
 
     std::string MongoDBConnection::getDatabaseName() const
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         return m_databaseName;
     }
 
     std::vector<std::string> MongoDBConnection::listDatabases()
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
 
         std::vector<std::string> result;
@@ -361,14 +364,14 @@ namespace cpp_dbc::MongoDB
 
     void MongoDBConnection::useDatabase(const std::string &databaseName)
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
         m_databaseName = databaseName;
     }
 
     void MongoDBConnection::dropDatabase(const std::string &databaseName)
     {
-        MONGODB_LOCK_GUARD(m_connMutex);
+        MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
 
         MongoDatabaseHandle db(mongoc_client_get_database(m_client.get(), databaseName.c_str()));

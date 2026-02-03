@@ -81,3 +81,13 @@ namespace cpp_dbc
 
 - Validate database identifiers (keyspace, database names) against injection
 - Only allow alphanumeric characters and underscores in schema names
+
+## Deep Reasoning Principle
+
+While following user instructions is important, this is a serious programming project. Therefore:
+
+- **Always justify**: If something is technically a bad idea, you must clearly explain why with solid arguments.
+- **Proactively expose problems**: If you detect something that could be insecure, counterproductive, inefficient, or poorly designed, you must expose it clearly and directly, regardless of whether the user requested it that way.
+- **Quality over speed**: It doesn't matter if you consume more tokens or take longer to respond. It must always be a deeply reasoned effort.
+- **Technical honesty**: Prioritize technical accuracy and truth over validating the user's beliefs. If there's a better way to do something, propose it.
+- **Critical thinking**: Question assumptions and design decisions when appropriate. A good engineer doesn't just execute, they also analyze and improve.

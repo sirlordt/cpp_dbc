@@ -41,7 +41,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_LOCK_GUARD(m_connMutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_closed.load())
             {
@@ -98,7 +98,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_LOCK_GUARD(m_connMutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_closed.load())
             {
@@ -131,7 +131,11 @@ namespace cpp_dbc::MongoDB
                 collection,
                 collectionName,
                 m_databaseName,
-                weak_from_this());
+                weak_from_this()
+#if DB_DRIVER_THREAD_SAFE
+                , m_connMutex
+#endif
+            );
 
             return std::static_pointer_cast<DocumentDBCollection>(collectionPtr);
         }
@@ -163,7 +167,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_LOCK_GUARD(m_connMutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_closed.load())
             {
@@ -231,7 +235,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_LOCK_GUARD(m_connMutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_closed.load())
             {
@@ -284,7 +288,11 @@ namespace cpp_dbc::MongoDB
                 coll,
                 collectionName,
                 m_databaseName,
-                weak_from_this());
+                weak_from_this()
+#if DB_DRIVER_THREAD_SAFE
+                , m_connMutex
+#endif
+            );
 
             return std::static_pointer_cast<DocumentDBCollection>(collectionPtr);
         }
@@ -317,7 +325,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_LOCK_GUARD(m_connMutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_closed.load())
             {
@@ -386,7 +394,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            MONGODB_LOCK_GUARD(m_connMutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_closed.load())
             {

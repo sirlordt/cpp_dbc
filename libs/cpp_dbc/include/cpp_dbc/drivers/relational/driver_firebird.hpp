@@ -48,6 +48,21 @@ namespace cpp_dbc::Firebird
     class FirebirdDBConnection;
     class FirebirdDBPreparedStatement;
 
+#if DB_DRIVER_THREAD_SAFE
+    /**
+     * @brief Shared mutex type for connection and prepared statements
+     *
+     * This shared_ptr to a recursive_mutex ensures that the Connection and all its
+     * PreparedStatements share the SAME mutex. This prevents race conditions when:
+     * - PreparedStatement destructor calls isc_dsql_free_statement()
+     * - Another thread uses the connection for queries or pool validation
+     *
+     * Without a shared mutex, concurrent access to the Firebird database handle
+     * can cause protocol errors and memory corruption.
+     */
+    using SharedConnMutex = std::shared_ptr<std::recursive_mutex>;
+#endif
+
     /**
      * @brief Helper function to interpret Firebird status vector
      * @param status The status vector from Firebird API calls
@@ -159,6 +174,37 @@ namespace cpp_dbc::Firebird
 
     /**
      * @brief Firebird ResultSet implementation
+     *
+     * IMPORTANT: Thread-Safety and Shared Mutex Design
+     * ================================================
+     *
+     * Unlike MySQL and PostgreSQL, Firebird ResultSets REQUIRE a shared mutex with the
+     * Connection because Firebird uses a CURSOR-BASED model that maintains ongoing
+     * communication with the database connection.
+     *
+     * WHY FIREBIRD/SQLITE NEED SharedConnMutex (but MySQL/PostgreSQL don't):
+     *
+     * MySQL/PostgreSQL ("Store Result" model):
+     * - mysql_store_result() / PQexec() fetch ALL data into client memory (MYSQL_RES* / PGresult*)
+     * - next() just reads from in-memory structures, no DB communication
+     * - close() only frees client memory (mysql_free_result / PQclear)
+     * - The result is completely INDEPENDENT of the connection handle
+     * - Therefore, no shared mutex is needed
+     *
+     * Firebird/SQLite ("Cursor" model):
+     * - isc_dsql_fetch() / sqlite3_step() communicate with DB for EACH row
+     * - getColumnValue() accesses data from internal Firebird structures
+     * - isc_dsql_free_statement() / sqlite3_finalize() access the connection handle
+     * - Concurrent access from multiple threads causes undefined behavior/crashes
+     *
+     * RACE CONDITION SCENARIO (without SharedConnMutex):
+     * Thread A: resultSet->next() -> isc_dsql_fetch() [uses db/transaction handle]
+     * Thread B: connection->isValid() -> SELECT 1 [uses same handles]
+     * Result: Memory corruption, crashes, undefined behavior
+     *
+     * SOLUTION:
+     * ResultSet shares the SAME mutex as Connection and PreparedStatements,
+     * ensuring all operations on the database handle are serialized.
      */
     class FirebirdDBResultSet final : public RelationalDBResultSet
     {
@@ -182,7 +228,19 @@ namespace cpp_dbc::Firebird
         std::vector<short> m_nullIndicators;
 
 #if DB_DRIVER_THREAD_SAFE
-        mutable std::recursive_mutex m_mutex;
+        /**
+         * @brief Shared mutex with the parent Connection
+         *
+         * CRITICAL: This is shared with Connection and PreparedStatements because
+         * Firebird uses cursor-based iteration. Unlike MySQL/PostgreSQL where results
+         * are fully loaded into client memory, Firebird's isc_dsql_fetch() communicates
+         * with the database connection handle on every call. Without this shared mutex,
+         * concurrent operations (e.g., pool validation while iterating results) would
+         * cause race conditions.
+         *
+         * See class documentation above for detailed explanation.
+         */
+        SharedConnMutex m_connMutex;
 #endif
 
         /**
@@ -206,8 +264,13 @@ namespace cpp_dbc::Firebird
         void notifyConnClosing();
 
     public:
+#if DB_DRIVER_THREAD_SAFE
+        FirebirdDBResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement,
+                            std::shared_ptr<FirebirdDBConnection> conn, SharedConnMutex connMutex);
+#else
         FirebirdDBResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement = true,
                             std::shared_ptr<FirebirdDBConnection> conn = nullptr);
+#endif
         ~FirebirdDBResultSet() override;
 
         bool next() override;
@@ -312,7 +375,14 @@ namespace cpp_dbc::Firebird
         std::vector<std::shared_ptr<InputStream>> m_streamObjects;
 
 #if DB_DRIVER_THREAD_SAFE
-        mutable std::recursive_mutex m_mutex;
+        /**
+         * @brief Shared mutex with the parent Connection
+         *
+         * This mutex is shared between the Connection and all PreparedStatements created from it.
+         * This ensures that when close() calls isc_dsql_free_statement(), no other thread can
+         * simultaneously use the same database handle.
+         */
+        SharedConnMutex m_connMutex;
 #endif
 
         void notifyConnClosing();
@@ -328,8 +398,14 @@ namespace cpp_dbc::Firebird
         void invalidate();
 
     public:
+#if DB_DRIVER_THREAD_SAFE
+        FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db, isc_tr_handle *trPtr, const std::string &sql,
+                                    SharedConnMutex connMutex,
+                                    std::weak_ptr<FirebirdDBConnection> conn = std::weak_ptr<FirebirdDBConnection>());
+#else
         FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db, isc_tr_handle *trPtr, const std::string &sql,
                                     std::weak_ptr<FirebirdDBConnection> conn = std::weak_ptr<FirebirdDBConnection>());
+#endif
         ~FirebirdDBPreparedStatement() override;
 
         void setInt(int parameterIndex, int value) override;
@@ -425,7 +501,14 @@ namespace cpp_dbc::Firebird
         std::mutex m_resultSetsMutex;
 
 #if DB_DRIVER_THREAD_SAFE
-        mutable std::recursive_mutex m_connMutex;
+        /**
+         * @brief Shared mutex for connection and all its prepared statements
+         *
+         * This mutex is shared with all PreparedStatements created from this connection.
+         * Ensures that statement close operations (isc_dsql_free_statement) don't race
+         * with other operations on the database handle.
+         */
+        mutable SharedConnMutex m_connMutex;
 #endif
 
         void registerStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt);

@@ -40,7 +40,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_mysql)
             {
@@ -115,7 +115,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (m_closed || !m_mysql)
             {

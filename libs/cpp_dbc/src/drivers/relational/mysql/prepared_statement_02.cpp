@@ -42,7 +42,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
@@ -86,7 +86,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
@@ -130,7 +130,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
@@ -174,7 +174,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
@@ -227,7 +227,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
@@ -271,7 +271,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
@@ -347,7 +347,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
@@ -389,7 +389,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {
@@ -431,7 +431,7 @@ namespace cpp_dbc::MySQL
         try
         {
 
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
             {

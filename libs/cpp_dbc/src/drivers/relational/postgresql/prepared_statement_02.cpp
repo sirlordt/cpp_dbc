@@ -43,7 +43,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
@@ -76,7 +76,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
@@ -109,7 +109,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
@@ -142,7 +142,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
@@ -175,7 +175,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
@@ -208,7 +208,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
@@ -277,7 +277,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
@@ -310,7 +310,7 @@ namespace cpp_dbc::PostgreSQL
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
