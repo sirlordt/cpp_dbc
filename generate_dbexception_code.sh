@@ -6,6 +6,12 @@
 PROJECT_ROOT="${1:-$(pwd)}"
 COUNT="${2:-1}"
 
+# Validate COUNT is a positive integer
+if ! [[ "$COUNT" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: COUNT must be a positive integer: $COUNT" >&2
+    exit 1
+fi
+
 if [[ ! -d "$PROJECT_ROOT" ]]; then
     echo "ERROR: Project root directory does not exist: $PROJECT_ROOT" >&2
     exit 1
@@ -42,6 +48,10 @@ generate_code() {
     done
 }
 
+exit_code=0
 for ((i=1; i<=COUNT; i++)); do
-    generate_code
+    if ! generate_code; then
+        exit_code=1
+    fi
 done
+exit $exit_code

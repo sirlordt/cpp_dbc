@@ -340,6 +340,12 @@ namespace cpp_dbc::PostgreSQL
 #endif
         ~PostgreSQLDBPreparedStatement() override;
 
+        // Rule of 5: Non-copyable and non-movable (shares connection mutex and manages server-side state)
+        PostgreSQLDBPreparedStatement(const PostgreSQLDBPreparedStatement &) = delete;
+        PostgreSQLDBPreparedStatement &operator=(const PostgreSQLDBPreparedStatement &) = delete;
+        PostgreSQLDBPreparedStatement(PostgreSQLDBPreparedStatement &&) = delete;
+        PostgreSQLDBPreparedStatement &operator=(PostgreSQLDBPreparedStatement &&) = delete;
+
         void setInt(int parameterIndex, int value) override;
         void setLong(int parameterIndex, long value) override;
         void setDouble(int parameterIndex, double value) override;
@@ -463,7 +469,7 @@ namespace cpp_dbc::PostgreSQL
          * This ensures that PQexec(DEALLOCATE) in PreparedStatement destructors is
          * serialized with all other connection operations, preventing race conditions.
          */
-        SharedConnMutex m_connMutex;
+        SharedConnMutex m_connMutex = std::make_shared<std::recursive_mutex>();
 #endif
 
         /**

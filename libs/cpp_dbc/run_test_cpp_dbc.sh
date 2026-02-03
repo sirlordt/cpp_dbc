@@ -1070,6 +1070,10 @@ for ((run=1; run<=RUN_COUNT; run++)); do
                     fi
                 else
                     # Original behavior - always wait for user input
+                    # Record real failures even in interactive mode
+                    if [ "$SKIPPED_TEST" != true ] && [ $TEST_RESULT -ne 0 ]; then
+                        HAD_REAL_FAILURE=true
+                    fi
                     read -p "Press Enter to continue with the next test..."
                 fi
                 # Log duration for cases that didn't continue early

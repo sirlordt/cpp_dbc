@@ -282,8 +282,12 @@ namespace cpp_dbc
             catch ([[maybe_unused]] const std::exception &ex)
             {
                 CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception in prepareForPoolReturn: " << ex.what());
+                valid = false;
             }
+        }
 
+        if (valid)
+        {
             // Reset transaction isolation level if needed
             try
             {
@@ -299,8 +303,12 @@ namespace cpp_dbc
             catch ([[maybe_unused]] const std::exception &ex)
             {
                 CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception resetting transaction isolation: " << ex.what());
+                valid = false;
             }
+        }
 
+        if (valid)
+        {
             // Mark as inactive and update last used time
             conn->setActive(false);
 

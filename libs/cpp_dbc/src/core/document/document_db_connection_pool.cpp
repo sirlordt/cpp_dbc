@@ -279,8 +279,12 @@ namespace cpp_dbc
             catch ([[maybe_unused]] const std::exception &ex)
             {
                 CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception in prepareForPoolReturn: " << ex.what());
+                valid = false;
             }
+        }
 
+        if (valid)
+        {
             // Mark as inactive and update last used time
             conn->setActive(false);
 

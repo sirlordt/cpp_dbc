@@ -499,7 +499,7 @@ namespace cpp_dbc::MySQL
              * This ensures that mysql_stmt_close() in PreparedStatement destructors is
              * serialized with all other connection operations, preventing race conditions.
              */
-            SharedConnMutex m_connMutex;
+            SharedConnMutex m_connMutex = std::make_shared<std::recursive_mutex>();
 #endif
 
             /**

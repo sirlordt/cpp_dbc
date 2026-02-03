@@ -82,19 +82,12 @@ namespace cpp_dbc::PostgreSQL
     {
         std::scoped_lock lock(m_statementsMutex);
         // Remove expired weak_ptrs and the specified one
-        for (auto it = m_activeStatements.begin(); it != m_activeStatements.end();)
+        auto stmtLocked = stmt.lock();
+        std::erase_if(m_activeStatements, [&stmtLocked](const auto &w)
         {
-            auto locked = it->lock();
-            auto stmtLocked = stmt.lock();
-            if (!locked || (stmtLocked && locked.get() == stmtLocked.get()))
-            {
-                it = m_activeStatements.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
+            auto locked = w.lock();
+            return !locked || (stmtLocked && locked.get() == stmtLocked.get());
+        });
     }
 
     /**
@@ -173,9 +166,6 @@ namespace cpp_dbc::PostgreSQL
                                                    const std::string &password,
                                                    const std::map<std::string, std::string> &options)
         : m_closed(false)
-#if DB_DRIVER_THREAD_SAFE
-        , m_connMutex(std::make_shared<std::recursive_mutex>())
-#endif
     {
         // Build connection string
         std::stringstream conninfo;
