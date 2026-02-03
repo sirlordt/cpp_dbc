@@ -210,6 +210,24 @@ namespace cpp_dbc
          */
         virtual bool supportsTransactions() = 0;
 
+        /**
+         * @brief Prepare the connection for return to pool
+         *
+         * This method is called when a connection is returned to the pool.
+         * It should:
+         * - Close all active cursors
+         * - Abort any active transactions
+         * - Clean up any session state
+         *
+         * The default implementation does nothing.
+         * Subclasses should override to perform specific cleanup.
+         */
+        virtual void prepareForPoolReturn()
+        {
+            // Default implementation: do nothing
+            // Subclasses override to close cursors, abort transactions, etc.
+        }
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

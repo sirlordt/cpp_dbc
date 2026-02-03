@@ -442,6 +442,139 @@ TEST_CASE("MongoDB JSON operations", "[25_051_01_mongodb_real_json]")
         conn->dropCollection(collectionName);
     }
 
+    SECTION("Array getters with strict mode")
+    {
+        // Generate a unique collection name for this test
+        std::string collectionName = mongodb_test_helpers::generateRandomCollectionName();
+
+        // Create collection
+        conn->createCollection(collectionName);
+        auto collection = conn->getCollection(collectionName);
+        REQUIRE(collection != nullptr);
+
+        // Insert document with homogeneous string array
+        std::string homogeneousStringDoc = R"({
+            "id": 1,
+            "tags": ["tag1", "tag2", "tag3"]
+        })";
+        auto insertResult = collection->insertOne(homogeneousStringDoc);
+        REQUIRE(insertResult.acknowledged);
+
+        // Insert document with heterogeneous array (mixed types)
+        std::string heterogeneousDoc = R"({
+            "id": 2,
+            "mixedArray": ["string1", 123, "string2", true]
+        })";
+        insertResult = collection->insertOne(heterogeneousDoc);
+        REQUIRE(insertResult.acknowledged);
+
+        // Insert document with homogeneous document array
+        std::string homogeneousDocArrayDoc = R"({
+            "id": 3,
+            "people": [
+                {"name": "Alice", "age": 25},
+                {"name": "Bob", "age": 30}
+            ]
+        })";
+        insertResult = collection->insertOne(homogeneousDocArrayDoc);
+        REQUIRE(insertResult.acknowledged);
+
+        // Insert document with mixed array (documents and non-documents)
+        std::string mixedDocArrayDoc = R"({
+            "id": 4,
+            "items": [
+                {"name": "Item1"},
+                "not a document",
+                {"name": "Item2"}
+            ]
+        })";
+        insertResult = collection->insertOne(mixedDocArrayDoc);
+        REQUIRE(insertResult.acknowledged);
+
+        // Test 1: getStringArray on homogeneous array - should work in both modes
+        auto doc = collection->findOne("{\"id\": 1}");
+        REQUIRE(doc != nullptr);
+        auto mongoDoc = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBDocument>(doc);
+        REQUIRE(mongoDoc != nullptr);
+
+        // Tolerant mode (default) - should return all 3 strings
+        auto resultTolerant = mongoDoc->getStringArray(std::nothrow, "tags", false);
+        REQUIRE(resultTolerant.has_value());
+        REQUIRE(resultTolerant->size() == 3);
+        REQUIRE((*resultTolerant)[0] == "tag1");
+        REQUIRE((*resultTolerant)[1] == "tag2");
+        REQUIRE((*resultTolerant)[2] == "tag3");
+
+        // Strict mode - should also work (all elements are strings)
+        auto resultStrict = mongoDoc->getStringArray(std::nothrow, "tags", true);
+        REQUIRE(resultStrict.has_value());
+        REQUIRE(resultStrict->size() == 3);
+
+        // Test 2: getStringArray on heterogeneous array
+        doc = collection->findOne("{\"id\": 2}");
+        REQUIRE(doc != nullptr);
+        mongoDoc = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBDocument>(doc);
+        REQUIRE(mongoDoc != nullptr);
+
+        // Tolerant mode - should return only strings (skip non-strings)
+        resultTolerant = mongoDoc->getStringArray(std::nothrow, "mixedArray", false);
+        REQUIRE(resultTolerant.has_value());
+        REQUIRE(resultTolerant->size() == 2); // Only "string1" and "string2"
+        REQUIRE((*resultTolerant)[0] == "string1");
+        REQUIRE((*resultTolerant)[1] == "string2");
+
+        // Strict mode - should fail (array contains non-string elements)
+        resultStrict = mongoDoc->getStringArray(std::nothrow, "mixedArray", true);
+        REQUIRE_FALSE(resultStrict.has_value());
+        // Verify error message mentions the index and type mismatch
+        REQUIRE(resultStrict.error().what_s().find("index") != std::string::npos);
+
+        // Test 3: getDocumentArray on homogeneous document array
+        doc = collection->findOne("{\"id\": 3}");
+        REQUIRE(doc != nullptr);
+        mongoDoc = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBDocument>(doc);
+        REQUIRE(mongoDoc != nullptr);
+
+        // Tolerant mode - should return all 2 documents
+        auto docResultTolerant = mongoDoc->getDocumentArray(std::nothrow, "people", false);
+        REQUIRE(docResultTolerant.has_value());
+        REQUIRE(docResultTolerant->size() == 2);
+        REQUIRE((*docResultTolerant)[0]->getString("name") == "Alice");
+        REQUIRE((*docResultTolerant)[1]->getString("name") == "Bob");
+
+        // Strict mode - should also work (all elements are documents)
+        auto docResultStrict = mongoDoc->getDocumentArray(std::nothrow, "people", true);
+        REQUIRE(docResultStrict.has_value());
+        REQUIRE(docResultStrict->size() == 2);
+
+        // Test 4: getDocumentArray on mixed array (documents and non-documents)
+        doc = collection->findOne("{\"id\": 4}");
+        REQUIRE(doc != nullptr);
+        mongoDoc = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBDocument>(doc);
+        REQUIRE(mongoDoc != nullptr);
+
+        // Tolerant mode - should return only documents (skip non-documents)
+        docResultTolerant = mongoDoc->getDocumentArray(std::nothrow, "items", false);
+        REQUIRE(docResultTolerant.has_value());
+        REQUIRE(docResultTolerant->size() == 2); // Only Item1 and Item2
+        REQUIRE((*docResultTolerant)[0]->getString("name") == "Item1");
+        REQUIRE((*docResultTolerant)[1]->getString("name") == "Item2");
+
+        // Strict mode - should fail (array contains non-document element)
+        docResultStrict = mongoDoc->getDocumentArray(std::nothrow, "items", true);
+        REQUIRE_FALSE(docResultStrict.has_value());
+        // Verify error message mentions the index and type mismatch
+        REQUIRE(docResultStrict.error().what_s().find("index") != std::string::npos);
+
+        // Test 5: Default behavior (without explicit strict parameter) should be tolerant
+        auto defaultResult = mongoDoc->getDocumentArray(std::nothrow, "items");
+        REQUIRE(defaultResult.has_value());
+        REQUIRE(defaultResult->size() == 2); // Same as tolerant mode
+
+        // Clean up
+        conn->dropCollection(collectionName);
+    }
+
     // Close the connection
     conn->close();
 }

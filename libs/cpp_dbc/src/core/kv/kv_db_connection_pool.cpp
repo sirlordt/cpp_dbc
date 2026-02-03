@@ -383,6 +383,20 @@ namespace cpp_dbc
 
         if (valid)
         {
+            // Clean up the connection before returning to pool
+            try
+            {
+                conn->getUnderlyingKVConnection()->prepareForPoolReturn();
+            }
+            catch ([[maybe_unused]] const std::exception &ex)
+            {
+                CP_DEBUG("KVDBConnectionPool::returnConnection - Exception in prepareForPoolReturn: " << ex.what());
+                valid = false;
+            }
+        }
+
+        if (valid)
+        {
             // Mark as inactive and update last used time
             conn->setActive(false);
 
@@ -848,7 +862,7 @@ namespace cpp_dbc
         }
     }
 
-    bool KVPooledDBConnection::isClosed()
+    bool KVPooledDBConnection::isClosed() const
     {
         return m_closed || (m_conn && m_conn->isClosed());
     }

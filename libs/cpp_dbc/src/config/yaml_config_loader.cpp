@@ -169,7 +169,7 @@ namespace cpp_dbc::config
                         // Validate required connection pool fields
                         if (!poolConfig["initial_size"] || !poolConfig["initial_size"].IsDefined())
                         {
-                            throw cpp_dbc::DBException("A1B2C3D4E5F6", "Missing required field 'initial_size' in connection pool '" + name + "'",
+                            throw cpp_dbc::DBException("10CM5NLE7FN8", "Missing required field 'initial_size' in connection pool '" + name + "'",
                                                        cpp_dbc::system_utils::captureCallStack());
                         }
                         poolCfg.setInitialSize(poolConfig["initial_size"].as<int>());

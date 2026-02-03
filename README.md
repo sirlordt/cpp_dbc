@@ -77,19 +77,28 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - `include/cpp_dbc/config/yaml_config_loader.hpp` & `src/config/yaml_config_loader.cpp`: YAML configuration loader
 
 - **Database Drivers** (Relational):
-  - `include/cpp_dbc/drivers/relational/driver_mysql.hpp` & `src/drivers/relational/driver_mysql.cpp`: MySQL implementation
-  - `include/cpp_dbc/drivers/relational/driver_postgresql.hpp` & `src/drivers/relational/driver_postgresql.cpp`: PostgreSQL implementation
-  - `include/cpp_dbc/drivers/relational/driver_sqlite.hpp` & `src/drivers/relational/driver_sqlite.cpp`: SQLite implementation
-  - `include/cpp_dbc/drivers/relational/driver_firebird.hpp` & `src/drivers/relational/driver_firebird.cpp`: Firebird SQL implementation
+  - `include/cpp_dbc/drivers/relational/driver_mysql.hpp` & `src/drivers/relational/mysql/`: MySQL implementation (split into multiple files)
+  - `include/cpp_dbc/drivers/relational/driver_postgresql.hpp` & `src/drivers/relational/postgresql/`: PostgreSQL implementation (split into multiple files)
+  - `include/cpp_dbc/drivers/relational/driver_sqlite.hpp` & `src/drivers/relational/sqlite/`: SQLite implementation (split into multiple files)
+  - `include/cpp_dbc/drivers/relational/driver_firebird.hpp` & `src/drivers/relational/firebird/`: Firebird SQL implementation (split into multiple files)
 
 - **Database Drivers** (Document):
-  - `include/cpp_dbc/drivers/document/driver_mongodb.hpp` & `src/drivers/document/driver_mongodb.cpp`: MongoDB implementation
+  - `include/cpp_dbc/drivers/document/driver_mongodb.hpp` & `src/drivers/document/mongodb/`: MongoDB implementation (split into multiple files)
 
 - **Database Drivers** (Key-Value):
-  - `include/cpp_dbc/drivers/kv/driver_redis.hpp` & `src/drivers/kv/driver_redis.cpp`: Redis implementation
+  - `include/cpp_dbc/drivers/kv/driver_redis.hpp` & `src/drivers/kv/redis/`: Redis implementation (split into multiple files)
 
 - **Database Drivers** (Columnar):
-  - `include/cpp_dbc/drivers/columnar/driver_scylladb.hpp` & `src/drivers/columnar/driver_scylladb.cpp`: ScyllaDB implementation
+  - `include/cpp_dbc/drivers/columnar/driver_scylladb.hpp` & `src/drivers/columnar/scylladb/`: ScyllaDB implementation (split into multiple files)
+
+- **Driver Code Organization**:
+  Each database driver implementation is split into multiple focused files within its own subdirectory:
+  - `*_internal.hpp`: Internal declarations and shared definitions
+  - `driver_*.cpp`: Driver class implementation
+  - `connection_*.cpp`: Connection class implementation
+  - `prepared_statement_*.cpp`: PreparedStatement class implementation (relational/columnar)
+  - `result_set_*.cpp`: ResultSet class implementation (relational/columnar)
+  - `collection_*.cpp`, `cursor_*.cpp`, `document_*.cpp`: MongoDB-specific implementations
 
 - **Core Interfaces**:
   - `include/cpp_dbc/core/relational/`: Relational database interfaces

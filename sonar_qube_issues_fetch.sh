@@ -856,6 +856,10 @@ save_issues_by_file() {
         local file_path
         file_path=$(echo "$component" | sed 's/.*://')
 
+        # Get the parent directory name to disambiguate files with the same basename
+        local parent_dir
+        parent_dir=$(basename "$(dirname "$file_path")")
+
         # Get just the filename (basename), not the full path
         local base_filename
         base_filename=$(basename "$file_path")
@@ -864,6 +868,12 @@ save_issues_by_file() {
         # e.g., system_utils.hpp -> system_utils_hpp
         local safe_filename
         safe_filename=$(echo "$base_filename" | sed 's/\./_/g')
+
+        # Prepend parent directory to avoid collisions between files with the same name
+        # e.g., postgresql/connection_01.cpp -> postgresql_connection_01_cpp
+        if [[ -n "$parent_dir" && "$parent_dir" != "." ]]; then
+            safe_filename="${parent_dir}_${safe_filename}"
+        fi
 
         # Filter issues for this component
         local file_issues
@@ -878,7 +888,7 @@ save_issues_by_file() {
         issue_count=$(echo "$file_issues" | jq '.total')
 
         if [[ "$issue_count" -gt 0 ]]; then
-            # Format: {issue_count}_{filename}_{branch}_issues.json
+            # Format: {issue_count}_{parent_dir}_{filename}_{branch}_issues.json
             local output_file="${output_dir}/${issue_count}_${safe_filename}${branch_suffix}_issues.json"
             echo "$file_issues" | jq '.' > "$output_file"
             log_success "  Saved ${issue_count} issues to: $(basename "$output_file")"

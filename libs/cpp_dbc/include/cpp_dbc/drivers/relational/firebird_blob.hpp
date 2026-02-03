@@ -31,10 +31,8 @@
 #if USE_FIREBIRD
 #include <ibase.h>
 
-namespace cpp_dbc
+namespace cpp_dbc::Firebird
 {
-    namespace Firebird
-    {
         // Firebird implementation of InputStream
         class FirebirdInputStream : public InputStream
         {
@@ -355,8 +353,7 @@ namespace cpp_dbc
             }
         };
 
-    } // namespace Firebird
-} // namespace cpp_dbc
+} // namespace cpp_dbc::Firebird
 
 #endif // USE_FIREBIRD
 

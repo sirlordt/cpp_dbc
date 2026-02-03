@@ -28,29 +28,17 @@
 
 #if USE_SCYLLADB
 #include <cassandra.h>
+#include <atomic>
 #include <map>
 #include <memory>
-#include <set>
 #include <mutex>
+#include <set>
 #include <vector>
 #include <algorithm>
 #include <cstring>
 
-// Thread-safety macros for conditional mutex locking
-#if DB_DRIVER_THREAD_SAFE
-#define DB_DRIVER_MUTEX mutable std::recursive_mutex
-#define DB_DRIVER_LOCK_GUARD(mutex) std::lock_guard<std::recursive_mutex> lock(mutex)
-#define DB_DRIVER_UNIQUE_LOCK(mutex) std::unique_lock<std::recursive_mutex> lock(mutex)
-#else
-#define DB_DRIVER_MUTEX
-#define DB_DRIVER_LOCK_GUARD(mutex) (void)0
-#define DB_DRIVER_UNIQUE_LOCK(mutex) (void)0
-#endif
-
-namespace cpp_dbc
+namespace cpp_dbc::ScyllaDB
 {
-    namespace ScyllaDB
-    {
         // Custom deleters for Cassandra objects
         struct CassClusterDeleter
         {
@@ -189,6 +177,21 @@ namespace cpp_dbc
             bool isAfterLast() override;
             uint64_t getRow() override;
 
+            /**
+             * @brief Typed getters - NULL handling semantics
+             *
+             * When a column contains NULL, typed getters return default values:
+             * - getInt/getLong: returns 0
+             * - getDouble: returns 0.0
+             * - getBoolean: returns false
+             * - getString: returns empty string ""
+             *
+             * @note Unlike JDBC which requires checking wasNull() after each call,
+             *       callers should use isNull(columnIndex) BEFORE calling typed getters
+             *       if they need to distinguish NULL from actual default values.
+             *
+             * @see isNull()
+             */
             int getInt(size_t columnIndex) override;
             int getInt(const std::string &columnName) override;
             long getLong(size_t columnIndex) override;
@@ -344,7 +347,7 @@ namespace cpp_dbc
             std::shared_ptr<CassCluster> m_cluster; // Shared to keep cluster config alive if needed
             std::shared_ptr<CassSession> m_session; // Shared for PreparedStatement weak_ptr
             std::string m_url;
-            bool m_closed{true};
+            std::atomic<bool> m_closed{true};
 
 #if DB_DRIVER_THREAD_SAFE
             mutable std::recursive_mutex m_connMutex;
@@ -358,7 +361,7 @@ namespace cpp_dbc
 
             // DBConnection interface
             void close() override;
-            bool isClosed() override;
+            bool isClosed() const override;
             void returnToPool() override;
             bool isPooled() override;
             std::string getURL() const override;
@@ -414,8 +417,7 @@ namespace cpp_dbc
             bool acceptsURL(const std::string &url) override;
             std::string getName() const noexcept override;
         };
-    }
-}
+} // namespace cpp_dbc::ScyllaDB
 
 #else // USE_SCYLLADB
 
@@ -455,7 +457,7 @@ namespace cpp_dbc::ScyllaDB
         bool acceptsURL(const std::string &) override { return false; }
         std::string getName() const noexcept override { return "scylladb"; }
     };
-}
+} // namespace cpp_dbc::ScyllaDB
 
 #endif // USE_SCYLLADB
 

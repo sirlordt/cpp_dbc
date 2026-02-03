@@ -28,6 +28,9 @@ declare -a PASS_THROUGH_ARGS=()
 # Log directory for this run
 LOG_DIR="$SCRIPT_DIR/logs/test/$TIMESTAMP"
 
+# Timeout configuration (seconds without log activity before killing test)
+TEST_TIMEOUT_SECONDS=300  # 5 minutes
+
 # Associative arrays for tracking
 declare -A PREFIX_PIDS          # PID for each running prefix
 declare -A PREFIX_CURRENT_RUN   # Current run number for each prefix
@@ -36,6 +39,8 @@ declare -A PREFIX_LOG_FILE      # Log file path for current run
 declare -A PREFIX_START_TIME    # Start time (epoch seconds) for current run
 declare -A PREFIX_FAIL_REASON   # Failure reason (Valgrind error message, etc.)
 declare -A PREFIX_TOTAL_TESTS   # Total test count per prefix (known after Run 1)
+declare -A PREFIX_LAST_LOG_SIZE # Last known log file size (for timeout detection)
+declare -A PREFIX_LAST_ACTIVITY # Last time (epoch) log file changed
 declare -a ALL_PREFIXES         # Array of all test prefixes
 
 # TUI variables
@@ -104,6 +109,7 @@ parse_arguments() {
                 echo "  --parallel-order=P1,P2,...  Specify prefixes to run first"
                 echo "                              (e.g., --parallel-order=23_,24_)"
                 echo "  --progress      Show interactive TUI with split panel view"
+                echo "  --timeout=SECS  Kill test if no log output for SECS seconds (default: 300)"
                 echo "  --summarize     Show summary of the latest test run"
                 echo "  --summarize=FOLDER  Show summary of a specific test run folder"
                 echo "                      (e.g., --summarize=2026-01-28-14-35-42)"
@@ -129,6 +135,15 @@ parse_arguments() {
                 ;;
             --progress)
                 SHOW_TUI=true
+                shift
+                ;;
+            --timeout=*)
+                TEST_TIMEOUT_SECONDS="${1#*=}"
+                validate_numeric "$TEST_TIMEOUT_SECONDS" "--timeout"
+                if [ "$TEST_TIMEOUT_SECONDS" -lt 60 ]; then
+                    echo "Error: --timeout value must be >= 60 seconds, got: $TEST_TIMEOUT_SECONDS"
+                    exit 1
+                fi
                 shift
                 ;;
             *)
@@ -294,6 +309,45 @@ do_initial_build() {
     echo ""
 }
 
+# Maximum number of log folders to keep
+MAX_LOG_FOLDERS=5
+
+# Cleanup old log folders, keeping only the latest MAX_LOG_FOLDERS
+cleanup_old_log_folders() {
+    local log_base="$SCRIPT_DIR/logs/test"
+
+    if [ ! -d "$log_base" ]; then
+        return
+    fi
+
+    # Get all log folders sorted by name (which is a timestamp, so oldest first)
+    local -a all_folders=()
+    while IFS= read -r folder; do
+        [ -n "$folder" ] && all_folders+=("$folder")
+    done < <(find "$log_base" -maxdepth 1 -type d -name "20*" | sort)
+
+    local folder_count=${#all_folders[@]}
+
+    # If we have more than MAX_LOG_FOLDERS, delete the oldest ones
+    if [ "$folder_count" -gt "$MAX_LOG_FOLDERS" ]; then
+        local to_delete=$((folder_count - MAX_LOG_FOLDERS))
+
+        if [ "$SHOW_TUI" = false ]; then
+            echo "Cleaning up old log folders (keeping last $MAX_LOG_FOLDERS)..."
+        fi
+
+        for ((i=0; i<to_delete; i++)); do
+            local folder_to_delete="${all_folders[$i]}"
+            if [ -d "$folder_to_delete" ]; then
+                if [ "$SHOW_TUI" = false ]; then
+                    echo "  Removing: $(basename "$folder_to_delete")"
+                fi
+                rm -rf "$folder_to_delete"
+            fi
+        done
+    fi
+}
+
 # Create log file path for a prefix and run
 get_log_file_path() {
     local prefix=$1
@@ -314,6 +368,10 @@ start_test() {
 
     local log_file=$(get_log_file_path "$prefix" "$run_num")
     PREFIX_LOG_FILE[$prefix]="$log_file"
+
+    # Initialize timeout tracking
+    PREFIX_LAST_LOG_SIZE[$prefix]=0
+    PREFIX_LAST_ACTIVITY[$prefix]=$(date +%s)
 
     local filter="${prefix}_*"
 
@@ -346,6 +404,9 @@ start_test() {
     local cmd_display="${cmd[*]}"
 
     # Run the test in background
+    # NOTE: We avoid using pipes (| tr -d '\r') because if the process crashes,
+    # the pipe can hang indefinitely waiting for more data. Instead, we write
+    # directly to the log file and clean it up afterwards.
     (
         cd "$SCRIPT_DIR"
 
@@ -360,14 +421,20 @@ start_test() {
             echo "=== Command: $cmd_display ==="
             echo ""
 
-            # Execute the test command (preserve ANSI colors for TUI display)
-            # Strip only carriage returns to clean up progress output (portable)
-            "${cmd[@]}" 2>&1 | tr -d '\r'
-            exit_code=${PIPESTATUS[0]}
+            # Execute the test command directly without pipe
+            # This prevents hanging when the process crashes with a signal
+            "${cmd[@]}" 2>&1
+            exit_code=$?
 
             echo ""
             echo "=== Finished: $(date) ==="
             echo "=== Exit Code: $exit_code ==="
+
+            # Check if exit code indicates a signal (128 + signal_number)
+            if [ $exit_code -gt 128 ]; then
+                local signal_num=$((exit_code - 128))
+                echo "=== CRASHED: Received signal $signal_num ==="
+            fi
 
             exit $exit_code
         } > "$log_file" 2>&1
@@ -392,6 +459,83 @@ check_test_completion() {
     fi
 
     return 0  # Completed
+}
+
+# Check if a running test has timed out (no log activity for TEST_TIMEOUT_SECONDS)
+# Returns 0 if timed out, 1 if still active
+check_test_timeout() {
+    local prefix=$1
+    local log_file="${PREFIX_LOG_FILE[$prefix]}"
+    local current_time=$(date +%s)
+
+    # If no log file yet, use start time for timeout
+    if [ ! -f "$log_file" ]; then
+        local start_time="${PREFIX_START_TIME[$prefix]}"
+        local elapsed=$((current_time - start_time))
+        if [ $elapsed -gt $TEST_TIMEOUT_SECONDS ]; then
+            return 0  # Timed out (no log file created)
+        fi
+        return 1  # Not timed out yet
+    fi
+
+    # Get current log file size
+    local current_size
+    current_size=$(stat -c%s "$log_file" 2>/dev/null) || current_size=0
+
+    # Get last known size and activity time
+    local last_size="${PREFIX_LAST_LOG_SIZE[$prefix]:-0}"
+    local last_activity="${PREFIX_LAST_ACTIVITY[$prefix]:-$current_time}"
+
+    # Check if log has grown
+    if [ "$current_size" -gt "$last_size" ]; then
+        # Log grew, update tracking
+        PREFIX_LAST_LOG_SIZE[$prefix]=$current_size
+        PREFIX_LAST_ACTIVITY[$prefix]=$current_time
+        return 1  # Not timed out, there's activity
+    fi
+
+    # Log hasn't grown, check how long since last activity
+    local inactive_time=$((current_time - last_activity))
+    if [ $inactive_time -gt $TEST_TIMEOUT_SECONDS ]; then
+        return 0  # Timed out
+    fi
+
+    return 1  # Not timed out yet
+}
+
+# Kill a test process due to timeout
+kill_test_timeout() {
+    local prefix=$1
+    local pid="${PREFIX_PIDS[$prefix]}"
+    local log_file="${PREFIX_LOG_FILE[$prefix]}"
+
+    if [ -z "$pid" ]; then
+        return
+    fi
+
+    # Try graceful termination first
+    kill -TERM "$pid" 2>/dev/null || true
+
+    # Also kill child processes
+    pkill -TERM -P "$pid" 2>/dev/null || true
+
+    # Wait a bit for graceful shutdown
+    sleep 2
+
+    # Force kill if still running
+    if kill -0 "$pid" 2>/dev/null; then
+        kill -KILL "$pid" 2>/dev/null || true
+        pkill -KILL -P "$pid" 2>/dev/null || true
+    fi
+
+    # Append timeout message to log file
+    if [ -f "$log_file" ]; then
+        {
+            echo ""
+            echo "=== TIMEOUT: Test killed after ${TEST_TIMEOUT_SECONDS} seconds of inactivity ==="
+            echo "=== Killed at: $(date) ==="
+        } >> "$log_file"
+    fi
 }
 
 # Get exit code of completed test
@@ -461,6 +605,103 @@ mark_log_as_failed() {
         mv "$log_file" "$fail_log_file"
         PREFIX_LOG_FILE[$prefix]="$fail_log_file"
     fi
+}
+
+# Strip ANSI escape codes from log file for clean reading
+# Preserves the log content but removes color codes
+strip_ansi_from_log() {
+    local prefix=$1
+    local log_file="${PREFIX_LOG_FILE[$prefix]}"
+
+    if [ -f "$log_file" ]; then
+        # Create temp file, strip ANSI codes, replace original
+        local temp_file=$(mktemp)
+        sed 's/\x1b\[[0-9;]*m//g' "$log_file" > "$temp_file"
+        mv "$temp_file" "$log_file"
+    fi
+}
+
+# Extract skipped tests from log file
+# Returns lines in format: tag|file_line|reason|log_file|log_line
+extract_skipped_tests() {
+    local log_file=$1
+
+    if [ ! -f "$log_file" ]; then
+        return
+    fi
+
+    # Look for @@SKIP|tag|file_line|reason@@ pattern (uses | as delimiter)
+    grep -a "@@SKIP|" "$log_file" 2>/dev/null | while IFS= read -r line; do
+        # Extract content between @@SKIP| and @@
+        local content=$(echo "$line" | sed 's/.*@@SKIP|\(.*\)@@.*/\1/')
+        # Split by | to get tag, file_line, reason
+        local tag=$(echo "$content" | cut -d'|' -f1)
+        local file_line=$(echo "$content" | cut -d'|' -f2)
+        local reason=$(echo "$content" | cut -d'|' -f3-)
+
+        # Find the line number in the log where "skipped:" appears for this tag
+        local log_line=$(grep -n "skipped:" "$log_file" 2>/dev/null | head -1 | cut -d':' -f1)
+        if [ -z "$log_line" ]; then
+            log_line="?"
+        fi
+
+        echo "${tag}|${file_line}|${reason}|${log_file}|${log_line}"
+    done
+}
+
+# Check for fatal signals (crashes) in log file
+# Returns 0 if no crash found, 1 if crash found
+# Sets CRASH_ERROR_MSG with the error description if found
+CRASH_ERROR_MSG=""
+check_crash_signals() {
+    local log_file=$1
+    CRASH_ERROR_MSG=""
+
+    if [ ! -f "$log_file" ]; then
+        return 0
+    fi
+
+    # Check for SIGSEGV (Segmentation fault)
+    if grep -qE "SIGSEGV|Segmentation fault|segmentation violation" "$log_file" 2>/dev/null; then
+        local crash_line
+        crash_line=$(grep -E "SIGSEGV|Segmentation fault|segmentation violation" "$log_file" 2>/dev/null | head -1)
+        CRASH_ERROR_MSG="CRASH: $crash_line"
+        return 1
+    fi
+
+    # Check for SIGABRT (Abort)
+    if grep -qE "SIGABRT|Aborted" "$log_file" 2>/dev/null; then
+        local crash_line
+        crash_line=$(grep -E "SIGABRT|Aborted" "$log_file" 2>/dev/null | head -1)
+        CRASH_ERROR_MSG="CRASH: $crash_line"
+        return 1
+    fi
+
+    # Check for SIGBUS (Bus error)
+    if grep -qE "SIGBUS|Bus error" "$log_file" 2>/dev/null; then
+        local crash_line
+        crash_line=$(grep -E "SIGBUS|Bus error" "$log_file" 2>/dev/null | head -1)
+        CRASH_ERROR_MSG="CRASH: $crash_line"
+        return 1
+    fi
+
+    # Check for SIGFPE (Floating point exception)
+    if grep -qE "SIGFPE|Floating point exception" "$log_file" 2>/dev/null; then
+        local crash_line
+        crash_line=$(grep -E "SIGFPE|Floating point exception" "$log_file" 2>/dev/null | head -1)
+        CRASH_ERROR_MSG="CRASH: $crash_line"
+        return 1
+    fi
+
+    # Check for fatal error condition (Catch2 signal handler)
+    if grep -qE "fatal error condition" "$log_file" 2>/dev/null; then
+        local crash_line
+        crash_line=$(grep -E "fatal error condition" "$log_file" 2>/dev/null | head -1)
+        CRASH_ERROR_MSG="CRASH: $crash_line"
+        return 1
+    fi
+
+    return 0
 }
 
 # Check for Valgrind errors in log file
@@ -600,6 +841,28 @@ find_failure_lines() {
     # Check for mismatched free/delete
     grep -an "Mismatched free() / delete" "$log_file" 2>/dev/null | while IFS=: read -r line_num content; do
         echo "${line_num}|Valgrind|${content}"
+    done
+
+    # Check for crashes (SIGSEGV, SIGABRT, etc.)
+    grep -an "SIGSEGV\|Segmentation fault\|segmentation violation" "$log_file" 2>/dev/null | head -1 | while IFS=: read -r line_num content; do
+        echo "${line_num}|CRASH|${content}"
+    done
+
+    grep -an "SIGABRT\|Aborted" "$log_file" 2>/dev/null | head -1 | while IFS=: read -r line_num content; do
+        echo "${line_num}|CRASH|${content}"
+    done
+
+    grep -an "SIGBUS\|Bus error" "$log_file" 2>/dev/null | head -1 | while IFS=: read -r line_num content; do
+        echo "${line_num}|CRASH|${content}"
+    done
+
+    grep -an "fatal error condition" "$log_file" 2>/dev/null | head -1 | while IFS=: read -r line_num content; do
+        echo "${line_num}|CRASH|${content}"
+    done
+
+    # Check for timeout
+    grep -an "TIMEOUT: Test killed" "$log_file" 2>/dev/null | head -1 | while IFS=: read -r line_num content; do
+        echo "${line_num}|TIMEOUT|${content}"
     done
 
     # Check for Catch2 test failures (format: /path/file.cpp:123: FAILED:)
@@ -974,19 +1237,49 @@ run_summarize_mode() {
     local completed=0
     local failed=0
 
+    local has_warnings=false
+    declare -A prefix_warnings
+
     for prefix in "${ALL_PREFIXES[@]}"; do
         local status="${PREFIX_STATUS[$prefix]}"
         local runs=$((10#${PREFIX_CURRENT_RUN[$prefix]}))
 
+        # Check for skipped tests in all log files for this prefix
+        local skipped_info=""
+        for ((run=1; run<=runs; run++)); do
+            local log_file=$(get_log_file_path "$prefix" "$run")
+            if [ ! -f "$log_file" ]; then
+                local fail_log="${log_file%.log}_fail.log"
+                if [ -f "$fail_log" ]; then
+                    log_file="$fail_log"
+                fi
+            fi
+            if [ -f "$log_file" ]; then
+                local skips=$(extract_skipped_tests "$log_file")
+                if [ -n "$skips" ]; then
+                    skipped_info="$skips"
+                    has_warnings=true
+                fi
+            fi
+        done
+
         if [ "$status" = "completed" ]; then
             ((completed++)) || true
-            echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $runs run(s)"
+            if [ -n "$skipped_info" ]; then
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $runs run(s) ${YELLOW}(with warnings)${NC}"
+                prefix_warnings[$prefix]="$skipped_info"
+            else
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $runs run(s)"
+            fi
         else
             ((failed++)) || true
             local failed_run=$((10#${PREFIX_FAILED_RUN[$prefix]:-$runs}))
-            echo -e "${RED}[FAILED]${NC} ${prefix}_ - Failed at run $failed_run"
+
             # Find the fail log
             local fail_log=$(find "$LOG_DIR" -name "${prefix}_RUN*_fail.log" -type f | head -1)
+
+            echo -e "${RED}[FAILED]${NC} ${prefix}_ - Failed at run $failed_run"
+
             if [ -n "$fail_log" ]; then
                 # Find all failure lines with line numbers
                 local failure_lines
@@ -1009,8 +1302,29 @@ run_summarize_mode() {
         fi
     done
 
+    # Show warnings section if there were any skipped tests
+    if [ "$has_warnings" = true ]; then
+        echo ""
+        echo -e "${YELLOW}========================================"
+        echo -e "  Warnings: Skipped Tests"
+        echo -e "========================================${NC}"
+        for prefix in "${!prefix_warnings[@]}"; do
+            echo -e "\n  ${YELLOW}[${prefix}_]${NC}"
+            echo "${prefix_warnings[$prefix]}" | while IFS='|' read -r tag file_line reason log_file log_line; do
+                [ -z "$tag" ] && continue
+                echo -e "    - Test [$tag] skipped at $file_line"
+                echo -e "      Reason: $reason"
+                echo -e "      Log: $log_file:$log_line"
+            done
+        done
+    fi
+
     echo ""
-    echo "Summary: $completed passed, $failed failed"
+    if [ "$has_warnings" = true ]; then
+        echo "Summary: $completed passed, $failed failed (with warnings - some tests were skipped)"
+    else
+        echo "Summary: $completed passed, $failed failed"
+    fi
     echo ""
 }
 
@@ -1327,7 +1641,41 @@ tui_draw_status_bar() {
     local y=$((TERM_ROWS - 3))
 
     tput cup $y 0
-    printf "${REVERSE}"
+
+    # Build array of running prefixes to check for yellow text in visible log
+    local -a running_prefixes=()
+    for prefix in "${ALL_PREFIXES[@]}"; do
+        if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
+            running_prefixes+=("$prefix")
+        fi
+    done
+
+    # Determine status bar color based on visible colored text in right panel
+    # Priority: RED > YELLOW > normal (white/gray)
+    local status_bar_color="${REVERSE}"  # Default: normal reverse (white/gray)
+    if [ ${#running_prefixes[@]} -gt 0 ] && [ $SELECTED_INDEX -lt ${#running_prefixes[@]} ]; then
+        local selected_prefix="${running_prefixes[$SELECTED_INDEX]}"
+        local log_file="${PREFIX_LOG_FILE[$selected_prefix]}"
+
+        if [ -f "$log_file" ]; then
+            local panel_height=$((TERM_ROWS - 4))
+            local content_height=$((panel_height - 2))
+            local visible_lines
+            visible_lines=$(tail -n "$content_height" "$log_file" 2>/dev/null)
+
+            # Check for red first (higher priority)
+            # Red codes: \033[1;31m (bright), \033[31m (normal), \033[0;31m
+            if echo "$visible_lines" | grep -qE $'\x1b\[(1;31|0;31|31)m'; then
+                status_bar_color="${REVERSE}${RED}"  # Red status bar
+            # Check for yellow if no red found
+            # Yellow codes: \033[1;33m (bright), \033[33m (normal), \033[0;33m
+            elif echo "$visible_lines" | grep -qE $'\x1b\[(1;33|0;33|33)m'; then
+                status_bar_color="${REVERSE}${YELLOW}"  # Yellow status bar
+            fi
+        fi
+    fi
+
+    printf "${status_bar_color}"
 
     local running=$(count_running_tests)
     local completed=0
@@ -1452,6 +1800,9 @@ run_parallel_tests_tui() {
     # Create log directory
     mkdir -p "$LOG_DIR"
 
+    # Cleanup old log folders (keep only last MAX_LOG_FOLDERS)
+    cleanup_old_log_folders
+
     # Do initial build BEFORE initializing TUI (so user can see build output)
     do_initial_build
 
@@ -1463,15 +1814,40 @@ run_parallel_tests_tui() {
 
     # Main loop
     while ! all_tests_done; do
-        # Check for completed tests
+        # Check for timeouts and completed tests
         for prefix in "${ALL_PREFIXES[@]}"; do
             if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
-                if check_test_completion "$prefix"; then
+                # First check for timeout (no log activity for TEST_TIMEOUT_SECONDS)
+                if check_test_timeout "$prefix"; then
+                    local timeout_minutes=$((TEST_TIMEOUT_SECONDS / 60))
+
+                    # Kill the process
+                    kill_test_timeout "$prefix"
+
+                    # Mark as failed
+                    PREFIX_STATUS[$prefix]="failed"
+                    PREFIX_FAIL_REASON[$prefix]="Timeout: No output for ${timeout_minutes} minutes"
+                    mark_log_as_failed "$prefix"
+
+                    # Clean ANSI codes from log
+                    strip_ansi_from_log "$prefix"
+                    # Clear PID
+                    unset "PREFIX_PIDS[$prefix]"
+
+                elif check_test_completion "$prefix"; then
                     local exit_code=$(get_test_exit_code "$prefix")
                     local current_run=${PREFIX_CURRENT_RUN[$prefix]}
                     local log_file="${PREFIX_LOG_FILE[$prefix]}"
 
-                    if [ $exit_code -eq 0 ]; then
+                    # First check for crashes (SIGSEGV, SIGABRT, etc.) in the log
+                    # This takes priority over exit code because crashes can leave
+                    # inconsistent exit codes
+                    if ! check_crash_signals "$log_file"; then
+                        # Crash detected - treat as failure
+                        PREFIX_STATUS[$prefix]="failed"
+                        PREFIX_FAIL_REASON[$prefix]="$CRASH_ERROR_MSG"
+                        mark_log_as_failed "$prefix"
+                    elif [ $exit_code -eq 0 ]; then
                         # Check for Valgrind errors even if exit code is 0
                         if ! check_valgrind_errors "$log_file"; then
                             # Valgrind errors found - treat as failure
@@ -1490,12 +1866,20 @@ run_parallel_tests_tui() {
                                 PREFIX_STATUS[$prefix]="completed"
                             fi
                         fi
+                    elif [ $exit_code -gt 128 ]; then
+                        # Exit code > 128 indicates process was killed by a signal
+                        local signal_num=$((exit_code - 128))
+                        PREFIX_STATUS[$prefix]="failed"
+                        PREFIX_FAIL_REASON[$prefix]="Killed by signal $signal_num (exit code: $exit_code)"
+                        mark_log_as_failed "$prefix"
                     else
                         PREFIX_STATUS[$prefix]="failed"
                         PREFIX_FAIL_REASON[$prefix]="Exit code: $exit_code"
                         mark_log_as_failed "$prefix"
                     fi
 
+                    # Clean ANSI codes from log for readable files
+                    strip_ansi_from_log "$prefix"
                     unset "PREFIX_PIDS[$prefix]"
                 fi
             fi
@@ -1572,15 +1956,43 @@ run_parallel_tests_tui() {
     local completed=0
     local failed=0
     local interrupted=0
+    local has_warnings=false
+    declare -A prefix_warnings
 
     for prefix in "${ALL_PREFIXES[@]}"; do
+        # Check for skipped tests in log files
+        local skipped_info=""
+        local total_runs=${PREFIX_CURRENT_RUN[$prefix]}
+        for ((run=1; run<=total_runs; run++)); do
+            local log_file=$(get_log_file_path "$prefix" "$run")
+            if [ ! -f "$log_file" ]; then
+                local fail_log="${log_file%.log}_fail.log"
+                if [ -f "$fail_log" ]; then
+                    log_file="$fail_log"
+                fi
+            fi
+            if [ -f "$log_file" ]; then
+                local skips=$(extract_skipped_tests "$log_file")
+                if [ -n "$skips" ]; then
+                    skipped_info="$skips"
+                    has_warnings=true
+                fi
+            fi
+        done
+
         if [ "${PREFIX_STATUS[$prefix]}" = "completed" ]; then
             ((completed++)) || true
-            echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs"
+            if [ -n "$skipped_info" ]; then
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs ${YELLOW}(with warnings)${NC}"
+                prefix_warnings[$prefix]="$skipped_info"
+            else
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs"
+            fi
         elif [ "${PREFIX_STATUS[$prefix]}" = "failed" ]; then
             ((failed++)) || true
             local run_num=${PREFIX_CURRENT_RUN[$prefix]}
             echo -e "${RED}[FAILED]${NC} ${prefix}_ - Failed at run $run_num"
+
             # Find the fail log
             local fail_log="${PREFIX_LOG_FILE[$prefix]}"
             if [ -n "$fail_log" ] && [ -f "$fail_log" ]; then
@@ -1613,11 +2025,36 @@ run_parallel_tests_tui() {
         fi
     done
 
+    # Show warnings section if there were any skipped tests
+    if [ "$has_warnings" = true ]; then
+        echo ""
+        echo -e "${YELLOW}========================================"
+        echo -e "  Warnings: Skipped Tests"
+        echo -e "========================================${NC}"
+        for prefix in "${!prefix_warnings[@]}"; do
+            echo -e "\n  ${YELLOW}[${prefix}_]${NC}"
+            echo "${prefix_warnings[$prefix]}" | while IFS='|' read -r tag file_line reason log_file log_line; do
+                [ -z "$tag" ] && continue
+                echo -e "    - Test [$tag] skipped at $file_line"
+                echo -e "      Reason: $reason"
+                echo -e "      Log: $log_file:$log_line"
+            done
+        done
+    fi
+
     echo ""
     if [ $interrupted -gt 0 ]; then
-        echo "Summary: $completed passed, $failed failed, $interrupted interrupted"
+        if [ "$has_warnings" = true ]; then
+            echo "Summary: $completed passed, $failed failed, $interrupted interrupted (with warnings - some tests were skipped)"
+        else
+            echo "Summary: $completed passed, $failed failed, $interrupted interrupted"
+        fi
     else
-        echo "Summary: $completed passed, $failed failed"
+        if [ "$has_warnings" = true ]; then
+            echo "Summary: $completed passed, $failed failed (with warnings - some tests were skipped)"
+        else
+            echo "Summary: $completed passed, $failed failed"
+        fi
     fi
     echo "Total time: $total_elapsed_str"
     echo "Logs saved in: $LOG_DIR/"
@@ -1761,6 +2198,9 @@ run_parallel_tests_simple() {
     # Create log directory
     mkdir -p "$LOG_DIR"
 
+    # Cleanup old log folders (keep only last MAX_LOG_FOLDERS)
+    cleanup_old_log_folders
+
     # Do initial build
     do_initial_build
 
@@ -1776,15 +2216,47 @@ run_parallel_tests_simple() {
     display_status
 
     while ! all_tests_done; do
-        # Check for completed tests
+        # Check for timeouts and completed tests
         for prefix in "${ALL_PREFIXES[@]}"; do
             if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
-                if check_test_completion "$prefix"; then
+                # First check for timeout (no log activity for TEST_TIMEOUT_SECONDS)
+                if check_test_timeout "$prefix"; then
+                    local current_run=${PREFIX_CURRENT_RUN[$prefix]}
+                    local timeout_minutes=$((TEST_TIMEOUT_SECONDS / 60))
+                    echo -e "${RED}[TIMEOUT]${NC} ${prefix}_ - Run $current_run timed out after ${timeout_minutes} minutes of inactivity"
+                    echo "  Killing process..."
+
+                    # Kill the process
+                    kill_test_timeout "$prefix"
+
+                    # Mark as failed
+                    PREFIX_STATUS[$prefix]="failed"
+                    PREFIX_FAIL_REASON[$prefix]="Timeout: No output for ${timeout_minutes} minutes"
+                    mark_log_as_failed "$prefix"
+                    echo "  Log: ${PREFIX_LOG_FILE[$prefix]}"
+
+                    # Clean ANSI codes from log
+                    strip_ansi_from_log "$prefix"
+                    # Clear PID
+                    unset "PREFIX_PIDS[$prefix]"
+
+                elif check_test_completion "$prefix"; then
                     local exit_code=$(get_test_exit_code "$prefix")
                     local current_run=${PREFIX_CURRENT_RUN[$prefix]}
                     local log_file="${PREFIX_LOG_FILE[$prefix]}"
 
-                    if [ $exit_code -eq 0 ]; then
+                    # First check for crashes (SIGSEGV, SIGABRT, etc.) in the log
+                    # This takes priority over exit code because crashes can leave
+                    # inconsistent exit codes
+                    if ! check_crash_signals "$log_file"; then
+                        # Crash detected - treat as failure
+                        PREFIX_STATUS[$prefix]="failed"
+                        PREFIX_FAIL_REASON[$prefix]="$CRASH_ERROR_MSG"
+                        mark_log_as_failed "$prefix"
+                        echo -e "${RED}[CRASHED]${NC} ${prefix}_ - Run $current_run crashed!"
+                        echo "  $CRASH_ERROR_MSG"
+                        echo "  Log: ${PREFIX_LOG_FILE[$prefix]}"
+                    elif [ $exit_code -eq 0 ]; then
                         # Check for Valgrind errors even if exit code is 0
                         if ! check_valgrind_errors "$log_file"; then
                             # Valgrind errors found - treat as failure
@@ -1810,6 +2282,14 @@ run_parallel_tests_simple() {
                                 echo -e "${GREEN}[COMPLETED]${NC} ${prefix}_ - All $RUN_COUNT runs passed"
                             fi
                         fi
+                    elif [ $exit_code -gt 128 ]; then
+                        # Exit code > 128 indicates process was killed by a signal
+                        local signal_num=$((exit_code - 128))
+                        PREFIX_STATUS[$prefix]="failed"
+                        PREFIX_FAIL_REASON[$prefix]="Killed by signal $signal_num (exit code: $exit_code)"
+                        mark_log_as_failed "$prefix"
+                        echo -e "${RED}[CRASHED]${NC} ${prefix}_ - Run $current_run killed by signal $signal_num"
+                        echo "  Log: ${PREFIX_LOG_FILE[$prefix]}"
                     else
                         # Test failed - stop this prefix
                         PREFIX_STATUS[$prefix]="failed"
@@ -1819,6 +2299,8 @@ run_parallel_tests_simple() {
                         echo "  Log: ${PREFIX_LOG_FILE[$prefix]}"
                     fi
 
+                    # Clean ANSI codes from log for readable files
+                    strip_ansi_from_log "$prefix"
                     # Clear PID
                     unset "PREFIX_PIDS[$prefix]"
                 fi
@@ -1861,15 +2343,43 @@ run_parallel_tests_simple() {
     # Summary
     local completed=0
     local failed=0
+    local has_warnings=false
+    declare -A prefix_warnings
 
     for prefix in "${ALL_PREFIXES[@]}"; do
+        # Check for skipped tests in log files
+        local skipped_info=""
+        local total_runs=${PREFIX_CURRENT_RUN[$prefix]}
+        for ((run=1; run<=total_runs; run++)); do
+            local log_file=$(get_log_file_path "$prefix" "$run")
+            if [ ! -f "$log_file" ]; then
+                local fail_log="${log_file%.log}_fail.log"
+                if [ -f "$fail_log" ]; then
+                    log_file="$fail_log"
+                fi
+            fi
+            if [ -f "$log_file" ]; then
+                local skips=$(extract_skipped_tests "$log_file")
+                if [ -n "$skips" ]; then
+                    skipped_info="$skips"
+                    has_warnings=true
+                fi
+            fi
+        done
+
         if [ "${PREFIX_STATUS[$prefix]}" = "completed" ]; then
             ((completed++)) || true
-            echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs"
+            if [ -n "$skipped_info" ]; then
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs ${YELLOW}(with warnings)${NC}"
+                prefix_warnings[$prefix]="$skipped_info"
+            else
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs"
+            fi
         elif [ "${PREFIX_STATUS[$prefix]}" = "failed" ]; then
             ((failed++)) || true
             local run_num=${PREFIX_CURRENT_RUN[$prefix]}
             echo -e "${RED}[FAILED]${NC} ${prefix}_ - Failed at run $run_num"
+
             # Find the fail log
             local fail_log="${PREFIX_LOG_FILE[$prefix]}"
             if [ -n "$fail_log" ] && [ -f "$fail_log" ]; then
@@ -1894,8 +2404,29 @@ run_parallel_tests_simple() {
         fi
     done
 
+    # Show warnings section if there were any skipped tests
+    if [ "$has_warnings" = true ]; then
+        echo ""
+        echo -e "${YELLOW}========================================"
+        echo -e "  Warnings: Skipped Tests"
+        echo -e "========================================${NC}"
+        for prefix in "${!prefix_warnings[@]}"; do
+            echo -e "\n  ${YELLOW}[${prefix}_]${NC}"
+            echo "${prefix_warnings[$prefix]}" | while IFS='|' read -r tag file_line reason log_file log_line; do
+                [ -z "$tag" ] && continue
+                echo -e "    - Test [$tag] skipped at $file_line"
+                echo -e "      Reason: $reason"
+                echo -e "      Log: $log_file:$log_line"
+            done
+        done
+    fi
+
     echo ""
-    echo "Summary: $completed passed, $failed failed"
+    if [ "$has_warnings" = true ]; then
+        echo "Summary: $completed passed, $failed failed (with warnings - some tests were skipped)"
+    else
+        echo "Summary: $completed passed, $failed failed"
+    fi
     echo "Total time: $total_elapsed_str"
     echo "Logs saved in: $LOG_DIR/"
     echo ""

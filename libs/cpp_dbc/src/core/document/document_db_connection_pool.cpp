@@ -270,6 +270,21 @@ namespace cpp_dbc
 
         if (valid)
         {
+            // Clean up the connection before returning to pool
+            // This closes all cursors, aborts transactions, etc.
+            try
+            {
+                conn->getUnderlyingDocumentConnection()->prepareForPoolReturn();
+            }
+            catch ([[maybe_unused]] const std::exception &ex)
+            {
+                CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception in prepareForPoolReturn: " << ex.what());
+                valid = false;
+            }
+        }
+
+        if (valid)
+        {
             // Mark as inactive and update last used time
             conn->setActive(false);
 
@@ -775,7 +790,7 @@ namespace cpp_dbc
         }
     }
 
-    bool DocumentPooledDBConnection::isClosed()
+    bool DocumentPooledDBConnection::isClosed() const
     {
         return m_closed || m_conn->isClosed();
     }

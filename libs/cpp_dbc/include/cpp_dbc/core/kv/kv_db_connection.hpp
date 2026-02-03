@@ -336,6 +336,21 @@ namespace cpp_dbc
          */
         virtual std::map<std::string, std::string> getServerInfo() = 0;
 
+        /**
+         * @brief Prepare the connection for return to pool
+         *
+         * This method is called when a connection is returned to the pool.
+         * For KV stores, this is typically a no-op as they don't have
+         * transactions or prepared statements.
+         *
+         * The default implementation does nothing.
+         */
+        virtual void prepareForPoolReturn()
+        {
+            // Default implementation: do nothing
+            // KV stores typically don't need cleanup
+        }
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
