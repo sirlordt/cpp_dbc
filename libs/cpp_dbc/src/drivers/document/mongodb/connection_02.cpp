@@ -437,6 +437,45 @@ namespace cpp_dbc::MongoDB
         return maxWireVersion >= 7;
     }
 
+    void MongoDBConnection::prepareForPoolReturn()
+    {
+        MONGODB_DEBUG("MongoDBConnection::prepareForPoolReturn - Cleaning up connection");
+
+        // Close all active cursors
+        {
+            std::scoped_lock cursorsLock(m_cursorsMutex);
+            for (const auto &weakCursor : m_activeCursors)
+            {
+                if (auto cursor = weakCursor.lock())
+                {
+                    try
+                    {
+                        cursor->close();
+                    }
+                    catch ([[maybe_unused]] const std::exception &ex)
+                    {
+                        MONGODB_DEBUG("prepareForPoolReturn - Exception closing cursor: " << ex.what());
+                    }
+                }
+            }
+            m_activeCursors.clear();
+        }
+
+        // End all active sessions (this also aborts any active transactions)
+        {
+            std::scoped_lock sessionsLock(m_sessionsMutex);
+            m_sessions.clear();
+        }
+
+        // Clear active collections (they use weak_ptr so just clear the registry)
+        {
+            std::scoped_lock collectionsLock(m_collectionsMutex);
+            m_activeCollections.clear();
+        }
+
+        MONGODB_DEBUG("MongoDBConnection::prepareForPoolReturn - Cleanup complete");
+    }
+
 } // namespace cpp_dbc::MongoDB
 
 #endif // USE_MONGODB

@@ -270,6 +270,20 @@ namespace cpp_dbc
 
         if (valid)
         {
+            // Clean up the connection before returning to pool
+            // This closes all statements, rolls back transactions, resets auto-commit
+            try
+            {
+                if (!conn->m_closed)
+                {
+                    conn->getUnderlyingRelationalConnection()->prepareForPoolReturn();
+                }
+            }
+            catch ([[maybe_unused]] const std::exception &ex)
+            {
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception in prepareForPoolReturn: " << ex.what());
+            }
+
             // Reset transaction isolation level if needed
             try
             {
@@ -474,6 +488,19 @@ namespace cpp_dbc
         result->setActive(true);
         result->m_closed.store(false);
         m_activeConnections++;
+
+        // Prepare connection for borrowing - this ensures fresh transaction snapshot
+        // for databases that use MVCC (like Firebird). Without this, connections
+        // created at pool initialization may have stale transaction snapshots that
+        // can't see DDL changes made after the pool was created.
+        try
+        {
+            result->getUnderlyingRelationalConnection()->prepareForBorrow();
+        }
+        catch ([[maybe_unused]] const std::exception &ex)
+        {
+            CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - Exception in prepareForBorrow: " << ex.what());
+        }
 
         return result;
     }

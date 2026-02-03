@@ -493,7 +493,7 @@ namespace cpp_dbc::MongoDB
          * - Thread-safe iteration when DB_DRIVER_THREAD_SAFE is enabled
          * - Automatic resource cleanup via RAII
          */
-        class MongoDBCursor final : public DocumentDBCursor
+        class MongoDBCursor final : public DocumentDBCursor, public std::enable_shared_from_this<MongoDBCursor>
         {
         private:
             /**
@@ -1051,10 +1051,9 @@ namespace cpp_dbc::MongoDB
             std::mutex m_collectionsMutex;
 
             /**
-             * @brief Active cursors (raw pointers for cleanup tracking)
-             * We use raw pointers because cursors hold weak_ptr to client
+             * @brief Active cursors (weak references for cleanup tracking)
              */
-            std::set<MongoDBCursor *> m_activeCursors;
+            std::set<std::weak_ptr<MongoDBCursor>, std::owner_less<std::weak_ptr<MongoDBCursor>>> m_activeCursors;
 
             /**
              * @brief Mutex for cursor tracking
@@ -1087,15 +1086,15 @@ namespace cpp_dbc::MongoDB
         public:
             /**
              * @brief Register a cursor for cleanup tracking
-             * @param cursor Pointer to the cursor to register
+             * @param cursor Weak pointer to the cursor to register
              */
-            void registerCursor(MongoDBCursor *cursor);
+            void registerCursor(std::weak_ptr<MongoDBCursor> cursor);
 
             /**
              * @brief Unregister a cursor from cleanup tracking
-             * @param cursor Pointer to the cursor to unregister
+             * @param cursor Weak pointer to the cursor to unregister
              */
-            void unregisterCursor(MongoDBCursor *cursor);
+            void unregisterCursor(std::weak_ptr<MongoDBCursor> cursor);
 
             /**
              * @brief Construct a MongoDB connection
@@ -1157,6 +1156,7 @@ namespace cpp_dbc::MongoDB
             void commitTransaction(const std::string &sessionId) override;
             void abortTransaction(const std::string &sessionId) override;
             bool supportsTransactions() override;
+            void prepareForPoolReturn() override;
 
             // ====================================================================
             // NOTHROW VERSIONS - Exception-free API

@@ -428,6 +428,7 @@ namespace cpp_dbc::SQLite
         // Internal methods for statement registry
         void registerStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
         void unregisterStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
+        void closeAllStatements();
 
     public:
         SQLiteDBConnection(const std::string &database,
@@ -451,6 +452,7 @@ namespace cpp_dbc::SQLite
 
         void commit() override;
         void rollback() override;
+        void prepareForPoolReturn() override;
 
         // Transaction isolation level methods
         void setTransactionIsolation(TransactionIsolationLevel level) override;

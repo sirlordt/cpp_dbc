@@ -162,6 +162,22 @@ namespace cpp_dbc::MySQL
         m_activeStatements.clear();
     }
 
+    void MySQLDBConnection::prepareForPoolReturn()
+    {
+        // Close all active statements first
+        closeAllStatements();
+
+        // Rollback any active transaction
+        auto txActive = transactionActive(std::nothrow);
+        if (txActive.has_value() && txActive.value())
+        {
+            rollback(std::nothrow);
+        }
+
+        // Reset auto-commit to true
+        setAutoCommit(std::nothrow, true);
+    }
+
     MySQLDBConnection::MySQLDBConnection(const std::string &host,
                                          int port,
                                          const std::string &database,

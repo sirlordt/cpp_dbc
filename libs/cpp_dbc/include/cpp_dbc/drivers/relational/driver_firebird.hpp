@@ -558,6 +558,8 @@ namespace cpp_dbc::Firebird
 
         void commit() override;
         void rollback() override;
+        void prepareForPoolReturn() override;
+        void prepareForBorrow() override;
 
         // Transaction isolation level methods
         void setTransactionIsolation(TransactionIsolationLevel level) override;

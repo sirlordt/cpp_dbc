@@ -335,6 +335,111 @@ namespace cpp_dbc::Firebird
         FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements - Invalidated " << invalidatedCount << " prepared statements");
     }
 
+    void FirebirdDBConnection::prepareForPoolReturn()
+    {
+        // Close all active result sets first - these hold server-side cursor resources
+        // that MUST be released before ending the transaction.
+        closeAllActiveResultSets();
+
+        // Close all active prepared statements.
+        // Note: This is standard cleanup and is NOT related to the MVCC issue fixed in
+        // prepareForBorrow(). Statement closing ensures proper resource cleanup when
+        // returning to pool. The MVCC fix handles a completely separate issue.
+        closeAllActivePreparedStatements();
+
+        // Rollback any active transaction to clean up server-side state.
+        auto txActive = transactionActive(std::nothrow);
+        if (txActive.has_value() && txActive.value())
+        {
+            rollback(std::nothrow);
+        }
+
+        // Reset auto-commit to true (default state for pooled connections).
+        setAutoCommit(std::nothrow, true);
+    }
+
+    // ============================================================================
+    // MVCC (Multi-Version Concurrency Control) Fix for Connection Pooling
+    // ============================================================================
+    //
+    // PROBLEM:
+    // Firebird uses MVCC, where each transaction sees a "snapshot" of the database
+    // taken at the moment the transaction starts. This snapshot is immutable for
+    // the lifetime of the transaction.
+    //
+    // In a connection pool scenario:
+    // 1. Pool creates N connections at initialization time (e.g., T=0)
+    // 2. Each connection starts a transaction immediately (auto-commit mode)
+    // 3. These transactions capture a snapshot of the database at T=0
+    // 4. Later (e.g., T=10), a test runs RECREATE TABLE or other DDL
+    // 5. When a pooled connection is borrowed, its transaction still has the T=0 snapshot
+    // 6. The T=0 snapshot doesn't "see" the table created at T=10
+    // 7. Result: "SQLCODE -219: table id not defined" errors
+    //
+    // SYMPTOMS:
+    // - Intermittent "table id not defined" errors in pool tests
+    // - First connection works (gets fresh transaction), subsequent ones fail
+    // - Errors appear after DDL operations (CREATE, DROP, ALTER, RECREATE TABLE)
+    // - Pool timeout errors may also appear as a secondary effect
+    //
+    // SOLUTION:
+    // When borrowing a connection from the pool, we rollback the current transaction
+    // and start a new one. This forces Firebird to take a fresh MVCC snapshot that
+    // includes all committed DDL changes up to that moment.
+    //
+    // ============================================================================
+    // WARNING: COMMON MISDIAGNOSIS - READ THIS BEFORE MODIFYING
+    // ============================================================================
+    //
+    // When debugging pool issues with symptoms like "timeout" + "table id not defined",
+    // it may seem logical to blame closeAllActivePreparedStatements() in
+    // prepareForPoolReturn(), thinking:
+    //
+    //   "Statement closing is slow under Valgrind → causes timeouts → connections
+    //    with stale transactions get borrowed → table errors"
+    //
+    // THIS IS A FALSE DIAGNOSIS. The actual cause is the MVCC snapshot issue described
+    // above. The statement closing and MVCC are COMPLETELY UNRELATED concerns:
+    //
+    // +---------------------------+----------------------------------------+
+    // | Statement Closing         | MVCC Refresh                           |
+    // +---------------------------+----------------------------------------+
+    // | Resource management       | Database visibility                    |
+    // | Releases handles/memory   | Determines what tables/data are seen   |
+    // | Done in prepareForReturn  | Done in prepareForBorrow               |
+    // | Can be slow under Valgrind| Always fast (just rollback+start tx)   |
+    // | Does NOT cause MVCC issues| FIXES the MVCC visibility problem      |
+    // +---------------------------+----------------------------------------+
+    //
+    // If you see "table id not defined" errors in pool tests, the fix is HERE in
+    // prepareForBorrow(), NOT in removing statement closing from prepareForPoolReturn().
+    //
+    // This was verified experimentally: with prepareForBorrow() active, both
+    // active statement closing AND passive clearing work correctly. The MVCC
+    // refresh is the essential fix.
+    //
+    // ============================================================================
+    void FirebirdDBConnection::prepareForBorrow()
+    {
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+        if (m_closed)
+        {
+            return;
+        }
+
+        // Refresh the MVCC snapshot by rolling back and starting a new transaction.
+        // This ensures the borrowed connection can see all DDL changes committed
+        // after the previous transaction started.
+        if (m_tr && m_autoCommit)
+        {
+            FIREBIRD_DEBUG("FirebirdConnection::prepareForBorrow - Refreshing transaction for fresh MVCC snapshot");
+            // rollback() will start a new transaction if autoCommit is true,
+            // giving us a fresh snapshot of the current database state.
+            rollback(std::nothrow);
+        }
+    }
+
     void FirebirdDBConnection::close()
     {
 

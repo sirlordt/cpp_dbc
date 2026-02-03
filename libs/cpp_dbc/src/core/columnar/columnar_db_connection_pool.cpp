@@ -268,6 +268,17 @@ namespace cpp_dbc
 
         if (valid)
         {
+            // Clean up the connection before returning to pool
+            // This closes all statements, rolls back transactions, etc.
+            try
+            {
+                conn->getUnderlyingColumnarConnection()->prepareForPoolReturn();
+            }
+            catch ([[maybe_unused]] const std::exception &ex)
+            {
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception in prepareForPoolReturn: " << ex.what());
+            }
+
             // Mark as inactive and update last used time
             conn->setActive(false);
 

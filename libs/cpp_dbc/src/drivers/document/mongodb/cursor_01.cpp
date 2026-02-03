@@ -80,13 +80,8 @@ namespace cpp_dbc::MongoDB
         {
             throw DBException("C9D5E4F3A7B8", "Cannot create cursor from null pointer", system_utils::captureCallStack());
         }
-
-        // Register with connection for cleanup tracking
-        if (auto conn = m_connection.lock())
-        {
-            conn->registerCursor(this);
-        }
-
+        // Note: Cursor registration is done by MongoDBCollection after make_shared
+        // to enable weak_from_this() usage
         MONGODB_DEBUG("MongoDBCursor::constructor - Done");
     }
 #else
@@ -101,13 +96,8 @@ namespace cpp_dbc::MongoDB
         {
             throw DBException("C9D5E4F3A7B8", "Cannot create cursor from null pointer", system_utils::captureCallStack());
         }
-
-        // Register with connection for cleanup tracking
-        if (auto conn = m_connection.lock())
-        {
-            conn->registerCursor(this);
-        }
-
+        // Note: Cursor registration is done by MongoDBCollection after make_shared
+        // to enable weak_from_this() usage
         MONGODB_DEBUG("MongoDBCursor::constructor - Done");
     }
 #endif
@@ -115,13 +105,8 @@ namespace cpp_dbc::MongoDB
     MongoDBCursor::~MongoDBCursor()
     {
         MONGODB_DEBUG("MongoDBCursor::destructor - Destroying cursor");
-
-        // Unregister from connection
-        if (auto conn = m_connection.lock())
-        {
-            conn->unregisterCursor(this);
-        }
-
+        // Note: No need to unregister - weak_ptr expires automatically
+        // and is cleaned up during registerCursor or closeAllCursors
         MONGODB_DEBUG("MongoDBCursor::destructor - Done");
     }
 
@@ -137,13 +122,8 @@ namespace cpp_dbc::MongoDB
           , m_connMutex(std::move(other.m_connMutex))
 #endif
     {
-        // Update connection registration: unregister moved-from, register moved-to
-        if (auto conn = m_connection.lock())
-        {
-            conn->unregisterCursor(&other);
-            conn->registerCursor(this);
-        }
-        other.m_connection.reset();
+        // Note: weak_ptr registration stays with the shared_ptr control block,
+        // not the internal object state, so no re-registration needed
         other.m_exhausted = true;
     }
 
@@ -151,12 +131,6 @@ namespace cpp_dbc::MongoDB
     {
         if (this != &other)
         {
-            // Unregister from old connection
-            if (auto conn = m_connection.lock())
-            {
-                conn->unregisterCursor(this);
-            }
-
             m_client = std::move(other.m_client);
             m_connection = std::move(other.m_connection);
             m_cursor = std::move(other.m_cursor);
@@ -167,15 +141,6 @@ namespace cpp_dbc::MongoDB
 #if DB_DRIVER_THREAD_SAFE
             m_connMutex = std::move(other.m_connMutex);
 #endif
-
-            // Update connection registration: unregister moved-from, register moved-to
-            if (auto conn = m_connection.lock())
-            {
-                conn->unregisterCursor(&other);
-                conn->registerCursor(this);
-            }
-
-            other.m_connection.reset();
             other.m_exhausted = true;
         }
         return *this;

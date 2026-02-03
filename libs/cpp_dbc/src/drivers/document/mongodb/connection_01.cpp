@@ -57,24 +57,22 @@ namespace cpp_dbc::MongoDB
     // MongoDBConnection Implementation - Cursor Registration (Public)
     // ============================================================================
 
-    void MongoDBConnection::registerCursor(MongoDBCursor *cursor)
+    void MongoDBConnection::registerCursor(std::weak_ptr<MongoDBCursor> cursor)
     {
-        if (cursor)
+        std::scoped_lock lock(m_cursorsMutex);
+        if (m_activeCursors.size() > 50)
         {
-            std::scoped_lock lock(m_cursorsMutex);
-            m_activeCursors.insert(cursor);
-            MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: " << m_activeCursors.size());
+            std::erase_if(m_activeCursors, [](const auto &w) { return w.expired(); });
         }
+        m_activeCursors.insert(std::move(cursor));
+        MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: " << m_activeCursors.size());
     }
 
-    void MongoDBConnection::unregisterCursor(MongoDBCursor *cursor)
+    void MongoDBConnection::unregisterCursor(std::weak_ptr<MongoDBCursor> cursor)
     {
-        if (cursor)
-        {
-            std::scoped_lock lock(m_cursorsMutex);
-            m_activeCursors.erase(cursor);
-            MONGODB_DEBUG("MongoDBConnection::unregisterCursor - Unregistered cursor, remaining: " << m_activeCursors.size());
-        }
+        std::scoped_lock lock(m_cursorsMutex);
+        m_activeCursors.erase(cursor);
+        MONGODB_DEBUG("MongoDBConnection::unregisterCursor - Unregistered cursor, remaining: " << m_activeCursors.size());
     }
 
     // ============================================================================
@@ -256,12 +254,9 @@ namespace cpp_dbc::MongoDB
             std::scoped_lock cursorsLock(m_cursorsMutex);
             MONGODB_DEBUG("MongoDBConnection::close - Closing " << m_activeCursors.size() << " active cursors");
 
-            // Make a copy of the set to avoid iterator invalidation
-            std::vector<MongoDBCursor *> cursorsToClose(m_activeCursors.begin(), m_activeCursors.end());
-
-            for (auto *cursor : cursorsToClose)
+            for (const auto &weakCursor : m_activeCursors)
             {
-                if (cursor)
+                if (auto cursor = weakCursor.lock())
                 {
                     try
                     {

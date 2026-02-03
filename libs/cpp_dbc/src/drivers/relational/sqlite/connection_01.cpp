@@ -68,6 +68,41 @@ namespace cpp_dbc::SQLite
         }
     }
 
+    void SQLiteDBConnection::closeAllStatements()
+    {
+        // CRITICAL: Must hold connection mutex to prevent other threads from using
+        // the sqlite3* connection while we close statements.
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+        for (auto &weak_stmt : m_activeStatements)
+        {
+            auto stmt = weak_stmt.lock();
+            if (stmt)
+            {
+                // Close the statement (sqlite3_finalize) while we have exclusive access
+                stmt->close(std::nothrow);
+            }
+            // If weak_ptr is expired, statement was already destroyed - nothing to do
+        }
+        m_activeStatements.clear();
+    }
+
+    void SQLiteDBConnection::prepareForPoolReturn()
+    {
+        // Close all active statements first
+        closeAllStatements();
+
+        // Rollback any active transaction
+        auto txActive = transactionActive(std::nothrow);
+        if (txActive.has_value() && txActive.value())
+        {
+            rollback(std::nothrow);
+        }
+
+        // Reset auto-commit to true
+        setAutoCommit(std::nothrow, true);
+    }
+
     // SQLiteDBConnection implementation - Throwing API
 
     SQLiteDBConnection::SQLiteDBConnection(const std::string &database,

@@ -169,12 +169,19 @@ namespace cpp_dbc::MongoDB
                     system_utils::captureCallStack()));
             }
 
-            std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursor, m_connection
+            auto mongoCursor = std::make_shared<MongoDBCursor>(m_client, cursor, m_connection
 #if DB_DRIVER_THREAD_SAFE
                 , m_connMutex
 #endif
             );
-            return result;
+
+            // Register cursor with connection for cleanup tracking
+            if (auto conn = m_connection.lock())
+            {
+                conn->registerCursor(mongoCursor);
+            }
+
+            return std::shared_ptr<DocumentDBCursor>(mongoCursor);
         }
         catch (const DBException &ex)
         {

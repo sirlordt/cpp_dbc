@@ -149,6 +149,22 @@ namespace cpp_dbc::PostgreSQL
         m_activeStatements.clear();
     }
 
+    void PostgreSQLDBConnection::prepareForPoolReturn()
+    {
+        // Close all active statements first
+        closeAllStatements();
+
+        // Rollback any active transaction
+        auto txActive = transactionActive(std::nothrow);
+        if (txActive.has_value() && txActive.value())
+        {
+            rollback(std::nothrow);
+        }
+
+        // Reset auto-commit to true
+        setAutoCommit(std::nothrow, true);
+    }
+
     // Constructor
     PostgreSQLDBConnection::PostgreSQLDBConnection(const std::string &host,
                                                    int port,

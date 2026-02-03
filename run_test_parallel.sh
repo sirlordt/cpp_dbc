@@ -1641,7 +1641,41 @@ tui_draw_status_bar() {
     local y=$((TERM_ROWS - 3))
 
     tput cup $y 0
-    printf "${REVERSE}"
+
+    # Build array of running prefixes to check for yellow text in visible log
+    local -a running_prefixes=()
+    for prefix in "${ALL_PREFIXES[@]}"; do
+        if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
+            running_prefixes+=("$prefix")
+        fi
+    done
+
+    # Determine status bar color based on visible colored text in right panel
+    # Priority: RED > YELLOW > normal (white/gray)
+    local status_bar_color="${REVERSE}"  # Default: normal reverse (white/gray)
+    if [ ${#running_prefixes[@]} -gt 0 ] && [ $SELECTED_INDEX -lt ${#running_prefixes[@]} ]; then
+        local selected_prefix="${running_prefixes[$SELECTED_INDEX]}"
+        local log_file="${PREFIX_LOG_FILE[$selected_prefix]}"
+
+        if [ -f "$log_file" ]; then
+            local panel_height=$((TERM_ROWS - 4))
+            local content_height=$((panel_height - 2))
+            local visible_lines
+            visible_lines=$(tail -n "$content_height" "$log_file" 2>/dev/null)
+
+            # Check for red first (higher priority)
+            # Red codes: \033[1;31m (bright), \033[31m (normal), \033[0;31m
+            if echo "$visible_lines" | grep -qE $'\x1b\[(1;31|0;31|31)m'; then
+                status_bar_color="${REVERSE}${RED}"  # Red status bar
+            # Check for yellow if no red found
+            # Yellow codes: \033[1;33m (bright), \033[33m (normal), \033[0;33m
+            elif echo "$visible_lines" | grep -qE $'\x1b\[(1;33|0;33|33)m'; then
+                status_bar_color="${REVERSE}${YELLOW}"  # Yellow status bar
+            fi
+        fi
+    fi
+
+    printf "${status_bar_color}"
 
     local running=$(count_running_tests)
     local completed=0

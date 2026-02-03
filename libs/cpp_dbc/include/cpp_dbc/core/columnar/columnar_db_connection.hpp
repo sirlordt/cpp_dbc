@@ -77,6 +77,23 @@ namespace cpp_dbc
         virtual void commit() = 0;
         virtual void rollback() = 0;
 
+        /**
+         * @brief Prepare the connection for return to pool
+         *
+         * This method is called when a connection is returned to the pool.
+         * It should:
+         * - Close all active prepared statements
+         * - Rollback any active transaction
+         *
+         * The default implementation only rolls back any active transaction.
+         * Subclasses should override to close statements.
+         */
+        virtual void prepareForPoolReturn()
+        {
+            // Default implementation: rollback any active transaction
+            rollback(std::nothrow);
+        }
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

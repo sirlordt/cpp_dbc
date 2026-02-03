@@ -104,6 +104,46 @@ namespace cpp_dbc
          */
         virtual void rollback() = 0;
 
+        /**
+         * @brief Prepare the connection for return to pool
+         *
+         * This method is called when a connection is returned to the pool.
+         * It should:
+         * - Close all active prepared statements and result sets
+         * - Rollback any active transaction
+         * - Reset auto-commit to true
+         *
+         * The default implementation only rolls back any active transaction.
+         * Subclasses should override to close statements/result sets.
+         */
+        virtual void prepareForPoolReturn()
+        {
+            // Default implementation: rollback if transaction is active
+            auto txActive = transactionActive(std::nothrow);
+            if (txActive.has_value() && txActive.value())
+            {
+                rollback(std::nothrow);
+            }
+            // Reset auto-commit to true
+            setAutoCommit(std::nothrow, true);
+        }
+
+        /**
+         * @brief Prepare the connection for borrowing from pool
+         *
+         * This method is called when a connection is borrowed from the pool.
+         * It ensures the connection has a fresh transaction snapshot for
+         * databases that use MVCC (like Firebird).
+         *
+         * The default implementation is a no-op for most databases.
+         * Firebird overrides this to refresh its transaction.
+         */
+        virtual void prepareForBorrow()
+        {
+            // Default: no-op for most databases
+            // Firebird overrides to ensure fresh transaction snapshot
+        }
+
         // Transaction isolation level
         /**
          * @brief Set the transaction isolation level

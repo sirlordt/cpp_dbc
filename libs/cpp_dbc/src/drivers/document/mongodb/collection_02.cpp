@@ -266,12 +266,19 @@ namespace cpp_dbc::MongoDB
             MongoCursorHandle cursorHandle(rawCursor);
 
             // Create the MongoDBCursor - it will take ownership via release()
-            std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursorHandle.release(), m_connection
+            auto cursor = std::make_shared<MongoDBCursor>(m_client, cursorHandle.release(), m_connection
 #if DB_DRIVER_THREAD_SAFE
                 , m_connMutex
 #endif
             );
-            return result;
+
+            // Register cursor with connection for cleanup tracking
+            if (auto conn = m_connection.lock())
+            {
+                conn->registerCursor(cursor);
+            }
+
+            return std::shared_ptr<DocumentDBCursor>(cursor);
         }
         catch (const DBException &ex)
         {
@@ -340,12 +347,19 @@ namespace cpp_dbc::MongoDB
             MongoCursorHandle cursorHandle(rawCursor);
 
             // Create the MongoDBCursor - it will take ownership via release()
-            std::shared_ptr<DocumentDBCursor> result = std::make_shared<MongoDBCursor>(m_client, cursorHandle.release(), m_connection
+            auto cursor = std::make_shared<MongoDBCursor>(m_client, cursorHandle.release(), m_connection
 #if DB_DRIVER_THREAD_SAFE
                 , m_connMutex
 #endif
             );
-            return result;
+
+            // Register cursor with connection for cleanup tracking
+            if (auto conn = m_connection.lock())
+            {
+                conn->registerCursor(cursor);
+            }
+
+            return std::shared_ptr<DocumentDBCursor>(cursor);
         }
         catch (const DBException &ex)
         {
