@@ -123,7 +123,7 @@ do
         --debug-mongodb)
         DEBUG_MONGODB=ON
         ;;
-        --debug-scylladbdb)
+        --debug-scylladb)
         DEBUG_SCYLLADB=ON
         ;;
         --debug-redis)

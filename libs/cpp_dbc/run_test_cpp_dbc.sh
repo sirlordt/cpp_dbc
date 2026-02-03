@@ -213,7 +213,7 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             shift
             ;;
-        --debug-scylladbdb)
+        --debug-scylladb)
             DEBUG_SCYLLADB=ON
             shift
             ;;
