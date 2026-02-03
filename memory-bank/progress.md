@@ -4,6 +4,33 @@
 
 The CPP_DBC library appears to be in a functional state with the following components implemented:
 
+### Recent Improvements (2026-02-03)
+
+**Build System and VSCode IntelliSense Improvements:**
+1. **DRY Principle Application:**
+   - Created centralized `libs/cpp_dbc/generate_build_config.sh` script
+   - Eliminates code duplication in `.build_config` generation
+   - Supports parameter-based and auto-detection modes
+   - Extracts configuration from CMakeCache.txt when available
+
+2. **Unified Build Directory Architecture:**
+   - Fixed critical double compilation issue
+   - Library now compiles once in `build/libs/cpp_dbc/build/`
+   - Tests link against single compiled library
+   - Eliminates redundant compilation step
+
+3. **VSCode IntelliSense Enhancements:**
+   - Automatic path detection for main and library builds
+   - Converts absolute paths to VSCode-relative variables
+   - Added deduplication for include paths
+   - Improved portability across different user environments
+
+4. **Default Configuration Changes:**
+   - `USE_CPP_YAML` now defaults to `ON` (previously `OFF`)
+   - MySQL and YAML support enabled by default
+
+## Components Implemented
+
 1. **Core Interfaces**: All core interfaces (`Connection`, `PreparedStatement`, `ResultSet`, `Driver`) are defined
 2. **MySQL Implementation**: Complete implementation of MySQL driver with optional thread-safety
 3. **PostgreSQL Implementation**: Complete implementation of PostgreSQL driver with optional thread-safety

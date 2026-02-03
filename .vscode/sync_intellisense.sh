@@ -69,6 +69,37 @@ echo ""
 echo "🔍 Detecting include paths for enabled drivers..."
 INCLUDE_PATHS_JSON=$("$SCRIPT_DIR/detect_include_paths.sh")
 
+# Create c_cpp_properties.json if it doesn't exist
+if [ ! -f "$CPP_PROPERTIES" ]; then
+    echo "📝 Creating $CPP_PROPERTIES from template..."
+    cat > "$CPP_PROPERTIES" << 'EOF'
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [],
+            "compileCommands": "${workspaceFolder}/compile_commands.json",
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "defines": [],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "c17",
+            "cppStandard": "c++23",
+            "intelliSenseMode": "linux-gcc-x64",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}",
+                    "${workspaceFolder}/libs",
+                    "${workspaceFolder}/build"
+                ],
+                "limitSymbolsToIncludedHeaders": false
+            }
+        }
+    ],
+    "version": 4
+}
+EOF
+fi
+
 # Update c_cpp_properties.json with both defines and include paths
 echo "✏️  Updating $CPP_PROPERTIES..."
 
@@ -87,7 +118,7 @@ BEGIN {
     if ($0 ~ /"includePath": \[/) {
         in_include_path = 1
         print "            \"includePath\": ["
-        # Print all include paths from detected JSON (skip first and last line which are braces)
+        # Print all include paths from detected JSON array (skip opening [ and closing ])
         for (i = 2; i < length(lines); i++) {
             gsub(/^[[:space:]]+/, "", lines[i])  # Remove leading spaces
             if (lines[i] != "") {

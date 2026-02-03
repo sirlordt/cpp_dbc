@@ -10,11 +10,54 @@ Sometimes IntelliSense shows disabled code (in dim colors) or doesn't offer auto
 
 The project now has an **automatic synchronization system** that keeps VSCode IntelliSense in sync with your build configuration:
 
-1. When you run `./build.sh [options]`, it automatically saves:
-   - Build parameters to `build/.build_args`
-   - Configuration state to `build/.build_config`
-2. VSCode scripts read these files to stay synchronized
-3. No need to manually specify parameters twice!
+1. Build configuration is centrally managed by `libs/cpp_dbc/generate_build_config.sh`
+2. When you build the project (via `./build.sh`, `./helper.sh --run-test`, or test scripts):
+   - Build parameters are saved to `build/.build_args`
+   - Configuration state is saved to `build/.build_config`
+   - If `.build_config` is missing, it's auto-regenerated from CMakeCache.txt
+3. VSCode scripts read these files to stay synchronized
+4. All build methods (main project, library, tests) use the same unified build directory: `build/libs/cpp_dbc/build/`
+5. No need to manually specify parameters twice!
+
+### How Build Configuration Works
+
+**Centralized Configuration Management:**
+
+The `libs/cpp_dbc/generate_build_config.sh` script is the single source of truth for generating `build/.build_config`. It supports two modes:
+
+1. **With parameters** (called by build scripts):
+   ```bash
+   ./libs/cpp_dbc/generate_build_config.sh --mysql=ON --postgres=ON --sqlite=ON ...
+   ```
+
+2. **Without parameters** (auto-detection):
+   ```bash
+   ./libs/cpp_dbc/generate_build_config.sh
+   ```
+   Searches for CMakeCache.txt in known locations:
+   - `build/libs/cpp_dbc/build/CMakeCache.txt` (library/test builds)
+   - `build/CMakeCache.txt` (main project builds)
+
+   Uses the most recent one found to extract configuration.
+
+**Unified Build Directory:**
+
+The library and tests share a single build directory (`build/libs/cpp_dbc/build/`) to prevent double compilation:
+- Library compiles once and generates `.a` static library
+- Tests link against the single compiled library
+- Both share the same build configuration and Conan dependencies
+
+**VSCode Path Management:**
+
+The `.vscode/detect_include_paths.sh` script automatically detects include paths for:
+- Main project builds: `build/Debug/generators`, `build/Release/generators`
+- Library/test builds: `build/libs/cpp_dbc/build`, `build/libs/cpp_dbc/conan/build/{Debug,Release}/generators`
+- Conan packages from cache: `~/.conan2/p/*/include`
+- System libraries: `/usr/include/*`, `/usr/local/include`
+
+Paths are converted to relative using VSCode variables:
+- `${workspaceFolder}` for project-relative paths
+- `${userHome}` for user-specific paths (like Conan cache)
 
 ## Solution
 
@@ -28,7 +71,9 @@ After building with `./build.sh`, synchronize IntelliSense without rebuilding:
 
 This script:
 - Reads the configuration from your last build (`build/.build_config`)
-- Updates `c_cpp_properties.json` with all compilation defines
+- If `.build_config` is missing, auto-regenerates it from CMakeCache.txt
+- Detects include paths for enabled drivers and Conan dependencies
+- Updates `c_cpp_properties.json` with all compilation defines and include paths
 - Shows which drivers are enabled
 - **Does NOT rebuild** - very fast!
 

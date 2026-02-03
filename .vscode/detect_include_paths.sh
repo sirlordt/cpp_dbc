@@ -14,9 +14,14 @@ COMPILE_COMMANDS="$PROJECT_ROOT/compile_commands.json"
 INCLUDE_PATHS=(
     "\${workspaceFolder}/**"
     "\${workspaceFolder}/libs/**"
+    # Main project build directories (when compiling with build.sh)
     "\${workspaceFolder}/build/Debug/generators"
     "\${workspaceFolder}/build/Release/generators"
-    "\${workspaceFolder}/build/libs/cpp_dbc/include"
+    # Library build directories (when compiling with build_test_cpp_dbc.sh or --run-test)
+    "\${workspaceFolder}/build/libs/cpp_dbc/build"
+    "\${workspaceFolder}/build/libs/cpp_dbc/conan/build/Debug/generators"
+    "\${workspaceFolder}/build/libs/cpp_dbc/conan/build/Release/generators"
+    # Source includes
     "\${workspaceFolder}/libs/cpp_dbc/include"
 )
 
@@ -131,13 +136,57 @@ else
     echo "⚠️  Warning: $BUILD_CONFIG not found, using default include paths"
 fi
 
-# Output the include paths as JSON array
-echo "{"
-for i in "${!INCLUDE_PATHS[@]}"; do
-    if [ $i -eq $((${#INCLUDE_PATHS[@]} - 1)) ]; then
-        echo "    \"${INCLUDE_PATHS[$i]}\""
-    else
-        echo "    \"${INCLUDE_PATHS[$i]}\","
+# Function to convert absolute paths to relative (using VSCode variables)
+convert_to_relative() {
+    local path="$1"
+
+    # Replace user home with ${userHome}
+    if [[ "$path" == "$HOME"* ]]; then
+        path="\${userHome}${path#$HOME}"
+    fi
+
+    # Replace project root with ${workspaceFolder}
+    if [[ "$path" == "$PROJECT_ROOT"* ]]; then
+        path="\${workspaceFolder}${path#$PROJECT_ROOT}"
+    fi
+
+    echo "$path"
+}
+
+# Output the include paths as JSON array (with deduplication)
+UNIQUE_PATHS=()
+
+# Convert paths to relative and deduplicate
+for path in "${INCLUDE_PATHS[@]}"; do
+    CONVERTED_PATH=$(convert_to_relative "$path")
+
+    # Check if path already exists in unique list
+    already_exists=false
+    for existing_path in "${UNIQUE_PATHS[@]}"; do
+        if [[ "$existing_path" == "$CONVERTED_PATH" ]]; then
+            already_exists=true
+            break
+        fi
+    done
+
+    # Only add if not already in list
+    if [[ "$already_exists" == "false" ]]; then
+        UNIQUE_PATHS+=("$CONVERTED_PATH")
     fi
 done
-echo "}"
+
+# Output unique paths as JSON array
+if [ ${#UNIQUE_PATHS[@]} -eq 0 ]; then
+    # Empty array case
+    echo "[]"
+else
+    echo "["
+    for i in "${!UNIQUE_PATHS[@]}"; do
+        if [ $i -eq $((${#UNIQUE_PATHS[@]} - 1)) ]; then
+            echo "    \"${UNIQUE_PATHS[$i]}\""
+        else
+            echo "    \"${UNIQUE_PATHS[$i]}\","
+        fi
+    done
+    echo "]"
+fi

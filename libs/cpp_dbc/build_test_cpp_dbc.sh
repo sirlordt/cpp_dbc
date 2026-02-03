@@ -30,7 +30,7 @@ USE_FIREBIRD=OFF
 USE_MONGODB=OFF
 USE_SCYLLADB=OFF
 USE_REDIS=OFF
-USE_CPP_YAML=OFF
+USE_CPP_YAML=ON
 BUILD_TYPE=Debug
 ENABLE_ASAN=OFF
 ENABLE_GCC_ANALYZER=OFF
@@ -42,6 +42,7 @@ DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
+DEBUG_ALL=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
 
@@ -148,7 +149,7 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             shift
             ;;
-        --debug-scylladbdb)
+        --debug-scylladb)
             DEBUG_SCYLLADB=ON
             shift
             ;;
@@ -164,6 +165,7 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             DEBUG_SCYLLADB=ON
             DEBUG_REDIS=ON
+            DEBUG_ALL=ON
             shift
             ;;
         --dw-off)
@@ -323,11 +325,12 @@ if [ "$USE_SCYLLADB" = "ON" ]; then
         exit 1
     fi
 fi
-#TEST_BUILD_DIR="${CPP_DBC_DIR}/build/test_build"
-TEST_BUILD_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/test"
+# Use unified build directory for both library and tests
+# This ensures the library is compiled once and tests link against it
+BUILD_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/build"
 
-mkdir -p "${TEST_BUILD_DIR}"
-cd "${TEST_BUILD_DIR}"
+mkdir -p "${BUILD_DIR}"
+cd "${BUILD_DIR}"
 
 # Print commands before executing them
 set -x
@@ -340,7 +343,7 @@ mkdir -p "${CONAN_DIR}"
 echo "Installing dependencies with Conan..."
 cd "${CPP_DBC_DIR}"
 conan install . --output-folder="${CONAN_DIR}" --build=missing -s build_type=$BUILD_TYPE
-cd "${TEST_BUILD_DIR}"
+cd "${BUILD_DIR}"
 
 # Find the conan_toolchain.cmake file
 if [ -d "${CONAN_DIR}/build/${BUILD_TYPE}" ]; then
@@ -405,11 +408,33 @@ else
     echo "Address Sanitizer is enabled"
 fi
 
-# Build the tests
-echo "Building the tests..."
-cmake --build . --target cpp_dbc_tests
+# Build the library and tests
+echo "Building the library and tests..."
+cmake --build .
 
 # Turn off command echoing
 { set +x; } 2>/dev/null
 
 echo -e "\nTests built successfully!"
+
+# Save build configuration for IntelliSense synchronization
+"${SCRIPT_DIR}/generate_build_config.sh" \
+    --mysql=$USE_MYSQL \
+    --postgres=$USE_POSTGRESQL \
+    --sqlite=$USE_SQLITE \
+    --firebird=$USE_FIREBIRD \
+    --mongodb=$USE_MONGODB \
+    --scylladb=$USE_SCYLLADB \
+    --redis=$USE_REDIS \
+    --yaml=$USE_CPP_YAML \
+    --build-type=$BUILD_TYPE \
+    --db-driver-thread-safe=$DB_DRIVER_THREAD_SAFE \
+    --backward-has-dw=$BACKWARD_HAS_DW \
+    --debug-pool=$DEBUG_CONNECTION_POOL \
+    --debug-txmgr=$DEBUG_TRANSACTION_MANAGER \
+    --debug-sqlite=$DEBUG_SQLITE \
+    --debug-firebird=$DEBUG_FIREBIRD \
+    --debug-mongodb=$DEBUG_MONGODB \
+    --debug-scylladb=$DEBUG_SCYLLADB \
+    --debug-redis=$DEBUG_REDIS \
+    --debug-all=$DEBUG_ALL

@@ -44,6 +44,9 @@ Makefile
 *.swp
 *.swo
 
+# VSCode machine-specific configuration (auto-generated)
+.vscode/c_cpp_properties.json
+
 # OS specific files
 .DS_Store
 Thumbs.db

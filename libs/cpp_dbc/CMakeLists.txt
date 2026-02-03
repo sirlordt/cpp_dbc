@@ -9,7 +9,7 @@ option(USE_FIREBIRD "Enable Firebird SQL support" OFF)
 option(USE_MONGODB "Enable MongoDB support" OFF)
 option(USE_SCYLLADB "Enable ScyllaDB support" OFF)
 option(USE_REDIS "Enable Redis support" OFF)
-option(USE_CPP_YAML "Enable YAML configuration support" OFF)
+option(USE_CPP_YAML "Enable YAML configuration support" ON)
 option(BACKWARD_HAS_DW "Enable libdw support for stack traces" ON)
 
 # Thread safety option for database drivers

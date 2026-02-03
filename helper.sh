@@ -171,6 +171,21 @@ check_color_support() {
   fi
 }
 
+# Auto-sync VSCode IntelliSense configuration if c_cpp_properties.json doesn't exist
+# This ensures new developers get a working IntelliSense setup after first build
+auto_sync_vscode_if_missing() {
+  local current_dir=$(pwd)
+  local cpp_properties="${current_dir}/.vscode/c_cpp_properties.json"
+
+  if [ ! -f "$cpp_properties" ]; then
+    echo ""
+    echo "📝 VSCode IntelliSense configuration not found."
+    echo "🔄 Auto-generating c_cpp_properties.json for first-time setup..."
+    echo ""
+    cmd_vscode
+  fi
+}
+
 cmd_run_build() {
 
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
@@ -312,6 +327,9 @@ cmd_run_build() {
   echo ""
   echo "Command runned: $build_cmd"
   echo "Log file: $log_file."
+
+  # Auto-sync VSCode configuration if this is the first build
+  auto_sync_vscode_if_missing
 
 }
 
@@ -607,6 +625,9 @@ cmd_run_test() {
   echo ""
   echo "Command runned: $run_test_cmd"
   echo "Log file: $log_file."
+
+  # Auto-sync VSCode configuration if this is the first build
+  auto_sync_vscode_if_missing
 
   # Automatically check the test log after running tests
   # Ejecutar check-test-log como un comando separado para asegurar la misma salida
@@ -1039,6 +1060,8 @@ display_test_execution_table() {
 cmd_vscode() {
   local current_dir=$(pwd)
   local vscode_script="${current_dir}/.vscode/sync_intellisense.sh"
+  local build_config="${current_dir}/build/.build_config"
+  local generate_config_script="${current_dir}/libs/cpp_dbc/generate_build_config.sh"
 
   echo "🔄 Synchronizing VSCode IntelliSense with build configuration..."
 
@@ -1046,6 +1069,30 @@ cmd_vscode() {
     echo "❌ Error: $vscode_script not found"
     echo "   Make sure you're in the project root directory"
     return 1
+  fi
+
+  # Ensure .build_config exists, regenerate if needed
+  if [ ! -f "$build_config" ]; then
+    echo "⚠️  build/.build_config not found, attempting to regenerate from CMakeCache.txt..."
+
+    if [ ! -f "$generate_config_script" ]; then
+      echo "❌ Error: $generate_config_script not found"
+      echo "   Cannot regenerate build configuration"
+      return 1
+    fi
+
+    # Make sure the script is executable
+    if [ ! -x "$generate_config_script" ]; then
+      chmod +x "$generate_config_script"
+    fi
+
+    # Call generate_build_config.sh without parameters (auto-detect from CMakeCache.txt)
+    "$generate_config_script" || {
+      echo "❌ Error: Failed to regenerate build configuration"
+      echo "   Please run './build.sh' or './helper.sh --run-test' first"
+      return 1
+    }
+    echo ""
   fi
 
   if [ ! -x "$vscode_script" ]; then

@@ -1,6 +1,59 @@
 # Changelog
 
-## 2026-01-31 23:41:14 PST [Current]
+## 2026-02-03 12:16:31 PST [Current]
+
+### Build System and VSCode IntelliSense Improvements
+* **Build Configuration Management (DRY Principle):**
+  * Created centralized `libs/cpp_dbc/generate_build_config.sh` script for generating `build/.build_config` file
+  * Eliminates code duplication across `build.sh` and test build scripts
+  * Supports two modes:
+    * With parameters: Direct configuration from command-line arguments
+    * Without parameters: Auto-detection from CMakeCache.txt in known build locations
+  * Falls back to existing `.build_config` if no CMakeCache.txt found
+  * Fails gracefully with clear error messages when no configuration source exists
+  * Updated `build.sh` to call `generate_build_config.sh` instead of inline generation
+  * Updated `build_test_cpp_dbc.sh` to call `generate_build_config.sh` after building
+  * Updated `helper.sh --vscode` to auto-regenerate `.build_config` if missing
+
+* **Unified Library Build Directory (Critical Architecture Fix):**
+  * Fixed double compilation issue where `cpp_dbc` library was compiled twice:
+    * Once for main project in `build/`
+    * Once privately for tests in `build/libs/cpp_dbc/test/`
+  * Unified build directory to `build/libs/cpp_dbc/build/` where:
+    * Library compiles once and generates `.a` static library
+    * Tests link against the single compiled library
+    * Both library and tests share the same build configuration
+  * Updated `libs/cpp_dbc/build_test_cpp_dbc.sh`:
+    * Changed `TEST_BUILD_DIR` to unified `BUILD_DIR`
+    * Changed build command from `--target cpp_dbc_tests` to build entire project
+  * Updated `libs/cpp_dbc/run_test_cpp_dbc.sh` to use new unified build directory
+
+* **VSCode IntelliSense Path Management:**
+  * Updated `.vscode/detect_include_paths.sh` to support both main and library builds:
+    * Main project paths: `build/Debug/generators`, `build/Release/generators`
+    * Library build paths: `build/libs/cpp_dbc/build`, `build/libs/cpp_dbc/conan/build/{Debug,Release}/generators`
+  * Converts absolute paths to relative using VSCode variables:
+    * Paths starting with `$HOME` → `${userHome}`
+    * Paths starting with `$PROJECT_ROOT` → `${workspaceFolder}`
+    * System paths (like `/usr/include/*`) remain absolute
+  * Added `convert_to_relative()` function for path normalization
+  * Added path deduplication to prevent duplicate entries in `c_cpp_properties.json`
+  * Ensures IntelliSense works correctly regardless of which build method is used
+
+* **Default Build Options Changed:**
+  * `USE_CPP_YAML` is now `ON` by default (previously `OFF`)
+  * Projects now have MySQL and YAML support enabled by default
+  * Updated `libs/cpp_dbc/CMakeLists.txt`, `generate_build_config.sh`, and `README.md`
+
+* **Benefits:**
+  * Eliminates code duplication (DRY principle)
+  * Prevents library double compilation (faster builds)
+  * Consistent build configuration across all build methods
+  * VSCode IntelliSense stays synchronized with actual build configuration
+  * Portable configuration files work across different user environments
+  * Clear error messages guide users when configuration is missing
+
+## 2026-01-31 23:41:14 PST
 
 ### Driver Code Split Refactoring
 * **Major Code Reorganization:**

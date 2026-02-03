@@ -150,7 +150,7 @@ do
         DEBUG_MONGODB=ON
         shift
         ;;
-        --debug-scylladb|--debug-scylladbdb)
+        --debug-scylladb)
         DEBUG_SCYLLADB=ON
         shift
         ;;
