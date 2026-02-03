@@ -702,9 +702,26 @@ The project includes a helper script (`helper.sh`) that provides various utiliti
 
 The project includes VSCode configuration files in the `.vscode` directory:
 
-- `c_cpp_properties.json`: Configures C/C++ IntelliSense with proper include paths and preprocessor definitions
+- **`c_cpp_properties.json`**: Configures C/C++ IntelliSense with proper include paths and preprocessor definitions (auto-generated, not in git)
 - `tasks.json`: Defines build tasks for the project
 - `build_with_props.sh`: Script to extract preprocessor definitions from `c_cpp_properties.json` and pass them to build.sh
+
+#### Automatic IntelliSense Configuration
+
+The `c_cpp_properties.json` file is **automatically generated** based on your build configuration:
+
+1. **First-time setup**: When you run `./helper.sh --run-build` or `./helper.sh --run-test` for the first time, the configuration file is automatically created with the correct include paths and defines for your machine.
+
+2. **Updating configuration**: If you change enabled drivers (e.g., add PostgreSQL support), manually synchronize IntelliSense:
+   ```bash
+   ./helper.sh --vscode
+   ```
+
+3. **Machine-specific paths**: The file contains Conan package paths with machine-specific hashes and is excluded from git (`.gitignore`). Each developer generates their own version automatically.
+
+See [.vscode/README_INTELLISENSE.md](.vscode/README_INTELLISENSE.md) for detailed documentation on the IntelliSense synchronization system.
+
+#### Building with VSCode
 
 To build the project using VSCode tasks:
 

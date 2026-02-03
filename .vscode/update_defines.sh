@@ -66,7 +66,7 @@ BEGIN {
     if ($0 ~ /"includePath": \[/) {
         in_include_path = 1
         print "            \"includePath\": ["
-        # Print all include paths from detected JSON (skip first and last line which are braces)
+        # Print all include paths from detected JSON array (skip opening [ and closing ])
         for (i = 2; i < length(lines); i++) {
             gsub(/^[[:space:]]+/, "", lines[i])  # Remove leading spaces
             if (lines[i] != "") {

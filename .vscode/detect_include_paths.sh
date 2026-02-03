@@ -175,13 +175,18 @@ for path in "${INCLUDE_PATHS[@]}"; do
     fi
 done
 
-# Output unique paths as JSON
-echo "{"
-for i in "${!UNIQUE_PATHS[@]}"; do
-    if [ $i -eq $((${#UNIQUE_PATHS[@]} - 1)) ]; then
-        echo "    \"${UNIQUE_PATHS[$i]}\""
-    else
-        echo "    \"${UNIQUE_PATHS[$i]}\","
-    fi
-done
-echo "}"
+# Output unique paths as JSON array
+if [ ${#UNIQUE_PATHS[@]} -eq 0 ]; then
+    # Empty array case
+    echo "[]"
+else
+    echo "["
+    for i in "${!UNIQUE_PATHS[@]}"; do
+        if [ $i -eq $((${#UNIQUE_PATHS[@]} - 1)) ]; then
+            echo "    \"${UNIQUE_PATHS[$i]}\""
+        else
+            echo "    \"${UNIQUE_PATHS[$i]}\","
+        fi
+    done
+    echo "]"
+fi

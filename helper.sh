@@ -171,6 +171,21 @@ check_color_support() {
   fi
 }
 
+# Auto-sync VSCode IntelliSense configuration if c_cpp_properties.json doesn't exist
+# This ensures new developers get a working IntelliSense setup after first build
+auto_sync_vscode_if_missing() {
+  local current_dir=$(pwd)
+  local cpp_properties="${current_dir}/.vscode/c_cpp_properties.json"
+
+  if [ ! -f "$cpp_properties" ]; then
+    echo ""
+    echo "📝 VSCode IntelliSense configuration not found."
+    echo "🔄 Auto-generating c_cpp_properties.json for first-time setup..."
+    echo ""
+    cmd_vscode
+  fi
+}
+
 cmd_run_build() {
 
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
@@ -312,6 +327,9 @@ cmd_run_build() {
   echo ""
   echo "Command runned: $build_cmd"
   echo "Log file: $log_file."
+
+  # Auto-sync VSCode configuration if this is the first build
+  auto_sync_vscode_if_missing
 
 }
 
@@ -607,6 +625,9 @@ cmd_run_test() {
   echo ""
   echo "Command runned: $run_test_cmd"
   echo "Log file: $log_file."
+
+  # Auto-sync VSCode configuration if this is the first build
+  auto_sync_vscode_if_missing
 
   # Automatically check the test log after running tests
   # Ejecutar check-test-log como un comando separado para asegurar la misma salida

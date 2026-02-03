@@ -42,6 +42,7 @@ DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
+DEBUG_ALL=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
 
@@ -164,6 +165,7 @@ while [[ $# -gt 0 ]]; do
             DEBUG_MONGODB=ON
             DEBUG_SCYLLADB=ON
             DEBUG_REDIS=ON
+            DEBUG_ALL=ON
             shift
             ;;
         --dw-off)

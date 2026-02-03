@@ -52,79 +52,60 @@ do
     case $arg in
         --mysql=*)
             USE_MYSQL="${arg#*=}"
-            shift
             ;;
         --postgres=*|--postgresql=*)
             USE_POSTGRESQL="${arg#*=}"
-            shift
             ;;
         --sqlite=*)
             USE_SQLITE="${arg#*=}"
-            shift
             ;;
         --firebird=*)
             USE_FIREBIRD="${arg#*=}"
-            shift
             ;;
         --mongodb=*)
             USE_MONGODB="${arg#*=}"
-            shift
             ;;
         --scylladb=*)
             USE_SCYLLADB="${arg#*=}"
-            shift
             ;;
         --redis=*)
             USE_REDIS="${arg#*=}"
-            shift
             ;;
         --yaml=*|--cpp-yaml=*)
             USE_CPP_YAML="${arg#*=}"
-            shift
             ;;
         --build-type=*)
             BUILD_TYPE="${arg#*=}"
-            shift
             ;;
         --db-driver-thread-safe=*)
             DB_DRIVER_THREAD_SAFE="${arg#*=}"
-            shift
             ;;
         --backward-has-dw=*)
             BACKWARD_HAS_DW="${arg#*=}"
-            shift
             ;;
         --debug-pool=*)
             DEBUG_CONNECTION_POOL="${arg#*=}"
-            shift
             ;;
         --debug-txmgr=*)
             DEBUG_TRANSACTION_MANAGER="${arg#*=}"
-            shift
             ;;
         --debug-sqlite=*)
             DEBUG_SQLITE="${arg#*=}"
-            shift
             ;;
         --debug-firebird=*)
             DEBUG_FIREBIRD="${arg#*=}"
-            shift
             ;;
         --debug-mongodb=*)
             DEBUG_MONGODB="${arg#*=}"
-            shift
             ;;
         --debug-scylladb=*)
             DEBUG_SCYLLADB="${arg#*=}"
-            shift
             ;;
         --debug-redis=*)
             DEBUG_REDIS="${arg#*=}"
-            shift
             ;;
         --debug-all=*)
             DEBUG_ALL="${arg#*=}"
-            shift
             ;;
         --help)
             echo "Usage: $0 [options]"
@@ -193,7 +174,8 @@ if [ "$RECEIVED_PARAMS" = false ]; then
         extract_cmake_var() {
             local var_name="$1"
             local default_value="$2"
-            local value=$(grep "^${var_name}:" "$MOST_RECENT_CACHE" 2>/dev/null | cut -d= -f2)
+            local value
+            value=$(grep "^${var_name}:" "$MOST_RECENT_CACHE" 2>/dev/null | cut -d= -f2)
             if [ -z "$value" ]; then
                 echo "$default_value"
             else
