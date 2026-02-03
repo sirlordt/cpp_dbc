@@ -1,67 +1,21 @@
-/**
+#pragma once
 
- * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+#include "../../../cpp_dbc.hpp"
+#include "../../../blob.hpp"
 
- * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
- * See the LICENSE.md file in the project root for more information.
-
- @file sqlite_blob.hpp
- @brief Tests for SQLite database operations
-
-*/
-
-#ifndef CPP_DBC_SQLITE_BLOB_HPP
-#define CPP_DBC_SQLITE_BLOB_HPP
-
-#include "../../cpp_dbc.hpp"
-#include "../../blob.hpp"
+#ifndef USE_SQLITE
+#define USE_SQLITE 0
+#endif
 
 #if USE_SQLITE
 #include <sqlite3.h>
+#include <memory>
+#include <cstring>
+#include <string>
+#include <vector>
 
 namespace cpp_dbc::SQLite
 {
-        // SQLite implementation of InputStream
-        class SQLiteInputStream : public InputStream
-        {
-        private:
-            const std::vector<uint8_t> m_data;
-            size_t m_position{0};
-
-        public:
-            SQLiteInputStream(const void *buffer, size_t length)
-                : m_data(static_cast<const uint8_t *>(buffer), static_cast<const uint8_t *>(buffer) + length), m_position(0) {}
-
-            int read(uint8_t *buffer, size_t length) override
-            {
-                if (m_position >= m_data.size())
-                    return -1; // End of stream
-
-                size_t bytesToRead = std::min(length, m_data.size() - m_position);
-                std::memcpy(buffer, m_data.data() + m_position, bytesToRead);
-                m_position += bytesToRead;
-                return static_cast<int>(bytesToRead);
-            }
-
-            void skip(size_t n) override
-            {
-                m_position = std::min(m_position + n, m_data.size());
-            }
-
-            void close() override
-            {
-                // Nothing to do for memory stream
-            }
-        };
-
         // SQLite implementation of Blob
         class SQLiteBlob : public MemoryBlob
         {
@@ -261,5 +215,3 @@ namespace cpp_dbc::SQLite
 } // namespace cpp_dbc::SQLite
 
 #endif // USE_SQLITE
-
-#endif // CPP_DBC_SQLITE_BLOB_HPP

@@ -13,6 +13,18 @@
 
 ## Completed Tasks
 
+- Driver Header Split Refactoring — One-Class-Per-File (2026-02-03):
+  - Split all 7 multi-class `driver_*.hpp` files into individual per-class `.hpp` files in driver subfolders
+  - Original `driver_*.hpp` files now serve as pure aggregator headers with only `#include` directives
+  - 44 new header files created across 7 driver subdirectories (6,727 lines total)
+  - Deleted 4 separate BLOB headers (`mysql_blob.hpp`, `postgresql_blob.hpp`, `sqlite_blob.hpp`, `firebird_blob.hpp`)
+  - BLOB classes moved into their respective driver subfolders (e.g., `mysql/blob.hpp`)
+  - Removed 25 now-redundant BLOB `#include` directives from source, test, and example files
+  - New driver subfolders: `mysql/`, `postgresql/`, `sqlite/`, `firebird/`, `mongodb/`, `scylladb/`, `redis/`
+  - Each subfolder has `handles.hpp` for RAII deleters/type aliases, plus per-class headers
+  - Backward compatible — external consumers still include `driver_mysql.hpp` etc.
+  - Benefits: better LLM comprehension, improved IDE navigation, one-class-per-file convention
+
 - Driver Code Split Refactoring (2026-01-31):
   - Split all database driver implementations into multiple smaller, focused files
   - Each driver now has dedicated subdirectory with internal header and split implementation files

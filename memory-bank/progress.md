@@ -6,6 +6,28 @@ The CPP_DBC library appears to be in a functional state with the following compo
 
 ### Recent Improvements (2026-02-03)
 
+**Driver Header Split Refactoring (One-Class-Per-File):**
+1. **Header File Reorganization:**
+   - Split all 7 multi-class `driver_*.hpp` files into individual per-class `.hpp` files in driver subfolders
+   - Original `driver_*.hpp` files now serve as pure aggregator headers with only `#include` directives
+   - 44 new header files created across 7 driver subdirectories (6,727 lines total)
+   - Fully backward compatible — external consumers still include `driver_mysql.hpp` etc.
+
+2. **BLOB Header Consolidation:**
+   - Deleted 4 separate BLOB headers: `mysql_blob.hpp`, `postgresql_blob.hpp`, `sqlite_blob.hpp`, `firebird_blob.hpp`
+   - BLOB classes moved into their respective driver subfolders (e.g., `mysql/blob.hpp`)
+   - Removed 25 now-redundant BLOB `#include` directives from source, test, and example files
+
+3. **New Driver Subfolders:**
+   - `relational/mysql/`, `relational/postgresql/`, `relational/sqlite/`, `relational/firebird/` (7 files each)
+   - `document/mongodb/` (6 files), `columnar/scylladb/` (6 files), `kv/redis/` (4 files)
+   - Each subfolder has `handles.hpp` for RAII deleters/type aliases, plus per-class headers
+
+4. **Benefits:**
+   - Better LLM comprehension — smaller, focused files are easier to process
+   - Improved IDE navigation — each class has its own dedicated file
+   - One-class-per-file convention matches modern C++ best practices
+
 **Build System and VSCode IntelliSense Improvements:**
 1. **DRY Principle Application:**
    - Created centralized `libs/cpp_dbc/generate_build_config.sh` script
@@ -322,9 +344,24 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-#### This PR (driver_code_split)
+#### This PR (refactor/driver/headers)
 
-1. **Driver Code Split Refactoring** (2026-01-31 23:41:14 PST):
+1. **Driver Header Split Refactoring — One-Class-Per-File** (2026-02-03 14:58:04 PST):
+   - **Header File Reorganization:**
+     - Split all 7 multi-class `driver_*.hpp` files into individual per-class `.hpp` files in driver subfolders
+     - Original `driver_*.hpp` files now serve as pure aggregator headers with only `#include` directives
+     - 44 new header files created across 7 driver subdirectories (6,727 lines total)
+     - Backward compatible — external consumers still include `driver_mysql.hpp` etc.
+   - **BLOB Header Consolidation:**
+     - Deleted 4 separate BLOB headers: `mysql_blob.hpp`, `postgresql_blob.hpp`, `sqlite_blob.hpp`, `firebird_blob.hpp`
+     - BLOB classes moved into their respective driver subfolders (e.g., `mysql/blob.hpp`)
+   - **New Driver Subfolders:**
+     - `relational/mysql/`, `postgresql/`, `sqlite/`, `firebird/` (7 files each: handles, input_stream, blob, result_set, prepared_statement, connection, driver)
+     - `document/mongodb/` (6 files: handles, document, cursor, collection, connection, driver)
+     - `columnar/scylladb/` (6 files: handles, memory_input_stream, result_set, prepared_statement, connection, driver)
+     - `kv/redis/` (4 files: handles, reply_handle, connection, driver)
+
+2. **Driver Code Split Refactoring** (2026-01-31 23:41:14 PST):
    - **Major Code Reorganization:**
      - Split all database driver implementations from single large files into multiple smaller, focused files
      - Each driver now has its own subdirectory with internal header and split implementation files

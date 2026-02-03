@@ -37,27 +37,30 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Driver Code Split Refactoring** (2026-01-31 23:41:14 PST):
-   - **Major Code Reorganization:**
-     - Split all database driver implementations from single large files into multiple smaller, focused files
-     - Each driver now has its own subdirectory with internal header and split implementation files
-     - This improves code maintainability, compilation speed, and makes it easier to navigate the codebase
-   - **Split Drivers:**
-     - SQLite: `src/drivers/relational/sqlite/` with `sqlite_internal.hpp`, `driver_01.cpp`, `connection_*.cpp`, `prepared_statement_*.cpp`, `result_set_*.cpp`
-     - MySQL: `src/drivers/relational/mysql/` with `mysql_internal.hpp`, `driver_01.cpp`, `connection_*.cpp`, `prepared_statement_*.cpp`, `result_set_*.cpp`
-     - PostgreSQL: `src/drivers/relational/postgresql/` with `postgresql_internal.hpp`, `driver_01.cpp`, `connection_*.cpp`, `prepared_statement_*.cpp`, `result_set_*.cpp`
-     - Firebird: `src/drivers/relational/firebird/` with `firebird_internal.hpp`, `driver_01.cpp`, `connection_*.cpp`, `prepared_statement_*.cpp`, `result_set_*.cpp`
-     - MongoDB: `src/drivers/document/mongodb/` with `mongodb_internal.hpp`, `driver_01.cpp`, `connection_*.cpp`, `collection_*.cpp`, `cursor_*.cpp`, `document_*.cpp`
-     - Redis: `src/drivers/kv/redis/` with `redis_internal.hpp`, `driver_01.cpp`, `connection_*.cpp`
-     - ScyllaDB: `src/drivers/columnar/scylladb/` with `scylladb_internal.hpp`, `driver_01.cpp`, `connection_*.cpp`, `prepared_statement_*.cpp`, `result_set_*.cpp`
-   - **Build System Updates:**
-     - Updated `libs/cpp_dbc/CMakeLists.txt` to compile all new split source files
+1. **Driver Header Split Refactoring — One-Class-Per-File** (2026-02-03 14:58:04 PST):
+   - **Header File Reorganization:**
+     - Split all 7 multi-class `driver_*.hpp` files into individual per-class `.hpp` files in driver subfolders
+     - Original `driver_*.hpp` files now serve as pure aggregator headers with only `#include` directives
+     - 44 new header files created across 7 driver subdirectories (6,727 lines total)
+     - Backward compatible — external consumers still include `driver_mysql.hpp` etc.
+   - **BLOB Header Consolidation:**
+     - Deleted 4 separate BLOB headers: `mysql_blob.hpp`, `postgresql_blob.hpp`, `sqlite_blob.hpp`, `firebird_blob.hpp`
+     - BLOB classes moved into their respective driver subfolders (e.g., `mysql/blob.hpp`)
+     - Removed 25 now-redundant BLOB `#include` directives from source, test, and example files
+   - **New Driver Subfolders:**
+     - `relational/mysql/`, `postgresql/`, `sqlite/`, `firebird/` (7 files each: handles, input_stream, blob, result_set, prepared_statement, connection, driver)
+     - `document/mongodb/` (6 files: handles, document, cursor, collection, connection, driver)
+     - `columnar/scylladb/` (6 files: handles, memory_input_stream, result_set, prepared_statement, connection, driver)
+     - `kv/redis/` (4 files: handles, reply_handle, connection, driver)
    - **Benefits:**
-     - Faster incremental compilation - only changed files need to be recompiled
-     - Better code organization - each class component has dedicated files
-     - Easier navigation - find specific functionality quickly
-     - Reduced file complexity - smaller, more focused files
-     - Better IDE support - smaller files load and parse faster
+     - Better LLM comprehension — smaller, focused files are easier to process in context windows
+     - Improved IDE navigation — each class has its own dedicated file
+     - One-class-per-file convention matches modern C++ best practices
+
+1b. **Driver Code Split Refactoring** (2026-01-31 23:41:14 PST):
+   - Split all database driver .cpp implementations into multiple smaller, focused files
+   - Each driver now has its own subdirectory with internal header and split implementation files
+   - Updated `libs/cpp_dbc/CMakeLists.txt` to compile all new split source files
 
 2. **SonarCloud Code Quality Fixes and Connection Pool Improvements** (2026-01-29 16:23:21 PST):
    - **Critical Race Condition Fix in Connection Pool Return Flow:**
@@ -506,7 +509,7 @@ Recent changes to the codebase include:
      - **Driver Files Moved:**
        - Moved `drivers/` → `drivers/relational/`
        - Files: `driver_firebird.hpp/cpp`, `driver_mysql.hpp/cpp`, `driver_postgresql.hpp/cpp`, `driver_sqlite.hpp/cpp`
-       - BLOB headers: `firebird_blob.hpp`, `mysql_blob.hpp`, `postgresql_blob.hpp`, `sqlite_blob.hpp`
+       - BLOB headers: moved to driver subfolders (e.g., `mysql/blob.hpp`) — standalone `*_blob.hpp` files deleted in 2026-02-03 refactoring
      - **New Placeholder Directories Created:**
        - Core interfaces: `core/columnar/`, `core/document/`, `core/graph/`, `core/kv/`, `core/timeseries/`
        - Driver implementations: `drivers/columnar/`, `drivers/document/`, `drivers/graph/`, `drivers/kv/`, `drivers/timeseries/`

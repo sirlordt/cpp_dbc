@@ -1,0 +1,66 @@
+/**
+ * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
+ * See the LICENSE.md file in the project root for more information.
+ *
+ * @file memory_input_stream.hpp
+ * @brief In-memory InputStream implementation for ScyllaDB binary data
+ */
+
+#pragma once
+
+#include "../../../cpp_dbc.hpp"
+
+#if USE_SCYLLADB
+
+#include <vector>
+#include <cstring>
+#include <algorithm>
+
+#include "cpp_dbc/core/streams.hpp"
+
+namespace cpp_dbc::ScyllaDB
+{
+        class ScyllaMemoryInputStream final : public cpp_dbc::InputStream
+        {
+        private:
+            std::vector<uint8_t> m_data;
+            size_t m_position{0};
+
+        public:
+            explicit ScyllaMemoryInputStream(std::vector<uint8_t> data) : m_data(std::move(data)) {}
+
+            int read(uint8_t *buffer, size_t length) override
+            {
+                if (m_position >= m_data.size())
+                    return -1; // EOF
+
+                size_t remaining = m_data.size() - m_position;
+                size_t toRead = std::min(length, remaining);
+                std::memcpy(buffer, m_data.data() + m_position, toRead);
+                m_position += toRead;
+                return static_cast<int>(toRead);
+            }
+
+            void skip(size_t n) override
+            {
+                m_position = std::min(m_position + n, m_data.size());
+            }
+
+            void close() override
+            {
+                // Nothing to close
+            }
+        };
+} // namespace cpp_dbc::ScyllaDB
+
+#endif // USE_SCYLLADB

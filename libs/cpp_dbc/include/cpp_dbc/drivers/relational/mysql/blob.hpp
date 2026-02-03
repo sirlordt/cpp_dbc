@@ -1,67 +1,15 @@
-/**
+#pragma once
 
- * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
-
- * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
- * See the LICENSE.md file in the project root for more information.
-
- @file mysql_blob.hpp
- @brief Tests for MySQL database operations
-
-*/
-
-#ifndef CPP_DBC_MYSQL_BLOB_HPP
-#define CPP_DBC_MYSQL_BLOB_HPP
-
-#include "../../cpp_dbc.hpp"
-#include "../../blob.hpp"
+#include "../../../cpp_dbc.hpp"
+#include "../../../blob.hpp"
 
 #if USE_MYSQL
 #include <mysql/mysql.h>
+#include <memory>
+#include <cstring>
 
 namespace cpp_dbc::MySQL
 {
-        // MySQL implementation of InputStream
-        class MySQLInputStream : public InputStream
-        {
-        private:
-            const std::vector<uint8_t> m_data;
-            size_t m_position{0};
-
-        public:
-            MySQLInputStream(const char *buffer, size_t length)
-                : m_data(buffer, buffer + length) {}
-
-            int read(uint8_t *buffer, size_t length) override
-            {
-                if (m_position >= m_data.size())
-                    return -1; // End of stream
-
-                size_t bytesToRead = std::min(length, m_data.size() - m_position);
-                std::memcpy(buffer, m_data.data() + m_position, bytesToRead);
-                m_position += bytesToRead;
-                return static_cast<int>(bytesToRead);
-            }
-
-            void skip(size_t n) override
-            {
-                m_position = std::min(m_position + n, m_data.size());
-            }
-
-            void close() override
-            {
-                // Nothing to do for memory stream
-            }
-        };
-
         /**
          * @brief MySQL implementation of Blob using smart pointers for memory safety
          *
@@ -314,5 +262,3 @@ namespace cpp_dbc::MySQL
 } // namespace cpp_dbc::MySQL
 
 #endif // USE_MYSQL
-
-#endif // CPP_DBC_MYSQL_BLOB_HPP

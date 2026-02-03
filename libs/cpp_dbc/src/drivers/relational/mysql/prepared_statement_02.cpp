@@ -22,7 +22,6 @@
 
 #if USE_MYSQL
 
-#include "cpp_dbc/drivers/relational/mysql_blob.hpp"
 #include <array>
 #include <cstring>
 #include <sstream>
