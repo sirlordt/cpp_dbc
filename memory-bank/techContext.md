@@ -112,6 +112,16 @@ The project uses:
 - Conan for dependency management
 - Custom build scripts (`build.sh`, `libs/cpp_dbc/build_cpp_dbc.sh`, and `build.dist.sh`) for simplified building
 - Debug mode by default, with option for Release mode
+- **Build Configuration Management (DRY Principle):**
+  - Centralized `libs/cpp_dbc/generate_build_config.sh` script for generating `build/.build_config`
+  - Eliminates code duplication across build scripts
+  - Supports parameter-based configuration and CMakeCache.txt auto-detection
+  - Generates configuration file used by VSCode IntelliSense synchronization
+- **Unified Build Directory Architecture:**
+  - Library and tests share unified build directory: `build/libs/cpp_dbc/build/`
+  - Prevents double compilation of the library
+  - Library compiles once, tests link against single compiled `.a` static library
+  - Consistent configuration across main project, library, and tests
 - **Driver Code Split Architecture:**
   - Each database driver implementation is split into multiple focused files within dedicated subdirectories
   - Internal headers (`*_internal.hpp`) contain shared declarations and definitions
@@ -166,10 +176,20 @@ The project now includes an automatic synchronization system for IntelliSense:
 - **Features:**
   - Build parameters automatically saved to `build/.build_args`
   - Configuration state saved to `build/.build_config`
+  - Auto-regeneration of `.build_config` if missing (via `helper.sh --vscode`)
+  - Automatic path detection for main and library builds
+  - Path conversion to VSCode-relative variables (`${workspaceFolder}`, `${userHome}`)
+  - Path deduplication to prevent duplicate entries
   - No need to manually specify parameters twice
+- **Path Management:**
+  - Converts absolute paths to relative using VSCode variables
+  - `$HOME/*` → `${userHome}/*` for user-specific paths (like Conan cache)
+  - `$PROJECT_ROOT/*` → `${workspaceFolder}/*` for project-relative paths
+  - System paths (`/usr/include/*`) remain absolute
+  - Ensures portability across different user environments
 - **Workflow:**
-  1. Run `./build.sh [options]` to build with desired configuration
-  2. Run `.vscode/sync_intellisense.sh` to sync IntelliSense (fast, no rebuild)
+  1. Run `./build.sh [options]` or `./helper.sh --run-test` to build with desired configuration
+  2. Run `.vscode/sync_intellisense.sh` or `./helper.sh --vscode` to sync IntelliSense (fast, no rebuild)
   3. Reload VSCode window if needed (`Ctrl+Shift+P` -> "Developer: Reload Window")
 
 #### Known VSCode Issues

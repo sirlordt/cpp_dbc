@@ -62,7 +62,7 @@ The library currently supports:
 ### Columnar Databases
 - **ScyllaDB/Cassandra**: Full support for ScyllaDB columnar databases (disabled by default)
 
-Each database driver can be enabled or disabled at compile time to reduce dependencies. By default, only MySQL support is enabled.
+Each database driver can be enabled or disabled at compile time to reduce dependencies. By default, MySQL support and YAML configuration support are enabled.
 
 ## Project Structure
 
@@ -143,7 +143,7 @@ The library supports conditional compilation of database drivers and features:
 - `USE_MONGODB`: Enable/disable MongoDB support (OFF by default)
 - `USE_SCYLLADB`: Enable/disable ScyllaDB support (OFF by default)
 - `USE_REDIS`: Enable/disable Redis support (OFF by default)
-- `USE_CPP_YAML`: Enable/disable YAML configuration support (OFF by default)
+- `USE_CPP_YAML`: Enable/disable YAML configuration support (ON by default)
 - `CPP_DBC_BUILD_EXAMPLES`: Enable/disable building examples (OFF by default)
 - `CPP_DBC_BUILD_BENCHMARKS`: Enable/disable building benchmarks (OFF by default)
 - `DEBUG_CONNECTION_POOL`: Enable debug output for ConnectionPool (OFF by default)

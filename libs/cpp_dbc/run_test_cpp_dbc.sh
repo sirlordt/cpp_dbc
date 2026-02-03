@@ -513,7 +513,8 @@ show_progress_bar() {
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 CPP_DBC_DIR="${SCRIPT_DIR}"
 #TEST_BUILD_DIR="${CPP_DBC_DIR}/build/test_build"
-TEST_BUILD_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/test"
+# Use unified build directory (same as build_test_cpp_dbc.sh)
+TEST_BUILD_DIR="${CPP_DBC_DIR}/../../build/libs/cpp_dbc/build"
 TEST_EXECUTABLE="${TEST_BUILD_DIR}/test/cpp_dbc_tests"
 
 # Check if the tests are built (skip if --skip-build was passed)
