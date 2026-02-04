@@ -270,7 +270,7 @@ Para trabajar con BLOB en CPP_DBC, se pueden utilizar los siguientes patrones:
 ---
 
 ## Implementación MySQL
-*Componentes definidos en drivers/relational/driver_mysql.hpp, src/drivers/relational/driver_mysql.cpp y drivers/relational/mysql_blob.hpp*
+*Componentes definidos en drivers/relational/driver_mysql.hpp (agregador), drivers/relational/mysql/*.hpp (clases individuales) y src/drivers/relational/mysql/*.cpp*
 
 ### MySQLInputStream
 Implementación de InputStream para MySQL.
@@ -324,7 +324,7 @@ Los mismos que Driver, más:
 ---
 
 ## Implementación PostgreSQL
-*Componentes definidos en drivers/relational/driver_postgresql.hpp, src/drivers/relational/driver_postgresql.cpp y drivers/relational/postgresql_blob.hpp*
+*Componentes definidos en drivers/relational/driver_postgresql.hpp (agregador), drivers/relational/postgresql/*.hpp (clases individuales) y src/drivers/relational/postgresql/*.cpp*
 
 ### PostgreSQLInputStream
 Implementación de InputStream para PostgreSQL.
@@ -380,7 +380,7 @@ Los mismos que Driver, más:
 ---
 
 ## Implementación SQLite
-*Componentes definidos en drivers/relational/driver_sqlite.hpp, src/drivers/relational/driver_sqlite.cpp y drivers/relational/sqlite_blob.hpp*
+*Componentes definidos en drivers/relational/driver_sqlite.hpp (agregador), drivers/relational/sqlite/*.hpp (clases individuales) y src/drivers/relational/sqlite/*.cpp*
 
 ### SQLiteInputStream
 Implementación de InputStream para SQLite.
@@ -444,7 +444,7 @@ Los mismos que Driver, más:
 ---
 
 ## Implementación Firebird
-*Componentes definidos en drivers/relational/driver_firebird.hpp, src/drivers/relational/driver_firebird.cpp y drivers/relational/firebird_blob.hpp*
+*Componentes definidos en drivers/relational/driver_firebird.hpp (agregador), drivers/relational/firebird/*.hpp (clases individuales) y src/drivers/relational/firebird/*.cpp*
 
 ### FirebirdInputStream
 Implementación de InputStream para Firebird.

@@ -1,5 +1,13 @@
 # C++ Database Connectivity (CPP_DBC) Library
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sirlordt_cpp_dbc&metric=alert_status)](https://sonarcloud.io/summary/overall?id=sirlordt_cpp_dbc)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=sirlordt_cpp_dbc&metric=sqale_rating)](https://sonarcloud.io/summary/overall?id=sirlordt_cpp_dbc)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=sirlordt_cpp_dbc&metric=reliability_rating)](https://sonarcloud.io/summary/overall?id=sirlordt_cpp_dbc)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=sirlordt_cpp_dbc&metric=security_rating)](https://sonarcloud.io/summary/overall?id=sirlordt_cpp_dbc)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=sirlordt_cpp_dbc&metric=bugs)](https://sonarcloud.io/summary/overall?id=sirlordt_cpp_dbc)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=sirlordt_cpp_dbc&metric=vulnerabilities)](https://sonarcloud.io/summary/overall?id=sirlordt_cpp_dbc)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=sirlordt_cpp_dbc&metric=code_smells)](https://sonarcloud.io/summary/overall?id=sirlordt_cpp_dbc)
+
 ## For Impatience
 
 If you're in a hurry and want to get started quickly, check out the [Quick Start Guide](QUICKSTART.md) for common commands and examples.

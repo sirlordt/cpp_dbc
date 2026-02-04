@@ -22,7 +22,6 @@
 
 #if USE_MYSQL
 
-#include "cpp_dbc/drivers/relational/mysql_blob.hpp"
 #include <array>
 #include <cstring>
 #include <sstream>
@@ -180,7 +179,7 @@ namespace cpp_dbc::MySQL
         : m_closed(false)
     {
         // Create shared_ptr with custom deleter for MYSQL*
-        m_mysql = std::shared_ptr<MYSQL>(mysql_init(nullptr), MySQLDeleter());
+        m_mysql = makeMySQLHandle(mysql_init(nullptr));
         if (!m_mysql)
         {
             throw DBException("N3Z4A5B6C7D8", "Failed to initialize MySQL connection", system_utils::captureCallStack());

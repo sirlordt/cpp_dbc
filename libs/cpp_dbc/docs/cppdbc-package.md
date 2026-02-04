@@ -16,25 +16,25 @@ This document contains information about the CPPDBC library, inspired by JDBC bu
 - `include/cpp_dbc/core/document/document_db_connection_pool.hpp` - Document database connection pool interface
 - `include/cpp_dbc/core/document/document_db_cursor.hpp` - Document database cursor interface
 - `include/cpp_dbc/core/document/document_db_data.hpp` - Document database data interface
-- `include/cpp_dbc/drivers/relational/driver_mysql.hpp` - MySQL-specific definitions
-- `include/cpp_dbc/drivers/relational/driver_postgresql.hpp` - PostgreSQL-specific definitions
-- `include/cpp_dbc/drivers/relational/driver_sqlite.hpp` - SQLite-specific definitions
-- `include/cpp_dbc/drivers/relational/driver_firebird.hpp` - Firebird-specific definitions
-- `include/cpp_dbc/drivers/document/driver_mongodb.hpp` - MongoDB-specific definitions
+- `include/cpp_dbc/drivers/relational/driver_mysql.hpp` - MySQL aggregator header (includes `mysql/*.hpp`)
+- `include/cpp_dbc/drivers/relational/driver_postgresql.hpp` - PostgreSQL aggregator header (includes `postgresql/*.hpp`)
+- `include/cpp_dbc/drivers/relational/driver_sqlite.hpp` - SQLite aggregator header (includes `sqlite/*.hpp`)
+- `include/cpp_dbc/drivers/relational/driver_firebird.hpp` - Firebird aggregator header (includes `firebird/*.hpp`)
+- `include/cpp_dbc/drivers/document/driver_mongodb.hpp` - MongoDB aggregator header (includes `mongodb/*.hpp`)
 - `include/cpp_dbc/core/columnar/columnar_db_connection.hpp` - Columnar database connection interface
 - `include/cpp_dbc/core/columnar/columnar_db_driver.hpp` - Columnar database driver interface
 - `include/cpp_dbc/core/columnar/columnar_db_prepared_statement.hpp` - Columnar prepared statement interface
 - `include/cpp_dbc/core/columnar/columnar_db_result_set.hpp` - Columnar result set interface
 - `include/cpp_dbc/core/columnar/columnar_db_connection_pool.hpp` - Columnar database connection pool interface
-- `include/cpp_dbc/drivers/columnar/driver_scylladb.hpp` - ScyllaDB-specific definitions
+- `include/cpp_dbc/drivers/columnar/driver_scylladb.hpp` - ScyllaDB aggregator header (includes `scylladb/*.hpp`)
 - `include/cpp_dbc/core/kv/kv_db_connection.hpp` - Key-value database connection interface
 - `include/cpp_dbc/core/kv/kv_db_driver.hpp` - Key-value database driver interface
 - `include/cpp_dbc/core/kv/kv_db_connection_pool.hpp` - Key-value database connection pool interface
-- `include/cpp_dbc/drivers/kv/driver_redis.hpp` - Redis-specific definitions
-- `include/cpp_dbc/drivers/relational/mysql_blob.hpp` - MySQL BLOB implementation
-- `include/cpp_dbc/drivers/relational/postgresql_blob.hpp` - PostgreSQL BLOB implementation
-- `include/cpp_dbc/drivers/relational/sqlite_blob.hpp` - SQLite BLOB implementation
-- `include/cpp_dbc/drivers/relational/firebird_blob.hpp` - Firebird BLOB implementation
+- `include/cpp_dbc/drivers/kv/driver_redis.hpp` - Redis aggregator header (includes `redis/*.hpp`)
+- `include/cpp_dbc/drivers/relational/mysql/blob.hpp` - MySQL BLOB implementation (in driver subfolder)
+- `include/cpp_dbc/drivers/relational/postgresql/blob.hpp` - PostgreSQL BLOB implementation (in driver subfolder)
+- `include/cpp_dbc/drivers/relational/sqlite/blob.hpp` - SQLite BLOB implementation (in driver subfolder)
+- `include/cpp_dbc/drivers/relational/firebird/blob.hpp` - Firebird BLOB implementation (in driver subfolder)
 - `include/cpp_dbc/core/db_connection_pool.hpp` - Generic connection pool interface for all database types
 - `include/cpp_dbc/core/pooled_db_connection.hpp` - Generic pooled connection interface for all database types
 - `include/cpp_dbc/core/relational/relational_db_connection_pool.hpp` - Relational database connection pool implementation
@@ -451,19 +451,68 @@ cpp_dbc/
 │       │       │   └── timeseries/
 │       │       └── drivers/
 │       │           ├── relational/
-│       │           │   ├── driver_mysql.hpp
-│       │           │   ├── driver_postgresql.hpp
-│       │           │   ├── driver_sqlite.hpp
-│       │           │   ├── driver_firebird.hpp
-│       │           │   ├── mysql_blob.hpp
-│       │           │   ├── postgresql_blob.hpp
-│       │           │   ├── sqlite_blob.hpp
-│       │           │   └── firebird_blob.hpp
+│       │           │   ├── driver_mysql.hpp         (aggregator)
+│       │           │   ├── driver_postgresql.hpp    (aggregator)
+│       │           │   ├── driver_sqlite.hpp        (aggregator)
+│       │           │   ├── driver_firebird.hpp      (aggregator)
+│       │           │   ├── mysql/
+│       │           │   │   ├── handles.hpp
+│       │           │   │   ├── input_stream.hpp
+│       │           │   │   ├── blob.hpp
+│       │           │   │   ├── result_set.hpp
+│       │           │   │   ├── prepared_statement.hpp
+│       │           │   │   ├── connection.hpp
+│       │           │   │   └── driver.hpp
+│       │           │   ├── postgresql/
+│       │           │   │   ├── handles.hpp
+│       │           │   │   ├── input_stream.hpp
+│       │           │   │   ├── blob.hpp
+│       │           │   │   ├── result_set.hpp
+│       │           │   │   ├── prepared_statement.hpp
+│       │           │   │   ├── connection.hpp
+│       │           │   │   └── driver.hpp
+│       │           │   ├── sqlite/
+│       │           │   │   ├── handles.hpp
+│       │           │   │   ├── input_stream.hpp
+│       │           │   │   ├── blob.hpp
+│       │           │   │   ├── result_set.hpp
+│       │           │   │   ├── prepared_statement.hpp
+│       │           │   │   ├── connection.hpp
+│       │           │   │   └── driver.hpp
+│       │           │   └── firebird/
+│       │           │       ├── handles.hpp
+│       │           │       ├── input_stream.hpp
+│       │           │       ├── blob.hpp
+│       │           │       ├── result_set.hpp
+│       │           │       ├── prepared_statement.hpp
+│       │           │       ├── connection.hpp
+│       │           │       └── driver.hpp
 │       │           ├── columnar/
+│       │           │   ├── driver_scylladb.hpp      (aggregator)
+│       │           │   └── scylladb/
+│       │           │       ├── handles.hpp
+│       │           │       ├── memory_input_stream.hpp
+│       │           │       ├── result_set.hpp
+│       │           │       ├── prepared_statement.hpp
+│       │           │       ├── connection.hpp
+│       │           │       └── driver.hpp
 │       │           ├── document/
-│       │           │   └── driver_mongodb.hpp
+│       │           │   ├── driver_mongodb.hpp       (aggregator)
+│       │           │   └── mongodb/
+│       │           │       ├── handles.hpp
+│       │           │       ├── document.hpp
+│       │           │       ├── cursor.hpp
+│       │           │       ├── collection.hpp
+│       │           │       ├── connection.hpp
+│       │           │       └── driver.hpp
 │       │           ├── graph/
 │       │           ├── kv/
+│       │           │   ├── driver_redis.hpp         (aggregator)
+│       │           │   └── redis/
+│       │           │       ├── handles.hpp
+│       │           │       ├── reply_handle.hpp
+│       │           │       ├── connection.hpp
+│       │           │       └── driver.hpp
 │       │           └── timeseries/
 │       ├── src/
 │       │   ├── connection_pool.cpp

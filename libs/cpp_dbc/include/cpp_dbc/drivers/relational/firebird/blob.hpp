@@ -1,71 +1,21 @@
-/**
+#pragma once
 
- * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
-
- * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
- * See the LICENSE.md file in the project root for more information.
-
- @file firebird_blob.hpp
- @brief BLOB support for Firebird database operations
-
-*/
-
-#ifndef CPP_DBC_FIREBIRD_BLOB_HPP
-#define CPP_DBC_FIREBIRD_BLOB_HPP
-
-#include "../../cpp_dbc.hpp"
-#include "../../blob.hpp"
+#include "../../../cpp_dbc.hpp"
+#include "../../../blob.hpp"
+#include "input_stream.hpp"
 
 #ifndef USE_FIREBIRD
-#define USE_FIREBIRD 0 // Default to disabled
+#define USE_FIREBIRD 0
 #endif
 
 #if USE_FIREBIRD
 #include <ibase.h>
+#include <memory>
+#include <cstring>
+#include <vector>
 
 namespace cpp_dbc::Firebird
 {
-        // Firebird implementation of InputStream
-        class FirebirdInputStream : public InputStream
-        {
-        private:
-            const std::vector<uint8_t> m_data;
-            size_t m_position{0};
-
-        public:
-            FirebirdInputStream(const void *buffer, size_t length)
-                : m_data(static_cast<const uint8_t *>(buffer), static_cast<const uint8_t *>(buffer) + length), m_position(0) {}
-
-            int read(uint8_t *buffer, size_t length) override
-            {
-                if (m_position >= m_data.size())
-                    return -1; // End of stream
-
-                size_t bytesToRead = std::min(length, m_data.size() - m_position);
-                std::memcpy(buffer, m_data.data() + m_position, bytesToRead);
-                m_position += bytesToRead;
-                return static_cast<int>(bytesToRead);
-            }
-
-            void skip(size_t n) override
-            {
-                m_position = std::min(m_position + n, m_data.size());
-            }
-
-            void close() override
-            {
-                // Nothing to do for memory stream
-            }
-        };
-
         // Forward declaration for weak_ptr usage
         class FirebirdDBConnection;
 
@@ -356,5 +306,3 @@ namespace cpp_dbc::Firebird
 } // namespace cpp_dbc::Firebird
 
 #endif // USE_FIREBIRD
-
-#endif // CPP_DBC_FIREBIRD_BLOB_HPP

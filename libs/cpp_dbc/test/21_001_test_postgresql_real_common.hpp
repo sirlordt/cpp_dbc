@@ -31,7 +31,6 @@
 
 #if USE_POSTGRESQL
 #include <cpp_dbc/drivers/relational/driver_postgresql.hpp>
-#include <cpp_dbc/drivers/relational/postgresql_blob.hpp>
 #endif
 
 namespace postgresql_test_helpers

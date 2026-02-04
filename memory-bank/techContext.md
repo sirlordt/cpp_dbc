@@ -122,8 +122,15 @@ The project uses:
   - Prevents double compilation of the library
   - Library compiles once, tests link against single compiled `.a` static library
   - Consistent configuration across main project, library, and tests
-- **Driver Code Split Architecture:**
-  - Each database driver implementation is split into multiple focused files within dedicated subdirectories
+- **Driver Header Split Architecture (One-Class-Per-File):**
+  - Each `driver_*.hpp` header is split into individual per-class `.hpp` files in a driver subfolder
+  - Original `driver_*.hpp` files now serve as pure aggregator headers with only `#include` directives
+  - 44 new header files across 7 subfolders: `mysql/`, `postgresql/`, `sqlite/`, `firebird/`, `mongodb/`, `scylladb/`, `redis/`
+  - Each subfolder has `handles.hpp` (RAII deleters + type aliases) plus per-class headers
+  - BLOB headers (`mysql_blob.hpp`, etc.) deleted — BLOB classes now in driver subfolders (e.g., `mysql/blob.hpp`)
+  - Backward compatible — external consumers still include `driver_mysql.hpp` etc.
+- **Driver Code Split Architecture (Implementation files):**
+  - Each database driver .cpp implementation is split into multiple focused files within dedicated subdirectories
   - Internal headers (`*_internal.hpp`) contain shared declarations and definitions
   - Split files: `driver_*.cpp`, `connection_*.cpp`, `prepared_statement_*.cpp`, `result_set_*.cpp`
   - MongoDB-specific: `collection_*.cpp`, `cursor_*.cpp`, `document_*.cpp`

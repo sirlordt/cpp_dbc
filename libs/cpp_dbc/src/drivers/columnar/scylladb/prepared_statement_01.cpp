@@ -58,7 +58,7 @@ namespace cpp_dbc::ScyllaDB
     // Public methods
 
     ScyllaDBPreparedStatement::ScyllaDBPreparedStatement(std::weak_ptr<CassSession> session, const std::string &query, const CassPrepared *prepared)
-        : m_session(session), m_query(query), m_prepared(prepared, CassPreparedDeleter()) // Shared ptr to prepared
+        : m_session(session), m_query(query), m_prepared(makeCassPreparedHandle(prepared))
     {
         SCYLLADB_DEBUG("ScyllaDBPreparedStatement::constructor - Creating prepared statement for query: " << query);
         recreateStatement();

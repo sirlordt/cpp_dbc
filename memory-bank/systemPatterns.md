@@ -18,7 +18,12 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
    - `drivers/graph/`: Graph database drivers (placeholder for future)
    - `drivers/kv/`: Key-Value database drivers (Redis)
    - `drivers/timeseries/`: Time-series database drivers (placeholder for future)
-   - **Code Split Architecture**: Each driver implementation is split into multiple focused files within dedicated subdirectories:
+   - **Header Split Architecture (One-Class-Per-File)**: Each `driver_*.hpp` is split into per-class `.hpp` files in a driver subfolder:
+     - `handles.hpp`: RAII custom deleters and smart pointer type aliases
+     - `connection.hpp`, `driver.hpp`, `prepared_statement.hpp`, `result_set.hpp`, `blob.hpp`, `input_stream.hpp`
+     - Original `driver_*.hpp` serves as a pure aggregator with `#include` directives
+     - BLOB classes now in driver subfolders (e.g., `mysql/blob.hpp`) instead of separate `*_blob.hpp` files
+   - **Implementation Split Architecture**: Each driver .cpp is split into multiple focused files:
      - `*_internal.hpp`: Internal declarations and shared definitions
      - `driver_*.cpp`: Driver class implementation
      - `connection_*.cpp`: Connection class implementation
@@ -26,7 +31,7 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
      - `result_set_*.cpp`: ResultSet class implementation
      - MongoDB-specific: `collection_*.cpp`, `cursor_*.cpp`, `document_*.cpp`
 3. **Connection Management Layer**: Connection pooling and transaction management in the `src/` directory
-4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/` directory and database-specific implementations in the `drivers/relational/` directory
+4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/blob.hpp` (base classes) and database-specific implementations in the driver subfolders (e.g., `drivers/relational/mysql/blob.hpp`)
 5. **Key-Value Layer**: Key-Value operations support in `drivers/kv/` directory
 6. **JSON Layer**: JSON data type support in database-specific implementations in the `drivers/relational/` directory
 6. **Configuration Layer**: Database configuration management in the `include/cpp_dbc/config/` and `src/config/` directories

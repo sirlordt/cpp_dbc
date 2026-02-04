@@ -1,6 +1,47 @@
 # Changelog
 
-## 2026-02-03 12:16:31 PST [Current]
+## 2026-02-03 14:58:04 PST [Current]
+
+### Driver Header Split Refactoring (One-Class-Per-File)
+* **Major Header File Reorganization:**
+  * Split all 7 multi-class driver header files (`driver_*.hpp`) into individual per-class `.hpp` files
+  * Each driver now has its own subfolder under the respective category directory
+  * Original `driver_*.hpp` files converted to pure aggregator headers with only `#include` directives
+  * 44 new header files created across 7 driver subdirectories (6,727 lines total)
+  * Backward compatible — external consumers still include `driver_mysql.hpp` etc.
+
+* **BLOB Header Files Consolidated:**
+  * Deleted 4 separate BLOB header files: `mysql_blob.hpp`, `postgresql_blob.hpp`, `sqlite_blob.hpp`, `firebird_blob.hpp`
+  * BLOB classes moved into their respective driver subfolders (e.g., `mysql/blob.hpp`, `sqlite/blob.hpp`)
+  * Removed 25 now-redundant BLOB `#include` directives from source, test, and example files
+
+* **New Driver Subfolders:**
+  * `relational/mysql/`: `handles.hpp`, `input_stream.hpp`, `blob.hpp`, `result_set.hpp`, `prepared_statement.hpp`, `connection.hpp`, `driver.hpp` (7 files)
+  * `relational/postgresql/`: `handles.hpp`, `input_stream.hpp`, `blob.hpp`, `result_set.hpp`, `prepared_statement.hpp`, `connection.hpp`, `driver.hpp` (7 files)
+  * `relational/sqlite/`: `handles.hpp`, `input_stream.hpp`, `blob.hpp`, `result_set.hpp`, `prepared_statement.hpp`, `connection.hpp`, `driver.hpp` (7 files)
+  * `relational/firebird/`: `handles.hpp`, `input_stream.hpp`, `blob.hpp`, `result_set.hpp`, `prepared_statement.hpp`, `connection.hpp`, `driver.hpp` (7 files)
+  * `document/mongodb/`: `handles.hpp`, `document.hpp`, `cursor.hpp`, `collection.hpp`, `connection.hpp`, `driver.hpp` (6 files)
+  * `columnar/scylladb/`: `handles.hpp`, `memory_input_stream.hpp`, `result_set.hpp`, `prepared_statement.hpp`, `connection.hpp`, `driver.hpp` (6 files)
+  * `kv/redis/`: `handles.hpp`, `reply_handle.hpp`, `connection.hpp`, `driver.hpp` (4 files)
+
+* **File Organization Pattern:**
+  * `handles.hpp`: All custom deleters and smart pointer type aliases (RAII handles)
+  * `connection.hpp`: Connection class declaration
+  * `driver.hpp`: Driver class declaration (real + `#else` stub)
+  * `prepared_statement.hpp`: PreparedStatement class declaration
+  * `result_set.hpp`: ResultSet class declaration
+  * `blob.hpp`: BLOB class declaration (relational drivers only)
+  * `input_stream.hpp`: InputStream class declaration (relational drivers only)
+
+* **Benefits:**
+  * Better LLM comprehension — smaller, focused files are easier to process in context windows
+  * Improved IDE navigation — each class has its own dedicated file
+  * Faster header parsing — only include what you need
+  * Clearer dependency graph — each file includes only its requirements
+  * One-class-per-file convention matches modern C++ best practices
+  * 76 files changed, 5,699 insertions(+), 5,106 deletions(-)
+
+## 2026-02-03 12:16:31 PST
 
 ### Build System and VSCode IntelliSense Improvements
 * **Build Configuration Management (DRY Principle):**
