@@ -119,6 +119,11 @@ namespace cpp_dbc::SQLite
 #endif
         ~SQLiteDBResultSet() override;
 
+        SQLiteDBResultSet(const SQLiteDBResultSet &) = delete;
+        SQLiteDBResultSet &operator=(const SQLiteDBResultSet &) = delete;
+        SQLiteDBResultSet(SQLiteDBResultSet &&) = delete;
+        SQLiteDBResultSet &operator=(SQLiteDBResultSet &&) = delete;
+
         bool next() override;
         bool isBeforeFirst() override;
         bool isAfterLast() override;

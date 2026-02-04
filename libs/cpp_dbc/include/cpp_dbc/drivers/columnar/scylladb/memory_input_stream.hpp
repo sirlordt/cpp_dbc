@@ -48,6 +48,8 @@ namespace cpp_dbc::ScyllaDB
                     return -1; // EOF
 
                 size_t toRead = std::min({length, m_data.size() - m_position, static_cast<size_t>(INT_MAX)});
+                if (toRead == 0)
+                    return 0;
                 std::memcpy(buffer, m_data.data() + m_position, toRead);
                 m_position += toRead;
                 return static_cast<int>(toRead);
@@ -55,7 +57,8 @@ namespace cpp_dbc::ScyllaDB
 
             void skip(size_t n) override
             {
-                m_position = std::min(m_position + n, m_data.size());
+                size_t remaining = m_data.size() - m_position;
+                m_position += std::min(n, remaining);
             }
 
             void close() override

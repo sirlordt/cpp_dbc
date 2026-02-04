@@ -118,6 +118,11 @@ namespace cpp_dbc::Firebird
 #endif
         ~FirebirdDBResultSet() override;
 
+        FirebirdDBResultSet(const FirebirdDBResultSet &) = delete;
+        FirebirdDBResultSet &operator=(const FirebirdDBResultSet &) = delete;
+        FirebirdDBResultSet(FirebirdDBResultSet &&) = delete;
+        FirebirdDBResultSet &operator=(FirebirdDBResultSet &&) = delete;
+
         bool next() override;
         bool isBeforeFirst() override;
         bool isAfterLast() override;

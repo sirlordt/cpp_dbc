@@ -8,6 +8,7 @@
 
 #if USE_POSTGRESQL
 
+#include <algorithm>
 #include <climits>
 #include <cstring>
 #include <vector>
@@ -31,13 +32,16 @@ namespace cpp_dbc::PostgreSQL
             const std::vector<uint8_t> m_data;
             size_t m_position{0};
 
+            static const char *validateAndEnd(const char *buffer, size_t length)
+            {
+                if (length > 0 && buffer == nullptr)
+                    throw DBException("8KV3N7QW2FX9", "Null buffer passed to PostgreSQLInputStream", system_utils::captureCallStack());
+                return buffer + length;
+            }
+
         public:
             PostgreSQLInputStream(const char *buffer, size_t length)
-                : m_data(
-                    length > 0 && buffer == nullptr
-                        ? throw DBException("8KV3N7QW2FX9", "Null buffer passed to PostgreSQLInputStream", system_utils::captureCallStack())
-                        : buffer,
-                    buffer + length) {}
+                : m_data(buffer, validateAndEnd(buffer, length)) {}
 
             int read(uint8_t *buffer, size_t length) override
             {
@@ -55,7 +59,8 @@ namespace cpp_dbc::PostgreSQL
 
             void skip(size_t n) override
             {
-                m_position = std::min(m_position + n, m_data.size());
+                size_t remaining = m_data.size() - m_position;
+                m_position += std::min(n, remaining);
             }
 
             void close() override

@@ -129,6 +129,11 @@ namespace cpp_dbc::PostgreSQL
         explicit PostgreSQLDBResultSet(PGresult *res);
         ~PostgreSQLDBResultSet() override;
 
+        PostgreSQLDBResultSet(const PostgreSQLDBResultSet &) = delete;
+        PostgreSQLDBResultSet &operator=(const PostgreSQLDBResultSet &) = delete;
+        PostgreSQLDBResultSet(PostgreSQLDBResultSet &&) = delete;
+        PostgreSQLDBResultSet &operator=(PostgreSQLDBResultSet &&) = delete;
+
         // DBResultSet interface
         void close() override;
         bool isEmpty() override;

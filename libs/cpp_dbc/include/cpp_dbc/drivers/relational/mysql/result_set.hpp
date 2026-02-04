@@ -165,6 +165,11 @@ namespace cpp_dbc::MySQL
             explicit MySQLDBResultSet(MYSQL_RES *res);
             ~MySQLDBResultSet() override;
 
+            MySQLDBResultSet(const MySQLDBResultSet &) = delete;
+            MySQLDBResultSet &operator=(const MySQLDBResultSet &) = delete;
+            MySQLDBResultSet(MySQLDBResultSet &&) = delete;
+            MySQLDBResultSet &operator=(MySQLDBResultSet &&) = delete;
+
             // DBResultSet interface
             void close() override;
             bool isEmpty() override;

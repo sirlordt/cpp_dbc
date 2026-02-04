@@ -7,6 +7,7 @@
 #endif
 
 #if USE_SQLITE
+#include <algorithm>
 #include <climits>
 #include <cstring>
 #include <vector>
@@ -20,13 +21,16 @@ namespace cpp_dbc::SQLite
             const std::vector<uint8_t> m_data;
             size_t m_position{0};
 
+            static const uint8_t *validateAndEnd(const void *buffer, size_t length)
+            {
+                if (length > 0 && buffer == nullptr)
+                    throw DBException("3YC6H9DK1NX7", "Null buffer passed to SQLiteInputStream", system_utils::captureCallStack());
+                return static_cast<const uint8_t *>(buffer) + length;
+            }
+
         public:
             SQLiteInputStream(const void *buffer, size_t length)
-                : m_data(
-                    length > 0 && buffer == nullptr
-                        ? throw DBException("3YC6H9DK1NX7", "Null buffer passed to SQLiteInputStream", system_utils::captureCallStack())
-                        : static_cast<const uint8_t *>(buffer),
-                    static_cast<const uint8_t *>(buffer) + length) {}
+                : m_data(static_cast<const uint8_t *>(buffer), validateAndEnd(buffer, length)) {}
 
             int read(uint8_t *buffer, size_t length) override
             {
@@ -44,7 +48,8 @@ namespace cpp_dbc::SQLite
 
             void skip(size_t n) override
             {
-                m_position = std::min(m_position + n, m_data.size());
+                size_t remaining = m_data.size() - m_position;
+                m_position += std::min(n, remaining);
             }
 
             void close() override

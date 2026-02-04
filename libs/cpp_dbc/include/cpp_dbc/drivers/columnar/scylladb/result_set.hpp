@@ -59,6 +59,11 @@ namespace cpp_dbc::ScyllaDB
             explicit ScyllaDBResultSet(const CassResult *res);
             ~ScyllaDBResultSet() override;
 
+            ScyllaDBResultSet(const ScyllaDBResultSet &) = delete;
+            ScyllaDBResultSet &operator=(const ScyllaDBResultSet &) = delete;
+            ScyllaDBResultSet(ScyllaDBResultSet &&) = delete;
+            ScyllaDBResultSet &operator=(ScyllaDBResultSet &&) = delete;
+
             // DBResultSet interface
             void close() override;
             bool isEmpty() override;

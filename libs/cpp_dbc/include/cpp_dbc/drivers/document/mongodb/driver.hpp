@@ -225,6 +225,16 @@ namespace cpp_dbc::MongoDB
                 return "disabled";
             }
 
+            cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException> connectDocument(std::nothrow_t, const std::string &, const std::string &, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) noexcept override
+            {
+                return cpp_dbc::unexpected(DBException("YHFE2OPW1DZR", "MongoDB support is not enabled in this build"));
+            }
+
+            cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(std::nothrow_t, const std::string &) noexcept override
+            {
+                return cpp_dbc::unexpected(DBException("QRXRXWB7UHKN", "MongoDB support is not enabled in this build"));
+            }
+
             std::string getName() const noexcept override { return "MongoDB (disabled)"; }
         };
 
