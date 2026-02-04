@@ -38,8 +38,21 @@ namespace cpp_dbc
     /**
      * @brief Abstract class for relational database result sets
      *
-     * This class extends DBResultSet with methods specific to relational databases,
-     * including row-based navigation and typed column access.
+     * Provides row-based navigation and typed column access for SQL query results.
+     * Columns can be accessed by 1-based index or by name. The cursor starts
+     * before the first row; call next() to advance.
+     *
+     * ```cpp
+     * auto rs = conn->executeQuery("SELECT id, name, salary FROM employees");
+     * while (rs->next()) {
+     *     int id = rs->getInt(1);                  // by index (1-based)
+     *     std::string name = rs->getString("name"); // by name
+     *     if (!rs->isNull("salary")) {
+     *         double salary = rs->getDouble("salary");
+     *     }
+     * }
+     * rs->close();
+     * ```
      *
      * Implementations: MySQLDBResultSet, PostgreSQLDBResultSet, SQLiteDBResultSet, FirebirdDBResultSet
      */
@@ -48,68 +61,377 @@ namespace cpp_dbc
     public:
         ~RelationalDBResultSet() override = default;
 
+        // ====================================================================
         // Row navigation
+        // ====================================================================
+
         /**
-         * @brief Move to the next row in the result set
-         * @return true if there is a next row, false if at end
+         * @brief Advance the cursor to the next row
+         *
+         * Must be called before reading the first row. Returns false when
+         * all rows have been consumed.
+         *
+         * @return true if a new row is available, false if past the last row
+         * @throws DBException if navigation fails
+         *
+         * ```cpp
+         * auto rs = conn->executeQuery("SELECT name FROM users");
+         * while (rs->next()) {
+         *     std::cout << rs->getString(1) << std::endl;
+         * }
+         * ```
          */
         virtual bool next() = 0;
 
         /**
-         * @brief Check if cursor is before the first row
+         * @brief Check if cursor is before the first row (initial state)
          * @return true if before first row
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * bool atStart = rs->isBeforeFirst(); // true initially
+         * rs->next();
+         * atStart = rs->isBeforeFirst(); // false after first next()
+         * ```
          */
         virtual bool isBeforeFirst() = 0;
 
         /**
-         * @brief Check if cursor is after the last row
+         * @brief Check if cursor is past the last row
          * @return true if after last row
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) { }
+         * bool done = rs->isAfterLast(); // true after all rows consumed
+         * ```
          */
         virtual bool isAfterLast() = 0;
 
         /**
          * @brief Get the current row number (1-based)
-         * @return The current row number
+         * @return The current row number, 0 if before first
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     uint64_t rowNum = rs->getRow(); // 1, 2, 3, ...
+         * }
+         * ```
          */
         virtual uint64_t getRow() = 0;
 
+        // ====================================================================
         // Typed column access by index (1-based)
+        // ====================================================================
+
+        /**
+         * @brief Get an integer value by column index
+         * @param columnIndex The column position (1-based)
+         * @return The integer value
+         * @throws DBException if the index is invalid or type conversion fails
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     int id = rs->getInt(1);
+         * }
+         * ```
+         */
         virtual int getInt(size_t columnIndex) = 0;
+
+        /**
+         * @brief Get a long value by column index
+         * @param columnIndex The column position (1-based)
+         * @return The long value
+         * @throws DBException if the index is invalid or type conversion fails
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     long bigId = rs->getLong(1);
+         * }
+         * ```
+         */
         virtual long getLong(size_t columnIndex) = 0;
+
+        /**
+         * @brief Get a double value by column index
+         * @param columnIndex The column position (1-based)
+         * @return The double value
+         * @throws DBException if the index is invalid or type conversion fails
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     double price = rs->getDouble(1);
+         * }
+         * ```
+         */
         virtual double getDouble(size_t columnIndex) = 0;
+
+        /**
+         * @brief Get a string value by column index
+         * @param columnIndex The column position (1-based)
+         * @return The string value
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     std::string name = rs->getString(2);
+         * }
+         * ```
+         */
         virtual std::string getString(size_t columnIndex) = 0;
+
+        /**
+         * @brief Get a boolean value by column index
+         * @param columnIndex The column position (1-based)
+         * @return The boolean value
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     bool active = rs->getBoolean(3);
+         * }
+         * ```
+         */
         virtual bool getBoolean(size_t columnIndex) = 0;
+
+        /**
+         * @brief Check if a column value is SQL NULL by index
+         * @param columnIndex The column position (1-based)
+         * @return true if the column is NULL
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     if (!rs->isNull(3)) {
+         *         double salary = rs->getDouble(3);
+         *     }
+         * }
+         * ```
+         */
         virtual bool isNull(size_t columnIndex) = 0;
 
+        // ====================================================================
         // Typed column access by name
+        // ====================================================================
+
+        /**
+         * @brief Get an integer value by column name
+         * @param columnName The column name (case-sensitive)
+         * @return The integer value
+         * @throws DBException if the column is not found
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     int id = rs->getInt("user_id");
+         * }
+         * ```
+         */
         virtual int getInt(const std::string &columnName) = 0;
+
+        /**
+         * @brief Get a long value by column name
+         * @param columnName The column name
+         * @return The long value
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     long fileSize = rs->getLong("file_size");
+         * }
+         * ```
+         */
         virtual long getLong(const std::string &columnName) = 0;
+
+        /**
+         * @brief Get a double value by column name
+         * @param columnName The column name
+         * @return The double value
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     double salary = rs->getDouble("salary");
+         * }
+         * ```
+         */
         virtual double getDouble(const std::string &columnName) = 0;
+
+        /**
+         * @brief Get a string value by column name
+         * @param columnName The column name
+         * @return The string value
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     std::string name = rs->getString("name");
+         * }
+         * ```
+         */
         virtual std::string getString(const std::string &columnName) = 0;
+
+        /**
+         * @brief Get a boolean value by column name
+         * @param columnName The column name
+         * @return The boolean value
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     bool active = rs->getBoolean("is_active");
+         * }
+         * ```
+         */
         virtual bool getBoolean(const std::string &columnName) = 0;
+
+        /**
+         * @brief Check if a column value is SQL NULL by name
+         * @param columnName The column name
+         * @return true if the column is NULL
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     if (!rs->isNull("email")) {
+         *         std::string email = rs->getString("email");
+         *     }
+         * }
+         * ```
+         */
         virtual bool isNull(const std::string &columnName) = 0;
 
+        // ====================================================================
         // Metadata
+        // ====================================================================
+
         /**
          * @brief Get the names of all columns in the result set
-         * @return Vector of column names
+         * @return Vector of column names in order
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * for (const auto& col : rs->getColumnNames()) {
+         *     std::cout << col << " ";
+         * }
+         * std::cout << std::endl;
+         * ```
          */
         virtual std::vector<std::string> getColumnNames() = 0;
 
         /**
          * @brief Get the number of columns in the result set
          * @return Number of columns
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * size_t cols = rs->getColumnCount();
+         * std::cout << "Result has " << cols << " columns" << std::endl;
+         * ```
          */
         virtual size_t getColumnCount() = 0;
 
+        // ====================================================================
         // BLOB support methods
+        // ====================================================================
+
+        /**
+         * @brief Get a BLOB by column index
+         * @param columnIndex The column position (1-based)
+         * @return The BLOB object
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     auto blob = rs->getBlob(1);
+         *     auto bytes = blob->getBytes(0, blob->length());
+         * }
+         * ```
+         */
         virtual std::shared_ptr<Blob> getBlob(size_t columnIndex) = 0;
+
+        /**
+         * @brief Get a BLOB by column name
+         * @param columnName The column name
+         * @return The BLOB object
+         * @throws DBException if the column is not found
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     auto blob = rs->getBlob("photo");
+         *     auto bytes = blob->getBytes(0, blob->length());
+         * }
+         * ```
+         */
         virtual std::shared_ptr<Blob> getBlob(const std::string &columnName) = 0;
 
+        /**
+         * @brief Get a binary stream by column index
+         * @param columnIndex The column position (1-based)
+         * @return An input stream for reading binary data
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     auto stream = rs->getBinaryStream(1);
+         *     std::vector<uint8_t> buffer(1024);
+         *     auto bytesRead = stream->read(buffer.data(), buffer.size());
+         * }
+         * ```
+         */
         virtual std::shared_ptr<InputStream> getBinaryStream(size_t columnIndex) = 0;
+
+        /**
+         * @brief Get a binary stream by column name
+         * @param columnName The column name
+         * @return An input stream for reading binary data
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     auto stream = rs->getBinaryStream("file_data");
+         *     std::vector<uint8_t> buffer(1024);
+         *     auto bytesRead = stream->read(buffer.data(), buffer.size());
+         * }
+         * ```
+         */
         virtual std::shared_ptr<InputStream> getBinaryStream(const std::string &columnName) = 0;
 
+        /**
+         * @brief Get raw bytes by column index
+         * @param columnIndex The column position (1-based)
+         * @return The column data as a byte vector
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     std::vector<uint8_t> data = rs->getBytes(1);
+         * }
+         * ```
+         */
         virtual std::vector<uint8_t> getBytes(size_t columnIndex) = 0;
+
+        /**
+         * @brief Get raw bytes by column name
+         * @param columnName The column name
+         * @return The column data as a byte vector
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     std::vector<uint8_t> data = rs->getBytes("binary_col");
+         * }
+         * ```
+         */
         virtual std::vector<uint8_t> getBytes(const std::string &columnName) = 0;
 
         // ====================================================================

@@ -34,12 +34,37 @@ namespace cpp_dbc
 {
 
     /**
-     * @brief Abstract class for relational database connections
+     * @brief Abstract class for relational (SQL) database connections
      *
-     * This class extends DBConnection with methods specific to relational databases,
-     * including SQL execution, prepared statements, and transaction management.
+     * Provides SQL execution, prepared statements, and transaction management
+     * for relational databases. Obtain via DriverManager::getDBConnection() and
+     * cast with std::dynamic_pointer_cast.
+     *
+     * ```cpp
+     * auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+     *     cpp_dbc::DriverManager::getDBConnection("jdbc:mysql://localhost/mydb", "user", "pass"));
+     * auto rs = conn->executeQuery("SELECT id, name FROM users");
+     * while (rs->next()) {
+     *     std::cout << rs->getInt("id") << ": " << rs->getString("name") << std::endl;
+     * }
+     * rs->close();
+     * conn->close();
+     * ```
+     *
+     * ```cpp
+     * // Nothrow API pattern
+     * auto result = conn->executeQuery(std::nothrow, "SELECT 1");
+     * if (result.has_value()) {
+     *     auto rs = result.value();
+     *     // ... use result set ...
+     * } else {
+     *     std::cerr << result.error().what_s() << std::endl;
+     * }
+     * ```
      *
      * Implementations: MySQLDBConnection, PostgreSQLDBConnection, SQLiteDBConnection, FirebirdDBConnection
+     *
+     * @see RelationalDBPreparedStatement, RelationalDBResultSet
      */
     class RelationalDBConnection : public DBConnection
     {
@@ -48,30 +73,61 @@ namespace cpp_dbc
 
         // SQL execution
         /**
-         * @brief Prepare a SQL statement for execution
-         * @param sql The SQL statement with optional parameter placeholders
-         * @return A prepared statement object
+         * @brief Prepare a SQL statement for execution with parameter placeholders
+         *
+         * @param sql The SQL statement (use '?' for parameter placeholders)
+         * @return A prepared statement object for binding parameters and execution
+         * @throws DBException if the SQL is invalid or preparation fails
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("INSERT INTO users (name, age) VALUES (?, ?)");
+         * stmt->setString(1, "Alice");
+         * stmt->setInt(2, 30);
+         * stmt->executeUpdate();
+         * stmt->close();
+         * ```
          */
         virtual std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) = 0;
 
         /**
-         * @brief Execute a SELECT query directly
+         * @brief Execute a SELECT query directly (without parameter binding)
+         *
          * @param sql The SQL SELECT statement
          * @return A result set containing the query results
+         * @throws DBException if the query fails
+         *
+         * ```cpp
+         * auto rs = conn->executeQuery("SELECT id, name FROM users WHERE active = 1");
+         * while (rs->next()) {
+         *     std::cout << rs->getString("name") << std::endl;
+         * }
+         * rs->close();
+         * ```
          */
         virtual std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) = 0;
 
         /**
          * @brief Execute an INSERT, UPDATE, or DELETE statement directly
+         *
          * @param sql The SQL statement
          * @return The number of affected rows
+         * @throws DBException if the statement fails
+         *
+         * ```cpp
+         * uint64_t deleted = conn->executeUpdate("DELETE FROM sessions WHERE expired = 1");
+         * std::cout << "Deleted " << deleted << " expired sessions" << std::endl;
+         * ```
          */
         virtual uint64_t executeUpdate(const std::string &sql) = 0;
 
         // Auto-commit control
         /**
          * @brief Set the auto-commit mode
+         *
+         * When auto-commit is disabled, changes are only persisted after calling commit().
+         *
          * @param autoCommit true to enable auto-commit, false to disable
+         * @throws DBException if the mode change fails
          */
         virtual void setAutoCommit(bool autoCommit) = 0;
 
@@ -84,7 +140,21 @@ namespace cpp_dbc
         // Transaction management
         /**
          * @brief Begin a new transaction
+         *
          * @return true if the transaction was started successfully
+         * @throws DBException if a transaction is already active or start fails
+         *
+         * ```cpp
+         * conn->beginTransaction();
+         * try {
+         *     conn->executeUpdate("UPDATE accounts SET balance = balance - 100 WHERE id = 1");
+         *     conn->executeUpdate("UPDATE accounts SET balance = balance + 100 WHERE id = 2");
+         *     conn->commit();
+         * } catch (const cpp_dbc::DBException &e) {
+         *     conn->rollback();
+         *     throw;
+         * }
+         * ```
          */
         virtual bool beginTransaction() = 0;
 
@@ -95,12 +165,14 @@ namespace cpp_dbc
         virtual bool transactionActive() = 0;
 
         /**
-         * @brief Commit the current transaction
+         * @brief Commit the current transaction, persisting all changes
+         * @throws DBException if no transaction is active or commit fails
          */
         virtual void commit() = 0;
 
         /**
-         * @brief Rollback the current transaction
+         * @brief Rollback the current transaction, discarding all changes
+         * @throws DBException if no transaction is active or rollback fails
          */
         virtual void rollback() = 0;
 
@@ -147,7 +219,17 @@ namespace cpp_dbc
         // Transaction isolation level
         /**
          * @brief Set the transaction isolation level
+         *
          * @param level The desired isolation level
+         * @throws DBException if the level is not supported or change fails
+         *
+         * ```cpp
+         * conn->setTransactionIsolation(
+         *     cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+         * conn->beginTransaction();
+         * // ... operations with serializable isolation ...
+         * conn->commit();
+         * ```
          */
         virtual void setTransactionIsolation(TransactionIsolationLevel level) = 0;
 
@@ -162,7 +244,8 @@ namespace cpp_dbc
         // ====================================================================
 
         /**
-         * @brief Prepare a SQL statement for execution (nothrow version)
+         * @brief Prepare a SQL statement (nothrow version)
+         * @note Nothrow version of prepareStatement(). @see expected
          * @param nothrow std::nothrow tag to indicate exception-free operation
          * @param sql The SQL statement with optional parameter placeholders
          * @return expected containing a prepared statement object, or DBException on failure

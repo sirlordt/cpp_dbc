@@ -38,14 +38,24 @@ namespace cpp_dbc
     /**
      * @brief Abstract interface for database connection pools
      *
-     * This class defines the common interface for all database connection pool implementations,
-     * regardless of the specific database type (relational, document, etc.).
+     * Manages a pool of reusable database connections. Pools are created via
+     * paradigm-specific factory methods (e.g., RelationalDBConnectionPool::create()).
+     * Connections obtained from a pool should be returned via returnToPool()
+     * instead of close().
      *
-     * DBConnectionPool is responsible for:
-     * - Managing a pool of physical database connections
-     * - Providing connections to clients upon request
-     * - Handling connection lifecycle (creation, validation, recycling)
-     * - Maintaining pool statistics
+     * ```cpp
+     * // Create a MySQL connection pool
+     * auto pool = cpp_dbc::MySQL::MySQLConnectionPool::create(
+     *     "jdbc:mysql://localhost:3306/mydb", "user", "pass");
+     * // Borrow a connection
+     * auto conn = pool->getDBConnection();
+     * // ... use connection ...
+     * conn->returnToPool();  // return instead of close
+     * // Shut down the pool when done
+     * pool->close();
+     * ```
+     *
+     * @see RelationalDBConnectionPool, DocumentDBConnectionPool, KVDBConnectionPool
      */
     class DBConnectionPool
     {
@@ -75,44 +85,51 @@ namespace cpp_dbc
         virtual ~DBConnectionPool() = default;
 
         /**
-         * @brief Get a connection from the pool
+         * @brief Borrow a connection from the pool
+         *
+         * Returns an idle connection or creates a new one if the pool has capacity.
+         * Blocks up to maxWaitMillis if no connections are available.
          *
          * @return A shared pointer to a database connection
+         * @throws DBException if no connection is available within the timeout
+         *
+         * ```cpp
+         * auto conn = pool->getDBConnection();
+         * // ... use connection ...
+         * conn->returnToPool();
+         * ```
          */
         virtual std::shared_ptr<DBConnection> getDBConnection() = 0;
 
         /**
-         * @brief Get the current number of active connections
-         *
-         * @return The number of connections currently in use
+         * @brief Get the number of connections currently in use
+         * @return The number of active (borrowed) connections
          */
         virtual size_t getActiveDBConnectionCount() const = 0;
 
         /**
-         * @brief Get the current number of idle connections
-         *
-         * @return The number of connections currently idle in the pool
+         * @brief Get the number of idle connections available in the pool
+         * @return The number of idle connections
          */
         virtual size_t getIdleDBConnectionCount() const = 0;
 
         /**
-         * @brief Get the total number of connections in the pool
-         *
-         * @return The total number of connections managed by this pool
+         * @brief Get the total number of connections managed by the pool
+         * @return Active + idle connections
          */
         virtual size_t getTotalDBConnectionCount() const = 0;
 
         /**
-         * @brief Close the connection pool and all its connections
+         * @brief Close the pool and all its connections
          *
          * After calling close(), the pool should not be used anymore.
+         * Active connections will be forcefully closed.
          */
         virtual void close() = 0;
 
         /**
-         * @brief Check if the connection pool is running
-         *
-         * @return true if the pool is running and can provide connections
+         * @brief Check if the pool is running and can provide connections
+         * @return true if the pool is running
          */
         virtual bool isRunning() const = 0;
     };

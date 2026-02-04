@@ -35,25 +35,37 @@ namespace cpp_dbc
     class DocumentDBCursor;
 
     /**
-     * @brief Abstract class for document database connections
+     * @brief Abstract class for document database connections (MongoDB, etc.)
      *
-     * This class extends DBConnection with methods specific to document databases.
-     * It provides access to collections (the document equivalent of tables) and
-     * database-level operations.
+     * Provides access to collections, documents, and database-level operations.
+     * Data is organized as Database > Collection > Document (JSON/BSON).
      *
-     * Document databases typically organize data as:
-     * - Database: Contains multiple collections
-     * - Collection: Contains multiple documents (similar to a table)
-     * - Document: A JSON/BSON-like structure (similar to a row)
+     * ```cpp
+     * auto conn = std::dynamic_pointer_cast<cpp_dbc::DocumentDBConnection>(
+     *     cpp_dbc::DriverManager::getDBConnection("mongodb://localhost:27017/mydb", "", ""));
+     * auto coll = conn->getCollection("users");
+     * auto doc = conn->createDocument(R"({"name": "Alice", "age": 30})");
+     * coll->insertOne(doc);
+     * auto cursor = coll->find(R"({"age": {"$gt": 25}})");
+     * while (cursor->next()) {
+     *     std::cout << cursor->current()->toJson() << std::endl;
+     * }
+     * conn->close();
+     * ```
      *
-     * Implementations: MongoDBConnection, CouchDBConnection, etc.
+     * Implementations: MongoDBConnection
+     *
+     * @see DocumentDBCollection, DocumentDBData, DocumentDBCursor
      */
     class DocumentDBConnection : public DBConnection
     {
     public:
         ~DocumentDBConnection() override = default;
 
+        // ====================================================================
         // Database information
+        // ====================================================================
+
         /**
          * @brief Get the name of the current database
          * @return The database name
@@ -87,12 +99,21 @@ namespace cpp_dbc
          */
         virtual void dropDatabase(const std::string &databaseName) = 0;
 
+        // ====================================================================
         // Collection access
+        // ====================================================================
+
         /**
          * @brief Get a collection by name
+         *
          * @param collectionName The name of the collection
          * @return A shared pointer to the collection
-         * @note This may create the collection if it doesn't exist (depending on implementation)
+         * @note May create the collection implicitly on first write (MongoDB behavior)
+         *
+         * ```cpp
+         * auto users = conn->getCollection("users");
+         * auto count = users->estimatedDocumentCount();
+         * ```
          */
         virtual std::shared_ptr<DocumentDBCollection> getCollection(const std::string &collectionName) = 0;
 
@@ -110,7 +131,8 @@ namespace cpp_dbc
         virtual bool collectionExists(const std::string &collectionName) = 0;
 
         /**
-         * @brief Create a new collection
+         * @brief Create a new collection explicitly
+         *
          * @param collectionName The name of the collection to create
          * @param options Collection options (JSON string, e.g., capped collection settings)
          * @return A shared pointer to the created collection
@@ -127,7 +149,10 @@ namespace cpp_dbc
          */
         virtual void dropCollection(const std::string &collectionName) = 0;
 
-        // Document operations (convenience methods that work across collections)
+        // ====================================================================
+        // Document factory methods
+        // ====================================================================
+
         /**
          * @brief Create a new empty document
          * @return A shared pointer to a new document
@@ -136,9 +161,14 @@ namespace cpp_dbc
 
         /**
          * @brief Create a document from a JSON string
+         *
          * @param json The JSON string to parse
          * @return A shared pointer to the created document
          * @throws DBException if the JSON is invalid
+         *
+         * ```cpp
+         * auto doc = conn->createDocument(R"({"name": "Bob", "email": "bob@test.com"})");
+         * ```
          */
         virtual std::shared_ptr<DocumentDBData> createDocument(const std::string &json) = 0;
 

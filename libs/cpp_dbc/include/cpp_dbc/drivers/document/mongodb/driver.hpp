@@ -20,13 +20,18 @@ namespace cpp_dbc::MongoDB
         /**
          * @brief MongoDB driver implementation
          *
-         * This class provides the entry point for creating MongoDB connections.
-         * It handles MongoDB library initialization and cleanup.
+         * Concrete DocumentDBDriver for MongoDB databases using libmongoc.
+         * Handles MongoDB C driver library initialization and cleanup.
+         * Accepts URLs in the format `cpp_dbc:mongodb://host:port/database`.
          *
-         * Key safety features:
-         * - Thread-safe initialization using call_once
-         * - Proper library cleanup on destruction
-         * - URI parsing and validation
+         * ```cpp
+         * auto driver = std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>();
+         * cpp_dbc::DriverManager::registerDriver(driver);
+         * auto conn = driver->connectDocument(
+         *     "cpp_dbc:mongodb://localhost:27017/mydb", "", "");
+         * ```
+         *
+         * @see DocumentDBDriver, MongoDBConnection
          */
         class MongoDBDriver final : public DocumentDBDriver
         {

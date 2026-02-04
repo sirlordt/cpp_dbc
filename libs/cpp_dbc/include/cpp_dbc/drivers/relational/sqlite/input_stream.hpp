@@ -14,7 +14,14 @@
 
 namespace cpp_dbc::SQLite
 {
-        // SQLite implementation of InputStream
+        /**
+         * @brief SQLite-specific InputStream implementation for reading BLOB data
+         *
+         * Reads from an internal byte buffer populated from SQLite query results.
+         * The buffer is copied on construction, so the source can be safely freed.
+         *
+         * @see InputStream, SQLiteBlob
+         */
         class SQLiteInputStream : public InputStream
         {
         private:

@@ -16,7 +16,14 @@
 
 namespace cpp_dbc::SQLite
 {
-        // SQLite implementation of Blob
+        /**
+         * @brief SQLite Blob implementation with lazy loading from database
+         *
+         * Extends MemoryBlob with database-backed lazy loading via sqlite3 APIs.
+         * Uses weak_ptr to safely detect when the connection has been closed.
+         *
+         * @see MemoryBlob, SQLiteDBResultSet
+         */
         class SQLiteBlob : public MemoryBlob
         {
         private:
@@ -58,21 +65,24 @@ namespace cpp_dbc::SQLite
                 return !m_db.expired();
             }
 
-            // Constructor for creating a new BLOB (empty shared_ptr for data-only blobs)
+            /** @brief Construct an empty BLOB for in-memory use */
             SQLiteBlob(std::shared_ptr<sqlite3> db)
                 : m_db(db), m_loaded(true) {}
 
-            // Constructor for loading an existing BLOB
+            /** @brief Construct a lazy-loading BLOB from a database row */
             SQLiteBlob(std::shared_ptr<sqlite3> db, const std::string &tableName,
                        const std::string &columnName, const std::string &rowId)
                 : m_db(db), m_tableName(tableName), m_columnName(columnName),
                   m_rowId(rowId), m_loaded(false) {}
 
-            // Constructor for creating a BLOB from existing data
+            /** @brief Construct a BLOB from existing binary data */
             SQLiteBlob(std::shared_ptr<sqlite3> db, const std::vector<uint8_t> &initialData)
                 : MemoryBlob(initialData), m_db(db), m_loaded(true) {}
 
-            // Load the BLOB data from the database if not already loaded
+            /**
+             * @brief Load the BLOB data from the database if not already loaded
+             * @throws DBException if the connection is closed or loading fails
+             */
             void ensureLoaded() const
             {
                 if (m_loaded || m_tableName.empty() || m_columnName.empty() || m_rowId.empty())
@@ -165,7 +175,10 @@ namespace cpp_dbc::SQLite
                 MemoryBlob::truncate(len);
             }
 
-            // Save the BLOB data to the database
+            /**
+             * @brief Save the BLOB data back to the database
+             * @throws DBException if the connection is closed or saving fails
+             */
             void save()
             {
                 if (m_tableName.empty() || m_columnName.empty() || m_rowId.empty())

@@ -16,16 +16,20 @@ namespace cpp_dbc::MongoDB
         // ============================================================================
 
         /**
-         * @brief MongoDB document implementation
+         * @brief MongoDB document implementation backed by BSON
          *
-         * This class wraps a BSON document and provides a safe interface for
-         * accessing and manipulating document data. It uses smart pointers
-         * internally and provides thread-safe operations.
+         * Wraps a bson_t document with a safe interface for accessing and
+         * manipulating document data. Supports dot notation for nested fields.
          *
-         * Key safety features:
-         * - All BSON memory is managed via RAII
-         * - Deep copies are made when necessary to prevent dangling references
-         * - Thread-safe when DB_DRIVER_THREAD_SAFE is enabled
+         * ```cpp
+         * auto doc = conn->createDocument("{\"name\": \"Alice\", \"age\": 30}");
+         * std::string name = doc->getString("name");
+         * doc->setInt("age", 31);
+         * doc->setString("address.city", "NYC");
+         * std::string json = doc->toJson();
+         * ```
+         *
+         * @see MongoDBCollection, DocumentDBData
          */
         class MongoDBDocument final : public DocumentDBData
         {

@@ -398,6 +398,13 @@ The project now includes an automatic synchronization system for IntelliSense:
   - `-Wpointer-arith`: Prevents pointer arithmetic issues
   - `-Wcast-align`: Prevents alignment issues in pointer casts
 
+- **Doxygen API Documentation**:
+  - All 64 public header files include Doxygen-compatible `/** @brief ... */` documentation blocks
+  - Inline ```` ```cpp ```` usage examples for all major classes and methods
+  - `@param`, `@return`, `@throws`, `@see` tags for cross-referencing
+  - Ready for Doxygen HTML/PDF generation
+  - IDE tooltip support — hover over any class or method to see documentation
+
 - **SonarCloud Static Analysis**:
   - Configuration in `.sonarcloud.properties`
   - Rule exclusions for intentional patterns:

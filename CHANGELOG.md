@@ -1,6 +1,66 @@
 # Changelog
 
-## 2026-02-03 14:58:04 PST [Current]
+## 2026-02-04 00:41:38 PST [Current]
+
+### Comprehensive Doxygen API Documentation for All Public Headers
+* **Documentation Enhancement (64 header files, 2,384 insertions):**
+  * Added Doxygen-compatible `/** @brief ... */` documentation blocks to all public header files
+  * Replaced simple `//` comments with structured Doxygen documentation across the entire API surface
+  * Added inline ```` ```cpp ```` usage examples to all major classes and methods
+  * Added `@param`, `@return`, `@throws`, `@see` tags for cross-referencing and parameter documentation
+  * Added section separator comments for improved readability
+
+* **Core Interfaces Documented:**
+  * `blob.hpp`: MemoryInputStream, MemoryOutputStream, FileInputStream, FileOutputStream, MemoryBlob
+  * `streams.hpp`: InputStream, OutputStream, Blob base classes with streaming usage examples
+  * `system_utils.hpp`: StackFrame, safePrint, logging functions, captureCallStack, printCallStack
+  * `db_connection.hpp`, `db_driver.hpp`, `db_exception.hpp`, `db_expected.hpp`: Core database abstractions
+  * `db_result_set.hpp`, `db_types.hpp`: Result set and type system documentation
+  * `db_connection_pool.hpp`, `db_connection_pooled.hpp`: Connection pool interfaces
+  * `cpp_dbc.hpp`: Main library header with DriverManager, TransactionManager references
+  * `transaction_manager.hpp`: Transaction management with cross-thread coordination examples
+
+* **Configuration Layer Documented:**
+  * `database_config.hpp`: DBConnectionOptions, DatabaseConfig, DBConnectionPoolConfig, TestQueries, DatabaseConfigManager
+  * `yaml_config_loader.hpp`: YamlConfigLoader with YAML file loading examples
+
+* **Relational Database Interfaces Documented:**
+  * `relational_db_connection.hpp`: Connection management, SQL execution, transaction examples
+  * `relational_db_prepared_statement.hpp`: Parameter binding, BLOB handling, batch operations
+  * `relational_db_result_set.hpp`: Result set navigation, type getters, BLOB retrieval
+
+* **Columnar Database Interfaces Documented:**
+  * `columnar_db_connection.hpp`: CQL execution, prepared statements, transaction management
+  * `columnar_db_prepared_statement.hpp`: CQL parameter binding with UUID, timestamp support
+  * `columnar_db_result_set.hpp`: CQL result set navigation with wide-column data types
+
+* **Document Database Interfaces Documented:**
+  * `document_db_collection.hpp`: CRUD operations, aggregation, index management
+  * `document_db_connection.hpp`: Collection access, database management
+  * `document_db_connection_pool.hpp`, `document_db_cursor.hpp`, `document_db_data.hpp`, `document_db_driver.hpp`
+
+* **Key-Value Database Interfaces Documented:**
+  * `kv_db_connection.hpp`: String, list, hash, set, sorted set, counter, scan, server operations
+  * `kv_db_connection_pool.hpp`, `kv_db_driver.hpp`
+
+* **All Driver Header Files Documented (7 drivers, 36 files):**
+  * `drivers/relational/mysql/`: handles, input_stream, connection, driver, prepared_statement
+  * `drivers/relational/postgresql/`: handles, input_stream, connection, driver, prepared_statement
+  * `drivers/relational/sqlite/`: handles, input_stream, blob, connection, driver, prepared_statement
+  * `drivers/relational/firebird/`: handles, input_stream, connection, driver, prepared_statement
+  * `drivers/document/mongodb/`: collection, connection, cursor, document, driver
+  * `drivers/columnar/scylladb/`: handles, memory_input_stream, connection, driver, prepared_statement, result_set
+  * `drivers/kv/redis/`: handles, reply_handle, connection, driver
+  * `drivers/columnar/driver_scylladb.hpp`: Aggregator header updated
+
+* **Benefits:**
+  * IDE tooltip support — hover over any class or method to see documentation and examples
+  * Doxygen-ready — can generate HTML/PDF API reference documentation
+  * Self-documenting API — developers can understand usage without leaving the header file
+  * Cross-referenced — `@see` tags link related classes and methods
+  * 64 files changed, 2,384 insertions(+), 359 deletions(-)
+
+## 2026-02-03 14:58:04 PST
 
 ### Driver Header Split Refactoring (One-Class-Per-File)
 * **Major Header File Reorganization:**

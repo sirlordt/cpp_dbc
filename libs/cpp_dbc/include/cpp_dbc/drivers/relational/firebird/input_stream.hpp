@@ -14,7 +14,14 @@
 
 namespace cpp_dbc::Firebird
 {
-        // Firebird implementation of InputStream
+        /**
+         * @brief Firebird-specific InputStream implementation for reading BLOB data
+         *
+         * Reads from an internal byte buffer populated from Firebird BLOB segments.
+         * The buffer is copied on construction, so the source can be safely freed.
+         *
+         * @see InputStream, FirebirdBlob
+         */
         class FirebirdInputStream : public InputStream
         {
         private:

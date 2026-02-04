@@ -10,6 +10,21 @@
 
 namespace cpp_dbc::PostgreSQL
 {
+    /**
+     * @brief PostgreSQL database driver implementation
+     *
+     * Concrete RelationalDBDriver for PostgreSQL databases.
+     * Accepts URLs in the format `cpp_dbc:postgresql://host:port/database`.
+     *
+     * ```cpp
+     * auto driver = std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>();
+     * cpp_dbc::DriverManager::registerDriver(driver);
+     * auto conn = driver->connectRelational(
+     *     "cpp_dbc:postgresql://localhost:5432/mydb", "postgres", "pass");
+     * ```
+     *
+     * @see RelationalDBDriver, PostgreSQLDBConnection
+     */
     class PostgreSQLDBDriver final : public RelationalDBDriver
     {
     public:
@@ -29,7 +44,14 @@ namespace cpp_dbc::PostgreSQL
 
         bool acceptsURL(const std::string &url) override;
 
-        // Parses a JDBC-like URL: cpp_dbc:postgresql://host:port/database
+        /**
+         * @brief Parse a JDBC-like URL into host, port, and database components
+         * @param url URL in format "cpp_dbc:postgresql://host:port/database"
+         * @param host Output: extracted hostname
+         * @param port Output: extracted port number
+         * @param database Output: extracted database name
+         * @return true if parsing succeeded
+         */
         bool parseURL(const std::string &url,
                       std::string &host,
                       int &port,

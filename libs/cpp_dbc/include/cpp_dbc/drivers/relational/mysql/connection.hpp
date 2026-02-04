@@ -14,6 +14,24 @@ namespace cpp_dbc::MySQL
 {
         class MySQLDBPreparedStatement; // Forward declaration
 
+        /**
+         * @brief MySQL connection implementation
+         *
+         * Concrete RelationalDBConnection for MySQL/MariaDB databases.
+         * Supports prepared statements, transactions, and connection pooling.
+         *
+         * ```cpp
+         * auto conn = std::dynamic_pointer_cast<cpp_dbc::MySQL::MySQLDBConnection>(
+         *     cpp_dbc::DriverManager::getDBConnection("cpp_dbc:mysql://localhost:3306/mydb", "root", "pass"));
+         * auto rs = conn->executeQuery("SELECT * FROM users");
+         * while (rs->next()) {
+         *     std::cout << rs->getString("name") << std::endl;
+         * }
+         * conn->close();
+         * ```
+         *
+         * @see MySQLDBDriver, MySQLDBPreparedStatement, MySQLDBResultSet
+         */
         class MySQLDBConnection final : public RelationalDBConnection, public std::enable_shared_from_this<MySQLDBConnection>
         {
         private:

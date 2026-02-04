@@ -16,13 +16,18 @@ namespace cpp_dbc::MongoDB
         /**
          * @brief MongoDB collection implementation
          *
-         * This class wraps a MongoDB collection and provides safe CRUD operations.
-         * It uses weak_ptr to detect when the connection is closed.
+         * Concrete DocumentDBCollection for MongoDB. Provides CRUD, index, and
+         * aggregation operations. Uses weak_ptr to detect connection closure.
          *
-         * Key safety features:
-         * - Uses weak_ptr to connection to detect disconnection
-         * - Thread-safe operations when DB_DRIVER_THREAD_SAFE is enabled
-         * - All operations validate connection state before proceeding
+         * ```cpp
+         * auto coll = conn->getCollection("users");
+         * coll->insertOne("{\"name\": \"Alice\"}");
+         * auto doc = coll->findOne("{\"name\": \"Alice\"}");
+         * coll->updateOne("{\"name\": \"Alice\"}", "{\"$set\": {\"age\": 30}}");
+         * coll->deleteOne("{\"name\": \"Alice\"}");
+         * ```
+         *
+         * @see MongoDBConnection, MongoDBCursor, MongoDBDocument
          */
         class MongoDBCollection final : public DocumentDBCollection
         {

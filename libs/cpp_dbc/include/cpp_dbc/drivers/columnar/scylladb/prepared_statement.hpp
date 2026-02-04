@@ -34,6 +34,24 @@ namespace cpp_dbc::ScyllaDB
 {
         class ScyllaDBConnection; // Forward declaration
 
+        /**
+         * @brief ScyllaDB prepared statement implementation
+         *
+         * Concrete ColumnarDBPreparedStatement for ScyllaDB/Cassandra.
+         * Uses the Cassandra C/C++ driver prepared statement API for
+         * parameter binding and execution. Supports batch operations.
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement(
+         *     "INSERT INTO users (id, name) VALUES (?, ?)");
+         * stmt->setUUID(1, "550e8400-e29b-41d4-a716-446655440000");
+         * stmt->setString(2, "Alice");
+         * stmt->executeUpdate();
+         * stmt->close();
+         * ```
+         *
+         * @see ScyllaDBConnection, ScyllaDBResultSet
+         */
         class ScyllaDBPreparedStatement final : public cpp_dbc::ColumnarDBPreparedStatement
         {
             friend class ScyllaDBConnection;

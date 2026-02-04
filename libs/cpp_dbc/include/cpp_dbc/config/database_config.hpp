@@ -40,7 +40,22 @@ namespace cpp_dbc::config
 {
 
         /**
-         * @brief Class representing database connection options
+         * @brief Class representing database connection options.
+         *
+         * Provides a key-value store for database connection parameters such as
+         * charset, timeout, SSL settings, and other driver-specific options.
+         *
+         * ### Example
+         * ```cpp
+         * cpp_dbc::config::DBConnectionOptions opts;
+         * opts.setOption("charset", "utf8mb4");
+         * opts.setOption("timeout", "30");
+         * std::string charset = opts.getOption("charset"); // "utf8mb4"
+         * bool has = opts.hasOption("timeout");             // true
+         * ```
+         *
+         * @see DatabaseConfig
+         * @see DBConnectionPoolConfig
          */
         class DBConnectionOptions
         {
@@ -97,7 +112,24 @@ namespace cpp_dbc::config
         };
 
         /**
-         * @brief Class representing a database configuration
+         * @brief Class representing a database configuration.
+         *
+         * Holds all the parameters needed to establish a connection to a specific
+         * database instance, including host, port, credentials, and driver-specific
+         * options. Can produce a connection string and create live connections.
+         *
+         * ### Example
+         * ```cpp
+         * cpp_dbc::config::DatabaseConfig cfg("mydb", "mysql", "localhost", 3306, "testdb", "root", "pass");
+         * cfg.setOption("charset", "utf8mb4");
+         * std::string connStr = cfg.createConnectionString();
+         * // => "cpp_dbc:mysql://localhost:3306/testdb"
+         * auto conn = cfg.createDBConnection();
+         * ```
+         *
+         * @see DBConnectionOptions
+         * @see DBConnectionPoolConfig
+         * @see DatabaseConfigManager
          */
         class DatabaseConfig
         {
@@ -205,7 +237,24 @@ namespace cpp_dbc::config
         };
 
         /**
-         * @brief Class representing connection pool configuration
+         * @brief Class representing connection pool configuration.
+         *
+         * Configures the behavior of a database connection pool, including pool
+         * sizing, timeouts, validation, and transaction isolation level. Use
+         * withDatabaseConfig() to bind the pool to a specific database.
+         *
+         * ### Example
+         * ```cpp
+         * cpp_dbc::config::DatabaseConfig dbCfg("mydb", "mysql", "localhost", 3306, "testdb", "root", "pass");
+         * cpp_dbc::config::DBConnectionPoolConfig poolCfg;
+         * poolCfg.setInitialSize(5);
+         * poolCfg.setMaxSize(20);
+         * poolCfg.setValidationQuery("SELECT 1");
+         * poolCfg.withDatabaseConfig(dbCfg);
+         * ```
+         *
+         * @see DatabaseConfig
+         * @see DatabaseConfigManager
          */
         class DBConnectionPoolConfig
         {
@@ -340,7 +389,20 @@ namespace cpp_dbc::config
         };
 
         /**
-         * @brief Class representing test queries for database testing
+         * @brief Class representing test queries for database testing.
+         *
+         * Stores connection-test and driver-specific test queries used to verify
+         * database connectivity and schema operations during integration testing.
+         *
+         * ### Example
+         * ```cpp
+         * cpp_dbc::config::TestQueries queries;
+         * queries.setConnectionTest("SELECT 1");
+         * queries.setQuery("mysql", "create_table", "CREATE TABLE test (id INT)");
+         * std::string q = queries.getQuery("mysql", "create_table");
+         * ```
+         *
+         * @see DatabaseConfigManager
          */
         class TestQueries
         {
@@ -418,7 +480,26 @@ namespace cpp_dbc::config
         };
 
         /**
-         * @brief Class managing database configurations
+         * @brief Class managing database configurations.
+         *
+         * Central registry for database configurations, connection pool settings,
+         * and test queries. Provides factory methods to create connections and
+         * connection pools by configuration name.
+         *
+         * ### Example
+         * ```cpp
+         * cpp_dbc::config::DatabaseConfigManager mgr;
+         * mgr.addDatabaseConfig(dbCfg);
+         * mgr.addDBConnectionPoolConfig(poolCfg);
+         * auto conn = mgr.createDBConnection("mydb");
+         * auto pool = mgr.createDBConnectionPool("mydb", "default");
+         * auto db = mgr.getDatabaseByName("mydb");
+         * ```
+         *
+         * @see DatabaseConfig
+         * @see DBConnectionPoolConfig
+         * @see TestQueries
+         * @see YamlConfigLoader
          */
         class DatabaseConfigManager
         {

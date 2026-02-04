@@ -16,6 +16,22 @@ namespace cpp_dbc::SQLite
 {
     class SQLiteDBConnection; // Forward declaration for friend
 
+    /**
+     * @brief SQLite prepared statement implementation
+     *
+     * Concrete RelationalDBPreparedStatement for SQLite.
+     * Uses sqlite3_prepare_v2, sqlite3_bind_*, and sqlite3_step APIs.
+     *
+     * ```cpp
+     * auto stmt = conn->prepareStatement("INSERT INTO users (name, age) VALUES (?, ?)");
+     * stmt->setString(1, "Alice");
+     * stmt->setInt(2, 30);
+     * stmt->executeUpdate();
+     * stmt->close();
+     * ```
+     *
+     * @see SQLiteDBConnection, SQLiteDBResultSet
+     */
     class SQLiteDBPreparedStatement final : public RelationalDBPreparedStatement
     {
         friend class SQLiteDBConnection;

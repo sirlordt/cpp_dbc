@@ -30,7 +30,16 @@
 
 namespace cpp_dbc
 {
-    // Base implementation of InputStream that reads from a memory buffer
+    /**
+     * @brief InputStream implementation that reads from a memory buffer
+     *
+     * ```cpp
+     * std::vector<uint8_t> data = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
+     * auto stream = std::make_shared<cpp_dbc::MemoryInputStream>(data);
+     * uint8_t buf[5];
+     * int bytesRead = stream->read(buf, 5);
+     * ```
+     */
     class MemoryInputStream : public InputStream
     {
     private:
@@ -63,7 +72,16 @@ namespace cpp_dbc
         }
     };
 
-    // Base implementation of OutputStream that writes to a memory buffer
+    /**
+     * @brief OutputStream implementation that writes to a memory buffer
+     *
+     * ```cpp
+     * std::vector<uint8_t> data;
+     * auto stream = std::make_shared<cpp_dbc::MemoryOutputStream>(data, 0);
+     * uint8_t buf[] = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
+     * stream->write(buf, 5); // data now contains "Hello"
+     * ```
+     */
     class MemoryOutputStream : public OutputStream
     {
     private:
@@ -96,7 +114,18 @@ namespace cpp_dbc
         }
     };
 
-    // Base implementation of InputStream that reads from a file
+    /**
+     * @brief InputStream implementation that reads from a file
+     *
+     * ```cpp
+     * auto stream = std::make_shared<cpp_dbc::FileInputStream>("/path/to/file.bin");
+     * uint8_t buf[1024];
+     * int bytesRead = stream->read(buf, sizeof(buf));
+     * stream->close();
+     * ```
+     *
+     * @throws DBException if the file cannot be opened
+     */
     class FileInputStream : public InputStream
     {
     private:
@@ -130,7 +159,19 @@ namespace cpp_dbc
         }
     };
 
-    // Base implementation of OutputStream that writes to a file
+    /**
+     * @brief OutputStream implementation that writes to a file
+     *
+     * ```cpp
+     * auto stream = std::make_shared<cpp_dbc::FileOutputStream>("/path/to/output.bin");
+     * uint8_t buf[] = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
+     * stream->write(buf, 5);
+     * stream->flush();
+     * stream->close();
+     * ```
+     *
+     * @throws DBException if the file cannot be opened
+     */
     class FileOutputStream : public OutputStream
     {
     private:
@@ -162,7 +203,18 @@ namespace cpp_dbc
         }
     };
 
-    // Base implementation of Blob that stores data in memory
+    /**
+     * @brief Blob implementation that stores binary data in memory
+     *
+     * ```cpp
+     * std::vector<uint8_t> data = {0x01, 0x02, 0x03};
+     * cpp_dbc::MemoryBlob blob(data);
+     * auto bytes = blob.getBytes(0, blob.length());
+     * auto stream = blob.getBinaryStream();
+     * ```
+     *
+     * @see InputStream, OutputStream
+     */
     class MemoryBlob : public Blob
     {
     protected:

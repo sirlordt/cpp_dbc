@@ -244,6 +244,10 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Catch specific exception types (e.g., `DBException`) instead of generic `std::exception`
   - Use `explicit` keyword for single-argument constructors
   - Avoid redundant member initializations when already initialized at declaration
+- Doxygen API documentation:
+  - All public headers include `/** @brief ... */` documentation blocks with inline code examples
+  - `@param`, `@return`, `@throws`, `@see` tags for cross-referencing
+  - Ready for Doxygen HTML/PDF generation
 - SonarCloud static analysis integration:
   - Configuration in `.sonarcloud.properties`
   - Documented rule exclusions for intentional patterns

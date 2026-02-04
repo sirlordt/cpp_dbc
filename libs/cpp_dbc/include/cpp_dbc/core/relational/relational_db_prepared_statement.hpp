@@ -39,8 +39,32 @@ namespace cpp_dbc
     /**
      * @brief Abstract class for relational database prepared statements
      *
-     * This class provides the interface for prepared SQL statements with
-     * parameter binding and execution capabilities.
+     * Prepared statements allow binding typed parameters to SQL placeholders ('?')
+     * and executing the statement efficiently, potentially multiple times with
+     * different parameter values. Parameter indices are **1-based**.
+     *
+     * ```cpp
+     * // Query with parameters
+     * auto stmt = conn->prepareStatement("SELECT * FROM users WHERE age > ? AND name LIKE ?");
+     * stmt->setInt(1, 21);
+     * stmt->setString(2, "%Smith%");
+     * auto rs = stmt->executeQuery();
+     * while (rs->next()) {
+     *     std::cout << rs->getString("name") << std::endl;
+     * }
+     * stmt->close();
+     * ```
+     *
+     * ```cpp
+     * // Insert with various types
+     * auto stmt = conn->prepareStatement(
+     *     "INSERT INTO products (name, price, stock, created) VALUES (?, ?, ?, ?)");
+     * stmt->setString(1, "Widget");
+     * stmt->setDouble(2, 29.99);
+     * stmt->setInt(3, 100);
+     * stmt->setTimestamp(4, "2025-01-15 10:30:00");
+     * stmt->executeUpdate();
+     * ```
      *
      * Implementations: MySQLDBPreparedStatement, PostgreSQLDBPreparedStatement,
      *                  SQLiteDBPreparedStatement, FirebirdDBPreparedStatement
@@ -50,39 +74,228 @@ namespace cpp_dbc
     public:
         virtual ~RelationalDBPreparedStatement() = default;
 
+        // ====================================================================
         // Parameter binding (1-based index)
+        // ====================================================================
+
+        /**
+         * @brief Bind an integer value to a parameter
+         * @param parameterIndex The parameter position (1-based)
+         * @param value The integer value
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("INSERT INTO users (age) VALUES (?)");
+         * stmt->setInt(1, 30);
+         * stmt->executeUpdate();
+         * ```
+         */
         virtual void setInt(int parameterIndex, int value) = 0;
+
+        /**
+         * @brief Bind a long value to a parameter
+         * @param parameterIndex The parameter position (1-based)
+         * @param value The long value
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("INSERT INTO logs (timestamp_ms) VALUES (?)");
+         * stmt->setLong(1, 9876543210L);
+         * stmt->executeUpdate();
+         * ```
+         */
         virtual void setLong(int parameterIndex, long value) = 0;
+
+        /**
+         * @brief Bind a double value to a parameter
+         * @param parameterIndex The parameter position (1-based)
+         * @param value The double value
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("UPDATE products SET price = ? WHERE id = ?");
+         * stmt->setDouble(1, 29.99);
+         * stmt->setInt(2, 42);
+         * ```
+         */
         virtual void setDouble(int parameterIndex, double value) = 0;
+
+        /**
+         * @brief Bind a string value to a parameter
+         * @param parameterIndex The parameter position (1-based)
+         * @param value The string value
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("SELECT * FROM users WHERE name = ?");
+         * stmt->setString(1, "Alice");
+         * auto rs = stmt->executeQuery();
+         * ```
+         */
         virtual void setString(int parameterIndex, const std::string &value) = 0;
+
+        /**
+         * @brief Bind a boolean value to a parameter
+         * @param parameterIndex The parameter position (1-based)
+         * @param value The boolean value
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("UPDATE users SET active = ? WHERE id = ?");
+         * stmt->setBoolean(1, true);
+         * stmt->setInt(2, 42);
+         * ```
+         */
         virtual void setBoolean(int parameterIndex, bool value) = 0;
+
+        /**
+         * @brief Set a parameter to SQL NULL
+         * @param parameterIndex The parameter position (1-based)
+         * @param type The SQL type of the parameter (for driver compatibility)
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("UPDATE users SET email = ? WHERE id = ?");
+         * stmt->setNull(1, cpp_dbc::Types::VARCHAR);
+         * stmt->setInt(2, 42);
+         * ```
+         */
         virtual void setNull(int parameterIndex, Types type) = 0;
+
+        /**
+         * @brief Bind a date string to a parameter (format: "YYYY-MM-DD")
+         * @param parameterIndex The parameter position (1-based)
+         * @param value The date string
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("INSERT INTO events (event_date) VALUES (?)");
+         * stmt->setDate(1, "2025-01-15");
+         * stmt->executeUpdate();
+         * ```
+         */
         virtual void setDate(int parameterIndex, const std::string &value) = 0;
+
+        /**
+         * @brief Bind a timestamp string to a parameter (format: "YYYY-MM-DD HH:MM:SS")
+         * @param parameterIndex The parameter position (1-based)
+         * @param value The timestamp string
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("INSERT INTO logs (created_at) VALUES (?)");
+         * stmt->setTimestamp(1, "2025-01-15 10:30:00");
+         * stmt->executeUpdate();
+         * ```
+         */
         virtual void setTimestamp(int parameterIndex, const std::string &value) = 0;
 
+        // ====================================================================
         // BLOB support methods
+        // ====================================================================
+
+        /**
+         * @brief Bind a BLOB object to a parameter
+         * @param parameterIndex The parameter position (1-based)
+         * @param x The BLOB object
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto blob = std::make_shared<cpp_dbc::MemoryBlob>(data);
+         * stmt->setBlob(1, blob);
+         * ```
+         */
         virtual void setBlob(int parameterIndex, std::shared_ptr<Blob> x) = 0;
+
+        /**
+         * @brief Bind a binary input stream to a parameter
+         * @param parameterIndex The parameter position (1-based)
+         * @param x The input stream to read binary data from
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto stream = std::make_shared<cpp_dbc::FileInputStream>("/path/to/file.bin");
+         * stmt->setBinaryStream(1, stream);
+         * ```
+         */
         virtual void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x) = 0;
+
+        /**
+         * @brief Bind a binary input stream with explicit length to a parameter
+         * @param parameterIndex The parameter position (1-based)
+         * @param x The input stream
+         * @param length The number of bytes to read from the stream
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto stream = std::make_shared<cpp_dbc::FileInputStream>("/path/to/file.bin");
+         * stmt->setBinaryStream(1, stream, 4096);
+         * ```
+         */
         virtual void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length) = 0;
+
+        /**
+         * @brief Bind raw bytes to a parameter
+         * @param parameterIndex The parameter position (1-based)
+         * @param x The byte vector
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * std::vector<uint8_t> data = {0x01, 0x02, 0x03};
+         * stmt->setBytes(1, data);
+         * ```
+         */
         virtual void setBytes(int parameterIndex, const std::vector<uint8_t> &x) = 0;
+
+        /**
+         * @brief Bind raw bytes from a pointer to a parameter
+         * @param parameterIndex The parameter position (1-based)
+         * @param x Pointer to the byte data
+         * @param length Number of bytes
+         * @throws DBException if the index is invalid
+         */
         virtual void setBytes(int parameterIndex, const uint8_t *x, size_t length) = 0;
 
+        // ====================================================================
         // Execution
+        // ====================================================================
+
         /**
-         * @brief Execute a SELECT query
+         * @brief Execute this prepared statement as a SELECT query
+         *
          * @return A result set containing the query results
+         * @throws DBException if execution fails
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("SELECT name FROM users WHERE id = ?");
+         * stmt->setInt(1, 42);
+         * auto rs = stmt->executeQuery();
+         * if (rs->next()) {
+         *     std::cout << rs->getString("name") << std::endl;
+         * }
+         * ```
          */
         virtual std::shared_ptr<RelationalDBResultSet> executeQuery() = 0;
 
         /**
-         * @brief Execute an INSERT, UPDATE, or DELETE statement
+         * @brief Execute this prepared statement as an INSERT, UPDATE, or DELETE
+         *
          * @return The number of affected rows
+         * @throws DBException if execution fails
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("UPDATE users SET active = ? WHERE id = ?");
+         * stmt->setBoolean(1, false);
+         * stmt->setInt(2, 42);
+         * uint64_t affected = stmt->executeUpdate();
+         * ```
          */
         virtual uint64_t executeUpdate() = 0;
 
         /**
          * @brief Execute any SQL statement
          * @return true if the result is a result set, false if it's an update count
+         * @throws DBException if execution fails
          */
         virtual bool execute() = 0;
 

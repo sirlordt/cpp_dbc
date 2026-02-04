@@ -1,6 +1,6 @@
 # CPPDBC - C++ Database Connectivity Library
 
-This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, and Redis databases using a unified interface. The library includes connection pooling for all database types (relational, document, columnar, and key-value), transaction management with different isolation levels, support for YAML configuration, enhanced stack trace capabilities with libdw, and comprehensive benchmarking capabilities for all supported database types.
+This document contains information about the CPPDBC library, inspired by JDBC but for C++. It allows you to connect and work with MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, and Redis databases using a unified interface. The library includes connection pooling for all database types (relational, document, columnar, and key-value), transaction management with different isolation levels, support for YAML configuration, enhanced stack trace capabilities with libdw, comprehensive benchmarking capabilities for all supported database types, and Doxygen-compatible API documentation with inline code examples across all public headers.
 
 ## File Structure
 

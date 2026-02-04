@@ -12,6 +12,25 @@ namespace cpp_dbc::PostgreSQL
 {
     class PostgreSQLDBConnection;
 
+    /**
+     * @brief PostgreSQL prepared statement implementation
+     *
+     * Concrete RelationalDBPreparedStatement for PostgreSQL.
+     * Uses server-side prepared statements via PQprepare/PQexecPrepared.
+     *
+     * ```cpp
+     * auto stmt = conn->prepareStatement("INSERT INTO users (name, age) VALUES ($1, $2)");
+     * stmt->setString(1, "Alice");
+     * stmt->setInt(2, 30);
+     * stmt->executeUpdate();
+     * stmt->close();
+     * ```
+     *
+     * @note PostgreSQL uses $1, $2, ... for parameter placeholders internally,
+     *       but cpp_dbc converts ? placeholders to $N format automatically.
+     *
+     * @see PostgreSQLDBConnection, PostgreSQLDBResultSet
+     */
     class PostgreSQLDBPreparedStatement final : public RelationalDBPreparedStatement
     {
         friend class PostgreSQLDBConnection;

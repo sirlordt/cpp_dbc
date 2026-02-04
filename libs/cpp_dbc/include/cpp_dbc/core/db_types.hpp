@@ -25,42 +25,58 @@ namespace cpp_dbc
     /**
      * @brief Enum representing the type of database paradigm
      *
-     * This enum is used to categorize databases by their data model:
-     * - RELATIONAL: Traditional SQL databases (MySQL, PostgreSQL, SQLite, Firebird)
-     * - DOCUMENT: Document-oriented databases (MongoDB)
-     * - KEY_VALUE: Key-value stores (Redis)
-     * - COLUMNAR: Column-oriented databases (ClickHouse)
+     * Used by drivers to identify what kind of database they support,
+     * and by application code to determine how to cast a DBConnection.
+     *
+     * ```cpp
+     * auto driver = cpp_dbc::DriverManager::getDriver("mysql");
+     * if (driver && (*driver)->getDBType() == cpp_dbc::DBType::RELATIONAL) {
+     *     // Safe to cast connection to RelationalDBConnection
+     * }
+     * ```
      */
     enum class DBType
     {
-        RELATIONAL, ///< SQL databases with tables, rows, and columns
-        DOCUMENT,   ///< Document databases storing JSON/BSON documents
-        KEY_VALUE,  ///< Key-value stores for simple data access
-        COLUMNAR    ///< Column-oriented databases for analytics
+        RELATIONAL, ///< SQL databases with tables, rows, and columns (MySQL, PostgreSQL, SQLite, Firebird)
+        DOCUMENT,   ///< Document databases storing JSON/BSON documents (MongoDB)
+        KEY_VALUE,  ///< Key-value stores for simple data access (Redis)
+        COLUMNAR    ///< Column-oriented databases for analytics (ScyllaDB, Cassandra)
     };
 
     /**
-     * @brief Represents a SQL parameter type for relational databases
+     * @brief SQL parameter types for use with setNull() in prepared statements
+     *
+     * ```cpp
+     * auto stmt = conn->prepareStatement("INSERT INTO t (a, b) VALUES (?, ?)");
+     * stmt->setString(1, "hello");
+     * stmt->setNull(2, cpp_dbc::Types::INTEGER);
+     * stmt->executeUpdate();
+     * ```
      */
     enum class Types
     {
-        INTEGER,
-        FLOAT,
-        DOUBLE,
-        VARCHAR,
-        DATE,
-        TIMESTAMP,
-        BOOLEAN,
-        BLOB,
-        UUID,
-        CHAR
+        INTEGER,   ///< Integer numeric type
+        FLOAT,     ///< Single-precision floating point
+        DOUBLE,    ///< Double-precision floating point
+        VARCHAR,   ///< Variable-length string
+        DATE,      ///< Date (YYYY-MM-DD)
+        TIMESTAMP, ///< Timestamp (YYYY-MM-DD HH:MM:SS)
+        BOOLEAN,   ///< Boolean (true/false)
+        BLOB,      ///< Binary large object
+        UUID,      ///< Universally unique identifier
+        CHAR       ///< Fixed-length character
     };
 
     /**
      * @brief Transaction isolation levels (following JDBC standard)
      *
-     * These levels define the degree to which one transaction must be isolated
-     * from resource or data modifications made by other transactions.
+     * Controls the degree of isolation between concurrent transactions.
+     * Higher isolation prevents more anomalies but may reduce concurrency.
+     *
+     * ```cpp
+     * conn->setTransactionIsolation(
+     *     cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
+     * ```
      */
     enum class TransactionIsolationLevel
     {

@@ -37,7 +37,27 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Driver Header Split Refactoring — One-Class-Per-File** (2026-02-03 14:58:04 PST):
+1. **Comprehensive Doxygen API Documentation for All Public Headers** (2026-02-04 00:41:38 PST):
+   - **Documentation Enhancement (64 header files, 2,384 insertions):**
+     - Added Doxygen-compatible `/** @brief ... */` documentation blocks to all public header files
+     - Replaced simple `//` comments with structured Doxygen documentation across the entire API surface
+     - Added inline ```` ```cpp ```` usage examples to all major classes and methods
+     - Added `@param`, `@return`, `@throws`, `@see` tags for cross-referencing
+     - Added section separator comments for improved readability
+   - **Scope of Documentation:**
+     - Core interfaces: blob.hpp, streams.hpp, system_utils.hpp, db_connection.hpp, db_driver.hpp, db_exception.hpp, db_expected.hpp, db_result_set.hpp, db_types.hpp, cpp_dbc.hpp, transaction_manager.hpp
+     - Configuration: database_config.hpp, yaml_config_loader.hpp
+     - Relational interfaces: relational_db_connection.hpp, relational_db_prepared_statement.hpp, relational_db_result_set.hpp
+     - Columnar interfaces: columnar_db_connection.hpp, columnar_db_prepared_statement.hpp, columnar_db_result_set.hpp
+     - Document interfaces: all document_db_*.hpp files
+     - KV interfaces: all kv_db_*.hpp files
+     - All 7 driver header subfolders (mysql, postgresql, sqlite, firebird, mongodb, scylladb, redis)
+   - **Benefits:**
+     - IDE tooltip support — hover over any class or method to see documentation
+     - Doxygen-ready — can generate HTML/PDF API reference
+     - Self-documenting API with inline code examples
+
+1a. **Driver Header Split Refactoring — One-Class-Per-File** (2026-02-03 14:58:04 PST):
    - **Header File Reorganization:**
      - Split all 7 multi-class `driver_*.hpp` files into individual per-class `.hpp` files in driver subfolders
      - Original `driver_*.hpp` files now serve as pure aggregator headers with only `#include` directives

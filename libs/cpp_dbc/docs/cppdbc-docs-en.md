@@ -1,6 +1,6 @@
 # CPP_DBC Library Documentation
 
-This document provides a comprehensive guide to the CPP_DBC library, a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, SQLite, Firebird SQL, MongoDB, ScyllaDB, and Redis databases.
+This document provides a comprehensive guide to the CPP_DBC library, a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, SQLite, Firebird SQL, MongoDB, ScyllaDB, and Redis databases. All public header files include Doxygen-compatible `/** @brief ... */` documentation with inline code examples, `@param`/`@return`/`@see` tags, and are ready for HTML/PDF API reference generation.
 
 ## Table of Contents
 - [Core Components](#core-components)

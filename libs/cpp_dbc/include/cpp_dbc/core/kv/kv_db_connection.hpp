@@ -37,35 +37,64 @@ namespace cpp_dbc
     class KVDBData;
 
     /**
-     * @brief Abstract class for key-value database connections
+     * @brief Abstract class for key-value database connections (Redis, etc.)
      *
-     * This class extends DBConnection with methods specific to key-value stores.
-     * It provides CRUD operations for keys and values, as well as methods for
-     * working with different data types and structures supported by the underlying
-     * key-value store.
+     * Provides CRUD operations for keys and values, plus data structure operations
+     * (lists, hashes, sets, sorted sets) and server management.
      *
-     * Implementations: RedisConnection, etc.
+     * ```cpp
+     * auto conn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(
+     *     cpp_dbc::DriverManager::getDBConnection("redis://localhost:6379", "", ""));
+     * conn->setString("user:1:name", "Alice", 3600);  // expires in 1 hour
+     * std::string name = conn->getString("user:1:name");
+     * conn->hashSet("user:1", "email", "alice@test.com");
+     * conn->hashSet("user:1", "age", "30");
+     * auto fields = conn->hashGetAll("user:1");  // {"email": "...", "age": "30"}
+     * conn->listPushRight("queue:tasks", "task_42");
+     * conn->close();
+     * ```
+     *
+     * Implementations: RedisConnection
+     *
+     * @see DBConnection, KVDBData
      */
     class KVDBConnection : public DBConnection
     {
     public:
         ~KVDBConnection() override = default;
 
+        // ====================================================================
         // Basic key-value operations
+        // ====================================================================
+
         /**
          * @brief Set a key to a string value
+         *
          * @param key The key
          * @param value The string value
          * @param expirySeconds Optional expiration time in seconds
          * @return true if the operation was successful
+         *
+         * ```cpp
+         * conn->setString("session:abc", "{\"userId\": 42}", 1800);  // 30 min TTL
+         * conn->setString("config:mode", "production");               // no expiry
+         * ```
          */
         virtual bool setString(const std::string &key, const std::string &value,
                                std::optional<int64_t> expirySeconds = std::nullopt) = 0;
 
         /**
          * @brief Get the string value of a key
+         *
          * @param key The key
          * @return The value as a string, or empty string if the key doesn't exist
+         *
+         * ```cpp
+         * std::string val = conn->getString("session:abc");
+         * if (!val.empty()) {
+         *     // key exists, use value
+         * }
+         * ```
          */
         virtual std::string getString(const std::string &key) = 0;
 
@@ -105,12 +134,21 @@ namespace cpp_dbc
          */
         virtual int64_t getTTL(const std::string &key) = 0;
 
+        // ====================================================================
         // Counter operations
+        // ====================================================================
+
         /**
          * @brief Increment the integer value of a key
+         *
          * @param key The key
          * @param by The increment value (default: 1)
          * @return The new value after increment
+         *
+         * ```cpp
+         * int64_t views = conn->increment("page:home:views");       // +1
+         * int64_t score = conn->increment("player:1:score", 100);   // +100
+         * ```
          */
         virtual int64_t increment(const std::string &key, int64_t by = 1) = 0;
 
@@ -122,12 +160,23 @@ namespace cpp_dbc
          */
         virtual int64_t decrement(const std::string &key, int64_t by = 1) = 0;
 
+        // ====================================================================
         // List operations
+        // ====================================================================
+
         /**
          * @brief Push an element to the left of a list
+         *
          * @param key The key
          * @param value The value to push
          * @return The length of the list after the push
+         *
+         * ```cpp
+         * conn->listPushRight("queue:emails", "msg_001");
+         * conn->listPushRight("queue:emails", "msg_002");
+         * std::string next = conn->listPopLeft("queue:emails");  // "msg_001"
+         * auto all = conn->listRange("queue:emails", 0, -1);     // all elements
+         * ```
          */
         virtual int64_t listPushLeft(const std::string &key, const std::string &value) = 0;
 
@@ -169,13 +218,24 @@ namespace cpp_dbc
          */
         virtual int64_t listLength(const std::string &key) = 0;
 
+        // ====================================================================
         // Hash operations
+        // ====================================================================
+
         /**
          * @brief Set a field in a hash
+         *
          * @param key The key of the hash
          * @param field The field to set
          * @param value The value to set
          * @return true if field is a new field in the hash and value was set
+         *
+         * ```cpp
+         * conn->hashSet("user:1", "name", "Alice");
+         * conn->hashSet("user:1", "email", "alice@test.com");
+         * std::string name = conn->hashGet("user:1", "name");  // "Alice"
+         * auto all = conn->hashGetAll("user:1");  // map of all fields
+         * ```
          */
         virtual bool hashSet(const std::string &key, const std::string &field, const std::string &value) = 0;
 
@@ -217,12 +277,23 @@ namespace cpp_dbc
          */
         virtual int64_t hashLength(const std::string &key) = 0;
 
+        // ====================================================================
         // Set operations
+        // ====================================================================
+
         /**
          * @brief Add a member to a set
+         *
          * @param key The key of the set
          * @param member The member to add
          * @return true if the member was added (didn't already exist)
+         *
+         * ```cpp
+         * conn->setAdd("tags:article:1", "cpp");
+         * conn->setAdd("tags:article:1", "database");
+         * bool has = conn->setIsMember("tags:article:1", "cpp");  // true
+         * auto tags = conn->setMembers("tags:article:1");          // {"cpp", "database"}
+         * ```
          */
         virtual bool setAdd(const std::string &key, const std::string &member) = 0;
 
@@ -256,13 +327,24 @@ namespace cpp_dbc
          */
         virtual int64_t setSize(const std::string &key) = 0;
 
+        // ====================================================================
         // Sorted set operations
+        // ====================================================================
+
         /**
          * @brief Add a member with score to a sorted set
+         *
          * @param key The key of the sorted set
          * @param score The score
          * @param member The member
          * @return true if the member was added or its score was updated
+         *
+         * ```cpp
+         * conn->sortedSetAdd("leaderboard", 1500.0, "player_a");
+         * conn->sortedSetAdd("leaderboard", 2100.0, "player_b");
+         * auto top = conn->sortedSetRange("leaderboard", 0, 9);  // top 10
+         * auto score = conn->sortedSetScore("leaderboard", "player_a");  // 1500.0
+         * ```
          */
         virtual bool sortedSetAdd(const std::string &key, double score, const std::string &member) = 0;
 
@@ -298,21 +380,41 @@ namespace cpp_dbc
          */
         virtual int64_t sortedSetSize(const std::string &key) = 0;
 
+        // ====================================================================
         // Key scan operations
+        // ====================================================================
+
         /**
          * @brief Scan keys matching a pattern
+         *
          * @param pattern The pattern to match (e.g., "user:*")
          * @param count The hint for number of keys to scan per iteration
          * @return Vector of keys matching the pattern
+         *
+         * ```cpp
+         * auto userKeys = conn->scanKeys("user:*", 100);
+         * for (const auto &key : userKeys) {
+         *     std::cout << key << ": " << conn->getString(key) << std::endl;
+         * }
+         * ```
          */
         virtual std::vector<std::string> scanKeys(const std::string &pattern, int64_t count = 10) = 0;
 
+        // ====================================================================
         // Server operations
+        // ====================================================================
+
         /**
          * @brief Execute a server command
+         *
          * @param command The command name
          * @param args The command arguments
          * @return The command result as a string
+         *
+         * ```cpp
+         * std::string result = conn->executeCommand("INFO", {"memory"});
+         * std::string pong = conn->ping();  // "PONG"
+         * ```
          */
         virtual std::string executeCommand(const std::string &command,
                                            const std::vector<std::string> &args = {}) = 0;

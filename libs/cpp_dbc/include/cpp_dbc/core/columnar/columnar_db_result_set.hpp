@@ -38,82 +38,117 @@ namespace cpp_dbc
     /**
      * @brief Abstract class for columnar database result sets
      *
-     * This class extends DBResultSet with methods specific to columnar databases.
-     * While columnar databases store data by column, result sets are typically
-     * iterated by row for application consumption.
+     * Extends DBResultSet with columnar-specific types (UUID, date, timestamp).
+     * Column access is available by 1-based index or by column name.
      *
-     * Implementations: ClickHouseResultSet, ScyllaDBResultSet, CassandraResultSet
+     * ```cpp
+     * auto rs = conn->executeQuery("SELECT id, name, created_at FROM users");
+     * while (rs->next()) {
+     *     std::string uuid = rs->getUUID("id");
+     *     std::string name = rs->getString("name");
+     *     std::string ts   = rs->getTimestamp("created_at");
+     *     if (!rs->isNull("name")) {
+     *         std::cout << uuid << ": " << name << " (" << ts << ")" << std::endl;
+     *     }
+     * }
+     * ```
+     *
+     * Implementations: ScyllaDBResultSet, CassandraResultSet
+     *
+     * @see ColumnarDBConnection, ColumnarDBPreparedStatement
      */
     class ColumnarDBResultSet : public DBResultSet
     {
     public:
         ~ColumnarDBResultSet() override = default;
 
+        // ====================================================================
         // Row navigation
+        // ====================================================================
+
         /**
          * @brief Move to the next row in the result set
          * @return true if there is a next row, false if at end
          */
         virtual bool next() = 0;
 
-        /**
-         * @brief Check if cursor is before the first row
-         * @return true if before first row
-         */
+        /** @brief Check if cursor is before the first row */
         virtual bool isBeforeFirst() = 0;
 
-        /**
-         * @brief Check if cursor is after the last row
-         * @return true if after last row
-         */
+        /** @brief Check if cursor is after the last row */
         virtual bool isAfterLast() = 0;
 
-        /**
-         * @brief Get the current row number (1-based)
-         * @return The current row number
-         */
+        /** @brief Get the current row number (1-based) */
         virtual uint64_t getRow() = 0;
 
+        // ====================================================================
         // Typed column access by index (1-based)
+        // ====================================================================
+
+        /** @brief Get an integer column value by 1-based index */
         virtual int getInt(size_t columnIndex) = 0;
+        /** @brief Get a long integer column value by 1-based index */
         virtual long getLong(size_t columnIndex) = 0;
+        /** @brief Get a double column value by 1-based index */
         virtual double getDouble(size_t columnIndex) = 0;
+        /** @brief Get a string column value by 1-based index */
         virtual std::string getString(size_t columnIndex) = 0;
+        /** @brief Get a boolean column value by 1-based index */
         virtual bool getBoolean(size_t columnIndex) = 0;
+        /** @brief Check if a column value is NULL by 1-based index */
         virtual bool isNull(size_t columnIndex) = 0;
+        /** @brief Get a UUID column value as string by 1-based index */
         virtual std::string getUUID(size_t columnIndex) = 0;
+        /** @brief Get a date column value as ISO string by 1-based index */
         virtual std::string getDate(size_t columnIndex) = 0;
+        /** @brief Get a timestamp column value as ISO string by 1-based index */
         virtual std::string getTimestamp(size_t columnIndex) = 0;
 
+        // ====================================================================
         // Typed column access by name
+        // ====================================================================
+
+        /** @brief Get an integer column value by name */
         virtual int getInt(const std::string &columnName) = 0;
+        /** @brief Get a long integer column value by name */
         virtual long getLong(const std::string &columnName) = 0;
+        /** @brief Get a double column value by name */
         virtual double getDouble(const std::string &columnName) = 0;
+        /** @brief Get a string column value by name */
         virtual std::string getString(const std::string &columnName) = 0;
+        /** @brief Get a boolean column value by name */
         virtual bool getBoolean(const std::string &columnName) = 0;
+        /** @brief Check if a column value is NULL by name */
         virtual bool isNull(const std::string &columnName) = 0;
+        /** @brief Get a UUID column value as string by name */
         virtual std::string getUUID(const std::string &columnName) = 0;
+        /** @brief Get a date column value as ISO string by name */
         virtual std::string getDate(const std::string &columnName) = 0;
+        /** @brief Get a timestamp column value as ISO string by name */
         virtual std::string getTimestamp(const std::string &columnName) = 0;
 
+        // ====================================================================
         // Metadata
-        /**
-         * @brief Get the names of all columns in the result set
-         * @return Vector of column names
-         */
+        // ====================================================================
+
+        /** @brief Get the names of all columns in the result set */
         virtual std::vector<std::string> getColumnNames() = 0;
 
-        /**
-         * @brief Get the number of columns in the result set
-         * @return Number of columns
-         */
+        /** @brief Get the number of columns in the result set */
         virtual size_t getColumnCount() = 0;
 
-        // BLOB/Binary support methods
+        // ====================================================================
+        // BLOB/Binary support
+        // ====================================================================
+
+        /** @brief Get a binary column as an InputStream by 1-based index */
         virtual std::shared_ptr<InputStream> getBinaryStream(size_t columnIndex) = 0;
+        /** @brief Get a binary column as an InputStream by name */
         virtual std::shared_ptr<InputStream> getBinaryStream(const std::string &columnName) = 0;
 
+        /** @brief Get a binary column as a byte vector by 1-based index */
         virtual std::vector<uint8_t> getBytes(size_t columnIndex) = 0;
+        /** @brief Get a binary column as a byte vector by name */
         virtual std::vector<uint8_t> getBytes(const std::string &columnName) = 0;
 
         // ====================================================================

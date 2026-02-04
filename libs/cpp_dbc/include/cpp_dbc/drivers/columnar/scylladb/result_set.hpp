@@ -35,6 +35,26 @@
 
 namespace cpp_dbc::ScyllaDB
 {
+        /**
+         * @brief ScyllaDB result set implementation
+         *
+         * Concrete ColumnarDBResultSet for ScyllaDB/Cassandra queries.
+         * Wraps CassResult and provides row-by-row iteration with typed
+         * column accessors. The result data is fetched into client memory,
+         * so the result set remains valid even if the connection is closed.
+         *
+         * ```cpp
+         * auto rs = conn->executeQuery("SELECT id, name, age FROM users");
+         * while (rs->next()) {
+         *     auto uuid = rs->getUUID("id");
+         *     auto name = rs->getString("name");
+         *     auto age  = rs->getInt("age");
+         * }
+         * rs->close();
+         * ```
+         *
+         * @see ScyllaDBConnection, ScyllaDBPreparedStatement
+         */
         class ScyllaDBResultSet final : public cpp_dbc::ColumnarDBResultSet
         {
         private:

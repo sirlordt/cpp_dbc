@@ -1,6 +1,6 @@
 # Documentación de la Biblioteca CPP_DBC
 
-Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB y Redis.
+Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB y Redis. Todos los archivos de encabezado publicos incluyen documentacion compatible con Doxygen (`/** @brief ... */`) con ejemplos de codigo en linea, etiquetas `@param`/`@return`/`@see`, y estan listos para la generacion de referencias de API en HTML/PDF.
 
 ## Tabla de Contenidos
 - [Componentes Principales](#componentes-principales)

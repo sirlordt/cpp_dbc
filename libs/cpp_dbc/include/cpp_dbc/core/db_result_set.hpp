@@ -25,14 +25,20 @@ namespace cpp_dbc
     /**
      * @brief Abstract base class for all database result sets
      *
-     * This is the root of the result set hierarchy. All database paradigms
-     * (relational, document, key-value, columnar) derive their result set
-     * classes from this base class.
+     * Base class for paradigm-specific result sets. Use the appropriate subclass
+     * (RelationalDBResultSet, ColumnarDBResultSet, etc.) for typed data access.
      *
-     * The base class provides only the most fundamental operations that
-     * are common to all database types:
-     * - close(): Release resources
-     * - isEmpty(): Check if the result set contains any data
+     * ```cpp
+     * auto relConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(conn);
+     * auto rs = relConn->executeQuery("SELECT COUNT(*) FROM users");
+     * if (!rs->isEmpty()) {
+     *     rs->next();
+     *     std::cout << "Count: " << rs->getInt(1) << std::endl;
+     * }
+     * rs->close();
+     * ```
+     *
+     * @see RelationalDBResultSet, ColumnarDBResultSet
      */
     class DBResultSet
     {
@@ -43,12 +49,12 @@ namespace cpp_dbc
          * @brief Close the result set and release associated resources
          *
          * After calling close(), the result set should not be used.
-         * Implementations should handle multiple calls to close() gracefully.
+         * Implementations handle multiple calls to close() gracefully.
          */
         virtual void close() = 0;
 
         /**
-         * @brief Check if the result set is empty
+         * @brief Check if the result set is empty (contains no rows/documents)
          *
          * @return true if the result set contains no data
          * @return false if the result set contains at least one row/document/value

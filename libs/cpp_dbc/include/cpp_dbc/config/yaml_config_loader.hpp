@@ -30,7 +30,23 @@ namespace cpp_dbc::config
 {
 
     /**
-     * @brief Class for loading database configuration from YAML files
+     * @brief Class for loading database configuration from YAML files.
+     *
+     * Parses a YAML configuration file and produces a fully populated
+     * DatabaseConfigManager containing database definitions, connection pool
+     * settings, and test queries. Requires the project to be built with
+     * `USE_CPP_YAML=1`.
+     *
+     * ### Example
+     * ```cpp
+     * auto configMgr = cpp_dbc::config::YamlConfigLoader::loadFromFile("database.yml");
+     * auto conn = configMgr.createDBConnection("mydb");
+     * auto pool = configMgr.createDBConnectionPool("mydb");
+     * ```
+     *
+     * @see DatabaseConfigManager
+     * @see DatabaseConfig
+     * @see DBConnectionPoolConfig
      */
     class YamlConfigLoader
     {

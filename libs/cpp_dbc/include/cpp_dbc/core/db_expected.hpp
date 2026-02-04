@@ -66,7 +66,14 @@ namespace cpp_dbc
     class unexpected;
 
     /**
-     * @brief Tag type for unexpected values
+     * @brief Wrapper for error values used with expected<T, E>
+     *
+     * ```cpp
+     * // Return an error from a nothrow function
+     * return cpp_dbc::unexpected(cpp_dbc::DBException("ABC123DEF456", "Something failed"));
+     * ```
+     *
+     * @tparam E The error type
      */
     template <typename E>
     class unexpected
@@ -87,7 +94,25 @@ namespace cpp_dbc
     };
 
     /**
-     * @brief Simplified expected<T, E> for non-void T
+     * @brief A value-or-error type, compatible with std::expected (C++23)
+     *
+     * Used by all nothrow API methods in cpp_dbc. Every method that has a
+     * throwing version also has a nothrow overload that takes std::nothrow
+     * as first parameter and returns expected<T, DBException>.
+     *
+     * ```cpp
+     * // Nothrow API pattern
+     * auto result = conn->executeQuery(std::nothrow, "SELECT 1");
+     * if (result.has_value()) {
+     *     auto rs = result.value();
+     *     // ... use result set ...
+     * } else {
+     *     std::cerr << result.error().what_s() << std::endl;
+     * }
+     * ```
+     *
+     * @tparam T The value type on success
+     * @tparam E The error type on failure (typically DBException)
      */
     template <typename T, typename E>
     class expected

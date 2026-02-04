@@ -30,10 +30,19 @@ namespace cpp_dbc
     /**
      * @brief Base exception class for all database-related errors
      *
-     * This exception provides:
-     * - A mark/tag to identify the source of the error
-     * - The error message
-     * - Optional call stack information for debugging
+     * Every error thrown by cpp_dbc is a DBException. It carries a unique
+     * 12-character error code (mark), a human-readable message, and an
+     * optional captured call stack for debugging.
+     *
+     * ```cpp
+     * try {
+     *     auto conn = cpp_dbc::DriverManager::getDBConnection(url, user, pass);
+     *     conn->close();
+     * } catch (const cpp_dbc::DBException &e) {
+     *     std::cerr << "Error [" << e.getMark() << "]: " << e.what_s() << std::endl;
+     *     e.printCallStack();
+     * }
+     * ```
      */
     class DBException : public std::runtime_error
     {
@@ -46,9 +55,14 @@ namespace cpp_dbc
         /**
          * @brief Construct a new DBException
          *
-         * @param mark A tag identifying the source of the error (e.g., "MySQL", "PostgreSQL")
-         * @param message The error message
-         * @param callstack Optional call stack for debugging
+         * @param mark A unique 12-character alphanumeric error code
+         * @param message The human-readable error message
+         * @param callstack Optional call stack captured via system_utils::captureCallStack()
+         *
+         * ```cpp
+         * throw cpp_dbc::DBException("7K3F9J2B5Z8D",
+         *     "Connection refused", system_utils::captureCallStack());
+         * ```
          */
         explicit DBException(const std::string &mark, const std::string &message,
                              const std::vector<system_utils::StackFrame> &callstack = {})
@@ -75,8 +89,17 @@ namespace cpp_dbc
         }
 
         /**
-         * @brief Get the error message as a string reference (safe version)
+         * @brief Get the full error message as a safe string reference
+         *
+         * Returns the mark and message combined (e.g., "7K3F9J2B5Z8D: Connection refused").
+         *
          * @return const std::string& The full error message including the mark
+         *
+         * ```cpp
+         * catch (const cpp_dbc::DBException &e) {
+         *     std::cerr << e.what_s() << std::endl;
+         * }
+         * ```
          */
         virtual const std::string &what_s() const noexcept
         {
@@ -91,7 +114,9 @@ namespace cpp_dbc
         }
 
         /**
-         * @brief Get the mark/tag identifying the error source
+         * @brief Get the unique error code identifying this error
+         *
+         * @return const std::string& The 12-character alphanumeric error code
          */
         const std::string &getMark() const
         {
@@ -99,7 +124,9 @@ namespace cpp_dbc
         }
 
         /**
-         * @brief Print the call stack to stderr
+         * @brief Print the captured call stack to stderr
+         *
+         * Only produces output if a call stack was captured at throw time.
          */
         void printCallStack() const
         {
@@ -107,7 +134,9 @@ namespace cpp_dbc
         }
 
         /**
-         * @brief Get the call stack frames
+         * @brief Get the raw call stack frames for programmatic access
+         *
+         * @return const std::vector<system_utils::StackFrame>& The captured stack frames
          */
         const std::vector<system_utils::StackFrame> &getCallStack() const
         {

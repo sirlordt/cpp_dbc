@@ -47,6 +47,7 @@ This project provides a C++ Database Connectivity library inspired by JDBC, with
 - **Conditional Compilation**: Build with only the database drivers you need
 - **Modern C++ Design**: Uses C++23 features and RAII principles
 - **Code Quality**: Comprehensive warning flags and compile-time checks for safer, more reliable code
+- **Doxygen API Documentation**: All public headers include `/** @brief ... */` documentation with inline code examples, `@param`/`@return`/`@see` tags, ready for HTML/PDF generation
 - **YAML Configuration**: Optional support for loading database configurations from YAML files
 - **BLOB Support**: Complete implementation of Binary Large Object (BLOB) support for all database drivers, including image file storage and retrieval
 - **JSON Support**: Native handling of JSON data types in MySQL and PostgreSQL with comprehensive query capabilities

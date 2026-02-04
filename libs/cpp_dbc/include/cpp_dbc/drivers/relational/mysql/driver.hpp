@@ -10,6 +10,20 @@
 
 namespace cpp_dbc::MySQL
 {
+        /**
+         * @brief MySQL database driver implementation
+         *
+         * Concrete RelationalDBDriver for MySQL/MariaDB databases.
+         * Accepts URLs in the format `cpp_dbc:mysql://host:port/database`.
+         *
+         * ```cpp
+         * auto driver = std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
+         * cpp_dbc::DriverManager::registerDriver(driver);
+         * auto conn = driver->connectRelational("cpp_dbc:mysql://localhost:3306/mydb", "root", "pass");
+         * ```
+         *
+         * @see RelationalDBDriver, MySQLDBConnection
+         */
         class MySQLDBDriver final : public RelationalDBDriver
         {
         public:
@@ -29,7 +43,14 @@ namespace cpp_dbc::MySQL
 
             bool acceptsURL(const std::string &url) override;
 
-            // Parses a JDBC-like URL: cpp_dbc:mysql://host:port/database
+            /**
+             * @brief Parse a JDBC-like URL into host, port, and database components
+             * @param url URL in format "cpp_dbc:mysql://host:port/database"
+             * @param host Output: extracted hostname
+             * @param port Output: extracted port number
+             * @param database Output: extracted database name
+             * @return true if parsing succeeded
+             */
             bool parseURL(const std::string &url,
                           std::string &host,
                           int &port,

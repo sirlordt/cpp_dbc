@@ -19,7 +19,20 @@
 namespace cpp_dbc::Firebird
 {
     /**
-     * @brief Firebird Driver implementation
+     * @brief Firebird database driver implementation
+     *
+     * Concrete RelationalDBDriver for Firebird databases.
+     * Accepts URLs in the format `cpp_dbc:firebird://host:port/path/to/database.fdb`.
+     * Supports database creation via the `createDatabase()` method.
+     *
+     * ```cpp
+     * auto driver = std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>();
+     * cpp_dbc::DriverManager::registerDriver(driver);
+     * auto conn = driver->connectRelational(
+     *     "cpp_dbc:firebird://localhost:3050/tmp/test.fdb", "SYSDBA", "masterkey");
+     * ```
+     *
+     * @see RelationalDBDriver, FirebirdDBConnection
      */
     class FirebirdDBDriver final : public RelationalDBDriver
     {

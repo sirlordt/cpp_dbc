@@ -21,7 +21,25 @@ namespace cpp_dbc::Firebird
     class FirebirdBlob;
 
     /**
-     * @brief Firebird Connection implementation
+     * @brief Firebird connection implementation
+     *
+     * Concrete RelationalDBConnection for Firebird databases.
+     * Uses the cursor-based model where result iteration communicates
+     * with the database handle on every call to next().
+     *
+     * ```cpp
+     * auto conn = std::dynamic_pointer_cast<cpp_dbc::Firebird::FirebirdDBConnection>(
+     *     cpp_dbc::DriverManager::getDBConnection(
+     *         "cpp_dbc:firebird://localhost:3050/tmp/test.fdb", "SYSDBA", "masterkey"));
+     * conn->executeUpdate("CREATE TABLE t (id INTEGER, name VARCHAR(100))");
+     * auto rs = conn->executeQuery("SELECT * FROM t");
+     * while (rs->next()) {
+     *     std::cout << rs->getString("name") << std::endl;
+     * }
+     * conn->close();
+     * ```
+     *
+     * @see FirebirdDBDriver, FirebirdDBPreparedStatement, FirebirdDBResultSet
      */
     class FirebirdDBConnection final : public RelationalDBConnection, public std::enable_shared_from_this<FirebirdDBConnection>
     {

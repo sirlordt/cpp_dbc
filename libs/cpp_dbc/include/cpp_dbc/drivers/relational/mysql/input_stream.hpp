@@ -15,7 +15,14 @@
 
 namespace cpp_dbc::MySQL
 {
-        // MySQL implementation of InputStream
+        /**
+         * @brief MySQL-specific InputStream implementation for reading BLOB data
+         *
+         * Reads from an internal byte buffer populated from MySQL query results.
+         * The buffer is copied on construction, so the source can be safely freed.
+         *
+         * @see InputStream, MySQLBlob
+         */
         class MySQLInputStream : public InputStream
         {
         private:

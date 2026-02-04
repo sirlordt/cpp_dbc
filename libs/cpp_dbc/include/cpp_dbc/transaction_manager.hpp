@@ -36,7 +36,12 @@
 namespace cpp_dbc
 {
 
-    // Structure to hold transaction state
+    /**
+     * @brief Holds the state of an active transaction
+     *
+     * Tracks the connection, creation time, last access time, and active status
+     * for a managed transaction.
+     */
     struct TransactionContext
     {
         std::shared_ptr<RelationalDBConnection> connection;
@@ -53,7 +58,25 @@ namespace cpp_dbc
         }
     };
 
-    // Transaction manager class for relational databases
+    /**
+     * @brief Manages database transactions with automatic cleanup and timeout
+     *
+     * Provides named transaction management on top of a RelationalDBConnectionPool.
+     * Transactions are identified by UUID and automatically cleaned up when they
+     * exceed the configured timeout.
+     *
+     * ```cpp
+     * cpp_dbc::TransactionManager txMgr(pool);
+     * txMgr.setTransactionTimeout(60000); // 60 seconds
+     * std::string txId = txMgr.beginTransaction();
+     * auto conn = txMgr.getTransactionDBConnection(txId);
+     * conn->executeUpdate("INSERT INTO users (name) VALUES ('Alice')");
+     * txMgr.commitTransaction(txId);
+     * txMgr.close();
+     * ```
+     *
+     * @see RelationalDBConnectionPool
+     */
     class TransactionManager
     {
     private:
@@ -79,28 +102,28 @@ namespace cpp_dbc
         explicit TransactionManager(RelationalDBConnectionPool &connectionPool);
         ~TransactionManager();
 
-        // Start a new transaction and return its ID
+        /** @brief Start a new transaction and return its UUID identifier */
         std::string beginTransaction();
 
-        // Get a connection associated with a transaction
+        /** @brief Get the connection associated with a transaction by its ID */
         std::shared_ptr<RelationalDBConnection> getTransactionDBConnection(const std::string &transactionId);
 
-        // Commit a transaction by its ID
+        /** @brief Commit a transaction by its UUID identifier */
         void commitTransaction(const std::string &transactionId);
 
-        // Rollback a transaction by its ID
+        /** @brief Rollback a transaction by its UUID identifier */
         void rollbackTransaction(const std::string &transactionId);
 
-        // Check if a transaction is active
+        /** @brief Check if a transaction is active by its UUID identifier */
         bool isTransactionActive(const std::string &transactionId);
 
-        // Get the total number of active transactions
+        /** @brief Get the total number of active transactions */
         size_t getActiveTransactionCount();
 
-        // Set transaction timeout
+        /** @brief Set the transaction timeout in milliseconds */
         void setTransactionTimeout(long timeoutMillis);
 
-        // Cleanup and shutdown
+        /** @brief Close the transaction manager and rollback all active transactions */
         void close();
     };
 

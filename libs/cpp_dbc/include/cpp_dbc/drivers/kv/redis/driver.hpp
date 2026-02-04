@@ -11,9 +11,24 @@
 namespace cpp_dbc::Redis
 {
         /**
-         * @brief Redis driver implementation
+         * @brief Redis driver implementation.
          *
-         * This class implements the KVDBDriver interface for Redis.
+         * This class implements the KVDBDriver interface for Redis,
+         * providing connection management, URI parsing, and driver
+         * registration with the DriverManager.
+         *
+         * ### Example
+         *
+         * ```cpp
+         * #include "cpp_dbc/drivers/kv/driver_redis.hpp"
+         * #include "cpp_dbc/core/driver_manager.hpp"
+         *
+         * auto driver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+         * cpp_dbc::DriverManager::registerDriver(driver);
+         * auto conn = driver->connectKV("cpp_dbc:redis://localhost:6379", "", "");
+         * auto reply = conn->ping();
+         * conn->close();
+         * ```
          */
         class RedisDriver final : public KVDBDriver
         {

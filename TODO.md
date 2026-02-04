@@ -13,6 +13,14 @@
 
 ## Completed Tasks
 
+- Comprehensive Doxygen API Documentation for All Public Headers (2026-02-04):
+  - Added Doxygen-compatible `/** @brief ... */` documentation blocks to all 64 public header files
+  - Added inline `cpp` usage examples to all major classes and methods
+  - Added `@param`, `@return`, `@throws`, `@see` tags for cross-referencing
+  - Covers: core interfaces, config layer, relational/columnar/document/KV interfaces, all 7 driver headers
+  - 64 files changed, 2,384 insertions(+), 359 deletions(-)
+  - Benefits: IDE tooltip support, Doxygen-ready, self-documenting API
+
 - Driver Header Split Refactoring — One-Class-Per-File (2026-02-03):
   - Split all 7 multi-class `driver_*.hpp` files into individual per-class `.hpp` files in driver subfolders
   - Original `driver_*.hpp` files now serve as pure aggregator headers with only `#include` directives

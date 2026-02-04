@@ -59,6 +59,7 @@ Unlike other C++ database libraries, CPP_DBC:
 6. **Provides Native JSON Support**: Unified interface for working with JSON data types
 7. **Maintains Lightweight Design**: Minimal dependencies beyond the database client libraries
 8. **Enforces High Code Quality**: Comprehensive warning flags and compile-time checks
+9. **Doxygen API Documentation**: All public headers include inline code examples and cross-references, ready for HTML/PDF generation
 
 ## Design Philosophy
 

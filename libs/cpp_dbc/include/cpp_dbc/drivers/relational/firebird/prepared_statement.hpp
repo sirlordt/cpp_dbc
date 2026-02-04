@@ -18,7 +18,20 @@ namespace cpp_dbc::Firebird
     class FirebirdDBConnection;
 
     /**
-     * @brief Firebird PreparedStatement implementation
+     * @brief Firebird prepared statement implementation
+     *
+     * Concrete RelationalDBPreparedStatement for Firebird.
+     * Uses isc_dsql_prepare/isc_dsql_execute/isc_dsql_execute2 APIs.
+     *
+     * ```cpp
+     * auto stmt = conn->prepareStatement("INSERT INTO users (name, age) VALUES (?, ?)");
+     * stmt->setString(1, "Alice");
+     * stmt->setInt(2, 30);
+     * stmt->executeUpdate();
+     * stmt->close();
+     * ```
+     *
+     * @see FirebirdDBConnection, FirebirdDBResultSet
      */
     class FirebirdDBPreparedStatement final : public RelationalDBPreparedStatement
     {

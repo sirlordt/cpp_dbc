@@ -11,6 +11,22 @@ namespace cpp_dbc::MySQL
 {
         class MySQLDBConnection; // Forward declaration for friend
 
+        /**
+         * @brief MySQL prepared statement implementation
+         *
+         * Concrete RelationalDBPreparedStatement for MySQL/MariaDB.
+         * Uses mysql_stmt_* API for parameter binding and execution.
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("INSERT INTO users (name, age) VALUES (?, ?)");
+         * stmt->setString(1, "Alice");
+         * stmt->setInt(2, 30);
+         * stmt->executeUpdate();
+         * stmt->close();
+         * ```
+         *
+         * @see MySQLDBConnection, MySQLDBResultSet
+         */
         class MySQLDBPreparedStatement final : public RelationalDBPreparedStatement
         {
             friend class MySQLDBConnection;
