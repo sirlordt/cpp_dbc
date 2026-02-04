@@ -225,7 +225,7 @@ namespace cpp_dbc::MongoDB
                 return "disabled";
             }
 
-            std::string getName() const noexcept override;
+            std::string getName() const noexcept override { return "MongoDB (disabled)"; }
         };
 
 } // namespace cpp_dbc::MongoDB

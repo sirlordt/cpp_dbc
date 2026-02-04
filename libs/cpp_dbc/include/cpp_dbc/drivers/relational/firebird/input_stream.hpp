@@ -7,6 +7,7 @@
 #endif
 
 #if USE_FIREBIRD
+#include <climits>
 #include <cstring>
 #include <vector>
 
@@ -29,10 +30,13 @@ namespace cpp_dbc::Firebird
 
             int read(uint8_t *buffer, size_t length) override
             {
+                if (buffer == nullptr && length > 0)
+                    return -1;
+
                 if (m_position >= m_data.size())
                     return -1; // End of stream
 
-                size_t bytesToRead = std::min(length, m_data.size() - m_position);
+                size_t bytesToRead = std::min({length, m_data.size() - m_position, static_cast<size_t>(INT_MAX)});
                 std::memcpy(buffer, m_data.data() + m_position, bytesToRead);
                 m_position += bytesToRead;
                 return static_cast<int>(bytesToRead);

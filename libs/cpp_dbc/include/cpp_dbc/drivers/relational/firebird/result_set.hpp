@@ -7,9 +7,13 @@
 #endif
 
 #if USE_FIREBIRD
+#include <cstdint>
 #include <map>
-#include <vector>
+#include <memory>
+#include <mutex>
+#include <new>
 #include <string>
+#include <vector>
 
 namespace cpp_dbc::Firebird
 {

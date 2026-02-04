@@ -90,9 +90,19 @@ namespace cpp_dbc::MySQL
         };
 
         // Type alias for the smart pointer managing MYSQL connection (shared_ptr for weak_ptr support)
-        // Note: When creating a MySQLHandle, pass MySQLDeleter{} as the second argument:
-        //       MySQLHandle(mysql_ptr, MySQLDeleter{})
         using MySQLHandle = std::shared_ptr<MYSQL>;
+
+        /**
+         * @brief Factory function to create a MySQLHandle with the correct deleter
+         *
+         * Ensures MySQLDeleter is always used, preventing accidental creation of
+         * a shared_ptr<MYSQL> with the default deleter (which would call delete
+         * instead of mysql_close).
+         */
+        inline MySQLHandle makeMySQLHandle(MYSQL *mysql)
+        {
+            return MySQLHandle(mysql, MySQLDeleter{});
+        }
 
 } // namespace cpp_dbc::MySQL
 

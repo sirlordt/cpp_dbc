@@ -8,9 +8,13 @@
 
 #if USE_SQLITE
 
+#include <cstdint>
 #include <map>
-#include <vector>
+#include <memory>
+#include <mutex>
+#include <new>
 #include <string>
+#include <vector>
 
 namespace cpp_dbc::SQLite
 {

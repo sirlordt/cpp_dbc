@@ -22,9 +22,9 @@
 
 #if USE_SCYLLADB
 
-#include <vector>
+#include <climits>
 #include <cstring>
-#include <algorithm>
+#include <vector>
 
 #include "cpp_dbc/core/streams.hpp"
 
@@ -41,11 +41,13 @@ namespace cpp_dbc::ScyllaDB
 
             int read(uint8_t *buffer, size_t length) override
             {
+                if (buffer == nullptr && length > 0)
+                    return -1;
+
                 if (m_position >= m_data.size())
                     return -1; // EOF
 
-                size_t remaining = m_data.size() - m_position;
-                size_t toRead = std::min(length, remaining);
+                size_t toRead = std::min({length, m_data.size() - m_position, static_cast<size_t>(INT_MAX)});
                 std::memcpy(buffer, m_data.data() + m_position, toRead);
                 m_position += toRead;
                 return static_cast<int>(toRead);
