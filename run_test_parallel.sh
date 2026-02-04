@@ -62,6 +62,15 @@ DIM='\033[2m'
 REVERSE='\033[7m'
 NC='\033[0m' # No Color
 
+# Check if terminal supports colors
+check_color_support() {
+    if [ -t 1 ] && [ -n "$TERM" ] && [ "$TERM" != "dumb" ]; then
+        return 0  # Terminal supports colors
+    else
+        return 1  # Terminal doesn't support colors
+    fi
+}
+
 # Validate that a value is a non-negative integer
 # Usage: validate_numeric "value" "parameter_name"
 # Returns 0 if valid, exits with error if invalid
@@ -298,14 +307,37 @@ do_initial_build() {
     echo "Build command: ${build_cmd[*]}"
     echo ""
 
-    # Execute build (always show output)
+    # Build log file: saved in the same log directory as the test logs
+    local build_log_file="$LOG_DIR/build.log"
+
+    echo "Build log will be saved to: $build_log_file"
+    echo ""
+
+    # Execute build with tee + process substitution to write build.log in real-time
+    # Terminal sees colored output, log file gets ANSI codes stripped on the fly
+    # Note: sed -u (unbuffered) is critical here - without it, sed uses 8KB full buffering
+    # when writing to a file, so the log appears to stop capturing after ~8KB
     cd "$SCRIPT_DIR"
-    "${build_cmd[@]}"
+    if check_color_support; then
+        unbuffer "${build_cmd[@]}" 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g; s/\x1B\[[@-~]//g; s/\r//g" > "$build_log_file")
+    else
+        "${build_cmd[@]}" 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g; s/\x1B\[[@-~]//g; s/\r//g" > "$build_log_file")
+    fi
+    local build_exit_code=${PIPESTATUS[0]}
+
+    # Check if build failed
+    if [ "$build_exit_code" -ne 0 ]; then
+        echo ""
+        echo -e "${RED}Build failed with exit code $build_exit_code${NC}"
+        echo -e "${RED}Build log saved to: $build_log_file${NC}"
+        exit "$build_exit_code"
+    fi
 
     BUILD_DONE=true
 
     echo ""
     echo -e "${GREEN}Build completed successfully${NC}"
+    echo "Build log saved to: $build_log_file"
     echo ""
 }
 
@@ -879,18 +911,18 @@ find_failure_lines() {
 
     # Check for Catch2 test failures with lowercase "failed" (may include ANSI codes)
     # Format: /path/file.cpp:123: [ANSI]failed[ANSI]: assertion for: expected == actual
-    grep -an "failed" "$log_file" 2>/dev/null | grep "\.cpp:" | grep -v "test case" | while IFS= read -r full_line; do
+    # Strip ANSI codes first to accurately match the Catch2 failure format
+    # and avoid false positives from passed assertions whose data contains "failed"
+    sed 's/\x1b\[[0-9;]*m//g' "$log_file" 2>/dev/null | grep -an "\.cpp:[0-9]*: failed:" | grep -v "test case" | while IFS= read -r full_line; do
         # Extract line number (everything before first colon)
         local line_num=$(echo "$full_line" | cut -d: -f1)
-        # Get the content after line number
+        # Get the content after line number (already ANSI-stripped)
         local content=$(echo "$full_line" | cut -d: -f2-)
-        # Strip ANSI codes for extraction
-        local clean_content=$(echo "$content" | sed 's/\x1b\[[0-9;]*m//g')
         # Extract the source file path and line
-        local source_info=$(echo "$clean_content" | grep -oE '[^[:space:]]+\.cpp:[0-9]+')
+        local source_info=$(echo "$content" | grep -oE '[^[:space:]]+\.cpp:[0-9]+')
         if [ -n "$source_info" ]; then
             # Also extract the assertion info after "failed:"
-            local assertion_info=$(echo "$clean_content" | sed 's/.*failed: //' | head -c 80)
+            local assertion_info=$(echo "$content" | sed 's/.*failed: //' | head -c 80)
             echo "${line_num}|Test FAILED|${source_info}: ${assertion_info}"
         fi
     done
@@ -955,7 +987,7 @@ display_detailed_summary() {
     # Process each prefix
     for prefix in "${ALL_PREFIXES[@]}"; do
         local prefix_status="${PREFIX_STATUS[$prefix]}"
-        local total_runs=${PREFIX_CURRENT_RUN[$prefix]}
+        local total_runs=${PREFIX_CURRENT_RUN[$prefix]:-0}
 
         # Skip if no runs were done
         if [ "$total_runs" -eq 0 ]; then
@@ -1136,6 +1168,10 @@ discover_prefixes_from_logs() {
         [ -f "$log_file" ] || continue
 
         local basename=$(basename "$log_file")
+        # Skip files that don't match the expected PREFIX_RUNXX.log pattern
+        # (e.g., build.log should be skipped)
+        [[ "$basename" =~ _RUN[0-9] ]] || continue
+
         # Extract prefix (everything before _RUN)
         local prefix=$(echo "$basename" | sed 's/_RUN.*//')
         # Extract run number (portable sed instead of grep -oP)
@@ -1242,7 +1278,7 @@ run_summarize_mode() {
 
     for prefix in "${ALL_PREFIXES[@]}"; do
         local status="${PREFIX_STATUS[$prefix]}"
-        local runs=$((10#${PREFIX_CURRENT_RUN[$prefix]}))
+        local runs=$((10#${PREFIX_CURRENT_RUN[$prefix]:-0}))
 
         # Check for skipped tests in all log files for this prefix
         local skipped_info=""

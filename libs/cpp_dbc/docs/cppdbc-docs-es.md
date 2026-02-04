@@ -1,6 +1,6 @@
 # Documentación de la Biblioteca CPP_DBC
 
-Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB y Redis. Todos los archivos de encabezado publicos incluyen documentacion compatible con Doxygen (`/** @brief ... */`) con ejemplos de codigo en linea, etiquetas `@param`/`@return`/`@see`, y estan listos para la generacion de referencias de API en HTML/PDF.
+Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB y Redis. Todos los archivos de encabezado públicos incluyen documentación compatible con Doxygen (`/** @brief ... */`) con ejemplos de código en línea, etiquetas `@param`/`@return`/`@see`, y están listos para la generación de referencias de API en HTML/PDF.
 
 ## Tabla de Contenidos
 - [Componentes Principales](#componentes-principales)
@@ -94,7 +94,7 @@ Una clase base abstracta que representa un conjunto de resultados de una consult
 - `isAfterLast()`: Devuelve true si el cursor está después de la última fila.
 - `getRow()`: Devuelve el número de fila actual.
 - `getInt(int/string)`: Recupera el valor de la columna designada como un entero.
-- `getLong(int/string)`: Recupera el valor de la columna designada como un long.
+- `getLong(int/string)`: Recupera el valor de la columna designada como un int64_t (portable en todas las plataformas).
 - `getDouble(int/string)`: Recupera el valor de la columna designada como un double.
 - `getString(int/string)`: Recupera el valor de la columna designada como una cadena.
 - `getBoolean(int/string)`: Recupera el valor de la columna designada como un booleano.
@@ -110,7 +110,7 @@ Una clase base abstracta que representa una declaración SQL precompilada.
 
 **Métodos:**
 - `setInt(int, int)`: Establece el parámetro designado al valor entero dado.
-- `setLong(int, long)`: Establece el parámetro designado al valor long dado.
+- `setLong(int, int64_t)`: Establece el parámetro designado al valor int64_t dado (portable en todas las plataformas).
 - `setDouble(int, double)`: Establece el parámetro designado al valor double dado.
 - `setString(int, string)`: Establece el parámetro designado al valor de cadena dado.
 - `setBoolean(int, bool)`: Establece el parámetro designado al valor booleano dado.
@@ -983,6 +983,11 @@ Las mejoras de calidad del código incluyen:
 - Adición de static_cast<> para conversiones numéricas para evitar advertencias -Wconversion
 - Cambio de tipos de retorno int a uint64_t para métodos executeUpdate()
 - Mejora del manejo de excepciones para evitar el sombreado de variables
+- Uso de `int64_t` en lugar de `long` para portabilidad multiplataforma (Windows/Linux/macOS)
+- Funciones de tiempo multiplataforma (`localtime_s` en Windows, `localtime_r` en Unix)
+- Atributo `[[nodiscard]]` para métodos que retornan `expected<T, DBException>`
+- Mejoras de seguridad en operaciones BLOB de SQLite con `validateIdentifier()`
+- Manejo seguro de excepciones en destructores con `std::scoped_lock`
 
 ### Compilación con Scripts
 

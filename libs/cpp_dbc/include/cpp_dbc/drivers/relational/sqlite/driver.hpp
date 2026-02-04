@@ -103,6 +103,12 @@ namespace cpp_dbc::SQLite
             return false;
         }
 
+        bool parseURL(const std::string & /*url*/, std::string &database)
+        {
+            database.clear();
+            return false;
+        }
+
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
             const std::string & /*url*/,

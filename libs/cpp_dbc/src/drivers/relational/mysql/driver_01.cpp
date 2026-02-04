@@ -96,6 +96,7 @@ namespace cpp_dbc::MySQL
 
             host = temp.substr(0, hostEnd);
             port = 3306; // Default MySQL port
+            temp = temp.substr(hostEnd);
         }
         else
         {

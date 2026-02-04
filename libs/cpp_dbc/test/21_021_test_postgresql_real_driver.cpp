@@ -59,5 +59,55 @@ TEST_CASE("PostgreSQL driver tests", "[21_021_01_postgresql_real_driver]")
             driver.connect("cpp_dbc:postgresql://localhost:5432/non_existent_db", "user", "pass"),
             cpp_dbc::DBException);
     }
+
+    SECTION("PostgreSQL driver parseURL - valid URLs")
+    {
+        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
+        std::string host;
+        int port = 0;
+        std::string database;
+
+        // Full URL with host, port, and database
+        REQUIRE(driver.parseURL("cpp_dbc:postgresql://localhost:5432/testdb", host, port, database));
+        REQUIRE(host == "localhost");
+        REQUIRE(port == 5432);
+        REQUIRE(database == "testdb");
+
+        // URL with custom port
+        REQUIRE(driver.parseURL("cpp_dbc:postgresql://dbserver:9999/mydb", host, port, database));
+        REQUIRE(host == "dbserver");
+        REQUIRE(port == 9999);
+        REQUIRE(database == "mydb");
+
+        // URL with IP address
+        REQUIRE(driver.parseURL("cpp_dbc:postgresql://127.0.0.1:5432/proddb", host, port, database));
+        REQUIRE(host == "127.0.0.1");
+        REQUIRE(port == 5432);
+        REQUIRE(database == "proddb");
+
+        // URL without port (should default to 5432)
+        REQUIRE(driver.parseURL("cpp_dbc:postgresql://localhost/testdb", host, port, database));
+        REQUIRE(host == "localhost");
+        REQUIRE(port == 5432);
+        REQUIRE(database == "testdb");
+    }
+
+    SECTION("PostgreSQL driver parseURL - invalid URLs")
+    {
+        cpp_dbc::PostgreSQL::PostgreSQLDBDriver driver;
+        std::string host;
+        int port = 0;
+        std::string database;
+
+        // Wrong scheme
+        REQUIRE_FALSE(driver.parseURL("cpp_dbc:mysql://localhost:3306/testdb", host, port, database));
+        REQUIRE_FALSE(driver.parseURL("jdbc:postgresql://localhost:5432/testdb", host, port, database));
+
+        // Missing database (PostgreSQL requires it)
+        REQUIRE_FALSE(driver.parseURL("cpp_dbc:postgresql://localhost:5432", host, port, database));
+
+        // Invalid port
+        REQUIRE_FALSE(driver.parseURL("cpp_dbc:postgresql://localhost:notaport/testdb", host, port, database));
+    }
 }
 #endif

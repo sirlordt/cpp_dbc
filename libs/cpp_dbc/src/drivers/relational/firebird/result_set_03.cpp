@@ -103,7 +103,7 @@ namespace cpp_dbc::Firebird
         }
     }
 
-    cpp_dbc::expected<long, DBException> FirebirdDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
+    cpp_dbc::expected<int64_t, DBException> FirebirdDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
     {
         try
         {
@@ -248,7 +248,7 @@ namespace cpp_dbc::Firebird
         }
     }
 
-    cpp_dbc::expected<long, DBException> FirebirdDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
+    cpp_dbc::expected<int64_t, DBException> FirebirdDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
     {
         try
         {

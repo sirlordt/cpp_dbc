@@ -37,7 +37,29 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Comprehensive Doxygen API Documentation for All Public Headers** (2026-02-04 00:41:38 PST):
+1. **Cross-Platform Compatibility and Type Portability Improvements** (2026-02-04 14:14:16 PST):
+   - **Cross-Platform Time Functions:**
+     - Replaced `localtime_r` (Unix) with `localtime_s` (Windows) with proper cross-platform detection
+     - Added `#ifdef _WIN32` preprocessor guards for platform-specific code in `system_utils.hpp`
+   - **Type Portability (long → int64_t):**
+     - Changed `long` to `int64_t` for consistent 64-bit integer handling across all platforms
+     - Applied to `RelationalDBResultSet::getLong()` and `ColumnarDBResultSet::getLong()` interfaces
+     - Updated all driver implementations: MySQL, PostgreSQL, SQLite, Firebird, ScyllaDB
+   - **[[nodiscard]] Attribute for Exception-Free API:**
+     - Added `[[nodiscard]]` to all nothrow methods returning `expected<T, DBException>`
+     - Compiler now warns if error-returning functions are called without checking result
+   - **SQLite BLOB Security Improvements:**
+     - Added `validateIdentifier()` function to prevent SQL injection in BLOB operations
+     - Enhanced parameterized query usage in BLOB read/write
+   - **Destructor Error Handling:**
+     - Thread-safe logging in destructors using `std::scoped_lock`
+     - Exceptions caught and logged instead of potentially throwing from destructors
+   - **Driver URL Parsing Fixes:**
+     - MySQL: Fixed `parseURL()` to handle URLs without database name
+     - PostgreSQL: Fixed `parseURL()` validation
+     - Added comprehensive unit tests for URL parsing
+
+1a. **Comprehensive Doxygen API Documentation for All Public Headers** (2026-02-04 00:41:38 PST):
    - **Documentation Enhancement (64 header files, 2,384 insertions):**
      - Added Doxygen-compatible `/** @brief ... */` documentation blocks to all public header files
      - Replaced simple `//` comments with structured Doxygen documentation across the entire API surface

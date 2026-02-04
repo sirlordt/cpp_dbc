@@ -149,7 +149,7 @@ namespace cpp_dbc::PostgreSQL
         return result.value();
     }
 
-    long PostgreSQLDBResultSet::getLong(size_t columnIndex)
+    int64_t PostgreSQLDBResultSet::getLong(size_t columnIndex)
     {
         auto result = this->getLong(std::nothrow, columnIndex);
         if (!result.has_value())
@@ -159,7 +159,7 @@ namespace cpp_dbc::PostgreSQL
         return result.value();
     }
 
-    long PostgreSQLDBResultSet::getLong(const std::string &columnName)
+    int64_t PostgreSQLDBResultSet::getLong(const std::string &columnName)
     {
         auto result = this->getLong(std::nothrow, columnName);
         if (!result.has_value())

@@ -51,13 +51,18 @@ namespace cpp_dbc
      * stmt->executeUpdate();
      *
      * // Batch insert (high throughput)
-     * for (const auto &event : events) {
+     * struct Event { std::string id; std::string timestamp; std::string type; };
+     * std::vector<Event> events = {
+     *     {"550e8400-e29b-41d4-a716-446655440001", "2025-01-15T10:30:00Z", "click"},
+     *     {"550e8400-e29b-41d4-a716-446655440002", "2025-01-15T10:31:00Z", "view"}
+     * };
+     * for (const Event &event : events) {
      *     stmt->setUUID(1, event.id);
      *     stmt->setTimestamp(2, event.timestamp);
      *     stmt->setString(3, event.type);
      *     stmt->addBatch();
      * }
-     * auto counts = stmt->executeBatch();
+     * std::vector<uint64_t> counts = stmt->executeBatch();
      * stmt->close();
      * ```
      *
@@ -77,7 +82,7 @@ namespace cpp_dbc
         /** @brief Bind an integer parameter (1-based index) */
         virtual void setInt(int parameterIndex, int value) = 0;
         /** @brief Bind a long integer parameter (1-based index) */
-        virtual void setLong(int parameterIndex, long value) = 0;
+        virtual void setLong(int parameterIndex, int64_t value) = 0;
         /** @brief Bind a double parameter (1-based index) */
         virtual void setDouble(int parameterIndex, double value) = 0;
         /** @brief Bind a string parameter (1-based index) */
@@ -159,30 +164,30 @@ namespace cpp_dbc
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
 
-        virtual cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept = 0;
-        virtual cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, long value) noexcept = 0;
-        virtual cpp_dbc::expected<void, DBException> setDouble(std::nothrow_t, int parameterIndex, double value) noexcept = 0;
-        virtual cpp_dbc::expected<void, DBException> setString(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
-        virtual cpp_dbc::expected<void, DBException> setBoolean(std::nothrow_t, int parameterIndex, bool value) noexcept = 0;
-        virtual cpp_dbc::expected<void, DBException> setNull(std::nothrow_t, int parameterIndex, Types type) noexcept = 0;
-        virtual cpp_dbc::expected<void, DBException> setDate(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
-        virtual cpp_dbc::expected<void, DBException> setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
-        virtual cpp_dbc::expected<void, DBException> setUUID(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setDouble(std::nothrow_t, int parameterIndex, double value) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setString(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setBoolean(std::nothrow_t, int parameterIndex, bool value) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setNull(std::nothrow_t, int parameterIndex, Types type) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setDate(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setUUID(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
 
-        virtual cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept = 0;
-        virtual cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept = 0;
-        virtual cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept = 0;
-        virtual cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept = 0;
 
-        virtual cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException> executeQuery(std::nothrow_t) noexcept = 0;
-        virtual cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t) noexcept = 0;
-        virtual cpp_dbc::expected<bool, DBException> execute(std::nothrow_t) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException> executeQuery(std::nothrow_t) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<bool, DBException> execute(std::nothrow_t) noexcept = 0;
 
-        virtual cpp_dbc::expected<void, DBException> addBatch(std::nothrow_t) noexcept = 0;
-        virtual cpp_dbc::expected<void, DBException> clearBatch(std::nothrow_t) noexcept = 0;
-        virtual cpp_dbc::expected<std::vector<uint64_t>, DBException> executeBatch(std::nothrow_t) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> addBatch(std::nothrow_t) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> clearBatch(std::nothrow_t) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<std::vector<uint64_t>, DBException> executeBatch(std::nothrow_t) noexcept = 0;
 
-        virtual cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

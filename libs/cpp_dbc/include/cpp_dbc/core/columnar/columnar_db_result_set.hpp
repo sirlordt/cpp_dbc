@@ -88,7 +88,7 @@ namespace cpp_dbc
         /** @brief Get an integer column value by 1-based index */
         virtual int getInt(size_t columnIndex) = 0;
         /** @brief Get a long integer column value by 1-based index */
-        virtual long getLong(size_t columnIndex) = 0;
+        virtual int64_t getLong(size_t columnIndex) = 0;
         /** @brief Get a double column value by 1-based index */
         virtual double getDouble(size_t columnIndex) = 0;
         /** @brief Get a string column value by 1-based index */
@@ -111,7 +111,7 @@ namespace cpp_dbc
         /** @brief Get an integer column value by name */
         virtual int getInt(const std::string &columnName) = 0;
         /** @brief Get a long integer column value by name */
-        virtual long getLong(const std::string &columnName) = 0;
+        virtual int64_t getLong(const std::string &columnName) = 0;
         /** @brief Get a double column value by name */
         virtual double getDouble(const std::string &columnName) = 0;
         /** @brief Get a string column value by name */
@@ -161,7 +161,7 @@ namespace cpp_dbc
         virtual cpp_dbc::expected<uint64_t, DBException> getRow(std::nothrow_t) noexcept = 0;
 
         virtual cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, size_t columnIndex) noexcept = 0;
-        virtual cpp_dbc::expected<long, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept = 0;
+        virtual cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept = 0;
         virtual cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, size_t columnIndex) noexcept = 0;
         virtual cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, size_t columnIndex) noexcept = 0;
         virtual cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, size_t columnIndex) noexcept = 0;
@@ -171,7 +171,7 @@ namespace cpp_dbc
         virtual cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, size_t columnIndex) noexcept = 0;
 
         virtual cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept = 0;
-        virtual cpp_dbc::expected<long, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept = 0;
+        virtual cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept = 0;
         virtual cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, const std::string &columnName) noexcept = 0;
         virtual cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, const std::string &columnName) noexcept = 0;
         virtual cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, const std::string &columnName) noexcept = 0;

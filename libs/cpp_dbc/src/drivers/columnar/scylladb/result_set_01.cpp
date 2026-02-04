@@ -168,7 +168,7 @@ namespace cpp_dbc::ScyllaDB
         return *result;
     }
 
-    long ScyllaDBResultSet::getLong(size_t columnIndex)
+    int64_t ScyllaDBResultSet::getLong(size_t columnIndex)
     {
         auto result = getLong(std::nothrow, columnIndex);
         if (!result.has_value())
@@ -178,7 +178,7 @@ namespace cpp_dbc::ScyllaDB
         return *result;
     }
 
-    long ScyllaDBResultSet::getLong(const std::string &columnName)
+    int64_t ScyllaDBResultSet::getLong(const std::string &columnName)
     {
         auto result = getLong(std::nothrow, columnName);
         if (!result.has_value())

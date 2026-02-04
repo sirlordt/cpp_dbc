@@ -6,6 +6,40 @@ The CPP_DBC library appears to be in a functional state with the following compo
 
 ### Recent Improvements (2026-02-04)
 
+**Cross-Platform Compatibility and Type Portability Improvements:**
+1. **Cross-Platform Time Functions:**
+   - Replaced `localtime_r` (Unix) with `localtime_s` (Windows) with proper cross-platform detection
+   - Added `#ifdef _WIN32` preprocessor guards for platform-specific code
+   - Applied to `system_utils.hpp` for timestamp formatting
+
+2. **Type Portability (long → int64_t):**
+   - Changed `long` to `int64_t` for consistent 64-bit integer handling across platforms
+   - Applied to all driver result set interfaces and implementations:
+     - `RelationalDBResultSet::getLong()` return type
+     - `ColumnarDBResultSet::getLong()` return type
+     - All driver implementations (MySQL, PostgreSQL, SQLite, Firebird, ScyllaDB)
+   - Ensures consistent behavior on 32-bit and 64-bit systems
+
+3. **[[nodiscard]] Attribute for Exception-Free API:**
+   - Added `[[nodiscard]]` attribute to all nothrow methods returning `expected<T, DBException>`
+   - Compiler warns if return value is ignored, preventing silent error handling bugs
+   - Applied across all result set and prepared statement interfaces
+
+4. **SQLite BLOB Security Improvements:**
+   - Added `validateIdentifier()` function to prevent SQL injection in BLOB operations
+   - Replaced string concatenation with parameterized queries where possible
+   - Enhanced error handling in BLOB read/write operations
+
+5. **Destructor Error Handling Improvements:**
+   - Added thread-safe logging in destructors using `std::scoped_lock`
+   - Destructors now catch and log exceptions instead of potentially throwing
+   - Follows C++ best practices for exception-safe resource cleanup
+
+6. **Driver URL Parsing Fixes:**
+   - Fixed MySQL driver `parseURL()` to handle URLs without database name
+   - Fixed PostgreSQL driver `parseURL()` to properly validate URL format
+   - Added comprehensive unit tests for URL parsing edge cases
+
 **Comprehensive Doxygen API Documentation for All Public Headers:**
 1. **Documentation Enhancement:**
    - Added Doxygen-compatible `/** @brief ... */` documentation blocks to all 64 public header files

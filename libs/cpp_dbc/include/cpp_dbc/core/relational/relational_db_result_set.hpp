@@ -149,11 +149,11 @@ namespace cpp_dbc
          * ```cpp
          * auto rs = stmt->executeQuery();
          * while (rs->next()) {
-         *     long bigId = rs->getLong(1);
+         *     int64_t bigId = rs->getLong(1);
          * }
          * ```
          */
-        virtual long getLong(size_t columnIndex) = 0;
+        virtual int64_t getLong(size_t columnIndex) = 0;
 
         /**
          * @brief Get a double value by column index
@@ -244,11 +244,11 @@ namespace cpp_dbc
          * ```cpp
          * auto rs = stmt->executeQuery();
          * while (rs->next()) {
-         *     long fileSize = rs->getLong("file_size");
+         *     int64_t fileSize = rs->getLong("file_size");
          * }
          * ```
          */
-        virtual long getLong(const std::string &columnName) = 0;
+        virtual int64_t getLong(const std::string &columnName) = 0;
 
         /**
          * @brief Get a double value by column name
@@ -485,7 +485,7 @@ namespace cpp_dbc
          * @param columnIndex The column index (1-based)
          * @return expected containing the long value, or DBException on failure
          */
-        virtual cpp_dbc::expected<long, DBException>
+        virtual cpp_dbc::expected<int64_t, DBException>
         getLong(std::nothrow_t, size_t columnIndex) noexcept = 0;
 
         /**
@@ -539,7 +539,7 @@ namespace cpp_dbc
          * @param columnName The column name
          * @return expected containing the long value, or DBException on failure
          */
-        virtual cpp_dbc::expected<long, DBException>
+        virtual cpp_dbc::expected<int64_t, DBException>
         getLong(std::nothrow_t, const std::string &columnName) noexcept = 0;
 
         /**

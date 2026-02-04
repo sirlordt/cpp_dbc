@@ -39,8 +39,8 @@ namespace cpp_dbc
      * ```cpp
      * // Register and use a driver directly
      * auto driver = std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
-     * if (driver->acceptsURL("jdbc:mysql://localhost/mydb")) {
-     *     auto conn = driver->connect("jdbc:mysql://localhost/mydb", "user", "pass");
+     * if (driver->acceptsURL("cpp_dbc:mysql://localhost/mydb")) {
+     *     auto conn = driver->connect("cpp_dbc:mysql://localhost/mydb", "user", "pass");
      *     // ... use connection ...
      *     conn->close();
      * }
@@ -56,7 +56,7 @@ namespace cpp_dbc
         /**
          * @brief Connect to a database
          *
-         * @param url The database URL (e.g., "jdbc:mysql://host:port/database")
+         * @param url The database URL (e.g., "cpp_dbc:mysql://host:port/database")
          * @param user The username for authentication
          * @param password The password for authentication
          * @param options Additional connection options
@@ -64,7 +64,7 @@ namespace cpp_dbc
          * @throws DBException if the connection fails
          *
          * ```cpp
-         * auto conn = driver->connect("jdbc:mysql://localhost:3306/mydb", "root", "pass");
+         * auto conn = driver->connect("cpp_dbc:mysql://localhost:3306/mydb", "root", "pass");
          * // ... use connection ...
          * conn->close();
          * ```
@@ -78,7 +78,7 @@ namespace cpp_dbc
         /**
          * @brief Check if this driver accepts the given URL
          *
-         * Each driver recognizes a specific URL scheme (e.g., "jdbc:mysql://", "jdbc:postgresql://").
+         * Each driver recognizes a specific URL scheme (e.g., "cpp_dbc:mysql://", "cpp_dbc:postgresql://").
          *
          * @param url The database URL to check
          * @return true if this driver can handle the URL
@@ -86,8 +86,8 @@ namespace cpp_dbc
          *
          * ```cpp
          * auto driver = std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
-         * bool ok = driver->acceptsURL("jdbc:mysql://localhost/mydb");  // true
-         * bool no = driver->acceptsURL("jdbc:postgresql://localhost/mydb");  // false
+         * bool ok = driver->acceptsURL("cpp_dbc:mysql://localhost/mydb");  // true
+         * bool no = driver->acceptsURL("cpp_dbc:postgresql://localhost/mydb");  // false
          * ```
          */
         virtual bool acceptsURL(const std::string &url) = 0;
@@ -117,7 +117,7 @@ namespace cpp_dbc
          * auto driver = std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>();
          * std::map<std::string, std::any> params;
          * params["command"] = std::string("create_database");
-         * params["url"] = std::string("jdbc:firebird://localhost/test.fdb");
+         * params["url"] = std::string("cpp_dbc:firebird://localhost/test.fdb");
          * params["user"] = std::string("SYSDBA");
          * params["password"] = std::string("masterkey");
          * driver->command(params);

@@ -90,5 +90,44 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
             driver.connectKV("invalid://localhost:6379/0", "", ""),
             cpp_dbc::DBException);
     }
+
+    SECTION("Redis driver parseURI - valid URIs")
+    {
+        cpp_dbc::Redis::RedisDriver driver;
+
+        // Full URI with host, port, and db index
+        auto params = driver.parseURI("cpp_dbc:redis://localhost:6379/0");
+        REQUIRE(params.at("host") == "localhost");
+        REQUIRE(params.at("port") == "6379");
+        REQUIRE(params.at("db") == "0");
+
+        // URI with custom port and db index
+        params = driver.parseURI("cpp_dbc:redis://myhost:6380/5");
+        REQUIRE(params.at("host") == "myhost");
+        REQUIRE(params.at("port") == "6380");
+        REQUIRE(params.at("db") == "5");
+
+        // URI without db index (should default to 0)
+        params = driver.parseURI("cpp_dbc:redis://localhost:6379");
+        REQUIRE(params.at("host") == "localhost");
+        REQUIRE(params.at("port") == "6379");
+        REQUIRE(params.at("db") == "0");
+
+        // URI with IPv6 address
+        params = driver.parseURI("cpp_dbc:redis://[::1]:6379/0");
+        REQUIRE(params.at("host") == "::1");
+        REQUIRE(params.at("port") == "6379");
+        REQUIRE(params.at("db") == "0");
+    }
+
+    SECTION("Redis driver parseURI - invalid URIs")
+    {
+        cpp_dbc::Redis::RedisDriver driver;
+
+        // Completely invalid URI
+        REQUIRE_THROWS_AS(
+            driver.parseURI("not_a_valid_uri"),
+            cpp_dbc::DBException);
+    }
 }
 #endif

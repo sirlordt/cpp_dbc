@@ -95,7 +95,7 @@ namespace cpp_dbc::Firebird
         return getInt(it->second);
     }
 
-    long FirebirdDBResultSet::getLong(size_t columnIndex)
+    int64_t FirebirdDBResultSet::getLong(size_t columnIndex)
     {
         auto result = getLong(std::nothrow, columnIndex);
         if (!result)
@@ -105,7 +105,7 @@ namespace cpp_dbc::Firebird
         return result.value();
     }
 
-    long FirebirdDBResultSet::getLong(const std::string &columnName)
+    int64_t FirebirdDBResultSet::getLong(const std::string &columnName)
     {
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())

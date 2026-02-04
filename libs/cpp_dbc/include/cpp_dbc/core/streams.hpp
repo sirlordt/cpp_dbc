@@ -124,7 +124,9 @@ namespace cpp_dbc
      *
      * ```cpp
      * // Writing a BLOB via prepared statement
-     * std::vector<uint8_t> imageData = loadFile("photo.png");
+     * // User-defined function to load file contents into a byte vector
+     * std::vector<uint8_t> imageData; // = yourLoadFileFunction("photo.png");
+     * imageData = {0x89, 0x50, 0x4E, 0x47}; // PNG magic bytes as example
      * stmt->setBytes(1, imageData);
      * stmt->executeUpdate();
      * ```

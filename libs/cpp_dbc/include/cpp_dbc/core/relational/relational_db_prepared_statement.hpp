@@ -104,7 +104,7 @@ namespace cpp_dbc
          * stmt->executeUpdate();
          * ```
          */
-        virtual void setLong(int parameterIndex, long value) = 0;
+        virtual void setLong(int parameterIndex, int64_t value) = 0;
 
         /**
          * @brief Bind a double value to a parameter
@@ -197,11 +197,13 @@ namespace cpp_dbc
         /**
          * @brief Bind a BLOB object to a parameter
          * @param parameterIndex The parameter position (1-based)
-         * @param x The BLOB object
+         * @param x The BLOB object (cpp_dbc::Blob or derived class like cpp_dbc::MemoryBlob)
          * @throws DBException if the index is invalid
          *
          * ```cpp
-         * auto blob = std::make_shared<cpp_dbc::MemoryBlob>(data);
+         * // Binary data to store (e.g., image bytes, serialized data)
+         * std::vector<uint8_t> binaryData = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A};
+         * std::shared_ptr<cpp_dbc::Blob> blob = std::make_shared<cpp_dbc::MemoryBlob>(binaryData);
          * stmt->setBlob(1, blob);
          * ```
          */
@@ -315,7 +317,7 @@ namespace cpp_dbc
          * @param value The int value
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setInt(std::nothrow_t, int parameterIndex, int value) noexcept = 0;
 
         /**
@@ -325,8 +327,8 @@ namespace cpp_dbc
          * @param value The long value
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
-        setLong(std::nothrow_t, int parameterIndex, long value) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
+        setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept = 0;
 
         /**
          * @brief Set a double parameter (nothrow version)
@@ -335,7 +337,7 @@ namespace cpp_dbc
          * @param value The double value
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setDouble(std::nothrow_t, int parameterIndex, double value) noexcept = 0;
 
         /**
@@ -345,7 +347,7 @@ namespace cpp_dbc
          * @param value The string value
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setString(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
 
         /**
@@ -355,7 +357,7 @@ namespace cpp_dbc
          * @param value The boolean value
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setBoolean(std::nothrow_t, int parameterIndex, bool value) noexcept = 0;
 
         /**
@@ -365,7 +367,7 @@ namespace cpp_dbc
          * @param type The SQL type
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setNull(std::nothrow_t, int parameterIndex, Types type) noexcept = 0;
 
         /**
@@ -375,7 +377,7 @@ namespace cpp_dbc
          * @param value The date value
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setDate(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
 
         /**
@@ -385,7 +387,7 @@ namespace cpp_dbc
          * @param value The timestamp value
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
 
         /**
@@ -395,7 +397,7 @@ namespace cpp_dbc
          * @param x The BLOB value
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept = 0;
 
         /**
@@ -405,7 +407,7 @@ namespace cpp_dbc
          * @param x The input stream
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept = 0;
 
         /**
@@ -416,7 +418,7 @@ namespace cpp_dbc
          * @param length The length of the stream
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept = 0;
 
         /**
@@ -426,7 +428,7 @@ namespace cpp_dbc
          * @param x The bytes vector
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept = 0;
 
         /**
@@ -437,7 +439,7 @@ namespace cpp_dbc
          * @param length The length of the data
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept = 0;
 
         /**
@@ -445,7 +447,7 @@ namespace cpp_dbc
          * @param nothrow std::nothrow tag to indicate exception-free operation
          * @return expected containing a result set, or DBException on failure
          */
-        virtual cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>
             executeQuery(std::nothrow_t) noexcept = 0;
 
         /**
@@ -453,7 +455,7 @@ namespace cpp_dbc
          * @param nothrow std::nothrow tag to indicate exception-free operation
          * @return expected containing the number of affected rows, or DBException on failure
          */
-        virtual cpp_dbc::expected<uint64_t, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<uint64_t, DBException>
             executeUpdate(std::nothrow_t) noexcept = 0;
 
         /**
@@ -461,7 +463,7 @@ namespace cpp_dbc
          * @param nothrow std::nothrow tag to indicate exception-free operation
          * @return expected containing true if result is a result set, false if update count, or DBException on failure
          */
-        virtual cpp_dbc::expected<bool, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<bool, DBException>
             execute(std::nothrow_t) noexcept = 0;
 
         /**
@@ -469,7 +471,7 @@ namespace cpp_dbc
          * @param nothrow std::nothrow tag to indicate exception-free operation
          * @return expected containing void on success, or DBException on failure
          */
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
             close(std::nothrow_t) noexcept = 0;
     };
 

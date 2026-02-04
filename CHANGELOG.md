@@ -1,6 +1,61 @@
 # Changelog
 
-## 2026-02-04 00:41:38 PST [Current]
+## 2026-02-04 14:14:16 PST [Current]
+
+### Cross-Platform Compatibility, Type Portability, and Security Improvements
+
+* **Cross-Platform Compatibility (system_utils.hpp):**
+  * Added Windows support with conditional compilation for `localtime_s` (Windows) vs `localtime_r` (Unix)
+  * Made `logWithTimestamp()` thread-safe with `std::scoped_lock` on global cout mutex
+
+* **Type Portability (`long` → `int64_t`):**
+  * Changed all `long` types to `int64_t` for consistent 64-bit integer handling across platforms
+  * Affected interfaces: `ColumnarDBPreparedStatement`, `ColumnarDBResultSet`, `RelationalDBPreparedStatement`, `RelationalDBResultSet`
+  * Affected implementations: All driver prepared statements and result sets (MySQL, PostgreSQL, SQLite, Firebird, ScyllaDB)
+
+* **[[nodiscard]] Attribute for Error Handling:**
+  * Added `[[nodiscard]]` attribute to all nothrow API methods returning `expected<T, DBException>`
+  * Ensures callers check for errors from exception-free API calls
+  * Applied across all prepared statement interfaces (relational, columnar) and all driver implementations
+
+* **SQLite BLOB Security Improvements (blob.hpp):**
+  * Added `validateIdentifier()` method to prevent SQL injection in table/column names
+  * Changed BLOB queries from string concatenation to parameterized queries for rowid
+  * Added `ensureLoaded()` call in `saveToDatabase()` to prevent overwriting with empty data
+  * Follows cpp_dbc project convention for schema name validation (alphanumeric and underscore only)
+
+* **Destructor Error Handling Improvements:**
+  * Improved error handling in destructors by properly checking nothrow API return values
+  * Instead of discarding close() return value, now logs errors when close fails in destructors
+  * Applied to: MySQL, PostgreSQL, SQLite, and ScyllaDB prepared statement destructors
+
+* **Driver URL Parsing Fixes:**
+  * Fixed MySQL driver `parseURL()` to properly handle URLs without port specification
+  * Fixed PostgreSQL driver `parseURL()` to properly continue parsing after host extraction
+  * Both drivers now correctly set default ports (MySQL: 3306, PostgreSQL: 5432) when port is omitted
+
+* **New Driver parseURL Unit Tests:**
+  * Added comprehensive URL parsing tests for MySQL driver (valid URLs, invalid URLs, default port)
+  * Added comprehensive URL parsing tests for PostgreSQL driver (valid URLs, IP addresses, default port)
+  * Added comprehensive URL parsing tests for SQLite driver (memory databases, file paths)
+  * Added comprehensive URL parsing tests for Firebird driver (local and remote connections)
+  * Added comprehensive URL parsing tests for Redis driver (URI parsing with IPv6 support)
+  * Added comprehensive URL parsing tests for MongoDB driver (standard URI format)
+
+* **Build Script Improvements (helper.sh, run_test_parallel.sh):**
+  * Added `-u` (unbuffered) flag to sed for better real-time log output
+  * Added ANSI code stripping before grep for better test failure detection in colored output
+
+* **Documentation Fixes:**
+  * Fixed accent characters in Spanish documentation (cppdbc-docs-es.md)
+  * Improved inline code examples with proper variable declarations
+  * Fixed typo in kv_db_connection_pool.hpp comment ("statisticsH" → "statistics")
+  * Corrected @brief descriptions in blob.hpp and transaction_manager.hpp
+  * Updated code examples to use `cpp_dbc:` URL prefix consistently (replacing `jdbc:` references)
+
+* **59 files changed, 692 insertions(+), 254 deletions(-)**
+
+## 2026-02-04 00:41:38 PST
 
 ### Comprehensive Doxygen API Documentation for All Public Headers
 * **Documentation Enhancement (64 header files, 2,384 insertions):**

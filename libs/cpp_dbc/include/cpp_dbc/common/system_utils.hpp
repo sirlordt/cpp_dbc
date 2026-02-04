@@ -76,7 +76,11 @@ namespace cpp_dbc::system_utils
             // Convert to time_t for formatting hours/minutes/seconds
             std::time_t now_c = system_clock::to_time_t(now);
             std::tm tm{};
+#if defined(_WIN32)
+            localtime_s(&tm, &now_c);
+#else
             localtime_r(&now_c, &tm);
+#endif
 
             // Extract milliseconds
             auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
@@ -101,7 +105,11 @@ namespace cpp_dbc::system_utils
                       1000;
 
             std::tm tm{};
+#if defined(_WIN32)
+            localtime_s(&tm, &time_t_now);
+#else
             localtime_r(&time_t_now, &tm);
+#endif
 
             std::stringstream ss;
             ss << std::put_time(&tm, "[%Y-%m-%d %H:%M:%S");
@@ -110,9 +118,10 @@ namespace cpp_dbc::system_utils
             return ss.str();
         }
 
-        /** @brief Log a message with timestamp prefix */
+        /** @brief Log a message with timestamp prefix (thread-safe) */
         inline void logWithTimestamp(const std::string &prefix, const std::string &message)
         {
+            std::scoped_lock lock(global_cout_mutex);
             std::cout << getCurrentTimestamp() << " " << prefix << " " << message << std::endl;
         }
 

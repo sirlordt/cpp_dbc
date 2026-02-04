@@ -36,8 +36,9 @@ namespace cpp_dbc
      * ```cpp
      * auto conn = pool->getDBConnection();
      * // conn is a DBConnectionPooled under the hood
-     * std::cout << "Pooled: " << conn->isPooled() << std::endl;  // true
-     * conn->returnToPool();  // return to pool for reuse
+     * std::cout << "Created: " << conn->getCreationTime().time_since_epoch().count() << std::endl;
+     * std::cout << "Active: " << conn->isActive() << std::endl;
+     * // Connection is returned automatically when it goes out of scope
      * ```
      *
      * @see DBConnectionPool, RelationalPooledDBConnection

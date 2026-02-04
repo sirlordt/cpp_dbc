@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file transaction_manager.hpp
- @brief Tests for transaction management
+ @brief Transaction management with automatic cleanup and timeout
 
 */
 

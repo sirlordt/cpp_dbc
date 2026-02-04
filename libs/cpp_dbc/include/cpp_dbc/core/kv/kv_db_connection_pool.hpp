@@ -178,7 +178,7 @@ namespace cpp_dbc
         // Specialized method for key-value databases
         virtual std::shared_ptr<KVDBConnection> getKVDBConnection();
 
-        // Gets current pool statisticsH
+        // Gets current pool statistics
         size_t getActiveDBConnectionCount() const override;
         size_t getIdleDBConnectionCount() const override;
         size_t getTotalDBConnectionCount() const override;

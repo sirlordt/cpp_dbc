@@ -60,7 +60,7 @@ namespace cpp_dbc::ScyllaDB
         return {};
     }
 
-    cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, long value) noexcept
+    cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);
         if (!m_statement)

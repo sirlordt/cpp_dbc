@@ -75,7 +75,8 @@ namespace cpp_dbc
          * ```cpp
          * auto stmt = conn->prepareStatement(
          *     "INSERT INTO events (id, ts, data) VALUES (?, ?, ?)");
-         * stmt->setUUID(1, uuid);
+         * std::string eventUuid = "550e8400-e29b-41d4-a716-446655440000";
+         * stmt->setUUID(1, eventUuid);
          * stmt->setTimestamp(2, "2025-01-15T10:30:00Z");
          * stmt->setString(3, "{\"type\": \"click\"}");
          * stmt->executeUpdate();

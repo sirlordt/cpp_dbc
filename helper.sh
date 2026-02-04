@@ -318,10 +318,10 @@ cmd_run_build() {
   if check_color_support; then
     # Run with colors in terminal but without colors in log file
     # Use unbuffer to preserve colors in terminal output and sed to strip ANSI color codes from log file
-    unbuffer $build_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    unbuffer $build_cmd 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
   else
     # Terminal doesn't support colors, just run normally and strip any color codes that might be present
-    $build_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    $build_cmd 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
   fi
 
   echo ""
@@ -749,7 +749,7 @@ extract_executed_tests() {
     # Look for lines with passed/failed starting from this specific line_number
     # and stopping at the next "Filters:" boundary (or end of file)
     # This ensures we only inspect tests for this specific Filters block
-    if sed -n "${line_number},\$p" "$log_file" | sed '/^.*Filters: \[/{ 1!q }' | grep -a -q "\.cpp:[0-9]\+: passed:\|\.cpp:[0-9]\+: failed:"; then
+    if sed -n "${line_number},\$p" "$log_file" | sed '/^.*Filters: \[/{ 1!q }' | sed 's/\x1b\[[0-9;]*m//g' | grep -a -q "\.cpp:[0-9]\+: passed:\|\.cpp:[0-9]\+: failed:"; then
       # Try to find the duration marker for this tag at the specific occurrence
       local duration=""
       if [ -n "$run_number" ]; then
@@ -798,7 +798,8 @@ check_test_failures() {
   # Pattern to match actual test failures in Catch2 output
   # We're looking for lines that match the Catch2 test failure pattern
   # Typically these start with a file path and line number followed by "failed:"
-  failed_lines=$(grep -a -n "\.cpp:[0-9]\+: failed:" "$log_file")
+  # Strip ANSI codes first to handle colored Catch2 output (e.g., \033[31mfailed\033[0m:)
+  failed_lines=$(sed 's/\x1b\[[0-9;]*m//g' "$log_file" | grep -a -n "\.cpp:[0-9]\+: failed:")
   
   if [ -n "$failed_lines" ]; then
     # Show the log file path and line number for each failure
@@ -1370,10 +1371,10 @@ cmd_run_benchmarks() {
   if check_color_support; then
     # Run with colors in terminal but without colors in log file
     # Use unbuffer to preserve colors in terminal output and sed to strip ANSI color codes from log file
-    unbuffer $run_benchmark_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    unbuffer $run_benchmark_cmd 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
   else
     # Terminal doesn't support colors, just run normally and strip any color codes that might be present
-    $run_benchmark_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    $run_benchmark_cmd 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
   fi
   
   echo ""
@@ -1553,10 +1554,10 @@ cmd_run_build_dist() {
   if check_color_support; then
     # Run with colors in terminal but without colors in log file
     # Use unbuffer to preserve colors in terminal output and sed to strip ANSI color codes from log file
-    unbuffer $build_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    unbuffer $build_cmd 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
   else
     # Terminal doesn't support colors, just run normally and strip any color codes that might be present
-    $build_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    $build_cmd 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
   fi
 
   echo ""

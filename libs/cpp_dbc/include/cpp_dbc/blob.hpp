@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file blob.hpp
- @brief Tests for BLOB operations
+ @brief BLOB stream implementations for memory and file-based binary data
 
 */
 

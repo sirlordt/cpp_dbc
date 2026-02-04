@@ -111,8 +111,8 @@ namespace cpp_dbc::ScyllaDB
              */
             int getInt(size_t columnIndex) override;
             int getInt(const std::string &columnName) override;
-            long getLong(size_t columnIndex) override;
-            long getLong(const std::string &columnName) override;
+            int64_t getLong(size_t columnIndex) override;
+            int64_t getLong(const std::string &columnName) override;
             double getDouble(size_t columnIndex) override;
             double getDouble(const std::string &columnName) override;
             std::string getString(size_t columnIndex) override;
@@ -143,7 +143,7 @@ namespace cpp_dbc::ScyllaDB
             cpp_dbc::expected<uint64_t, DBException> getRow(std::nothrow_t) noexcept override;
 
             cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, size_t columnIndex) noexcept override;
-            cpp_dbc::expected<long, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept override;
             cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, size_t columnIndex) noexcept override;
             cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, size_t columnIndex) noexcept override;
             cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, size_t columnIndex) noexcept override;
@@ -153,7 +153,7 @@ namespace cpp_dbc::ScyllaDB
             cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, size_t columnIndex) noexcept override;
 
             cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept override;
-            cpp_dbc::expected<long, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override;
             cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, const std::string &columnName) noexcept override;
             cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, const std::string &columnName) noexcept override;
             cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, const std::string &columnName) noexcept override;

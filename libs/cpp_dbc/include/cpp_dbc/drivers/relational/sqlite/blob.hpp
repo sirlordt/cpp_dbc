@@ -55,6 +55,32 @@ namespace cpp_dbc::SQLite
                 return conn.get();
             }
 
+            /**
+             * @brief Validate SQL identifier to prevent injection attacks
+             * @param identifier The table or column name to validate
+             * @throws DBException if the identifier contains invalid characters
+             *
+             * Only allows alphanumeric characters and underscores to prevent SQL injection.
+             * This follows the cpp_dbc project convention for schema name validation.
+             */
+            static void validateIdentifier(const std::string &identifier)
+            {
+                if (identifier.empty())
+                {
+                    throw DBException("9Z4K7W2P5NXF", "Empty SQL identifier not allowed", system_utils::captureCallStack());
+                }
+
+                for (char c : identifier)
+                {
+                    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_')
+                    {
+                        throw DBException("3H8T6Q9R2VCJ",
+                            "Invalid character in SQL identifier '" + identifier + "': only alphanumeric and underscore allowed",
+                            system_utils::captureCallStack());
+                    }
+                }
+            }
+
         public:
             /**
              * @brief Check if the database connection is still valid
@@ -88,11 +114,15 @@ namespace cpp_dbc::SQLite
                 if (m_loaded || m_tableName.empty() || m_columnName.empty() || m_rowId.empty())
                     return;
 
+                // Validate identifiers to prevent SQL injection
+                validateIdentifier(m_tableName);
+                validateIdentifier(m_columnName);
+
                 // Get the SQLite connection safely (throws if connection is closed)
                 sqlite3 *db = getSQLiteConnection();
 
-                // Construct a query to fetch the BLOB data
-                std::string query = "SELECT " + m_columnName + " FROM " + m_tableName + " WHERE rowid = " + m_rowId;
+                // Construct a query with parameterized rowid to prevent SQL injection
+                std::string query = "SELECT " + m_columnName + " FROM " + m_tableName + " WHERE rowid = ?";
 
                 // Prepare the statement
                 sqlite3_stmt *stmt = nullptr;
@@ -100,6 +130,14 @@ namespace cpp_dbc::SQLite
                 if (result != SQLITE_OK)
                 {
                     throw DBException("4AE05442DB70", "Failed to prepare statement for BLOB loading: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                }
+
+                // Bind the rowid parameter
+                result = sqlite3_bind_text(stmt, 1, m_rowId.c_str(), -1, SQLITE_STATIC);
+                if (result != SQLITE_OK)
+                {
+                    sqlite3_finalize(stmt);
+                    throw DBException("2F9K4N8V7QXW", "Failed to bind rowid parameter: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Execute the statement
@@ -184,11 +222,18 @@ namespace cpp_dbc::SQLite
                 if (m_tableName.empty() || m_columnName.empty() || m_rowId.empty())
                     return; // Nothing to save
 
+                // Ensure BLOB data is loaded before saving to prevent overwriting with empty data
+                ensureLoaded();
+
+                // Validate identifiers to prevent SQL injection
+                validateIdentifier(m_tableName);
+                validateIdentifier(m_columnName);
+
                 // Get the SQLite connection safely (throws if connection is closed)
                 sqlite3 *db = getSQLiteConnection();
 
-                // Construct a query to update the BLOB data
-                std::string query = "UPDATE " + m_tableName + " SET " + m_columnName + " = ? WHERE rowid = " + m_rowId;
+                // Construct a query with parameterized rowid to prevent SQL injection
+                std::string query = "UPDATE " + m_tableName + " SET " + m_columnName + " = ? WHERE rowid = ?";
 
                 // Prepare the statement
                 sqlite3_stmt *stmt = nullptr;
@@ -198,12 +243,20 @@ namespace cpp_dbc::SQLite
                     throw DBException("78BBDB81BED9", "Failed to prepare statement for BLOB saving: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
-                // Bind the BLOB data
+                // Bind the BLOB data (parameter 1)
                 result = sqlite3_bind_blob(stmt, 1, m_data.data(), static_cast<int>(m_data.size()), SQLITE_STATIC);
                 if (result != SQLITE_OK)
                 {
                     sqlite3_finalize(stmt);
                     throw DBException("6C9619BE36A2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                }
+
+                // Bind the rowid parameter (parameter 2)
+                result = sqlite3_bind_text(stmt, 2, m_rowId.c_str(), -1, SQLITE_STATIC);
+                if (result != SQLITE_OK)
+                {
+                    sqlite3_finalize(stmt);
+                    throw DBException("5L7M3P9K8TJV", "Failed to bind rowid parameter: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Execute the statement

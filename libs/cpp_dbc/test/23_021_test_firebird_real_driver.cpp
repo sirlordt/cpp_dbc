@@ -61,5 +61,50 @@ TEST_CASE("Firebird driver tests", "[23_021_01_firebird_real_driver]")
             driver.connect("cpp_dbc:firebird://localhost:3050/non_existent_db", "user", "pass"),
             cpp_dbc::DBException);
     }
+
+    SECTION("Firebird driver parseURL - valid URLs")
+    {
+        cpp_dbc::Firebird::FirebirdDBDriver driver;
+        std::string host;
+        int port = 0;
+        std::string database;
+
+        // Full URL with host, port, and database path
+        REQUIRE(driver.parseURL("cpp_dbc:firebird://localhost:3050/testdb", host, port, database));
+        REQUIRE(host == "localhost");
+        REQUIRE(port == 3050);
+        REQUIRE(database == "/testdb");
+
+        // URL with custom port and absolute path
+        REQUIRE(driver.parseURL("cpp_dbc:firebird://dbserver:3051//var/lib/firebird/data/test.fdb", host, port, database));
+        REQUIRE(host == "dbserver");
+        REQUIRE(port == 3051);
+        REQUIRE(database == "//var/lib/firebird/data/test.fdb");
+
+        // URL without port (should default to 3050)
+        REQUIRE(driver.parseURL("cpp_dbc:firebird://localhost/testdb.fdb", host, port, database));
+        REQUIRE(host == "localhost");
+        REQUIRE(port == 3050);
+        REQUIRE(database == "/testdb.fdb");
+
+        // Local connection (no host, starts with /)
+        REQUIRE(driver.parseURL("cpp_dbc:firebird:///var/lib/firebird/data/test.fdb", host, port, database));
+        REQUIRE(database == "/var/lib/firebird/data/test.fdb");
+    }
+
+    SECTION("Firebird driver parseURL - invalid URLs")
+    {
+        cpp_dbc::Firebird::FirebirdDBDriver driver;
+        std::string host;
+        int port = 0;
+        std::string database;
+
+        // Wrong scheme
+        REQUIRE_FALSE(driver.parseURL("cpp_dbc:mysql://localhost:3306/testdb", host, port, database));
+        REQUIRE_FALSE(driver.parseURL("jdbc:firebird://localhost:3050/testdb", host, port, database));
+
+        // Host without database path
+        REQUIRE_FALSE(driver.parseURL("cpp_dbc:firebird://localhost", host, port, database));
+    }
 }
 #endif

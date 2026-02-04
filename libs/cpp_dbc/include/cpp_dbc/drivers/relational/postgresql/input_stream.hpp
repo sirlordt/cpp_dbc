@@ -47,6 +47,15 @@ namespace cpp_dbc::PostgreSQL
             }
 
         public:
+            /**
+             * @brief Construct an input stream from a PostgreSQL BLOB buffer
+             * @param buffer Pointer to the BLOB data (may be null if length is 0)
+             * @param length Size of the buffer in bytes
+             * @throws DBException if buffer is null and length > 0
+             *
+             * The buffer data is copied into internal storage, so the source
+             * buffer can be safely freed after construction.
+             */
             PostgreSQLInputStream(const char *buffer, size_t length)
                 : m_data(buffer, validateAndEnd(buffer, length)) {}
 

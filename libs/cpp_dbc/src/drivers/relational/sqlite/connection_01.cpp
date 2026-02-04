@@ -79,7 +79,12 @@ namespace cpp_dbc::SQLite
             if (stmt)
             {
                 // Close the statement (sqlite3_finalize) while we have exclusive access
-                stmt->close(std::nothrow);
+                auto result = stmt->close(std::nothrow);
+                if (!result.has_value())
+                {
+                    // Log the error but don't throw - connection is already closing
+                    SQLITE_DEBUG("Failed to close prepared statement: " << result.error().what_s());
+                }
             }
             // If weak_ptr is expired, statement was already destroyed - nothing to do
         }

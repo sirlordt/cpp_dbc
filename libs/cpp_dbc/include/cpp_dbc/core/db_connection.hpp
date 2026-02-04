@@ -37,7 +37,7 @@ namespace cpp_dbc
      * ```cpp
      * // Obtain a connection and use it
      * auto conn = cpp_dbc::DriverManager::getDBConnection(
-     *     "jdbc:mysql://localhost:3306/mydb", "user", "pass");
+     *     "cpp_dbc:mysql://localhost:3306/mydb", "user", "pass");
      * std::cout << "Connected to: " << conn->getURL() << std::endl;
      * // ... use paradigm-specific subclass methods ...
      * conn->close();

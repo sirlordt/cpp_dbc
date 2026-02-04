@@ -123,7 +123,7 @@ namespace cpp_dbc::SQLite
         }
     }
 
-    void SQLiteDBPreparedStatement::setLong(int parameterIndex, long value)
+    void SQLiteDBPreparedStatement::setLong(int parameterIndex, int64_t value)
     {
         auto result = setLong(std::nothrow, parameterIndex, value);
         if (!result)

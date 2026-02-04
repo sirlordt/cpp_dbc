@@ -60,5 +60,38 @@ TEST_CASE("MongoDB driver tests", "[25_021_01_mongodb_real_driver]")
             driver.connect("cpp_dbc:mongodb://localhost:27017/non_existent_db", "user", "pass"),
             cpp_dbc::DBException);
     }
+
+    SECTION("MongoDB driver parseURI - valid URIs")
+    {
+        cpp_dbc::MongoDB::MongoDBDriver driver;
+
+        // parseURI expects standard mongodb:// format (not cpp_dbc: prefix)
+        auto params = driver.parseURI("mongodb://localhost:27017/testdb");
+        REQUIRE(params.at("host") == "localhost");
+        REQUIRE(params.at("port") == "27017");
+        REQUIRE(params.at("database") == "testdb");
+
+        // URI with IP address
+        params = driver.parseURI("mongodb://127.0.0.1:27017/mydb");
+        REQUIRE(params.at("host") == "127.0.0.1");
+        REQUIRE(params.at("port") == "27017");
+        REQUIRE(params.at("database") == "mydb");
+
+        // URI with custom port
+        params = driver.parseURI("mongodb://dbserver:28017/proddb");
+        REQUIRE(params.at("host") == "dbserver");
+        REQUIRE(params.at("port") == "28017");
+        REQUIRE(params.at("database") == "proddb");
+    }
+
+    SECTION("MongoDB driver parseURI - invalid URIs")
+    {
+        cpp_dbc::MongoDB::MongoDBDriver driver;
+
+        // Completely invalid URI
+        REQUIRE_THROWS_AS(
+            driver.parseURI("not_a_valid_uri"),
+            cpp_dbc::DBException);
+    }
 }
 #endif

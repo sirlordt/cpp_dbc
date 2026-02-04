@@ -12,7 +12,9 @@
   - Atomic operations
   - Move semantics
   - Other C++23 features as needed
-  - `<cstdint>` for fixed-width integer types (used in BLOB handling)
+  - `<cstdint>` for fixed-width integer types (`int64_t` for consistent 64-bit integers across platforms)
+  - `[[nodiscard]]` attribute for functions whose return value must be checked
+  - Cross-platform compatibility with `#ifdef _WIN32` guards for platform-specific code
 
 ### Database Client Libraries
 - **MySQL Client Library**: For MySQL database connectivity
@@ -222,6 +224,17 @@ The project now includes an automatic synchronization system for IntelliSense:
 - SQLiteDriver implements thread-safe initialization using std::atomic and std::mutex with singleton pattern
 - Applications can disable thread-safety with `--db-driver-thread-safe-off` for single-threaded performance
 - Thread-safety can be disabled at compile time with `-DDB_DRIVER_THREAD_SAFE=OFF`
+
+### Type Portability
+- Uses `int64_t` instead of `long` for 64-bit integer values to ensure consistent behavior:
+  - On Windows and most 32-bit systems, `long` is 32 bits
+  - On 64-bit Linux/macOS, `long` is 64 bits
+  - `int64_t` is always 64 bits on all platforms
+  - Applied to `getLong()` methods in all result set interfaces and implementations
+- Cross-platform time functions:
+  - Windows: `localtime_s(tm*, time_t*)` — Microsoft-specific, parameters in different order
+  - Unix/POSIX: `localtime_r(time_t*, tm*)` — thread-safe reentrant version
+  - Uses `#ifdef _WIN32` for platform detection
 
 ### Memory Management
 - Uses smart pointers for automatic resource management:

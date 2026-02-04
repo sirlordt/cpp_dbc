@@ -95,7 +95,7 @@ namespace cpp_dbc::SQLite
         }
     }
 
-    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, long value) noexcept
+    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept
     {
         try
         {

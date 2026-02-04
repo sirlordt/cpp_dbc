@@ -92,6 +92,7 @@ namespace cpp_dbc::PostgreSQL
 
             host = temp.substr(0, hostEnd);
             port = 5432; // Default PostgreSQL port
+            temp = temp.substr(hostEnd);
         }
         else
         {

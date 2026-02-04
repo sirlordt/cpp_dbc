@@ -119,7 +119,7 @@ namespace cpp_dbc::ScyllaDB
         return output;
     }
 
-    cpp_dbc::expected<long, DBException> ScyllaDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
+    cpp_dbc::expected<int64_t, DBException> ScyllaDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);
         auto validationResult = validateCurrentRow(std::nothrow);
