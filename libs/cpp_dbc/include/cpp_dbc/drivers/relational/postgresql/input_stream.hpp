@@ -2,6 +2,10 @@
 
 #include "../../../cpp_dbc.hpp"
 
+#ifndef USE_POSTGRESQL
+#define USE_POSTGRESQL 0
+#endif
+
 #if USE_POSTGRESQL
 
 #include <cstring>

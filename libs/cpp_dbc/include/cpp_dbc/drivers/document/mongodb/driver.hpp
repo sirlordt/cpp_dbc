@@ -4,9 +4,11 @@
 
 #if USE_MONGODB
 
+#include <atomic>
 #include <map>
-#include <string>
 #include <memory>
+#include <mutex>
+#include <string>
 
 namespace cpp_dbc::MongoDB
 {

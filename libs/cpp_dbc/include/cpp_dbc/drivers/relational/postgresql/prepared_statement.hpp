@@ -4,6 +4,7 @@
 
 #if USE_POSTGRESQL
 
+#include <memory>
 #include <vector>
 #include <string>
 

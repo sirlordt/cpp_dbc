@@ -4,6 +4,11 @@
 
 #if USE_MONGODB
 
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
+
 namespace cpp_dbc::MongoDB
 {
         // ============================================================================

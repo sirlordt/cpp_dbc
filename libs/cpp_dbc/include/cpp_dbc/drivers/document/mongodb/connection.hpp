@@ -4,6 +4,14 @@
 
 #if USE_MONGODB
 
+#include <atomic>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <set>
+#include <string>
+#include <vector>
+
 namespace cpp_dbc::MongoDB
 {
         class MongoDBCollection; // Forward declaration

@@ -7,7 +7,6 @@
 #endif
 
 #if USE_FIREBIRD
-#include <ibase.h>
 #include <cstring>
 #include <vector>
 
@@ -26,7 +25,7 @@ namespace cpp_dbc::Firebird
                     length > 0 && buffer == nullptr
                         ? throw DBException("7WF2L5RQ8GT4", "Null buffer passed to FirebirdInputStream", system_utils::captureCallStack())
                         : static_cast<const uint8_t *>(buffer),
-                    static_cast<const uint8_t *>(buffer) + length), m_position(0) {}
+                    static_cast<const uint8_t *>(buffer) + length) {}
 
             int read(uint8_t *buffer, size_t length) override
             {

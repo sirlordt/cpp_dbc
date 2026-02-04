@@ -28,7 +28,7 @@ namespace cpp_dbc::Firebird
         std::weak_ptr<isc_db_handle> m_dbHandle;
         std::weak_ptr<FirebirdDBConnection> m_connection; // Reference to connection for autocommit
         isc_tr_handle *m_trPtr{nullptr};                  // Non-owning pointer to transaction handle (owned by Connection)
-        isc_stmt_handle m_stmt;
+        isc_stmt_handle m_stmt{};
         std::string m_sql;
         XSQLDAHandle m_inputSqlda;
         XSQLDAHandle m_outputSqlda;

@@ -2,6 +2,10 @@
 
 #include "../../../cpp_dbc.hpp"
 
+#ifndef USE_MYSQL
+#define USE_MYSQL 0
+#endif
+
 #if USE_MYSQL
 
 #include <cstring>

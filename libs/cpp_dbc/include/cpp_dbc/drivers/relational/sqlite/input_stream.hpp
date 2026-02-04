@@ -7,7 +7,6 @@
 #endif
 
 #if USE_SQLITE
-#include <sqlite3.h>
 #include <cstring>
 #include <vector>
 
@@ -26,7 +25,7 @@ namespace cpp_dbc::SQLite
                     length > 0 && buffer == nullptr
                         ? throw DBException("3YC6H9DK1NX7", "Null buffer passed to SQLiteInputStream", system_utils::captureCallStack())
                         : static_cast<const uint8_t *>(buffer),
-                    static_cast<const uint8_t *>(buffer) + length), m_position(0) {}
+                    static_cast<const uint8_t *>(buffer) + length) {}
 
             int read(uint8_t *buffer, size_t length) override
             {
