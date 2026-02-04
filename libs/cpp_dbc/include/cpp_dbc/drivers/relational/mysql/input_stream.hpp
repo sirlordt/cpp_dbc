@@ -18,7 +18,11 @@ namespace cpp_dbc::MySQL
 
         public:
             MySQLInputStream(const char *buffer, size_t length)
-                : m_data(buffer, buffer + length) {}
+                : m_data(
+                    length > 0 && buffer == nullptr
+                        ? throw DBException("5TM8R4JP6BW2", "Null buffer passed to MySQLInputStream", system_utils::captureCallStack())
+                        : buffer,
+                    buffer + length) {}
 
             int read(uint8_t *buffer, size_t length) override
             {

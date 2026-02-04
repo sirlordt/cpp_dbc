@@ -114,6 +114,18 @@ namespace cpp_dbc::MongoDB
 
         public:
             /**
+             * @brief Register a collection for cleanup tracking
+             * @param collection Weak pointer to the collection to register
+             */
+            void registerCollection(std::weak_ptr<MongoDBCollection> collection);
+
+            /**
+             * @brief Unregister a collection from cleanup tracking
+             * @param collection Weak pointer to the collection to unregister
+             */
+            void unregisterCollection(std::weak_ptr<MongoDBCollection> collection);
+
+            /**
              * @brief Register a cursor for cleanup tracking
              * @param cursor Weak pointer to the cursor to register
              */

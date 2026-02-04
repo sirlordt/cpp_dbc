@@ -97,6 +97,21 @@ namespace cpp_dbc::ScyllaDB
         using CassStatementHandle = std::unique_ptr<CassStatement, CassStatementDeleter>;
         using CassPreparedHandle = std::shared_ptr<const CassPrepared>; // Shared because multiple statements can be created from one prepared
         using CassResultHandle = std::unique_ptr<const CassResult, CassResultDeleter>;
+
+        /**
+         * @brief Factory function to create a CassPreparedHandle with the correct deleter
+         *
+         * Since std::shared_ptr uses type-erased deleters (passed at construction, not
+         * as a template parameter), this factory ensures CassPreparedDeleter is always
+         * used, preventing accidental construction with the default `delete` operator.
+         *
+         * @param prepared Raw pointer to the CassPrepared object (takes ownership)
+         * @return CassPreparedHandle with CassPreparedDeleter
+         */
+        inline CassPreparedHandle makeCassPreparedHandle(const CassPrepared *prepared)
+        {
+            return CassPreparedHandle(prepared, CassPreparedDeleter());
+        }
         using CassIteratorHandle = std::unique_ptr<CassIterator, CassIteratorDeleter>;
 } // namespace cpp_dbc::ScyllaDB
 

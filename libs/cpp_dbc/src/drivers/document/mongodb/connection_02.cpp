@@ -51,12 +51,16 @@ namespace cpp_dbc::MongoDB
             throw DBException("Q1R2S3T4U5V6", "Failed to get collection: " + collectionName, system_utils::captureCallStack());
         }
 
-        return std::make_shared<MongoDBCollection>(
+        auto collectionPtr = std::make_shared<MongoDBCollection>(
             std::weak_ptr<mongoc_client_t>(m_client), coll, collectionName, m_databaseName, weak_from_this()
 #if DB_DRIVER_THREAD_SAFE
             , m_connMutex
 #endif
         );
+
+        registerCollection(collectionPtr);
+
+        return collectionPtr;
     }
 
     std::vector<std::string> MongoDBConnection::listCollections()
@@ -135,12 +139,16 @@ namespace cpp_dbc::MongoDB
             throw DBException("V6W7X8Y9Z0A1", std::string("Failed to create collection: ") + error.message, system_utils::captureCallStack());
         }
 
-        return std::make_shared<MongoDBCollection>(
+        auto collectionPtr = std::make_shared<MongoDBCollection>(
             std::weak_ptr<mongoc_client_t>(m_client), coll, collectionName, m_databaseName, weak_from_this()
 #if DB_DRIVER_THREAD_SAFE
             , m_connMutex
 #endif
         );
+
+        registerCollection(collectionPtr);
+
+        return collectionPtr;
     }
 
     void MongoDBConnection::dropCollection(const std::string &collectionName)

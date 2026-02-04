@@ -62,9 +62,10 @@ namespace cpp_dbc::MongoDB
         /**
          * @brief Type alias for smart pointer managing bson_t
          *
-         * Note: We use void* as the template parameter to avoid -Wignored-attributes
-         * warnings caused by bson_t's alignment attributes. The BsonDeleter handles
-         * the proper casting and destruction.
+         * BsonHandle is a std::unique_ptr<bson_t, BsonDeleter> that uses bson_t directly.
+         * Pragma directives (GCC/Clang diagnostic push/ignored -Wignored-attributes) are
+         * used around the typedef to suppress warnings caused by bson_t's alignment
+         * attributes. BsonDeleter calls bson_destroy() directly on the bson_t pointer.
          */
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push

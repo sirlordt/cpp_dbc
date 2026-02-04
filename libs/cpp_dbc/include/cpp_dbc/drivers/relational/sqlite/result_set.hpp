@@ -72,7 +72,7 @@ namespace cpp_dbc::SQLite
          */
         sqlite3_stmt *m_stmt{nullptr};
 
-        bool m_ownStatement;
+        bool m_ownStatement{false};
         size_t m_rowPosition{0};
         size_t m_rowCount{0};
         size_t m_fieldCount{0};

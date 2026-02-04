@@ -28,7 +28,11 @@ namespace cpp_dbc::PostgreSQL
 
         public:
             PostgreSQLInputStream(const char *buffer, size_t length)
-                : m_data(buffer, buffer + length) {}
+                : m_data(
+                    length > 0 && buffer == nullptr
+                        ? throw DBException("8KV3N7QW2FX9", "Null buffer passed to PostgreSQLInputStream", system_utils::captureCallStack())
+                        : buffer,
+                    buffer + length) {}
 
             int read(uint8_t *buffer, size_t length) override
             {

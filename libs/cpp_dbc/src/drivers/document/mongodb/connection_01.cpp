@@ -54,6 +54,28 @@ namespace cpp_dbc::MongoDB
     }
 
     // ============================================================================
+    // MongoDBConnection Implementation - Collection Registration (Public)
+    // ============================================================================
+
+    void MongoDBConnection::registerCollection(std::weak_ptr<MongoDBCollection> collection)
+    {
+        std::scoped_lock lock(m_collectionsMutex);
+        if (m_activeCollections.size() > 50)
+        {
+            std::erase_if(m_activeCollections, [](const auto &w) { return w.expired(); });
+        }
+        m_activeCollections.insert(std::move(collection));
+        MONGODB_DEBUG("MongoDBConnection::registerCollection - Registered collection, total: " << m_activeCollections.size());
+    }
+
+    void MongoDBConnection::unregisterCollection(std::weak_ptr<MongoDBCollection> collection)
+    {
+        std::scoped_lock lock(m_collectionsMutex);
+        m_activeCollections.erase(collection);
+        MONGODB_DEBUG("MongoDBConnection::unregisterCollection - Unregistered collection, remaining: " << m_activeCollections.size());
+    }
+
+    // ============================================================================
     // MongoDBConnection Implementation - Cursor Registration (Public)
     // ============================================================================
 

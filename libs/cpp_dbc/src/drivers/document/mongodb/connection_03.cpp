@@ -137,6 +137,8 @@ namespace cpp_dbc::MongoDB
 #endif
             );
 
+            registerCollection(collectionPtr);
+
             return std::static_pointer_cast<DocumentDBCollection>(collectionPtr);
         }
         catch (const DBException &ex)
@@ -293,6 +295,8 @@ namespace cpp_dbc::MongoDB
                 , m_connMutex
 #endif
             );
+
+            registerCollection(collectionPtr);
 
             return std::static_pointer_cast<DocumentDBCollection>(collectionPtr);
         }
