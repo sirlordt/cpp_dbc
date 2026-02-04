@@ -22,6 +22,7 @@
 
 #if USE_SCYLLADB
 
+#include <algorithm>
 #include <climits>
 #include <cstring>
 #include <vector>

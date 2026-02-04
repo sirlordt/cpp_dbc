@@ -2,6 +2,11 @@
 
 #include "handles.hpp"
 
+#include "cpp_dbc/core/db_exception.hpp"
+#include "cpp_dbc/core/db_expected.hpp"
+#include "cpp_dbc/core/relational/relational_db_result_set.hpp"
+#include "cpp_dbc/core/streams.hpp"
+
 #if USE_MYSQL
 
 #include <cstdint>

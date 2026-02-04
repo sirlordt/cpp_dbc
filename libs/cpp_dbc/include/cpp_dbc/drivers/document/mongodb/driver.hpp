@@ -2,13 +2,14 @@
 
 #include "handles.hpp"
 
+#include <map>
+#include <memory>
+#include <string>
+
 #if USE_MONGODB
 
 #include <atomic>
-#include <map>
-#include <memory>
 #include <mutex>
-#include <string>
 
 namespace cpp_dbc::MongoDB
 {
@@ -66,9 +67,11 @@ namespace cpp_dbc::MongoDB
              */
             ~MongoDBDriver() override;
 
-            // Prevent copying
+            // Prevent copying and moving
             MongoDBDriver(const MongoDBDriver &) = delete;
             MongoDBDriver &operator=(const MongoDBDriver &) = delete;
+            MongoDBDriver(MongoDBDriver &&) = delete;
+            MongoDBDriver &operator=(MongoDBDriver &&) = delete;
 
             // DBDriver interface
             std::shared_ptr<DBConnection> connect(
