@@ -103,7 +103,7 @@ namespace cpp_dbc::SQLite
             return false;
         }
 
-        bool parseURL(const std::string & /*url*/, std::string &database)
+        bool parseURL(const std::string & /*url*/, std::string &database) const
         {
             database.clear();
             return false;

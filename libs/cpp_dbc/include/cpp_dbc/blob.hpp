@@ -77,6 +77,8 @@ namespace cpp_dbc
     /**
      * @brief OutputStream implementation that writes to a memory buffer
      *
+     * @note The referenced buffer must outlive the stream instance.
+     *
      * ```cpp
      * std::vector<uint8_t> data;
      * auto stream = std::make_shared<cpp_dbc::MemoryOutputStream>(data, 0);
@@ -152,7 +154,13 @@ namespace cpp_dbc
 
         void skip(size_t n) override
         {
-            file.seekg(n, std::ios::cur);
+            if (!file.good())
+                throw DBException("K7M2X9P4B3QW", "Cannot skip in file stream: stream is in bad state", system_utils::captureCallStack());
+
+            file.seekg(static_cast<std::streamoff>(n), std::ios::cur);
+
+            if (file.fail() && !file.eof())
+                throw DBException("R5J8N1V6C4YH", "Failed to skip in file stream", system_utils::captureCallStack());
         }
 
         void close() override
@@ -208,6 +216,9 @@ namespace cpp_dbc
     /**
      * @brief Blob implementation that stores binary data in memory
      *
+     * @note Streams returned by getBinaryStream() and setBinaryStream() hold references
+     *       to internal data and become invalid if the MemoryBlob is destroyed.
+     *
      * ```cpp
      * std::vector<uint8_t> data = {0x01, 0x02, 0x03};
      * cpp_dbc::MemoryBlob blob(data);
@@ -220,6 +231,8 @@ namespace cpp_dbc
     class MemoryBlob : public Blob
     {
     protected:
+        // mutable is required here for lazy loading in derived classes (MySQLBlob, PostgreSQLBlob, etc.)
+        // Their ensureLoaded() const methods need to populate this cache on first access
         mutable std::vector<uint8_t> m_data;
 
     public:

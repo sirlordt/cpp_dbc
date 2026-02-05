@@ -139,7 +139,8 @@ namespace cpp_dbc
         virtual void prepareForPoolReturn()
         {
             // Default implementation: rollback any active transaction
-            rollback(std::nothrow);
+            // Explicitly discard the [[nodiscard]] result - errors during pool return are intentionally ignored
+            (void)rollback(std::nothrow);
         }
 
         // ====================================================================

@@ -28,6 +28,7 @@
 #include <ctime>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace cpp_dbc::system_utils
@@ -91,8 +92,8 @@ namespace cpp_dbc::system_utils
          * @param requireDatabase If true, the URL must include a database/path component
          * @return true if parsing succeeded, false otherwise
          */
-        bool parseDBURL(const std::string &url,
-                        const std::string &expectedPrefix,
+        bool parseDBURL(std::string_view url,
+                        std::string_view expectedPrefix,
                         int defaultPort,
                         ParsedDBURL &result,
                         bool allowLocalConnection = false,

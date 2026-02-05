@@ -68,7 +68,7 @@ namespace cpp_dbc::MySQL
     bool MySQLDBDriver::parseURL(const std::string &url,
                                  std::string &host,
                                  int &port,
-                                 std::string &database)
+                                 std::string &database) const
     {
         // Use centralized URL parsing from system_utils
         // MySQL URLs: cpp_dbc:mysql://host:port/database

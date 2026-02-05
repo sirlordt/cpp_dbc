@@ -55,7 +55,7 @@ namespace cpp_dbc::PostgreSQL
         bool parseURL(const std::string &url,
                       std::string &host,
                       int &port,
-                      std::string &database);
+                      std::string &database) const;
 
         // Nothrow API
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(

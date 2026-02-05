@@ -68,7 +68,7 @@ namespace cpp_dbc::PostgreSQL
     bool PostgreSQLDBDriver::parseURL(const std::string &url,
                                       std::string &host,
                                       int &port,
-                                      std::string &database)
+                                      std::string &database) const
     {
         // Use centralized URL parsing from system_utils
         // PostgreSQL URLs: cpp_dbc:postgresql://host:port/database

@@ -120,8 +120,8 @@ namespace cpp_dbc::system_utils
             }
         }
 
-        bool parseDBURL(const std::string &url,
-                        const std::string &expectedPrefix,
+        bool parseDBURL(std::string_view url,
+                        std::string_view expectedPrefix,
                         int defaultPort,
                         ParsedDBURL &result,
                         bool allowLocalConnection,
@@ -142,7 +142,8 @@ namespace cpp_dbc::system_utils
                 }
 
                 // Extract the part after the prefix
-                std::string rest = url.substr(expectedPrefix.length());
+                auto restView = url.substr(expectedPrefix.length());
+                std::string rest(restView.data(), restView.size());
 
                 // Check for empty rest
                 if (rest.empty())
@@ -151,21 +152,14 @@ namespace cpp_dbc::system_utils
                 }
 
                 // Check for local connection (starts with '/')
-                if (rest[0] == '/')
+                // For non-local drivers, '/' indicates start of database path handled in normal parsing below
+                if (rest[0] == '/' && allowLocalConnection)
                 {
-                    if (!allowLocalConnection)
-                    {
-                        // For non-local drivers, '/' indicates start of database path
-                        // This is handled below in the normal parsing flow
-                    }
-                    else
-                    {
-                        // Local connection: prefix:///path/to/database
-                        result.isLocal = true;
-                        result.host = "";
-                        result.database = rest;
-                        return !requireDatabase || !result.database.empty();
-                    }
+                    // Local connection: prefix:///path/to/database
+                    result.isLocal = true;
+                    result.host = "";
+                    result.database = rest;
+                    return !requireDatabase || !result.database.empty();
                 }
 
                 // Check for IPv6 address (starts with '[')
