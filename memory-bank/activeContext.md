@@ -37,7 +37,7 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-0. **Comprehensive Documentation for New Driver Development and Error Handling** (2026-02-04 22:06:05 PST):
+1. **Comprehensive Documentation for New Driver Development and Error Handling** (2026-02-04 22:06:05 PST):
    - **New Driver Development Guide (`how_add_new_db_drivers.md`):**
      - Created comprehensive guide (~1,500 lines) for adding new database drivers to cpp_dbc
      - Covers all 5 phases: driver files, build configuration, tests, benchmarks, and examples
@@ -59,7 +59,7 @@ Recent changes to the codebase include:
      - Added "Adding New Database Drivers" section referencing the new guide
      - Documents key files that require `USE_<DRIVER>` updates
 
-1. **Cross-Platform Compatibility and Type Portability Improvements** (2026-02-04 14:14:16 PST):
+2. **Cross-Platform Compatibility and Type Portability Improvements** (2026-02-04 14:14:16 PST):
    - **Cross-Platform Time Functions:**
      - Replaced `localtime_r` (Unix) with `localtime_s` (Windows) with proper cross-platform detection
      - Added `#ifdef _WIN32` preprocessor guards for platform-specific code in `system_utils.hpp`

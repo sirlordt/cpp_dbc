@@ -39,8 +39,8 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
    - `how_add_new_db_drivers.md`: Comprehensive 5-phase guide for adding new database drivers
    - `error_handling_patterns.md`: DBException, error codes, and exception-free API patterns
    - `shell_script_dependencies.md`: Script call hierarchy and troubleshooting
-7. **Code Quality Layer**: Comprehensive warning flags and compile-time checks across all components
-8. **Client Application Layer**: User code that interacts with the library
+9. **Code Quality Layer**: Comprehensive warning flags and compile-time checks across all components
+10. **Client Application Layer**: User code that interacts with the library
 
 The architecture follows this flow:
 ```

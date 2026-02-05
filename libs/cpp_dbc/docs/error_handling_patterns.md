@@ -281,7 +281,7 @@ Use `cpp_dbc::unexpected` to return errors:
 
 ```cpp
 // Return error
-return cpp_dbc::unexpected(DBException("CODE12345678",
+return cpp_dbc::unexpected(DBException("A7B3C9D2E5F1",
     "Error message", system_utils::captureCallStack()));
 
 // Return success (for expected<void, E>)

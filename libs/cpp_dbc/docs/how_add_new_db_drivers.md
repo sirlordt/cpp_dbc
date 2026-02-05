@@ -215,7 +215,7 @@ For this guide, we'll use `sqlserver` (Microsoft SQL Server) as an example relat
 
 #### Directory Structure
 
-```
+```text
 libs/cpp_dbc/include/cpp_dbc/drivers/relational/
 ├── driver_sqlserver.hpp          # Umbrella header (includes all components)
 └── sqlserver/
@@ -1511,7 +1511,7 @@ Without these updates, users who install cpp_dbc as a package won't be able to u
 
 ---
 
-## Related Documentation
+## See Also
 
 For detailed information on specific topics, see these companion documents:
 

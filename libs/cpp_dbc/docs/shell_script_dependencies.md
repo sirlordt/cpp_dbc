@@ -4,7 +4,7 @@ This document describes the relationships and call hierarchy between shell scrip
 
 ## Quick Reference Diagram
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              USER ENTRY POINTS                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -104,7 +104,7 @@ This document describes the relationships and call hierarchy between shell scrip
 
 ### Build Chain
 
-```
+```text
 helper.sh --run-build=OPTIONS
     │
     └─► build.sh
@@ -122,7 +122,7 @@ helper.sh --run-build=OPTIONS
 
 ### Test Chain
 
-```
+```text
 helper.sh --run-test=OPTIONS
     │
     ├─► [if parallel=N] run_test_parallel.sh
@@ -144,7 +144,7 @@ helper.sh --run-test=OPTIONS
 
 ### Distribution Build Chain
 
-```
+```text
 helper.sh --run-build-dist=OPTIONS
     │
     └─► build.dist.sh
@@ -160,7 +160,7 @@ helper.sh --run-build-dist=OPTIONS
 
 ### VSCode Sync Chain
 
-```
+```text
 helper.sh --vscode
     │
     └─► .vscode/sync_intellisense.sh
