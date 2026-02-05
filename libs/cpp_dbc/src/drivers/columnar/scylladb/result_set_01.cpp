@@ -88,7 +88,20 @@ namespace cpp_dbc::ScyllaDB
     ScyllaDBResultSet::~ScyllaDBResultSet()
     {
         SCYLLADB_DEBUG("ScyllaDBResultSet::destructor - Destroying result set");
-        ScyllaDBResultSet::close();
+        try
+        {
+            ScyllaDBResultSet::close();
+        }
+        catch (const std::exception &e)
+        {
+            // Log the error but don't throw - in destructor
+            SCYLLADB_DEBUG("Failed to close result set: " << e.what());
+        }
+        catch (...)
+        {
+            // Catch all other exceptions
+            SCYLLADB_DEBUG("Failed to close result set: unknown error");
+        }
     }
 
     void ScyllaDBResultSet::close()

@@ -90,6 +90,12 @@ TEST_CASE("PostgreSQL driver tests", "[21_021_01_postgresql_real_driver]")
         REQUIRE(host == "localhost");
         REQUIRE(port == 5432);
         REQUIRE(database == "testdb");
+
+        // URL with IPv6 address
+        REQUIRE(driver.parseURL("cpp_dbc:postgresql://[::1]:5432/testdb", host, port, database));
+        REQUIRE(host == "::1");
+        REQUIRE(port == 5432);
+        REQUIRE(database == "testdb");
     }
 
     SECTION("PostgreSQL driver parseURL - invalid URLs")

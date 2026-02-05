@@ -70,68 +70,23 @@ namespace cpp_dbc::PostgreSQL
                                       int &port,
                                       std::string &database)
     {
-        // Parse URL of format: cpp_dbc:postgresql://host:port/database
-        if (!acceptsURL(url))
+        // Use centralized URL parsing from system_utils
+        // PostgreSQL URLs: cpp_dbc:postgresql://host:port/database
+        // Also supports IPv6: cpp_dbc:postgresql://[::1]:port/database
+        constexpr int DEFAULT_POSTGRESQL_PORT = 5432;
+
+        system_utils::ParsedDBURL parsed;
+        if (!system_utils::parseDBURL(url, "cpp_dbc:postgresql://", DEFAULT_POSTGRESQL_PORT, parsed,
+                                      false, // allowLocalConnection
+                                      true)) // requireDatabase (PostgreSQL requires database)
         {
+            PG_DEBUG("PostgreSQLDBDriver::parseURL - Failed to parse URL: " << url);
             return false;
         }
 
-        // Extract host, port, and database
-        std::string temp = url.substr(21); // Remove "cpp_dbc:postgresql://"
-
-        // Find host:port separator
-        size_t hostEnd = temp.find(":");
-        if (hostEnd == std::string::npos)
-        {
-            // Try to find database separator if no port is specified
-            hostEnd = temp.find("/");
-            if (hostEnd == std::string::npos)
-            {
-                return false;
-            }
-
-            host = temp.substr(0, hostEnd);
-            port = 5432; // Default PostgreSQL port
-            temp = temp.substr(hostEnd);
-        }
-        else
-        {
-            host = temp.substr(0, hostEnd);
-
-            // Find port/database separator
-            size_t portEnd = temp.find("/", hostEnd + 1);
-            if (portEnd == std::string::npos)
-            {
-                return false;
-            }
-
-            std::string portStr = temp.substr(hostEnd + 1, portEnd - hostEnd - 1);
-            try
-            {
-                port = std::stoi(portStr);
-            }
-            catch ([[maybe_unused]] const std::invalid_argument &ex)
-            {
-                PG_DEBUG("PostgreSQLDBDriver::parseURL - Invalid port number: " << ex.what());
-                return false;
-            }
-            catch ([[maybe_unused]] const std::out_of_range &ex)
-            {
-                PG_DEBUG("PostgreSQLDBDriver::parseURL - Port number out of range: " << ex.what());
-                return false;
-            }
-            catch (...) // NOSONAR - Intentional catch-all for unexpected exceptions during port parsing
-            {
-                PG_DEBUG("PostgreSQLDBDriver::parseURL - Unknown exception during port parsing");
-                return false;
-            }
-
-            temp = temp.substr(portEnd);
-        }
-
-        // Extract database name (remove leading '/')
-        database = temp.substr(1);
-
+        host = parsed.host;
+        port = parsed.port;
+        database = parsed.database;
         return true;
     }
 

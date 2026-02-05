@@ -82,6 +82,12 @@ TEST_CASE("MongoDB driver tests", "[25_021_01_mongodb_real_driver]")
         REQUIRE(params.at("host") == "dbserver");
         REQUIRE(params.at("port") == "28017");
         REQUIRE(params.at("database") == "proddb");
+
+        // URI with IPv6 address
+        params = driver.parseURI("mongodb://[::1]:27017/testdb");
+        REQUIRE(params.at("host") == "::1");
+        REQUIRE(params.at("port") == "27017");
+        REQUIRE(params.at("database") == "testdb");
     }
 
     SECTION("MongoDB driver parseURI - invalid URIs")

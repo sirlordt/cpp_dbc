@@ -79,7 +79,7 @@ Recent changes to the codebase include:
      - Doxygen-ready — can generate HTML/PDF API reference
      - Self-documenting API with inline code examples
 
-1a. **Driver Header Split Refactoring — One-Class-Per-File** (2026-02-03 14:58:04 PST):
+2. **Driver Header Split Refactoring — One-Class-Per-File** (2026-02-03 14:58:04 PST):
    - **Header File Reorganization:**
      - Split all 7 multi-class `driver_*.hpp` files into individual per-class `.hpp` files in driver subfolders
      - Original `driver_*.hpp` files now serve as pure aggregator headers with only `#include` directives

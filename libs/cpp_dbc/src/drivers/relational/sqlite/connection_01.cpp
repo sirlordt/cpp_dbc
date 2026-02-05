@@ -72,6 +72,7 @@ namespace cpp_dbc::SQLite
         // CRITICAL: Must hold connection mutex to prevent other threads from using
         // the sqlite3* connection while we close statements.
         DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        std::lock_guard<std::mutex> stmtLock(m_statementsMutex);
 
         for (auto &weak_stmt : m_activeStatements)
         {

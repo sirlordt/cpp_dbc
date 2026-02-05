@@ -276,66 +276,35 @@ namespace cpp_dbc::Firebird
 
     bool FirebirdDBDriver::parseURL(const std::string &url, std::string &host, int &port, std::string &database)
     {
-        // Expected formats:
-        // cpp_dbc:firebird://host:port/path/to/database.fdb
-        // cpp_dbc:firebird://host/path/to/database.fdb
-        // cpp_dbc:firebird:///path/to/database.fdb (local)
+        // Use centralized URL parsing from system_utils
+        // Firebird URLs:
+        // - cpp_dbc:firebird://host:port/path/to/database.fdb
+        // - cpp_dbc:firebird://host/path/to/database.fdb
+        // - cpp_dbc:firebird:///path/to/database.fdb (local)
+        // - cpp_dbc:firebird://[::1]:port/path/to/database.fdb (IPv6)
+        constexpr int DEFAULT_FIREBIRD_PORT = 3050;
 
-        std::string workUrl = url;
-
-        // Remove prefix - only accept cpp_dbc:firebird:// prefix
-        if (workUrl.find("cpp_dbc:firebird://") == 0)
-        {
-            workUrl = workUrl.substr(19);
-        }
-        else
-        {
-            return false;
-        }
-
-        // Default values
-        host = "localhost";
-        port = 3050; // Default Firebird port
-
-        // Check for local connection (starts with /)
-        if (workUrl[0] == '/')
-        {
-            database = workUrl;
-            return true;
-        }
-
-        // Find host:port/database
-        size_t slashPos = workUrl.find('/');
-        if (slashPos == std::string::npos)
+        system_utils::ParsedDBURL parsed;
+        if (!system_utils::parseDBURL(url, "cpp_dbc:firebird://", DEFAULT_FIREBIRD_PORT, parsed,
+                                      true,  // allowLocalConnection
+                                      true)) // requireDatabase
         {
             return false;
         }
 
-        std::string hostPort = workUrl.substr(0, slashPos);
-        database = workUrl.substr(slashPos);
+        host = parsed.host;
+        port = parsed.port;
 
-        // Parse host:port
-        size_t colonPos = hostPort.find(':');
-        if (colonPos != std::string::npos)
+        // For Firebird, the database path needs to include the leading slash
+        if (parsed.isLocal)
         {
-            host = hostPort.substr(0, colonPos);
-            try
-            {
-                port = std::stoi(hostPort.substr(colonPos + 1));
-            }
-            catch (...)
-            {
-                port = 3050;
-            }
+            // Local connection: database already has the full path with leading slash
+            database = parsed.database;
         }
         else
         {
-            host = hostPort;
-        }
-
-        if (host.empty())
-        {
-            host = "localhost";
+            // Remote connection: prepend slash to make it a path
+            database = "/" + parsed.database;
         }
 
         return !database.empty();

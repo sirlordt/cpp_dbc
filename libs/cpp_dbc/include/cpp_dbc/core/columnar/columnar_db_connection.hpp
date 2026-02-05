@@ -146,22 +146,22 @@ namespace cpp_dbc
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
 
-        virtual cpp_dbc::expected<std::shared_ptr<ColumnarDBPreparedStatement>, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<std::shared_ptr<ColumnarDBPreparedStatement>, DBException>
         prepareStatement(std::nothrow_t, const std::string &query) noexcept = 0;
 
-        virtual cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException>
         executeQuery(std::nothrow_t, const std::string &query) noexcept = 0;
 
-        virtual cpp_dbc::expected<uint64_t, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<uint64_t, DBException>
         executeUpdate(std::nothrow_t, const std::string &query) noexcept = 0;
 
-        virtual cpp_dbc::expected<bool, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<bool, DBException>
             beginTransaction(std::nothrow_t) noexcept = 0;
 
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
             commit(std::nothrow_t) noexcept = 0;
 
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
             rollback(std::nothrow_t) noexcept = 0;
     };
 

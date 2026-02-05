@@ -9,6 +9,9 @@ set -e
 # Script directory (project root)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
+# Source common functions (provides colors, check_color_support, validate_numeric, etc.)
+source "$SCRIPT_DIR/lib/common_functions.sh"
+
 # Default values
 PARALLEL_COUNT=1
 PARALLEL_ORDER=""  # Comma-separated list of prefixes to run first (e.g., "23_,24_")
@@ -51,38 +54,7 @@ LEFT_PANEL_WIDTH=30
 RUNNING_PREFIXES_COUNT=0
 ORIGINAL_STTY_SETTINGS=""
 
-# Color codes
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-WHITE='\033[1;37m'
-DIM='\033[2m'
-REVERSE='\033[7m'
-NC='\033[0m' # No Color
-
-# Check if terminal supports colors
-check_color_support() {
-    if [ -t 1 ] && [ -n "$TERM" ] && [ "$TERM" != "dumb" ]; then
-        return 0  # Terminal supports colors
-    else
-        return 1  # Terminal doesn't support colors
-    fi
-}
-
-# Validate that a value is a non-negative integer
-# Usage: validate_numeric "value" "parameter_name"
-# Returns 0 if valid, exits with error if invalid
-validate_numeric() {
-    local value="$1"
-    local param_name="$2"
-
-    if ! [[ "$value" =~ ^[0-9]+$ ]]; then
-        echo "Error: $param_name must be a non-negative integer, got: '$value'"
-        exit 1
-    fi
-}
+# Color codes, check_color_support(), and validate_numeric() are provided by lib/common_functions.sh
 
 # Parse command line arguments
 # Extract --parallel and --run, pass everything else through
@@ -736,84 +708,7 @@ check_crash_signals() {
     return 0
 }
 
-# Check for Valgrind errors in log file
-# Returns 0 if no Valgrind errors found, 1 if errors found
-# Sets VALGRIND_ERROR_MSG with the error description if found
-VALGRIND_ERROR_MSG=""
-check_valgrind_errors() {
-    local log_file=$1
-    VALGRIND_ERROR_MSG=""
-
-    if [ ! -f "$log_file" ]; then
-        return 0
-    fi
-
-    # Check for ERROR SUMMARY with non-zero errors
-    local error_summary
-    error_summary=$(grep -E "ERROR SUMMARY: [1-9][0-9]* errors" "$log_file" 2>/dev/null | tail -1)
-    if [ -n "$error_summary" ]; then
-        VALGRIND_ERROR_MSG="Valgrind: $error_summary"
-        return 1
-    fi
-
-    # Check for memory leaks (definitely lost, indirectly lost, possibly lost)
-    local definitely_lost
-    definitely_lost=$(grep -E "definitely lost: [1-9][0-9,]* bytes" "$log_file" 2>/dev/null | tail -1)
-    if [ -n "$definitely_lost" ]; then
-        VALGRIND_ERROR_MSG="Valgrind memory leak: $definitely_lost"
-        return 1
-    fi
-
-    local indirectly_lost
-    indirectly_lost=$(grep -E "indirectly lost: [1-9][0-9,]* bytes" "$log_file" 2>/dev/null | tail -1)
-    if [ -n "$indirectly_lost" ]; then
-        VALGRIND_ERROR_MSG="Valgrind memory leak: $indirectly_lost"
-        return 1
-    fi
-
-    local possibly_lost
-    possibly_lost=$(grep -E "possibly lost: [1-9][0-9,]* bytes" "$log_file" 2>/dev/null | tail -1)
-    if [ -n "$possibly_lost" ]; then
-        VALGRIND_ERROR_MSG="Valgrind memory leak: $possibly_lost"
-        return 1
-    fi
-
-    # Check for invalid read/write operations
-    if grep -qE "Invalid read of size" "$log_file" 2>/dev/null; then
-        VALGRIND_ERROR_MSG="Valgrind: Invalid read detected"
-        return 1
-    fi
-
-    if grep -qE "Invalid write of size" "$log_file" 2>/dev/null; then
-        VALGRIND_ERROR_MSG="Valgrind: Invalid write detected"
-        return 1
-    fi
-
-    # Check for uninitialised value usage
-    if grep -qE "Conditional jump or move depends on uninitialised value" "$log_file" 2>/dev/null; then
-        VALGRIND_ERROR_MSG="Valgrind: Use of uninitialised value"
-        return 1
-    fi
-
-    if grep -qE "Use of uninitialised value" "$log_file" 2>/dev/null; then
-        VALGRIND_ERROR_MSG="Valgrind: Use of uninitialised value"
-        return 1
-    fi
-
-    # Check for invalid free
-    if grep -qE "Invalid free\(\)" "$log_file" 2>/dev/null; then
-        VALGRIND_ERROR_MSG="Valgrind: Invalid free() detected"
-        return 1
-    fi
-
-    # Check for mismatched free/delete
-    if grep -qE "Mismatched free\(\) / delete" "$log_file" 2>/dev/null; then
-        VALGRIND_ERROR_MSG="Valgrind: Mismatched free/delete detected"
-        return 1
-    fi
-
-    return 0
-}
+# check_valgrind_errors() and VALGRIND_ERROR_MSG are provided by lib/common_functions.sh
 
 # Find all failure lines in a log file with line numbers
 # Outputs: line_number|error_type|error_message for each error found
@@ -901,7 +796,8 @@ find_failure_lines() {
     grep -an ": FAILED:" "$log_file" 2>/dev/null | while IFS=: read -r line_num content; do
         # content contains the rest after line_num, which is the cpp path and failure info
         # Extract the source file path and line from the content (format: /path/file.cpp:123: FAILED:)
-        local source_info=$(echo "$content" | grep -oE '[^[:space:]]+\.cpp:[0-9]+')
+        local source_info
+        source_info=$(echo "$content" | grep -oE '[^[:space:]]+\.cpp:[0-9]+')
         if [ -n "$source_info" ]; then
             echo "${line_num}|Test FAILED|${source_info}"
         else
@@ -915,14 +811,18 @@ find_failure_lines() {
     # and avoid false positives from passed assertions whose data contains "failed"
     sed 's/\x1b\[[0-9;]*m//g' "$log_file" 2>/dev/null | grep -an "\.cpp:[0-9]*: failed:" | grep -v "test case" | while IFS= read -r full_line; do
         # Extract line number (everything before first colon)
-        local line_num=$(echo "$full_line" | cut -d: -f1)
+        local line_num
+        line_num=$(echo "$full_line" | cut -d: -f1)
         # Get the content after line number (already ANSI-stripped)
-        local content=$(echo "$full_line" | cut -d: -f2-)
+        local content
+        content=$(echo "$full_line" | cut -d: -f2-)
         # Extract the source file path and line
-        local source_info=$(echo "$content" | grep -oE '[^[:space:]]+\.cpp:[0-9]+')
+        local source_info
+        source_info=$(echo "$content" | grep -oE '[^[:space:]]+\.cpp:[0-9]+')
         if [ -n "$source_info" ]; then
             # Also extract the assertion info after "failed:"
-            local assertion_info=$(echo "$content" | sed 's/.*failed: //' | head -c 80)
+            local assertion_info
+            assertion_info=$(echo "$content" | sed 's/.*failed: //' | head -c 80)
             echo "${line_num}|Test FAILED|${source_info}: ${assertion_info}"
         fi
     done
@@ -948,14 +848,7 @@ count_total_tests_in_log() {
 # Detailed Summary Functions
 # ============================================================================
 
-# Format duration in seconds to HH:MM:SS
-format_duration() {
-    local seconds=$1
-    local hours=$((seconds / 3600))
-    local minutes=$(((seconds % 3600) / 60))
-    local secs=$((seconds % 60))
-    printf "%02d:%02d:%02d" $hours $minutes $secs
-}
+# format_duration() is provided by lib/common_functions.sh
 
 # Extract test durations from log file
 # Returns: tag|duration_seconds for each test

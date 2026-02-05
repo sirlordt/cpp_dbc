@@ -22,10 +22,11 @@
 
 #if USE_SCYLLADB
 
+#include <cstdint>
 #include <memory>
 #include <mutex>
-#include <vector>
 #include <string>
+#include <vector>
 
 #include "cpp_dbc/core/columnar/columnar_db_prepared_statement.hpp"
 #include "cpp_dbc/core/db_exception.hpp"

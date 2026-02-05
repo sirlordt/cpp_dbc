@@ -218,7 +218,7 @@ namespace cpp_dbc::MySQL
                 return 0;
             }
 
-            return std::stol(m_currentRow[idx]);
+            return std::stoll(m_currentRow[idx]);
         }
         catch (const DBException &ex)
         {

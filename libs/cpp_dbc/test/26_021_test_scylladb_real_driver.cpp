@@ -76,6 +76,12 @@ TEST_CASE("ScyllaDB driver tests", "[26_021_01_scylladb_real_driver]")
         REQUIRE(params.at("host") == "127.0.0.1");
         REQUIRE(params.at("port") == "9042");
         REQUIRE(params.at("database") == "testks");
+
+        // URI with IPv6 address
+        params = driver.parseURI("cpp_dbc:scylladb://[::1]:9042/testks");
+        REQUIRE(params.at("host") == "::1");
+        REQUIRE(params.at("port") == "9042");
+        REQUIRE(params.at("database") == "testks");
     }
 
     SECTION("ScyllaDB driver parseURI - invalid URIs")

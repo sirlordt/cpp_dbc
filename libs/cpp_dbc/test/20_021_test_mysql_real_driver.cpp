@@ -95,6 +95,13 @@ TEST_CASE("MySQL driver tests", "[20_021_01_mysql_real_driver]")
         REQUIRE(driver.parseURL("cpp_dbc:mysql://localhost:3307", host, port, database));
         REQUIRE(host == "localhost");
         REQUIRE(port == 3307);
+        REQUIRE(database == "");
+
+        // URL with IPv6 address
+        REQUIRE(driver.parseURL("cpp_dbc:mysql://[::1]:3306/testdb", host, port, database));
+        REQUIRE(host == "::1");
+        REQUIRE(port == 3306);
+        REQUIRE(database == "testdb");
     }
 
     SECTION("MySQL driver parseURL - invalid URLs")

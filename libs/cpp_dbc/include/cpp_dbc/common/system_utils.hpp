@@ -49,6 +49,56 @@ namespace cpp_dbc::system_utils
         };
 
         /**
+         * @brief Result structure for parsing database connection URLs
+         *
+         * Used by parseDBURL to return the parsed components of a database URL.
+         * Supports URLs in the format: scheme://host:port/database
+         * Also supports IPv6 addresses: scheme://[::1]:port/database
+         * And local connections (no host): scheme:///path/to/database
+         */
+        struct ParsedDBURL
+        {
+            std::string host;      ///< Host name or IP address (without brackets for IPv6)
+            int port;              ///< Port number
+            std::string database;  ///< Database name or path
+            bool isLocal;          ///< True if this is a local connection (no host specified)
+        };
+
+        /**
+         * @brief Parse a database connection URL into its components
+         *
+         * Parses URLs in the format: prefix://host:port/database
+         * Supports:
+         * - IPv4 addresses and hostnames: prefix://localhost:3306/mydb
+         * - IPv6 addresses with brackets: prefix://[::1]:3306/mydb
+         * - Default ports: prefix://localhost/mydb (uses defaultPort)
+         * - Local connections: prefix:///path/to/db (when allowLocalConnection is true)
+         * - URLs without database: prefix://localhost:3306 (when requireDatabase is false)
+         *
+         * ```cpp
+         * cpp_dbc::system_utils::ParsedDBURL result;
+         * if (cpp_dbc::system_utils::parseDBURL("cpp_dbc:mysql://[::1]:3306/testdb",
+         *                                        "cpp_dbc:mysql://", 3306, result)) {
+         *     // result.host = "::1", result.port = 3306, result.database = "testdb"
+         * }
+         * ```
+         *
+         * @param url The full URL to parse
+         * @param expectedPrefix The expected URL prefix (e.g., "cpp_dbc:mysql://")
+         * @param defaultPort Default port to use if not specified in the URL
+         * @param result Output structure containing the parsed components
+         * @param allowLocalConnection If true, allows URLs without host (e.g., prefix:///path)
+         * @param requireDatabase If true, the URL must include a database/path component
+         * @return true if parsing succeeded, false otherwise
+         */
+        bool parseDBURL(const std::string &url,
+                        const std::string &expectedPrefix,
+                        int defaultPort,
+                        ParsedDBURL &result,
+                        bool allowLocalConnection = false,
+                        bool requireDatabase = true) noexcept;
+
+        /**
          * @brief Thread-safe print function using a global mutex
          *
          * ```cpp
@@ -197,7 +247,7 @@ namespace cpp_dbc::system_utils
          * @param skip Number of frames to skip from the top of the stack
          * @return Vector of StackFrame objects representing the call stack
          */
-        std::vector<StackFrame> captureCallStack(bool captureAll = false, int skip = 1);
+        std::vector<StackFrame> captureCallStack(bool captureAll = false, int skip = 1) noexcept;
 
         /**
          * @brief Print a captured call stack to stdout

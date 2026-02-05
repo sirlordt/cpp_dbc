@@ -8,9 +8,10 @@
 #endif
 
 #if USE_SQLITE
-#include <sqlite3.h>
-#include <memory>
+#include <cctype>
 #include <cstring>
+#include <memory>
+#include <sqlite3.h>
 #include <string>
 #include <vector>
 

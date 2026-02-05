@@ -118,6 +118,14 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
+            // Get the number of parameters in the statement
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
+            if (parameterIndex > paramCount)
+            {
+                return cpp_dbc::unexpected(DBException("NHNWDRFVQG77", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
+                                                       system_utils::captureCallStack()));
+            }
+
             int result = sqlite3_bind_int64(m_stmt.get(), parameterIndex, value);
             if (result != SQLITE_OK)
             {
@@ -337,6 +345,14 @@ namespace cpp_dbc::SQLite
             if (parameterIndex <= 0)
             {
                 return cpp_dbc::unexpected(DBException("JIHL7D5UH98N", "Invalid parameter index: " + std::to_string(parameterIndex),
+                                                       system_utils::captureCallStack()));
+            }
+
+            // Get the number of parameters in the statement
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
+            if (parameterIndex > paramCount)
+            {
+                return cpp_dbc::unexpected(DBException("CSB01AH6AD9Z", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
                                                        system_utils::captureCallStack()));
             }
 

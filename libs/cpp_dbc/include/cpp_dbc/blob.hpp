@@ -33,6 +33,8 @@ namespace cpp_dbc
     /**
      * @brief InputStream implementation that reads from a memory buffer
      *
+     * @note The referenced buffer must outlive the stream instance.
+     *
      * ```cpp
      * std::vector<uint8_t> data = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
      * auto stream = std::make_shared<cpp_dbc::MemoryInputStream>(data);

@@ -89,7 +89,15 @@ TEST_CASE("Firebird driver tests", "[23_021_01_firebird_real_driver]")
 
         // Local connection (no host, starts with /)
         REQUIRE(driver.parseURL("cpp_dbc:firebird:///var/lib/firebird/data/test.fdb", host, port, database));
+        REQUIRE(host.empty());
+        REQUIRE(port == 3050);
         REQUIRE(database == "/var/lib/firebird/data/test.fdb");
+
+        // URL with IPv6 address
+        REQUIRE(driver.parseURL("cpp_dbc:firebird://[::1]:3050/testdb.fdb", host, port, database));
+        REQUIRE(host == "::1");
+        REQUIRE(port == 3050);
+        REQUIRE(database == "/testdb.fdb");
     }
 
     SECTION("Firebird driver parseURL - invalid URLs")

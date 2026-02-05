@@ -109,7 +109,7 @@ namespace cpp_dbc::Firebird
         {
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
             std::string value = getColumnValue(columnIndex);
-            return value.empty() ? 0L : std::stol(value);
+            return value.empty() ? static_cast<int64_t>(0) : std::stoll(value);
         }
         catch (const DBException &e)
         {
