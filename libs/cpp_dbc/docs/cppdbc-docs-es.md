@@ -17,6 +17,11 @@ Este documento proporciona una guía completa de la biblioteca CPP_DBC, una bibl
 - [Sistema de Configuración](#sistema-de-configuración)
 - [Compilación e Instalación](#compilación-e-instalación)
 
+## Documentación Relacionada
+- **[Cómo Agregar Nuevos Drivers de Bases de Datos](how_add_new_db_drivers.md)**: Guía completa en 5 fases para agregar nuevos drivers (en inglés)
+- **[Patrones de Manejo de Errores](error_handling_patterns.md)**: DBException, códigos de error y patrones de API sin excepciones (en inglés)
+- **[Dependencias de Scripts Shell](shell_script_dependencies.md)**: Jerarquía de llamadas y dependencias de scripts (en inglés)
+
 ---
 
 ## Componentes Principales

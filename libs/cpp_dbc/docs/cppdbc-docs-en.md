@@ -16,6 +16,11 @@ This document provides a comprehensive guide to the CPP_DBC library, a C++ Datab
 - [Configuration System](#configuration-system)
 - [Build and Installation](#build-and-installation)
 
+## Related Documentation
+- **[How to Add New Database Drivers](how_add_new_db_drivers.md)**: Comprehensive 5-phase guide for adding new database drivers
+- **[Error Handling Patterns](error_handling_patterns.md)**: DBException, error codes, and exception-free API patterns
+- **[Shell Script Dependencies](shell_script_dependencies.md)**: Script call hierarchy and dependencies
+
 ---
 
 ## Core Components
