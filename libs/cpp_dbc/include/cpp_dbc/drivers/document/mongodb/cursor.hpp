@@ -14,15 +14,21 @@ namespace cpp_dbc::MongoDB
         // ============================================================================
 
         /**
-         * @brief MongoDB cursor implementation
+         * @brief MongoDB cursor implementation for iterating query results
          *
-         * This class wraps a MongoDB cursor and provides safe iteration over
-         * query results. It uses weak_ptr to detect when the connection is closed.
+         * Wraps a mongoc_cursor_t and provides safe iteration over query results.
+         * Supports chaining skip/limit/sort modifiers.
          *
-         * Key safety features:
-         * - Uses weak_ptr to connection to detect disconnection
-         * - Thread-safe iteration when DB_DRIVER_THREAD_SAFE is enabled
-         * - Automatic resource cleanup via RAII
+         * ```cpp
+         * auto cursor = coll->find("{\"active\": true}");
+         * cursor->sort("name", true).skip(10).limit(5);
+         * while (cursor->next()) {
+         *     auto doc = cursor->current();
+         *     std::cout << doc->getString("name") << std::endl;
+         * }
+         * ```
+         *
+         * @see MongoDBCollection, MongoDBDocument
          */
         class MongoDBCursor final : public DocumentDBCursor, public std::enable_shared_from_this<MongoDBCursor>
         {

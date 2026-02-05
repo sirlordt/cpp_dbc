@@ -19,6 +19,27 @@ namespace cpp_dbc::SQLite
     class SQLiteDBPreparedStatement; // Forward declaration
     class SQLiteDBResultSet;         // Forward declaration
 
+    /**
+     * @brief SQLite connection implementation
+     *
+     * Concrete RelationalDBConnection for SQLite embedded databases.
+     * Uses the cursor-based model where result iteration communicates
+     * with the sqlite3* handle on every call to next().
+     *
+     * ```cpp
+     * auto conn = std::dynamic_pointer_cast<cpp_dbc::SQLite::SQLiteDBConnection>(
+     *     cpp_dbc::DriverManager::getDBConnection("cpp_dbc:sqlite::memory:", "", ""));
+     * conn->executeUpdate("CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)");
+     * conn->executeUpdate("INSERT INTO t (name) VALUES ('Alice')");
+     * auto rs = conn->executeQuery("SELECT * FROM t");
+     * while (rs->next()) {
+     *     std::cout << rs->getString("name") << std::endl;
+     * }
+     * conn->close();
+     * ```
+     *
+     * @see SQLiteDBDriver, SQLiteDBPreparedStatement, SQLiteDBResultSet
+     */
     class SQLiteDBConnection final : public RelationalDBConnection, public std::enable_shared_from_this<SQLiteDBConnection>
     {
         friend class SQLiteDBPreparedStatement;

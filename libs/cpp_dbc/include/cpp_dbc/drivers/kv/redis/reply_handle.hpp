@@ -9,9 +9,20 @@ struct redisReply;
 namespace cpp_dbc::Redis
 {
         /**
-         * @brief RAII wrapper for redisReply
+         * @brief RAII wrapper for redisReply.
          *
-         * This class ensures that redisReply is freed when it goes out of scope.
+         * Owns a `redisReply*` through a `std::unique_ptr` with
+         * RedisReplyDeleter, ensuring the reply is freed when the
+         * handle goes out of scope. Move-only (non-copyable).
+         *
+         * ### Example
+         *
+         * ```cpp
+         * RedisReplyHandle reply = connection->executeRaw("GET", {"mykey"});
+         * if (reply.get() != nullptr) {
+         *     // use reply.get()->str, reply.get()->integer, etc.
+         * }
+         * ```
          */
         class RedisReplyHandle // NOSONAR - Rule of 5 satisfied: destructor is = default because unique_ptr handles resource
         {

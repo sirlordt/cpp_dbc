@@ -103,13 +103,13 @@ namespace cpp_dbc::Firebird
         }
     }
 
-    cpp_dbc::expected<long, DBException> FirebirdDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
+    cpp_dbc::expected<int64_t, DBException> FirebirdDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
     {
         try
         {
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
             std::string value = getColumnValue(columnIndex);
-            return value.empty() ? 0L : std::stol(value);
+            return value.empty() ? static_cast<int64_t>(0) : std::stoll(value);
         }
         catch (const DBException &e)
         {
@@ -248,7 +248,7 @@ namespace cpp_dbc::Firebird
         }
     }
 
-    cpp_dbc::expected<long, DBException> FirebirdDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
+    cpp_dbc::expected<int64_t, DBException> FirebirdDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
     {
         try
         {

@@ -24,15 +24,24 @@ namespace cpp_dbc::MongoDB
         /**
          * @brief MongoDB connection implementation
          *
-         * This class manages a connection to a MongoDB server and provides
-         * access to databases and collections.
+         * Concrete DocumentDBConnection for MongoDB databases.
+         * Manages a mongoc_client_t and provides access to databases, collections,
+         * and session-based transactions.
          *
-         * Key safety features:
-         * - Uses shared_ptr for client to allow weak_ptr references
-         * - Inherits from enable_shared_from_this to allow weak_ptr to connection
-         * - Thread-safe operations when DB_DRIVER_THREAD_SAFE is enabled
-         * - Proper cleanup of all resources on close
-         * - Session management for transactions
+         * ```cpp
+         * auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
+         *     cpp_dbc::DriverManager::getDBConnection(
+         *         "cpp_dbc:mongodb://localhost:27017/mydb", "", ""));
+         * auto coll = conn->getCollection("users");
+         * coll->insertOne("{\"name\": \"Alice\", \"age\": 30}");
+         * auto cursor = coll->find("{\"age\": {\"$gte\": 18}}");
+         * while (cursor->next()) {
+         *     std::cout << cursor->current()->toJson() << std::endl;
+         * }
+         * conn->close();
+         * ```
+         *
+         * @see MongoDBDriver, MongoDBCollection, MongoDBCursor
          */
         class MongoDBConnection final : public DocumentDBConnection, public std::enable_shared_from_this<MongoDBConnection>
         {

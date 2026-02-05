@@ -46,6 +46,35 @@ TEST_CASE("SQLite driver tests", "[22_021_01_sqlite_real_driver]")
         REQUIRE_FALSE(driver.acceptsURL("sqlite://test.db"));
     }
 
+    SECTION("SQLite driver parseURL - valid URLs")
+    {
+        cpp_dbc::SQLite::SQLiteDBDriver driver;
+        std::string database;
+
+        // In-memory database
+        REQUIRE(driver.parseURL("cpp_dbc:sqlite://:memory:", database));
+        REQUIRE(database == ":memory:");
+
+        // Simple file path
+        REQUIRE(driver.parseURL("cpp_dbc:sqlite://test.db", database));
+        REQUIRE(database == "test.db");
+
+        // Absolute file path
+        REQUIRE(driver.parseURL("cpp_dbc:sqlite:///path/to/database.db", database));
+        REQUIRE(database == "/path/to/database.db");
+    }
+
+    SECTION("SQLite driver parseURL - invalid URLs")
+    {
+        cpp_dbc::SQLite::SQLiteDBDriver driver;
+        std::string database;
+
+        // Wrong scheme
+        REQUIRE_FALSE(driver.parseURL("cpp_dbc:mysql://localhost:3306/testdb", database));
+        REQUIRE_FALSE(driver.parseURL("jdbc:sqlite://test.db", database));
+        REQUIRE_FALSE(driver.parseURL("sqlite://test.db", database));
+    }
+
     SECTION("SQLite driver connection to in-memory database")
     {
         // Create a SQLite driver

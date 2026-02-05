@@ -154,7 +154,7 @@ namespace cpp_dbc::SQLite
         return *result;
     }
 
-    long SQLiteDBResultSet::getLong(size_t columnIndex)
+    int64_t SQLiteDBResultSet::getLong(size_t columnIndex)
     {
         auto result = getLong(std::nothrow, columnIndex);
         if (!result)
@@ -164,7 +164,7 @@ namespace cpp_dbc::SQLite
         return *result;
     }
 
-    long SQLiteDBResultSet::getLong(const std::string &columnName)
+    int64_t SQLiteDBResultSet::getLong(const std::string &columnName)
     {
         auto result = getLong(std::nothrow, columnName);
         if (!result)

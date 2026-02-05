@@ -50,7 +50,12 @@ namespace cpp_dbc::PostgreSQL
     {
         // Connection is closing, invalidate the statement without calling mysql_stmt_close
         // since the connection is already being destroyed
-        this->close(std::nothrow);
+        auto result = this->close(std::nothrow);
+        if (!result.has_value())
+        {
+            // Log the error but don't throw - connection is already closing
+            PG_DEBUG("Failed to close prepared statement: " << result.error().what_s());
+        }
     }
 
     // Helper method to process SQL and count parameters
@@ -177,7 +182,12 @@ namespace cpp_dbc::PostgreSQL
 
     PostgreSQLDBPreparedStatement::~PostgreSQLDBPreparedStatement()
     {
-        PostgreSQLDBPreparedStatement::close(std::nothrow);
+        auto result = PostgreSQLDBPreparedStatement::close(std::nothrow);
+        if (!result.has_value())
+        {
+            // Log the error but don't throw - in destructor
+            PG_DEBUG("Failed to close prepared statement: " << result.error().what_s());
+        }
     }
 
     void PostgreSQLDBPreparedStatement::setInt(int parameterIndex, int value)
@@ -189,7 +199,7 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
-    void PostgreSQLDBPreparedStatement::setLong(int parameterIndex, long value)
+    void PostgreSQLDBPreparedStatement::setLong(int parameterIndex, int64_t value)
     {
         auto result = this->setLong(std::nothrow, parameterIndex, value);
         if (!result.has_value())

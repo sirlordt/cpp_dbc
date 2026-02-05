@@ -40,7 +40,12 @@ namespace cpp_dbc::MySQL
     {
         // Connection is closing, invalidate the statement without calling mysql_stmt_close
         // since the connection is already being destroyed
-        this->close(std::nothrow);
+        auto result = this->close(std::nothrow);
+        if (!result.has_value())
+        {
+            // Log the error but don't throw - connection is already closing
+            MYSQL_DEBUG("Failed to close prepared statement during connection shutdown: " << result.error().what_s());
+        }
     }
 
     MYSQL *MySQLDBPreparedStatement::getMySQLConnection() const
@@ -102,7 +107,13 @@ namespace cpp_dbc::MySQL
 
     MySQLDBPreparedStatement::~MySQLDBPreparedStatement()
     {
-        MySQLDBPreparedStatement::close(std::nothrow);
+        // Call close and log errors, but don't throw from destructor
+        auto result = MySQLDBPreparedStatement::close(std::nothrow);
+        if (!result.has_value())
+        {
+            // Log the error but don't throw from destructor
+            MYSQL_DEBUG("Failed to close prepared statement in destructor: " << result.error().what_s());
+        }
     }
 
     void MySQLDBPreparedStatement::setInt(int parameterIndex, int value)
@@ -114,7 +125,7 @@ namespace cpp_dbc::MySQL
         }
     }
 
-    void MySQLDBPreparedStatement::setLong(int parameterIndex, long value)
+    void MySQLDBPreparedStatement::setLong(int parameterIndex, int64_t value)
     {
         auto result = setLong(std::nothrow, parameterIndex, value);
         if (!result.has_value())

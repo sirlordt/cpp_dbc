@@ -31,6 +31,22 @@
 
 namespace cpp_dbc::ScyllaDB
 {
+        /**
+         * @brief In-memory InputStream for reading ScyllaDB BLOB/binary data
+         *
+         * Wraps a `std::vector<uint8_t>` as a seekable InputStream, used
+         * internally by ScyllaDBResultSet::getBinaryStream() to expose
+         * binary column data through the standard InputStream interface.
+         *
+         * ```cpp
+         * auto stream = rs->getBinaryStream("avatar");
+         * std::vector<uint8_t> buf(1024);
+         * int bytesRead = stream->read(buf.data(), buf.size());
+         * stream->close();
+         * ```
+         *
+         * @see ScyllaDBResultSet::getBinaryStream, InputStream
+         */
         class ScyllaMemoryInputStream final : public cpp_dbc::InputStream
         {
         private:

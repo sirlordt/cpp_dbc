@@ -32,6 +32,23 @@
 
 namespace cpp_dbc::ScyllaDB
 {
+        /**
+         * @brief ScyllaDB database driver implementation
+         *
+         * Concrete ColumnarDBDriver for ScyllaDB/Cassandra databases using the
+         * Cassandra C/C++ driver. Handles connection establishment, URI parsing,
+         * and driver registration with the DriverManager.
+         * Accepts URLs in the format `cpp_dbc:scylladb://host:port/keyspace`.
+         *
+         * ```cpp
+         * auto driver = std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>();
+         * cpp_dbc::DriverManager::registerDriver(driver);
+         * auto conn = driver->connectColumnar(
+         *     "cpp_dbc:scylladb://localhost:9042/mykeyspace", "", "");
+         * ```
+         *
+         * @see ColumnarDBDriver, ScyllaDBConnection
+         */
         class ScyllaDBDriver final : public cpp_dbc::ColumnarDBDriver
         {
         public:

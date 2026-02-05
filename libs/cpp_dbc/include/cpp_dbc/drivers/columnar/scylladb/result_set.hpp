@@ -35,6 +35,26 @@
 
 namespace cpp_dbc::ScyllaDB
 {
+        /**
+         * @brief ScyllaDB result set implementation
+         *
+         * Concrete ColumnarDBResultSet for ScyllaDB/Cassandra queries.
+         * Wraps CassResult and provides row-by-row iteration with typed
+         * column accessors. The result data is fetched into client memory,
+         * so the result set remains valid even if the connection is closed.
+         *
+         * ```cpp
+         * auto rs = conn->executeQuery("SELECT id, name, age FROM users");
+         * while (rs->next()) {
+         *     auto uuid = rs->getUUID("id");
+         *     auto name = rs->getString("name");
+         *     auto age  = rs->getInt("age");
+         * }
+         * rs->close();
+         * ```
+         *
+         * @see ScyllaDBConnection, ScyllaDBPreparedStatement
+         */
         class ScyllaDBResultSet final : public cpp_dbc::ColumnarDBResultSet
         {
         private:
@@ -91,8 +111,8 @@ namespace cpp_dbc::ScyllaDB
              */
             int getInt(size_t columnIndex) override;
             int getInt(const std::string &columnName) override;
-            long getLong(size_t columnIndex) override;
-            long getLong(const std::string &columnName) override;
+            int64_t getLong(size_t columnIndex) override;
+            int64_t getLong(const std::string &columnName) override;
             double getDouble(size_t columnIndex) override;
             double getDouble(const std::string &columnName) override;
             std::string getString(size_t columnIndex) override;
@@ -123,7 +143,7 @@ namespace cpp_dbc::ScyllaDB
             cpp_dbc::expected<uint64_t, DBException> getRow(std::nothrow_t) noexcept override;
 
             cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, size_t columnIndex) noexcept override;
-            cpp_dbc::expected<long, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept override;
             cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, size_t columnIndex) noexcept override;
             cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, size_t columnIndex) noexcept override;
             cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, size_t columnIndex) noexcept override;
@@ -133,7 +153,7 @@ namespace cpp_dbc::ScyllaDB
             cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, size_t columnIndex) noexcept override;
 
             cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept override;
-            cpp_dbc::expected<long, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override;
             cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, const std::string &columnName) noexcept override;
             cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, const std::string &columnName) noexcept override;
             cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, const std::string &columnName) noexcept override;

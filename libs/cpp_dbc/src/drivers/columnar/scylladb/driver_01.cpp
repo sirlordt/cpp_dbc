@@ -138,54 +138,27 @@ namespace cpp_dbc::ScyllaDB
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> ScyllaDBDriver::parseURI(std::nothrow_t, const std::string &uri) noexcept
     {
+        // Use centralized URL parsing from system_utils
+        // ScyllaDB URLs: cpp_dbc:scylladb://host:port/keyspace
+        // Also supports IPv6: cpp_dbc:scylladb://[::1]:port/keyspace
         SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Parsing URI: " << uri);
-        std::map<std::string, std::string> result;
-        // cpp_dbc:scylladb://host:port/keyspace
-        constexpr std::string_view scheme = "cpp_dbc:scylladb://";
-        if (!uri.starts_with(scheme))
+
+        constexpr int DEFAULT_SCYLLADB_PORT = 9042;
+
+        system_utils::ParsedDBURL parsed;
+        if (!system_utils::parseDBURL(uri, "cpp_dbc:scylladb://", DEFAULT_SCYLLADB_PORT, parsed,
+                                      false, // allowLocalConnection
+                                      false)) // requireDatabase (keyspace is optional)
         {
-            SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Invalid scheme");
+            SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Invalid scheme or failed to parse");
             return cpp_dbc::unexpected(DBException("P7Q8R9S0T1U2", "Must start with cpp_dbc:scylladb://", system_utils::captureCallStack()));
         }
 
-        std::string rest = uri.substr(scheme.length());
-        size_t colon = rest.find(':');
-        size_t slash = rest.find('/');
+        std::map<std::string, std::string> result;
+        result["host"] = parsed.host;
+        result["port"] = std::to_string(parsed.port);
+        result["database"] = parsed.database;
 
-        if (slash == std::string::npos)
-        {
-            // No path/database
-            if (colon != std::string::npos)
-            {
-                // host:port
-                result["host"] = rest.substr(0, colon);
-                result["port"] = rest.substr(colon + 1);
-            }
-            else
-            {
-                // just host
-                result["host"] = rest;
-                result["port"] = "9042";
-            }
-            result["database"] = "";
-        }
-        else
-        {
-            // Has path/database
-            if (colon != std::string::npos && colon < slash)
-            {
-                // host:port/db
-                result["host"] = rest.substr(0, colon);
-                result["port"] = rest.substr(colon + 1, slash - colon - 1);
-            }
-            else
-            {
-                // host/db
-                result["host"] = rest.substr(0, slash);
-                result["port"] = "9042";
-            }
-            result["database"] = rest.substr(slash + 1);
-        }
         SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Parsed host: " << result["host"] << ", port: " << result["port"] << ", database: " << result["database"]);
         return result;
     }

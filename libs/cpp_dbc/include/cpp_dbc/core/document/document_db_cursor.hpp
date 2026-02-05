@@ -34,16 +34,24 @@ namespace cpp_dbc
     /**
      * @brief Abstract class for document database cursors
      *
-     * This class extends DBResultSet with methods specific to document databases.
-     * A cursor provides iteration over query results, similar to how
-     * RelationalDBResultSet provides row-by-row access in relational databases.
+     * Provides iteration over query results with support for skip, limit,
+     * sort, and batch retrieval. Must call modifier methods (skip/limit/sort)
+     * before starting iteration.
      *
-     * Cursors in document databases typically support:
-     * - Forward iteration through documents
-     * - Batch retrieval for efficiency
-     * - Cursor-level operations like skip, limit, sort
+     * ```cpp
+     * auto cursor = coll->find(R"({"status": "active"})");
+     * cursor->sort("name", true).skip(10).limit(20);  // chain modifiers
+     * while (cursor->next()) {
+     *     auto doc = cursor->current();
+     *     std::cout << doc->getString("name") << std::endl;
+     * }
+     * // Or retrieve all at once:
+     * auto allDocs = coll->find()->toVector();
+     * ```
      *
-     * Implementations: MongoDBCursor, CouchDBCursor, etc.
+     * Implementations: MongoDBCursor
+     *
+     * @see DocumentDBCollection, DocumentDBData
      */
     class DocumentDBCursor : public DBResultSet
     {

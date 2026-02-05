@@ -80,7 +80,7 @@ namespace cpp_dbc::MySQL
         }
     }
 
-    cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, long value) noexcept
+    cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept
     {
         try
         {

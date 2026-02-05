@@ -155,7 +155,7 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
-    cpp_dbc::expected<long, DBException> PostgreSQLDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
+    cpp_dbc::expected<int64_t, DBException> PostgreSQLDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
     {
         try
         {
@@ -177,11 +177,11 @@ namespace cpp_dbc::PostgreSQL
             const char *value = PQgetvalue(m_result.get(), row, idx);
             try
             {
-                return std::stol(value);
+                return std::stoll(value);
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("PRTK87X1YSDK", "Failed to convert value to long", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("PRTK87X1YSDK", "Failed to convert value to int64", system_utils::captureCallStack()));
             }
         }
         catch (const DBException &ex)
@@ -368,7 +368,7 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
-    cpp_dbc::expected<long, DBException> PostgreSQLDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
+    cpp_dbc::expected<int64_t, DBException> PostgreSQLDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
     {
         try
         {

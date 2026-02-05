@@ -116,38 +116,160 @@ namespace cpp_dbc::config
 namespace cpp_dbc
 {
 
-    // Manager class to retrieve driver instances
+    /**
+     * @brief Central manager for registering database drivers and obtaining connections
+     *
+     * DriverManager is the main entry point for the cpp_dbc library. It maintains
+     * a registry of database drivers and provides factory methods to create
+     * database connections from URLs.
+     *
+     * ```cpp
+     * // Register a MySQL driver and obtain a connection
+     * cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+     * auto conn = cpp_dbc::DriverManager::getDBConnection(
+     *     "jdbc:mysql://localhost:3306/mydb", "user", "pass");
+     * // Use conn, then close when done
+     * conn->close();
+     * ```
+     *
+     * ```cpp
+     * // Cast to a specific paradigm connection
+     * auto relConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+     *     cpp_dbc::DriverManager::getDBConnection("jdbc:mysql://localhost/mydb", "u", "p"));
+     * auto rs = relConn->executeQuery("SELECT id, name FROM users");
+     * while (rs->next()) {
+     *     std::cout << rs->getString("name") << std::endl;
+     * }
+     * relConn->close();
+     * ```
+     */
     class DriverManager
     {
     private:
         static std::map<std::string, std::shared_ptr<DBDriver>> drivers;
 
     public:
+        /**
+         * @brief Register a driver using its own name (from getName())
+         *
+         * @param driver The driver instance to register
+         * @throws DBException if a driver with the same name is already registered
+         *
+         * ```cpp
+         * cpp_dbc::DriverManager::registerDriver(
+         *     std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+         * ```
+         */
         static void registerDriver(std::shared_ptr<DBDriver> driver);
+
+        /**
+         * @brief Register a driver under a custom name
+         *
+         * @param name The name to register the driver under
+         * @param driver The driver instance to register
+         * @throws DBException if a driver with the same name is already registered
+         *
+         * ```cpp
+         * cpp_dbc::DriverManager::registerDriver("my-mysql",
+         *     std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+         * ```
+         */
         static void registerDriver(const std::string &name, std::shared_ptr<DBDriver> driver);
 
-        // Generic connection method - returns base DBConnection
+        /**
+         * @brief Create a database connection from a URL
+         *
+         * Iterates through registered drivers to find one that accepts the URL,
+         * then uses it to create a connection.
+         *
+         * @param url The database URL (e.g., "jdbc:mysql://host:port/database")
+         * @param user The username for authentication
+         * @param password The password for authentication
+         * @param options Additional driver-specific connection options
+         * @return A shared pointer to the new connection
+         * @throws DBException if no driver accepts the URL or connection fails
+         *
+         * ```cpp
+         * auto conn = cpp_dbc::DriverManager::getDBConnection(
+         *     "jdbc:mysql://localhost:3306/mydb", "root", "secret");
+         * // ... use connection ...
+         * conn->close();
+         * ```
+         */
         static std::shared_ptr<DBConnection> getDBConnection(const std::string &url,
                                                              const std::string &user,
                                                              const std::string &password,
                                                              const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
 
-        // Methods for integration with configuration classes
+        /**
+         * @brief Create a database connection from a DatabaseConfig object
+         *
+         * @param dbConfig The database configuration
+         * @return A shared pointer to the new connection
+         * @throws DBException if no driver accepts the URL or connection fails
+         *
+         * ```cpp
+         * auto configMgr = cpp_dbc::config::YamlConfigLoader::loadFromFile("db.yaml");
+         * auto conn = cpp_dbc::DriverManager::getDBConnection(configMgr.getConfig("mysql_main"));
+         * ```
+         */
         static std::shared_ptr<DBConnection> getDBConnection(const config::DatabaseConfig &dbConfig);
 
+        /**
+         * @brief Create a database connection by config name from a ConfigManager
+         *
+         * @param configManager The configuration manager containing named configs
+         * @param configName The name of the configuration to use
+         * @return A shared pointer to the new connection
+         * @throws DBException if config not found, no driver accepts the URL, or connection fails
+         *
+         * ```cpp
+         * auto configMgr = cpp_dbc::config::YamlConfigLoader::loadFromFile("db.yaml");
+         * auto conn = cpp_dbc::DriverManager::getDBConnection(configMgr, "mysql_main");
+         * ```
+         */
         static std::shared_ptr<DBConnection> getDBConnection(const config::DatabaseConfigManager &configManager,
                                                              const std::string &configName);
 
-        // Get list of registered driver names
+        /**
+         * @brief Get a list of all registered driver names
+         *
+         * @return Vector of driver names
+         *
+         * ```cpp
+         * for (const auto& name : cpp_dbc::DriverManager::getRegisteredDrivers()) {
+         *     std::cout << "Driver: " << name << std::endl;
+         * }
+         * ```
+         */
         static std::vector<std::string> getRegisteredDrivers();
 
-        // Clear all registered drivers (useful for testing)
+        /**
+         * @brief Remove all registered drivers
+         *
+         * Useful for testing or application shutdown.
+         */
         static void clearDrivers();
 
-        // Unregister a specific driver
+        /**
+         * @brief Remove a specific driver by name
+         *
+         * @param name The name of the driver to remove
+         */
         static void unregisterDriver(const std::string &name);
 
-        // Get a driver by name
+        /**
+         * @brief Get a driver instance by name
+         *
+         * @param name The name of the driver
+         * @return The driver if found, std::nullopt otherwise
+         *
+         * ```cpp
+         * if (auto driver = cpp_dbc::DriverManager::getDriver("mysql")) {
+         *     auto conn = (*driver)->connect("jdbc:mysql://localhost/mydb", "u", "p");
+         * }
+         * ```
+         */
         static std::optional<std::shared_ptr<DBDriver>> getDriver(const std::string &name);
     };
 

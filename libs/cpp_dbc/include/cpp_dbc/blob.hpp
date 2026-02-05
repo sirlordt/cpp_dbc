@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file blob.hpp
- @brief Tests for BLOB operations
+ @brief BLOB stream implementations for memory and file-based binary data
 
 */
 
@@ -30,7 +30,18 @@
 
 namespace cpp_dbc
 {
-    // Base implementation of InputStream that reads from a memory buffer
+    /**
+     * @brief InputStream implementation that reads from a memory buffer
+     *
+     * @note The referenced buffer must outlive the stream instance.
+     *
+     * ```cpp
+     * std::vector<uint8_t> data = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
+     * auto stream = std::make_shared<cpp_dbc::MemoryInputStream>(data);
+     * uint8_t buf[5];
+     * int bytesRead = stream->read(buf, 5);
+     * ```
+     */
     class MemoryInputStream : public InputStream
     {
     private:
@@ -63,7 +74,18 @@ namespace cpp_dbc
         }
     };
 
-    // Base implementation of OutputStream that writes to a memory buffer
+    /**
+     * @brief OutputStream implementation that writes to a memory buffer
+     *
+     * @note The referenced buffer must outlive the stream instance.
+     *
+     * ```cpp
+     * std::vector<uint8_t> data;
+     * auto stream = std::make_shared<cpp_dbc::MemoryOutputStream>(data, 0);
+     * uint8_t buf[] = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
+     * stream->write(buf, 5); // data now contains "Hello"
+     * ```
+     */
     class MemoryOutputStream : public OutputStream
     {
     private:
@@ -96,7 +118,18 @@ namespace cpp_dbc
         }
     };
 
-    // Base implementation of InputStream that reads from a file
+    /**
+     * @brief InputStream implementation that reads from a file
+     *
+     * ```cpp
+     * auto stream = std::make_shared<cpp_dbc::FileInputStream>("/path/to/file.bin");
+     * uint8_t buf[1024];
+     * int bytesRead = stream->read(buf, sizeof(buf));
+     * stream->close();
+     * ```
+     *
+     * @throws DBException if the file cannot be opened
+     */
     class FileInputStream : public InputStream
     {
     private:
@@ -121,7 +154,13 @@ namespace cpp_dbc
 
         void skip(size_t n) override
         {
-            file.seekg(n, std::ios::cur);
+            if (!file.good())
+                throw DBException("K7M2X9P4B3QW", "Cannot skip in file stream: stream is in bad state", system_utils::captureCallStack());
+
+            file.seekg(static_cast<std::streamoff>(n), std::ios::cur);
+
+            if (file.fail() && !file.eof())
+                throw DBException("R5J8N1V6C4YH", "Failed to skip in file stream", system_utils::captureCallStack());
         }
 
         void close() override
@@ -130,7 +169,19 @@ namespace cpp_dbc
         }
     };
 
-    // Base implementation of OutputStream that writes to a file
+    /**
+     * @brief OutputStream implementation that writes to a file
+     *
+     * ```cpp
+     * auto stream = std::make_shared<cpp_dbc::FileOutputStream>("/path/to/output.bin");
+     * uint8_t buf[] = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
+     * stream->write(buf, 5);
+     * stream->flush();
+     * stream->close();
+     * ```
+     *
+     * @throws DBException if the file cannot be opened
+     */
     class FileOutputStream : public OutputStream
     {
     private:
@@ -162,10 +213,26 @@ namespace cpp_dbc
         }
     };
 
-    // Base implementation of Blob that stores data in memory
+    /**
+     * @brief Blob implementation that stores binary data in memory
+     *
+     * @note Streams returned by getBinaryStream() and setBinaryStream() hold references
+     *       to internal data and become invalid if the MemoryBlob is destroyed.
+     *
+     * ```cpp
+     * std::vector<uint8_t> data = {0x01, 0x02, 0x03};
+     * cpp_dbc::MemoryBlob blob(data);
+     * auto bytes = blob.getBytes(0, blob.length());
+     * auto stream = blob.getBinaryStream();
+     * ```
+     *
+     * @see InputStream, OutputStream
+     */
     class MemoryBlob : public Blob
     {
     protected:
+        // mutable is required here for lazy loading in derived classes (MySQLBlob, PostgreSQLBlob, etc.)
+        // Their ensureLoaded() const methods need to populate this cache on first access
         mutable std::vector<uint8_t> m_data;
 
     public:

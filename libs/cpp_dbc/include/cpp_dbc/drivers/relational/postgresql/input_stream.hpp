@@ -25,7 +25,14 @@ namespace cpp_dbc::PostgreSQL
         inline constexpr int INV_WRITE_VALUE = 0x00020000;
 #define INV_WRITE INV_WRITE_VALUE
 #endif
-        // PostgreSQL implementation of InputStream
+        /**
+         * @brief PostgreSQL-specific InputStream implementation for reading BLOB data
+         *
+         * Reads from an internal byte buffer populated from PostgreSQL query results.
+         * The buffer is copied on construction, so the source can be safely freed.
+         *
+         * @see InputStream, PostgreSQLBlob
+         */
         class PostgreSQLInputStream : public InputStream
         {
         private:
@@ -40,6 +47,15 @@ namespace cpp_dbc::PostgreSQL
             }
 
         public:
+            /**
+             * @brief Construct an input stream from a PostgreSQL BLOB buffer
+             * @param buffer Pointer to the BLOB data (may be null if length is 0)
+             * @param length Size of the buffer in bytes
+             * @throws DBException if buffer is null and length > 0
+             *
+             * The buffer data is copied into internal storage, so the source
+             * buffer can be safely freed after construction.
+             */
             PostgreSQLInputStream(const char *buffer, size_t length)
                 : m_data(buffer, validateAndEnd(buffer, length)) {}
 

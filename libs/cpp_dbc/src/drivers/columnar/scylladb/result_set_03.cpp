@@ -44,7 +44,7 @@ namespace cpp_dbc::ScyllaDB
         return getInt(std::nothrow, it->second + 1);
     }
 
-    cpp_dbc::expected<long, DBException> ScyllaDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
+    cpp_dbc::expected<int64_t, DBException> ScyllaDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
     {
         auto it = m_columnMap.find(columnName);
         if (it == m_columnMap.end())

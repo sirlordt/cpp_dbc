@@ -14,6 +14,26 @@ namespace cpp_dbc::PostgreSQL
 {
     class PostgreSQLDBPreparedStatement;
 
+    /**
+     * @brief PostgreSQL connection implementation
+     *
+     * Concrete RelationalDBConnection for PostgreSQL databases.
+     * Supports prepared statements, transactions, and connection pooling.
+     * Uses the "store result" model where all query results are fetched into client memory.
+     *
+     * ```cpp
+     * auto conn = std::dynamic_pointer_cast<cpp_dbc::PostgreSQL::PostgreSQLDBConnection>(
+     *     cpp_dbc::DriverManager::getDBConnection(
+     *         "cpp_dbc:postgresql://localhost:5432/mydb", "postgres", "pass"));
+     * auto rs = conn->executeQuery("SELECT * FROM users");
+     * while (rs->next()) {
+     *     std::cout << rs->getString("name") << std::endl;
+     * }
+     * conn->close();
+     * ```
+     *
+     * @see PostgreSQLDBDriver, PostgreSQLDBPreparedStatement, PostgreSQLDBResultSet
+     */
     class PostgreSQLDBConnection final : public RelationalDBConnection, public std::enable_shared_from_this<PostgreSQLDBConnection>
     {
         PGconnHandle m_conn; // shared_ptr allows PreparedStatements to use weak_ptr
@@ -172,7 +192,7 @@ namespace cpp_dbc::PostgreSQL
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
-        // Helper to generate unique statement names
+        /** @brief Generate a unique name for server-side prepared statements */
         std::string generateStatementName();
 
         // Nothrow API

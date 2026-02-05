@@ -34,31 +34,68 @@ namespace cpp_dbc
 {
 
     /**
-     * @brief Abstract class for columnar database connections
+     * @brief Abstract class for columnar database connections (ScyllaDB, Cassandra, etc.)
      *
-     * This class extends DBConnection with methods specific to columnar databases.
-     * It provides support for SQL/CQL execution, prepared statements with batching,
-     * and specific connection parameters for analytical workloads.
+     * Provides SQL/CQL execution, prepared statements with batching,
+     * and transaction management for columnar/wide-column databases.
      *
-     * Implementations: ClickHouseConnection, ScyllaDBConnection, CassandraConnection
+     * ```cpp
+     * auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
+     *     cpp_dbc::DriverManager::getDBConnection("scylladb://localhost:9042/mykeyspace", "", ""));
+     * auto rs = conn->executeQuery("SELECT id, name FROM users WHERE active = true");
+     * while (rs->next()) {
+     *     std::cout << rs->getString("name") << std::endl;
+     * }
+     * auto stmt = conn->prepareStatement("INSERT INTO users (id, name) VALUES (?, ?)");
+     * stmt->setUUID(1, "550e8400-e29b-41d4-a716-446655440000");
+     * stmt->setString(2, "Alice");
+     * stmt->executeUpdate();
+     * conn->close();
+     * ```
+     *
+     * Implementations: ScyllaDBConnection, CassandraConnection
+     *
+     * @see ColumnarDBPreparedStatement, ColumnarDBResultSet
      */
     class ColumnarDBConnection : public DBConnection
     {
     public:
         ~ColumnarDBConnection() override = default;
 
+        // ====================================================================
         // SQL/CQL execution
+        // ====================================================================
+
         /**
          * @brief Prepare a statement for execution
+         *
          * @param query The SQL/CQL statement with optional parameter placeholders
          * @return A prepared statement object
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement(
+         *     "INSERT INTO events (id, ts, data) VALUES (?, ?, ?)");
+         * std::string eventUuid = "550e8400-e29b-41d4-a716-446655440000";
+         * stmt->setUUID(1, eventUuid);
+         * stmt->setTimestamp(2, "2025-01-15T10:30:00Z");
+         * stmt->setString(3, "{\"type\": \"click\"}");
+         * stmt->executeUpdate();
+         * ```
          */
         virtual std::shared_ptr<ColumnarDBPreparedStatement> prepareStatement(const std::string &query) = 0;
 
         /**
          * @brief Execute a query directly
+         *
          * @param query The SQL/CQL query statement
          * @return A result set containing the query results
+         *
+         * ```cpp
+         * auto rs = conn->executeQuery("SELECT * FROM events WHERE ts > '2025-01-01'");
+         * while (rs->next()) {
+         *     std::cout << rs->getUUID(1) << " " << rs->getTimestamp(2) << std::endl;
+         * }
+         * ```
          */
         virtual std::shared_ptr<ColumnarDBResultSet> executeQuery(const std::string &query) = 0;
 
@@ -69,12 +106,23 @@ namespace cpp_dbc
          */
         virtual uint64_t executeUpdate(const std::string &query) = 0;
 
+        // ====================================================================
         // Transaction management (where supported)
+        // ====================================================================
         // Note: Columnar databases may have limited or no ACID transaction support.
         // Implementations should throw DBException if transactions are not supported.
 
+        /**
+         * @brief Begin a transaction (if supported by the database)
+         * @return true if the transaction was started
+         * @throws DBException if transactions are not supported
+         */
         virtual bool beginTransaction() = 0;
+
+        /** @brief Commit the current transaction */
         virtual void commit() = 0;
+
+        /** @brief Rollback the current transaction */
         virtual void rollback() = 0;
 
         /**
@@ -91,29 +139,30 @@ namespace cpp_dbc
         virtual void prepareForPoolReturn()
         {
             // Default implementation: rollback any active transaction
-            rollback(std::nothrow);
+            // Explicitly discard the [[nodiscard]] result - errors during pool return are intentionally ignored
+            (void)rollback(std::nothrow);
         }
 
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
 
-        virtual cpp_dbc::expected<std::shared_ptr<ColumnarDBPreparedStatement>, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<std::shared_ptr<ColumnarDBPreparedStatement>, DBException>
         prepareStatement(std::nothrow_t, const std::string &query) noexcept = 0;
 
-        virtual cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException>
         executeQuery(std::nothrow_t, const std::string &query) noexcept = 0;
 
-        virtual cpp_dbc::expected<uint64_t, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<uint64_t, DBException>
         executeUpdate(std::nothrow_t, const std::string &query) noexcept = 0;
 
-        virtual cpp_dbc::expected<bool, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<bool, DBException>
             beginTransaction(std::nothrow_t) noexcept = 0;
 
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
             commit(std::nothrow_t) noexcept = 0;
 
-        virtual cpp_dbc::expected<void, DBException>
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
             rollback(std::nothrow_t) noexcept = 0;
     };
 

@@ -68,86 +68,25 @@ namespace cpp_dbc::MySQL
     bool MySQLDBDriver::parseURL(const std::string &url,
                                  std::string &host,
                                  int &port,
-                                 std::string &database)
+                                 std::string &database) const
     {
-        // Parse URL of format: cpp_dbc:mysql://host:port/database
-        if (!acceptsURL(url))
+        // Use centralized URL parsing from system_utils
+        // MySQL URLs: cpp_dbc:mysql://host:port/database
+        // Also supports IPv6: cpp_dbc:mysql://[::1]:port/database
+        constexpr int DEFAULT_MYSQL_PORT = 3306;
+
+        system_utils::ParsedDBURL parsed;
+        if (!system_utils::parseDBURL(url, "cpp_dbc:mysql://", DEFAULT_MYSQL_PORT, parsed,
+                                      false,  // allowLocalConnection
+                                      false)) // requireDatabase (MySQL allows no database)
         {
+            MYSQL_DEBUG("MySQLDBDriver::parseURL - Failed to parse URL: " << url);
             return false;
         }
 
-        // Extract host, port, and database
-        std::string temp = url.substr(16); // Remove "cpp_dbc:mysql://"
-
-        // Find host:port separator
-        size_t hostEnd = temp.find(":");
-        if (hostEnd == std::string::npos)
-        {
-            // Try to find database separator if no port is specified
-            hostEnd = temp.find("/");
-            if (hostEnd == std::string::npos)
-            {
-                // No port and no database specified
-                host = temp;
-                port = 3306;   // Default MySQL port
-                database = ""; // No database
-                return true;
-            }
-
-            host = temp.substr(0, hostEnd);
-            port = 3306; // Default MySQL port
-        }
-        else
-        {
-            host = temp.substr(0, hostEnd);
-
-            // Find port/database separator
-            size_t portEnd = temp.find("/", hostEnd + 1);
-            if (portEnd == std::string::npos)
-            {
-                // No database specified, just port
-                std::string portStr = temp.substr(hostEnd + 1);
-                try
-                {
-                    port = std::stoi(portStr);
-                }
-                catch ([[maybe_unused]] const std::exception &ex)
-                {
-                    MYSQL_DEBUG("MySQLDBDriver::parseURL - Invalid port: " << ex.what());
-                    return false;
-                }
-
-                // No database part
-                temp = "";
-            }
-            else
-            {
-                std::string portStr = temp.substr(hostEnd + 1, portEnd - hostEnd - 1);
-                try
-                {
-                    port = std::stoi(portStr);
-                }
-                catch ([[maybe_unused]] const std::exception &ex)
-                {
-                    MYSQL_DEBUG("MySQLDBDriver::parseURL - Invalid port: " << ex.what());
-                    return false;
-                }
-
-                temp = temp.substr(portEnd);
-            }
-        }
-
-        // Extract database name (remove leading '/')
-        if (temp.length() > 0)
-        {
-            database = temp.substr(1);
-        }
-        else
-        {
-            // No database specified
-            database = "";
-        }
-
+        host = parsed.host;
+        port = parsed.port;
+        database = parsed.database;
         return true;
     }
 

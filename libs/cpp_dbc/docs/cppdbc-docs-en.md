@@ -1,6 +1,6 @@
 # CPP_DBC Library Documentation
 
-This document provides a comprehensive guide to the CPP_DBC library, a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, SQLite, Firebird SQL, MongoDB, ScyllaDB, and Redis databases.
+This document provides a comprehensive guide to the CPP_DBC library, a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, SQLite, Firebird SQL, MongoDB, ScyllaDB, and Redis databases. All public header files include Doxygen-compatible `/** @brief ... */` documentation with inline code examples, `@param`/`@return`/`@see` tags, and are ready for HTML/PDF API reference generation.
 
 ## Table of Contents
 - [Core Components](#core-components)
@@ -75,7 +75,7 @@ An abstract base class representing a result set from a SQL query.
 - `isAfterLast()`: Returns true if the cursor is after the last row.
 - `getRow()`: Returns the current row number.
 - `getInt(int/string)`: Retrieves the value of the designated column as an int.
-- `getLong(int/string)`: Retrieves the value of the designated column as a long.
+- `getLong(int/string)`: Retrieves the value of the designated column as an int64_t (portable across all platforms).
 - `getDouble(int/string)`: Retrieves the value of the designated column as a double.
 - `getString(int/string)`: Retrieves the value of the designated column as a string.
 - `getBoolean(int/string)`: Retrieves the value of the designated column as a boolean.
@@ -88,7 +88,7 @@ An abstract base class representing a precompiled SQL statement.
 
 **Methods:**
 - `setInt(int, int)`: Sets the designated parameter to the given int value.
-- `setLong(int, long)`: Sets the designated parameter to the given long value.
+- `setLong(int, int64_t)`: Sets the designated parameter to the given int64_t value (portable across all platforms).
 - `setDouble(int, double)`: Sets the designated parameter to the given double value.
 - `setString(int, string)`: Sets the designated parameter to the given string value.
 - `setBoolean(int, bool)`: Sets the designated parameter to the given boolean value.
@@ -721,6 +721,11 @@ Code quality improvements include:
 - Adding static_cast<> for numeric conversions to avoid -Wconversion warnings
 - Changing int return types to uint64_t for executeUpdate() methods
 - Improving exception handling to avoid variable shadowing
+- Using `int64_t` instead of `long` for cross-platform portability (Windows/Linux/macOS)
+- Cross-platform time functions (`localtime_s` on Windows, `localtime_r` on Unix)
+- `[[nodiscard]]` attribute for methods returning `expected<T, DBException>`
+- Security improvements in SQLite BLOB operations with `validateIdentifier()`
+- Safe exception handling in destructors with `std::scoped_lock`
 
 ### Building with Scripts
 

@@ -252,7 +252,7 @@ namespace cpp_dbc::Firebird
         }
     }
 
-    void FirebirdDBPreparedStatement::setLong(int parameterIndex, long value)
+    void FirebirdDBPreparedStatement::setLong(int parameterIndex, int64_t value)
     {
         auto result = setLong(std::nothrow, parameterIndex, value);
         if (!result)
@@ -433,7 +433,7 @@ namespace cpp_dbc::Firebird
         }
     }
 
-    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, long value) noexcept
+    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept
     {
         try
         {

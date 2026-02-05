@@ -34,7 +34,11 @@ namespace cpp_dbc::MySQL
          */
         using MySQLResHandle = std::unique_ptr<MYSQL_RES, MySQLResDeleter>;
 
-        // Custom deleter for MYSQL_STMT* to use with unique_ptr
+        /**
+         * @brief Custom deleter for MYSQL_STMT* to use with unique_ptr
+         *
+         * Ensures mysql_stmt_close() is called automatically on destruction.
+         */
         struct MySQLStmtDeleter
         {
             void operator()(MYSQL_STMT *stmt) const noexcept
@@ -46,7 +50,7 @@ namespace cpp_dbc::MySQL
             }
         };
 
-        // Type alias for the smart pointer managing MYSQL_STMT
+        /** @brief RAII handle for MYSQL_STMT using unique_ptr with custom deleter */
         using MySQLStmtHandle = std::unique_ptr<MYSQL_STMT, MySQLStmtDeleter>;
 
         /**
@@ -77,7 +81,11 @@ namespace cpp_dbc::MySQL
          */
         using SharedConnMutex = std::shared_ptr<std::recursive_mutex>;
 
-        // Custom deleter for MYSQL* to use with shared_ptr
+        /**
+         * @brief Custom deleter for MYSQL* to use with shared_ptr
+         *
+         * Ensures mysql_close() is called automatically on destruction.
+         */
         struct MySQLDeleter
         {
             void operator()(MYSQL *mysql) const noexcept
@@ -89,7 +97,7 @@ namespace cpp_dbc::MySQL
             }
         };
 
-        // Type alias for the smart pointer managing MYSQL connection (shared_ptr for weak_ptr support)
+        /** @brief RAII handle for MYSQL connection using shared_ptr (supports weak_ptr) */
         using MySQLHandle = std::shared_ptr<MYSQL>;
 
         /**

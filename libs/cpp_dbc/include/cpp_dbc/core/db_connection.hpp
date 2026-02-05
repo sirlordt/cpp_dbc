@@ -31,13 +31,19 @@ namespace cpp_dbc
      * (relational, document, key-value, columnar) derive their connection
      * classes from this base class.
      *
-     * The base class provides only the most fundamental operations that
-     * are common to all database types:
-     * - close(): Close the connection
-     * - isClosed(): Check if the connection is closed
-     * - returnToPool(): Return the connection to a connection pool
-     * - isPooled(): Check if the connection is managed by a pool
-     * - getURL(): Get the connection URL
+     * Connections are obtained via DriverManager::getDBConnection() and must
+     * be cast to the appropriate paradigm-specific subclass for database operations.
+     *
+     * ```cpp
+     * // Obtain a connection and use it
+     * auto conn = cpp_dbc::DriverManager::getDBConnection(
+     *     "cpp_dbc:mysql://localhost:3306/mydb", "user", "pass");
+     * std::cout << "Connected to: " << conn->getURL() << std::endl;
+     * // ... use paradigm-specific subclass methods ...
+     * conn->close();
+     * ```
+     *
+     * @see RelationalDBConnection, DocumentDBConnection, KVDBConnection, ColumnarDBConnection
      */
     class DBConnection
     {
@@ -45,10 +51,16 @@ namespace cpp_dbc
         virtual ~DBConnection() = default;
 
         /**
-         * @brief Close the database connection
+         * @brief Close the database connection and release resources
          *
          * After calling close(), the connection should not be used.
-         * Implementations should handle multiple calls to close() gracefully.
+         * Implementations handle multiple calls to close() gracefully.
+         *
+         * ```cpp
+         * auto conn = cpp_dbc::DriverManager::getDBConnection(url, user, pass);
+         * // ... work with connection ...
+         * conn->close();  // release resources
+         * ```
          */
         virtual void close() = 0;
 
@@ -57,6 +69,12 @@ namespace cpp_dbc
          *
          * @return true if the connection is closed
          * @return false if the connection is still open
+         *
+         * ```cpp
+         * if (!conn->isClosed()) {
+         *     conn->close();
+         * }
+         * ```
          */
         virtual bool isClosed() const = 0;
 
@@ -65,6 +83,13 @@ namespace cpp_dbc
          *
          * If the connection is managed by a pool, this method returns it
          * to the pool for reuse. If not pooled, this may close the connection.
+         * Prefer this over close() for pooled connections.
+         *
+         * ```cpp
+         * auto conn = pool->getDBConnection();
+         * // ... use connection ...
+         * conn->returnToPool();  // return to pool instead of closing
+         * ```
          */
         virtual void returnToPool() = 0;
 
@@ -82,7 +107,7 @@ namespace cpp_dbc
          * Returns the URL used to establish this connection, including
          * the connection type and parameters.
          *
-         * @return std::string The connection URL
+         * @return std::string The connection URL (e.g., "jdbc:mysql://localhost:3306/mydb")
          */
         virtual std::string getURL() const = 0;
     };

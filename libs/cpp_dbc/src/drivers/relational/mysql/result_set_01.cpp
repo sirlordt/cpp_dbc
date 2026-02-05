@@ -173,7 +173,7 @@ namespace cpp_dbc::MySQL
         return *result;
     }
 
-    long MySQLDBResultSet::getLong(size_t columnIndex)
+    int64_t MySQLDBResultSet::getLong(size_t columnIndex)
     {
         auto result = getLong(std::nothrow, columnIndex);
         if (!result.has_value())
@@ -183,7 +183,7 @@ namespace cpp_dbc::MySQL
         return *result;
     }
 
-    long MySQLDBResultSet::getLong(const std::string &columnName)
+    int64_t MySQLDBResultSet::getLong(const std::string &columnName)
     {
         auto result = getLong(std::nothrow, columnName);
         if (!result.has_value())

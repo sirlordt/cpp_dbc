@@ -198,7 +198,7 @@ namespace cpp_dbc::MySQL
         }
     }
 
-    cpp_dbc::expected<long, DBException> MySQLDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
+    cpp_dbc::expected<int64_t, DBException> MySQLDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
     {
         try
         {
@@ -218,7 +218,7 @@ namespace cpp_dbc::MySQL
                 return 0;
             }
 
-            return std::stol(m_currentRow[idx]);
+            return std::stoll(m_currentRow[idx]);
         }
         catch (const DBException &ex)
         {
@@ -423,7 +423,7 @@ namespace cpp_dbc::MySQL
         }
     }
 
-    cpp_dbc::expected<long, DBException> MySQLDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
+    cpp_dbc::expected<int64_t, DBException> MySQLDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
     {
         try
         {

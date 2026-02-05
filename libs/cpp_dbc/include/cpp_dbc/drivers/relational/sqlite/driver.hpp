@@ -16,6 +16,21 @@
 
 namespace cpp_dbc::SQLite
 {
+    /**
+     * @brief SQLite database driver implementation
+     *
+     * Concrete RelationalDBDriver for SQLite embedded databases.
+     * Accepts URLs in the format `cpp_dbc:sqlite:/path/to/db.sqlite`
+     * or `cpp_dbc:sqlite::memory:` for in-memory databases.
+     *
+     * ```cpp
+     * auto driver = std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>();
+     * cpp_dbc::DriverManager::registerDriver(driver);
+     * auto conn = driver->connectRelational("cpp_dbc:sqlite:/tmp/test.db", "", "");
+     * ```
+     *
+     * @see RelationalDBDriver, SQLiteDBConnection
+     */
     class SQLiteDBDriver final : public RelationalDBDriver
     {
     private:
@@ -34,7 +49,12 @@ namespace cpp_dbc::SQLite
 
         bool acceptsURL(const std::string &url) override;
 
-        // Parses a URL: cpp_dbc:sqlite:/path/to/database.db or cpp_dbc:sqlite::memory:
+        /**
+         * @brief Parse a SQLite URL and extract the database path
+         * @param url URL in format "cpp_dbc:sqlite:/path/to/db" or "cpp_dbc:sqlite::memory:"
+         * @param database Output: extracted database path
+         * @return true if parsing succeeded
+         */
         bool parseURL(const std::string &url, std::string &database);
 
         // Nothrow API
@@ -80,6 +100,12 @@ namespace cpp_dbc::SQLite
 
         bool acceptsURL(const std::string & /*url*/) override
         {
+            return false;
+        }
+
+        bool parseURL(const std::string & /*url*/, std::string &database) const
+        {
+            database.clear();
             return false;
         }
 

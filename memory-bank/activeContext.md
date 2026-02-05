@@ -37,7 +37,49 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Driver Header Split Refactoring — One-Class-Per-File** (2026-02-03 14:58:04 PST):
+1. **Cross-Platform Compatibility and Type Portability Improvements** (2026-02-04 14:14:16 PST):
+   - **Cross-Platform Time Functions:**
+     - Replaced `localtime_r` (Unix) with `localtime_s` (Windows) with proper cross-platform detection
+     - Added `#ifdef _WIN32` preprocessor guards for platform-specific code in `system_utils.hpp`
+   - **Type Portability (long → int64_t):**
+     - Changed `long` to `int64_t` for consistent 64-bit integer handling across all platforms
+     - Applied to `RelationalDBResultSet::getLong()` and `ColumnarDBResultSet::getLong()` interfaces
+     - Updated all driver implementations: MySQL, PostgreSQL, SQLite, Firebird, ScyllaDB
+   - **[[nodiscard]] Attribute for Exception-Free API:**
+     - Added `[[nodiscard]]` to all nothrow methods returning `expected<T, DBException>`
+     - Compiler now warns if error-returning functions are called without checking result
+   - **SQLite BLOB Security Improvements:**
+     - Added `validateIdentifier()` function to prevent SQL injection in BLOB operations
+     - Enhanced parameterized query usage in BLOB read/write
+   - **Destructor Error Handling:**
+     - Thread-safe logging in destructors using `std::scoped_lock`
+     - Exceptions caught and logged instead of potentially throwing from destructors
+   - **Driver URL Parsing Fixes:**
+     - MySQL: Fixed `parseURL()` to handle URLs without database name
+     - PostgreSQL: Fixed `parseURL()` validation
+     - Added comprehensive unit tests for URL parsing
+
+1a. **Comprehensive Doxygen API Documentation for All Public Headers** (2026-02-04 00:41:38 PST):
+   - **Documentation Enhancement (64 header files, 2,384 insertions):**
+     - Added Doxygen-compatible `/** @brief ... */` documentation blocks to all public header files
+     - Replaced simple `//` comments with structured Doxygen documentation across the entire API surface
+     - Added inline ```` ```cpp ```` usage examples to all major classes and methods
+     - Added `@param`, `@return`, `@throws`, `@see` tags for cross-referencing
+     - Added section separator comments for improved readability
+   - **Scope of Documentation:**
+     - Core interfaces: blob.hpp, streams.hpp, system_utils.hpp, db_connection.hpp, db_driver.hpp, db_exception.hpp, db_expected.hpp, db_result_set.hpp, db_types.hpp, cpp_dbc.hpp, transaction_manager.hpp
+     - Configuration: database_config.hpp, yaml_config_loader.hpp
+     - Relational interfaces: relational_db_connection.hpp, relational_db_prepared_statement.hpp, relational_db_result_set.hpp
+     - Columnar interfaces: columnar_db_connection.hpp, columnar_db_prepared_statement.hpp, columnar_db_result_set.hpp
+     - Document interfaces: all document_db_*.hpp files
+     - KV interfaces: all kv_db_*.hpp files
+     - All 7 driver header subfolders (mysql, postgresql, sqlite, firebird, mongodb, scylladb, redis)
+   - **Benefits:**
+     - IDE tooltip support — hover over any class or method to see documentation
+     - Doxygen-ready — can generate HTML/PDF API reference
+     - Self-documenting API with inline code examples
+
+2. **Driver Header Split Refactoring — One-Class-Per-File** (2026-02-03 14:58:04 PST):
    - **Header File Reorganization:**
      - Split all 7 multi-class `driver_*.hpp` files into individual per-class `.hpp` files in driver subfolders
      - Original `driver_*.hpp` files now serve as pure aggregator headers with only `#include` directives

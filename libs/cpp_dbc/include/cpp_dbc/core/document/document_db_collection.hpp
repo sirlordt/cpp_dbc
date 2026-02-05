@@ -87,16 +87,26 @@ namespace cpp_dbc
      * @brief Abstract class for document database collections
      *
      * A collection is the document database equivalent of a table in relational
-     * databases. It contains documents and provides CRUD operations.
+     * databases. Provides CRUD operations, index management, and aggregation.
      *
-     * This class provides the interface for:
-     * - Inserting documents (single and bulk)
-     * - Finding/querying documents
-     * - Updating documents
-     * - Deleting documents
-     * - Index management
+     * ```cpp
+     * auto coll = conn->getCollection("users");
+     * // Insert
+     * coll->insertOne(R"({"name": "Alice", "age": 30})");
+     * // Find with filter
+     * auto cursor = coll->find(R"({"age": {"$gt": 25}})");
+     * while (cursor->next()) {
+     *     std::cout << cursor->current()->toJson() << std::endl;
+     * }
+     * // Update
+     * coll->updateOne(R"({"name": "Alice"})", R"({"$set": {"age": 31}})");
+     * // Delete
+     * coll->deleteOne(R"({"name": "Alice"})");
+     * ```
      *
-     * Implementations: MongoDBCollection, CouchDBCollection, etc.
+     * Implementations: MongoDBCollection
+     *
+     * @see DocumentDBConnection, DocumentDBData, DocumentDBCursor
      */
     class DocumentDBCollection
     {
@@ -172,10 +182,17 @@ namespace cpp_dbc
 
         /**
          * @brief Insert a single document
+         *
          * @param document The document to insert
          * @param options Write options
          * @return The result of the insert operation
          * @throws DBException if the insert fails
+         *
+         * ```cpp
+         * auto doc = conn->createDocument(R"({"name": "Bob", "email": "bob@test.com"})");
+         * auto result = coll->insertOne(doc);
+         * std::cout << "Inserted ID: " << result.insertedId << std::endl;
+         * ```
          */
         virtual DocumentInsertResult insertOne(
             std::shared_ptr<DocumentDBData> document,
@@ -183,10 +200,15 @@ namespace cpp_dbc
 
         /**
          * @brief Insert a single document from JSON
+         *
          * @param jsonDocument The document as a JSON string
          * @param options Write options
          * @return The result of the insert operation
          * @throws DBException if the insert fails
+         *
+         * ```cpp
+         * auto result = coll->insertOne(R"({"name": "Alice", "age": 30})");
+         * ```
          */
         virtual DocumentInsertResult insertOne(
             const std::string &jsonDocument,
@@ -239,8 +261,17 @@ namespace cpp_dbc
 
         /**
          * @brief Find all documents matching the filter
+         *
          * @param filter The filter document (JSON string), empty for all documents
          * @return A cursor for iterating over the results
+         *
+         * ```cpp
+         * auto cursor = coll->find(R"({"age": {"$gte": 18}})");
+         * while (cursor->next()) {
+         *     auto doc = cursor->current();
+         *     std::cout << doc->getString("name") << std::endl;
+         * }
+         * ```
          */
         virtual std::shared_ptr<DocumentDBCursor> find(const std::string &filter = "") = 0;
 
@@ -281,11 +312,19 @@ namespace cpp_dbc
         // ====================================================================
         /**
          * @brief Update a single document matching the filter
+         *
          * @param filter The filter document (JSON string)
          * @param update The update document (JSON string)
          * @param options Update options
          * @return The result of the update operation
          * @throws DBException if the update fails
+         *
+         * ```cpp
+         * auto result = coll->updateOne(
+         *     R"({"name": "Alice"})",
+         *     R"({"$set": {"age": 31, "updated": true}})");
+         * std::cout << "Modified: " << result.modifiedCount << std::endl;
+         * ```
          */
         virtual DocumentUpdateResult updateOne(
             const std::string &filter,
@@ -403,10 +442,16 @@ namespace cpp_dbc
         // ====================================================================
         /**
          * @brief Create an index on the collection
+         *
          * @param keys The index keys (JSON string specifying fields and order)
          * @param options Index options (JSON string)
          * @return The name of the created index
          * @throws DBException if index creation fails
+         *
+         * ```cpp
+         * coll->createIndex(R"({"email": 1})", R"({"unique": true})");
+         * coll->createIndex(R"({"name": 1, "age": -1})");  // compound index
+         * ```
          */
         virtual std::string createIndex(
             const std::string &keys,
@@ -448,9 +493,17 @@ namespace cpp_dbc
         // Aggregation
         /**
          * @brief Execute an aggregation pipeline
+         *
          * @param pipeline The aggregation pipeline (JSON array string)
          * @return A cursor for iterating over the results
          * @throws DBException if the aggregation fails
+         *
+         * ```cpp
+         * auto cursor = coll->aggregate(R"([
+         *     {"$match": {"status": "active"}},
+         *     {"$group": {"_id": "$dept", "count": {"$sum": 1}}}
+         * ])");
+         * ```
          */
         virtual std::shared_ptr<DocumentDBCursor> aggregate(const std::string &pipeline) = 0;
 

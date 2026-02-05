@@ -50,14 +50,21 @@ namespace cpp_dbc
     /**
      * @brief Connection pool implementation for key-value databases
      *
-     * This class manages a pool of key-value database connections, providing
-     * efficient connection reuse, lifecycle management, and monitoring.
+     * Manages a pool of key-value database connections with configurable size,
+     * validation, and lifecycle management. Create pools via the static
+     * `create()` factory method.
      *
-     * Features:
-     * - Connection pooling with configurable size and behavior
-     * - Connection validation and recycling
-     * - Automatic maintenance of pool health
-     * - Statistics tracking
+     * ```cpp
+     * auto pool = cpp_dbc::Redis::RedisConnectionPool::create(
+     *     "redis://localhost:6379", "", "");
+     * auto conn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(
+     *     pool->getDBConnection());
+     * conn->setString("session:abc", "data", 3600);
+     * conn->returnToPool();
+     * pool->close();
+     * ```
+     *
+     * @see KVDBConnection, DBConnectionPool
      */
     class KVDBConnectionPool : public DBConnectionPool, public std::enable_shared_from_this<KVDBConnectionPool>
     {
@@ -171,7 +178,7 @@ namespace cpp_dbc
         // Specialized method for key-value databases
         virtual std::shared_ptr<KVDBConnection> getKVDBConnection();
 
-        // Gets current pool statisticsH
+        // Gets current pool statistics
         size_t getActiveDBConnectionCount() const override;
         size_t getIdleDBConnectionCount() const override;
         size_t getTotalDBConnectionCount() const override;

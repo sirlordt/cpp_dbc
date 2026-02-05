@@ -88,7 +88,20 @@ namespace cpp_dbc::ScyllaDB
     ScyllaDBResultSet::~ScyllaDBResultSet()
     {
         SCYLLADB_DEBUG("ScyllaDBResultSet::destructor - Destroying result set");
-        ScyllaDBResultSet::close();
+        try
+        {
+            ScyllaDBResultSet::close();
+        }
+        catch (const std::exception &e)
+        {
+            // Log the error but don't throw - in destructor
+            SCYLLADB_DEBUG("Failed to close result set: " << e.what());
+        }
+        catch (...)
+        {
+            // Catch all other exceptions
+            SCYLLADB_DEBUG("Failed to close result set: unknown error");
+        }
     }
 
     void ScyllaDBResultSet::close()
@@ -168,7 +181,7 @@ namespace cpp_dbc::ScyllaDB
         return *result;
     }
 
-    long ScyllaDBResultSet::getLong(size_t columnIndex)
+    int64_t ScyllaDBResultSet::getLong(size_t columnIndex)
     {
         auto result = getLong(std::nothrow, columnIndex);
         if (!result.has_value())
@@ -178,7 +191,7 @@ namespace cpp_dbc::ScyllaDB
         return *result;
     }
 
-    long ScyllaDBResultSet::getLong(const std::string &columnName)
+    int64_t ScyllaDBResultSet::getLong(const std::string &columnName)
     {
         auto result = getLong(std::nothrow, columnName);
         if (!result.has_value())

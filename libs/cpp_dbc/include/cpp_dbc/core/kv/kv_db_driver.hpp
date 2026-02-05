@@ -34,16 +34,20 @@ namespace cpp_dbc
     /**
      * @brief Abstract class for key-value database drivers
      *
-     * This class extends DBDriver with methods specific to key-value databases.
-     * It provides a typed connect method that returns KVDBConnection.
+     * Extends DBDriver with a typed connect method that returns
+     * KVDBConnection. Also provides URI parsing/building helpers.
      *
-     * Key-value database drivers handle connection to databases like:
-     * - Redis
-     * - Memcached
-     * - etcd
-     * - RocksDB
+     * ```cpp
+     * auto driver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+     * cpp_dbc::DriverManager::registerDriver(driver);
+     * auto conn = driver->connectKV("redis://localhost:6379", "", "");
+     * conn->setString("key", "value");
+     * conn->close();
+     * ```
      *
-     * Implementations: RedisDriver, MemcachedDriver, etc.
+     * Implementations: RedisDriver
+     *
+     * @see KVDBConnection, DBDriver
      */
     class KVDBDriver : public DBDriver
     {

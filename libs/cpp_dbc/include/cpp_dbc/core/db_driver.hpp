@@ -32,15 +32,21 @@ namespace cpp_dbc
     /**
      * @brief Abstract base class for all database drivers
      *
-     * This is the root of the driver hierarchy. All database paradigms
-     * (relational, document, key-value, columnar) derive their driver
-     * classes from this base class.
+     * Drivers are responsible for creating connections to specific database engines.
+     * Register drivers with DriverManager, then use DriverManager::getDBConnection()
+     * to obtain connections automatically.
      *
-     * The base class provides the fundamental operations for:
-     * - Connecting to a database
-     * - Checking if a URL is supported
-     * - Executing driver-specific commands
-     * - Identifying the database type
+     * ```cpp
+     * // Register and use a driver directly
+     * auto driver = std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
+     * if (driver->acceptsURL("cpp_dbc:mysql://localhost/mydb")) {
+     *     auto conn = driver->connect("cpp_dbc:mysql://localhost/mydb", "user", "pass");
+     *     // ... use connection ...
+     *     conn->close();
+     * }
+     * ```
+     *
+     * @see DriverManager, RelationalDBDriver, DocumentDBDriver, KVDBDriver, ColumnarDBDriver
      */
     class DBDriver
     {
@@ -50,12 +56,18 @@ namespace cpp_dbc
         /**
          * @brief Connect to a database
          *
-         * @param url The database URL (e.g., "jdbc:mysql://host:port/database")
+         * @param url The database URL (e.g., "cpp_dbc:mysql://host:port/database")
          * @param user The username for authentication
          * @param password The password for authentication
          * @param options Additional connection options
          * @return std::shared_ptr<DBConnection> A connection to the database
          * @throws DBException if the connection fails
+         *
+         * ```cpp
+         * auto conn = driver->connect("cpp_dbc:mysql://localhost:3306/mydb", "root", "pass");
+         * // ... use connection ...
+         * conn->close();
+         * ```
          */
         virtual std::shared_ptr<DBConnection> connect(
             const std::string &url,
@@ -66,9 +78,17 @@ namespace cpp_dbc
         /**
          * @brief Check if this driver accepts the given URL
          *
+         * Each driver recognizes a specific URL scheme (e.g., "cpp_dbc:mysql://", "cpp_dbc:postgresql://").
+         *
          * @param url The database URL to check
          * @return true if this driver can handle the URL
          * @return false if this driver cannot handle the URL
+         *
+         * ```cpp
+         * auto driver = std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
+         * bool ok = driver->acceptsURL("cpp_dbc:mysql://localhost/mydb");  // true
+         * bool no = driver->acceptsURL("cpp_dbc:postgresql://localhost/mydb");  // false
+         * ```
          */
         virtual bool acceptsURL(const std::string &url) = 0;
 
@@ -80,10 +100,7 @@ namespace cpp_dbc
         virtual DBType getDBType() const = 0;
 
         /**
-         * @brief Execute a driver-specific command
-         *
-         * This method allows executing driver-specific operations that don't require
-         * an existing connection, such as creating a database.
+         * @brief Execute a driver-specific command without requiring a connection
          *
          * Supported commands vary by driver:
          * - Firebird: "create_database" - Creates a new database file
@@ -93,9 +110,18 @@ namespace cpp_dbc
          *               - "url": The database URL
          *               - "user": The username
          *               - "password": The password
-         *               - Additional driver-specific options
          * @return Result code (0 for success, non-zero for errors)
          * @throws DBException if the command fails
+         *
+         * ```cpp
+         * auto driver = std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>();
+         * std::map<std::string, std::any> params;
+         * params["command"] = std::string("create_database");
+         * params["url"] = std::string("cpp_dbc:firebird://localhost/test.fdb");
+         * params["user"] = std::string("SYSDBA");
+         * params["password"] = std::string("masterkey");
+         * driver->command(params);
+         * ```
          */
         virtual int command([[maybe_unused]] const std::map<std::string, std::any> &)
         {
@@ -103,6 +129,11 @@ namespace cpp_dbc
             return 0;
         }
 
+        /**
+         * @brief Get the driver's registered name
+         *
+         * @return The driver name (e.g., "mysql", "postgresql", "mongodb")
+         */
         virtual std::string getName() const noexcept = 0;
     };
 

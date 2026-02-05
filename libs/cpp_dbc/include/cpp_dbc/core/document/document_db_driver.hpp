@@ -32,16 +32,20 @@ namespace cpp_dbc
     /**
      * @brief Abstract class for document database drivers
      *
-     * This class extends DBDriver with methods specific to document databases.
-     * It provides a typed connect method that returns DocumentDBConnection.
+     * Extends DBDriver with a typed connect method that returns
+     * DocumentDBConnection. Also provides URI parsing/building helpers.
      *
-     * Document database drivers handle connection to databases like:
-     * - MongoDB
-     * - CouchDB
-     * - Amazon DocumentDB
-     * - Azure Cosmos DB (document mode)
+     * ```cpp
+     * auto driver = std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>();
+     * cpp_dbc::DriverManager::registerDriver(driver);
+     * auto conn = driver->connectDocument("mongodb://localhost:27017/mydb", "", "");
+     * std::cout << "Database: " << conn->getDatabaseName() << std::endl;
+     * conn->close();
+     * ```
      *
-     * Implementations: MongoDBDriver, CouchDBDriver, etc.
+     * Implementations: MongoDBDriver
+     *
+     * @see DocumentDBConnection, DBDriver
      */
     class DocumentDBDriver : public DBDriver
     {

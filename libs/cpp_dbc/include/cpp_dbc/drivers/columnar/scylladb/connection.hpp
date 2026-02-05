@@ -33,6 +33,27 @@
 
 namespace cpp_dbc::ScyllaDB
 {
+        /**
+         * @brief ScyllaDB connection implementation
+         *
+         * Concrete ColumnarDBConnection for ScyllaDB/Cassandra databases.
+         * Supports prepared statements, query execution, and lightweight
+         * transactions (LWT). Uses the Cassandra C/C++ driver session
+         * underneath.
+         *
+         * ```cpp
+         * auto conn = std::dynamic_pointer_cast<cpp_dbc::ScyllaDB::ScyllaDBConnection>(
+         *     cpp_dbc::DriverManager::getDBConnection(
+         *         "cpp_dbc:scylladb://localhost:9042/mykeyspace", "", ""));
+         * auto rs = conn->executeQuery("SELECT * FROM users");
+         * while (rs->next()) {
+         *     std::cout << rs->getString("name") << std::endl;
+         * }
+         * conn->close();
+         * ```
+         *
+         * @see ScyllaDBDriver, ScyllaDBPreparedStatement, ScyllaDBResultSet
+         */
         class ScyllaDBConnection final : public cpp_dbc::ColumnarDBConnection
         {
         private:

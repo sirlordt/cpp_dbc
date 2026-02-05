@@ -4,7 +4,61 @@
 
 The CPP_DBC library appears to be in a functional state with the following components implemented:
 
-### Recent Improvements (2026-02-03)
+### Recent Improvements (2026-02-04)
+
+**Cross-Platform Compatibility and Type Portability Improvements:**
+1. **Cross-Platform Time Functions:**
+   - Replaced `localtime_r` (Unix) with `localtime_s` (Windows) with proper cross-platform detection
+   - Added `#ifdef _WIN32` preprocessor guards for platform-specific code
+   - Applied to `system_utils.hpp` for timestamp formatting
+
+2. **Type Portability (long → int64_t):**
+   - Changed `long` to `int64_t` for consistent 64-bit integer handling across platforms
+   - Applied to all driver result set interfaces and implementations:
+     - `RelationalDBResultSet::getLong()` return type
+     - `ColumnarDBResultSet::getLong()` return type
+     - All driver implementations (MySQL, PostgreSQL, SQLite, Firebird, ScyllaDB)
+   - Ensures consistent behavior on 32-bit and 64-bit systems
+
+3. **[[nodiscard]] Attribute for Exception-Free API:**
+   - Added `[[nodiscard]]` attribute to all nothrow methods returning `expected<T, DBException>`
+   - Compiler warns if return value is ignored, preventing silent error handling bugs
+   - Applied across all result set and prepared statement interfaces
+
+4. **SQLite BLOB Security Improvements:**
+   - Added `validateIdentifier()` function to prevent SQL injection in BLOB operations
+   - Replaced string concatenation with parameterized queries where possible
+   - Enhanced error handling in BLOB read/write operations
+
+5. **Destructor Error Handling Improvements:**
+   - Added thread-safe logging in destructors using `std::scoped_lock`
+   - Destructors now catch and log exceptions instead of potentially throwing
+   - Follows C++ best practices for exception-safe resource cleanup
+
+6. **Driver URL Parsing Fixes:**
+   - Fixed MySQL driver `parseURL()` to handle URLs without database name
+   - Fixed PostgreSQL driver `parseURL()` to properly validate URL format
+   - Added comprehensive unit tests for URL parsing edge cases
+
+**Comprehensive Doxygen API Documentation for All Public Headers:**
+1. **Documentation Enhancement:**
+   - Added Doxygen-compatible `/** @brief ... */` documentation blocks to all 64 public header files
+   - Replaced simple `//` comments with structured Doxygen documentation across the entire API surface
+   - Added inline ```` ```cpp ```` usage examples to all major classes and methods
+   - Added `@param`, `@return`, `@throws`, `@see` tags for cross-referencing and parameter documentation
+   - 64 files changed, 2,384 insertions(+), 359 deletions(-)
+
+2. **Scope:**
+   - Core interfaces, configuration layer, relational/columnar/document/KV interfaces
+   - All 7 driver header subfolders (mysql, postgresql, sqlite, firebird, mongodb, scylladb, redis)
+
+3. **Benefits:**
+   - IDE tooltip support — hover over any class or method to see documentation and examples
+   - Doxygen-ready — can generate HTML/PDF API reference documentation
+   - Self-documenting API — developers can understand usage without leaving the header file
+   - Cross-referenced — `@see` tags link related classes and methods
+
+### Previous Improvements (2026-02-03)
 
 **Driver Header Split Refactoring (One-Class-Per-File):**
 1. **Header File Reorganization:**
@@ -72,6 +126,7 @@ The CPP_DBC library appears to be in a functional state with the following compo
 17. **Thread-Safe Drivers**: Optional thread-safety support for all database drivers with mutex protection
 18. **Exception-Free API**: Implementation of exception-free error handling using std::expected pattern for Redis, PostgreSQL, and ScyllaDB drivers
 19. **Columnar DB Connection Pool**: Complete implementation of connection pool for ScyllaDB columnar database
+20. **Doxygen API Documentation**: Comprehensive Doxygen-compatible documentation with inline code examples across all 64 public header files
 
 The project includes example code demonstrating:
 - Basic database operations
@@ -344,9 +399,15 @@ Based on the current state of the project, potential areas for enhancement inclu
 ## Known Issues
 ### Recent Improvements
 
-#### This PR (refactor/driver/headers)
+#### This PR (docs/drivers/headers)
 
-1. **Driver Header Split Refactoring — One-Class-Per-File** (2026-02-03 14:58:04 PST):
+1. **Comprehensive Doxygen API Documentation for All Public Headers** (2026-02-04 00:41:38 PST):
+   - Added Doxygen-compatible `/** @brief ... */` documentation blocks to all 64 public header files
+   - Added inline ```` ```cpp ```` usage examples to all major classes and methods
+   - Added `@param`, `@return`, `@throws`, `@see` tags for cross-referencing
+   - 64 files changed, 2,384 insertions(+), 359 deletions(-)
+
+2. **Driver Header Split Refactoring — One-Class-Per-File** (2026-02-03 14:58:04 PST):
    - **Header File Reorganization:**
      - Split all 7 multi-class `driver_*.hpp` files into individual per-class `.hpp` files in driver subfolders
      - Original `driver_*.hpp` files now serve as pure aggregator headers with only `#include` directives

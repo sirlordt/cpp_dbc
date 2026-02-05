@@ -31,14 +31,21 @@ namespace cpp_dbc
     /**
      * @brief Abstract class representing a document in a document database
      *
-     * This class provides a generic interface for working with documents
-     * in document-oriented databases like MongoDB, CouchDB, etc.
+     * Provides a generic interface for working with JSON/BSON-like documents.
+     * Supports nested field access using dot notation (e.g., "address.city").
      *
-     * Documents are typically JSON/BSON-like structures with nested fields.
-     * This interface provides basic operations for accessing and manipulating
-     * document data.
+     * ```cpp
+     * auto doc = conn->createDocument(R"({"name": "Alice", "age": 30})");
+     * doc->setString("email", "alice@test.com");
+     * doc->setDocument("address", conn->createDocument(R"({"city": "NYC"})"));
+     * std::string name = doc->getString("name");      // "Alice"
+     * std::string city = doc->getString("address.city"); // "NYC"
+     * std::cout << doc->toJsonPretty() << std::endl;
+     * ```
      *
-     * Implementations: MongoDBDocument, CouchDBDocument, etc.
+     * Implementations: MongoDBDocument
+     *
+     * @see DocumentDBCollection, DocumentDBConnection
      */
     class DocumentDBData
     {

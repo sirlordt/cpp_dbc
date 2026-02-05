@@ -95,7 +95,7 @@ namespace cpp_dbc::SQLite
         }
     }
 
-    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, long value) noexcept
+    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept
     {
         try
         {
@@ -115,6 +115,14 @@ namespace cpp_dbc::SQLite
             if (parameterIndex <= 0)
             {
                 return cpp_dbc::unexpected(DBException("S5Z6A7B8C9D0", "Invalid parameter index: " + std::to_string(parameterIndex),
+                                                       system_utils::captureCallStack()));
+            }
+
+            // Get the number of parameters in the statement
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
+            if (parameterIndex > paramCount)
+            {
+                return cpp_dbc::unexpected(DBException("NHNWDRFVQG77", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
                                                        system_utils::captureCallStack()));
             }
 
@@ -337,6 +345,14 @@ namespace cpp_dbc::SQLite
             if (parameterIndex <= 0)
             {
                 return cpp_dbc::unexpected(DBException("JIHL7D5UH98N", "Invalid parameter index: " + std::to_string(parameterIndex),
+                                                       system_utils::captureCallStack()));
+            }
+
+            // Get the number of parameters in the statement
+            int paramCount = sqlite3_bind_parameter_count(m_stmt.get());
+            if (parameterIndex > paramCount)
+            {
+                return cpp_dbc::unexpected(DBException("CSB01AH6AD9Z", "Parameter index out of range: " + std::to_string(parameterIndex) + " (statement has " + std::to_string(paramCount) + " parameters)",
                                                        system_utils::captureCallStack()));
             }
 

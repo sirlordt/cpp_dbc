@@ -16,9 +16,23 @@ struct redisContext;
 namespace cpp_dbc::Redis
 {
         /**
-         * @brief Redis connection implementation
+         * @brief Redis connection implementation.
          *
-         * This class implements the KVDBConnection interface for Redis.
+         * This class implements the KVDBConnection interface for Redis,
+         * providing key-value, list, hash, set, and sorted-set operations
+         * as well as server administration commands.
+         * Each throwing method has a corresponding `std::nothrow_t` overload
+         * that returns `cpp_dbc::expected` instead of throwing.
+         *
+         * ### Example
+         *
+         * ```cpp
+         * auto conn = std::dynamic_pointer_cast<cpp_dbc::Redis::RedisConnection>(
+         *     cpp_dbc::DriverManager::getDBConnection("cpp_dbc:redis://localhost:6379", "", ""));
+         * conn->setString("key", "value");
+         * std::string val = conn->getString("key");
+         * conn->close();
+         * ```
          */
         class RedisConnection final : public KVDBConnection, public std::enable_shared_from_this<RedisConnection>
         {

@@ -15,6 +15,10 @@ if [ -z "$DISTROBOX_ENTER_PATH" ]; then
     exit 1
 fi
 
+# Source common functions
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+source "$SCRIPT_DIR/lib/common_functions.sh"
+
 DIST_BUILD_FILE=".dist_build"
 DEFAULT_CONTAINER_NAME=""
 
@@ -135,41 +139,9 @@ show_usage() {
   echo "  $(basename "$0") --run-build --vscode"
 }
 
-cleanup_old_logs() {
-  local log_path="$1"
-  local max_logs="$2"
-  
-  # Default values if not provided
-  if [ -z "$log_path" ]; then
-    echo "Error: Log path not provided to cleanup_old_logs"
-    return 1
-  fi
-  
-  if [ -z "$max_logs" ]; then
-    max_logs=4
-  fi
-  
-  # Ensure the log directory exists
-  mkdir -p "$(dirname "$log_path")"
-  
-  # Get all log files in the directory, sorted by modification time (newest first)
-  local logs=($(ls -1t "${log_path}"/*.log 2>/dev/null))
-  
-  # If we have more logs than the maximum allowed, remove the oldest ones
-  if (( ${#logs[@]} > max_logs )); then
-    echo "Cleaning up old logs in ${log_path}, keeping ${max_logs} most recent logs..."
-    printf '%s\n' "${logs[@]:$max_logs}" | xargs rm -f --
-  fi
-}
+# cleanup_old_logs() is provided by lib/common_functions.sh
 
-# Function to check if terminal supports colors
-check_color_support() {
-  if [ -t 1 ] && [ -n "$TERM" ] && [ "$TERM" != "dumb" ]; then
-    return 0  # Terminal supports colors
-  else
-    return 1  # Terminal doesn't support colors
-  fi
-}
+# check_color_support() is provided by lib/common_functions.sh
 
 # Auto-sync VSCode IntelliSense configuration if c_cpp_properties.json doesn't exist
 # This ensures new developers get a working IntelliSense setup after first build
@@ -318,10 +290,10 @@ cmd_run_build() {
   if check_color_support; then
     # Run with colors in terminal but without colors in log file
     # Use unbuffer to preserve colors in terminal output and sed to strip ANSI color codes from log file
-    unbuffer $build_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    unbuffer $build_cmd 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
   else
     # Terminal doesn't support colors, just run normally and strip any color codes that might be present
-    $build_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    $build_cmd 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
   fi
 
   echo ""
@@ -749,7 +721,7 @@ extract_executed_tests() {
     # Look for lines with passed/failed starting from this specific line_number
     # and stopping at the next "Filters:" boundary (or end of file)
     # This ensures we only inspect tests for this specific Filters block
-    if sed -n "${line_number},\$p" "$log_file" | sed '/^.*Filters: \[/{ 1!q }' | grep -a -q "\.cpp:[0-9]\+: passed:\|\.cpp:[0-9]\+: failed:"; then
+    if sed -n "${line_number},\$p" "$log_file" | sed '/^.*Filters: \[/{ 1!q }' | sed 's/\x1b\[[0-9;]*m//g' | grep -a -q "\.cpp:[0-9]\+: passed:\|\.cpp:[0-9]\+: failed:"; then
       # Try to find the duration marker for this tag at the specific occurrence
       local duration=""
       if [ -n "$run_number" ]; then
@@ -798,7 +770,8 @@ check_test_failures() {
   # Pattern to match actual test failures in Catch2 output
   # We're looking for lines that match the Catch2 test failure pattern
   # Typically these start with a file path and line number followed by "failed:"
-  failed_lines=$(grep -a -n "\.cpp:[0-9]\+: failed:" "$log_file")
+  # Strip ANSI codes first to handle colored Catch2 output (e.g., \033[31mfailed\033[0m:)
+  failed_lines=$(sed 's/\x1b\[[0-9;]*m//g' "$log_file" | grep -a -n "\.cpp:[0-9]\+: failed:")
   
   if [ -n "$failed_lines" ]; then
     # Show the log file path and line number for each failure
@@ -854,52 +827,9 @@ check_memory_leaks() {
 }
 
 # Helper function to check for valgrind errors in log file
-check_valgrind_errors() {
-  local log_file="$1"
-  local found_issues=0
-  
-  echo "Checking for valgrind errors..."
-  # Extract error counts from ERROR SUMMARY lines
-  error_lines=$(grep -a -n "ERROR SUMMARY:" "$log_file")
-  
-  if [ -n "$error_lines" ]; then
-    found_error=0
-    while IFS= read -r line; do
-      line_num=$(echo "$line" | cut -d':' -f1)
-      error_text=$(echo "$line" | cut -d':' -f2-)
-      
-      # Extract error and context counts
-      if [[ "$error_text" =~ ([0-9]+)[[:space:]]+errors[[:space:]]+from[[:space:]]+([0-9]+)[[:space:]]+contexts ]]; then
-        errors="${BASH_REMATCH[1]}"
-        contexts="${BASH_REMATCH[2]}"
-        
-        # Only report if errors or contexts are greater than 0
-        if [ "$errors" -gt 0 ] || [ "$contexts" -gt 0 ]; then
-          echo "[ERROR SUMMARY: $errors errors from $contexts contexts] => $log_file:$line_num"
-          found_issues=1
-          found_error=1
-        fi
-      fi
-    done <<< "$error_lines"
-    
-    if [ $found_error -eq 0 ]; then
-      echo "ERROR SUMMARY found but no errors reported."
-    fi
-  else
-    echo "No valgrind error summaries found."
-  fi
-  
-  return $found_issues
-}
+# check_valgrind_errors() and check_valgrind_errors_verbose() are provided by lib/common_functions.sh
 
-# Helper function to format seconds as HH:MM:SS
-format_duration() {
-  local seconds=$1
-  local hours=$((seconds / 3600))
-  local minutes=$(((seconds % 3600) / 60))
-  local secs=$((seconds % 60))
-  printf "%02d:%02d:%02d" $hours $minutes $secs
-}
+# format_duration() is provided by lib/common_functions.sh
 
 # Helper function to display a single test execution table
 # Parameters:
@@ -1167,7 +1097,7 @@ cmd_check_test_log() {
   echo "----------------------------------------"
   
   # Check for valgrind errors
-  check_valgrind_errors "$log_file"
+  check_valgrind_errors_verbose "$log_file"
   check_result=$?
   if [ $check_result -eq 1 ]; then
     found_issues=1
@@ -1370,10 +1300,10 @@ cmd_run_benchmarks() {
   if check_color_support; then
     # Run with colors in terminal but without colors in log file
     # Use unbuffer to preserve colors in terminal output and sed to strip ANSI color codes from log file
-    unbuffer $run_benchmark_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    unbuffer $run_benchmark_cmd 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
   else
     # Terminal doesn't support colors, just run normally and strip any color codes that might be present
-    $run_benchmark_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    $run_benchmark_cmd 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
   fi
   
   echo ""
@@ -1553,10 +1483,10 @@ cmd_run_build_dist() {
   if check_color_support; then
     # Run with colors in terminal but without colors in log file
     # Use unbuffer to preserve colors in terminal output and sed to strip ANSI color codes from log file
-    unbuffer $build_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    unbuffer $build_cmd 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
   else
     # Terminal doesn't support colors, just run normally and strip any color codes that might be present
-    $build_cmd 2>&1 | tee >(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
+    $build_cmd 2>&1 | tee >(sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" > "$log_file")
   fi
 
   echo ""

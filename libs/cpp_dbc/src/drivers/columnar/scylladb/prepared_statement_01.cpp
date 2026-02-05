@@ -67,7 +67,12 @@ namespace cpp_dbc::ScyllaDB
     ScyllaDBPreparedStatement::~ScyllaDBPreparedStatement()
     {
         SCYLLADB_DEBUG("ScyllaDBPreparedStatement::destructor - Destroying prepared statement");
-        ScyllaDBPreparedStatement::close(std::nothrow);
+        auto result = ScyllaDBPreparedStatement::close(std::nothrow);
+        if (!result.has_value())
+        {
+            // Log the error but don't throw - in destructor
+            SCYLLADB_DEBUG("Failed to close prepared statement: " << result.error().what_s());
+        }
     }
 
     void ScyllaDBPreparedStatement::setInt(int parameterIndex, int value)
@@ -79,7 +84,7 @@ namespace cpp_dbc::ScyllaDB
         }
     }
 
-    void ScyllaDBPreparedStatement::setLong(int parameterIndex, long value)
+    void ScyllaDBPreparedStatement::setLong(int parameterIndex, int64_t value)
     {
         auto result = setLong(std::nothrow, parameterIndex, value);
         if (!result.has_value())

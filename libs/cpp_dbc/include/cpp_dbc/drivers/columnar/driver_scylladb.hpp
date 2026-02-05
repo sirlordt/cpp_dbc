@@ -13,7 +13,11 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file driver_scylladb.hpp
- * @brief ScyllaDB (Cassandra) database driver implementation
+ * @brief Umbrella header for the ScyllaDB (Cassandra) columnar database driver
+ *
+ * Include this single header to access all ScyllaDB driver types:
+ * ScyllaDBDriver, ScyllaDBConnection, ScyllaDBPreparedStatement,
+ * ScyllaDBResultSet, ScyllaMemoryInputStream, and RAII handle types.
  */
 
 #ifndef CPP_DBC_DRIVER_SCYLLA_HPP

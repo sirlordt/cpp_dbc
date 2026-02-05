@@ -50,14 +50,22 @@ namespace cpp_dbc
     /**
      * @brief Connection pool implementation for document databases
      *
-     * This class manages a pool of document database connections, providing
-     * efficient connection reuse, lifecycle management, and monitoring.
+     * Manages a pool of document database connections with configurable size,
+     * validation, and lifecycle management. Create pools via the static
+     * `create()` factory method.
      *
-     * Features:
-     * - Connection pooling with configurable size and behavior
-     * - Connection validation and recycling
-     * - Automatic maintenance of pool health
-     * - Statistics tracking
+     * ```cpp
+     * auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(
+     *     "mongodb://localhost:27017/mydb", "user", "pass");
+     * auto conn = std::dynamic_pointer_cast<cpp_dbc::DocumentDBConnection>(
+     *     pool->getDBConnection());
+     * auto coll = conn->getCollection("users");
+     * // ... use connection ...
+     * conn->returnToPool();
+     * pool->close();
+     * ```
+     *
+     * @see DocumentDBConnection, DBConnectionPool
      */
     class DocumentDBConnectionPool : public DBConnectionPool, public std::enable_shared_from_this<DocumentDBConnectionPool>
     {
