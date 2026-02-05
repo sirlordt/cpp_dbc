@@ -82,6 +82,28 @@ namespace cpp_dbc
 - Validate database identifiers (keyspace, database names) against injection
 - Only allow alphanumeric characters and underscores in schema names
 
+## Adding New Database Drivers
+
+When adding support for a new database driver, follow the comprehensive guide at:
+
+**`libs/cpp_dbc/docs/how_add_new_db_drivers.md`**
+
+This guide covers all 5 phases of driver implementation:
+1. **Phase 1**: Creating driver files (.hpp/.cpp) and updating `cpp_dbc.hpp`
+2. **Phase 2**: Updating CMake, shell scripts, distros folder, and config files
+3. **Phase 3**: Creating tests (with validation checkpoint)
+4. **Phase 4**: Creating benchmarks (with validation checkpoint)
+5. **Phase 5**: Creating examples by driver family
+
+Key files that require `USE_<DRIVER>` updates:
+- `libs/cpp_dbc/include/cpp_dbc/cpp_dbc.hpp` - Main header with conditional includes
+- `libs/cpp_dbc/cmake/cpp_dbc-config.cmake` - Package config for installed library
+- `libs/cpp_dbc/cmake/FindCPPDBC.cmake` - Fallback driver discovery
+- `libs/cpp_dbc/benchmark/benchmark_common.hpp` - Benchmark conditional includes
+- `libs/cpp_dbc/CMakeLists.txt` - Main CMake configuration
+
+Always use `helper.sh` for build validation between phases.
+
 ## Deep Reasoning Principle
 
 While following user instructions is important, this is a serious programming project. Therefore:

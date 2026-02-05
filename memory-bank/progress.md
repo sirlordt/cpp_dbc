@@ -4,7 +4,29 @@
 
 The CPP_DBC library appears to be in a functional state with the following components implemented:
 
-### Recent Improvements (2026-02-04)
+### Recent Improvements (2026-02-05)
+
+**Comprehensive Documentation for New Driver Development and Error Handling:**
+1. **New Driver Development Guide (`how_add_new_db_drivers.md`):**
+   - Created comprehensive guide (~1,500 lines) for adding new database drivers to cpp_dbc
+   - Covers all 5 phases: driver files, build configuration, tests, benchmarks, and examples
+   - Includes detailed code reference for base interfaces and family-specific interfaces
+   - Documents thread safety macros, RAII handles patterns, and reference implementations
+   - Provides complete CMake configuration examples with `USE_<DRIVER>` patterns
+
+2. **Error Handling Patterns Documentation (`error_handling_patterns.md`):**
+   - Created comprehensive guide (~600 lines) for error handling in cpp_dbc
+   - Documents `DBException` class with 12-character error codes and call stack capture
+   - Covers both exception-based API and exception-free API (nothrow) patterns
+   - Provides patterns by component: Driver, Connection, PreparedStatement, ResultSet
+
+3. **Shell Script Dependencies Documentation (`shell_script_dependencies.md`):**
+   - Created comprehensive guide documenting all shell script dependencies
+   - Documents call hierarchy between helper.sh, build scripts, and utility scripts
+
+4. **Updated Project Conventions (`.claude/rules/cpp_dbc_conventions.md`):**
+   - Added "Adding New Database Drivers" section referencing the new guide
+   - Documents key files that require `USE_<DRIVER>` updates
 
 **Cross-Platform Compatibility and Type Portability Improvements:**
 1. **Cross-Platform Time Functions:**

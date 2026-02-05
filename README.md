@@ -1175,3 +1175,12 @@ The resulting packages include:
 After installing the package, you can use the library in your CMake projects as described in the [Using as a Library in Other CMake Projects](#using-as-a-library-in-other-cmake-projects) section.
 
 For more details on using the library with CMake, see the [cmake_usage.md](libs/cpp_dbc/docs/cmake_usage.md) documentation.
+
+## Developer Documentation
+
+For developers looking to extend cpp_dbc or understand its internals:
+
+- **[How to Add New Database Drivers](libs/cpp_dbc/docs/how_add_new_db_drivers.md)**: Comprehensive guide covering all 5 phases of driver implementation (driver files, CMake/scripts, tests, benchmarks, examples)
+- **[Error Handling Patterns](libs/cpp_dbc/docs/error_handling_patterns.md)**: Complete guide to DBException usage, error codes, and exception-free API patterns
+- **[Shell Script Dependencies](libs/cpp_dbc/docs/shell_script_dependencies.md)**: Documentation of shell script call hierarchy and dependencies
+- **[CMake Usage](libs/cpp_dbc/docs/cmake_usage.md)**: CMake integration documentation

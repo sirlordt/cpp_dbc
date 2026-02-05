@@ -137,6 +137,11 @@ The project uses:
   - Split files: `driver_*.cpp`, `connection_*.cpp`, `prepared_statement_*.cpp`, `result_set_*.cpp`
   - MongoDB-specific: `collection_*.cpp`, `cursor_*.cpp`, `document_*.cpp`
   - Benefits: faster incremental compilation, better code organization, easier navigation
+- **Developer Documentation:**
+  - `libs/cpp_dbc/docs/how_add_new_db_drivers.md`: Comprehensive guide for adding new database drivers (5 phases)
+  - `libs/cpp_dbc/docs/error_handling_patterns.md`: Complete guide to DBException, error codes, and nothrow API
+  - `libs/cpp_dbc/docs/shell_script_dependencies.md`: Shell script call hierarchy and dependencies
+  - `.claude/rules/cpp_dbc_conventions.md`: Project conventions including new driver guidelines
 - Conditional compilation options:
   - `--yaml`: Enable YAML configuration support
   - `--examples`: Build example applications

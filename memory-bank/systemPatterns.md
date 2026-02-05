@@ -34,9 +34,13 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
 4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/blob.hpp` (base classes) and database-specific implementations in the driver subfolders (e.g., `drivers/relational/mysql/blob.hpp`)
 5. **Key-Value Layer**: Key-Value operations support in `drivers/kv/` directory
 6. **JSON Layer**: JSON data type support in database-specific implementations in the `drivers/relational/` directory
-6. **Configuration Layer**: Database configuration management in the `include/cpp_dbc/config/` and `src/config/` directories
-7. **Code Quality Layer**: Comprehensive warning flags and compile-time checks across all components
-8. **Client Application Layer**: User code that interacts with the library
+7. **Configuration Layer**: Database configuration management in the `include/cpp_dbc/config/` and `src/config/` directories
+8. **Documentation Layer**: Developer guides in `libs/cpp_dbc/docs/`:
+   - `how_add_new_db_drivers.md`: Comprehensive 5-phase guide for adding new database drivers
+   - `error_handling_patterns.md`: DBException, error codes, and exception-free API patterns
+   - `shell_script_dependencies.md`: Script call hierarchy and troubleshooting
+9. **Code Quality Layer**: Comprehensive warning flags and compile-time checks across all components
+10. **Client Application Layer**: User code that interacts with the library
 
 The architecture follows this flow:
 ```

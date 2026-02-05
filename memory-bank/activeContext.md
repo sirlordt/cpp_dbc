@@ -37,7 +37,29 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Cross-Platform Compatibility and Type Portability Improvements** (2026-02-04 14:14:16 PST):
+1. **Comprehensive Documentation for New Driver Development and Error Handling** (2026-02-04 22:06:05 PST):
+   - **New Driver Development Guide (`how_add_new_db_drivers.md`):**
+     - Created comprehensive guide (~1,500 lines) for adding new database drivers to cpp_dbc
+     - Covers all 5 phases: driver files, build configuration, tests, benchmarks, and examples
+     - Includes detailed code reference for base interfaces and family-specific interfaces
+     - Documents thread safety macros, RAII handles patterns, and reference implementations
+     - Provides complete CMake configuration examples with `USE_<DRIVER>` patterns
+     - Includes checklist summary and common mistakes to avoid
+   - **Error Handling Patterns Documentation (`error_handling_patterns.md`):**
+     - Created comprehensive guide (~600 lines) for error handling in cpp_dbc
+     - Documents `DBException` class with 12-character error codes and call stack capture
+     - Covers both exception-based API and exception-free API (nothrow) patterns
+     - Provides patterns by component: Driver, Connection, PreparedStatement, ResultSet
+     - Includes DO and DON'T best practices with code examples
+   - **Shell Script Dependencies Documentation (`shell_script_dependencies.md`):**
+     - Created comprehensive guide documenting all shell script dependencies
+     - Documents call hierarchy between helper.sh, build scripts, and utility scripts
+     - Includes troubleshooting guide for common script issues
+   - **Updated Project Conventions (`.claude/rules/cpp_dbc_conventions.md`):**
+     - Added "Adding New Database Drivers" section referencing the new guide
+     - Documents key files that require `USE_<DRIVER>` updates
+
+2. **Cross-Platform Compatibility and Type Portability Improvements** (2026-02-04 14:14:16 PST):
    - **Cross-Platform Time Functions:**
      - Replaced `localtime_r` (Unix) with `localtime_s` (Windows) with proper cross-platform detection
      - Added `#ifdef _WIN32` preprocessor guards for platform-specific code in `system_utils.hpp`
