@@ -339,6 +339,39 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
+    cpp_dbc::expected<void, DBException> PostgreSQLDBPreparedStatement::setTime(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("R3S4T5U6V7W8", "Invalid parameter index", system_utils::captureCallStack()));
+            }
+
+            int idx = parameterIndex - 1;
+            m_paramValues[idx] = value;
+            m_paramLengths[idx] = m_paramValues[idx].length();
+            m_paramFormats[idx] = 0;  // Text format
+            m_paramTypes[idx] = 1083; // TIMEOID
+
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("X8Y9Z0A1B2C3", ex.what(), system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("D3E4F5G6H7I8", "Unknown error in PostgreSQLDBPreparedStatement::setTime", system_utils::captureCallStack()));
+        }
+    }
+
 } // namespace cpp_dbc::PostgreSQL
 
 #endif // USE_POSTGRESQL

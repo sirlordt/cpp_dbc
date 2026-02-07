@@ -127,6 +127,8 @@ namespace cpp_dbc::ScyllaDB
             std::string getDate(const std::string &columnName) override;
             std::string getTimestamp(size_t columnIndex) override;
             std::string getTimestamp(const std::string &columnName) override;
+            std::string getTime(size_t columnIndex) override;
+            std::string getTime(const std::string &columnName) override;
             std::vector<std::string> getColumnNames() override;
             size_t getColumnCount() override;
 
@@ -151,6 +153,7 @@ namespace cpp_dbc::ScyllaDB
             cpp_dbc::expected<std::string, DBException> getUUID(std::nothrow_t, size_t columnIndex) noexcept override;
             cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, size_t columnIndex) noexcept override;
             cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, size_t columnIndex) noexcept override;
+            cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, size_t columnIndex) noexcept override;
 
             cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept override;
             cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override;
@@ -161,6 +164,7 @@ namespace cpp_dbc::ScyllaDB
             cpp_dbc::expected<std::string, DBException> getUUID(std::nothrow_t, const std::string &columnName) noexcept override;
             cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, const std::string &columnName) noexcept override;
             cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, const std::string &columnName) noexcept override;
+            cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, const std::string &columnName) noexcept override;
 
             cpp_dbc::expected<std::vector<std::string>, DBException> getColumnNames(std::nothrow_t) noexcept override;
             cpp_dbc::expected<size_t, DBException> getColumnCount(std::nothrow_t) noexcept override;

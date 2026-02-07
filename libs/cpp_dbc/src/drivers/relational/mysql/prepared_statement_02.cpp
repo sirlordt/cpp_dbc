@@ -358,7 +358,19 @@ namespace cpp_dbc::MySQL
             // Store the date string in our vector to keep it alive
             m_stringValues[idx] = value;
 
-            m_binds[idx].buffer_type = MYSQL_TYPE_DATE;
+            // OLD CODE - BROKEN: MYSQL_TYPE_DATE expects MYSQL_TIME struct, not string buffer
+            // This caused "Incorrect date value: ''" errors because MySQL couldn't parse the string
+            // m_binds[idx].buffer_type = MYSQL_TYPE_DATE;
+            // m_binds[idx].buffer = m_stringValues[idx].data();
+            // m_binds[idx].buffer_length = m_stringValues[idx].length();
+            // m_binds[idx].is_null = nullptr;
+            // m_binds[idx].length = nullptr;
+
+            // NEW CODE - FIX: Use MYSQL_TYPE_STRING for date strings
+            // MySQL will automatically convert the string to DATE type based on the column definition
+            // This matches the approach used in tests (see 20_031_test_mysql_real.cpp line 417)
+            // Same approach as setString() - see line 188-192
+            m_binds[idx].buffer_type = MYSQL_TYPE_STRING;
             m_binds[idx].buffer = m_stringValues[idx].data();
             m_binds[idx].buffer_length = m_stringValues[idx].length();
             m_binds[idx].is_null = nullptr;
@@ -400,7 +412,19 @@ namespace cpp_dbc::MySQL
             // Store the timestamp string in our vector to keep it alive
             m_stringValues[idx] = value;
 
-            m_binds[idx].buffer_type = MYSQL_TYPE_TIMESTAMP;
+            // OLD CODE - BROKEN: MYSQL_TYPE_TIMESTAMP expects MYSQL_TIME struct, not string buffer
+            // This would cause the same issue as setDate() with incorrect timestamp values
+            // m_binds[idx].buffer_type = MYSQL_TYPE_TIMESTAMP;
+            // m_binds[idx].buffer = m_stringValues[idx].data();
+            // m_binds[idx].buffer_length = m_stringValues[idx].length();
+            // m_binds[idx].is_null = nullptr;
+            // m_binds[idx].length = nullptr;
+
+            // NEW CODE - FIX: Use MYSQL_TYPE_STRING for timestamp strings
+            // MySQL will automatically convert the string to TIMESTAMP/DATETIME based on column type
+            // This matches the approach used in tests (see 20_031_test_mysql_real.cpp line 418)
+            // Same approach as setString() - see line 188-192
+            m_binds[idx].buffer_type = MYSQL_TYPE_STRING;
             m_binds[idx].buffer = m_stringValues[idx].data();
             m_binds[idx].buffer_length = m_stringValues[idx].length();
             m_binds[idx].is_null = nullptr;
@@ -421,6 +445,51 @@ namespace cpp_dbc::MySQL
         {
             return cpp_dbc::unexpected(DBException("B7C3D9E5F2A9",
                                                    "setTimestamp failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setTime(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
+    {
+        try
+        {
+
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
+            {
+                return cpp_dbc::unexpected(DBException("P0A1B2C3D4E5", "Invalid parameter index", system_utils::captureCallStack()));
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store the time string in our vector to keep it alive
+            m_stringValues[idx] = value;
+
+            // Use MYSQL_TYPE_STRING for time strings
+            // MySQL will automatically convert the string to TIME type based on the column definition
+            // This matches the approach used for setDate() and setTimestamp()
+            m_binds[idx].buffer_type = MYSQL_TYPE_STRING;
+            m_binds[idx].buffer = m_stringValues[idx].data();
+            m_binds[idx].buffer_length = m_stringValues[idx].length();
+            m_binds[idx].is_null = nullptr;
+            m_binds[idx].length = nullptr;
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("Q1F2G3H4I5J6",
+                                                   std::string("setTime failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("Q2G3H4I5J6K7",
+                                                   "setTime failed: unknown error",
                                                    system_utils::captureCallStack()));
         }
     }

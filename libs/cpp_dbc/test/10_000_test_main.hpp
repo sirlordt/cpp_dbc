@@ -21,7 +21,6 @@
 #pragma once
 
 #include <string>
-#include <unistd.h>
 #include <iostream>
 #include <vector>
 #include <filesystem>
@@ -30,6 +29,7 @@
 #include <cstring>
 #include <sstream>
 #include <iomanip>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #if defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 #include <cpp_dbc/config/yaml_config_loader.hpp>
@@ -39,10 +39,6 @@ namespace common_test_helpers
 {
     // Helper function to generate random JSON data
     std::string generateRandomJson(int depth = 3, int maxItems = 5);
-
-    std::string getExecutablePathAndName();
-
-    std::string getOnlyExecutablePath();
 
     // Helper function to get the path to the test_db_connections.yml file
     std::string getConfigFilePath();

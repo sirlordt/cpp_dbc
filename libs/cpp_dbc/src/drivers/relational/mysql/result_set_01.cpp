@@ -273,6 +273,66 @@ namespace cpp_dbc::MySQL
         return *result;
     }
 
+    std::string MySQLDBResultSet::getDate(size_t columnIndex)
+    {
+        auto result = getDate(std::nothrow, columnIndex);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::string MySQLDBResultSet::getDate(const std::string &columnName)
+    {
+        auto result = getDate(std::nothrow, columnName);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::string MySQLDBResultSet::getTimestamp(size_t columnIndex)
+    {
+        auto result = getTimestamp(std::nothrow, columnIndex);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::string MySQLDBResultSet::getTimestamp(const std::string &columnName)
+    {
+        auto result = getTimestamp(std::nothrow, columnName);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::string MySQLDBResultSet::getTime(size_t columnIndex)
+    {
+        auto result = getTime(std::nothrow, columnIndex);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::string MySQLDBResultSet::getTime(const std::string &columnName)
+    {
+        auto result = getTime(std::nothrow, columnName);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
     std::vector<std::string> MySQLDBResultSet::getColumnNames()
     {
         auto result = getColumnNames(std::nothrow);

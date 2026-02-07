@@ -17,7 +17,7 @@ fi
 
 # Source common functions
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-source "$SCRIPT_DIR/lib/common_functions.sh"
+source "$SCRIPT_DIR/scripts/common/functions.sh"
 
 DIST_BUILD_FILE=".dist_build"
 DEFAULT_CONTAINER_NAME=""
@@ -100,6 +100,10 @@ show_usage() {
   echo "                           Note: progress option shows visual progress bar on 2 lines:"
   echo "                                 Line 1: [Run: 1/5] [Test: 3/10] name ██████████░░░░░░░░░░ 30% [Elapsed: 00:05:23]"
   echo "                                 Line 2: [Last: previous_test_name 00:01:45]"
+  echo "  --run-example            Run all available examples"
+  echo "  --run-example=NAMES      Run specific examples (comma-separated names)"
+  echo "                           Example: --run-example=10_011_example_config,10_012_example_config_integration"
+  echo "  --run-example=*          Run all available examples (same as --run-example)"
   echo "  --run-benchmarks         Run the benchmarks"
   echo "  --run-benchmarks=OPTIONS Run benchmarks with comma-separated options"
   echo "                           Available options: clean,release,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,"
@@ -126,8 +130,10 @@ show_usage() {
   echo "  --bk-combo-10            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,run=5"
   echo "  --bk-combo-11            Equivalent to --run-test=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,parallel=5,run=1"
   echo "  --bk-combo-12            Equivalent to --run-test=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,valgrind,auto,progress,parallel=5,run=5"
-  echo "  --mc-combo-01            Equivalent to --run-build=clean,postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples"
-  echo "  --mc-combo-02            Equivalent to --run-build=postgres,sqlite,mysql,scylladb,redis,yaml,test,examples"
+  echo "  --mc-combo-01            Build all drivers + tests + examples (clean build)"
+  echo "                           Equivalent to --run-build=clean,postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples"
+  echo "  --mc-combo-02            Build all drivers + tests + examples (incremental)"
+  echo "                           Equivalent to --run-build=postgres,sqlite,mysql,firebird,mongodb,scylladb,redis,yaml,test,examples"
   echo "  --kfc-combo-01           Equivalent to --run-build-dist=clean,rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,test,examples"
   echo "  --kfc-combo-02           Equivalent to --run-build-dist=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,test,examples"
   echo "  --dk-combo-01            Equivalent to --run-benchmarks=rebuild,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis,yaml,memory-usage,base-line"
@@ -1324,6 +1330,194 @@ cmd_run_benchmarks() {
   fi
 }
 
+# Function to run examples
+cmd_run_examples() {
+  local example_options="$1"
+  local run_examples_script="./libs/cpp_dbc/run_examples.sh"
+  local current_dir=$(pwd)
+  local ts=$(date '+%Y-%m-%d-%H-%M-%S')
+
+  if [ ! -f "$run_examples_script" ]; then
+    echo "Error: $run_examples_script not found"
+    return 1
+  fi
+
+  if [ ! -x "$run_examples_script" ]; then
+    chmod +x "$run_examples_script"
+  fi
+
+  # Create log directory for this session
+  local log_dir="${current_dir}/logs/example/${ts}"
+  mkdir -p "$log_dir"
+  echo "Example logs will be saved to: $log_dir"
+
+  # Clean up old example log directories, keeping the 4 most recent
+  local example_logs_base="${current_dir}/logs/example"
+  if [ -d "$example_logs_base" ]; then
+    # Count directories and remove oldest ones if more than 4
+    local dir_count=$(find "$example_logs_base" -maxdepth 1 -mindepth 1 -type d | wc -l)
+    if [ "$dir_count" -gt 4 ]; then
+      # Remove oldest directories (sorted by name which is timestamp)
+      find "$example_logs_base" -maxdepth 1 -mindepth 1 -type d | sort | head -n $((dir_count - 4)) | while read -r old_dir; do
+        echo "Removing old log directory: $old_dir"
+        rm -rf "$old_dir"
+      done
+    fi
+  fi
+
+  # Helper function to run a single example with logging
+  run_single_example() {
+    local example_name="$1"
+    local temp_log_file="${log_dir}/${example_name}_temp.log"
+
+    echo ""
+    echo "=========================================="
+    echo "Running example: $example_name"
+    echo "=========================================="
+
+    # Run the example and capture exit code
+    local exit_code=0
+    if check_color_support; then
+      # Run with colors in terminal but without colors in log file
+      # Strip all ANSI escape sequences including: colors, cursor movement, character set selection
+      unbuffer "$run_examples_script" --run="$example_name" 2>&1 | tee >(sed -u -r "s/\x1B\[[0-9;]*[a-zA-Z]//g; s/\x1B\([A-Z]//g; s/\x1B\][^\x07]*\x07//g" > "$temp_log_file")
+      exit_code=${PIPESTATUS[0]}
+    else
+      "$run_examples_script" --run="$example_name" 2>&1 | tee >(sed -u -r "s/\x1B\[[0-9;]*[a-zA-Z]//g; s/\x1B\([A-Z]//g; s/\x1B\][^\x07]*\x07//g" > "$temp_log_file")
+      exit_code=${PIPESTATUS[0]}
+    fi
+
+    # Rename log file based on success/failure
+    local final_log_file
+    if [ $exit_code -eq 0 ]; then
+      final_log_file="${log_dir}/${example_name}.log"
+    else
+      final_log_file="${log_dir}/${example_name}_fail.log"
+    fi
+
+    mv "$temp_log_file" "$final_log_file"
+    echo "Log file: $final_log_file"
+
+    return $exit_code
+  }
+
+  local failed=0
+  local succeeded=0
+
+  # Helper function to get all available examples
+  get_available_examples() {
+    "$run_examples_script" --list 2>/dev/null | grep -E '^\s+\[READY\]' | sed 's/.*\[READY\]\s*//'
+  }
+
+  # Helper function to expand a wildcard pattern to matching example names
+  # Uses contains_wildcard and matches_wildcard_pattern from scripts/common/functions.sh
+  expand_example_pattern() {
+    local pattern="$1"
+    local all_examples
+    all_examples=$(get_available_examples)
+
+    local matched_examples=""
+    while IFS= read -r example; do
+      [ -z "$example" ] && continue
+      if matches_wildcard_pattern "$example" "$pattern"; then
+        matched_examples="${matched_examples}${example}"$'\n'
+      fi
+    done <<< "$all_examples"
+
+    echo "$matched_examples"
+  }
+
+  # If no options or "*", run all examples
+  if [ -z "$example_options" ] || [ "$example_options" = "*" ]; then
+    echo "Running all available examples..."
+
+    # Get list of all available examples
+    local examples_list
+    examples_list=$(get_available_examples)
+
+    if [ -z "$examples_list" ]; then
+      echo "No compiled examples found."
+      return 1
+    fi
+
+    while IFS= read -r example; do
+      [ -z "$example" ] && continue
+
+      if run_single_example "$example"; then
+        ((succeeded++)) || true
+      else
+        ((failed++)) || true
+        echo "Warning: Example '$example' failed"
+      fi
+    done <<< "$examples_list"
+  else
+    # Split by comma and process each entry (could be exact name or wildcard pattern)
+    IFS=',' read -ra EXAMPLES <<< "$example_options"
+
+    for entry in "${EXAMPLES[@]}"; do
+      # Skip empty entries
+      [ -z "$entry" ] && continue
+
+      # Check if entry contains wildcards (using function from scripts/common/functions.sh)
+      if contains_wildcard "$entry"; then
+        echo "Expanding wildcard pattern: $entry"
+        local matched_examples
+        matched_examples=$(expand_example_pattern "$entry")
+
+        if [ -z "$matched_examples" ]; then
+          echo ""
+          echo "Warning: No examples found matching pattern '$entry'"
+          echo ""
+          echo "Available examples:"
+          "$run_examples_script" --list
+          echo ""
+          echo "To build examples, use:"
+          echo "  ./helper.sh --run-build=examples,yaml,sqlite,postgres,mysql,firebird,mongodb,scylladb,redis"
+          echo "  ./helper.sh --mc-combo-01  # Builds all drivers + tests + examples"
+          echo ""
+          ((failed++)) || true
+          continue
+        fi
+
+        # Count matches (count non-empty lines)
+        local match_count
+        match_count=$(echo "$matched_examples" | grep -c . || echo 0)
+        echo "Found $match_count example(s) matching pattern '$entry'"
+
+        while IFS= read -r example; do
+          [ -z "$example" ] && continue
+
+          if run_single_example "$example"; then
+            ((succeeded++)) || true
+          else
+            ((failed++)) || true
+            echo "Warning: Example '$example' failed"
+          fi
+        done <<< "$matched_examples"
+      else
+        # Exact example name
+        if run_single_example "$entry"; then
+          ((succeeded++)) || true
+        else
+          ((failed++)) || true
+          # run_single_example via run_examples.sh already shows helpful error
+        fi
+      fi
+    done
+  fi
+
+  echo ""
+  echo "=========================================="
+  echo "Examples Summary: $succeeded succeeded, $failed failed"
+  echo "Log directory: $log_dir"
+  echo "=========================================="
+
+  if [ $failed -gt 0 ]; then
+    return 1
+  fi
+  return 0
+}
+
 get_bin_name() {
   if [ -f ".dist_build" ]; then
     BIN_NAME=$(awk -F'"' '/^Container_Bin_Name=/{print $2}' .dist_build)
@@ -1710,12 +1904,14 @@ while [ $i -lt ${#args[@]} ]; do
       cmd_run_bin || exit_code=$?
       ;;
     --mc-combo-01)
+      # Build all drivers + tests + examples (clean build)
       # Equivalent to --run-build=clean,postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples
       BUILD_OPTIONS="clean,postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples"
       cmd_run_build
       ;;
     --mc-combo-02)
-      # Equivalent to --run-build=postgres,sqlite,mysql,scylladb,redis,yaml,test,examples
+      # Build all drivers + tests + examples (incremental)
+      # Equivalent to --run-build=postgres,sqlite,mysql,firebird,mongodb,scylladb,redis,yaml,test,examples
       BUILD_OPTIONS="postgres,mysql,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples"
       cmd_run_build
       ;;
@@ -1815,6 +2011,17 @@ while [ $i -lt ${#args[@]} ]; do
       ;;
     --run-benchmarks)
       cmd_run_benchmarks
+      ;;
+    --run-example=*)
+      EXAMPLE_OPTIONS="${args[$i]#*=}"
+      cmd_run_examples "$EXAMPLE_OPTIONS" || exit_code=$?
+      ;;
+    --run-example)
+      cmd_run_examples "" || exit_code=$?
+      ;;
+    --help|-h)
+      show_usage
+      exit 0
       ;;
     *)
       echo "Unknown option: ${args[$i]}"

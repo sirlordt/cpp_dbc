@@ -1137,11 +1137,15 @@ Para ejecutar el ejemplo de configuración YAML:
 # Primero, compilar la biblioteca con soporte YAML y ejemplos
 ./build.sh --yaml --examples
 
-# Luego ejecutar el ejemplo
-./libs/cpp_dbc/examples/run_config_example.sh
+# Luego ejecutar los ejemplos de configuración
+./libs/cpp_dbc/run_examples.sh --run='10_01*'
+# O usando helper.sh
+./helper.sh --run-example='10_01*'
+# O ejecutar ejemplo específico directamente
+./build/libs/cpp_dbc/examples/10_011_example_config
 ```
 
-Esto cargará el archivo de configuración YAML de ejemplo y mostrará las configuraciones de las bases de datos.
+Esto cargará el archivo de configuración YAML de ejemplo y mostrará las configuraciones de las bases de datos. También puede listar todos los ejemplos disponibles con `./libs/cpp_dbc/run_examples.sh --list`.
 
 ### Compilación Manual con CMake
 

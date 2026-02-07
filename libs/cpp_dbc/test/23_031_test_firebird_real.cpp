@@ -370,8 +370,8 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         pstmt->setInt(2, 42);
         pstmt->setDouble(3, 3.14159);
         pstmt->setString(4, "Hello, World!");
-        pstmt->setString(5, "2023-01-15");          // Date as string
-        pstmt->setString(6, "2023-01-15 14:30:00"); // Timestamp as string
+        pstmt->setDate(5, "2023-01-15");
+        pstmt->setTimestamp(6, "2023-01-15 14:30:00");
         pstmt->setInt(7, 1);                        // Boolean as smallint
 
         pstmt->executeUpdate();
@@ -386,6 +386,8 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         REQUIRE(rs->getInt("INT_COL") == 42);
         REQUIRE((rs->getDouble("DOUBLE_COL") > 3.14 && rs->getDouble("DOUBLE_COL") < 3.15));
         REQUIRE(rs->getString("VARCHAR_COL") == "Hello, World!");
+        REQUIRE(rs->getDate("DATE_COL") == "2023-01-15");
+        REQUIRE(rs->getTimestamp("TIMESTAMP_COL").find("2023-01-15") != std::string::npos);
 
         // Test column metadata
         auto columnNames = rs->getColumnNames();
@@ -406,6 +408,75 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
 
         // Clean up
         conn->executeUpdate("DROP TABLE test_types");
+
+        // Close the connection
+        conn->close();
+    }
+
+    SECTION("Firebird TIME type test")
+    {
+        // Register the Firebird driver (safe registration)
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+
+        // Get a connection
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+
+        // Create a test table with TIME column (using RECREATE TABLE - Firebird's equivalent of DROP IF EXISTS + CREATE)
+        conn->executeUpdate(
+            "RECREATE TABLE test_time_types ("
+            "id INTEGER PRIMARY KEY, "
+            "time_col TIME, "
+            "description VARCHAR(100)"
+            ")");
+
+        // Insert test data using setTime for TIME columns
+        auto pstmt = conn->prepareStatement(
+            "INSERT INTO test_time_types (id, time_col, description) VALUES (?, ?, ?)");
+
+        pstmt->setInt(1, 1);
+        pstmt->setTime(2, "14:30:00");           // TIME using setTime method
+        pstmt->setString(3, "Afternoon meeting");
+        pstmt->executeUpdate();
+        pstmt->close(); // Close after each use (required for Firebird)
+
+        pstmt = conn->prepareStatement(
+            "INSERT INTO test_time_types (id, time_col, description) VALUES (?, ?, ?)");
+        pstmt->setInt(1, 2);
+        pstmt->setTime(2, "08:15:30");           // TIME with seconds
+        pstmt->setString(3, "Morning routine");
+        pstmt->executeUpdate();
+        pstmt->close();
+
+        pstmt = conn->prepareStatement(
+            "INSERT INTO test_time_types (id, time_col, description) VALUES (?, ?, ?)");
+        pstmt->setInt(1, 3);
+        pstmt->setTime(2, "23:59:59");           // Late night
+        pstmt->setString(3, "End of day");
+        pstmt->executeUpdate();
+        pstmt->close();
+
+        // Test retrieving TIME values using getTime()
+        auto rs = conn->executeQuery("SELECT id, time_col, description FROM test_time_types ORDER BY id");
+        REQUIRE(rs->next());
+        REQUIRE(rs->getInt("ID") == 1);
+        REQUIRE(rs->getTime("TIME_COL") == "14:30:00");
+        REQUIRE(rs->getString("DESCRIPTION") == "Afternoon meeting");
+
+        REQUIRE(rs->next());
+        REQUIRE(rs->getInt("ID") == 2);
+        REQUIRE(rs->getTime("TIME_COL") == "08:15:30");
+        REQUIRE(rs->getString("DESCRIPTION") == "Morning routine");
+
+        REQUIRE(rs->next());
+        REQUIRE(rs->getInt("ID") == 3);
+        REQUIRE(rs->getTime("TIME_COL") == "23:59:59");
+        REQUIRE(rs->getString("DESCRIPTION") == "End of day");
+
+        REQUIRE_FALSE(rs->next());
+        rs->close(); // Close ResultSet (required for Firebird)
+
+        // Clean up
+        conn->executeUpdate("DROP TABLE test_time_types");
 
         // Close the connection
         conn->close();

@@ -112,42 +112,26 @@ namespace mongodb_test_helpers
         connStr += host + ":" + std::to_string(port) + "/" + database;
 
         // Add query parameters from options
+        // Use generic snake_case to lowerCamelCase conversion
         std::string queryParams;
+        const auto &options = dbConfig.getOptions();
 
-        // Check for auth_source option
-        auto authSource = dbConfig.getOption("auth_source");
-        if (!authSource.empty())
+        for (const auto &[key, value] : options)
         {
-            if (!queryParams.empty())
-                queryParams += "&";
-            queryParams += "authSource=" + authSource;
-        }
+            // Skip internal options that start with collection__ or other prefixes
+            if (key.starts_with("collection__"))
+            {
+                continue;
+            }
 
-        // Check for direct_connection option
-        auto directConnection = dbConfig.getOption("direct_connection");
-        if (!directConnection.empty() && directConnection == "true")
-        {
             if (!queryParams.empty())
+            {
                 queryParams += "&";
-            queryParams += "directConnection=true";
-        }
+            }
 
-        // Check for connect_timeout option
-        auto connectTimeout = dbConfig.getOption("connect_timeout");
-        if (!connectTimeout.empty())
-        {
-            if (!queryParams.empty())
-                queryParams += "&";
-            queryParams += "connectTimeoutMS=" + connectTimeout;
-        }
-
-        // Check for server_selection_timeout option
-        auto serverSelectionTimeout = dbConfig.getOption("server_selection_timeout");
-        if (!serverSelectionTimeout.empty())
-        {
-            if (!queryParams.empty())
-                queryParams += "&";
-            queryParams += "serverSelectionTimeoutMS=" + serverSelectionTimeout;
+            // Convert option name from snake_case to lowerCamelCase using generic utility
+            std::string normalizedKey = cpp_dbc::system_utils::snakeCaseToLowerCamelCase(key);
+            queryParams += normalizedKey + "=" + value;
         }
 
         // Append query parameters if any

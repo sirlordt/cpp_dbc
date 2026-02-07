@@ -64,6 +64,84 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
+    cpp_dbc::expected<std::string, DBException> PostgreSQLDBResultSet::getDate(std::nothrow_t, const std::string &columnName) noexcept
+    {
+        try
+        {
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("MN1JH9883LNF", "Column not found: " + columnName, system_utils::captureCallStack()));
+            }
+
+            return getDate(std::nothrow, it->second + 1);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("014EI7LWFDH3", ex.what(), system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("JS4WK77TSA1R", "Unknown error in PostgreSQLDBResultSet::getDate", system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<std::string, DBException> PostgreSQLDBResultSet::getTimestamp(std::nothrow_t, const std::string &columnName) noexcept
+    {
+        try
+        {
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("VQGH4QZNZY5Q", "Column not found: " + columnName, system_utils::captureCallStack()));
+            }
+
+            return getTimestamp(std::nothrow, it->second + 1);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("YTCDE3QIRVXR", ex.what(), system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("HM795W2OS4EF", "Unknown error in PostgreSQLDBResultSet::getTimestamp", system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<std::string, DBException> PostgreSQLDBResultSet::getTime(std::nothrow_t, const std::string &columnName) noexcept
+    {
+        try
+        {
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("8HSKSVPD3D4T", "Column not found: " + columnName, system_utils::captureCallStack()));
+            }
+
+            return getTime(std::nothrow, it->second + 1);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("GQP8ZBSVJ1NT", ex.what(), system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("1UUP3WSEXFU5", "Unknown error in PostgreSQLDBResultSet::getTime", system_utils::captureCallStack()));
+        }
+    }
+
     cpp_dbc::expected<std::vector<std::string>, DBException> PostgreSQLDBResultSet::getColumnNames(std::nothrow_t) noexcept
     {
         try

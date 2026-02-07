@@ -37,7 +37,32 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Comprehensive Documentation for New Driver Development and Error Handling** (2026-02-04 22:06:05 PST):
+1. **Major Examples Reorganization and Automation Improvements** (2026-02-06 16:40:00 PST):
+   - **Examples Complete Restructuring (59 new files, 18 deleted):**
+     - Migrated from flat structure to hierarchical, database-family-based organization
+     - Implemented numeric prefix naming convention: `XX_YZZ_example_<db>_<feature>.cpp`
+     - Organization by family: common (10_xxx), MySQL (20_xxx), PostgreSQL (21_xxx), SQLite (22_xxx), Firebird (23_xxx), Redis (24_xxx), MongoDB (25_xxx), ScyllaDB (26_xxx)
+     - Examples in family folders: `examples/relational/`, `examples/kv/`, `examples/document/`, `examples/columnar/`
+   - **New Example Discovery and Execution System:**
+     - Created `run_examples.sh` script with automatic example discovery
+     - Supports wildcard pattern matching: `--run='23_*'`, `--run='*_basic'`
+     - Lists examples by category (relational, document, kv, columnar)
+   - **Enhanced Helper Script (`helper.sh`):**
+     - Added `--run-example` command with full wildcard support
+     - Automatic logging to `/logs/example/{timestamp}/` with auto-rotation
+     - Added `--help` / `-h` option to all major scripts
+   - **Script Reorganization:**
+     - Moved `lib/common_functions.sh` → `scripts/common/functions.sh`
+     - Centralized shared bash functions following DRY principle
+   - **System Utilities:**
+     - Added `getExecutablePath()` and `getExecutablePathAndName()` functions
+     - Portable way to locate executables and resources
+   - **Test Framework:**
+     - New `25_521_test_mongodb_real_cursor_api.cpp` — first exclusive test (5YY range)
+     - Tests MongoDB-specific cursor APIs: `hasNext()` and `nextDocument()`
+   - **Impact:** 162 files changed, 34,214 lines in diff
+
+2. **Comprehensive Documentation for New Driver Development and Error Handling** (2026-02-04 22:06:05 PST):
    - **New Driver Development Guide (`how_add_new_db_drivers.md`):**
      - Created comprehensive guide (~1,500 lines) for adding new database drivers to cpp_dbc
      - Covers all 5 phases: driver files, build configuration, tests, benchmarks, and examples

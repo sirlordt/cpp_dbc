@@ -262,6 +262,15 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
+    void PostgreSQLDBPreparedStatement::setTime(int parameterIndex, const std::string &value)
+    {
+        auto result = this->setTime(std::nothrow, parameterIndex, value);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
     // BLOB support methods
     void PostgreSQLDBPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
     {

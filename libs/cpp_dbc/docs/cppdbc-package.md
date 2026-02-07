@@ -130,19 +130,33 @@ Each database driver implementation is split into multiple focused files within 
 - `src/config/yaml_config_loader.cpp` - YAML configuration loader implementation
 
 ### Examples
-- `examples/example.cpp` - Basic usage example with MySQL, PostgreSQL, and SQLite
-- `examples/connection_pool_example.cpp` - Relational database connection pool usage example
-- `examples/document_connection_pool_example.cpp` - Document database connection pool usage example with MongoDB
-- `examples/scylladb_connection_pool_example.cpp` - Columnar database connection pool usage example with ScyllaDB
-- `examples/kv_connection_pool_example.cpp` - Key-value database connection pool usage example with Redis
-- `examples/scylla_example.cpp` - Basic ScyllaDB usage example
-- `examples/scylla_blob_example.cpp` - ScyllaDB BLOB operations example
-- `examples/scylla_json_example.cpp` - ScyllaDB JSON data handling example
-- `examples/redis_example.cpp` - Basic Redis usage example
-- `examples/transaction_manager_example.cpp` - Cross-thread transaction example
-- `examples/config_example.cpp` - YAML configuration example
-- `examples/config_integration_example.cpp` - Database configuration integration example
-- `examples/example_config.yml` - Example YAML configuration file
+
+Examples are organized by database family using a numeric naming convention: `XX_YZZ_example_<db>_<feature>.cpp`
+
+**Common Examples (10_xxx):**
+- `examples/common/10_011_example_config.cpp` - YAML configuration example
+- `examples/common/10_012_example_config_integration.cpp` - Database configuration integration example
+- `examples/common/example_config.yml` - Example YAML configuration file
+- `examples/common/example_common.hpp` - Shared example helper functions
+
+**Relational Database Examples:**
+- MySQL (20_xxx): 9 examples in `examples/relational/mysql/`
+- PostgreSQL (21_xxx): 9 examples in `examples/relational/postgresql/`
+- SQLite (22_xxx): 9 examples in `examples/relational/sqlite/`
+- Firebird (23_xxx): 10 examples in `examples/relational/firebird/`
+
+**Key-Value Examples:**
+- Redis (24_xxx): 7 examples in `examples/kv/redis/`
+
+**Document Database Examples:**
+- MongoDB (25_xxx): 5 examples in `examples/document/mongodb/`
+
+**Columnar Database Examples:**
+- ScyllaDB (26_xxx): 7 examples in `examples/columnar/scylladb/`
+
+Each database family includes examples for: basic operations, connection info, connection pooling, transactions (where applicable), JSON operations (where supported), BLOB operations, JOIN operations (relational only), batch operations, and error handling.
+
+Use `./libs/cpp_dbc/run_examples.sh --list` to see all available examples, or `--run='pattern'` to run specific examples with wildcard support.
 
 ## Building
 
@@ -529,12 +543,27 @@ cpp_dbc/
 │       │       └── document/
 │       │           └── driver_mongodb.cpp
 │       ├── examples/
-│       │   ├── example.cpp
-│       │   ├── connection_pool_example.cpp
-│       │   ├── transaction_manager_example.cpp
-│       │   ├── config_example.cpp
-│       │   ├── example_config.yml
-│       │   └── run_config_example.sh
+│       │   ├── common/
+│       │   │   ├── 10_011_example_config.cpp
+│       │   │   ├── 10_012_example_config_integration.cpp
+│       │   │   ├── example_common.hpp
+│       │   │   ├── example_config.yml
+│       │   │   └── test.jpg
+│       │   ├── relational/
+│       │   │   ├── mysql/           # 20_xxx series - 9 examples
+│       │   │   ├── postgresql/      # 21_xxx series - 9 examples
+│       │   │   ├── sqlite/          # 22_xxx series - 9 examples
+│       │   │   ├── firebird/        # 23_xxx series - 10 examples
+│       │   │   └── example_relational_common.hpp
+│       │   ├── kv/
+│       │   │   └── redis/           # 24_xxx series - 7 examples
+│       │   ├── document/
+│       │   │   └── mongodb/         # 25_xxx series - 5 examples
+│       │   ├── columnar/
+│       │   │   └── scylladb/        # 26_xxx series - 7 examples
+│       │   ├── graph/               # Placeholder for future graph DB examples
+│       │   ├── timeseries/          # Placeholder for future time-series DB examples
+│       │   └── run_examples.sh      # Example discovery and execution script
 │       ├── test/
 │       │   ├── test_basic.cpp
 │       │   ├── test_db_config.cpp

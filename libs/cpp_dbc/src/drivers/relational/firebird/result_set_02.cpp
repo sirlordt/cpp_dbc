@@ -195,6 +195,66 @@ namespace cpp_dbc::Firebird
         return isNull(it->second);
     }
 
+    std::string FirebirdDBResultSet::getDate(size_t columnIndex)
+    {
+        auto result = getDate(std::nothrow, columnIndex);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    std::string FirebirdDBResultSet::getDate(const std::string &columnName)
+    {
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
+        {
+            throw DBException("KNA6XOZ8SB0Z", "Column not found: " + columnName, system_utils::captureCallStack());
+        }
+        return getDate(it->second);
+    }
+
+    std::string FirebirdDBResultSet::getTimestamp(size_t columnIndex)
+    {
+        auto result = getTimestamp(std::nothrow, columnIndex);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    std::string FirebirdDBResultSet::getTimestamp(const std::string &columnName)
+    {
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
+        {
+            throw DBException("EVTK1VFQCYOU", "Column not found: " + columnName, system_utils::captureCallStack());
+        }
+        return getTimestamp(it->second);
+    }
+
+    std::string FirebirdDBResultSet::getTime(size_t columnIndex)
+    {
+        auto result = getTime(std::nothrow, columnIndex);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    std::string FirebirdDBResultSet::getTime(const std::string &columnName)
+    {
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
+        {
+            throw DBException("1I5VNYYG4KTH", "Column not found: " + columnName, system_utils::captureCallStack());
+        }
+        return getTime(it->second);
+    }
+
     std::vector<std::string> FirebirdDBResultSet::getColumnNames()
     {
         auto result = getColumnNames(std::nothrow);

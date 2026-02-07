@@ -879,6 +879,8 @@ For a new driver like SQL Server, you would use prefix `27_`.
 
 #### Test Categories
 
+**Standard Test Categories (XX_0YY):**
+
 | Number | Category                    |
 |--------|----------------------------|
 | 001    | common (test helpers)      |
@@ -896,6 +898,19 @@ For a new driver like SQL Server, you would use prefix `27_`.
 | 121    | transaction_isolation      |
 | 131    | transaction_manager        |
 | 141    | connection_pool            |
+
+**Exclusive Test Categories (XX_5YY):**
+
+For tests that are specific to a database family and cannot be shared with other drivers, use the `5YY` range:
+
+| Number | Category                       | Notes                                    |
+|--------|-------------------------------|------------------------------------------|
+| 521    | Driver-exclusive API tests    | Tests for family-specific APIs (e.g., MongoDB's `hasNext()`, `nextDocument()`) |
+| 522-599| Reserved for future exclusive | Additional exclusive test categories     |
+
+**Examples:**
+- `25_521_test_mongodb_real_cursor_api.cpp` - Tests MongoDB-specific cursor methods
+- `24_521_test_redis_real_pipeline_api.cpp` - Tests Redis-specific pipelining (hypothetical)
 
 ### Test Patterns by Family
 
@@ -1056,12 +1071,24 @@ Examples demonstrate how to use the new driver and serve as documentation for us
 
 #### Relational Database Examples
 
-For relational databases (MySQL, PostgreSQL, SQLite, Firebird, SQL Server), create examples demonstrating:
+For relational databases (MySQL, PostgreSQL, SQLite, Firebird, SQL Server), create examples following the numeric naming convention `XX_YZZ_example_<db>_<feature>.cpp`:
 
+```text
+# Example structure for a new relational driver (e.g., SQL Server = family 27)
+libs/cpp_dbc/examples/relational/sqlserver/27_001_example_sqlserver_basic.cpp
+libs/cpp_dbc/examples/relational/sqlserver/27_021_example_sqlserver_connection_info.cpp
+libs/cpp_dbc/examples/relational/sqlserver/27_031_example_sqlserver_connection_pool.cpp
+libs/cpp_dbc/examples/relational/sqlserver/27_041_example_sqlserver_transaction_manager.cpp
+libs/cpp_dbc/examples/relational/sqlserver/27_051_example_sqlserver_json.cpp
+libs/cpp_dbc/examples/relational/sqlserver/27_061_example_sqlserver_blob.cpp
+libs/cpp_dbc/examples/relational/sqlserver/27_071_example_sqlserver_join.cpp
+libs/cpp_dbc/examples/relational/sqlserver/27_081_example_sqlserver_batch.cpp
+libs/cpp_dbc/examples/relational/sqlserver/27_091_example_sqlserver_error_handling.cpp
 ```
-libs/cpp_dbc/examples/<driver>_example.cpp           # Basic CRUD operations
-libs/cpp_dbc/examples/<driver>_connection_pool_example.cpp  # Connection pooling (optional)
-```
+
+**Naming Convention:**
+- **XX**: Database family number (20=MySQL, 21=PostgreSQL, 22=SQLite, 23=Firebird, 27=new driver)
+- **YZZ**: Feature category (001=basic, 021=connection_info, 031=pool, 041=transaction, 051=json, 061=blob, 071=join, 081=batch, 091=error_handling)
 
 **Key operations to demonstrate:**
 - Connection and configuration
@@ -1106,12 +1133,21 @@ int main()
 
 #### Key-Value Database Examples
 
-For key-value stores (Redis), create examples demonstrating:
+For key-value stores (Redis), create examples following the numeric naming convention:
 
+```text
+# Example structure for a new KV driver (e.g., Memcached = family 28)
+libs/cpp_dbc/examples/kv/memcached/28_001_example_memcached_basic.cpp
+libs/cpp_dbc/examples/kv/memcached/28_021_example_memcached_connection_info.cpp
+libs/cpp_dbc/examples/kv/memcached/28_031_example_memcached_connection_pool.cpp
+libs/cpp_dbc/examples/kv/memcached/28_041_example_memcached_transaction.cpp
+libs/cpp_dbc/examples/kv/memcached/28_061_example_memcached_blob.cpp
+libs/cpp_dbc/examples/kv/memcached/28_081_example_memcached_batch.cpp
+libs/cpp_dbc/examples/kv/memcached/28_091_example_memcached_error_handling.cpp
 ```
-libs/cpp_dbc/examples/<driver>_example.cpp
-libs/cpp_dbc/examples/kv_connection_pool_example.cpp  # Shared KV pool example
-```
+
+**Existing KV Examples:**
+- Redis uses family 24 (24_xxx series)
 
 **Key operations to demonstrate:**
 - Connection (URL-based)
@@ -1149,12 +1185,19 @@ int main()
 
 #### Document Database Examples
 
-For document databases (MongoDB), create examples demonstrating:
+For document databases (MongoDB), create examples following the numeric naming convention:
 
+```text
+# Example structure for a new document driver (e.g., CouchDB = family 29)
+libs/cpp_dbc/examples/document/couchdb/29_001_example_couchdb_basic.cpp
+libs/cpp_dbc/examples/document/couchdb/29_021_example_couchdb_connection_info.cpp
+libs/cpp_dbc/examples/document/couchdb/29_031_example_couchdb_connection_pool.cpp
+libs/cpp_dbc/examples/document/couchdb/29_081_example_couchdb_batch.cpp
+libs/cpp_dbc/examples/document/couchdb/29_091_example_couchdb_error_handling.cpp
 ```
-libs/cpp_dbc/examples/<driver>_example.cpp
-libs/cpp_dbc/examples/document_connection_pool_example.cpp  # Shared document pool example
-```
+
+**Existing Document Examples:**
+- MongoDB uses family 25 (25_xxx series)
 
 **Key operations to demonstrate:**
 - Connection and database selection
@@ -1195,14 +1238,21 @@ void demonstrateDocumentDB()
 
 #### Columnar Database Examples
 
-For columnar/wide-column databases (ScyllaDB/Cassandra), create examples demonstrating:
+For columnar/wide-column databases (ScyllaDB/Cassandra), create examples following the numeric naming convention:
 
+```text
+# Example structure for a new columnar driver (e.g., Cassandra = family 30)
+libs/cpp_dbc/examples/columnar/cassandra/30_001_example_cassandra_basic.cpp
+libs/cpp_dbc/examples/columnar/cassandra/30_021_example_cassandra_connection_info.cpp
+libs/cpp_dbc/examples/columnar/cassandra/30_031_example_cassandra_connection_pool.cpp
+libs/cpp_dbc/examples/columnar/cassandra/30_051_example_cassandra_json.cpp
+libs/cpp_dbc/examples/columnar/cassandra/30_061_example_cassandra_blob.cpp
+libs/cpp_dbc/examples/columnar/cassandra/30_081_example_cassandra_batch.cpp
+libs/cpp_dbc/examples/columnar/cassandra/30_091_example_cassandra_error_handling.cpp
 ```
-libs/cpp_dbc/examples/<driver>_example.cpp
-libs/cpp_dbc/examples/<driver>_blob_example.cpp
-libs/cpp_dbc/examples/<driver>_json_example.cpp
-libs/cpp_dbc/examples/<driver>_connection_pool_example.cpp
-```
+
+**Existing Columnar Examples:**
+- ScyllaDB uses family 26 (26_xxx series)
 
 **Key operations to demonstrate:**
 - Connection with contact points
@@ -1263,21 +1313,65 @@ For time-series databases, examples should demonstrate:
 
 ### Update CMakeLists.txt for Examples
 
-Add the example executables in `libs/cpp_dbc/CMakeLists.txt`:
+Add the example executables in `libs/cpp_dbc/CMakeLists.txt` following the numeric naming convention:
 
 ```cmake
-# <Driver> examples (only if <Driver> is enabled)
-if(USE_SQLSERVER)
-    add_executable(sqlserver_example examples/sqlserver_example.cpp)
-    target_link_libraries(sqlserver_example PRIVATE cpp_dbc)
+# ============================================================================
+# SQL Server Examples (27_xxx) - examples/relational/sqlserver/
+# ============================================================================
+if(USE_SQLSERVER AND CPP_DBC_BUILD_EXAMPLES)
+    # Basic operations
+    add_executable(27_001_example_sqlserver_basic
+        examples/relational/sqlserver/27_001_example_sqlserver_basic.cpp)
+    target_link_libraries(27_001_example_sqlserver_basic PRIVATE cpp_dbc)
 
-    # Additional examples if needed
-    add_executable(sqlserver_connection_pool_example examples/sqlserver_connection_pool_example.cpp)
-    target_link_libraries(sqlserver_connection_pool_example PRIVATE cpp_dbc)
+    # Connection info
+    add_executable(27_021_example_sqlserver_connection_info
+        examples/relational/sqlserver/27_021_example_sqlserver_connection_info.cpp)
+    target_link_libraries(27_021_example_sqlserver_connection_info PRIVATE cpp_dbc)
+
+    # Connection pool
+    add_executable(27_031_example_sqlserver_connection_pool
+        examples/relational/sqlserver/27_031_example_sqlserver_connection_pool.cpp)
+    target_link_libraries(27_031_example_sqlserver_connection_pool PRIVATE cpp_dbc)
+
+    # Transaction manager
+    add_executable(27_041_example_sqlserver_transaction_manager
+        examples/relational/sqlserver/27_041_example_sqlserver_transaction_manager.cpp)
+    target_link_libraries(27_041_example_sqlserver_transaction_manager PRIVATE cpp_dbc)
+
+    # JSON operations
+    add_executable(27_051_example_sqlserver_json
+        examples/relational/sqlserver/27_051_example_sqlserver_json.cpp)
+    target_link_libraries(27_051_example_sqlserver_json PRIVATE cpp_dbc)
+
+    # BLOB operations
+    add_executable(27_061_example_sqlserver_blob
+        examples/relational/sqlserver/27_061_example_sqlserver_blob.cpp)
+    target_link_libraries(27_061_example_sqlserver_blob PRIVATE cpp_dbc)
+
+    # JOIN operations
+    add_executable(27_071_example_sqlserver_join
+        examples/relational/sqlserver/27_071_example_sqlserver_join.cpp)
+    target_link_libraries(27_071_example_sqlserver_join PRIVATE cpp_dbc)
+
+    # Batch operations
+    add_executable(27_081_example_sqlserver_batch
+        examples/relational/sqlserver/27_081_example_sqlserver_batch.cpp)
+    target_link_libraries(27_081_example_sqlserver_batch PRIVATE cpp_dbc)
+
+    # Error handling
+    add_executable(27_091_example_sqlserver_error_handling
+        examples/relational/sqlserver/27_091_example_sqlserver_error_handling.cpp)
+    target_link_libraries(27_091_example_sqlserver_error_handling PRIVATE cpp_dbc)
 endif()
 ```
 
-**Important**: Wrap driver-specific examples in `if(USE_<DRIVER>)` blocks.
+**Important**:
+- Wrap driver-specific examples in `if(USE_<DRIVER> AND CPP_DBC_BUILD_EXAMPLES)` blocks
+- Use the numeric prefix system: `XX_YZZ_example_<db>_<feature>.cpp`
+- Organize by database family folder: `examples/relational/`, `examples/kv/`, `examples/document/`, `examples/columnar/`
+- For a new relational driver, use the next available family number (e.g., 27 for SQL Server)
 
 ---
 
@@ -1406,13 +1500,21 @@ endif()
 - [ ] Performance is reasonable for the driver
 
 ### Phase 5: Examples
-- [ ] Created main example file `libs/cpp_dbc/examples/<driver>_example.cpp`
-- [ ] Created connection pool example (if applicable for the family)
-- [ ] Created additional feature examples (BLOB, JSON) if supported
+- [ ] Created example files following numeric naming convention `XX_YZZ_example_<db>_<feature>.cpp`
+  - [ ] Basic example: `XX_001_example_<driver>_basic.cpp`
+  - [ ] Connection info: `XX_021_example_<driver>_connection_info.cpp`
+  - [ ] Connection pool: `XX_031_example_<driver>_connection_pool.cpp`
+  - [ ] Additional feature examples (transaction, JSON, BLOB, JOIN, batch, error handling) as applicable
+- [ ] Created examples in appropriate family folder:
+  - Relational: `examples/relational/<driver>/`
+  - KV: `examples/kv/<driver>/`
+  - Document: `examples/document/<driver>/`
+  - Columnar: `examples/columnar/<driver>/`
 - [ ] Updated `libs/cpp_dbc/CMakeLists.txt` to add example executables
-- [ ] Examples wrapped in `if(USE_<DRIVER>)` blocks
+- [ ] Examples wrapped in `if(USE_<DRIVER> AND CPP_DBC_BUILD_EXAMPLES)` blocks
 - [ ] Examples compile and run successfully
 - [ ] Examples are well-documented with comments
+- [ ] Used next available family number (e.g., 27 for SQL Server)
 
 ---
 
@@ -1496,10 +1598,13 @@ When adding a new driver, update these combos to include support for compiling a
 
 ### 10. Missing or Incomplete Examples
 Examples are essential documentation for users. Don't skip Phase 5:
-- Each driver needs at least a basic `<driver>_example.cpp`
+- Each driver needs examples following the numeric naming convention `XX_YZZ_example_<db>_<feature>.cpp`
+- At minimum, create basic and connection pool examples
+- Examples must be in appropriate family folder: `examples/<family>/<driver>/`
 - Examples must be wrapped in `#if USE_<DRIVER>` preprocessor guards
-- Examples must be added to `CMakeLists.txt` inside `if(USE_<DRIVER>)` blocks
+- Examples must be added to `CMakeLists.txt` inside `if(USE_<DRIVER> AND CPP_DBC_BUILD_EXAMPLES)` blocks
 - The API demonstrated should match the driver's family (don't show SQL for a KV store)
+- Use the next available family number for the new driver
 
 ### 11. Forgetting CMake Config Files
 The installed package configuration files also need updates:

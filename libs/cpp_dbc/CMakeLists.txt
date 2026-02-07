@@ -468,100 +468,234 @@ endif()
 option(CPP_DBC_BUILD_EXAMPLES "Build cpp_dbc examples" OFF)
 
 if(CPP_DBC_BUILD_EXAMPLES)
-    # Basic example
-    add_executable(cpp_dbc_example examples/example.cpp)
-    target_link_libraries(cpp_dbc_example PRIVATE cpp_dbc)
+    # ============================================================================
+    # Common Examples (10_xxx) - Work with any relational database driver
+    # ============================================================================
 
-    # Connection pool example
-    add_executable(connection_pool_example examples/connection_pool_example.cpp)
-    target_link_libraries(connection_pool_example PRIVATE cpp_dbc)
+    add_executable(10_011_example_config examples/common/10_011_example_config.cpp)
+    target_link_libraries(10_011_example_config PRIVATE cpp_dbc)
 
-    # Transaction manager example
-    add_executable(transaction_manager_example examples/transaction_manager_example.cpp)
-    target_link_libraries(transaction_manager_example PRIVATE cpp_dbc)
+    add_executable(10_012_example_config_integration examples/common/10_012_example_config_integration.cpp)
+    target_link_libraries(10_012_example_config_integration PRIVATE cpp_dbc)
 
-    # Configuration example
-    add_executable(config_example examples/config_example.cpp)
-    target_link_libraries(config_example PRIVATE cpp_dbc)
+    # ============================================================================
+    # MySQL Examples (20_xxx) - examples/relational/mysql/
+    # ============================================================================
 
-    # Configuration integration example
-    add_executable(config_integration_example examples/config_integration_example.cpp)
-    target_link_libraries(config_integration_example PRIVATE cpp_dbc)
+    if(USE_MYSQL)
+        add_executable(20_001_example_mysql_basic examples/relational/mysql/20_001_example_mysql_basic.cpp)
+        target_link_libraries(20_001_example_mysql_basic PRIVATE cpp_dbc)
 
-    # JSON operations example
-    add_executable(json_operations_example examples/json_operations_example.cpp)
-    target_link_libraries(json_operations_example PRIVATE cpp_dbc)
+        add_executable(20_021_example_mysql_connection_info examples/relational/mysql/20_021_example_mysql_connection_info.cpp)
+        target_link_libraries(20_021_example_mysql_connection_info PRIVATE cpp_dbc)
 
-    # BLOB operations example
-    add_executable(blob_operations_example examples/blob_operations_example.cpp)
-    target_link_libraries(blob_operations_example PRIVATE cpp_dbc)
+        add_executable(20_031_example_mysql_connection_pool examples/relational/mysql/20_031_example_mysql_connection_pool.cpp)
+        target_link_libraries(20_031_example_mysql_connection_pool PRIVATE cpp_dbc)
 
-    # JOIN operations example
-    add_executable(join_operations_example examples/join_operations_example.cpp)
-    target_link_libraries(join_operations_example PRIVATE cpp_dbc)
+        add_executable(20_041_example_mysql_transaction_manager examples/relational/mysql/20_041_example_mysql_transaction_manager.cpp)
+        target_link_libraries(20_041_example_mysql_transaction_manager PRIVATE cpp_dbc)
 
-    # Batch operations example
-    add_executable(batch_operations_example examples/batch_operations_example.cpp)
-    target_link_libraries(batch_operations_example PRIVATE cpp_dbc)
+        add_executable(20_051_example_mysql_json examples/relational/mysql/20_051_example_mysql_json.cpp)
+        target_link_libraries(20_051_example_mysql_json PRIVATE cpp_dbc)
 
-    # Error handling example
-    add_executable(error_handling_example examples/error_handling_example.cpp)
-    target_link_libraries(error_handling_example PRIVATE cpp_dbc)
+        add_executable(20_061_example_mysql_blob examples/relational/mysql/20_061_example_mysql_blob.cpp)
+        target_link_libraries(20_061_example_mysql_blob PRIVATE cpp_dbc)
 
-    # Connection info example
-    add_executable(connection_info_example examples/connection_info_example.cpp)
-    target_link_libraries(connection_info_example PRIVATE cpp_dbc)
+        add_executable(20_071_example_mysql_join examples/relational/mysql/20_071_example_mysql_join.cpp)
+        target_link_libraries(20_071_example_mysql_join PRIVATE cpp_dbc)
 
-    # Firebird examples (only if Firebird is enabled)
+        add_executable(20_081_example_mysql_batch examples/relational/mysql/20_081_example_mysql_batch.cpp)
+        target_link_libraries(20_081_example_mysql_batch PRIVATE cpp_dbc)
+
+        add_executable(20_091_example_mysql_error_handling examples/relational/mysql/20_091_example_mysql_error_handling.cpp)
+        target_link_libraries(20_091_example_mysql_error_handling PRIVATE cpp_dbc)
+    endif()
+
+    # ============================================================================
+    # PostgreSQL Examples (21_xxx) - examples/relational/postgresql/
+    # ============================================================================
+
+    if(USE_POSTGRESQL)
+        add_executable(21_001_example_postgresql_basic examples/relational/postgresql/21_001_example_postgresql_basic.cpp)
+        target_link_libraries(21_001_example_postgresql_basic PRIVATE cpp_dbc)
+
+        add_executable(21_021_example_postgresql_connection_info examples/relational/postgresql/21_021_example_postgresql_connection_info.cpp)
+        target_link_libraries(21_021_example_postgresql_connection_info PRIVATE cpp_dbc)
+
+        add_executable(21_031_example_postgresql_connection_pool examples/relational/postgresql/21_031_example_postgresql_connection_pool.cpp)
+        target_link_libraries(21_031_example_postgresql_connection_pool PRIVATE cpp_dbc)
+
+        add_executable(21_041_example_postgresql_transaction_manager examples/relational/postgresql/21_041_example_postgresql_transaction_manager.cpp)
+        target_link_libraries(21_041_example_postgresql_transaction_manager PRIVATE cpp_dbc)
+
+        add_executable(21_051_example_postgresql_json examples/relational/postgresql/21_051_example_postgresql_json.cpp)
+        target_link_libraries(21_051_example_postgresql_json PRIVATE cpp_dbc)
+
+        add_executable(21_061_example_postgresql_blob examples/relational/postgresql/21_061_example_postgresql_blob.cpp)
+        target_link_libraries(21_061_example_postgresql_blob PRIVATE cpp_dbc)
+
+        add_executable(21_071_example_postgresql_join examples/relational/postgresql/21_071_example_postgresql_join.cpp)
+        target_link_libraries(21_071_example_postgresql_join PRIVATE cpp_dbc)
+
+        add_executable(21_081_example_postgresql_batch examples/relational/postgresql/21_081_example_postgresql_batch.cpp)
+        target_link_libraries(21_081_example_postgresql_batch PRIVATE cpp_dbc)
+
+        add_executable(21_091_example_postgresql_error_handling examples/relational/postgresql/21_091_example_postgresql_error_handling.cpp)
+        target_link_libraries(21_091_example_postgresql_error_handling PRIVATE cpp_dbc)
+    endif()
+
+    # ============================================================================
+    # SQLite Examples (22_xxx) - examples/relational/sqlite/
+    # ============================================================================
+
+    if(USE_SQLITE)
+        add_executable(22_001_example_sqlite_basic examples/relational/sqlite/22_001_example_sqlite_basic.cpp)
+        target_link_libraries(22_001_example_sqlite_basic PRIVATE cpp_dbc)
+
+        add_executable(22_021_example_sqlite_connection_info examples/relational/sqlite/22_021_example_sqlite_connection_info.cpp)
+        target_link_libraries(22_021_example_sqlite_connection_info PRIVATE cpp_dbc)
+
+        add_executable(22_031_example_sqlite_connection_pool examples/relational/sqlite/22_031_example_sqlite_connection_pool.cpp)
+        target_link_libraries(22_031_example_sqlite_connection_pool PRIVATE cpp_dbc)
+
+        add_executable(22_041_example_sqlite_transaction_manager examples/relational/sqlite/22_041_example_sqlite_transaction_manager.cpp)
+        target_link_libraries(22_041_example_sqlite_transaction_manager PRIVATE cpp_dbc)
+
+        add_executable(22_051_example_sqlite_json examples/relational/sqlite/22_051_example_sqlite_json.cpp)
+        target_link_libraries(22_051_example_sqlite_json PRIVATE cpp_dbc)
+
+        add_executable(22_061_example_sqlite_blob examples/relational/sqlite/22_061_example_sqlite_blob.cpp)
+        target_link_libraries(22_061_example_sqlite_blob PRIVATE cpp_dbc)
+
+        add_executable(22_071_example_sqlite_join examples/relational/sqlite/22_071_example_sqlite_join.cpp)
+        target_link_libraries(22_071_example_sqlite_join PRIVATE cpp_dbc)
+
+        add_executable(22_081_example_sqlite_batch examples/relational/sqlite/22_081_example_sqlite_batch.cpp)
+        target_link_libraries(22_081_example_sqlite_batch PRIVATE cpp_dbc)
+
+        add_executable(22_091_example_sqlite_error_handling examples/relational/sqlite/22_091_example_sqlite_error_handling.cpp)
+        target_link_libraries(22_091_example_sqlite_error_handling PRIVATE cpp_dbc)
+    endif()
+
+    # ============================================================================
+    # Firebird Examples (23_xxx) - examples/relational/firebird/
+    # ============================================================================
+
     if(USE_FIREBIRD)
-        add_executable(firebird_reserved_word_example examples/firebird_reserved_word_example.cpp)
-        target_link_libraries(firebird_reserved_word_example PRIVATE cpp_dbc)
+        add_executable(23_001_example_firebird_basic examples/relational/firebird/23_001_example_firebird_basic.cpp)
+        target_link_libraries(23_001_example_firebird_basic PRIVATE cpp_dbc)
 
-        add_executable(firebird_example examples/firebird_example.cpp)
-        target_link_libraries(firebird_example PRIVATE cpp_dbc)
+        add_executable(23_011_example_firebird_reserved_word examples/relational/firebird/23_011_example_firebird_reserved_word.cpp)
+        target_link_libraries(23_011_example_firebird_reserved_word PRIVATE cpp_dbc)
+
+        add_executable(23_021_example_firebird_connection_info examples/relational/firebird/23_021_example_firebird_connection_info.cpp)
+        target_link_libraries(23_021_example_firebird_connection_info PRIVATE cpp_dbc)
+
+        add_executable(23_031_example_firebird_connection_pool examples/relational/firebird/23_031_example_firebird_connection_pool.cpp)
+        target_link_libraries(23_031_example_firebird_connection_pool PRIVATE cpp_dbc)
+
+        add_executable(23_041_example_firebird_transaction_manager examples/relational/firebird/23_041_example_firebird_transaction_manager.cpp)
+        target_link_libraries(23_041_example_firebird_transaction_manager PRIVATE cpp_dbc)
+
+        add_executable(23_051_example_firebird_json examples/relational/firebird/23_051_example_firebird_json.cpp)
+        target_link_libraries(23_051_example_firebird_json PRIVATE cpp_dbc)
+
+        add_executable(23_061_example_firebird_blob examples/relational/firebird/23_061_example_firebird_blob.cpp)
+        target_link_libraries(23_061_example_firebird_blob PRIVATE cpp_dbc)
+
+        add_executable(23_071_example_firebird_join examples/relational/firebird/23_071_example_firebird_join.cpp)
+        target_link_libraries(23_071_example_firebird_join PRIVATE cpp_dbc)
+
+        add_executable(23_081_example_firebird_batch examples/relational/firebird/23_081_example_firebird_batch.cpp)
+        target_link_libraries(23_081_example_firebird_batch PRIVATE cpp_dbc)
+
+        add_executable(23_091_example_firebird_error_handling examples/relational/firebird/23_091_example_firebird_error_handling.cpp)
+        target_link_libraries(23_091_example_firebird_error_handling PRIVATE cpp_dbc)
     endif()
 
-    # MongoDB examples (only if MongoDB is enabled)
-    if(USE_MONGODB)
-        add_executable(mongodb_example examples/mongodb_example.cpp)
-        target_link_libraries(mongodb_example PRIVATE cpp_dbc)
+    # ============================================================================
+    # Redis Examples (24_xxx) - examples/kv/redis/
+    # ============================================================================
 
-        # Document database connection pool example
-        add_executable(document_connection_pool_example examples/document_connection_pool_example.cpp)
-        target_link_libraries(document_connection_pool_example PRIVATE cpp_dbc)
-    endif()
-
-    # Redis examples (only if Redis is enabled)
     if(USE_REDIS)
-        add_executable(redis_example examples/redis_example.cpp)
-        target_link_libraries(redis_example PRIVATE cpp_dbc)
+        add_executable(24_001_example_redis_basic examples/kv/redis/24_001_example_redis_basic.cpp)
+        target_link_libraries(24_001_example_redis_basic PRIVATE cpp_dbc)
 
-        # Key-value database connection pool example
-        add_executable(kv_connection_pool_example examples/kv_connection_pool_example.cpp)
-        target_link_libraries(kv_connection_pool_example PRIVATE cpp_dbc)
+        add_executable(24_021_example_redis_connection_info examples/kv/redis/24_021_example_redis_connection_info.cpp)
+        target_link_libraries(24_021_example_redis_connection_info PRIVATE cpp_dbc)
+
+        add_executable(24_031_example_redis_connection_pool examples/kv/redis/24_031_example_redis_connection_pool.cpp)
+        target_link_libraries(24_031_example_redis_connection_pool PRIVATE cpp_dbc)
+
+        add_executable(24_041_example_redis_transaction examples/kv/redis/24_041_example_redis_transaction.cpp)
+        target_link_libraries(24_041_example_redis_transaction PRIVATE cpp_dbc)
+
+        add_executable(24_061_example_redis_blob examples/kv/redis/24_061_example_redis_blob.cpp)
+        target_link_libraries(24_061_example_redis_blob PRIVATE cpp_dbc)
+
+        add_executable(24_081_example_redis_batch examples/kv/redis/24_081_example_redis_batch.cpp)
+        target_link_libraries(24_081_example_redis_batch PRIVATE cpp_dbc)
+
+        add_executable(24_091_example_redis_error_handling examples/kv/redis/24_091_example_redis_error_handling.cpp)
+        target_link_libraries(24_091_example_redis_error_handling PRIVATE cpp_dbc)
     endif()
 
-    # ScyllaDB examples (only if ScyllaDB is enabled)
+    # ============================================================================
+    # MongoDB Examples (25_xxx) - examples/document/mongodb/
+    # ============================================================================
+
+    if(USE_MONGODB)
+        add_executable(25_001_example_mongodb_basic examples/document/mongodb/25_001_example_mongodb_basic.cpp)
+        target_link_libraries(25_001_example_mongodb_basic PRIVATE cpp_dbc)
+
+        add_executable(25_021_example_mongodb_connection_info examples/document/mongodb/25_021_example_mongodb_connection_info.cpp)
+        target_link_libraries(25_021_example_mongodb_connection_info PRIVATE cpp_dbc)
+
+        add_executable(25_031_example_mongodb_connection_pool examples/document/mongodb/25_031_example_mongodb_connection_pool.cpp)
+        target_link_libraries(25_031_example_mongodb_connection_pool PRIVATE cpp_dbc)
+
+        add_executable(25_081_example_mongodb_batch examples/document/mongodb/25_081_example_mongodb_batch.cpp)
+        target_link_libraries(25_081_example_mongodb_batch PRIVATE cpp_dbc)
+
+        add_executable(25_091_example_mongodb_error_handling examples/document/mongodb/25_091_example_mongodb_error_handling.cpp)
+        target_link_libraries(25_091_example_mongodb_error_handling PRIVATE cpp_dbc)
+    endif()
+
+    # ============================================================================
+    # ScyllaDB Examples (26_xxx) - examples/columnar/scylladb/
+    # ============================================================================
+
     if(USE_SCYLLADB)
-        add_executable(scylla_example examples/scylla_example.cpp)
-        target_link_libraries(scylla_example PRIVATE cpp_dbc)
+        add_executable(26_001_example_scylladb_basic examples/columnar/scylladb/26_001_example_scylladb_basic.cpp)
+        target_link_libraries(26_001_example_scylladb_basic PRIVATE cpp_dbc)
 
-        add_executable(scylla_blob_example examples/scylla_blob_example.cpp)
-        target_link_libraries(scylla_blob_example PRIVATE cpp_dbc)
+        add_executable(26_021_example_scylladb_connection_info examples/columnar/scylladb/26_021_example_scylladb_connection_info.cpp)
+        target_link_libraries(26_021_example_scylladb_connection_info PRIVATE cpp_dbc)
 
-        add_executable(scylla_json_example examples/scylla_json_example.cpp)
-        target_link_libraries(scylla_json_example PRIVATE cpp_dbc)
+        add_executable(26_031_example_scylladb_connection_pool examples/columnar/scylladb/26_031_example_scylladb_connection_pool.cpp)
+        target_link_libraries(26_031_example_scylladb_connection_pool PRIVATE cpp_dbc)
 
-        # Columnar database connection pool example for ScyllaDB
-        add_executable(scylladb_connection_pool_example examples/scylladb_connection_pool_example.cpp)
-        target_link_libraries(scylladb_connection_pool_example PRIVATE cpp_dbc)
+        add_executable(26_051_example_scylladb_json examples/columnar/scylladb/26_051_example_scylladb_json.cpp)
+        target_link_libraries(26_051_example_scylladb_json PRIVATE cpp_dbc)
+
+        add_executable(26_061_example_scylladb_blob examples/columnar/scylladb/26_061_example_scylladb_blob.cpp)
+        target_link_libraries(26_061_example_scylladb_blob PRIVATE cpp_dbc)
+
+        add_executable(26_081_example_scylladb_batch examples/columnar/scylladb/26_081_example_scylladb_batch.cpp)
+        target_link_libraries(26_081_example_scylladb_batch PRIVATE cpp_dbc)
+
+        add_executable(26_091_example_scylladb_error_handling examples/columnar/scylladb/26_091_example_scylladb_error_handling.cpp)
+        target_link_libraries(26_091_example_scylladb_error_handling PRIVATE cpp_dbc)
     endif()
 
+    # ============================================================================
     # Copy necessary files for examples
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/examples/example_config.yml
+    # ============================================================================
+
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/examples/common/example_config.yml
         ${CMAKE_CURRENT_BINARY_DIR}/example_config.yml COPYONLY)
 
     # Copy test.jpg for BLOB example
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/test/test.jpg
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/examples/common/test.jpg
         ${CMAKE_CURRENT_BINARY_DIR}/test.jpg COPYONLY)
 endif()

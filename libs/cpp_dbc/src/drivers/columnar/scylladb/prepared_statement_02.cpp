@@ -329,6 +329,67 @@ namespace cpp_dbc::ScyllaDB
         return {};
     }
 
+    cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setTime(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(m_mutex);
+        if (!m_statement)
+        {
+            return cpp_dbc::unexpected(DBException("7HWS4EV4H0Z8", "Statement closed", system_utils::captureCallStack()));
+        }
+
+        if (parameterIndex <= 0)
+        {
+            return cpp_dbc::unexpected(DBException("D4N9DGL85O0L", "Invalid parameter index", system_utils::captureCallStack()));
+        }
+
+        bool parseSuccess = false;
+        cass_int64_t time_nanos = 0;
+
+        try
+        {
+            // Parse HH:MM:SS format
+            std::tm tm = {};
+            std::istringstream ss(value);
+            ss >> std::get_time(&tm, "%H:%M:%S");
+
+            if (!ss.fail())
+            {
+                // Convert to nanoseconds since midnight
+                // Cassandra TIME type is represented as nanoseconds since midnight
+                time_nanos = static_cast<cass_int64_t>(tm.tm_hour) * 3600000000000LL +
+                            static_cast<cass_int64_t>(tm.tm_min) * 60000000000LL +
+                            static_cast<cass_int64_t>(tm.tm_sec) * 1000000000LL;
+                parseSuccess = true;
+            }
+        }
+        catch (...)
+        {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setTime - Failed to parse time string");
+            parseSuccess = false;
+        }
+
+        CassError rc;
+        if (parseSuccess)
+        {
+            // Bind as native Cassandra time (nanoseconds since midnight)
+            rc = cass_statement_bind_int64(m_statement.get(), parameterIndex - 1, time_nanos);
+        }
+        else
+        {
+            // Fall back to string binding if parsing failed
+            rc = cass_statement_bind_string(m_statement.get(), parameterIndex - 1, value.c_str());
+        }
+
+        if (rc != CASS_OK)
+        {
+            std::string errorMsg = "Failed to bind time value '" + value + "'";
+            return cpp_dbc::unexpected(DBException("0RSZL4YDYUO7", errorMsg, system_utils::captureCallStack()));
+        }
+
+        m_currentEntry.stringParams.emplace_back(parameterIndex - 1, value);
+        return {};
+    }
+
     cpp_dbc::expected<void, DBException> ScyllaDBPreparedStatement::setUUID(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);

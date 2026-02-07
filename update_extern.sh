@@ -1,5 +1,23 @@
 #!/bin/bash
 
+# Update extern declarations in test files to use common_test_helpers namespace
+
+show_usage() {
+    echo "Usage: $0 [--help|-h]"
+    echo ""
+    echo "Updates extern declarations in test files to use common_test_helpers namespace."
+    echo "This script replaces direct extern declarations with namespace-qualified calls."
+    echo ""
+    echo "Options:"
+    echo "  --help, -h    Show this help message"
+}
+
+# Handle --help argument
+if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+    show_usage
+    exit 0
+fi
+
 # List of files to update
 FILES=(
     "libs/cpp_dbc/test/test_postgresql_real_full_join.cpp"

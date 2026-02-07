@@ -374,6 +374,45 @@ namespace cpp_dbc::Firebird
         }
     }
 
+    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setTime(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("J9K0L1M2N3O4", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
+
+            // Parse time string (expected format: HH:MM:SS)
+            struct tm time = {};
+            if (sscanf(value.c_str(), "%d:%d:%d",
+                       &time.tm_hour, &time.tm_min, &time.tm_sec) != 3)
+            {
+                return cpp_dbc::unexpected(DBException("P4Q5R6S7T8U9", "Invalid time format: " + value, system_utils::captureCallStack()));
+            }
+
+            ISC_TIME t;
+            isc_encode_sql_time(&time, &t);
+            setParameter(parameterIndex, &t, sizeof(ISC_TIME), SQL_TYPE_TIME);
+            return {};
+        }
+        catch (const DBException &e)
+        {
+            return cpp_dbc::unexpected(e);
+        }
+        catch (const std::exception &e)
+        {
+            return cpp_dbc::unexpected(DBException("V9W0X1Y2Z3A4", std::string("Exception in setTime: ") + e.what(), system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("B5C6D7E8F9G0", "Unknown exception in setTime", system_utils::captureCallStack()));
+        }
+    }
+
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept
     {
         try

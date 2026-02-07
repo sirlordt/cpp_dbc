@@ -420,6 +420,55 @@ namespace cpp_dbc::ScyllaDB
         return cpp_dbc::unexpected(DBException("P6Q7R8S9T0U1", "Failed to get timestamp", system_utils::captureCallStack()));
     }
 
+    cpp_dbc::expected<std::string, DBException> ScyllaDBResultSet::getTime(std::nothrow_t, size_t columnIndex) noexcept
+    {
+        DB_DRIVER_LOCK_GUARD(m_mutex);
+        auto validationResult = validateCurrentRow(std::nothrow);
+        if (!validationResult.has_value())
+        {
+            return cpp_dbc::unexpected(validationResult.error());
+        }
+        if (columnIndex < 1 || columnIndex > m_columnCount)
+        {
+            return cpp_dbc::unexpected(DBException("7IWRLNIJ6Z2K", "Invalid column index", system_utils::captureCallStack()));
+        }
+
+        const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
+        if (cass_value_is_null(val))
+        {
+            return std::string("");
+        }
+
+        if (cass_value_type(val) == CASS_VALUE_TYPE_TIME)
+        {
+            cass_int64_t time_nanos;
+            if (cass_value_get_int64(val, &time_nanos) == CASS_OK)
+            {
+                // Convert nanoseconds since midnight to HH:MM:SS format
+                int64_t total_seconds = time_nanos / 1000000000LL;
+                int hours = static_cast<int>(total_seconds / 3600);
+                int minutes = static_cast<int>((total_seconds % 3600) / 60);
+                int seconds = static_cast<int>(total_seconds % 60);
+
+                std::stringstream ss;
+                ss << std::setfill('0') << std::setw(2) << hours << ":"
+                   << std::setw(2) << minutes << ":"
+                   << std::setw(2) << seconds;
+                return ss.str();
+            }
+        }
+
+        // Try to get as string if not a time or conversion failed
+        const char *output;
+        size_t output_length;
+        if (cass_value_get_string(val, &output, &output_length) == CASS_OK)
+        {
+            return std::string(output, output_length);
+        }
+
+        return cpp_dbc::unexpected(DBException("744EXIHVTO3N", "Failed to get time", system_utils::captureCallStack()));
+    }
+
 } // namespace cpp_dbc::ScyllaDB
 
 #endif // USE_SCYLLADB

@@ -2,6 +2,9 @@
 
 ## Pending Tasks
 
+- Improvement: Add to helper the param helgrind to detect data races and deadlocks. When specified, run Valgrind with --tool=helgrind. Update all test result parsing to detect problems from helgrind and not only the memcheck tool.
+- Create a simple script to detect public method a class and check a bunch of .cpp test case and report if a method not found in the test code.
+- Reorganize the test source code in folders. family/smdb. relational/mysql/ kv/redis/ document/mongodb columnar/scylladb
 - NEW FEATURE: Add more examples.
 - NEW FEATURE: Add more debug messages?
 - PLANNED: Start to using in real project and test how easy is integrate in third party project. Maybe write an INTEGRATION.md to explain how full integrate in a real project.

@@ -118,12 +118,21 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - `include/cpp_dbc/core/timeseries/`: Time-series database interfaces (placeholder)
 
 - **Examples**:
-  - `examples/example.cpp`: Basic usage example
-  - `examples/connection_pool_example.cpp`: Connection pool example
-  - `examples/transaction_manager_example.cpp`: Transaction management example
-  - `examples/config_example.cpp`: YAML configuration example
-  - `examples/example_config.yml`: Example YAML configuration file
-  - `examples/run_config_example.sh`: Script to run the configuration example
+  - Examples are organized by database family with a numeric naming convention: `XX_YZZ_example_<db>_<feature>.cpp`
+  - **Common Examples** (`examples/common/`): Configuration and integration examples (10_xxx series)
+  - **Relational Examples** (`examples/relational/`):
+    - MySQL (20_xxx): 9 examples covering basic operations, connection pooling, transactions, JSON, BLOBs, joins, batch operations, and error handling
+    - PostgreSQL (21_xxx): 9 comprehensive examples
+    - SQLite (22_xxx): 9 comprehensive examples
+    - Firebird (23_xxx): 10 examples including reserved word handling
+  - **Key-Value Examples** (`examples/kv/`):
+    - Redis (24_xxx): 7 examples for key-value operations
+  - **Document Examples** (`examples/document/`):
+    - MongoDB (25_xxx): 5 examples for document database operations
+  - **Columnar Examples** (`examples/columnar/`):
+    - ScyllaDB (26_xxx): 7 examples for columnar database operations
+  - **Example Discovery**: Use `./libs/cpp_dbc/run_examples.sh --list` to see all available examples
+  - **Example Execution**: Use `./libs/cpp_dbc/run_examples.sh --run='pattern'` to run examples (supports wildcards)
 
 ## Building the Library
 
@@ -702,6 +711,14 @@ The project includes a helper script (`helper.sh`) that provides various utiliti
 
 # Run the executable
 ./helper.sh --run-build-bin
+
+# Run all examples
+./helper.sh --run-example
+
+# Run specific examples (supports wildcards and comma-separated lists)
+./helper.sh --run-example='23_*'                    # All Firebird examples
+./helper.sh --run-example='*_basic'                 # All basic examples
+./helper.sh --run-example='20_001,21_001,22_001'    # Specific examples
 
 # Multiple commands can be combined
 ./helper.sh --clean-build --clean-conan-cache --build

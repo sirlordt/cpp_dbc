@@ -162,6 +162,15 @@ namespace cpp_dbc::PostgreSQL
         bool isNull(size_t columnIndex) override;
         bool isNull(const std::string &columnName) override;
 
+        std::string getDate(size_t columnIndex) override;
+        std::string getDate(const std::string &columnName) override;
+
+        std::string getTimestamp(size_t columnIndex) override;
+        std::string getTimestamp(const std::string &columnName) override;
+
+        std::string getTime(size_t columnIndex) override;
+        std::string getTime(const std::string &columnName) override;
+
         std::vector<std::string> getColumnNames() override;
         size_t getColumnCount() override;
 
@@ -192,6 +201,12 @@ namespace cpp_dbc::PostgreSQL
         cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, const std::string &columnName) noexcept override;
         cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, const std::string &columnName) noexcept override;
         cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, const std::string &columnName) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, size_t columnIndex) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, const std::string &columnName) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, size_t columnIndex) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, const std::string &columnName) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, size_t columnIndex) noexcept override;
+        cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, const std::string &columnName) noexcept override;
         cpp_dbc::expected<std::vector<std::string>, DBException> getColumnNames(std::nothrow_t) noexcept override;
         cpp_dbc::expected<size_t, DBException> getColumnCount(std::nothrow_t) noexcept override;
         cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, size_t columnIndex) noexcept override;

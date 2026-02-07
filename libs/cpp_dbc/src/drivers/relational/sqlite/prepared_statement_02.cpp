@@ -392,6 +392,11 @@ namespace cpp_dbc::SQLite
         return setString(std::nothrow, parameterIndex, value);
     }
 
+    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::setTime(std::nothrow_t, int parameterIndex, const std::string &value) noexcept
+    {
+        return setString(std::nothrow, parameterIndex, value);
+    }
+
 } // namespace cpp_dbc::SQLite
 
 #endif // USE_SQLITE

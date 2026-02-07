@@ -186,6 +186,15 @@ namespace cpp_dbc::SQLite
         }
     }
 
+    void SQLiteDBPreparedStatement::setTime(int parameterIndex, const std::string &value)
+    {
+        auto result = setTime(std::nothrow, parameterIndex, value);
+        if (!result)
+        {
+            throw result.error();
+        }
+    }
+
     void SQLiteDBPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
     {
         auto result = setBlob(std::nothrow, parameterIndex, x);

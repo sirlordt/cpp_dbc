@@ -881,11 +881,15 @@ To run the YAML configuration example:
 # First, build the library with YAML support and examples
 ./build.sh --yaml --examples
 
-# Then run the example
-./libs/cpp_dbc/examples/run_config_example.sh
+# Then run the config examples
+./libs/cpp_dbc/run_examples.sh --run='10_01*'
+# Or using helper.sh
+./helper.sh --run-example='10_01*'
+# Or run specific example directly
+./build/libs/cpp_dbc/examples/10_011_example_config
 ```
 
-This will load the example YAML configuration file and display the database configurations.
+This will load the example YAML configuration file and display the database configurations. You can also list all available examples with `./libs/cpp_dbc/run_examples.sh --list`.
 
 ### Manual Build with CMake
 

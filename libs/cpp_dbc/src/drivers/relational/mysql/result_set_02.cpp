@@ -394,6 +394,126 @@ namespace cpp_dbc::MySQL
         }
     }
 
+    cpp_dbc::expected<std::string, DBException> MySQLDBResultSet::getDate(std::nothrow_t, size_t columnIndex) noexcept
+    {
+        try
+        {
+
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            validateCurrentRow();
+
+            if (columnIndex < 1 || columnIndex > m_fieldCount)
+            {
+                return cpp_dbc::unexpected(DBException("ULW1JW7OYOMY", "Invalid column index", system_utils::captureCallStack()));
+            }
+
+            size_t idx = columnIndex - 1;
+            if (m_currentRow[idx] == nullptr)
+            {
+                return std::string("");
+            }
+
+            return std::string(m_currentRow[idx]);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("29XLMMG3LB2Q",
+                                                   std::string("getDate failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("KZM116CBUKWI",
+                                                   "getDate failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<std::string, DBException> MySQLDBResultSet::getTimestamp(std::nothrow_t, size_t columnIndex) noexcept
+    {
+        try
+        {
+
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            validateCurrentRow();
+
+            if (columnIndex < 1 || columnIndex > m_fieldCount)
+            {
+                return cpp_dbc::unexpected(DBException("5VOZKELPIGHL", "Invalid column index", system_utils::captureCallStack()));
+            }
+
+            size_t idx = columnIndex - 1;
+            if (m_currentRow[idx] == nullptr)
+            {
+                return std::string("");
+            }
+
+            return std::string(m_currentRow[idx]);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("KQIG7YA2Q0VV",
+                                                   std::string("getTimestamp failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("ATAUAVPH59XX",
+                                                   "getTimestamp failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<std::string, DBException> MySQLDBResultSet::getTime(std::nothrow_t, size_t columnIndex) noexcept
+    {
+        try
+        {
+
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            validateCurrentRow();
+
+            if (columnIndex < 1 || columnIndex > m_fieldCount)
+            {
+                return cpp_dbc::unexpected(DBException("VO406EFS4OB8", "Invalid column index", system_utils::captureCallStack()));
+            }
+
+            size_t idx = columnIndex - 1;
+            if (m_currentRow[idx] == nullptr)
+            {
+                return std::string("");
+            }
+
+            return std::string(m_currentRow[idx]);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("DWH1OQJ9DGPF",
+                                                   std::string("getTime failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("LL5N8MEO7R5G",
+                                                   "getTime failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
     cpp_dbc::expected<int, DBException> MySQLDBResultSet::getInt(std::nothrow_t, const std::string &columnName) noexcept
     {
         try

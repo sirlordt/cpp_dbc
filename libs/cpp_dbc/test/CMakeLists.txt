@@ -162,6 +162,9 @@ add_executable(cpp_dbc_tests
     # 25_131_test_mongodb_real_transaction_manager.cpp
     25_141_test_mongodb_real_connection_pool.cpp
 
+    # Exclusive tests for MongoDB (document-specific APIs)
+    25_521_test_mongodb_real_cursor_api.cpp
+
     # ScyllaDB tests
     26_001_test_scylladb_real_common.cpp
     26_011_test_scylladb_real_db_config.cpp

@@ -1,0 +1,295 @@
+# Database connection configurations for testing
+# This file contains connection parameters for different database systems
+
+# Database connections array
+databases:
+  # MySQL development database
+  - name: dev_mysql
+    type: mysql
+    host: localhost
+    port: 3306
+    database: Test01DB
+    username: root
+    password: dsystems
+    options:
+      connect_timeout: 5
+      read_timeout: 10
+      write_timeout: 10
+      charset: utf8mb4
+      auto_reconnect: true
+  
+  # MySQL testing database
+  - name: test_mysql
+    type: mysql
+    host: localhost
+    port: 3306
+    database: Test01DB
+    username: root
+    password: dsystems
+    options:
+      connect_timeout: 3
+      read_timeout: 5
+      write_timeout: 5
+      charset: utf8mb4
+      auto_reconnect: true
+  
+  # MySQL production database (example)
+  - name: prod_mysql
+    type: mysql
+    host: db.example.com
+    port: 3306
+    database: Test01DB
+    username: root
+    password: dsystems
+    options:
+      connect_timeout: 10
+      read_timeout: 15
+      write_timeout: 15
+      charset: utf8mb4
+      auto_reconnect: true
+
+  # PostgreSQL development database
+  - name: dev_postgresql
+    type: postgresql
+    host: localhost
+    port: 5432
+    database: Test01DB
+    username: root
+    password: dsystems
+    options:
+      connect_timeout: 5
+      application_name: cpp_dbc_tests
+      client_encoding: UTF8
+      sslmode: prefer
+      gssencmode: disable #avoid memory leak in gss api reported by valgrind.
+  
+  # PostgreSQL testing database
+  - name: test_postgresql
+    type: postgresql
+    host: localhost
+    port: 5432
+    database: Test01DB
+    username: root
+    password: dsystems
+    options:
+      connect_timeout: 3
+      application_name: cpp_dbc_tests
+      client_encoding: UTF8
+      sslmode: prefer
+      gssencmode: disable #avoid memory leak in gss api reported by valgrind.
+  
+  # PostgreSQL production database (example)
+  - name: prod_postgresql
+    type: postgresql
+    host: db.example.com
+    port: 5432
+    database: Test01DB
+    username: root
+    password: dsystems
+    options:
+      connect_timeout: 10
+      application_name: cpp_dbc_prod
+      client_encoding: UTF8
+      sslmode: require
+      gssencmode: disable #avoid memory leak in gss api reported by valgrind.
+      
+  # SQLite development database
+  - name: dev_sqlite
+    type: sqlite
+    database: ":memory:"
+    options:
+      foreign_keys: true
+      journal_mode: WAL
+      
+  # SQLite testing database
+  - name: test_sqlite
+    type: sqlite
+    database: "test_sqlite.db"
+    options:
+      foreign_keys: true
+      journal_mode: WAL
+      
+  # SQLite production database (example)
+  - name: prod_sqlite
+    type: sqlite
+    database: "/path/to/production.db"
+    options:
+      foreign_keys: true
+      journal_mode: WAL
+      synchronous: FULL
+
+  # ScyllaDB development database
+  - name: dev_scylla
+    type: scylladb
+    host: localhost
+    port: 9042
+    database: dev_keyspace
+    username: cassandra
+    password: dsystems
+    options:
+      connect_timeout: 5000
+
+  # ScyllaDB testing database
+  - name: test_scylla
+    type: scylladb
+    host: localhost
+    port: 9042
+    database: test_keyspace
+    username: cassandra
+    password: dsystems
+    options:
+      connect_timeout: 5000
+
+  # Redis development database
+  - name: dev_redis
+    type: redis
+    host: localhost
+    port: 6379
+    database: "0"
+    username: ""
+    password: "dsystems"
+    options:
+      connect_timeout: 3000
+      read_timeout: 3000
+      write_timeout: 3000
+
+  # Redis testing database
+  - name: test_redis
+    type: redis
+    host: localhost
+    port: 6379
+    database: "1"
+    username: ""
+    password: "dsystems"
+    options:
+      connect_timeout: 3000
+
+  # MongoDB development database
+  - name: dev_mongodb
+    type: mongodb
+    host: localhost
+    port: 27017
+    database: cpp_dbc_example
+    username: "root"
+    password: "dsystems"
+    options:
+      connect_timeout_ms: 5000
+      server_selection_timeout_ms: 5000
+      auth_source: admin
+      direct_connection: true
+
+  # MongoDB testing database
+  - name: test_mongodb
+    type: mongodb
+    host: localhost
+    port: 27017
+    database: cpp_dbc_test
+    username: "root"
+    password: "dsystems"
+    options:
+      connect_timeout_ms: 5000
+      auth_source: admin
+
+  # Firebird development database
+  - name: dev_firebird
+    type: firebird
+    host: localhost
+    port: 3050
+    database: /firebird/data/example_firebird.fdb
+    username: SYSDBA
+    password: dsystems
+    options:
+      charset: UTF8
+
+  # Firebird testing database
+  - name: test_firebird
+    type: firebird
+    host: localhost
+    port: 3050
+    database: /firebird/data/example_firebird.fdb
+    username: SYSDBA
+    password: dsystems
+    options:
+      charset: UTF8
+
+# Connection pool configuration for tests
+connection_pool:
+  default:
+    initial_size: 5
+    max_size: 10
+    connection_timeout: 5000  # milliseconds
+    idle_timeout: 60000       # milliseconds
+    validation_interval: 30000 # milliseconds
+    transaction_isolation: read_committed
+  
+  high_performance:
+    initial_size: 10
+    max_size: 50
+    connection_timeout: 3000  # milliseconds
+    idle_timeout: 30000       # milliseconds
+    validation_interval: 15000 # milliseconds
+    transaction_isolation: serializable
+    
+  sqlite_pool:
+    initial_size: 5
+    max_size: 10
+    connection_timeout: 5000  # milliseconds
+    idle_timeout: 60000       # milliseconds
+    validation_interval: 30000 # milliseconds
+    transaction_isolation: serializable
+
+# Test queries
+test_queries:
+  # Simple query to check if connection is working
+  connection_test: "SELECT 1"
+  
+  # MySQL specific test queries
+  mysql:
+    create_database: "CREATE DATABASE IF NOT EXISTS Test01DB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100))"
+    insert_data: "INSERT INTO test_table (id, name) VALUES (?, ?)"
+    select_data: "SELECT * FROM test_table WHERE id = ?"
+    drop_table: "DROP TABLE IF EXISTS test_table"
+  
+  # PostgreSQL specific test queries
+  postgresql:
+    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, name VARCHAR(100))"
+    insert_data: "INSERT INTO test_table (id, name) VALUES ($1, $2)"
+    select_data: "SELECT * FROM test_table WHERE id = $1"
+    drop_table: "DROP TABLE IF EXISTS test_table"
+    
+  # SQLite specific test queries
+  sqlite:
+    create_table: "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)"
+    insert_data: "INSERT INTO test_table (id, name) VALUES (?, ?)"
+    select_data: "SELECT * FROM test_table WHERE id = ?"
+    drop_table: "DROP TABLE IF EXISTS test_table"
+
+  # ScyllaDB specific test queries
+  scylladb:
+    connection_test: "SELECT release_version FROM system.local"
+    create_keyspace: "CREATE KEYSPACE IF NOT EXISTS test_keyspace WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}"
+    create_table: "CREATE TABLE IF NOT EXISTS test_keyspace.test_table (id int PRIMARY KEY, name text, value double)"
+    insert_data: "INSERT INTO test_keyspace.test_table (id, name, value) VALUES (?, ?, ?)"
+    select_data: "SELECT * FROM test_keyspace.test_table WHERE id = ?"
+    drop_table: "DROP TABLE IF EXISTS test_keyspace.test_table"
+
+  # Redis specific commands
+  redis:
+    connection_test: "PING"
+    set_key: "SET test:key 'Hello Redis'"
+    get_key: "GET test:key"
+    delete_key: "DEL test:key"
+
+  # MongoDB specific queries (JSON format)
+  mongodb:
+    connection_test: "{}"
+    insert_doc: '{"name": "test", "value": 1}'
+    find_doc: '{"name": "test"}'
+
+  # Firebird specific test queries
+  firebird:
+    create_table: "CREATE TABLE test_table (id INTEGER PRIMARY KEY, name VARCHAR(100))"
+    insert_data: "INSERT INTO test_table (id, name) VALUES (?, ?)"
+    select_data: "SELECT * FROM test_table WHERE id = ?"
+    drop_table: "DROP TABLE test_table"

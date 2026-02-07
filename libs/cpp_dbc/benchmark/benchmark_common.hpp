@@ -78,8 +78,6 @@
 // Helper functions for config file paths
 namespace common_benchmark_helpers
 {
-    std::string getExecutablePathAndName();
-    std::string getOnlyExecutablePath();
     std::string getConfigFilePath();
 
     // Data sizes for benchmarks

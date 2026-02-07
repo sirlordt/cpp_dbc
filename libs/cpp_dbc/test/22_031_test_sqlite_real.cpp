@@ -178,6 +178,148 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
             FAIL("SQLite real database test failed: " + std::string(e.what_s()));
         }
     }
+
+    SECTION("SQLite date and time types test")
+    {
+        // Get SQLite configuration using the helper function
+        auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite");
+
+        // Get connection string from the database config
+        std::string connStr = dbConfig.createConnectionString();
+
+        // Register the SQLite driver
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+
+        try
+        {
+            // Connect to SQLite
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
+
+            // Create a test table with date/time columns
+            // SQLite stores dates as TEXT in ISO8601 format: "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS"
+            conn->executeUpdate("DROP TABLE IF EXISTS test_datetime_types");
+            conn->executeUpdate(
+                "CREATE TABLE test_datetime_types ("
+                "id INTEGER PRIMARY KEY, "
+                "date_col TEXT, "        // DATE stored as TEXT
+                "datetime_col TEXT, "    // DATETIME stored as TEXT
+                "time_col TEXT, "        // TIME stored as TEXT
+                "description TEXT"
+                ")");
+
+            // Insert test data using specialized methods
+            auto pstmt = conn->prepareStatement(
+                "INSERT INTO test_datetime_types VALUES (?, ?, ?, ?, ?)");
+
+            // Test 1: Full date and time values
+            pstmt->setInt(1, 1);
+            pstmt->setDate(2, "2023-01-15");                 // Using setDate()
+            pstmt->setTimestamp(3, "2023-01-15 14:30:00");   // Using setTimestamp()
+            pstmt->setString(4, "14:30:00");                 // TIME uses setString()
+            pstmt->setString(5, "Afternoon meeting");
+            pstmt->executeUpdate();
+
+            // Test 2: Morning time
+            pstmt->setInt(1, 2);
+            pstmt->setDate(2, "2023-06-20");
+            pstmt->setTimestamp(3, "2023-06-20 08:15:30");
+            pstmt->setString(4, "08:15:30");
+            pstmt->setString(5, "Morning routine");
+            pstmt->executeUpdate();
+
+            // Test 3: Late night
+            pstmt->setInt(1, 3);
+            pstmt->setDate(2, "2023-12-31");
+            pstmt->setTimestamp(3, "2023-12-31 23:59:59");
+            pstmt->setString(4, "23:59:59");
+            pstmt->setString(5, "End of year");
+            pstmt->executeUpdate();
+
+            // Test 4: NULL values for date/time
+            pstmt->setInt(1, 4);
+            pstmt->setNull(2, cpp_dbc::Types::VARCHAR);      // NULL date
+            pstmt->setNull(3, cpp_dbc::Types::VARCHAR);      // NULL datetime
+            pstmt->setNull(4, cpp_dbc::Types::VARCHAR);      // NULL time
+            pstmt->setString(5, "NULL test");
+            pstmt->executeUpdate();
+
+            // Close prepared statement
+            pstmt->close();
+
+            // Test retrieving date/time values using getDate(), getTimestamp(), and getTime()
+            auto rs = conn->executeQuery("SELECT * FROM test_datetime_types ORDER BY id");
+
+            // Verify first row
+            REQUIRE(rs->next());
+            REQUIRE(rs->getInt("id") == 1);
+            REQUIRE(rs->getDate("date_col") == "2023-01-15");
+            REQUIRE(rs->getTimestamp("datetime_col") == "2023-01-15 14:30:00");
+            REQUIRE(rs->getTime("time_col") == "14:30:00");
+            REQUIRE(rs->getString("description") == "Afternoon meeting");
+
+            // Verify second row
+            REQUIRE(rs->next());
+            REQUIRE(rs->getInt("id") == 2);
+            REQUIRE(rs->getDate("date_col") == "2023-06-20");
+            REQUIRE(rs->getTimestamp("datetime_col") == "2023-06-20 08:15:30");
+            REQUIRE(rs->getTime("time_col") == "08:15:30");
+            REQUIRE(rs->getString("description") == "Morning routine");
+
+            // Verify third row
+            REQUIRE(rs->next());
+            REQUIRE(rs->getInt("id") == 3);
+            REQUIRE(rs->getDate("date_col") == "2023-12-31");
+            REQUIRE(rs->getTimestamp("datetime_col") == "2023-12-31 23:59:59");
+            REQUIRE(rs->getTime("time_col") == "23:59:59");
+            REQUIRE(rs->getString("description") == "End of year");
+
+            // Verify fourth row (NULL values)
+            REQUIRE(rs->next());
+            REQUIRE(rs->getInt("id") == 4);
+            REQUIRE(rs->isNull("date_col"));
+            REQUIRE(rs->isNull("datetime_col"));
+            REQUIRE(rs->isNull("time_col"));
+            REQUIRE(rs->getString("description") == "NULL test");
+
+            REQUIRE_FALSE(rs->next());
+
+            // Test date-based query using prepared statement
+            auto queryStmt = conn->prepareStatement(
+                "SELECT * FROM test_datetime_types WHERE date_col = ?");
+            queryStmt->setDate(1, "2023-06-20");
+            auto queryRs = queryStmt->executeQuery();
+
+            REQUIRE(queryRs->next());
+            REQUIRE(queryRs->getInt("id") == 2);
+            REQUIRE_FALSE(queryRs->next());
+
+            // Test datetime-based query
+            auto datetimeQuery = conn->prepareStatement(
+                "SELECT * FROM test_datetime_types WHERE datetime_col = ?");
+            datetimeQuery->setTimestamp(1, "2023-12-31 23:59:59");
+            auto datetimeRs = datetimeQuery->executeQuery();
+
+            REQUIRE(datetimeRs->next());
+            REQUIRE(datetimeRs->getInt("id") == 3);
+            REQUIRE_FALSE(datetimeRs->next());
+
+            // Clean up
+            datetimeRs->close();
+            datetimeQuery->close();
+            queryRs->close();
+            queryStmt->close();
+            rs->close();
+
+            conn->executeUpdate("DROP TABLE test_datetime_types");
+            conn->close();
+        }
+        catch (const cpp_dbc::DBException &e)
+        {
+            std::string errorMsg = e.what_s();
+            std::cout << "SQLite date/time test error: " << errorMsg << std::endl;
+            FAIL("SQLite date/time test failed: " + std::string(e.what_s()));
+        }
+    }
 #else
     // Skip this test if SQLite support is not enabled
     SKIP("SQLite support is not enabled");

@@ -341,6 +341,26 @@ namespace cpp_dbc::ScyllaDB
         return *result;
     }
 
+    std::string ScyllaDBResultSet::getTime(size_t columnIndex)
+    {
+        auto result = getTime(std::nothrow, columnIndex);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::string ScyllaDBResultSet::getTime(const std::string &columnName)
+    {
+        auto result = getTime(std::nothrow, columnName);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
     std::vector<std::string> ScyllaDBResultSet::getColumnNames()
     {
         auto result = getColumnNames(std::nothrow);

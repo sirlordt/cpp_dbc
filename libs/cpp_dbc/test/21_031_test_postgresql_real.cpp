@@ -380,8 +380,8 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         REQUIRE((rs->getDouble("double_col") > 3.14 && rs->getDouble("double_col") < 3.15));
         REQUIRE(rs->getString("varchar_col") == "Hello, World!");
         REQUIRE(rs->getString("text_col") == "This is a longer text field with more content.");
-        REQUIRE(rs->getString("date_col") == "2023-01-15");
-        REQUIRE(rs->getString("timestamp_col").find("2023-01-15") != std::string::npos);
+        REQUIRE(rs->getDate("date_col") == "2023-01-15");
+        REQUIRE(rs->getTimestamp("timestamp_col").find("2023-01-15") != std::string::npos);
         REQUIRE(rs->getBoolean("bool_col") == true);
 
         // Test column metadata

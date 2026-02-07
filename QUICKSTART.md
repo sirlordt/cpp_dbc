@@ -270,17 +270,17 @@ The test log analysis feature checks for:
 
 # Build and run the Redis KV connection pool example
 ./helper.sh --run-build=redis,examples
-./build/libs/cpp_dbc/examples/kv_connection_pool_example
+./build/libs/cpp_dbc/examples/24_031_example_redis_connection_pool
 
 # Redis Connection Pool Factory Pattern Examples
 # Create Redis connection pool using factory method with configuration
-./libs/cpp_dbc/examples/kv_connection_pool_example --factory-config
+./libs/cpp_dbc/examples/24_031_example_redis_connection_pool --factory-config
 
 # Create Redis connection pool using factory method with direct parameters
-./libs/cpp_dbc/examples/kv_connection_pool_example --factory-direct
+./libs/cpp_dbc/examples/24_031_example_redis_connection_pool --factory-direct
 
 # Create Redis connection pool using factory method with custom options
-./libs/cpp_dbc/examples/kv_connection_pool_example --factory-options
+./libs/cpp_dbc/examples/24_031_example_redis_connection_pool --factory-options
 
 # Code examples for creating Redis connection pools:
 # Using configuration object:
@@ -340,17 +340,17 @@ The test log analysis feature checks for:
 
 # Build and run the MongoDB connection pool example
 ./helper.sh --run-build=mongodb,examples
-./build/libs/cpp_dbc/examples/document_connection_pool_example
+./build/libs/cpp_dbc/examples/25_031_example_mongodb_connection_pool
 
 # MongoDB Connection Pool Factory Pattern Examples
 # Create MongoDB connection pool using factory method with configuration
-./libs/cpp_dbc/examples/document_connection_pool_example --factory-config
+./libs/cpp_dbc/examples/25_031_example_mongodb_connection_pool --factory-config
 
 # Create MongoDB connection pool using factory method with direct parameters
-./libs/cpp_dbc/examples/document_connection_pool_example --factory-direct
+./libs/cpp_dbc/examples/25_031_example_mongodb_connection_pool --factory-direct
 
 # Create MongoDB connection pool using factory method with custom options
-./libs/cpp_dbc/examples/document_connection_pool_example --factory-options
+./libs/cpp_dbc/examples/25_031_example_mongodb_connection_pool --factory-options
 
 # Code examples for creating MongoDB connection pools:
 # Using configuration object:
@@ -399,14 +399,14 @@ The test log analysis feature checks for:
 
 # Build and run the ScyllaDB connection pool example
 ./helper.sh --run-build=scylladb,examples
-./build/libs/cpp_dbc/examples/scylladb_connection_pool_example
+./build/libs/cpp_dbc/examples/26_031_example_scylladb_connection_pool
 
 # ScyllaDB Connection Pool Factory Pattern Examples
 # Create ScyllaDB connection pool using factory method with configuration
-./libs/cpp_dbc/examples/scylladb_connection_pool_example --factory-config
+./libs/cpp_dbc/examples/26_031_example_scylladb_connection_pool --factory-config
 
 # Create ScyllaDB connection pool using factory method with direct parameters
-./libs/cpp_dbc/examples/scylladb_connection_pool_example --factory-direct
+./libs/cpp_dbc/examples/26_031_example_scylladb_connection_pool --factory-direct
 
 # Code examples for creating ScyllaDB connection pools:
 # Using configuration object:
@@ -452,6 +452,64 @@ The test log analysis feature checks for:
 ```
 
 All benchmark output is automatically logged to files in the `logs/benchmark/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
+
+### Example Operations
+
+Examples are organized by database family with a numeric naming convention: `XX_YZZ_example_<db>_<feature>.cpp`
+
+```bash
+# List all available compiled examples
+./libs/cpp_dbc/run_examples.sh --list
+
+# List examples by category
+./libs/cpp_dbc/run_examples.sh --category=relational
+./libs/cpp_dbc/run_examples.sh --category=document
+./libs/cpp_dbc/run_examples.sh --category=kv
+./libs/cpp_dbc/run_examples.sh --category=columnar
+
+# Run all examples
+./helper.sh --run-example
+./libs/cpp_dbc/run_examples.sh --run
+
+# Run specific examples by name
+./helper.sh --run-example=10_011_example_config
+./libs/cpp_dbc/run_examples.sh --run=10_011_example_config
+
+# Run examples using wildcard patterns
+./helper.sh --run-example='23_*'                    # All Firebird examples
+./helper.sh --run-example='*_basic'                 # All basic examples
+./helper.sh --run-example='2*_031_*'                # All relational connection pool examples
+
+# Run multiple specific examples (comma-separated)
+./helper.sh --run-example='20_001,21_001,22_001'    # Basic examples for MySQL, PostgreSQL, SQLite
+
+# Run specific example directly (after building with examples)
+./build/libs/cpp_dbc/examples/20_001_example_mysql_basic
+./build/libs/cpp_dbc/examples/25_031_example_mongodb_connection_pool
+```
+
+**Example Naming Convention:**
+- **10_xxx**: Common examples (config, integration)
+- **20_xxx**: MySQL examples
+- **21_xxx**: PostgreSQL examples
+- **22_xxx**: SQLite examples
+- **23_xxx**: Firebird examples
+- **24_xxx**: Redis examples
+- **25_xxx**: MongoDB examples
+- **26_xxx**: ScyllaDB examples
+
+**Feature Categories (YZZ):**
+- **001**: Basic operations
+- **021**: Connection info
+- **031**: Connection pool
+- **041**: Transaction manager
+- **051**: JSON operations
+- **061**: BLOB operations
+- **071**: JOIN operations
+- **081**: Batch operations
+- **091**: Error handling
+
+All example output is automatically logged to files in the `logs/example/` directory with timestamps in the filenames. The system automatically rotates logs, keeping the 4 most recent files.
 
 ### Container Operations
 

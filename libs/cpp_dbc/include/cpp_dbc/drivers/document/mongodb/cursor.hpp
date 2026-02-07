@@ -60,6 +60,15 @@ namespace cpp_dbc::MongoDB
             std::shared_ptr<MongoDBDocument> m_currentDoc;
 
             /**
+             * @brief Peek-ahead buffer for hasNext() reliability
+             *
+             * mongoc_cursor_more() is unreliable and may return true even when
+             * no more documents exist. To make hasNext() reliable, we read ahead
+             * when hasNext() is called and store the result here.
+             */
+            std::shared_ptr<MongoDBDocument> m_peekedDoc;
+
+            /**
              * @brief Current position in the cursor (0-based)
              */
             uint64_t m_position{0};

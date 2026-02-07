@@ -128,13 +128,16 @@ namespace cpp_dbc::MongoDB
         }
 
         // Add options to URI if provided
+        // Convert snake_case option names to lowerCamelCase as expected by mongoc
         if (!options.empty())
         {
             bool hasQuery = connectionUri.contains('?');
             for (const auto &[key, value] : options)
             {
                 connectionUri += (hasQuery ? "&" : "?");
-                connectionUri += key + "=" + value;
+                // Convert option name from snake_case (YAML convention) to lowerCamelCase (mongoc convention)
+                std::string normalizedKey = system_utils::snakeCaseToLowerCamelCase(key);
+                connectionUri += normalizedKey + "=" + value;
                 hasQuery = true;
             }
         }
