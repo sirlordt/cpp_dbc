@@ -162,7 +162,8 @@ discover_prefixes() {
         if [ -n "$prefix" ]; then
             # Remove trailing underscore for comparison
             local prefix_num="${prefix%_}"
-            if [[ ! " ${prefixes[*]} " =~ ${prefix_num} ]]; then
+            # Check for whole-element match (not substring) by surrounding with spaces
+            if [[ ! " ${prefixes[*]} " =~ " ${prefix_num} " ]]; then
                 prefixes+=("$prefix_num")
             fi
         fi
