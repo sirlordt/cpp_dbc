@@ -249,6 +249,66 @@ namespace cpp_dbc::PostgreSQL
         return result.value();
     }
 
+    std::string PostgreSQLDBResultSet::getDate(size_t columnIndex)
+    {
+        auto result = this->getDate(std::nothrow, columnIndex);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    std::string PostgreSQLDBResultSet::getDate(const std::string &columnName)
+    {
+        auto result = this->getDate(std::nothrow, columnName);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    std::string PostgreSQLDBResultSet::getTimestamp(size_t columnIndex)
+    {
+        auto result = this->getTimestamp(std::nothrow, columnIndex);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    std::string PostgreSQLDBResultSet::getTimestamp(const std::string &columnName)
+    {
+        auto result = this->getTimestamp(std::nothrow, columnName);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    std::string PostgreSQLDBResultSet::getTime(size_t columnIndex)
+    {
+        auto result = this->getTime(std::nothrow, columnIndex);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    std::string PostgreSQLDBResultSet::getTime(const std::string &columnName)
+    {
+        auto result = this->getTime(std::nothrow, columnName);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
     std::vector<std::string> PostgreSQLDBResultSet::getColumnNames()
     {
         auto result = this->getColumnNames(std::nothrow);

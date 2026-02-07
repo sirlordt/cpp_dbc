@@ -315,6 +315,15 @@ namespace cpp_dbc::Firebird
         }
     }
 
+    void FirebirdDBPreparedStatement::setTime(int parameterIndex, const std::string &value)
+    {
+        auto result = setTime(std::nothrow, parameterIndex, value);
+        if (!result)
+        {
+            throw result.error();
+        }
+    }
+
     void FirebirdDBPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
     {
         auto result = setBlob(std::nothrow, parameterIndex, x);

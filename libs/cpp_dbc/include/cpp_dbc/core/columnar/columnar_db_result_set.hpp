@@ -103,6 +103,8 @@ namespace cpp_dbc
         virtual std::string getDate(size_t columnIndex) = 0;
         /** @brief Get a timestamp column value as ISO string by 1-based index */
         virtual std::string getTimestamp(size_t columnIndex) = 0;
+        /** @brief Get a time column value as string (format: HH:MM:SS) by 1-based index */
+        virtual std::string getTime(size_t columnIndex) = 0;
 
         // ====================================================================
         // Typed column access by name
@@ -126,6 +128,8 @@ namespace cpp_dbc
         virtual std::string getDate(const std::string &columnName) = 0;
         /** @brief Get a timestamp column value as ISO string by name */
         virtual std::string getTimestamp(const std::string &columnName) = 0;
+        /** @brief Get a time column value as string (format: HH:MM:SS) by name */
+        virtual std::string getTime(const std::string &columnName) = 0;
 
         // ====================================================================
         // Metadata
@@ -169,6 +173,7 @@ namespace cpp_dbc
         virtual cpp_dbc::expected<std::string, DBException> getUUID(std::nothrow_t, size_t columnIndex) noexcept = 0;
         virtual cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, size_t columnIndex) noexcept = 0;
         virtual cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, size_t columnIndex) noexcept = 0;
+        virtual cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, size_t columnIndex) noexcept = 0;
 
         virtual cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept = 0;
         virtual cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept = 0;
@@ -179,6 +184,7 @@ namespace cpp_dbc
         virtual cpp_dbc::expected<std::string, DBException> getUUID(std::nothrow_t, const std::string &columnName) noexcept = 0;
         virtual cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, const std::string &columnName) noexcept = 0;
         virtual cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, const std::string &columnName) noexcept = 0;
+        virtual cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, const std::string &columnName) noexcept = 0;
 
         virtual cpp_dbc::expected<std::vector<std::string>, DBException> getColumnNames(std::nothrow_t) noexcept = 0;
         virtual cpp_dbc::expected<size_t, DBException> getColumnCount(std::nothrow_t) noexcept = 0;

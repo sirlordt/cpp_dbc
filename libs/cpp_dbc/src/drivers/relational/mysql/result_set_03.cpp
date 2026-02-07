@@ -150,6 +150,93 @@ namespace cpp_dbc::MySQL
         }
     }
 
+    cpp_dbc::expected<std::string, DBException> MySQLDBResultSet::getDate(std::nothrow_t, const std::string &columnName) noexcept
+    {
+        try
+        {
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
+            {
+                return cpp_dbc::unexpected(DBException("136RPPGVZRFA", "Column not found: " + columnName, system_utils::captureCallStack()));
+            }
+            return getDate(std::nothrow, it->second + 1);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("AJZUSFAYYKRW",
+                                                   std::string("getDate failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("7UQPAX1BY99S",
+                                                   "getDate failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<std::string, DBException> MySQLDBResultSet::getTimestamp(std::nothrow_t, const std::string &columnName) noexcept
+    {
+        try
+        {
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
+            {
+                return cpp_dbc::unexpected(DBException("2C7YP6KVKFZ0", "Column not found: " + columnName, system_utils::captureCallStack()));
+            }
+            return getTimestamp(std::nothrow, it->second + 1);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("1LE8LCO1SULZ",
+                                                   std::string("getTimestamp failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("FJDMUTNVG1Z2",
+                                                   "getTimestamp failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<std::string, DBException> MySQLDBResultSet::getTime(std::nothrow_t, const std::string &columnName) noexcept
+    {
+        try
+        {
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
+            {
+                return cpp_dbc::unexpected(DBException("4ST36MNYWXXT", "Column not found: " + columnName, system_utils::captureCallStack()));
+            }
+            return getTime(std::nothrow, it->second + 1);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("RL7J9IQH6KO8",
+                                                   std::string("getTime failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("H1DXG2WL4ITI",
+                                                   "getTime failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
     cpp_dbc::expected<std::vector<std::string>, DBException> MySQLDBResultSet::getColumnNames(std::nothrow_t) noexcept
     {
         try

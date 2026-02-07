@@ -39,7 +39,23 @@ get_code_locations() {
         grep -vP ':\s*(//|/\*).*DBException'
 }
 
+show_usage() {
+    echo "Usage: $0 [--check|--list|--fix|--help]"
+    echo ""
+    echo "Check, list, and fix DBException error codes in the project."
+    echo ""
+    echo "Options:"
+    echo "  --check       Check for duplicate codes in different files (exit 1 if found)"
+    echo "  --list        List all codes with occurrence count"
+    echo "  --fix         Auto-fix problematic duplicates by generating new unique codes"
+    echo "  --help, -h    Show this help message"
+}
+
 case "$1" in
+    --help|-h)
+        show_usage
+        exit 0
+        ;;
     --check)
         echo "Checking for problematic duplicate DBException codes..."
         duplicates=$(find_problematic_duplicates)
@@ -133,11 +149,8 @@ case "$1" in
         ;;
 
     *)
-        echo "Usage: $0 [--check|--list|--fix]"
-        echo ""
-        echo "  --check   Check for duplicate codes in different files (exit 1 if found)"
-        echo "  --list    List all codes with occurrence count"
-        echo "  --fix     Auto-fix problematic duplicates by generating new unique codes"
+        echo "Unknown option: $1"
+        show_usage
         exit 1
         ;;
 esac

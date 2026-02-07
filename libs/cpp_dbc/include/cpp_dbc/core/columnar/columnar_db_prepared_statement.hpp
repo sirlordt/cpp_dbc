@@ -95,6 +95,8 @@ namespace cpp_dbc
         virtual void setDate(int parameterIndex, const std::string &value) = 0;
         /** @brief Bind a timestamp parameter as ISO string (1-based index) */
         virtual void setTimestamp(int parameterIndex, const std::string &value) = 0;
+        /** @brief Bind a time parameter as string (format: HH:MM:SS) (1-based index) */
+        virtual void setTime(int parameterIndex, const std::string &value) = 0;
         /** @brief Bind a UUID parameter as string (1-based index) */
         virtual void setUUID(int parameterIndex, const std::string &value) = 0;
 
@@ -172,6 +174,7 @@ namespace cpp_dbc
         [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setNull(std::nothrow_t, int parameterIndex, Types type) noexcept = 0;
         [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setDate(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
         [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setTime(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
         [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setUUID(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
 
         [[nodiscard]] virtual cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept = 0;

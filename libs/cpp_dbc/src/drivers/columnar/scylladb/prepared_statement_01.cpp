@@ -143,6 +143,13 @@ namespace cpp_dbc::ScyllaDB
             throw result.error();
     }
 
+    void ScyllaDBPreparedStatement::setTime(int parameterIndex, const std::string &value)
+    {
+        auto result = setTime(std::nothrow, parameterIndex, value);
+        if (!result.has_value())
+            throw result.error();
+    }
+
     void ScyllaDBPreparedStatement::setUUID(int parameterIndex, const std::string &value)
     {
         auto result = setUUID(std::nothrow, parameterIndex, value);

@@ -188,6 +188,15 @@ namespace cpp_dbc::MySQL
         }
     }
 
+    void MySQLDBPreparedStatement::setTime(int parameterIndex, const std::string &value)
+    {
+        auto result = setTime(std::nothrow, parameterIndex, value);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
     // BLOB support methods
     void MySQLDBPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
     {

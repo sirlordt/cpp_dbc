@@ -414,8 +414,8 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         pstmt->setDouble(3, 3.14159);
         pstmt->setString(4, "Hello, World!");
         pstmt->setString(5, "This is a longer text field with more content.");
-        pstmt->setString(6, "2023-01-15");          // Date as string
-        pstmt->setString(7, "2023-01-15 14:30:00"); // DateTime as string
+        pstmt->setDate(6, "2023-01-15");
+        pstmt->setTimestamp(7, "2023-01-15 14:30:00");
         pstmt->setBoolean(8, true);
 
         pstmt->executeUpdate();
@@ -430,8 +430,8 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         REQUIRE((rs->getDouble("double_col") > 3.14 && rs->getDouble("double_col") < 3.15));
         REQUIRE(rs->getString("varchar_col") == "Hello, World!");
         REQUIRE(rs->getString("text_col") == "This is a longer text field with more content.");
-        REQUIRE(rs->getString("date_col") == "2023-01-15");
-        REQUIRE(rs->getString("datetime_col") == "2023-01-15 14:30:00");
+        REQUIRE(rs->getDate("date_col") == "2023-01-15");
+        REQUIRE(rs->getTimestamp("datetime_col") == "2023-01-15 14:30:00");
         REQUIRE(rs->getBoolean("bool_col") == true);
 
         // Test column metadata
@@ -455,6 +455,68 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
 
         // Clean up
         conn->executeUpdate("DROP TABLE test_types");
+
+        // Close the connection
+        conn->close();
+    }
+
+    SECTION("MySQL TIME type test")
+    {
+        // Register the MySQL driver (safe registration)
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+
+        // Get a connection
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+
+        // Create a test table with TIME column
+        conn->executeUpdate("DROP TABLE IF EXISTS test_time_types");
+        conn->executeUpdate(
+            "CREATE TABLE test_time_types ("
+            "id INT PRIMARY KEY, "
+            "time_col TIME, "
+            "description VARCHAR(100)"
+            ")");
+
+        // Insert test data using setTime for TIME columns
+        auto pstmt = conn->prepareStatement(
+            "INSERT INTO test_time_types VALUES (?, ?, ?)");
+
+        pstmt->setInt(1, 1);
+        pstmt->setTime(2, "14:30:00");           // TIME using setTime method
+        pstmt->setString(3, "Afternoon meeting");
+        pstmt->executeUpdate();
+
+        pstmt->setInt(1, 2);
+        pstmt->setTime(2, "08:15:30");           // TIME with seconds
+        pstmt->setString(3, "Morning routine");
+        pstmt->executeUpdate();
+
+        pstmt->setInt(1, 3);
+        pstmt->setTime(2, "23:59:59");           // Late night
+        pstmt->setString(3, "End of day");
+        pstmt->executeUpdate();
+
+        // Test retrieving TIME values using getTime()
+        auto rs = conn->executeQuery("SELECT * FROM test_time_types ORDER BY id");
+        REQUIRE(rs->next());
+        REQUIRE(rs->getInt("id") == 1);
+        REQUIRE(rs->getTime("time_col") == "14:30:00");
+        REQUIRE(rs->getString("description") == "Afternoon meeting");
+
+        REQUIRE(rs->next());
+        REQUIRE(rs->getInt("id") == 2);
+        REQUIRE(rs->getTime("time_col") == "08:15:30");
+        REQUIRE(rs->getString("description") == "Morning routine");
+
+        REQUIRE(rs->next());
+        REQUIRE(rs->getInt("id") == 3);
+        REQUIRE(rs->getTime("time_col") == "23:59:59");
+        REQUIRE(rs->getString("description") == "End of day");
+
+        REQUIRE_FALSE(rs->next());
+
+        // Clean up
+        conn->executeUpdate("DROP TABLE test_time_types");
 
         // Close the connection
         conn->close();

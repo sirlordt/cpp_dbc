@@ -124,6 +124,16 @@ namespace cpp_dbc::ScyllaDB
         return getTimestamp(std::nothrow, it->second + 1);
     }
 
+    cpp_dbc::expected<std::string, DBException> ScyllaDBResultSet::getTime(std::nothrow_t, const std::string &columnName) noexcept
+    {
+        auto it = m_columnMap.find(columnName);
+        if (it == m_columnMap.end())
+        {
+            return cpp_dbc::unexpected(DBException("S3UCD7VEG357", columnName, system_utils::captureCallStack()));
+        }
+        return getTime(std::nothrow, it->second + 1);
+    }
+
     cpp_dbc::expected<std::vector<std::string>, DBException> ScyllaDBResultSet::getColumnNames(std::nothrow_t) noexcept
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);

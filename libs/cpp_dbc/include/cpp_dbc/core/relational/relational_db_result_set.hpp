@@ -217,6 +217,51 @@ namespace cpp_dbc
          */
         virtual bool isNull(size_t columnIndex) = 0;
 
+        /**
+         * @brief Get a date value as string by column index
+         * @param columnIndex The column position (1-based)
+         * @return The date value as string (format: YYYY-MM-DD)
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     std::string birthDate = rs->getDate(1);
+         * }
+         * ```
+         */
+        virtual std::string getDate(size_t columnIndex) = 0;
+
+        /**
+         * @brief Get a timestamp value as string by column index
+         * @param columnIndex The column position (1-based)
+         * @return The timestamp value as string (format: YYYY-MM-DD HH:MM:SS)
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     std::string created = rs->getTimestamp(1);
+         * }
+         * ```
+         */
+        virtual std::string getTimestamp(size_t columnIndex) = 0;
+
+        /**
+         * @brief Get a time value as string by column index
+         * @param columnIndex The column position (1-based)
+         * @return The time value as string (format: HH:MM:SS)
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     std::string eventTime = rs->getTime(1);
+         * }
+         * ```
+         */
+        virtual std::string getTime(size_t columnIndex) = 0;
+
         // ====================================================================
         // Typed column access by name
         // ====================================================================
@@ -307,6 +352,51 @@ namespace cpp_dbc
          * ```
          */
         virtual bool isNull(const std::string &columnName) = 0;
+
+        /**
+         * @brief Get a date value as string by column name
+         * @param columnName The column name
+         * @return The date value as string (format: YYYY-MM-DD)
+         * @throws DBException if the column is not found
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     std::string birthDate = rs->getDate("birth_date");
+         * }
+         * ```
+         */
+        virtual std::string getDate(const std::string &columnName) = 0;
+
+        /**
+         * @brief Get a timestamp value as string by column name
+         * @param columnName The column name
+         * @return The timestamp value as string (format: YYYY-MM-DD HH:MM:SS)
+         * @throws DBException if the column is not found
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     std::string created = rs->getTimestamp("created_at");
+         * }
+         * ```
+         */
+        virtual std::string getTimestamp(const std::string &columnName) = 0;
+
+        /**
+         * @brief Get a time value as string by column name
+         * @param columnName The column name
+         * @return The time value as string (format: HH:MM:SS)
+         * @throws DBException if the column is not found
+         *
+         * ```cpp
+         * auto rs = stmt->executeQuery();
+         * while (rs->next()) {
+         *     std::string eventTime = rs->getTime("event_time");
+         * }
+         * ```
+         */
+        virtual std::string getTime(const std::string &columnName) = 0;
 
         // ====================================================================
         // Metadata
@@ -577,6 +667,60 @@ namespace cpp_dbc
          */
         virtual cpp_dbc::expected<bool, DBException>
         isNull(std::nothrow_t, const std::string &columnName) noexcept = 0;
+
+        /**
+         * @brief Get a date value as string by column index (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnIndex The column position (1-based)
+         * @return expected containing the date value as string (format: YYYY-MM-DD), or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::string, DBException>
+        getDate(std::nothrow_t, size_t columnIndex) noexcept = 0;
+
+        /**
+         * @brief Get a date value as string by column name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnName The column name
+         * @return expected containing the date value as string (format: YYYY-MM-DD), or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::string, DBException>
+        getDate(std::nothrow_t, const std::string &columnName) noexcept = 0;
+
+        /**
+         * @brief Get a timestamp value as string by column index (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnIndex The column position (1-based)
+         * @return expected containing the timestamp value as string (format: YYYY-MM-DD HH:MM:SS), or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::string, DBException>
+        getTimestamp(std::nothrow_t, size_t columnIndex) noexcept = 0;
+
+        /**
+         * @brief Get a timestamp value as string by column name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnName The column name
+         * @return expected containing the timestamp value as string (format: YYYY-MM-DD HH:MM:SS), or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::string, DBException>
+        getTimestamp(std::nothrow_t, const std::string &columnName) noexcept = 0;
+
+        /**
+         * @brief Get a time value as string by column index (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnIndex The column position (1-based)
+         * @return expected containing the time value as string (format: HH:MM:SS), or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::string, DBException>
+        getTime(std::nothrow_t, size_t columnIndex) noexcept = 0;
+
+        /**
+         * @brief Get a time value as string by column name (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param columnName The column name
+         * @return expected containing the time value as string (format: HH:MM:SS), or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::string, DBException>
+        getTime(std::nothrow_t, const std::string &columnName) noexcept = 0;
 
         /**
          * @brief Get the names of all columns (nothrow version)

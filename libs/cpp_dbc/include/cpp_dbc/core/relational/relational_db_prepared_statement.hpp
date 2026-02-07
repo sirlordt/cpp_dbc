@@ -190,6 +190,20 @@ namespace cpp_dbc
          */
         virtual void setTimestamp(int parameterIndex, const std::string &value) = 0;
 
+        /**
+         * @brief Bind a time string to a parameter (format: "HH:MM:SS")
+         * @param parameterIndex The parameter position (1-based)
+         * @param value The time string
+         * @throws DBException if the index is invalid
+         *
+         * ```cpp
+         * auto stmt = conn->prepareStatement("INSERT INTO schedule (meeting_time) VALUES (?)");
+         * stmt->setTime(1, "14:30:00");
+         * stmt->executeUpdate();
+         * ```
+         */
+        virtual void setTime(int parameterIndex, const std::string &value) = 0;
+
         // ====================================================================
         // BLOB support methods
         // ====================================================================
@@ -389,6 +403,15 @@ namespace cpp_dbc
          */
         [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
         setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
+
+        /**
+         * @brief Bind a time string to a parameter (nothrow version)
+         * @param parameterIndex The parameter position (1-based)
+         * @param value The time string
+         * @return cpp_dbc::expected<void, DBException>
+         */
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
+        setTime(std::nothrow_t, int parameterIndex, const std::string &value) noexcept = 0;
 
         /**
          * @brief Set a BLOB parameter (nothrow version)

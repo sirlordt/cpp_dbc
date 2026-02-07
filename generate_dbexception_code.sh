@@ -3,6 +3,30 @@
 # Format: 12-character uppercase alphanumeric (A-Z, 0-9) with at least 5 letters
 #         and no more than 4 consecutive repeated characters
 
+show_usage() {
+    echo "Usage: $0 [PROJECT_ROOT] [COUNT] [--help|-h]"
+    echo ""
+    echo "Generate unique DBException error codes for the cpp_dbc project."
+    echo ""
+    echo "Arguments:"
+    echo "  PROJECT_ROOT  Path to project root directory (default: current directory)"
+    echo "  COUNT         Number of codes to generate (default: 1)"
+    echo ""
+    echo "Options:"
+    echo "  --help, -h    Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0                    # Generate 1 code using current directory"
+    echo "  $0 /path/to/project   # Generate 1 code for specified project"
+    echo "  $0 /path/to/project 5 # Generate 5 codes for specified project"
+}
+
+# Handle --help argument
+if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+    show_usage
+    exit 0
+fi
+
 PROJECT_ROOT="${1:-$(pwd)}"
 COUNT="${2:-1}"
 

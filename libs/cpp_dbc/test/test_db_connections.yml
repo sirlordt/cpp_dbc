@@ -149,11 +149,11 @@ databases:
     username: "root"
     password: "dsystems"
     options:
-      connect_timeout: 5000
-      server_selection_timeout: 5000
+      connect_timeout_ms: 5000
+      server_selection_timeout_ms: 5000
       auth_source: admin
       direct_connection: true
-      
+
   # MongoDB testing database
   - name: test_mongodb
     type: mongodb
@@ -163,8 +163,8 @@ databases:
     username: "root"
     password: "dsystems"
     options:
-      connect_timeout: 3000
-      server_selection_timeout: 3000
+      connect_timeout_ms: 3000
+      server_selection_timeout_ms: 3000
       auth_source: admin
       direct_connection: true
 

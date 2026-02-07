@@ -11,7 +11,7 @@ This document describes the relationships and call hierarchy between shell scrip
 │                                                                              │
 │   helper.sh ──────────────────────────────────────────────────────────────┐ │
 │       │                                                                   │ │
-│       ├── sources: lib/common_functions.sh                                │ │
+│       ├── sources: scripts/common/functions.sh                            │ │
 │       │                                                                   │ │
 │       ├──[--run-build]────────► build.sh                                  │ │
 │       │                            │                                      │ │
@@ -90,15 +90,78 @@ This document describes the relationships and call hierarchy between shell scrip
 | `build_script.sh` | Build inside Docker container | `build_dist_pkg.sh` |
 | `Dockerfile` | Define container environment | `build_dist_pkg.sh` |
 
-### 5. Utility Scripts (Root Level)
+### 5. Shared Functions Library (`scripts/common/`)
+
+The `scripts/common/functions.sh` file is the **central location for all shared bash functions**.
+
+**DRY Principle**: Any function that is used by more than one script MUST be placed here to avoid code duplication.
+
+| Script | Purpose | Sourced By |
+|--------|---------|------------|
+| `scripts/common/functions.sh` | Shared functions (colors, logging, validation, etc.) | `helper.sh`, `run_test_parallel.sh`, `run_examples.sh` |
+
+#### Available Functions
+
+| Function | Description |
+|----------|-------------|
+| **Colors** | |
+| `check_color_support` | Returns 0 if terminal supports colors |
+| `_init_colors` | Initializes color variables (RED, GREEN, YELLOW, BLUE, CYAN, NC, etc.) |
+| `refresh_term_size` | Refresh terminal dimensions after resize |
+| `cursor_to`, `cursor_hide`, `cursor_show` | Cursor manipulation |
+| **Time/Duration** | |
+| `format_duration` | Format seconds as HH:MM:SS |
+| `format_elapsed_time` | Format seconds as human-readable (e.g., "1h 23m 45s") |
+| **Validation** | |
+| `validate_numeric` | Validate that a value is a non-negative integer |
+| **Log Management** | |
+| `cleanup_old_logs` | Remove old log files, keeping N most recent |
+| **Valgrind** | |
+| `check_valgrind_errors` | Check log file for Valgrind errors (silent) |
+| `check_valgrind_errors_verbose` | Check log file for Valgrind errors (with output) |
+| **Print Utilities** | |
+| `print_color`, `print_success`, `print_error`, `print_warning`, `print_info` | Colored output helpers |
+| `print_line`, `print_header` | Formatting helpers |
+
+#### Usage Example
+
+```bash
+#!/bin/bash
+# my_script.sh
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+source "$SCRIPT_DIR/scripts/common/functions.sh"
+
+# Now you can use all shared functions
+print_info "Starting process..."
+if check_color_support; then
+    echo -e "${GREEN}Colors are supported${NC}"
+fi
+```
+
+#### Adding New Shared Functions
+
+When adding new functions to `scripts/common/functions.sh`:
+
+1. Add clear documentation with usage example
+2. Group with related functions using section headers
+3. Use the guard pattern (already in place) to prevent multiple inclusions
+4. Test with all scripts that source it
+
+### 6. Utility Scripts (Root Level)
 
 | Script | Purpose | Called By |
 |--------|---------|-----------|
-| `lib/common_functions.sh` | Shared functions (colors, logging) | `helper.sh` |
 | `generate_dbexception_code.sh` | Generate unique error codes | Manual usage |
 | `check_dbexception_codes.sh` | Validate error code uniqueness | Manual usage |
 | `update_extern.sh` | Update external dependencies | Manual usage |
 | `sonar_qube_issues_fetch.sh` | Fetch SonarQube issues | Manual usage |
+
+### 7. Example Scripts (`libs/cpp_dbc/examples/`)
+
+| Script | Purpose | Called By |
+|--------|---------|-----------|
+| `run_examples.sh` | Discover and run compiled examples | Manual usage |
 
 ## Detailed Call Chains
 

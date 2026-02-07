@@ -10,7 +10,7 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # Source common functions (provides colors, check_color_support, validate_numeric, etc.)
-source "$SCRIPT_DIR/lib/common_functions.sh"
+source "$SCRIPT_DIR/scripts/common/functions.sh"
 
 # Default values
 PARALLEL_COUNT=1

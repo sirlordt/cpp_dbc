@@ -254,6 +254,66 @@ namespace cpp_dbc::SQLite
         return *result;
     }
 
+    std::string SQLiteDBResultSet::getDate(size_t columnIndex)
+    {
+        auto result = getDate(std::nothrow, columnIndex);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::string SQLiteDBResultSet::getDate(const std::string &columnName)
+    {
+        auto result = getDate(std::nothrow, columnName);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::string SQLiteDBResultSet::getTimestamp(size_t columnIndex)
+    {
+        auto result = getTimestamp(std::nothrow, columnIndex);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::string SQLiteDBResultSet::getTimestamp(const std::string &columnName)
+    {
+        auto result = getTimestamp(std::nothrow, columnName);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::string SQLiteDBResultSet::getTime(size_t columnIndex)
+    {
+        auto result = getTime(std::nothrow, columnIndex);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    std::string SQLiteDBResultSet::getTime(const std::string &columnName)
+    {
+        auto result = getTime(std::nothrow, columnName);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
     std::vector<std::string> SQLiteDBResultSet::getColumnNames()
     {
         auto result = getColumnNames(std::nothrow);

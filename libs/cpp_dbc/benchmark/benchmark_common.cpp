@@ -25,29 +25,11 @@
 
 namespace common_benchmark_helpers
 {
-    std::string getExecutablePathAndName()
-    {
-        std::vector<char> buffer(2048);
-        ssize_t len = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
-        if (len != -1)
-        {
-            buffer[len] = '\0';
-            return std::string(buffer.data());
-        }
-        return {};
-    }
-
-    std::string getOnlyExecutablePath()
-    {
-        std::filesystem::path p(getExecutablePathAndName());
-        return p.parent_path().string() + "/"; // Return only the directory
-    }
-
     // Helper function to get the path to the benchmark_db_connections.yml file
     std::string getConfigFilePath()
     {
         // The YAML file is copied to the build directory by CMake
-        return getOnlyExecutablePath() + "benchmark_db_connections.yml";
+        return cpp_dbc::system_utils::getExecutablePath() + "benchmark_db_connections.yml";
     }
 
     // Helper function to generate random string data

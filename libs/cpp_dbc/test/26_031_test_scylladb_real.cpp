@@ -184,14 +184,15 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
             "text_col text, "
             "bool_col boolean, "
             "timestamp_col timestamp, "
+            "time_col time, "
             "uuid_col uuid, "
             "blob_col blob"
             ")");
 
-        // Insert test data with timestamp, blob and UUID fields
+        // Insert test data with timestamp, time, blob and UUID fields
         auto pstmt = conn->prepareStatement(
-            "INSERT INTO test_keyspace.test_types (id, int_col, double_col, text_col, bool_col, timestamp_col, uuid_col, blob_col) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            "INSERT INTO test_keyspace.test_types (id, int_col, double_col, text_col, bool_col, timestamp_col, time_col, uuid_col, blob_col) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
         pstmt->setInt(1, 1);
         pstmt->setInt(2, 42);
@@ -202,12 +203,15 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
         // For timestamp, use the specific timestamp method
         pstmt->setTimestamp(6, "2023-01-15 14:30:00");
 
+        // For time, use the specific time method
+        pstmt->setTime(7, "14:30:00");
+
         // For UUID, use the specific UUID method
-        pstmt->setUUID(7, "550e8400e29b41d4a716446655440000"); // UUID without hyphens
+        pstmt->setUUID(8, "550e8400e29b41d4a716446655440000"); // UUID without hyphens
 
         // Create blob data for testing
         std::vector<uint8_t> blobData = {0x01, 0x02, 0x03, 0x04, 0x05};
-        pstmt->setBytes(8, blobData);
+        pstmt->setBytes(9, blobData);
 
         pstmt->executeUpdate();
 
@@ -224,9 +228,15 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
 
         // Now test the timestamp column that's been re-enabled
         // Timestamp format may vary, just check it's not empty
-        std::string timestamp = rs->getString("timestamp_col");
+        std::string timestamp = rs->getTimestamp("timestamp_col");
         std::cout << "DEBUG - Timestamp value returned: '" << timestamp << "'" << std::endl;
         REQUIRE_FALSE(timestamp.empty());
+
+        // Test the time column using getTime()
+        std::string time = rs->getTime("time_col");
+        std::cout << "DEBUG - Time value returned: '" << time << "'" << std::endl;
+        REQUIRE_FALSE(time.empty());
+        REQUIRE(time == "14:30:00");
 
         // UUID should now be properly formatted as a standard UUID string
         std::string uuid = rs->getUUID("uuid_col");
@@ -248,14 +258,15 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
 
         // Test column metadata
         auto columnNames = rs->getColumnNames();
-        REQUIRE(columnNames.size() == 8); // 8 columns now with timestamp_col, uuid_col and blob_col
+        REQUIRE(columnNames.size() == 9); // 9 columns now with timestamp_col, time_col, uuid_col and blob_col
         REQUIRE(std::find(columnNames.begin(), columnNames.end(), "id") != columnNames.end());
         REQUIRE(std::find(columnNames.begin(), columnNames.end(), "int_col") != columnNames.end());
         REQUIRE(std::find(columnNames.begin(), columnNames.end(), "double_col") != columnNames.end());
         REQUIRE(std::find(columnNames.begin(), columnNames.end(), "text_col") != columnNames.end());
         REQUIRE(std::find(columnNames.begin(), columnNames.end(), "bool_col") != columnNames.end());
-        // Now include the timestamp column
+        // Now include the timestamp and time columns
         REQUIRE(std::find(columnNames.begin(), columnNames.end(), "timestamp_col") != columnNames.end());
+        REQUIRE(std::find(columnNames.begin(), columnNames.end(), "time_col") != columnNames.end());
         REQUIRE(std::find(columnNames.begin(), columnNames.end(), "uuid_col") != columnNames.end());
         REQUIRE(std::find(columnNames.begin(), columnNames.end(), "blob_col") != columnNames.end());
 

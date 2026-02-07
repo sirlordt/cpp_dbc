@@ -187,9 +187,33 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
+            // Only change the state if we're actually changing the mode
             if (this->m_autoCommit != autoCommit)
             {
-                this->m_autoCommit = autoCommit;
+                if (autoCommit)
+                {
+                    // Enabling autocommit - commit any active transaction first
+                    if (m_transactionActive)
+                    {
+                        auto commitResult = commit(std::nothrow);
+                        if (!commitResult)
+                        {
+                            return cpp_dbc::unexpected(commitResult.error());
+                        }
+                    }
+
+                    this->m_autoCommit = true;
+                    this->m_transactionActive = false;
+                }
+                else
+                {
+                    // Disabling autocommit - begin a transaction automatically (like MySQL driver)
+                    auto beginResult = beginTransaction(std::nothrow);
+                    if (!beginResult)
+                    {
+                        return cpp_dbc::unexpected(beginResult.error());
+                    }
+                }
             }
             return {};
         }

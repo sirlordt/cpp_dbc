@@ -1,6 +1,29 @@
 #!/bin/bash
 set -e
 
+show_usage() {
+    echo "Usage: $0 [--help|-h]"
+    echo ""
+    echo "Download and install the Cassandra C/C++ driver (version 2.17.1)."
+    echo ""
+    echo "This script will:"
+    echo "  - Check if the driver is already installed"
+    echo "  - Install build dependencies (cmake, make, g++, libuv, openssl, zlib)"
+    echo "  - Download and build the driver from source"
+    echo "  - Install to /usr/local"
+    echo ""
+    echo "Options:"
+    echo "  --help, -h    Show this help message"
+    echo ""
+    echo "Note: This script requires root privileges or sudo."
+}
+
+# Handle --help argument
+if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+    show_usage
+    exit 0
+fi
+
 # Function to check if a command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1

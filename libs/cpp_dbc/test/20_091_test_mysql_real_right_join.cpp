@@ -123,7 +123,7 @@ TEST_CASE("MySQL RIGHT JOIN operations", "[20_091_01_mysql_real_right_join]")
         customerStmt->setString(3, customer.second.substr(0, customer.second.find(' ')) + "@example.com");
         customerStmt->setString(4, "555-" + std::to_string(1000 + customer.first));
         customerStmt->setDouble(5, 1000.0 * customer.first);
-        customerStmt->setString(6, "2023-01-" + std::to_string(customer.first + 10) + " 10:00:00");
+        customerStmt->setTimestamp(6, "2023-01-" + std::to_string(customer.first + 10) + " 10:00:00");
         customerStmt->executeUpdate();
     }
 
@@ -198,7 +198,7 @@ TEST_CASE("MySQL RIGHT JOIN operations", "[20_091_01_mysql_real_right_join]")
         orderStmt->setInt(3, productId);
         orderStmt->setInt(4, quantity);
         orderStmt->setDouble(5, totalPrice);
-        orderStmt->setString(6, "2023-02-" + std::to_string(orderId % 28 + 1) + " 14:30:00");
+        orderStmt->setTimestamp(6, "2023-02-" + std::to_string(orderId % 28 + 1) + " 14:30:00");
         orderStmt->executeUpdate();
     }
 

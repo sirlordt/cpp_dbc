@@ -184,6 +184,16 @@ namespace cpp_dbc::MongoDB
 
         m_iterationStarted = true;
 
+        // If we have a peeked document from hasNext(), use it
+        if (m_peekedDoc)
+        {
+            m_currentDoc = std::move(m_peekedDoc);
+            m_peekedDoc.reset();
+            m_position++;
+            MONGODB_DEBUG("MongoDBCursor::next - Using peeked document at position: " << m_position);
+            return true;
+        }
+
         const bson_t *doc = nullptr;
         if (mongoc_cursor_next(m_cursor.get(), &doc))
         {
@@ -215,9 +225,40 @@ namespace cpp_dbc::MongoDB
         MONGODB_LOCK_GUARD(*m_connMutex);
         validateConnection();
         validateCursor();
+
         if (m_exhausted)
             return false;
-        return mongoc_cursor_more(m_cursor.get());
+
+        // If we already have a peeked document, we know there's a next one
+        if (m_peekedDoc)
+            return true;
+
+        // mongoc_cursor_more() is unreliable, so we peek ahead to be sure
+        // Read the next document and store it in m_peekedDoc
+        const bson_t *doc = nullptr;
+        if (mongoc_cursor_next(m_cursor.get(), &doc))
+        {
+            bson_t *docCopy = bson_copy(doc);
+            if (!docCopy)
+            {
+                throw DBException("38F1FRMH5NXW", "Failed to copy peeked document", system_utils::captureCallStack());
+            }
+            m_peekedDoc = std::make_shared<MongoDBDocument>(docCopy);
+            MONGODB_DEBUG("MongoDBCursor::hasNext - Peeked next document, has more: true");
+            return true;
+        }
+
+        // Check for cursor errors
+        bson_error_t error;
+        if (mongoc_cursor_error(m_cursor.get(), &error))
+        {
+            throw DBException("UE875SSEXTXD", std::string("Cursor error during hasNext: ") + error.message, system_utils::captureCallStack());
+        }
+
+        // No more documents
+        MONGODB_DEBUG("MongoDBCursor::hasNext - No more documents");
+        m_exhausted = true;
+        return false;
     }
 
     std::shared_ptr<DocumentDBData> MongoDBCursor::current()

@@ -4,7 +4,52 @@
 
 The CPP_DBC library appears to be in a functional state with the following components implemented:
 
-### Recent Improvements (2026-02-05)
+### Recent Improvements (2026-02-06)
+
+**Major Examples Reorganization and Automation Improvements:**
+1. **Examples Complete Restructuring:**
+   - Migrated from flat structure to hierarchical, database-family-based organization
+   - Implemented numeric prefix naming convention: `XX_YZZ_example_<db>_<feature>.cpp`
+   - 59 new example files created, 18 old files deleted
+   - Organization: common (10_xxx), MySQL (20_xxx), PostgreSQL (21_xxx), SQLite (22_xxx), Firebird (23_xxx), Redis (24_xxx), MongoDB (25_xxx), ScyllaDB (26_xxx)
+   - Examples in family folders: `examples/relational/`, `examples/kv/`, `examples/document/`, `examples/columnar/`
+
+2. **New Example Discovery and Execution System:**
+   - Created `run_examples.sh` script for automatic example discovery and execution
+   - Supports wildcard pattern matching: `--run='23_*'`, `--run='*_basic'`
+   - Lists examples by category (relational, document, kv, columnar)
+   - Integrated with `helper.sh` via `--run-example` command
+
+3. **Enhanced Helper Script Automation:**
+   - Added `--run-example` command with wildcard support
+   - Automatic example logging to `/logs/example/{timestamp}/`
+   - Auto-cleanup of old logs (keeps 4 most recent)
+   - Provides summary statistics (success/failure counts)
+
+4. **Script Organization Improvements:**
+   - Moved shared functions: `lib/common_functions.sh` → `scripts/common/functions.sh`
+   - Added `--help` / `-h` option to all major scripts
+   - Added `show_usage()` functions with detailed examples
+   - Better organization following DRY principle
+
+5. **System Utilities Enhancement:**
+   - Added `getExecutablePath()` — Returns directory path where executable is located
+   - Added `getExecutablePathAndName()` — Returns full path including executable name
+   - Replaced ad-hoc implementations in benchmarks with standardized utility
+
+6. **Test Framework Improvements:**
+   - New MongoDB Cursor API Test (`25_521_test_mongodb_real_cursor_api.cpp`)
+   - First use of "exclusive test category" (5YY range) for driver-specific APIs
+   - Updated all test helpers to support new structure
+
+7. **Documentation Updates:**
+   - Updated `how_add_new_db_drivers.md` with new example naming conventions
+   - Updated `shell_script_dependencies.md` with new script paths
+   - Updated all user-facing documentation (README, QUICKSTART, docs)
+
+**Impact:** 162 files changed, 34,214 lines in diff. Significantly improved project discoverability, maintainability, and developer experience.
+
+### Previous Improvements (2026-02-05)
 
 **Comprehensive Documentation for New Driver Development and Error Handling:**
 1. **New Driver Development Guide (`how_add_new_db_drivers.md`):**

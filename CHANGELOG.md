@@ -1,6 +1,112 @@
 # Changelog
 
-## 2026-02-04 22:06:05 PST [Current]
+## 2026-02-06 16:40:00 PST [Current]
+
+### Major Examples Reorganization and Automation Improvements
+
+* **Examples Complete Restructuring (59 new files, 18 deleted):**
+  * Migrated from flat structure to hierarchical, database-family-based organization
+  * Implemented numeric prefix naming convention: `XX_YZZ_example_<db>_<feature>.cpp`
+    * XX = Database family (10=common, 20=MySQL, 21=PostgreSQL, 22=SQLite, 23=Firebird, 24=Redis, 25=MongoDB, 26=ScyllaDB)
+    * YZZ = Feature category (001=basic, 021=connection_info, 031=pool, 041=transaction, 051=json, 061=blob, 071=join, 081=batch, 091=error_handling)
+  * Allows up to 99 database families and 99 feature categories per family for future scalability
+
+* **Example Organization by Database Family:**
+  * **Common Examples (10_xxx):** Config and integration examples
+  * **MySQL Examples (20_xxx):** 9 examples covering all major features
+  * **PostgreSQL Examples (21_xxx):** 9 examples covering all major features
+  * **SQLite Examples (22_xxx):** 9 examples covering all major features
+  * **Firebird Examples (23_xxx):** 10 examples including reserved word handling
+  * **Redis Examples (24_xxx):** 7 examples for key-value operations
+  * **MongoDB Examples (25_xxx):** 5 examples for document operations
+  * **ScyllaDB Examples (26_xxx):** 7 examples for columnar operations
+
+* **New Shared Helper Headers:**
+  * `examples/common/example_common.hpp` — Shared utility functions for all examples
+  * `examples/relational/example_relational_common.hpp` — Shared relational database helpers
+
+* **Placeholder Directories for Future Examples:**
+  * `examples/graph/README.md` — Reserved for graph database examples
+  * `examples/timeseries/README.md` — Reserved for time-series database examples
+
+* **New Example Discovery and Execution Script (`run_examples.sh`):**
+  * Automatically discovers all compiled examples from build directory
+  * Lists examples by category (relational, document, kv, columnar)
+  * Supports wildcard pattern matching: `--run='23_*'`, `--run='*_basic'`
+  * Provides build hints for missing examples
+  * Integrates with `helper.sh` via `--run-example` command
+
+* **Enhanced `helper.sh` Automation:**
+  * Added `--run-example` command for running examples
+    * `--run-example` — Run all available examples
+    * `--run-example=NAMES` — Run specific examples (comma-separated)
+    * `--run-example=*` — Run all examples with wildcard support
+  * New `cmd_run_examples()` function (188 lines) with full wildcard pattern expansion
+  * Automatic example logging to `/logs/example/{timestamp}/`
+  * Auto-cleanup of old logs (keeps 4 most recent)
+  * Provides summary statistics (success/failure counts)
+  * Updated combo command descriptions for clarity
+
+* **Script Organization and Improvements:**
+  * Moved shared functions: `lib/common_functions.sh` → `scripts/common/functions.sh`
+  * Better organization following DRY principle with centralized `scripts/common/` directory
+  * All scripts updated to source from new location
+  * Added `--help` / `-h` option to all major scripts:
+    * `helper.sh` — Shows all available commands with descriptions
+    * `check_dbexception_codes.sh` — Shows usage for checking/fixing error codes
+    * `generate_dbexception_code.sh` — Shows usage for generating unique codes
+    * `download_and_setup_cassandra_driver.sh` — Shows setup instructions
+  * Added `show_usage()` functions with detailed examples to all scripts
+
+* **System Utilities Enhancement (`system_utils.hpp/cpp`):**
+  * Added `getExecutablePath()` — Returns directory path where executable is located
+  * Added `getExecutablePathAndName()` — Returns full path including executable name
+  * Purpose: Portable way to locate executables and resources across platforms
+  * Replaced ad-hoc implementations in benchmarks with standardized utility
+
+* **Test Framework Improvements:**
+  * **New MongoDB Cursor API Test (`25_521_test_mongodb_real_cursor_api.cpp`):**
+    * First use of "exclusive test category" (5YY range) for driver-specific APIs
+    * Tests MongoDB-specific cursor methods: `hasNext()` and `nextDocument()`
+    * Documents pattern for testing APIs unique to a database family
+  * Updated test helper functions in `10_000_test_main.cpp/hpp`
+  * Updated all database family tests to use new helpers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB)
+
+* **Build System Updates (`CMakeLists.txt`):**
+  * Reorganized example targets (lines 468-661) with clear database family sections
+  * Added conditional compilation for 56+ example targets based on `USE_<DRIVER>` flags
+  * Better documentation with section comments for each database family
+  * Proper file paths for moved resources (`test.jpg`, `example_config.yml`)
+
+* **Documentation Updates:**
+  * **`how_add_new_db_drivers.md`:**
+    * Added "Exclusive Test Categories" section documenting 5YY range
+    * Updated test category table with category 521 (driver-exclusive API tests)
+    * Reserved categories 522-599 for future exclusive tests
+  * **`shell_script_dependencies.md`:**
+    * Updated path references: `lib/common_functions.sh` → `scripts/common/functions.sh`
+    * Added "Shared Functions Library" section with comprehensive function documentation
+    * Added documentation for `run_examples.sh` script
+    * Documents 20+ shared bash functions with usage examples
+
+* **Benchmark Improvements (`benchmark_common.cpp/hpp`):**
+  * Removed local `getExecutablePathAndName()` and `getOnlyExecutablePath()` functions
+  * Now uses `cpp_dbc::system_utils::getExecutablePath()` from core library
+  * Cleaner code following DRY principle
+
+* **Deleted Legacy Files:**
+  * Removed 15 old example files with generic names
+  * Removed old example runner scripts: `run_config_example.sh`, `run_config_integration_example.sh`
+
+* **TODO.md Updates:**
+  * Added task: Helgrind support in helper.sh for data race and deadlock detection
+  * Added task: Script to detect public methods and check test coverage
+  * Added task: Reorganize test source code into family folders
+
+* **162 files changed, 34,214 lines in diff**
+* **Impact:** Significantly improved project discoverability, maintainability, and developer experience
+
+## 2026-02-04 22:06:05 PST
 
 ### Comprehensive Documentation for New Driver Development and Error Handling
 

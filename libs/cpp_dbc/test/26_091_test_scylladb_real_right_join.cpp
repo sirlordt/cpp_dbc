@@ -166,7 +166,7 @@ TEST_CASE("ScyllaDB RIGHT JOIN emulation", "[26_091_01_scylladb_real_right_join]
     conn->executeUpdate("CREATE INDEX IF NOT EXISTS ON " + keyspace + ".test_courses (credits)");
 
     // Wait a bit for indexes to be ready and data to be consistent
-    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
     SECTION("Basic RIGHT JOIN emulation")
     {

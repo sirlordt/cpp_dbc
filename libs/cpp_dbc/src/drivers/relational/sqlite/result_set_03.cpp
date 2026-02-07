@@ -159,6 +159,99 @@ namespace cpp_dbc::SQLite
         }
     }
 
+    cpp_dbc::expected<std::string, DBException> SQLiteDBResultSet::getDate(std::nothrow_t, const std::string &columnName) noexcept
+    {
+        try
+        {
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
+            {
+                return cpp_dbc::unexpected(DBException("PBQCIWA2TJZ3", "Column not found: " + columnName,
+                                                       system_utils::captureCallStack()));
+            }
+
+            return getDate(std::nothrow, it->second + 1);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("D3YH1LHQ1CBY",
+                                                   std::string("getDate failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("HBPSL6UPB6AH",
+                                                   "getDate failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<std::string, DBException> SQLiteDBResultSet::getTimestamp(std::nothrow_t, const std::string &columnName) noexcept
+    {
+        try
+        {
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
+            {
+                return cpp_dbc::unexpected(DBException("R09JSU56AXFJ", "Column not found: " + columnName,
+                                                       system_utils::captureCallStack()));
+            }
+
+            return getTimestamp(std::nothrow, it->second + 1);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("22EKF4Q293YB",
+                                                   std::string("getTimestamp failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("WC33FJ13ZU13",
+                                                   "getTimestamp failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<std::string, DBException> SQLiteDBResultSet::getTime(std::nothrow_t, const std::string &columnName) noexcept
+    {
+        try
+        {
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
+            {
+                return cpp_dbc::unexpected(DBException("F2901E52MFWC", "Column not found: " + columnName,
+                                                       system_utils::captureCallStack()));
+            }
+
+            return getTime(std::nothrow, it->second + 1);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("UG5NGYTUB1LR",
+                                                   std::string("getTime failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("AILUOP4YRQAW",
+                                                   "getTime failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
     cpp_dbc::expected<std::vector<std::string>, DBException> SQLiteDBResultSet::getColumnNames(std::nothrow_t) noexcept
     {
         try

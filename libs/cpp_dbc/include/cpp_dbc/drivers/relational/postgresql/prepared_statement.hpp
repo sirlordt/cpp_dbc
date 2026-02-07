@@ -90,6 +90,7 @@ namespace cpp_dbc::PostgreSQL
         void setNull(int parameterIndex, Types type) override;
         void setDate(int parameterIndex, const std::string &value) override;
         void setTimestamp(int parameterIndex, const std::string &value) override;
+        void setTime(int parameterIndex, const std::string &value) override;
 
         // BLOB support methods
         void setBlob(int parameterIndex, std::shared_ptr<Blob> x) override;
@@ -112,6 +113,7 @@ namespace cpp_dbc::PostgreSQL
         [[nodiscard]] cpp_dbc::expected<void, DBException> setNull(std::nothrow_t, int parameterIndex, Types type) noexcept override;
         [[nodiscard]] cpp_dbc::expected<void, DBException> setDate(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
         [[nodiscard]] cpp_dbc::expected<void, DBException> setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setTime(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
         [[nodiscard]] cpp_dbc::expected<void, DBException> setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept override;
         [[nodiscard]] cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept override;
         [[nodiscard]] cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept override;
