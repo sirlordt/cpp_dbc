@@ -479,6 +479,8 @@ start_test() {
                 local build_dir="$SCRIPT_DIR/build/libs/cpp_dbc/build"
                 echo "Cleaning up SQLite database files from previous test session..."
                 rm -f "$build_dir"/*.db "$build_dir"/*.db-wal "$build_dir"/*.db-shm 2>/dev/null || true
+                # Also clean up YAML-configured external SQLite test DB
+                rm -f /tmp/cpp_dbc_test_sqlite.db /tmp/cpp_dbc_test_sqlite.db-wal /tmp/cpp_dbc_test_sqlite.db-shm 2>/dev/null || true
                 echo "SQLite cleanup completed."
                 echo ""
             fi
