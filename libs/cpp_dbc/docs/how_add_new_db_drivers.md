@@ -851,6 +851,40 @@ See `libs/cpp_dbc/download_and_setup_cassandra_driver.sh` for a complete working
 
 ## Phase 3: Create Tests
 
+### Test Directory Structure
+
+**CRITICAL**: Tests are organized by database family following the same pattern as examples:
+
+```text
+libs/cpp_dbc/test/
+├── common/                           # Core tests (10_*)
+│   ├── 10_000_test_main.cpp
+│   ├── 10_001_test_database_config.cpp
+│   ├── 10_011_test_db_config.cpp
+│   ├── 10_021_test_db_connection_pool_config.cpp
+│   ├── 10_031_test_db_exception.cpp
+│   ├── 10_041_test_expected.cpp
+│   ├── 10_051_test_yaml.cpp
+│   ├── 10_061_test_integration.cpp
+│   ├── test_db_connections.yml
+│   └── test.jpg
+├── relational/
+│   ├── mysql/                        # MySQL tests (20_*)
+│   ├── postgresql/                   # PostgreSQL tests (21_*)
+│   ├── sqlite/                       # SQLite tests (22_*)
+│   └── firebird/                     # Firebird tests (23_*)
+├── kv/
+│   └── redis/                        # Redis tests (24_*)
+├── document/
+│   └── mongodb/                      # MongoDB tests (25_*)
+├── columnar/
+│   └── scylladb/                     # ScyllaDB tests (26_*)
+├── graph/
+│   └── .git_keep                     # Reserved for future
+└── timeseries/
+    └── .git_keep                     # Reserved for future
+```
+
 ### Test File Naming Convention
 
 Test files follow this pattern: `XX_YYY_test_<driver>_<category>.cpp`
@@ -863,19 +897,19 @@ Where:
 
 #### Driver Prefix Assignment
 
-| Prefix | Driver     | Family     |
-|--------|------------|------------|
-| 10     | Core       | N/A        |
-| 20     | MySQL      | relational |
-| 21     | PostgreSQL | relational |
-| 22     | SQLite     | relational |
-| 23     | Firebird   | relational |
-| 24     | Redis      | kv         |
-| 25     | MongoDB    | document   |
-| 26     | ScyllaDB   | columnar   |
-| 27     | (Next)     | (Next)     |
+| Prefix | Driver     | Family     | Directory                        |
+|--------|------------|------------|----------------------------------|
+| 10     | Core       | N/A        | `test/common/`                   |
+| 20     | MySQL      | relational | `test/relational/mysql/`         |
+| 21     | PostgreSQL | relational | `test/relational/postgresql/`    |
+| 22     | SQLite     | relational | `test/relational/sqlite/`        |
+| 23     | Firebird   | relational | `test/relational/firebird/`      |
+| 24     | Redis      | kv         | `test/kv/redis/`                 |
+| 25     | MongoDB    | document   | `test/document/mongodb/`         |
+| 26     | ScyllaDB   | columnar   | `test/columnar/scylladb/`        |
+| 27     | (Next)     | (Next)     | `test/<family>/<driver>/`        |
 
-For a new driver like SQL Server, you would use prefix `27_`.
+For a new relational driver like SQL Server, you would use prefix `27_` and place files in `test/relational/sqlserver/`.
 
 #### Test Categories
 
@@ -916,24 +950,24 @@ For tests that are specific to a database family and cannot be shared with other
 
 #### Relational Database Tests
 
-Required files:
+Required files in `test/relational/sqlserver/`:
 ```
-27_001_test_sqlserver_real_common.cpp     # Test helpers
-27_001_test_sqlserver_real_common.hpp     # Test helpers header
-27_011_test_sqlserver_real_db_config.cpp
-27_021_test_sqlserver_real_driver.cpp
-27_031_test_sqlserver_real.cpp
-27_041_test_sqlserver_real_connection.cpp
-27_051_test_sqlserver_real_json.cpp
-27_061_test_sqlserver_real_blob.cpp
-27_071_test_sqlserver_real_inner_join.cpp
-27_081_test_sqlserver_real_left_join.cpp
-27_091_test_sqlserver_real_right_join.cpp
-27_101_test_sqlserver_real_full_join.cpp
-27_111_test_sqlserver_real_thread_safe.cpp
-27_121_test_sqlserver_real_transaction_isolation.cpp
-27_131_test_sqlserver_real_transaction_manager.cpp
-27_141_test_sqlserver_real_connection_pool.cpp
+test/relational/sqlserver/27_001_test_sqlserver_real_common.cpp     # Test helpers
+test/relational/sqlserver/27_001_test_sqlserver_real_common.hpp     # Test helpers header
+test/relational/sqlserver/27_011_test_sqlserver_real_db_config.cpp
+test/relational/sqlserver/27_021_test_sqlserver_real_driver.cpp
+test/relational/sqlserver/27_031_test_sqlserver_real.cpp
+test/relational/sqlserver/27_041_test_sqlserver_real_connection.cpp
+test/relational/sqlserver/27_051_test_sqlserver_real_json.cpp
+test/relational/sqlserver/27_061_test_sqlserver_real_blob.cpp
+test/relational/sqlserver/27_071_test_sqlserver_real_inner_join.cpp
+test/relational/sqlserver/27_081_test_sqlserver_real_left_join.cpp
+test/relational/sqlserver/27_091_test_sqlserver_real_right_join.cpp
+test/relational/sqlserver/27_101_test_sqlserver_real_full_join.cpp
+test/relational/sqlserver/27_111_test_sqlserver_real_thread_safe.cpp
+test/relational/sqlserver/27_121_test_sqlserver_real_transaction_isolation.cpp
+test/relational/sqlserver/27_131_test_sqlserver_real_transaction_manager.cpp
+test/relational/sqlserver/27_141_test_sqlserver_real_connection_pool.cpp
 ```
 
 #### Key-Value Database Tests
@@ -992,23 +1026,88 @@ Add `dev_<driver>` and `test_<driver>` entries following the existing patterns i
 
 ### Update test/CMakeLists.txt
 
-Add the option:
+**IMPORTANT**: Test files must use family-prefixed paths in CMakeLists.txt.
+
+#### 1. Add the option:
 ```cmake
 option(USE_SQLSERVER "Enable SQL Server support" OFF)
 ```
 
-Add the test files:
+#### 2. Add the test files with family paths:
 ```cmake
-# SQL Server tests
-27_001_test_sqlserver_real_common.cpp
-27_011_test_sqlserver_real_db_config.cpp
-# ... all test files ...
+# SQL Server tests (relational/sqlserver/)
+relational/sqlserver/27_001_test_sqlserver_real_common.cpp
+relational/sqlserver/27_011_test_sqlserver_real_db_config.cpp
+relational/sqlserver/27_021_test_sqlserver_real_driver.cpp
+relational/sqlserver/27_031_test_sqlserver_real.cpp
+relational/sqlserver/27_041_test_sqlserver_real_connection.cpp
+relational/sqlserver/27_051_test_sqlserver_real_json.cpp
+relational/sqlserver/27_061_test_sqlserver_real_blob.cpp
+relational/sqlserver/27_071_test_sqlserver_real_inner_join.cpp
+relational/sqlserver/27_081_test_sqlserver_real_left_join.cpp
+relational/sqlserver/27_091_test_sqlserver_real_right_join.cpp
+relational/sqlserver/27_101_test_sqlserver_real_full_join.cpp
+relational/sqlserver/27_111_test_sqlserver_real_thread_safe.cpp
+relational/sqlserver/27_121_test_sqlserver_real_transaction_isolation.cpp
+relational/sqlserver/27_131_test_sqlserver_real_transaction_manager.cpp
+relational/sqlserver/27_141_test_sqlserver_real_connection_pool.cpp
 ```
 
-Add compile definition:
+#### 3. Add compile definition:
 ```cmake
 $<$<BOOL:${USE_SQLSERVER}>:USE_SQLSERVER=1>
 $<$<NOT:$<BOOL:${USE_SQLSERVER}>>:USE_SQLSERVER=0>
+```
+
+#### 4. Add include directories for test headers:
+```cmake
+# Add include directories (add after existing target_include_directories)
+target_include_directories(cpp_dbc_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/relational/mysql
+    ${CMAKE_CURRENT_SOURCE_DIR}/relational/postgresql
+    ${CMAKE_CURRENT_SOURCE_DIR}/relational/sqlite
+    ${CMAKE_CURRENT_SOURCE_DIR}/relational/firebird
+    ${CMAKE_CURRENT_SOURCE_DIR}/relational/sqlserver    # Add your new driver here
+    ${CMAKE_CURRENT_SOURCE_DIR}/kv/redis
+    ${CMAKE_CURRENT_SOURCE_DIR}/document/mongodb
+    ${CMAKE_CURRENT_SOURCE_DIR}/columnar/scylladb
+)
+```
+
+This allows test files to `#include "XX_001_test_<driver>_real_common.hpp"` without specifying the full path.
+
+#### 5. Update file copy operations for common resources:
+```cmake
+# Copy the test_db_connections.yml file from common/
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/common/test_db_connections.yml
+    ${CMAKE_CURRENT_BINARY_DIR}/test_db_connections.yml
+    COPYONLY)
+
+# Copy the test.jpg file from common/
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/common/test.jpg
+    ${CMAKE_CURRENT_BINARY_DIR}/test.jpg
+    COPYONLY)
+```
+
+#### 6. Update common integration tests (if applicable):
+
+If you need to add support for the new driver in `common/10_061_test_integration.cpp`, wrap it with `USE_<DRIVER>`:
+
+```cpp
+#if USE_SQLSERVER
+#include "27_001_test_sqlserver_real_common.hpp"
+#endif
+
+// Later in the test file:
+#if USE_SQLSERVER
+TEST_CASE("SQL Server Integration", "[10_061_07_sqlserver_integration]")
+{
+    auto driver = std::make_shared<cpp_dbc::SQLServerDBDriver>();
+    // ... test code ...
+}
+#endif
 ```
 
 ---
@@ -1454,10 +1553,22 @@ endif()
 
 ### Phase 3: Tests
 - [ ] Compiles without warnings with `-Wall -Wextra -Wpedantic`
-- [ ] Created test helper files (`XX_001_...common.cpp/hpp`)
-- [ ] Created all required test files
+- [ ] Created test directory structure: `test/<family>/<driver>/`
+  - Relational: `test/relational/<driver>/`
+  - KV: `test/kv/<driver>/`
+  - Document: `test/document/<driver>/`
+  - Columnar: `test/columnar/<driver>/`
+- [ ] Created test helper files (`XX_001_...common.cpp/hpp`) in appropriate family directory
+- [ ] Created all required test files in appropriate family directory
 - [ ] Updated `libs/cpp_dbc/test/CMakeLists.txt`
-- [ ] Added entries to `libs/cpp_dbc/test/test_db_connections.yml` (single file, add new driver entries)
+  - [ ] Added option for the new driver
+  - [ ] Added test files with family-prefixed paths (e.g., `relational/sqlserver/27_001_...`)
+  - [ ] Added compile definitions
+  - [ ] Added include directory for the new driver (e.g., `${CMAKE_CURRENT_SOURCE_DIR}/relational/sqlserver`)
+- [ ] Updated `common/10_061_test_integration.cpp` (if applicable)
+  - [ ] Added `#if USE_<DRIVER>` include for driver's common header
+  - [ ] Added integration test case wrapped in `#if USE_<DRIVER>`
+- [ ] Added entries to `libs/cpp_dbc/test/common/test_db_connections.yml` (single file in common/, add new driver entries)
 - [ ] All tests pass
 
 #### ⚠️ CHECKPOINT: Validate Before Phase 4

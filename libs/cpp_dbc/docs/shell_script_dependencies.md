@@ -239,6 +239,85 @@ helper.sh --vscode
             └─► writes: .vscode/c_cpp_properties.json
 ```
 
+### Parallel Test Runner Features
+
+The `run_test_parallel.sh` script includes several advanced features for robust test execution:
+
+#### Terminal Resize Handling
+
+Handles terminal resize events (SIGWINCH) to prevent TUI artifacts:
+
+```bash
+# Global flag
+TERM_RESIZED=false
+
+# Signal handler
+handle_terminal_resize() {
+    TERM_RESIZED=true
+}
+
+# Trap setup in TUI initialization
+trap 'handle_terminal_resize' WINCH
+
+# In draw function
+if [ "$TERM_RESIZED" = true ]; then
+    tput clear  # Clear screen completely
+    TERM_RESIZED=false
+    # Redraw TUI
+fi
+```
+
+**Key insight**: `tput clear` completely clears the screen, removing resize artifacts. Without explicit SIGWINCH handling, TUI artifacts persist until next render cycle.
+
+#### Dual Log File System
+
+Maintains two log file versions for different use cases:
+
+```bash
+# Execute test and split output
+{
+    "${cmd[@]}" 2>&1
+} | tee "$log_file_ansi" | sed 's/\x1b\[[0-9;]*m//g' > "$log_file"
+```
+
+**Log file organization**:
+- `.log` files (clean, no ANSI codes): `logs/test/TIMESTAMP/*.log`
+  - Easy to read, parse, and search
+  - Suitable for automated log analysis
+- `.log.ansi` files (colored): `/tmp/cpp_dbc/logs/test/TIMESTAMP/*.log.ansi`
+  - Full ANSI color codes preserved
+  - Used by TUI for colored display
+  - Stored in `/tmp` to avoid filling project logs directory
+
+**Cleanup system**:
+- `cleanup_old_log_folders()`: Keeps last 5 folders in `logs/test/`
+- `cleanup_old_tmp_ansi_folders()`: Keeps last 5 folders in `/tmp/cpp_dbc/logs/test/`
+- Critical for VMs that suspend instead of reboot (prevents `/tmp` fill-up)
+- Mirrored timestamp directory structure maintains correlation between logs
+
+#### Recursive Test Discovery
+
+Automatically discovers tests in family-based directory structure:
+
+```bash
+# Old approach (flat directory)
+for file in "$test_dir"/*_*_test_*.cpp; do
+    # Extract prefix
+done
+
+# New approach (recursive, supports subdirectories)
+while IFS= read -r file; do
+    local basename=$(basename "$file")
+    local prefix=$(echo "$basename" | grep -oP '^\d+_' | head -1)
+    # Process prefix
+done < <(find "$test_dir" -type f -name "*_*_test_*.cpp")
+```
+
+**Benefits**:
+- Supports new test directory organization by database family
+- Works with unlimited nesting depth
+- No changes needed when adding new driver directories
+
 ## Adding a New Driver: Scripts to Update
 
 When adding a new database driver, update these scripts in order:

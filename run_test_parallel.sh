@@ -39,6 +39,7 @@ declare -A PREFIX_PIDS          # PID for each running prefix
 declare -A PREFIX_CURRENT_RUN   # Current run number for each prefix
 declare -A PREFIX_STATUS        # Status: pending, running, completed, failed
 declare -A PREFIX_LOG_FILE      # Log file path for current run
+declare -A PREFIX_LOG_FILE_ANSI # ANSI log file path (in /tmp) for current run
 declare -A PREFIX_START_TIME    # Start time (epoch seconds) for current run
 declare -A PREFIX_FAIL_REASON   # Failure reason (Valgrind error message, etc.)
 declare -A PREFIX_TOTAL_TESTS   # Total test count per prefix (known after Run 1)
@@ -53,6 +54,10 @@ TERM_COLS=0
 LEFT_PANEL_WIDTH=30
 RUNNING_PREFIXES_COUNT=0
 ORIGINAL_STTY_SETTINGS=""
+TERM_RESIZED=false
+
+# Temporary directory for .ansi files (in /tmp to keep logs clean)
+TEMP_ANSI_DIR=""
 
 # Color codes, check_color_support(), and validate_numeric() are provided by lib/common_functions.sh
 
@@ -146,21 +151,20 @@ discover_prefixes() {
         exit 1
     fi
 
-    # Find all unique prefixes (e.g., 10_, 20_, 21_, etc.)
-    for file in "$test_dir"/*_*_test_*.cpp; do
-        if [ -f "$file" ]; then
-            local basename=$(basename "$file")
-            # Extract prefix (first part before second underscore)
-            local prefix=$(echo "$basename" | grep -oP '^\d+_' | head -1)
-            if [ -n "$prefix" ]; then
-                # Remove trailing underscore for comparison
-                local prefix_num="${prefix%_}"
-                if [[ ! " ${prefixes[*]} " =~ " ${prefix_num} " ]]; then
-                    prefixes+=("$prefix_num")
-                fi
+    # Find all unique prefixes (e.g., 10_, 20_, 21_, etc.) recursively in subdirectories
+    # Tests are now organized by family: common/, relational/mysql/, document/mongodb/, etc.
+    while IFS= read -r file; do
+        local basename=$(basename "$file")
+        # Extract prefix (first part before second underscore)
+        local prefix=$(echo "$basename" | grep -oP '^\d+_' | head -1)
+        if [ -n "$prefix" ]; then
+            # Remove trailing underscore for comparison
+            local prefix_num="${prefix%_}"
+            if [[ ! " ${prefixes[*]} " =~ " ${prefix_num} " ]]; then
+                prefixes+=("$prefix_num")
             fi
         fi
-    done
+    done < <(find "$test_dir" -type f -name "*_*_test_*.cpp")
 
     # Sort prefixes numerically
     IFS=$'\n' sorted=($(sort -n <<<"${prefixes[*]}")); unset IFS
@@ -352,6 +356,42 @@ cleanup_old_log_folders() {
     fi
 }
 
+# Cleanup old temporary ANSI folders in /tmp, keeping only the latest MAX_LOG_FOLDERS
+cleanup_old_tmp_ansi_folders() {
+    local tmp_base="/tmp/cpp_dbc/logs/test"
+
+    if [ ! -d "$tmp_base" ]; then
+        return
+    fi
+
+    # Get all tmp folders sorted by name (which is a timestamp, so oldest first)
+    local -a all_folders=()
+    while IFS= read -r folder; do
+        [ -n "$folder" ] && all_folders+=("$folder")
+    done < <(find "$tmp_base" -maxdepth 1 -type d -name "20*" | sort)
+
+    local folder_count=${#all_folders[@]}
+
+    # If we have more than MAX_LOG_FOLDERS, delete the oldest ones
+    if [ "$folder_count" -gt "$MAX_LOG_FOLDERS" ]; then
+        local to_delete=$((folder_count - MAX_LOG_FOLDERS))
+
+        if [ "$SHOW_TUI" = false ]; then
+            echo "Cleaning up old /tmp ANSI folders (keeping last $MAX_LOG_FOLDERS)..."
+        fi
+
+        for ((i=0; i<to_delete; i++)); do
+            local folder_to_delete="${all_folders[$i]}"
+            if [ -d "$folder_to_delete" ]; then
+                if [ "$SHOW_TUI" = false ]; then
+                    echo "  Removing: /tmp/cpp_dbc/logs/test/$(basename "$folder_to_delete")"
+                fi
+                rm -rf "$folder_to_delete"
+            fi
+        done
+    fi
+}
+
 # Create log file path for a prefix and run
 get_log_file_path() {
     local prefix=$1
@@ -372,6 +412,10 @@ start_test() {
 
     local log_file=$(get_log_file_path "$prefix" "$run_num")
     PREFIX_LOG_FILE[$prefix]="$log_file"
+
+    # ANSI log file goes to /tmp
+    local log_file_ansi="$TEMP_ANSI_DIR/${prefix}_RUN$(printf '%02d' $run_num).log.ansi"
+    PREFIX_LOG_FILE_ANSI[$prefix]="$log_file_ansi"
 
     # Initialize timeout tracking
     PREFIX_LAST_LOG_SIZE[$prefix]=0
@@ -408,9 +452,9 @@ start_test() {
     local cmd_display="${cmd[*]}"
 
     # Run the test in background
-    # NOTE: We avoid using pipes (| tr -d '\r') because if the process crashes,
-    # the pipe can hang indefinitely waiting for more data. Instead, we write
-    # directly to the log file and clean it up afterwards.
+    # We maintain two log files:
+    #   - .log.ansi: with color codes (for TUI display) - stored in /tmp
+    #   - .log: without color codes (for clean reading while test runs)
     (
         cd "$SCRIPT_DIR"
 
@@ -425,8 +469,8 @@ start_test() {
             echo "=== Command: $cmd_display ==="
             echo ""
 
-            # Execute the test command directly without pipe
-            # This prevents hanging when the process crashes with a signal
+            # Execute the test command
+            # Use tee to write to both files: one with colors, one without
             "${cmd[@]}" 2>&1
             exit_code=$?
 
@@ -441,7 +485,7 @@ start_test() {
             fi
 
             exit $exit_code
-        } > "$log_file" 2>&1
+        } | tee "$log_file_ansi" | sed 's/\x1b\[[0-9;]*m//g' > "$log_file"
 
     ) &
 
@@ -599,6 +643,7 @@ all_tests_done() {
 
 # Rename log file to indicate failure
 # Changes PREFIX_RUNXX.log to PREFIX_RUNXX_fail.log
+# Note: .ansi file stays in /tmp with original name (will be cleaned up later)
 mark_log_as_failed() {
     local prefix=$1
     local log_file="${PREFIX_LOG_FILE[$prefix]}"
@@ -611,18 +656,13 @@ mark_log_as_failed() {
     fi
 }
 
-# Strip ANSI escape codes from log file for clean reading
-# Preserves the log content but removes color codes
+# Clean up ANSI log file after test completion
+# The .log file is already clean (generated without ANSI codes)
+# The .ansi file stays in /tmp for historical reference (cleaned by cleanup_old_tmp_ansi_folders)
 strip_ansi_from_log() {
     local prefix=$1
-    local log_file="${PREFIX_LOG_FILE[$prefix]}"
-
-    if [ -f "$log_file" ]; then
-        # Create temp file, strip ANSI codes, replace original
-        local temp_file=$(mktemp)
-        sed 's/\x1b\[[0-9;]*m//g' "$log_file" > "$temp_file"
-        mv "$temp_file" "$log_file"
-    fi
+    # Nothing to do - .ansi files are kept as historical logs
+    # They will be cleaned up by cleanup_old_tmp_ansi_folders on next run
 }
 
 # Extract skipped tests from log file
@@ -1261,6 +1301,11 @@ run_summarize_mode() {
 # TUI Functions
 # ============================================================================
 
+# Handle terminal resize
+handle_terminal_resize() {
+    TERM_RESIZED=true
+}
+
 # Initialize TUI
 tui_init() {
     # Get terminal size
@@ -1281,6 +1326,9 @@ tui_init() {
     # Set up alternate screen buffer
     tput smcup
 
+    # Set up SIGWINCH handler for terminal resize
+    trap 'handle_terminal_resize' WINCH
+
     # Mark TUI as active (for cleanup on interrupt)
     TUI_ACTIVE=true
 }
@@ -1289,6 +1337,9 @@ tui_init() {
 tui_cleanup() {
     # Mark TUI as inactive (prevent multiple cleanup calls)
     TUI_ACTIVE=false
+
+    # Remove SIGWINCH handler
+    trap - WINCH
 
     # Restore original terminal settings (re-enables echo)
     if [ -n "$ORIGINAL_STTY_SETTINGS" ]; then
@@ -1470,11 +1521,13 @@ tui_draw_right_panel() {
     # Get selected prefix from running tasks
     local selected_prefix=""
     local log_file=""
+    local log_file_ansi=""
     local title="Output"
 
     if [ ${#running_prefixes[@]} -gt 0 ] && [ $SELECTED_INDEX -lt ${#running_prefixes[@]} ]; then
         selected_prefix="${running_prefixes[$SELECTED_INDEX]}"
         log_file="${PREFIX_LOG_FILE[$selected_prefix]}"
+        log_file_ansi="${PREFIX_LOG_FILE_ANSI[$selected_prefix]}"
         title="Output: ${selected_prefix}_"
     fi
 
@@ -1485,10 +1538,17 @@ tui_draw_right_panel() {
     local content_width=$((panel_width - 2))
     local content_height=$((panel_height - 2))
 
-    if [ -f "$log_file" ]; then
+    # Prefer reading from .ansi file for TUI display (has colors)
+    # Fall back to .log if .ansi doesn't exist (test completed)
+    local display_log="$log_file"
+    if [ -f "$log_file_ansi" ]; then
+        display_log="$log_file_ansi"
+    fi
+
+    if [ -f "$display_log" ]; then
         # Get last N lines of log file
         local lines
-        mapfile -t lines < <(tail -n $content_height "$log_file" 2>/dev/null)
+        mapfile -t lines < <(tail -n $content_height "$display_log" 2>/dev/null)
 
         local row=1
         for line in "${lines[@]}"; do
@@ -1585,12 +1645,19 @@ tui_draw_status_bar() {
     if [ ${#running_prefixes[@]} -gt 0 ] && [ $SELECTED_INDEX -lt ${#running_prefixes[@]} ]; then
         local selected_prefix="${running_prefixes[$SELECTED_INDEX]}"
         local log_file="${PREFIX_LOG_FILE[$selected_prefix]}"
+        local log_file_ansi="${PREFIX_LOG_FILE_ANSI[$selected_prefix]}"
 
-        if [ -f "$log_file" ]; then
+        # Prefer reading from .ansi file for color detection
+        local display_log="$log_file"
+        if [ -f "$log_file_ansi" ]; then
+            display_log="$log_file_ansi"
+        fi
+
+        if [ -f "$display_log" ]; then
             local panel_height=$((TERM_ROWS - 4))
             local content_height=$((panel_height - 2))
             local visible_lines
-            visible_lines=$(tail -n "$content_height" "$log_file" 2>/dev/null)
+            visible_lines=$(tail -n "$content_height" "$display_log" 2>/dev/null)
 
             # Check for red first (higher priority)
             # Red codes: \033[1;31m (bright), \033[31m (normal), \033[0;31m
@@ -1666,6 +1733,13 @@ tui_draw_status_bar() {
 
 # Main TUI draw function
 tui_draw() {
+    # Check if terminal was resized
+    if [ "$TERM_RESIZED" = true ]; then
+        # Clear the entire screen to remove any artifacts from resize
+        tput clear
+        TERM_RESIZED=false
+    fi
+
     TERM_ROWS=$(tput lines)
     TERM_COLS=$(tput cols)
 
@@ -1729,8 +1803,15 @@ run_parallel_tests_tui() {
     # Create log directory
     mkdir -p "$LOG_DIR"
 
+    # Create temporary directory for .ansi files with same structure as logs
+    TEMP_ANSI_DIR="/tmp/cpp_dbc/logs/test/${TIMESTAMP}"
+    mkdir -p "$TEMP_ANSI_DIR"
+
     # Cleanup old log folders (keep only last MAX_LOG_FOLDERS)
     cleanup_old_log_folders
+
+    # Cleanup old tmp ANSI folders (keep only last MAX_LOG_FOLDERS)
+    cleanup_old_tmp_ansi_folders
 
     # Do initial build BEFORE initializing TUI (so user can see build output)
     do_initial_build
@@ -1864,6 +1945,8 @@ run_parallel_tests_tui() {
             if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
                 kill "$pid" 2>/dev/null || true
             fi
+            # Clean up .ansi file for interrupted tests
+            strip_ansi_from_log "$prefix"
         fi
     done
 
@@ -2127,8 +2210,15 @@ run_parallel_tests_simple() {
     # Create log directory
     mkdir -p "$LOG_DIR"
 
+    # Create temporary directory for .ansi files with same structure as logs
+    TEMP_ANSI_DIR="/tmp/cpp_dbc/logs/test/${TIMESTAMP}"
+    mkdir -p "$TEMP_ANSI_DIR"
+
     # Cleanup old log folders (keep only last MAX_LOG_FOLDERS)
     cleanup_old_log_folders
+
+    # Cleanup old tmp ANSI folders (keep only last MAX_LOG_FOLDERS)
+    cleanup_old_tmp_ansi_folders
 
     # Do initial build
     do_initial_build
@@ -2387,6 +2477,8 @@ cleanup() {
                 # Also kill child processes
                 pkill -P "$pid" 2>/dev/null || true
             fi
+            # Clean up .ansi file for interrupted tests
+            strip_ansi_from_log "$prefix"
         fi
     done
 

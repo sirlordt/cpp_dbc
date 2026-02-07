@@ -37,7 +37,23 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Major Examples Reorganization and Automation Improvements** (2026-02-06 16:40:00 PST):
+1. **Test Directory Reorganization and Parallel Test Runner Enhancements** (2026-02-06 21:44:02 PST):
+   - **Test Directory Complete Restructuring:**
+     - Migrated all test files to hierarchical, database-family-based organization
+     - Test structure mirrors example organization for consistency
+     - Organization: `test/common/`, `test/relational/mysql/`, `test/kv/redis/`, `test/document/mongodb/`, `test/columnar/scylladb/`
+     - Added placeholder directories: `test/graph/.git_keep`, `test/timeseries/.git_keep`
+   - **Parallel Test Runner Enhancements (`run_test_parallel.sh`):**
+     - Terminal resize handling with SIGWINCH signal handler
+     - Dual log file system: clean `.log` files + colored `.log.ansi` files in `/tmp`
+     - Automatic cleanup of temporary directories (keeps last 5)
+     - Recursive test discovery for family-based directory structure
+   - **Driver Documentation Updates:**
+     - Enhanced `how_add_new_db_drivers.md` with test directory structure section
+     - Updated with family-prefixed path examples and CMakeLists.txt instructions
+   - **Impact:** 110 files changed, better organization, improved maintainability
+
+1a. **Major Examples Reorganization and Automation Improvements** (2026-02-06 16:40:00 PST):
    - **Examples Complete Restructuring (59 new files, 18 deleted):**
      - Migrated from flat structure to hierarchical, database-family-based organization
      - Implemented numeric prefix naming convention: `XX_YZZ_example_<db>_<feature>.cpp`
