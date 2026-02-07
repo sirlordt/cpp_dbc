@@ -154,13 +154,15 @@ discover_prefixes() {
     # Find all unique prefixes (e.g., 10_, 20_, 21_, etc.) recursively in subdirectories
     # Tests are now organized by family: common/, relational/mysql/, document/mongodb/, etc.
     while IFS= read -r file; do
-        local basename=$(basename "$file")
+        local basename
+        basename=$(basename "$file")
         # Extract prefix (first part before second underscore)
-        local prefix=$(echo "$basename" | grep -oP '^\d+_' | head -1)
+        local prefix
+        prefix=$(echo "$basename" | grep -oP '^\d+_' | head -1)
         if [ -n "$prefix" ]; then
             # Remove trailing underscore for comparison
             local prefix_num="${prefix%_}"
-            if [[ ! " ${prefixes[*]} " =~ " ${prefix_num} " ]]; then
+            if [[ ! " ${prefixes[*]} " =~ ${prefix_num} ]]; then
                 prefixes+=("$prefix_num")
             fi
         fi
@@ -414,7 +416,8 @@ start_test() {
     PREFIX_LOG_FILE[$prefix]="$log_file"
 
     # ANSI log file goes to /tmp
-    local log_file_ansi="$TEMP_ANSI_DIR/${prefix}_RUN$(printf '%02d' $run_num).log.ansi"
+    local log_file_ansi
+    log_file_ansi="$TEMP_ANSI_DIR/${prefix}_RUN$(printf '%02d' $run_num).log.ansi"
     PREFIX_LOG_FILE_ANSI[$prefix]="$log_file_ansi"
 
     # Initialize timeout tracking
@@ -457,6 +460,7 @@ start_test() {
     #   - .log: without color codes (for clean reading while test runs)
     (
         cd "$SCRIPT_DIR"
+        set -o pipefail
 
         # Force colored output for terminal programs
         export FORCE_COLOR=1
@@ -656,13 +660,25 @@ mark_log_as_failed() {
     fi
 }
 
-# Clean up ANSI log file after test completion
-# The .log file is already clean (generated without ANSI codes)
-# The .ansi file stays in /tmp for historical reference (cleaned by cleanup_old_tmp_ansi_folders)
+# Intentional no-op: Legacy hook for ANSI log cleanup
+#
+# ARCHITECTURE NOTE:
+# The dual-log architecture handles ANSI separation at write time:
+#   - .log files are generated clean (ANSI codes stripped via sed pipeline)
+#   - .log.ansi files are kept in /tmp for TUI display and debugging
+#   - Cleanup is handled by cleanup_old_tmp_ansi_folders()
+#
+# This function is retained as a semantic marker in the control flow
+# and serves as a future extension point if post-processing becomes needed.
+#
+# Args:
+#   $1 - prefix: Test prefix identifier
+# Returns:
+#   0 (always succeeds, intentional no-op)
 strip_ansi_from_log() {
     local prefix=$1
-    # Nothing to do - .ansi files are kept as historical logs
-    # They will be cleaned up by cleanup_old_tmp_ansi_folders on next run
+    # shellcheck disable=SC2317  # Intentional no-op function
+    return 0
 }
 
 # Extract skipped tests from log file
