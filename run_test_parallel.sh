@@ -660,26 +660,17 @@ mark_log_as_failed() {
     fi
 }
 
-# Intentional no-op: Legacy hook for ANSI log cleanup
+# NOTE: ANSI log separation is handled at write time via dual-log architecture:
+#   - .log files: clean output (ANSI stripped via sed pipeline during write)
+#   - .log.ansi files: colored output in /tmp (for TUI display)
+#   - Cleanup: cleanup_old_tmp_ansi_folders() manages /tmp files
 #
-# ARCHITECTURE NOTE:
-# The dual-log architecture handles ANSI separation at write time:
-#   - .log files are generated clean (ANSI codes stripped via sed pipeline)
-#   - .log.ansi files are kept in /tmp for TUI display and debugging
-#   - Cleanup is handled by cleanup_old_tmp_ansi_folders()
-#
-# This function is retained as a semantic marker in the control flow
-# and serves as a future extension point if post-processing becomes needed.
-#
-# Args:
-#   $1 - prefix: Test prefix identifier
-# Returns:
-#   0 (always succeeds, intentional no-op)
-strip_ansi_from_log() {
-    local prefix=$1
-    # shellcheck disable=SC2317  # Intentional no-op function
-    return 0
-}
+# Legacy post-processing hook (commented out, uncomment if needed):
+# strip_ansi_from_log() {
+#     local prefix=$1
+#     # Add post-processing logic here if dual-log architecture proves insufficient
+#     return 0
+# }
 
 # Extract skipped tests from log file
 # Returns lines in format: tag|file_line|reason|log_file|log_line
@@ -1821,11 +1812,9 @@ run_parallel_tests_tui() {
 
     # Create temporary directory for .ansi files with same structure as logs
     TEMP_ANSI_DIR="/tmp/cpp_dbc/logs/test/${TIMESTAMP}"
-    # Use restrictive umask to ensure parent directories are created with proper permissions
-    old_umask=$(umask)
-    umask 077
-    mkdir -p -m 700 "$TEMP_ANSI_DIR"
-    umask "$old_umask"
+    # Use restrictive umask in subshell to ensure parent directories are created with proper permissions
+    # Subshell automatically restores umask when it exits (even on interruption)
+    ( umask 077; mkdir -p "$TEMP_ANSI_DIR" )
 
     # Cleanup old log folders (keep only last MAX_LOG_FOLDERS)
     cleanup_old_log_folders
@@ -1859,8 +1848,8 @@ run_parallel_tests_tui() {
                     PREFIX_FAIL_REASON[$prefix]="Timeout: No output for ${timeout_minutes} minutes"
                     mark_log_as_failed "$prefix"
 
-                    # Clean ANSI codes from log
-                    strip_ansi_from_log "$prefix"
+                    # Clean ANSI codes from log (commented: handled at write time)
+                    # strip_ansi_from_log "$prefix"
                     # Clear PID
                     unset "PREFIX_PIDS[$prefix]"
 
@@ -1908,8 +1897,8 @@ run_parallel_tests_tui() {
                         mark_log_as_failed "$prefix"
                     fi
 
-                    # Clean ANSI codes from log for readable files
-                    strip_ansi_from_log "$prefix"
+                    # Clean ANSI codes from log for readable files (commented: handled at write time)
+                    # strip_ansi_from_log "$prefix"
                     unset "PREFIX_PIDS[$prefix]"
                 fi
             fi
@@ -1965,8 +1954,8 @@ run_parallel_tests_tui() {
             if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
                 kill "$pid" 2>/dev/null || true
             fi
-            # Clean up .ansi file for interrupted tests
-            strip_ansi_from_log "$prefix"
+            # Clean up .ansi file for interrupted tests (commented: handled by cleanup_old_tmp_ansi_folders)
+            # strip_ansi_from_log "$prefix"
         fi
     done
 
@@ -2232,11 +2221,9 @@ run_parallel_tests_simple() {
 
     # Create temporary directory for .ansi files with same structure as logs
     TEMP_ANSI_DIR="/tmp/cpp_dbc/logs/test/${TIMESTAMP}"
-    # Use restrictive umask to ensure parent directories are created with proper permissions
-    old_umask=$(umask)
-    umask 077
-    mkdir -p -m 700 "$TEMP_ANSI_DIR"
-    umask "$old_umask"
+    # Use restrictive umask in subshell to ensure parent directories are created with proper permissions
+    # Subshell automatically restores umask when it exits (even on interruption)
+    ( umask 077; mkdir -p "$TEMP_ANSI_DIR" )
 
     # Cleanup old log folders (keep only last MAX_LOG_FOLDERS)
     cleanup_old_log_folders
@@ -2278,8 +2265,8 @@ run_parallel_tests_simple() {
                     mark_log_as_failed "$prefix"
                     echo "  Log: ${PREFIX_LOG_FILE[$prefix]}"
 
-                    # Clean ANSI codes from log
-                    strip_ansi_from_log "$prefix"
+                    # Clean ANSI codes from log (commented: handled at write time)
+                    # strip_ansi_from_log "$prefix"
                     # Clear PID
                     unset "PREFIX_PIDS[$prefix]"
 
@@ -2342,8 +2329,8 @@ run_parallel_tests_simple() {
                         echo "  Log: ${PREFIX_LOG_FILE[$prefix]}"
                     fi
 
-                    # Clean ANSI codes from log for readable files
-                    strip_ansi_from_log "$prefix"
+                    # Clean ANSI codes from log for readable files (commented: handled at write time)
+                    # strip_ansi_from_log "$prefix"
                     # Clear PID
                     unset "PREFIX_PIDS[$prefix]"
                 fi
@@ -2501,8 +2488,8 @@ cleanup() {
                 # Also kill child processes
                 pkill -P "$pid" 2>/dev/null || true
             fi
-            # Clean up .ansi file for interrupted tests
-            strip_ansi_from_log "$prefix"
+            # Clean up .ansi file for interrupted tests (commented: handled by cleanup_old_tmp_ansi_folders)
+            # strip_ansi_from_log "$prefix"
         fi
     done
 
