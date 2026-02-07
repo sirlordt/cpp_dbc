@@ -38,10 +38,10 @@ using namespace cpp_dbc::examples;
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Firebird Connection Info Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Firebird Connection Info Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_FIREBIRD
     logError("Firebird support is not enabled");
@@ -85,8 +85,8 @@ int main(int argc, char *argv[])
 
     try
     {
-        log("");
-        log("--- Firebird Connection URL ---");
+        logMsg("");
+        logMsg("--- Firebird Connection URL ---");
 
         logStep("Getting Firebird configuration...");
         auto firebirdResult = getDbConfig(configManager, args.dbName, "firebird");
@@ -116,8 +116,8 @@ int main(int argc, char *argv[])
         logData("Firebird Connection URL: " + firebirdConn->getURL());
 
         // Get server information
-        log("");
-        log("--- Server Information ---");
+        logMsg("");
+        logMsg("--- Server Information ---");
         logStep("Querying server information...");
 
         auto relConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(firebirdConn);
@@ -153,10 +153,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

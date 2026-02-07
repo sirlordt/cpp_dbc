@@ -73,15 +73,15 @@ void printJsonResults(std::shared_ptr<cpp_dbc::RelationalDBResultSet> rs)
         }
         logData(rowOss.str());
     }
-    log("");
+    logMsg("");
 }
 
 // Function to demonstrate JSON operations with PostgreSQL
 void demonstratePostgreSQLJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("=== PostgreSQL JSON Operations ===");
-    log("");
+    logMsg("");
+    logMsg("=== PostgreSQL JSON Operations ===");
+    logMsg("");
 
     try
     {
@@ -147,7 +147,7 @@ void demonstratePostgreSQLJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
         logOk("Data inserted successfully");
 
         // Example 1: Extract specific JSON fields (PostgreSQL syntax)
-        log("");
+        logMsg("");
         logStep("Example 1: Extracting specific JSON fields");
         auto rs = conn->executeQuery(
             "SELECT id, "
@@ -228,10 +228,10 @@ void demonstratePostgreSQLJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc PostgreSQL JSON Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc PostgreSQL JSON Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_POSTGRESQL
     logError("PostgreSQL support is not enabled");
@@ -318,10 +318,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

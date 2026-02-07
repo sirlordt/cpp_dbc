@@ -67,8 +67,9 @@ void printResults(std::shared_ptr<cpp_dbc::RelationalDBResultSet> rs)
     while (rs->next())
     {
         std::ostringstream rowStream;
-        for (const auto &column : columnNames)
+        for (size_t i = 0; i < columnNames.size(); ++i)
         {
+            const auto &column = columnNames[i];
             std::string value;
             if (rs->isNull(column))
             {
@@ -78,7 +79,7 @@ void printResults(std::shared_ptr<cpp_dbc::RelationalDBResultSet> rs)
             {
                 value = rs->getString(column);
             }
-            rowStream << std::setw(static_cast<int>(columnWidths[columnNames.size() - 1])) << std::left << value << " | ";
+            rowStream << std::setw(static_cast<int>(columnWidths[i])) << std::left << value << " | ";
         }
         logData(rowStream.str());
         rowCount++;
@@ -243,8 +244,8 @@ void setupDatabase(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 void demonstrateInnerJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- INNER JOIN Example ---");
+    logMsg("");
+    logMsg("--- INNER JOIN Example ---");
     logInfo("INNER JOIN returns only the rows where there is a match in both tables");
     logStep("Query: Get all customers who have placed orders");
 
@@ -262,8 +263,8 @@ void demonstrateInnerJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 void demonstrateLeftJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- LEFT JOIN Example ---");
+    logMsg("");
+    logMsg("--- LEFT JOIN Example ---");
     logInfo("LEFT JOIN returns all rows from the left table and matching rows from the right table");
     logStep("Query: Get all customers and their orders (if any)");
 
@@ -281,8 +282,8 @@ void demonstrateLeftJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 void demonstrateRightJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- RIGHT JOIN Example ---");
+    logMsg("");
+    logMsg("--- RIGHT JOIN Example ---");
     logInfo("RIGHT JOIN returns all rows from the right table and matching rows from the left table");
     logStep("Query: Get all products and their orders (if any)");
 
@@ -300,8 +301,8 @@ void demonstrateRightJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 void demonstrateFullOuterJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- FULL OUTER JOIN Example ---");
+    logMsg("");
+    logMsg("--- FULL OUTER JOIN Example ---");
     logInfo("Firebird supports FULL OUTER JOIN natively");
     logStep("Query: Get all customers and all products with order information");
 
@@ -320,8 +321,8 @@ void demonstrateFullOuterJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> c
 
 void demonstrateCrossJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- CROSS JOIN Example ---");
+    logMsg("");
+    logMsg("--- CROSS JOIN Example ---");
     logInfo("CROSS JOIN returns the Cartesian product of the two tables");
     logStep("Query: Get all possible combinations of customers and product categories");
 
@@ -339,8 +340,8 @@ void demonstrateCrossJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 void demonstrateSelfJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- SELF JOIN Example ---");
+    logMsg("");
+    logMsg("--- SELF JOIN Example ---");
     logInfo("SELF JOIN is used to join a table to itself");
     logStep("Query: Find customers from the same country");
 
@@ -374,8 +375,8 @@ void demonstrateSelfJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
  */
 void demonstrateJoinWithAggregates(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- JOIN with Aggregate Functions Example ---");
+    logMsg("");
+    logMsg("--- JOIN with Aggregate Functions Example ---");
     logInfo("Shows how to use JOIN with aggregate functions like COUNT, SUM, AVG");
     logStep("Query: Get the total number of orders and total spending for each customer");
 
@@ -386,18 +387,18 @@ void demonstrateJoinWithAggregates(std::shared_ptr<cpp_dbc::RelationalDBConnecti
         "FROM customers c "
         "LEFT JOIN orders o ON c.customer_id = o.customer_id "
         "GROUP BY c.customer_id, c.name, c.country "
-        "ORDER BY order_count DESC, c.customer_id";  // Order by count then customer ID
+        "ORDER BY order_count DESC, c.customer_id"; // Order by count then customer ID
 
     auto rs = conn->executeQuery(query);
     printResults(rs);
-    rs->close();  // Close result set
+    rs->close(); // Close result set
     logOk("JOIN with aggregates completed");
 }
 
 void demonstrateMultiTableJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Multi-Table JOIN Example ---");
+    logMsg("");
+    logMsg("--- Multi-Table JOIN Example ---");
     logInfo("Shows how to join more than two tables together");
     logStep("Query: Get detailed order information including customer and product details");
 
@@ -419,8 +420,8 @@ void demonstrateMultiTableJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
 
 void demonstrateJoinWithSubquery(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- JOIN with Subquery Example ---");
+    logMsg("");
+    logMsg("--- JOIN with Subquery Example ---");
     logInfo("Shows how to use JOIN with a subquery");
     logStep("Query: Find customers who have ordered products in the 'Electronics' category");
 
@@ -451,7 +452,7 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
     demonstrateMultiTableJoin(conn);
     demonstrateJoinWithSubquery(conn);
 
-    log("");
+    logMsg("");
     logStep("Cleaning up tables...");
     conn->executeUpdate("DROP TABLE orders");
     conn->executeUpdate("DROP TABLE customers");
@@ -462,10 +463,10 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Firebird JOIN Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Firebird JOIN Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_FIREBIRD
     logError("Firebird support is not enabled");
@@ -550,10 +551,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

@@ -38,10 +38,10 @@ using namespace cpp_dbc::examples;
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc MySQL Connection Info Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc MySQL Connection Info Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_MYSQL
     logError("MySQL support is not enabled");
@@ -85,8 +85,8 @@ int main(int argc, char *argv[])
 
     try
     {
-        log("");
-        log("--- MySQL Connection URL ---");
+        logMsg("");
+        logMsg("--- MySQL Connection URL ---");
 
         logStep("Getting MySQL configuration...");
         auto mysqlResult = getDbConfig(configManager, args.dbName, "mysql");
@@ -128,10 +128,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

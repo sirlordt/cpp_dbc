@@ -2,7 +2,7 @@
 
 ## Pending Tasks
 
-- Improvement: Add to helper the param, heldgrind to detecte data race, dead lock. When espcified valginrd run with --tool=heldgrind. Update al test result parse and detect problems from heldgrind and not only memcheck tool.
+- Improvement: Add to helper the param helgrind to detect data races and deadlocks. When specified, run Valgrind with --tool=helgrind. Update all test result parsing to detect problems from helgrind and not only the memcheck tool.
 - Create a simple script to detect public method a class and check a bunch of .cpp test case and report if a method not found in the test code.
 - Reorganize the test source code in folders. family/smdb. relational/mysql/ kv/redis/ document/mongodb columnar/scylladb
 - NEW FEATURE: Add more examples.

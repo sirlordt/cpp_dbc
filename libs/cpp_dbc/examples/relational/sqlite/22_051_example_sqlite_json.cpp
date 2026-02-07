@@ -79,15 +79,15 @@ void printJsonResults(std::shared_ptr<cpp_dbc::RelationalDBResultSet> rs)
         }
         logData(rowOss.str());
     }
-    log("");
+    logMsg("");
 }
 
 // Function to demonstrate JSON operations with SQLite
 void demonstrateSQLiteJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("=== SQLite JSON Operations ===");
-    log("");
+    logMsg("");
+    logMsg("=== SQLite JSON Operations ===");
+    logMsg("");
 
     try
     {
@@ -158,7 +158,7 @@ void demonstrateSQLiteJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn
         logOk("Data inserted successfully");
 
         // Example 1: Extract specific JSON fields using json_extract
-        log("");
+        logMsg("");
         logStep("Example 1: Extracting specific JSON fields with json_extract");
         auto rs = conn->executeQuery(
             "SELECT id, "
@@ -244,10 +244,10 @@ void demonstrateSQLiteJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc SQLite JSON Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc SQLite JSON Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SQLITE
     logError("SQLite support is not enabled");
@@ -332,10 +332,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

@@ -42,7 +42,7 @@
 #endif
 
 using namespace cpp_dbc::examples;
-using cpp_dbc::examples::log;  // Disambiguate from std::log
+using cpp_dbc::examples::logMsg; // Disambiguate from std::logMsg
 
 #if USE_SCYLLADB
 
@@ -61,7 +61,7 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
 {
     try
     {
-        cpp_dbc::examples::log("");
+        cpp_dbc::examples::logMsg("");
         logStep("Executing: " + operationName);
         operation();
         logOk("Operation completed successfully");
@@ -87,8 +87,8 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
 
 void demonstrateConnectionErrors(cpp_dbc::ScyllaDB::ScyllaDBDriver &driver)
 {
-    log("");
-    log("=== Connection Errors ===");
+    logMsg("");
+    logMsg("=== Connection Errors ===");
     logInfo("Demonstrating various connection error scenarios");
 
     // Wrong host
@@ -128,8 +128,8 @@ void setupSchema(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 
 void demonstrateCQLSyntaxErrors(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("=== CQL Syntax Errors ===");
+    logMsg("");
+    logMsg("=== CQL Syntax Errors ===");
     logInfo("Demonstrating CQL parsing errors");
 
     // Missing FROM clause
@@ -159,8 +159,8 @@ void demonstrateCQLSyntaxErrors(std::shared_ptr<cpp_dbc::ColumnarDBConnection> c
 
 void demonstrateKeyspaceAndTableErrors(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("=== Keyspace and Table Errors ===");
+    logMsg("");
+    logMsg("=== Keyspace and Table Errors ===");
     logInfo("Demonstrating keyspace/table-related errors");
 
     // Non-existent keyspace
@@ -192,8 +192,8 @@ void demonstrateKeyspaceAndTableErrors(std::shared_ptr<cpp_dbc::ColumnarDBConnec
 
 void demonstrateDataTypeErrors(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("=== Data Type Errors ===");
+    logMsg("");
+    logMsg("=== Data Type Errors ===");
     logInfo("Demonstrating type mismatch errors");
 
     // Insert string into int column
@@ -222,8 +222,8 @@ void demonstrateDataTypeErrors(std::shared_ptr<cpp_dbc::ColumnarDBConnection> co
 
 void demonstratePrimaryKeyErrors(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("=== Primary Key Errors ===");
+    logMsg("");
+    logMsg("=== Primary Key Errors ===");
     logInfo("Demonstrating primary key constraint errors");
 
     // Insert without primary key
@@ -233,7 +233,7 @@ void demonstratePrimaryKeyErrors(std::shared_ptr<cpp_dbc::ColumnarDBConnection> 
         conn->executeUpdate("INSERT INTO " + g_table + " (name, value) VALUES ('test', 1.0)"); });
 
     // Query without partition key in WHERE (warning, not error in ScyllaDB)
-    log("");
+    logMsg("");
     logStep("Note: ScyllaDB allows full table scans but warns about them");
     logInfo("This query would succeed but may be inefficient:");
     logData("SELECT * FROM " + g_table + " WHERE name = 'test'");
@@ -241,16 +241,16 @@ void demonstratePrimaryKeyErrors(std::shared_ptr<cpp_dbc::ColumnarDBConnection> 
 
 void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("=== Nothrow API Usage ===");
+    logMsg("");
+    logMsg("=== Nothrow API Usage ===");
     logInfo("Using std::nothrow API for exception-free error handling");
 
     // Insert using nothrow API
-    log("");
+    logMsg("");
     logStep("Using nothrow API for executeUpdate...");
 
     auto insertResult = conn->executeUpdate(std::nothrow,
-        "INSERT INTO " + g_table + " (id, name, value) VALUES (999, 'nothrow_test', 42.0)");
+                                            "INSERT INTO " + g_table + " (id, name, value) VALUES (999, 'nothrow_test', 42.0)");
     if (insertResult)
     {
         logOk("executeUpdate succeeded");
@@ -262,7 +262,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 
     // Query using nothrow API
     auto queryResult = conn->executeQuery(std::nothrow,
-        "SELECT * FROM " + g_table + " WHERE id = 999");
+                                          "SELECT * FROM " + g_table + " WHERE id = 999");
     if (queryResult)
     {
         auto rs = queryResult.value();
@@ -277,7 +277,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     }
 
     // Invalid operation using nothrow API
-    log("");
+    logMsg("");
     logStep("Testing invalid operation with nothrow API...");
 
     auto badResult = conn->executeQuery(std::nothrow, "INVALID CQL QUERY HERE");
@@ -295,12 +295,12 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 
 void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("=== Error Recovery Patterns ===");
+    logMsg("");
+    logMsg("=== Error Recovery Patterns ===");
     logInfo("Demonstrating how to recover from errors");
 
     // Pattern 1: Create if not exists
-    log("");
+    logMsg("");
     logStep("Pattern 1: IF NOT EXISTS for idempotent operations...");
 
     try
@@ -316,18 +316,18 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::ColumnarDBConnection> con
     // Using IF NOT EXISTS (better approach)
     conn->executeUpdate(
         "CREATE TABLE IF NOT EXISTS " + g_keyspace + ".recovery_test ("
-        "id int PRIMARY KEY, name text)");
+                                                     "id int PRIMARY KEY, name text)");
     logOk("IF NOT EXISTS pattern works idempotently");
 
     // Pattern 2: IF EXISTS for safe deletes
-    log("");
+    logMsg("");
     logStep("Pattern 2: IF EXISTS for safe operations...");
 
     conn->executeUpdate("DROP TABLE IF EXISTS " + g_keyspace + ".maybe_exists");
     logOk("DROP IF EXISTS completes without error even if table doesn't exist");
 
     // Pattern 3: Retry pattern
-    log("");
+    logMsg("");
     logStep("Pattern 3: Retry pattern for transient errors...");
 
     int maxRetries = 3;
@@ -353,7 +353,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::ColumnarDBConnection> con
     }
 
     // Pattern 4: Lightweight transactions for conditional updates
-    log("");
+    logMsg("");
     logStep("Pattern 4: Lightweight transactions (IF conditions)...");
 
     // Insert only if not exists
@@ -373,8 +373,8 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::ColumnarDBConnection> con
 
 void cleanup(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("--- Cleanup ---");
+    logMsg("");
+    logMsg("--- Cleanup ---");
     logStep("Dropping test table and keyspace...");
     try
     {
@@ -391,10 +391,10 @@ void cleanup(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc ScyllaDB Error Handling Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc ScyllaDB Error Handling Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SCYLLADB
     logError("ScyllaDB support is not enabled");
@@ -483,7 +483,7 @@ int main(int argc, char *argv[])
         demonstrateErrorRecovery(conn);
         cleanup(conn);
 
-        cpp_dbc::examples::log("");
+        cpp_dbc::examples::logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -499,10 +499,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

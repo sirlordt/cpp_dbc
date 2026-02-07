@@ -50,8 +50,8 @@ std::string g_table = "batch_test_ks.batch_data";
 
 void setupSchema(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("--- Schema Setup ---");
+    logMsg("");
+    logMsg("--- Schema Setup ---");
 
     logStep("Creating keyspace if not exists...");
     conn->executeUpdate(
@@ -77,8 +77,8 @@ void setupSchema(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 
 void demonstrateBatchInsert(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("--- Batch Insert with Prepared Statements ---");
+    logMsg("");
+    logMsg("--- Batch Insert with Prepared Statements ---");
     logInfo("Using addBatch() and executeBatch() for bulk inserts");
 
     logStep("Preparing insert statement...");
@@ -120,10 +120,10 @@ void demonstrateBatchInsert(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 
 void demonstrateMultiPartitionBatch(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("--- Multi-Partition Batch ---");
+    logMsg("");
+    logMsg("--- Multi-Partition Batch ---");
     logInfo("Batching rows across multiple partitions");
-    logInfo("Note: Cross-partition batches use coordinator log for atomicity");
+    logInfo("Note: Cross-partition batches use coordinator logMsg for atomicity");
 
     logStep("Preparing insert statement...");
     auto stmt = conn->prepareStatement(
@@ -168,8 +168,8 @@ void demonstrateMultiPartitionBatch(std::shared_ptr<cpp_dbc::ColumnarDBConnectio
 
 void demonstratePerformanceComparison(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("--- Performance Comparison ---");
+    logMsg("");
+    logMsg("--- Performance Comparison ---");
     logInfo("Comparing individual inserts vs batch insert");
 
     const int numRows = 100;
@@ -242,8 +242,8 @@ void demonstratePerformanceComparison(std::shared_ptr<cpp_dbc::ColumnarDBConnect
 
 void demonstrateBatchUpdate(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("--- Batch Update Operations ---");
+    logMsg("");
+    logMsg("--- Batch Update Operations ---");
     logInfo("Using batch for multiple updates");
 
     int partitionKey = 200;
@@ -303,8 +303,8 @@ void demonstrateBatchUpdate(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 
 void demonstrateBatchDelete(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("--- Batch Delete Operations ---");
+    logMsg("");
+    logMsg("--- Batch Delete Operations ---");
     logInfo("Using batch for multiple deletes");
 
     int partitionKey = 300;
@@ -372,8 +372,8 @@ void demonstrateBatchDelete(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 
 void cleanup(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 {
-    log("");
-    log("--- Cleanup ---");
+    logMsg("");
+    logMsg("--- Cleanup ---");
     logStep("Dropping test table and keyspace...");
     conn->executeUpdate("DROP TABLE IF EXISTS " + g_table);
     conn->executeUpdate("DROP KEYSPACE IF EXISTS " + g_keyspace);
@@ -383,10 +383,10 @@ void cleanup(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc ScyllaDB Batch Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc ScyllaDB Batch Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SCYLLADB
     logError("ScyllaDB support is not enabled");
@@ -451,7 +451,6 @@ int main(int argc, char *argv[])
     try
     {
         logStep("Connecting to ScyllaDB...");
-        logData("Connection string: " + dbConfig.createConnectionString());
         auto connBase = dbConfig.createDBConnection();
         auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(connBase);
 
@@ -470,7 +469,7 @@ int main(int argc, char *argv[])
         demonstratePerformanceComparison(conn);
         cleanup(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -486,10 +485,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

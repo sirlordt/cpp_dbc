@@ -140,10 +140,10 @@ void workerThread(cpp_dbc::TransactionManager & /*txnManager*/, TaskQueue &taskQ
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc SQLite Transaction Manager Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc SQLite Transaction Manager Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SQLITE
     logError("SQLite support is not enabled");
@@ -247,8 +247,8 @@ int main(int argc, char *argv[])
         logInfo("Note: Using fewer workers due to SQLite's write serialization");
 
         // Simulate multiple business processes with transactions
-        log("");
-        log("--- Starting Transactions ---");
+        logMsg("");
+        logMsg("--- Starting Transactions ---");
 
         const int numTransactions = 3;
         std::vector<std::string> transactionIds;
@@ -281,8 +281,8 @@ int main(int argc, char *argv[])
         }
 
         // Add second tasks for each transaction
-        log("");
-        log("--- Adding Update Tasks ---");
+        logMsg("");
+        logMsg("--- Adding Update Tasks ---");
 
         for (const auto &txnId : transactionIds)
         {
@@ -305,8 +305,8 @@ int main(int argc, char *argv[])
         }
 
         // Add final tasks to commit or rollback transactions
-        log("");
-        log("--- Adding Commit/Rollback Tasks ---");
+        logMsg("");
+        logMsg("--- Adding Commit/Rollback Tasks ---");
 
         for (size_t i = 0; i < transactionIds.size(); i++)
         {
@@ -337,7 +337,7 @@ int main(int argc, char *argv[])
         }
 
         // Signal that we're done adding tasks
-        log("");
+        logMsg("");
         logStep("Finishing task queue...");
         taskQueue.finish();
 
@@ -372,10 +372,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

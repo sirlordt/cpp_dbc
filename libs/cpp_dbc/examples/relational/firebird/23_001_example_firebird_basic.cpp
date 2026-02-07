@@ -12,7 +12,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
  *
- * @file firebird_example.cpp
+ * @file 23_001_example_firebird_basic.cpp
  * @brief Example demonstrating basic Firebird database operations
  *
  * This example demonstrates:
@@ -32,7 +32,6 @@
 #include "../../common/example_common.hpp"
 #include <iomanip>
 #include <sstream>
-#include <any>
 
 #if USE_FIREBIRD
 #include <cpp_dbc/drivers/relational/driver_firebird.hpp>
@@ -75,8 +74,8 @@ void printResults(std::shared_ptr<cpp_dbc::RelationalDBResultSet> rs)
 
 void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Basic CRUD Operations ---");
+    logMsg("");
+    logMsg("--- Basic CRUD Operations ---");
 
     // ===== Create Table =====
     logStep("Creating products table...");
@@ -91,8 +90,8 @@ void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection>
     logOk("Table created");
 
     // ===== Insert Data =====
-    log("");
-    log("--- Insert Operations ---");
+    logMsg("");
+    logMsg("--- Insert Operations ---");
 
     logStep("Preparing insert statement...");
     auto prepStmt = conn->prepareStatement(
@@ -126,24 +125,24 @@ void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection>
     logOk("3 products inserted");
 
     // ===== Select All =====
-    log("");
-    log("--- Select All Products ---");
+    logMsg("");
+    logMsg("--- Select All Products ---");
 
     logStep("Querying all products...");
     auto rs = conn->executeQuery("SELECT * FROM products ORDER BY id");
     printResults(rs);
 
     // ===== Select with Filter =====
-    log("");
-    log("--- Select Free Products ---");
+    logMsg("");
+    logMsg("--- Select Free Products ---");
 
     logStep("Querying free products (price = 0)...");
     rs = conn->executeQuery("SELECT id, name, price FROM products WHERE price = 0.00");
     printResults(rs);
 
     // ===== Update =====
-    log("");
-    log("--- Update Operation ---");
+    logMsg("");
+    logMsg("--- Update Operation ---");
 
     logStep("Updating product 3...");
     conn->executeUpdate(
@@ -156,8 +155,8 @@ void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection>
     printResults(rs);
 
     // ===== Delete =====
-    log("");
-    log("--- Delete Operation ---");
+    logMsg("");
+    logMsg("--- Delete Operation ---");
 
     logStep("Deleting product 2...");
     conn->executeUpdate("DELETE FROM products WHERE id = 2");
@@ -168,8 +167,8 @@ void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection>
     printResults(rs);
 
     // ===== Cleanup =====
-    log("");
-    log("--- Cleanup ---");
+    logMsg("");
+    logMsg("--- Cleanup ---");
 
     logStep("Dropping table...");
     conn->executeUpdate("DROP TABLE products");
@@ -178,16 +177,28 @@ void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection>
 
 void demonstrateFirebirdFeatures(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Firebird-Specific Features ---");
+    logMsg("");
+    logMsg("--- Firebird-Specific Features ---");
 
     // ===== Generators/Sequences =====
-    log("");
-    log("--- Auto-Increment with Generator ---");
+    logMsg("");
+    logMsg("--- Auto-Increment with Generator ---");
 
     logStep("Creating sequence and table...");
-    try { conn->executeUpdate("DROP TABLE auto_increment_test"); } catch (...) {}
-    try { conn->executeUpdate("DROP SEQUENCE product_id_seq"); } catch (...) {}
+    try
+    {
+        conn->executeUpdate("DROP TABLE auto_increment_test");
+    }
+    catch (...)
+    {
+    } // Drop if exists
+    try
+    {
+        conn->executeUpdate("DROP SEQUENCE product_id_seq");
+    }
+    catch (...)
+    {
+    } // Drop if exists
 
     conn->executeUpdate("CREATE SEQUENCE product_id_seq");
 
@@ -217,11 +228,17 @@ void demonstrateFirebirdFeatures(std::shared_ptr<cpp_dbc::RelationalDBConnection
     printResults(rs);
 
     // ===== Stored Procedures =====
-    log("");
-    log("--- Stored Procedures ---");
+    logMsg("");
+    logMsg("--- Stored Procedures ---");
 
     logStep("Creating stored procedure...");
-    try { conn->executeUpdate("DROP PROCEDURE get_product_by_id"); } catch (...) {}
+    try
+    {
+        conn->executeUpdate("DROP PROCEDURE get_product_by_id");
+    }
+    catch (...)
+    {
+    }
 
     conn->executeUpdate(
         "CREATE PROCEDURE get_product_by_id (id_param INTEGER) "
@@ -237,8 +254,8 @@ void demonstrateFirebirdFeatures(std::shared_ptr<cpp_dbc::RelationalDBConnection
     printResults(rs);
 
     // ===== Cleanup =====
-    log("");
-    log("--- Cleanup ---");
+    logMsg("");
+    logMsg("--- Cleanup ---");
 
     logStep("Dropping objects...");
     conn->executeUpdate("DROP PROCEDURE get_product_by_id");
@@ -250,10 +267,10 @@ void demonstrateFirebirdFeatures(std::shared_ptr<cpp_dbc::RelationalDBConnection
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Firebird Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Firebird Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_FIREBIRD
     logError("Firebird support is not enabled");
@@ -339,7 +356,7 @@ int main(int argc, char *argv[])
         demonstrateBasicOperations(conn);
         demonstrateFirebirdFeatures(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -355,10 +372,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return 0;
 #endif

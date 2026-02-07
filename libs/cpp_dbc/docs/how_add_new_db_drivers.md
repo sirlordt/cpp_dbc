@@ -1073,7 +1073,7 @@ Examples demonstrate how to use the new driver and serve as documentation for us
 
 For relational databases (MySQL, PostgreSQL, SQLite, Firebird, SQL Server), create examples following the numeric naming convention `XX_YZZ_example_<db>_<feature>.cpp`:
 
-```
+```text
 # Example structure for a new relational driver (e.g., SQL Server = family 27)
 libs/cpp_dbc/examples/relational/sqlserver/27_001_example_sqlserver_basic.cpp
 libs/cpp_dbc/examples/relational/sqlserver/27_021_example_sqlserver_connection_info.cpp
@@ -1135,7 +1135,7 @@ int main()
 
 For key-value stores (Redis), create examples following the numeric naming convention:
 
-```
+```text
 # Example structure for a new KV driver (e.g., Memcached = family 28)
 libs/cpp_dbc/examples/kv/memcached/28_001_example_memcached_basic.cpp
 libs/cpp_dbc/examples/kv/memcached/28_021_example_memcached_connection_info.cpp
@@ -1187,7 +1187,7 @@ int main()
 
 For document databases (MongoDB), create examples following the numeric naming convention:
 
-```
+```text
 # Example structure for a new document driver (e.g., CouchDB = family 29)
 libs/cpp_dbc/examples/document/couchdb/29_001_example_couchdb_basic.cpp
 libs/cpp_dbc/examples/document/couchdb/29_021_example_couchdb_connection_info.cpp
@@ -1240,7 +1240,7 @@ void demonstrateDocumentDB()
 
 For columnar/wide-column databases (ScyllaDB/Cassandra), create examples following the numeric naming convention:
 
-```
+```text
 # Example structure for a new columnar driver (e.g., Cassandra = family 30)
 libs/cpp_dbc/examples/columnar/cassandra/30_001_example_cassandra_basic.cpp
 libs/cpp_dbc/examples/columnar/cassandra/30_021_example_cassandra_connection_info.cpp

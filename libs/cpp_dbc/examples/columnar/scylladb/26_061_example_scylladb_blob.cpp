@@ -12,7 +12,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
  *
- * @file scylla_blob_example.cpp
+ * @file 26_061_example_scylladb_blob.cpp
  * @brief Example demonstrating ScyllaDB BLOB operations
  *
  * This example demonstrates:
@@ -59,8 +59,8 @@ void performBlobOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     std::string table = keyspace + ".blob_example";
 
     // ===== Table Setup =====
-    log("");
-    log("--- Table Setup ---");
+    logMsg("");
+    logMsg("--- Table Setup ---");
 
     logStep("Creating keyspace if not exists...");
     conn->executeUpdate("CREATE KEYSPACE IF NOT EXISTS " + keyspace +
@@ -81,8 +81,8 @@ void performBlobOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     logOk("Table created");
 
     // ===== BLOB Insert =====
-    log("");
-    log("--- BLOB Insert ---");
+    logMsg("");
+    logMsg("--- BLOB Insert ---");
 
     logStep("Creating binary test data...");
     std::vector<uint8_t> binaryData = {0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE};
@@ -104,8 +104,8 @@ void performBlobOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     logOk("BLOB inserted");
 
     // ===== BLOB Retrieve =====
-    log("");
-    log("--- BLOB Retrieve ---");
+    logMsg("");
+    logMsg("--- BLOB Retrieve ---");
 
     logStep("Retrieving BLOB...");
     auto rs = conn->executeQuery("SELECT * FROM " + table + " WHERE id = 1");
@@ -135,8 +135,8 @@ void performBlobOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     }
 
     // ===== Cleanup =====
-    log("");
-    log("--- Cleanup ---");
+    logMsg("");
+    logMsg("--- Cleanup ---");
 
     logStep("Dropping table...");
     conn->executeUpdate("DROP TABLE " + table);
@@ -146,10 +146,10 @@ void performBlobOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc ScyllaDB BLOB Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc ScyllaDB BLOB Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SCYLLADB
     logError("ScyllaDB support is not enabled");
@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
 
         performBlobOperations(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -247,10 +247,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return 0;
 #endif

@@ -72,15 +72,15 @@ void printJsonResults(std::shared_ptr<cpp_dbc::RelationalDBResultSet> rs)
         }
         logData(rowOss.str());
     }
-    log("");
+    logMsg("");
 }
 
 // Function to demonstrate JSON operations with MySQL
 void demonstrateMySQLJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("=== MySQL JSON Operations ===");
-    log("");
+    logMsg("");
+    logMsg("=== MySQL JSON Operations ===");
+    logMsg("");
 
     try
     {
@@ -143,7 +143,7 @@ void demonstrateMySQLJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
         logOk("Data inserted successfully");
 
         // Example 1: Extract specific JSON fields
-        log("");
+        logMsg("");
         logStep("Example 1: Extracting specific JSON fields");
         auto rs = conn->executeQuery(
             "SELECT id, "
@@ -207,10 +207,10 @@ void demonstrateMySQLJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc MySQL JSON Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc MySQL JSON Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_MYSQL
     logError("MySQL support is not enabled");
@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
     auto &configManager = *configResult.value();
 
     logStep("Getting MySQL database configuration...");
-    auto mysqlResult = getDbConfig(configManager, args.dbName.empty() ? "" : args.dbName, "mysql");
+    auto mysqlResult = getDbConfig(configManager, args.dbName, "mysql");
 
     if (!mysqlResult)
     {
@@ -297,10 +297,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

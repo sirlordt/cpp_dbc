@@ -51,7 +51,7 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
 {
     try
     {
-        log("");
+        logMsg("");
         logStep("Executing: " + operationName);
         operation();
         logOk("Operation completed successfully");
@@ -148,8 +148,8 @@ void setupDatabase(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 // Function to demonstrate handling syntax errors
 void demonstrateSyntaxErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Syntax Errors ---");
+    logMsg("");
+    logMsg("--- Syntax Errors ---");
 
     executeWithErrorHandling("Syntax Error Example", [&conn]()
                              {
@@ -160,8 +160,8 @@ void demonstrateSyntaxErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> co
 // Function to demonstrate handling constraint violations
 void demonstrateConstraintViolations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Constraint Violations ---");
+    logMsg("");
+    logMsg("--- Constraint Violations ---");
 
     // Primary key violation
     executeWithErrorHandling("Primary Key Violation", [&conn]()
@@ -238,8 +238,8 @@ void demonstrateConstraintViolations(std::shared_ptr<cpp_dbc::RelationalDBConnec
 // Function to demonstrate handling data type errors
 void demonstrateDataTypeErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Data Type Errors ---");
+    logMsg("");
+    logMsg("--- Data Type Errors ---");
 
     // Type conversion error
     executeWithErrorHandling("Type Conversion Error", [&conn]()
@@ -249,8 +249,7 @@ void demonstrateDataTypeErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
 
     // Invalid date format
     executeWithErrorHandling("Invalid Date Format", [&conn]()
-                             {
-        conn->executeQuery("SELECT * FROM error_test_customers WHERE customer_id = '2023-13-32'"); });
+                             { conn->executeQuery("SELECT * FROM error_test_customers WHERE customer_id = '2023-13-32'"); });
 
     // Numeric overflow
     executeWithErrorHandling("Numeric Overflow", [&conn]()
@@ -262,8 +261,8 @@ void demonstrateDataTypeErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
 // Function to demonstrate handling transaction errors
 void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Transaction Errors ---");
+    logMsg("");
+    logMsg("--- Transaction Errors ---");
 
     // Transaction rollback example
     executeWithErrorHandling("Transaction Rollback", [&conn]()
@@ -323,31 +322,27 @@ void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::RelationalDBConnectio
 // Function to demonstrate handling connection errors
 void demonstrateConnectionErrors()
 {
-    log("");
-    log("--- Connection Errors ---");
+    logMsg("");
+    logMsg("--- Connection Errors ---");
 
     executeWithErrorHandling("Connection Error", []()
-                             {
-        auto conn = cpp_dbc::DriverManager::getDBConnection(
-            "cpp_dbc:mysql://localhost:3306/nonexistent_db",
-            "invalid_user",
-            "invalid_password"
-        ); });
+                             { auto conn = cpp_dbc::DriverManager::getDBConnection(
+                                   "cpp_dbc:mysql://localhost:3306/nonexistent_db",
+                                   "invalid_user",
+                                   "invalid_password"); });
 
     executeWithErrorHandling("Invalid Connection URL", []()
-                             {
-        auto conn = cpp_dbc::DriverManager::getDBConnection(
-            "invalid:url:format",
-            "user",
-            "password"
-        ); });
+                             { auto conn = cpp_dbc::DriverManager::getDBConnection(
+                                   "invalid:url:format",
+                                   "user",
+                                   "password"); });
 }
 
 // Function to demonstrate handling prepared statement errors
 void demonstratePreparedStatementErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Prepared Statement Errors ---");
+    logMsg("");
+    logMsg("--- Prepared Statement Errors ---");
 
     // Invalid parameter index
     executeWithErrorHandling("Invalid Parameter Index", [&conn]()
@@ -383,8 +378,8 @@ void demonstratePreparedStatementErrors(std::shared_ptr<cpp_dbc::RelationalDBCon
 // Function to demonstrate handling result set errors
 void demonstrateResultSetErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Result Set Errors ---");
+    logMsg("");
+    logMsg("--- Result Set Errors ---");
 
     // Invalid column name
     executeWithErrorHandling("Invalid Column Name", [&conn]()
@@ -411,8 +406,8 @@ void demonstrateResultSetErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection>
 // Function to demonstrate proper error recovery
 void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Error Recovery ---");
+    logMsg("");
+    logMsg("--- Error Recovery ---");
 
     try
     {
@@ -460,8 +455,8 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::RelationalDBConnection> c
 // Function to demonstrate custom error handling and logging
 void demonstrateCustomErrorHandling(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Custom Error Handling ---");
+    logMsg("");
+    logMsg("--- Custom Error Handling ---");
 
     auto customLogError = [](const std::string &operation, const std::exception &e)
     {
@@ -527,15 +522,13 @@ void demonstrateCustomErrorHandling(std::shared_ptr<cpp_dbc::RelationalDBConnect
 // Function to demonstrate MySQL-specific errors
 void demonstrateMySQLSpecificErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- MySQL-Specific Error Handling ---");
+    logMsg("");
+    logMsg("--- MySQL-Specific Error Handling ---");
 
     // Invalid storage engine
     executeWithErrorHandling("MySQL Invalid Storage Engine", [&conn]()
-                             {
-        conn->executeUpdate(
-            "CREATE TABLE invalid_engine_table (id INT) ENGINE=INVALID_ENGINE"
-        ); });
+                             { conn->executeUpdate(
+                                   "CREATE TABLE invalid_engine_table (id INT) ENGINE=INVALID_ENGINE"); });
 
     // Division by zero behavior
     executeWithErrorHandling("MySQL Division by Zero", [&conn]()
@@ -573,7 +566,7 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
     demonstrateCustomErrorHandling(conn);
     demonstrateMySQLSpecificErrors(conn);
 
-    log("");
+    logMsg("");
     logStep("Cleaning up tables...");
     conn->executeUpdate("DROP TABLE IF EXISTS error_test_orders");
     conn->executeUpdate("DROP TABLE IF EXISTS error_test_customers");
@@ -584,10 +577,10 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc MySQL Error Handling Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc MySQL Error Handling Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_MYSQL
     logError("MySQL support is not enabled");
@@ -674,10 +667,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

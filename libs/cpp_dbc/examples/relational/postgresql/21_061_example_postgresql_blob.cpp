@@ -143,8 +143,8 @@ bool compareBinaryData(const std::vector<uint8_t> &data1, const std::vector<uint
 // Function to demonstrate basic BLOB operations
 void demonstrateBasicBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Basic BLOB Operations ---");
+    logMsg("");
+    logMsg("--- Basic BLOB Operations ---");
 
     try
     {
@@ -209,8 +209,8 @@ void demonstrateBasicBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnect
 // Function to demonstrate BLOB streaming operations
 void demonstrateBlobStreaming(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- BLOB Streaming Operations ---");
+    logMsg("");
+    logMsg("--- BLOB Streaming Operations ---");
 
     try
     {
@@ -287,8 +287,8 @@ void demonstrateBlobStreaming(std::shared_ptr<cpp_dbc::RelationalDBConnection> c
 // Function to demonstrate BLOB object operations
 void demonstrateBlobObjects(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- BLOB Object Operations ---");
+    logMsg("");
+    logMsg("--- BLOB Object Operations ---");
 
     try
     {
@@ -359,8 +359,8 @@ void demonstrateBlobObjects(std::shared_ptr<cpp_dbc::RelationalDBConnection> con
 // Function to demonstrate image file BLOB operations
 void demonstrateImageBlob(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Image BLOB Operations ---");
+    logMsg("");
+    logMsg("--- Image BLOB Operations ---");
 
     try
     {
@@ -429,7 +429,7 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
     demonstrateBlobObjects(conn);
     demonstrateImageBlob(conn);
 
-    log("");
+    logMsg("");
     logStep("Cleaning up tables...");
     conn->executeUpdate("DROP TABLE IF EXISTS test_blobs");
     logOk("Tables dropped");
@@ -440,10 +440,10 @@ int main(int argc, char *argv[])
 {
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
 
-    log("========================================");
-    log("cpp_dbc PostgreSQL BLOB Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc PostgreSQL BLOB Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_POSTGRESQL
     logError("PostgreSQL support is not enabled");
@@ -528,10 +528,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

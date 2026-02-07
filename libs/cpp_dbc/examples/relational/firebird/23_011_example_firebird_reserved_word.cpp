@@ -12,7 +12,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
  *
- * @file firebird_reserved_word_example.cpp
+ * @file 23_011_example_firebird_reserved_word.cpp
  * @brief Example testing Firebird reserved word handling
  *
  * This example demonstrates:
@@ -29,7 +29,6 @@
  */
 
 #include "../../common/example_common.hpp"
-#include <any>
 
 #if USE_FIREBIRD
 #include <cpp_dbc/drivers/relational/driver_firebird.hpp>
@@ -40,8 +39,8 @@ using namespace cpp_dbc::examples;
 #if USE_FIREBIRD
 void testReservedWordException(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Test 1: Reserved Word 'value' ---");
+    logMsg("");
+    logMsg("--- Test 1: Reserved Word 'value' ---");
 
     logStep("Attempting CREATE TABLE with reserved word 'value'...");
     logData("SQL: CREATE TABLE test_reserved (id INTEGER PRIMARY KEY, value INTEGER)");
@@ -61,7 +60,9 @@ void testReservedWordException(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
             conn->executeUpdate("DROP TABLE test_reserved");
             logOk("Table dropped");
         }
-        catch (...) {}
+        catch (...)
+        {
+        }
     }
     catch (const cpp_dbc::DBException &e)
     {
@@ -72,15 +73,21 @@ void testReservedWordException(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
 
 void testReservedWordWithQuotes(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Test 2: Quoted Identifier ---");
+    logMsg("");
+    logMsg("--- Test 2: Quoted Identifier ---");
 
     logStep("Creating table with quoted 'value' column...");
     logData("SQL: CREATE TABLE test_quoted (id INTEGER PRIMARY KEY, \"value\" INTEGER)");
 
     try
     {
-        try { conn->executeUpdate("DROP TABLE test_quoted"); } catch (...) {}
+        try
+        {
+            conn->executeUpdate("DROP TABLE test_quoted");
+        }
+        catch (...)
+        {
+        }
 
         conn->executeUpdate(
             "CREATE TABLE test_quoted ("
@@ -101,6 +108,7 @@ void testReservedWordWithQuotes(std::shared_ptr<cpp_dbc::RelationalDBConnection>
         auto rs = conn->executeQuery("SELECT id, \"value\" FROM test_quoted");
         while (rs->next())
         {
+            // Note: Unquoted "id" becomes uppercase "ID" in Firebird; quoted "value" preserves case
             logData("Row: id=" + std::to_string(rs->getInt("ID")) +
                     ", value=" + std::to_string(rs->getInt("value")));
         }
@@ -116,13 +124,20 @@ void testReservedWordWithQuotes(std::shared_ptr<cpp_dbc::RelationalDBConnection>
     catch (const cpp_dbc::DBException &e)
     {
         logError("Exception: " + e.what_s());
+        try
+        {
+            conn->rollback();
+        }
+        catch (...)
+        {
+        }
     }
 }
 
 void testOtherReservedWords(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Test 3: Other Reserved Words ---");
+    logMsg("");
+    logMsg("--- Test 3: Other Reserved Words ---");
 
     std::vector<std::string> reservedWords = {
         "VALUE", "USER", "DATE", "TIME", "TIMESTAMP", "ORDER", "GROUP"};
@@ -137,9 +152,15 @@ void testOtherReservedWords(std::shared_ptr<cpp_dbc::RelationalDBConnection> con
             conn->executeUpdate(sql);
             logData("Result: Created (not reserved or allowed)");
 
-            try { conn->executeUpdate("DROP TABLE test_" + word); } catch (...) {}
+            try
+            {
+                conn->executeUpdate("DROP TABLE test_" + word);
+            }
+            catch (...)
+            {
+            }
         }
-        catch (const cpp_dbc::DBException &e)
+        catch (const cpp_dbc::DBException &)
         {
             logData("Result: EXCEPTION - reserved word");
         }
@@ -150,10 +171,10 @@ void testOtherReservedWords(std::shared_ptr<cpp_dbc::RelationalDBConnection> con
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Firebird Reserved Word Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Firebird Reserved Word Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_FIREBIRD
     logError("Firebird support is not enabled");
@@ -240,7 +261,7 @@ int main(int argc, char *argv[])
         testReservedWordWithQuotes(conn);
         testOtherReservedWords(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -256,10 +277,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return 0;
 #endif

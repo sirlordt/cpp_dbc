@@ -40,7 +40,7 @@
 #endif
 
 using namespace cpp_dbc::examples;
-using cpp_dbc::examples::log;  // Disambiguate from std::log
+using cpp_dbc::examples::logMsg; // Disambiguate from std::logMsg
 
 #if USE_REDIS
 
@@ -56,7 +56,7 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
 {
     try
     {
-        log("");
+        logMsg("");
         logStep("Executing: " + operationName);
         operation();
         logOk("Operation completed successfully");
@@ -82,8 +82,8 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
 
 void demonstrateConnectionErrors(cpp_dbc::Redis::RedisDriver &driver)
 {
-    log("");
-    log("=== Connection Errors ===");
+    logMsg("");
+    logMsg("=== Connection Errors ===");
     logInfo("Demonstrating various connection error scenarios");
 
     // Wrong host
@@ -104,8 +104,8 @@ void demonstrateConnectionErrors(cpp_dbc::Redis::RedisDriver &driver)
 
 void demonstrateWrongTypeErrors(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("=== Wrong Type Errors ===");
+    logMsg("");
+    logMsg("=== Wrong Type Errors ===");
     logInfo("Redis returns WRONGTYPE when operating on wrong data structure");
 
     std::string key = "error_test_key";
@@ -122,26 +122,26 @@ void demonstrateWrongTypeErrors(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     // Try to use as list (WRONGTYPE error)
     executeWithErrorHandling("Try list operation on string", [&conn, &key]()
                              {
-        logData("Attempting listPushLeft on a string key...");
-        conn->listPushLeft(key, "new_item");
-        // This should fail with WRONGTYPE
-    });
+                                 logData("Attempting listPushLeft on a string key...");
+                                 conn->listPushLeft(key, "new_item");
+                                 // This should fail with WRONGTYPE
+                             });
 
     // Try to use as hash (WRONGTYPE error)
     executeWithErrorHandling("Try hash operation on string", [&conn, &key]()
                              {
-        logData("Attempting hashSet on a string key...");
-        conn->hashSet(key, "field", "value");
-        // This should fail with WRONGTYPE
-    });
+                                 logData("Attempting hashSet on a string key...");
+                                 conn->hashSet(key, "field", "value");
+                                 // This should fail with WRONGTYPE
+                             });
 
     // Try to use as set (WRONGTYPE error)
     executeWithErrorHandling("Try set operation on string", [&conn, &key]()
                              {
-        logData("Attempting setAdd on a string key...");
-        conn->setAdd(key, "member");
-        // This should fail with WRONGTYPE
-    });
+                                 logData("Attempting setAdd on a string key...");
+                                 conn->setAdd(key, "member");
+                                 // This should fail with WRONGTYPE
+                             });
 
     // Cleanup
     conn->deleteKey(key);
@@ -149,8 +149,8 @@ void demonstrateWrongTypeErrors(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 
 void demonstrateInvalidCommandErrors(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("=== Invalid Command Errors ===");
+    logMsg("");
+    logMsg("=== Invalid Command Errors ===");
     logInfo("Demonstrating errors from invalid Redis commands");
 
     // Non-existent command
@@ -178,8 +178,8 @@ void demonstrateInvalidCommandErrors(std::shared_ptr<cpp_dbc::KVDBConnection> co
 
 void demonstrateKeyNotFoundBehavior(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("=== Key Not Found Behavior ===");
+    logMsg("");
+    logMsg("=== Key Not Found Behavior ===");
     logInfo("Redis returns special values for missing keys (not errors)");
 
     std::string missingKey = "definitely_not_exists_" + std::to_string(time(nullptr));
@@ -224,8 +224,8 @@ void demonstrateKeyNotFoundBehavior(std::shared_ptr<cpp_dbc::KVDBConnection> con
 
 void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("=== Nothrow API Usage ===");
+    logMsg("");
+    logMsg("=== Nothrow API Usage ===");
     logInfo("Using std::nothrow API for exception-free error handling");
 
     std::string key = "nothrow_test_key";
@@ -234,7 +234,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     conn->setString(key, "string_value");
 
     // Use nothrow API to attempt list operation on string
-    log("");
+    logMsg("");
     logStep("Using nothrow API for safe operations...");
 
     // Get string (should succeed)
@@ -278,8 +278,8 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 
 void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("=== Transaction Errors ===");
+    logMsg("");
+    logMsg("=== Transaction Errors ===");
     logInfo("Demonstrating transaction-related errors");
 
     // EXEC without MULTI
@@ -312,14 +312,14 @@ void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 
 void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("=== Error Recovery Patterns ===");
+    logMsg("");
+    logMsg("=== Error Recovery Patterns ===");
     logInfo("Demonstrating how to recover from errors");
 
     std::string key = "recovery_test";
 
     // Pattern 1: Check before operate
-    log("");
+    logMsg("");
     logStep("Pattern 1: Check existence before operating...");
     if (!conn->exists(key))
     {
@@ -329,7 +329,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     logData("Key value: " + conn->getString(key));
 
     // Pattern 2: Use default values
-    log("");
+    logMsg("");
     logStep("Pattern 2: Use default values for missing keys...");
     std::string missingKey = "missing_key_test";
     std::string value = conn->getString(missingKey);
@@ -344,7 +344,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     }
 
     // Pattern 3: Try-catch with specific handling
-    log("");
+    logMsg("");
     logStep("Pattern 3: Specific error type handling...");
     try
     {
@@ -370,10 +370,10 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Redis Error Handling Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Redis Error Handling Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_REDIS
     logError("Redis support is not enabled");
@@ -454,7 +454,7 @@ int main(int argc, char *argv[])
         demonstrateTransactionErrors(conn);
         demonstrateErrorRecovery(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -470,10 +470,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

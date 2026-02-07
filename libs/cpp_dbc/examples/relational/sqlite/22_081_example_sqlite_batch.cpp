@@ -100,8 +100,8 @@ void setupDatabase(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 // Demonstrate individual INSERT operations (for comparison)
 void demonstrateIndividualInserts(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn, int numRecords)
 {
-    log("");
-    log("--- Individual INSERT Operations ---");
+    logMsg("");
+    logMsg("--- Individual INSERT Operations ---");
     logStep("Inserting " + std::to_string(numRecords) + " records individually...");
 
     conn->executeUpdate("DELETE FROM batch_test");
@@ -131,8 +131,8 @@ void demonstrateIndividualInserts(std::shared_ptr<cpp_dbc::RelationalDBConnectio
 // Demonstrate batch INSERT operations within a transaction
 void demonstrateBatchInserts(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn, int numRecords)
 {
-    log("");
-    log("--- Batch INSERT Operations (Transaction) ---");
+    logMsg("");
+    logMsg("--- Batch INSERT Operations (Transaction) ---");
     logStep("Inserting " + std::to_string(numRecords) + " records in a transaction...");
 
     conn->executeUpdate("DELETE FROM batch_test");
@@ -184,8 +184,8 @@ void demonstrateBatchInserts(std::shared_ptr<cpp_dbc::RelationalDBConnection> co
 // Demonstrate batch UPDATE operations
 void demonstrateBatchUpdates(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Batch UPDATE Operations ---");
+    logMsg("");
+    logMsg("--- Batch UPDATE Operations ---");
     logStep("Performing batch updates within a transaction...");
 
     auto pstmt = conn->prepareStatement(
@@ -233,8 +233,8 @@ void demonstrateBatchUpdates(std::shared_ptr<cpp_dbc::RelationalDBConnection> co
 // Demonstrate batch DELETE operations
 void demonstrateBatchDeletes(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Batch DELETE Operations ---");
+    logMsg("");
+    logMsg("--- Batch DELETE Operations ---");
 
     // First show count before delete
     auto countRs = conn->executeQuery("SELECT COUNT(*) as cnt FROM batch_test");
@@ -285,8 +285,8 @@ void demonstrateBatchDeletes(std::shared_ptr<cpp_dbc::RelationalDBConnection> co
 // Demonstrate bulk insert using multi-row VALUES
 void demonstrateBulkInsert(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Bulk INSERT with Multiple VALUES ---");
+    logMsg("");
+    logMsg("--- Bulk INSERT with Multiple VALUES ---");
     logStep("Inserting multiple rows in a single statement...");
 
     conn->executeUpdate("DELETE FROM batch_test WHERE id > 100");
@@ -322,8 +322,8 @@ void demonstrateBulkInsert(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn
 // Demonstrate atomic batch operations with rollback
 void demonstrateAtomicBatch(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Atomic Batch Operations with Rollback ---");
+    logMsg("");
+    logMsg("--- Atomic Batch Operations with Rollback ---");
     logStep("Demonstrating transaction rollback on error...");
 
     // Get current count
@@ -405,7 +405,7 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
     demonstrateBulkInsert(conn);
     demonstrateAtomicBatch(conn);
 
-    log("");
+    logMsg("");
     logStep("Cleaning up...");
     conn->executeUpdate("DROP TABLE IF EXISTS batch_test");
     logOk("Cleanup completed");
@@ -414,10 +414,10 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc SQLite Batch Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc SQLite Batch Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SQLITE
     logError("SQLite support is not enabled");
@@ -502,10 +502,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

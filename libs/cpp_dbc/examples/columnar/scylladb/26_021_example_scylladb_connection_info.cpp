@@ -39,10 +39,10 @@ using namespace cpp_dbc::examples;
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc ScyllaDB Connection Info Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc ScyllaDB Connection Info Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SCYLLADB
     logError("ScyllaDB support is not enabled");
@@ -86,8 +86,8 @@ int main(int argc, char *argv[])
 
     try
     {
-        log("");
-        log("--- ScyllaDB Connection URL ---");
+        logMsg("");
+        logMsg("--- ScyllaDB Connection URL ---");
 
         logStep("Getting ScyllaDB configuration...");
         auto scyllaResult = getDbConfig(configManager, args.dbName, "scylladb");
@@ -108,8 +108,8 @@ int main(int argc, char *argv[])
         logOk("Using: " + scyllaConfig.getName());
 
         // Display configuration details
-        log("");
-        log("--- Configuration Details ---");
+        logMsg("");
+        logMsg("--- Configuration Details ---");
         logData("Name: " + scyllaConfig.getName());
         logData("Type: " + scyllaConfig.getType());
         logData("Host: " + scyllaConfig.getHost());
@@ -127,8 +127,8 @@ int main(int argc, char *argv[])
         if (colConn)
         {
             // Query cluster information
-            log("");
-            log("--- Cluster Information ---");
+            logMsg("");
+            logMsg("--- Cluster Information ---");
             logStep("Querying cluster information...");
 
             try
@@ -225,10 +225,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

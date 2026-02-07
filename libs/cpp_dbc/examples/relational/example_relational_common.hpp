@@ -113,9 +113,9 @@ namespace cpp_dbc::examples::relational
     inline void performCrudOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn,
                                       const std::string &dbType)
     {
-        log("");
-        log("--- Basic CRUD Operations (" + dbType + ") ---");
-        log("");
+        logMsg("");
+        logMsg("--- Basic CRUD Operations (" + dbType + ") ---");
+        logMsg("");
 
         // ===== Create Table =====
         logStep("Creating table 'employees'...");
@@ -125,9 +125,10 @@ namespace cpp_dbc::examples::relational
             "CREATE TABLE IF NOT EXISTS employees ("
             "id INT PRIMARY KEY, "
             "name VARCHAR(100), "
-            "salary " + salaryType + ", "
-            "hire_date DATE"
-            ")");
+            "salary " +
+            salaryType + ", "
+                         "hire_date DATE"
+                         ")");
         logOk("Table 'employees' created/verified");
 
         // ===== Clear Test Data =====
@@ -181,9 +182,9 @@ namespace cpp_dbc::examples::relational
         logOk("Query returned " + std::to_string(rowCount) + " row(s)");
 
         // ===== Transaction Demo =====
-        log("");
-        log("--- Transaction Demo ---");
-        log("");
+        logMsg("");
+        logMsg("--- Transaction Demo ---");
+        logMsg("");
 
         logStep("Beginning transaction...");
         conn->beginTransaction();
@@ -248,9 +249,9 @@ namespace cpp_dbc::examples::relational
     inline void performConnectionPoolDemo(std::shared_ptr<cpp_dbc::RelationalDBConnectionPool> pool,
                                           const std::string &dbType)
     {
-        log("");
-        log("--- Connection Pool Demo (" + dbType + ") ---");
-        log("");
+        logMsg("");
+        logMsg("--- Connection Pool Demo (" + dbType + ") ---");
+        logMsg("");
 
         logStep("Getting connection from pool...");
         auto conn = pool->getRelationalDBConnection();
@@ -302,10 +303,10 @@ namespace cpp_dbc::examples::relational
         const std::string &exampleName,
         const std::function<void(std::shared_ptr<cpp_dbc::RelationalDBConnection>, const std::string &)> &operations)
     {
-        log("========================================");
-        log("cpp_dbc " + exampleName);
-        log("========================================");
-        log("");
+        logMsg("========================================");
+        logMsg("cpp_dbc " + exampleName);
+        logMsg("========================================");
+        logMsg("");
 
         logStep("Parsing command line arguments...");
         auto args = parseArgs(argc, argv);
@@ -382,7 +383,7 @@ namespace cpp_dbc::examples::relational
             // Execute the provided operations
             operations(conn, dbType);
 
-            log("");
+            logMsg("");
             logStep("Closing connection...");
             conn->close();
             logOk("Connection closed");
@@ -398,10 +399,10 @@ namespace cpp_dbc::examples::relational
             return EXIT_ERROR_;
         }
 
-        log("");
-        log("========================================");
+        logMsg("");
+        logMsg("========================================");
         logOk("Example completed successfully");
-        log("========================================");
+        logMsg("========================================");
 
         return EXIT_OK_;
     }

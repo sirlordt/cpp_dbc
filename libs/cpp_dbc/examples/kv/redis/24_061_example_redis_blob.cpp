@@ -78,8 +78,8 @@ std::vector<uint8_t> stringToVector(const std::string &str)
 
 void demonstrateBinaryStorage(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Binary Data Storage ---");
+    logMsg("");
+    logMsg("--- Binary Data Storage ---");
     logInfo("Redis is binary-safe and can store any byte sequence");
 
     // Create test data of various sizes
@@ -106,8 +106,8 @@ void demonstrateBinaryStorage(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     logOk("Large data stored");
 
     // Retrieve and verify
-    log("");
-    log("--- Retrieve and Verify ---");
+    logMsg("");
+    logMsg("--- Retrieve and Verify ---");
 
     logStep("Retrieving and verifying small data...");
     auto retrievedSmall = stringToVector(conn->getString(smallKey));
@@ -150,8 +150,8 @@ void demonstrateBinaryStorage(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 
 void demonstrateBinaryWithNullBytes(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Binary Data with NULL Bytes ---");
+    logMsg("");
+    logMsg("--- Binary Data with NULL Bytes ---");
     logInfo("Redis handles NULL bytes (\\0) correctly");
 
     std::string key = "blob_with_nulls";
@@ -184,8 +184,8 @@ void demonstrateBinaryWithNullBytes(std::shared_ptr<cpp_dbc::KVDBConnection> con
 
 void demonstrateBinaryInHash(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Binary Data in Hash Fields ---");
+    logMsg("");
+    logMsg("--- Binary Data in Hash Fields ---");
     logInfo("Hash fields can also store binary data");
 
     std::string hashKey = "blob_hash";
@@ -248,8 +248,8 @@ void demonstrateBinaryInHash(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 
 void demonstrateBinaryWithExpiration(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Binary Data with TTL ---");
+    logMsg("");
+    logMsg("--- Binary Data with TTL ---");
     logInfo("Binary data can have expiration time");
 
     std::string key = "blob_with_ttl";
@@ -281,10 +281,10 @@ void demonstrateBinaryWithExpiration(std::shared_ptr<cpp_dbc::KVDBConnection> co
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Redis Binary Data Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Redis Binary Data Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_REDIS
     logError("Redis support is not enabled");
@@ -361,7 +361,7 @@ int main(int argc, char *argv[])
         demonstrateBinaryInHash(conn);
         demonstrateBinaryWithExpiration(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -377,10 +377,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

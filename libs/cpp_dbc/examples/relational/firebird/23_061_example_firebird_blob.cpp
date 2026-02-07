@@ -97,9 +97,9 @@ bool verifyBinaryData(const std::vector<uint8_t> &original, const std::vector<ui
  */
 void demonstrateBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("=== Firebird BLOB Operations ===");
-    log("");
+    logMsg("");
+    logMsg("=== Firebird BLOB Operations ===");
+    logMsg("");
 
     try
     {
@@ -109,15 +109,15 @@ void demonstrateBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
             "RECREATE TABLE blob_test ("
             "id INTEGER NOT NULL PRIMARY KEY, "
             "name VARCHAR(100) NOT NULL, "
-            "binary_data BLOB SUB_TYPE 0, "       // Binary BLOB
-            "text_data BLOB SUB_TYPE TEXT, "      // Text BLOB
+            "binary_data BLOB SUB_TYPE 0, "  // Binary BLOB
+            "text_data BLOB SUB_TYPE TEXT, " // Text BLOB
             "file_size INTEGER"
             ")");
         logOk("Table created");
 
         // ===== Insert Binary Data =====
-        log("");
-        log("--- Insert BLOB Data ---");
+        logMsg("");
+        logMsg("--- Insert BLOB Data ---");
 
         // Create test data of various sizes
         auto smallData = createTestBinaryData(100);
@@ -154,11 +154,11 @@ void demonstrateBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
         pstmt->setInt(5, static_cast<int>(largeData.size()));
         pstmt->executeUpdate();
         logOk("Large data inserted");
-        pstmt->close();  // Close prepared statement
+        pstmt->close(); // Close prepared statement
 
         // ===== Query BLOB Data =====
-        log("");
-        log("--- Query BLOB Data ---");
+        logMsg("");
+        logMsg("--- Query BLOB Data ---");
 
         logStep("Querying blob metadata...");
         auto rs = conn->executeQuery(
@@ -171,11 +171,11 @@ void demonstrateBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
                     ", Name: " + rs->getString("NAME") +
                     ", File Size: " + std::to_string(rs->getInt("FILE_SIZE")));
         }
-        rs->close();  // Close result set
+        rs->close(); // Close result set
 
         // ===== Retrieve and Verify Binary Data =====
-        log("");
-        log("--- Retrieve and Verify BLOB Data ---");
+        logMsg("");
+        logMsg("--- Retrieve and Verify BLOB Data ---");
 
         logStep("Retrieving and verifying small data...");
         rs = conn->executeQuery("SELECT binary_data FROM blob_test WHERE id = 1");
@@ -191,7 +191,7 @@ void demonstrateBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
                 logError("Small data verification failed!");
             }
         }
-        rs->close();  // Close result set
+        rs->close(); // Close result set
 
         logStep("Retrieving and verifying medium data...");
         rs = conn->executeQuery("SELECT binary_data FROM blob_test WHERE id = 2");
@@ -207,7 +207,7 @@ void demonstrateBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
                 logError("Medium data verification failed!");
             }
         }
-        rs->close();  // Close result set
+        rs->close(); // Close result set
 
         logStep("Retrieving and verifying large data...");
         rs = conn->executeQuery("SELECT binary_data FROM blob_test WHERE id = 3");
@@ -223,11 +223,11 @@ void demonstrateBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
                 logError("Large data verification failed!");
             }
         }
-        rs->close();  // Close result set
+        rs->close(); // Close result set
 
         // ===== Text BLOB Operations =====
-        log("");
-        log("--- Text BLOB Operations ---");
+        logMsg("");
+        logMsg("--- Text BLOB Operations ---");
 
         logStep("Retrieving text BLOB data...");
         rs = conn->executeQuery("SELECT id, name, text_data FROM blob_test ORDER BY id");
@@ -238,11 +238,11 @@ void demonstrateBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
                     " text (first 50 chars): " +
                     (textData.length() > 50 ? textData.substr(0, 50) + "..." : textData));
         }
-        rs->close();  // Close result set
+        rs->close(); // Close result set
 
         // ===== Update BLOB Data =====
-        log("");
-        log("--- Update BLOB Data ---");
+        logMsg("");
+        logMsg("--- Update BLOB Data ---");
 
         auto updatedData = createTestBinaryData(500);
         logStep("Updating BLOB data for ID 1...");
@@ -253,7 +253,7 @@ void demonstrateBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
         pstmt->setInt(3, 1);
         pstmt->executeUpdate();
         logOk("BLOB data updated");
-        pstmt->close();  // Close prepared statement
+        pstmt->close(); // Close prepared statement
 
         logStep("Verifying updated data...");
         rs = conn->executeQuery("SELECT binary_data FROM blob_test WHERE id = 1");
@@ -269,11 +269,11 @@ void demonstrateBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
                 logError("Updated data verification failed!");
             }
         }
-        rs->close();  // Close result set
+        rs->close(); // Close result set
 
         // ===== NULL BLOB Handling =====
-        log("");
-        log("--- NULL BLOB Handling ---");
+        logMsg("");
+        logMsg("--- NULL BLOB Handling ---");
 
         logStep("Inserting row with NULL BLOB...");
         conn->executeUpdate(
@@ -294,10 +294,10 @@ void demonstrateBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
                 logError("NULL BLOB not detected!");
             }
         }
-        rs->close();  // Close result set
+        rs->close(); // Close result set
 
         // ===== Cleanup =====
-        log("");
+        logMsg("");
         logStep("Cleaning up...");
         conn->executeUpdate("DROP TABLE blob_test");
         logOk("Table dropped");
@@ -312,10 +312,10 @@ void demonstrateBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Firebird BLOB Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Firebird BLOB Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_FIREBIRD
     logError("Firebird support is not enabled");
@@ -398,10 +398,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

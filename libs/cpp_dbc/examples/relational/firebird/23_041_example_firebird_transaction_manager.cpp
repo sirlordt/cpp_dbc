@@ -37,6 +37,7 @@
 #include <condition_variable>
 #include <queue>
 #include <functional>
+#include <random>
 
 #if USE_FIREBIRD
 #include <cpp_dbc/drivers/relational/driver_firebird.hpp>
@@ -137,10 +138,10 @@ void workerThread(cpp_dbc::TransactionManager & /*txnManager*/, TaskQueue &taskQ
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Firebird Transaction Manager Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Firebird Transaction Manager Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_FIREBIRD
     logError("Firebird support is not enabled");
@@ -238,8 +239,8 @@ int main(int argc, char *argv[])
         logOk("Created " + std::to_string(numWorkers) + " worker threads");
 
         // Simulate multiple business processes with transactions
-        log("");
-        log("--- Starting Transactions ---");
+        logMsg("");
+        logMsg("--- Starting Transactions ---");
 
         const int numTransactions = 5;
         std::vector<std::string> transactionIds;
@@ -256,13 +257,17 @@ int main(int argc, char *argv[])
             taskQueue.push(WorkflowTask(txnId, 1, [&txnManager, txnId]()
                                         {
                 try {
+                    // Thread-local RNG for thread safety
+                    thread_local std::mt19937 rng{std::random_device{}()};
+                    std::uniform_int_distribution<int> dist(100, 299);
+
                     auto conn = txnManager.getTransactionDBConnection(txnId);
 
                     // Perform some database operations in this transaction
                     conn->executeUpdate("INSERT INTO transaction_test (id, data) VALUES (1, 'Task 1 Data')");
 
                     // Simulate work
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100 + rand() % 200));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(dist(rng)));
                 }
                 catch (const std::exception& e) {
                     std::lock_guard<std::mutex> lock(consoleMutex);
@@ -272,21 +277,25 @@ int main(int argc, char *argv[])
         }
 
         // Add second tasks for each transaction
-        log("");
-        log("--- Adding Update Tasks ---");
+        logMsg("");
+        logMsg("--- Adding Update Tasks ---");
 
         for (const auto &txnId : transactionIds)
         {
             taskQueue.push(WorkflowTask(txnId, 2, [&txnManager, txnId]()
                                         {
                 try {
+                    // Thread-local RNG for thread safety
+                    thread_local std::mt19937 rng{std::random_device{}()};
+                    std::uniform_int_distribution<int> dist(150, 399);
+
                     auto conn = txnManager.getTransactionDBConnection(txnId);
 
                     // Perform more database operations in this transaction
                     conn->executeUpdate("UPDATE transaction_test SET data = 'Task 2 Updated' WHERE id = 1");
 
                     // Simulate work
-                    std::this_thread::sleep_for(std::chrono::milliseconds(150 + rand() % 250));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(dist(rng)));
                 }
                 catch (const std::exception& e) {
                     std::lock_guard<std::mutex> lock(consoleMutex);
@@ -296,8 +305,8 @@ int main(int argc, char *argv[])
         }
 
         // Add final tasks to commit or rollback transactions
-        log("");
-        log("--- Adding Commit/Rollback Tasks ---");
+        logMsg("");
+        logMsg("--- Adding Commit/Rollback Tasks ---");
 
         for (size_t i = 0; i < transactionIds.size(); i++)
         {
@@ -328,7 +337,7 @@ int main(int argc, char *argv[])
         }
 
         // Signal that we're done adding tasks
-        log("");
+        logMsg("");
         logStep("Finishing task queue...");
         taskQueue.finish();
 
@@ -363,10 +372,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

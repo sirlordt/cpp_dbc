@@ -39,10 +39,10 @@ using namespace cpp_dbc::examples;
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc SQLite Connection Info Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc SQLite Connection Info Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SQLITE
     logError("SQLite support is not enabled");
@@ -86,8 +86,8 @@ int main(int argc, char *argv[])
 
     try
     {
-        log("");
-        log("--- SQLite Connection URL (from config) ---");
+        logMsg("");
+        logMsg("--- SQLite Connection URL (from config) ---");
 
         logStep("Getting SQLite configuration...");
         auto sqliteResult = getDbConfig(configManager, args.dbName, "sqlite");
@@ -112,8 +112,8 @@ int main(int argc, char *argv[])
             logInfo("SQLite configuration not found in config file");
         }
 
-        log("");
-        log("--- SQLite In-Memory Database ---");
+        logMsg("");
+        logMsg("--- SQLite In-Memory Database ---");
 
         logStep("Connecting to SQLite in-memory database...");
         auto sqliteMemConn = cpp_dbc::DriverManager::getDBConnection(
@@ -139,10 +139,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

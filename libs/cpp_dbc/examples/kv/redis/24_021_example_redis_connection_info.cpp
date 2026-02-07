@@ -39,10 +39,10 @@ using namespace cpp_dbc::examples;
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Redis Connection Info Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Redis Connection Info Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_REDIS
     logError("Redis support is not enabled");
@@ -86,8 +86,8 @@ int main(int argc, char *argv[])
 
     try
     {
-        log("");
-        log("--- Redis Connection URL ---");
+        logMsg("");
+        logMsg("--- Redis Connection URL ---");
 
         logStep("Getting Redis configuration...");
         auto redisResult = getDbConfig(configManager, args.dbName, "redis");
@@ -108,8 +108,8 @@ int main(int argc, char *argv[])
         logOk("Using: " + redisConfig.getName());
 
         // Display configuration details
-        log("");
-        log("--- Configuration Details ---");
+        logMsg("");
+        logMsg("--- Configuration Details ---");
         logData("Name: " + redisConfig.getName());
         logData("Type: " + redisConfig.getType());
         logData("Host: " + redisConfig.getHost());
@@ -125,8 +125,8 @@ int main(int argc, char *argv[])
         auto kvConn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(redisConn);
         if (kvConn)
         {
-            log("");
-            log("--- Server Connectivity ---");
+            logMsg("");
+            logMsg("--- Server Connectivity ---");
             logStep("Pinging server...");
             std::string pong = kvConn->ping();
             logData("PING response: " + pong);
@@ -151,10 +151,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

@@ -44,8 +44,8 @@ void performJsonOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     std::string table = keyspace + ".json_example";
 
     // ===== Table Setup =====
-    log("");
-    log("--- Table Setup ---");
+    logMsg("");
+    logMsg("--- Table Setup ---");
 
     logStep("Creating keyspace if not exists...");
     conn->executeUpdate("CREATE KEYSPACE IF NOT EXISTS " + keyspace +
@@ -65,8 +65,8 @@ void performJsonOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     logOk("Table created");
 
     // ===== Insert JSON Data =====
-    log("");
-    log("--- Insert JSON Data ---");
+    logMsg("");
+    logMsg("--- Insert JSON Data ---");
 
     logStep("Preparing insert statement...");
     auto pstmt = conn->prepareStatement("INSERT INTO " + table + " (id, json_data) VALUES (?, ?)");
@@ -100,8 +100,8 @@ void performJsonOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     logOk("Inserted");
 
     // ===== Retrieve Data =====
-    log("");
-    log("--- Retrieve JSON Data ---");
+    logMsg("");
+    logMsg("--- Retrieve JSON Data ---");
 
     logStep("Querying all JSON data...");
     auto rs = conn->executeQuery("SELECT * FROM " + table);
@@ -115,8 +115,8 @@ void performJsonOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     logOk("Retrieved " + std::to_string(rowCount) + " row(s)");
 
     // ===== Query Specific Row =====
-    log("");
-    log("--- Query Specific Row ---");
+    logMsg("");
+    logMsg("--- Query Specific Row ---");
 
     logStep("Querying row with id=1...");
     auto selectStmt = conn->prepareStatement("SELECT * FROM " + table + " WHERE id = ?");
@@ -133,8 +133,8 @@ void performJsonOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     }
 
     // ===== Cleanup =====
-    log("");
-    log("--- Cleanup ---");
+    logMsg("");
+    logMsg("--- Cleanup ---");
 
     logStep("Dropping table...");
     conn->executeUpdate("DROP TABLE " + table);
@@ -144,10 +144,10 @@ void performJsonOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc ScyllaDB JSON Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc ScyllaDB JSON Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SCYLLADB
     logError("ScyllaDB support is not enabled");
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
 
         performJsonOperations(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -245,10 +245,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return 0;
 #endif

@@ -16,7 +16,7 @@
  * @brief Common utilities for cpp_dbc examples
  *
  * This header-only file provides utilities for:
- * - Structured logging functions (logStep, logOk, logError, logData, logInfo, log)
+ * - Structured logging functions (logStep, logOk, logError, logData, logInfo, logMsg)
  * - Command-line argument parsing (--config=, --db=, --help)
  * - YAML configuration loading using nothrow pattern (expected<optional<T>, DBException>)
  * - Database configuration lookup with dev_* fallback
@@ -111,11 +111,11 @@ namespace cpp_dbc::examples
      *   logData("Row: id=1, name='John'");
      *   logError("Connection failed: " + e.what_s());
      *   logInfo("Using default config");
-     *   log("========================================");
+     *   logMsg("========================================");
      */
 
     /** @brief Log a message without marker (for headers, separators) */
-    inline void log(const std::string &message)
+    inline void logMsg(const std::string &message)
     {
         cpp_dbc::system_utils::logWithTimestamp("", message);
     }
@@ -504,10 +504,10 @@ namespace cpp_dbc::examples
      */
     inline bool tryCreateFirebirdDatabase(const cpp_dbc::config::DatabaseConfig &dbConfig)
     {
-        // Use explicit namespace to avoid ambiguity with other log functions
+        // Use explicit namespace to avoid ambiguity with other logMsg functions
+        using cpp_dbc::examples::logError;
         using cpp_dbc::examples::logInfo;
         using cpp_dbc::examples::logOk;
-        using cpp_dbc::examples::logError;
 
         try
         {
@@ -560,7 +560,14 @@ namespace cpp_dbc::examples
                                                  "PAGE_SIZE 4096 "
                                                  "DEFAULT CHARACTER SET UTF8";
 
-            logInfo("Executing: " + createDbSql);
+            // Log sanitized version (without password)
+            std::string sanitizedSql = "CREATE DATABASE '" + fbConnStr + "' "
+                                                                         "USER '" +
+                                       username + "' "
+                                                  "PASSWORD '***' "
+                                                  "PAGE_SIZE 4096 "
+                                                  "DEFAULT CHARACTER SET UTF8";
+            logInfo("Executing: " + sanitizedSql);
 
             ISC_STATUS_ARRAY status;
             isc_db_handle db = 0;
@@ -580,7 +587,7 @@ namespace cpp_dbc::examples
                 logInfo("3. Restart Firebird: sudo systemctl restart firebird3.0");
                 logInfo("");
                 logInfo("Alternatively, create the database manually:");
-                logInfo("   isql-fb -user " + username + " -password " + password);
+                logInfo("   isql-fb -user " + username + " -password <your_password>");
                 logInfo("   SQL> CREATE DATABASE '" + database + "';");
                 logInfo("   SQL> quit;");
                 return false;

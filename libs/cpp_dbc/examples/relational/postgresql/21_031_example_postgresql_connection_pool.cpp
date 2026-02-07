@@ -83,10 +83,10 @@ void performDatabaseOperation(cpp_dbc::RelationalDBConnectionPool &pool, int thr
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc PostgreSQL Connection Pool Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc PostgreSQL Connection Pool Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_POSTGRESQL
     logError("PostgreSQL support is not enabled");
@@ -155,8 +155,8 @@ int main(int argc, char *argv[])
     try
     {
         // ===== Pool Configuration =====
-        log("");
-        log("--- Pool Configuration ---");
+        logMsg("");
+        logMsg("--- Pool Configuration ---");
 
         logStep("Configuring connection pool...");
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -173,8 +173,8 @@ int main(int argc, char *argv[])
         logOk("Pool configuration ready");
 
         // ===== Create Pool =====
-        log("");
-        log("--- Pool Creation ---");
+        logMsg("");
+        logMsg("--- Pool Creation ---");
 
         logStep("Creating PostgreSQL connection pool...");
         auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
@@ -189,8 +189,8 @@ int main(int argc, char *argv[])
         logData("Initial idle connections: " + std::to_string(pool->getIdleDBConnectionCount()));
 
         // ===== Multi-threaded Access =====
-        log("");
-        log("--- Multi-threaded Access ---");
+        logMsg("");
+        logMsg("--- Multi-threaded Access ---");
 
         const int numThreads = 10;
         logStep("Starting " + std::to_string(numThreads) + " threads (more than pool initial size)...");
@@ -210,8 +210,8 @@ int main(int argc, char *argv[])
         logOk("All threads completed");
 
         // ===== Pool Statistics =====
-        log("");
-        log("--- Pool Statistics ---");
+        logMsg("");
+        logMsg("--- Pool Statistics ---");
 
         logData("Active connections: " + std::to_string(pool->getActiveDBConnectionCount()));
         logData("Idle connections: " + std::to_string(pool->getIdleDBConnectionCount()));
@@ -219,8 +219,8 @@ int main(int argc, char *argv[])
         logOk("Statistics retrieved");
 
         // ===== Cleanup =====
-        log("");
-        log("--- Cleanup ---");
+        logMsg("");
+        logMsg("--- Cleanup ---");
 
         logStep("Closing connection pool...");
         pool->close();
@@ -237,10 +237,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

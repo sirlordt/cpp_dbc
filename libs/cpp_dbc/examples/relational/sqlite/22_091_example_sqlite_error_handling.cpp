@@ -51,7 +51,7 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
 {
     try
     {
-        log("");
+        logMsg("");
         logStep("Executing: " + operationName);
         operation();
         logOk("Operation completed successfully");
@@ -149,8 +149,8 @@ void setupDatabase(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 // Function to demonstrate handling syntax errors
 void demonstrateSyntaxErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Syntax Errors ---");
+    logMsg("");
+    logMsg("--- Syntax Errors ---");
 
     executeWithErrorHandling("Syntax Error Example", [&conn]()
                              {
@@ -161,8 +161,8 @@ void demonstrateSyntaxErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> co
 // Function to demonstrate handling constraint violations
 void demonstrateConstraintViolations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Constraint Violations ---");
+    logMsg("");
+    logMsg("--- Constraint Violations ---");
 
     // Primary key violation
     executeWithErrorHandling("Primary Key Violation", [&conn]()
@@ -239,8 +239,8 @@ void demonstrateConstraintViolations(std::shared_ptr<cpp_dbc::RelationalDBConnec
 // Function to demonstrate handling data type errors
 void demonstrateDataTypeErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Data Type Errors ---");
+    logMsg("");
+    logMsg("--- Data Type Errors ---");
     logInfo("Note: SQLite has dynamic typing, so fewer type errors occur");
 
     // Invalid SQL operation
@@ -260,8 +260,8 @@ void demonstrateDataTypeErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
 // Function to demonstrate handling transaction errors
 void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Transaction Errors ---");
+    logMsg("");
+    logMsg("--- Transaction Errors ---");
 
     // Transaction rollback example
     executeWithErrorHandling("Transaction Rollback", [&conn]()
@@ -319,8 +319,8 @@ void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::RelationalDBConnectio
 // Function to demonstrate handling connection errors
 void demonstrateConnectionErrors()
 {
-    log("");
-    log("--- Connection Errors ---");
+    logMsg("");
+    logMsg("--- Connection Errors ---");
 
     executeWithErrorHandling("Connection Error - Invalid Path", []()
                              {
@@ -342,8 +342,8 @@ void demonstrateConnectionErrors()
 // Function to demonstrate handling prepared statement errors
 void demonstratePreparedStatementErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Prepared Statement Errors ---");
+    logMsg("");
+    logMsg("--- Prepared Statement Errors ---");
 
     // Invalid parameter index
     executeWithErrorHandling("Invalid Parameter Index", [&conn]()
@@ -369,8 +369,8 @@ void demonstratePreparedStatementErrors(std::shared_ptr<cpp_dbc::RelationalDBCon
 // Function to demonstrate handling result set errors
 void demonstrateResultSetErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Result Set Errors ---");
+    logMsg("");
+    logMsg("--- Result Set Errors ---");
 
     // Invalid column name
     executeWithErrorHandling("Invalid Column Name", [&conn]()
@@ -390,8 +390,8 @@ void demonstrateResultSetErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection>
 // Function to demonstrate proper error recovery
 void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Error Recovery ---");
+    logMsg("");
+    logMsg("--- Error Recovery ---");
 
     try
     {
@@ -421,8 +421,8 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::RelationalDBConnection> c
 // Function to demonstrate SQLite-specific errors
 void demonstrateSQLiteSpecificErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- SQLite-Specific Error Handling ---");
+    logMsg("");
+    logMsg("--- SQLite-Specific Error Handling ---");
 
     // Invalid PRAGMA
     executeWithErrorHandling("SQLite Invalid Table Name", [&conn]()
@@ -458,7 +458,7 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
     demonstrateErrorRecovery(conn);
     demonstrateSQLiteSpecificErrors(conn);
 
-    log("");
+    logMsg("");
     logStep("Cleaning up tables...");
     conn->executeUpdate("DROP TABLE IF EXISTS error_test_orders");
     conn->executeUpdate("DROP TABLE IF EXISTS error_test_customers");
@@ -469,10 +469,10 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc SQLite Error Handling Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc SQLite Error Handling Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SQLITE
     logError("SQLite support is not enabled");
@@ -558,10 +558,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

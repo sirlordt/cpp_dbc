@@ -38,10 +38,10 @@ using namespace cpp_dbc::examples;
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc PostgreSQL Connection Info Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc PostgreSQL Connection Info Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_POSTGRESQL
     logError("PostgreSQL support is not enabled");
@@ -85,8 +85,8 @@ int main(int argc, char *argv[])
 
     try
     {
-        log("");
-        log("--- PostgreSQL Connection URL ---");
+        logMsg("");
+        logMsg("--- PostgreSQL Connection URL ---");
 
         logStep("Getting PostgreSQL configuration...");
         auto pgResult = getDbConfig(configManager, args.dbName, "postgresql");
@@ -128,10 +128,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

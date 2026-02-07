@@ -12,7 +12,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
  *
- * @file scylla_example.cpp
+ * @file 26_001_example_scylladb_basic.cpp
  * @brief Example demonstrating basic ScyllaDB columnar database operations
  *
  * This example demonstrates:
@@ -48,8 +48,8 @@ void performScyllaDBOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> co
     std::string table = keyspace + ".example_table";
 
     // ===== Keyspace Setup =====
-    log("");
-    log("--- Keyspace Setup ---");
+    logMsg("");
+    logMsg("--- Keyspace Setup ---");
 
     logStep("Creating keyspace if not exists...");
     conn->executeUpdate(
@@ -58,8 +58,8 @@ void performScyllaDBOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> co
     logOk("Keyspace '" + keyspace + "' ready");
 
     // ===== Table Setup =====
-    log("");
-    log("--- Table Setup ---");
+    logMsg("");
+    logMsg("--- Table Setup ---");
 
     logStep("Dropping existing table if exists...");
     conn->executeUpdate("DROP TABLE IF EXISTS " + table);
@@ -75,8 +75,8 @@ void performScyllaDBOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> co
     logOk("Table '" + table + "' created");
 
     // ===== Insert Operations =====
-    log("");
-    log("--- Insert Operations ---");
+    logMsg("");
+    logMsg("--- Insert Operations ---");
 
     logStep("Preparing insert statement...");
     auto pstmt = conn->prepareStatement(
@@ -100,8 +100,8 @@ void performScyllaDBOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> co
     logOk("5 rows inserted");
 
     // ===== Select Single Row =====
-    log("");
-    log("--- Select Single Row ---");
+    logMsg("");
+    logMsg("--- Select Single Row ---");
 
     logStep("Selecting row with id=3...");
     auto selectStmt = conn->prepareStatement("SELECT * FROM " + table + " WHERE id = ?");
@@ -123,8 +123,8 @@ void performScyllaDBOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> co
     }
 
     // ===== Update Operation =====
-    log("");
-    log("--- Update Operation ---");
+    logMsg("");
+    logMsg("--- Update Operation ---");
 
     logStep("Updating name for id=3...");
     auto updateStmt = conn->prepareStatement("UPDATE " + table + " SET name = ? WHERE id = ?");
@@ -146,8 +146,8 @@ void performScyllaDBOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> co
     }
 
     // ===== Select All Rows =====
-    log("");
-    log("--- Select All Rows ---");
+    logMsg("");
+    logMsg("--- Select All Rows ---");
 
     logStep("Querying all rows...");
     rs = conn->executeQuery("SELECT * FROM " + table);
@@ -164,8 +164,8 @@ void performScyllaDBOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> co
     logOk("Query returned " + std::to_string(rowCount) + " row(s)");
 
     // ===== Delete Operation =====
-    log("");
-    log("--- Delete Operation ---");
+    logMsg("");
+    logMsg("--- Delete Operation ---");
 
     logStep("Deleting row with id=5...");
     conn->executeUpdate("DELETE FROM " + table + " WHERE id = 5");
@@ -180,8 +180,8 @@ void performScyllaDBOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> co
     }
 
     // ===== Cleanup =====
-    log("");
-    log("--- Cleanup ---");
+    logMsg("");
+    logMsg("--- Cleanup ---");
 
     logStep("Dropping table...");
     conn->executeUpdate("DROP TABLE " + table);
@@ -191,10 +191,10 @@ void performScyllaDBOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnection> co
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc ScyllaDB Columnar Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc ScyllaDB Columnar Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SCYLLADB
     logError("ScyllaDB support is not enabled");
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
     if (args.showHelp)
     {
         printHelp("scylla_example", "scylladb");
-        return 0;
+        return EXIT_OK_;
     }
     logOk("Arguments parsed");
 
@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
     if (!configResult)
     {
         logError("Failed to load configuration: " + configResult.error().what_s());
-        return 1;
+        return EXIT_ERROR_;
     }
 
     // Check if file was found
@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
     {
         logError("Configuration file not found: " + args.configPath);
         logInfo("Use --config=<path> to specify config file");
-        return 1;
+        return EXIT_ERROR_;
     }
     logOk("Configuration loaded successfully");
 
@@ -241,14 +241,14 @@ int main(int argc, char *argv[])
     if (!dbResult)
     {
         logError("Failed to get database config: " + dbResult.error().what_s());
-        return 1;
+        return EXIT_ERROR_;
     }
 
     // Check if config was found
     if (!dbResult.value())
     {
         logError("ScyllaDB configuration not found");
-        return 1;
+        return EXIT_ERROR_;
     }
 
     auto &dbConfig = *dbResult.value();
@@ -270,13 +270,13 @@ int main(int argc, char *argv[])
         if (!conn)
         {
             logError("Failed to cast connection to ColumnarDBConnection");
-            return 1;
+            return EXIT_ERROR_;
         }
         logOk("Connected to ScyllaDB");
 
         performScyllaDBOperations(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -284,19 +284,19 @@ int main(int argc, char *argv[])
     catch (const cpp_dbc::DBException &e)
     {
         logError("Database error: " + e.what_s());
-        return 1;
+        return EXIT_ERROR_;
     }
     catch (const std::exception &e)
     {
         logError("Error: " + std::string(e.what()));
-        return 1;
+        return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
-    return 0;
+    return EXIT_OK_;
 #endif
 }

@@ -12,7 +12,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
  *
- * @file scylladb_connection_pool_example.cpp
+ * @file 26_031_example_scylladb_connection_pool.cpp
  * @brief Example demonstrating ScyllaDB connection pooling
  *
  * This example demonstrates:
@@ -124,8 +124,8 @@ void testPoolConnection(std::shared_ptr<cpp_dbc::ColumnarDBConnectionPool> pool,
 
 void batchOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnectionPool> pool, const std::string &keyspace)
 {
-    log("");
-    log("--- Batch Operations ---");
+    logMsg("");
+    logMsg("--- Batch Operations ---");
 
     logStep("Performing batch insert...");
     auto conn = pool->getColumnarDBConnection();
@@ -169,10 +169,10 @@ void batchOperations(std::shared_ptr<cpp_dbc::ColumnarDBConnectionPool> pool, co
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc ScyllaDB Connection Pool Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc ScyllaDB Connection Pool Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SCYLLADB
     logError("ScyllaDB support is not enabled");
@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
     if (args.showHelp)
     {
         printHelp("scylladb_connection_pool_example", "scylladb");
-        return 0;
+        return EXIT_OK_;
     }
     logOk("Arguments parsed");
 
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
     if (!configResult)
     {
         logError("Failed to load configuration: " + configResult.error().what_s());
-        return 1;
+        return EXIT_ERROR_;
     }
 
     // Check if file was found
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
     {
         logError("Configuration file not found: " + args.configPath);
         logInfo("Use --config=<path> to specify config file");
-        return 1;
+        return EXIT_ERROR_;
     }
     logOk("Configuration loaded successfully");
 
@@ -219,14 +219,14 @@ int main(int argc, char *argv[])
     if (!dbResult)
     {
         logError("Failed to get database config: " + dbResult.error().what_s());
-        return 1;
+        return EXIT_ERROR_;
     }
 
     // Check if config was found
     if (!dbResult.value())
     {
         logError("ScyllaDB configuration not found");
-        return 1;
+        return EXIT_ERROR_;
     }
 
     auto &dbConfig = *dbResult.value();
@@ -242,8 +242,8 @@ int main(int argc, char *argv[])
     try
     {
         // ===== Pool Creation =====
-        log("");
-        log("--- Pool Creation ---");
+        logMsg("");
+        logMsg("--- Pool Creation ---");
 
         logStep("Creating ScyllaDB connection pool...");
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -262,8 +262,8 @@ int main(int argc, char *argv[])
         logData("Total connections: " + std::to_string(pool->getTotalDBConnectionCount()));
 
         // ===== Keyspace Setup =====
-        log("");
-        log("--- Keyspace Setup ---");
+        logMsg("");
+        logMsg("--- Keyspace Setup ---");
 
         const std::string keyspace = "test_pool_keyspace";
 
@@ -277,12 +277,13 @@ int main(int argc, char *argv[])
         }
         logOk("Keyspace '" + keyspace + "' ready");
 
-        // Small delay to ensure keyspace is ready
+        // Small delay to allow schema metadata to propagate across cluster nodes
+        // This is necessary for ScyllaDB/Cassandra eventual consistency
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // ===== Multi-threaded Access =====
-        log("");
-        log("--- Multi-threaded Access ---");
+        logMsg("");
+        logMsg("--- Multi-threaded Access ---");
 
         const int numThreads = 4;
         logStep("Starting " + std::to_string(numThreads) + " threads...");
@@ -305,8 +306,8 @@ int main(int argc, char *argv[])
         batchOperations(pool, keyspace);
 
         // ===== Pool Statistics =====
-        log("");
-        log("--- Pool Statistics ---");
+        logMsg("");
+        logMsg("--- Pool Statistics ---");
 
         logData("Active connections: " + std::to_string(pool->getActiveDBConnectionCount()));
         logData("Idle connections: " + std::to_string(pool->getIdleDBConnectionCount()));
@@ -314,8 +315,8 @@ int main(int argc, char *argv[])
         logOk("Statistics retrieved");
 
         // ===== Stress Test =====
-        log("");
-        log("--- Stress Test ---");
+        logMsg("");
+        logMsg("--- Stress Test ---");
 
         logStep("Rapidly acquiring and releasing connections...");
         for (int i = 0; i < 10; ++i)
@@ -327,8 +328,8 @@ int main(int argc, char *argv[])
         logOk("Stress test completed (10 rapid acquire/release cycles)");
 
         // ===== Cleanup =====
-        log("");
-        log("--- Cleanup ---");
+        logMsg("");
+        logMsg("--- Cleanup ---");
 
         logStep("Dropping keyspace...");
         {
@@ -345,19 +346,19 @@ int main(int argc, char *argv[])
     catch (const cpp_dbc::DBException &e)
     {
         logError("Database error: " + e.what_s());
-        return 1;
+        return EXIT_ERROR_;
     }
     catch (const std::exception &e)
     {
         logError("Error: " + std::string(e.what()));
-        return 1;
+        return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
-    return 0;
+    return EXIT_OK_;
 #endif
 }

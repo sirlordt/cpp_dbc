@@ -46,8 +46,8 @@ using namespace cpp_dbc::examples;
 #if USE_REDIS
 void demonstrateBasicTransaction(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Basic MULTI/EXEC Transaction ---");
+    logMsg("");
+    logMsg("--- Basic MULTI/EXEC Transaction ---");
     logInfo("Redis transactions execute atomically (all or nothing)");
     logInfo("Using executeCommand for MULTI/EXEC commands");
 
@@ -98,8 +98,8 @@ void demonstrateBasicTransaction(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 
 void demonstrateTransactionDiscard(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Transaction DISCARD (Rollback) ---");
+    logMsg("");
+    logMsg("--- Transaction DISCARD (Rollback) ---");
     logInfo("DISCARD cancels all queued commands");
 
     std::string key = "txn_discard_key";
@@ -140,8 +140,8 @@ void demonstrateTransactionDiscard(std::shared_ptr<cpp_dbc::KVDBConnection> conn
 
 void demonstrateCounterTransaction(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Atomic Counter Updates ---");
+    logMsg("");
+    logMsg("--- Atomic Counter Updates ---");
     logInfo("Demonstrating atomic increment/decrement in transaction");
 
     std::string counterA = "counter_a";
@@ -179,8 +179,8 @@ void demonstrateCounterTransaction(std::shared_ptr<cpp_dbc::KVDBConnection> conn
 
 void demonstrateWatchOptimisticLocking(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- WATCH for Optimistic Locking ---");
+    logMsg("");
+    logMsg("--- WATCH for Optimistic Locking ---");
     logInfo("WATCH allows detecting concurrent modifications");
 
     std::string watchKey = "watched_key";
@@ -214,8 +214,8 @@ void demonstrateWatchOptimisticLocking(std::shared_ptr<cpp_dbc::KVDBConnection> 
 
 void demonstrateHashTransaction(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Hash Operations in Transaction ---");
+    logMsg("");
+    logMsg("--- Hash Operations in Transaction ---");
     logInfo("Atomic hash field updates");
 
     std::string hashKey = "user_profile";
@@ -255,10 +255,10 @@ void demonstrateHashTransaction(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Redis Transaction Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Redis Transaction Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_REDIS
     logError("Redis support is not enabled");
@@ -336,7 +336,7 @@ int main(int argc, char *argv[])
         demonstrateWatchOptimisticLocking(conn);
         demonstrateHashTransaction(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -352,10 +352,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

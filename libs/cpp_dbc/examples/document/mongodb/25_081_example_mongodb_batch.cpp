@@ -45,8 +45,8 @@ using namespace cpp_dbc::examples;
 #if USE_MONGODB
 void demonstrateInsertMany(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("--- Bulk Insert with insertMany() ---");
+    logMsg("");
+    logMsg("--- Bulk Insert with insertMany() ---");
     logInfo("Inserting multiple documents in a single operation");
 
     auto collection = conn->getCollection("batch_test_products");
@@ -85,8 +85,8 @@ void demonstrateInsertMany(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 
 void demonstrateUpdateMany(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("--- Bulk Update with updateMany() ---");
+    logMsg("");
+    logMsg("--- Bulk Update with updateMany() ---");
     logInfo("Updating multiple documents matching a filter");
 
     auto collection = conn->getCollection("batch_test_products");
@@ -116,7 +116,7 @@ void demonstrateUpdateMany(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
     logOk("Verification completed");
 
     // Update with increment
-    log("");
+    logMsg("");
     logStep("Incrementing stock for all products...");
     result = collection->updateMany(
         "{}",
@@ -128,8 +128,8 @@ void demonstrateUpdateMany(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 
 void demonstrateDeleteMany(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("--- Bulk Delete with deleteMany() ---");
+    logMsg("");
+    logMsg("--- Bulk Delete with deleteMany() ---");
     logInfo("Deleting multiple documents matching a filter");
 
     auto collection = conn->getCollection("batch_test_products");
@@ -155,8 +155,8 @@ void demonstrateDeleteMany(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 
 void demonstratePerformanceComparison(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("--- Performance Comparison ---");
+    logMsg("");
+    logMsg("--- Performance Comparison ---");
     logInfo("Comparing individual inserts vs batch insert");
 
     auto collection = conn->getCollection("batch_perf_test");
@@ -216,8 +216,8 @@ void demonstratePerformanceComparison(std::shared_ptr<cpp_dbc::DocumentDBConnect
 
 void demonstrateOrderedVsUnordered(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("--- Ordered vs Unordered Operations ---");
+    logMsg("");
+    logMsg("--- Ordered vs Unordered Operations ---");
     logInfo("Ordered stops on first error, unordered continues");
 
     // Clean up and create unique index
@@ -236,7 +236,7 @@ void demonstrateOrderedVsUnordered(std::shared_ptr<cpp_dbc::DocumentDBConnection
     logOk("Unique index created on 'email' field");
 
     // Ordered insert (default behavior - stops on first error)
-    log("");
+    logMsg("");
     logStep("Demonstrating ORDERED insert (default)...");
     logInfo("Ordered inserts stop on first duplicate");
 
@@ -265,7 +265,7 @@ void demonstrateOrderedVsUnordered(std::shared_ptr<cpp_dbc::DocumentDBConnection
     collection->deleteMany("{}");
 
     // Unordered insert (continues on errors)
-    log("");
+    logMsg("");
     logStep("Demonstrating UNORDERED insert...");
     logInfo("Unordered inserts continue despite errors");
 
@@ -298,8 +298,8 @@ void demonstrateOrderedVsUnordered(std::shared_ptr<cpp_dbc::DocumentDBConnection
 
 void cleanup(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("--- Cleanup ---");
+    logMsg("");
+    logMsg("--- Cleanup ---");
     logStep("Dropping test collections...");
 
     try
@@ -318,10 +318,10 @@ void cleanup(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc MongoDB Batch Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc MongoDB Batch Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_MONGODB
     logError("MongoDB support is not enabled");
@@ -404,7 +404,7 @@ int main(int argc, char *argv[])
         demonstratePerformanceComparison(conn);
         cleanup(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -420,10 +420,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

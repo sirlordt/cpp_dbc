@@ -39,10 +39,10 @@ using namespace cpp_dbc::examples;
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc MongoDB Connection Info Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc MongoDB Connection Info Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_MONGODB
     logError("MongoDB support is not enabled");
@@ -86,8 +86,8 @@ int main(int argc, char *argv[])
 
     try
     {
-        log("");
-        log("--- MongoDB Connection URL ---");
+        logMsg("");
+        logMsg("--- MongoDB Connection URL ---");
 
         logStep("Getting MongoDB configuration...");
         auto mongoResult = getDbConfig(configManager, args.dbName, "mongodb");
@@ -108,8 +108,8 @@ int main(int argc, char *argv[])
         logOk("Using: " + mongoConfig.getName());
 
         // Display configuration details
-        log("");
-        log("--- Configuration Details ---");
+        logMsg("");
+        logMsg("--- Configuration Details ---");
         logData("Name: " + mongoConfig.getName());
         logData("Type: " + mongoConfig.getType());
         logData("Host: " + mongoConfig.getHost());
@@ -127,8 +127,8 @@ int main(int argc, char *argv[])
         if (docConn)
         {
             // Ping server
-            log("");
-            log("--- Server Connectivity ---");
+            logMsg("");
+            logMsg("--- Server Connectivity ---");
             logStep("Pinging server...");
             bool pingResult = docConn->ping();
             logData("PING response: " + std::string(pingResult ? "OK" : "FAILED"));
@@ -138,8 +138,8 @@ int main(int argc, char *argv[])
             }
 
             // Get database name
-            log("");
-            log("--- Database Information ---");
+            logMsg("");
+            logMsg("--- Database Information ---");
             logStep("Getting current database info...");
             logData("Current database: " + docConn->getDatabaseName());
 
@@ -201,10 +201,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

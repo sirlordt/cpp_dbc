@@ -12,7 +12,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
  *
- * @file mongodb_example.cpp
+ * @file 25_001_example_mongodb_basic.cpp
  * @brief Example demonstrating MongoDB database operations
  *
  * This example demonstrates:
@@ -44,10 +44,10 @@ void printDocument(const std::shared_ptr<cpp_dbc::DocumentDBData> &doc)
 {
     if (!doc)
     {
-        log("null");
+        logMsg("null");
         return;
     }
-    log(doc->toJsonPretty());
+    logMsg(doc->toJsonPretty());
 }
 
 void printCursor(std::shared_ptr<cpp_dbc::DocumentDBCursor> cursor)
@@ -72,8 +72,8 @@ void printCursor(std::shared_ptr<cpp_dbc::DocumentDBCursor> cursor)
 
 void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("--- Basic CRUD Operations ---");
+    logMsg("");
+    logMsg("--- Basic CRUD Operations ---");
 
     logStep("Getting products collection...");
     auto collection = conn->getCollection("products");
@@ -84,8 +84,8 @@ void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::DocumentDBConnection> c
     logOk("Collection dropped");
 
     // ===== Insert Documents =====
-    log("");
-    log("--- Insert Documents ---");
+    logMsg("");
+    logMsg("--- Insert Documents ---");
 
     logStep("Creating and inserting documents...");
 
@@ -136,24 +136,24 @@ void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::DocumentDBConnection> c
     logOk("3 products inserted");
 
     // ===== Query All =====
-    log("");
-    log("--- Query All Documents ---");
+    logMsg("");
+    logMsg("--- Query All Documents ---");
 
     logStep("Finding all products...");
     auto cursor = collection->find();
     printCursor(cursor);
 
     // ===== Query with Filter =====
-    log("");
-    log("--- Query with Filter ---");
+    logMsg("");
+    logMsg("--- Query with Filter ---");
 
     logStep("Finding free products (price = 0)...");
     cursor = collection->find(R"({"price": 0})");
     printCursor(cursor);
 
     // ===== Find One =====
-    log("");
-    log("--- Find One Document ---");
+    logMsg("");
+    logMsg("--- Find One Document ---");
 
     logStep("Finding cpp_dbc Library...");
     auto result = collection->findOne(R"({"name": "cpp_dbc Library"})");
@@ -169,8 +169,8 @@ void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::DocumentDBConnection> c
     }
 
     // ===== Update =====
-    log("");
-    log("--- Update Document ---");
+    logMsg("");
+    logMsg("--- Update Document ---");
 
     logStep("Updating Enterprise product...");
     auto updateResult = collection->updateOne(
@@ -190,8 +190,8 @@ void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::DocumentDBConnection> c
     }
 
     // ===== Delete =====
-    log("");
-    log("--- Delete Document ---");
+    logMsg("");
+    logMsg("--- Delete Document ---");
 
     logStep("Deleting cpp_dbc Library...");
     auto deleteResult = collection->deleteOne(R"({"name": "cpp_dbc Library"})");
@@ -203,8 +203,8 @@ void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::DocumentDBConnection> c
     printCursor(cursor);
 
     // ===== Cleanup =====
-    log("");
-    log("--- Cleanup ---");
+    logMsg("");
+    logMsg("--- Cleanup ---");
 
     logStep("Dropping collection...");
     collection->drop();
@@ -213,8 +213,8 @@ void demonstrateBasicOperations(std::shared_ptr<cpp_dbc::DocumentDBConnection> c
 
 void demonstrateMongoDBFeatures(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("--- MongoDB Advanced Features ---");
+    logMsg("");
+    logMsg("--- MongoDB Advanced Features ---");
 
     logStep("Getting users collection...");
     auto collection = conn->getCollection("users");
@@ -222,8 +222,8 @@ void demonstrateMongoDBFeatures(std::shared_ptr<cpp_dbc::DocumentDBConnection> c
     logOk("Collection ready");
 
     // ===== Insert Many =====
-    log("");
-    log("--- Insert Many ---");
+    logMsg("");
+    logMsg("--- Insert Many ---");
 
     logStep("Preparing user documents...");
     std::vector<std::shared_ptr<cpp_dbc::DocumentDBData>> users;
@@ -259,24 +259,24 @@ void demonstrateMongoDBFeatures(std::shared_ptr<cpp_dbc::DocumentDBConnection> c
     logOk("Inserted " + std::to_string(insertResult.insertedCount) + " users");
 
     // ===== Complex Query =====
-    log("");
-    log("--- Complex Query ---");
+    logMsg("");
+    logMsg("--- Complex Query ---");
 
     logStep("Finding users older than 30...");
     auto cursor = collection->find(R"({"age": {"$gt": 30}})");
     printCursor(cursor);
 
     // ===== Projection =====
-    log("");
-    log("--- Projection ---");
+    logMsg("");
+    logMsg("--- Projection ---");
 
     logStep("Selecting only username and email fields...");
     cursor = collection->find("", R"({"username": 1, "email": 1, "_id": 0})");
     printCursor(cursor);
 
     // ===== Sort =====
-    log("");
-    log("--- Sorting ---");
+    logMsg("");
+    logMsg("--- Sorting ---");
 
     logStep("Sorting by age descending...");
     cursor = collection->find();
@@ -284,8 +284,8 @@ void demonstrateMongoDBFeatures(std::shared_ptr<cpp_dbc::DocumentDBConnection> c
     printCursor(cursor);
 
     // ===== Pagination =====
-    log("");
-    log("--- Pagination ---");
+    logMsg("");
+    logMsg("--- Pagination ---");
 
     logStep("First user (limit 1)...");
     cursor = collection->find();
@@ -298,8 +298,8 @@ void demonstrateMongoDBFeatures(std::shared_ptr<cpp_dbc::DocumentDBConnection> c
     printCursor(cursor);
 
     // ===== Update with Operators =====
-    log("");
-    log("--- Update with Operators ---");
+    logMsg("");
+    logMsg("--- Update with Operators ---");
 
     logStep("Incrementing age for john_doe...");
     auto updateResult = collection->updateOne(
@@ -317,8 +317,8 @@ void demonstrateMongoDBFeatures(std::shared_ptr<cpp_dbc::DocumentDBConnection> c
     }
 
     // ===== Cleanup =====
-    log("");
-    log("--- Cleanup ---");
+    logMsg("");
+    logMsg("--- Cleanup ---");
 
     logStep("Dropping collection...");
     collection->drop();
@@ -328,10 +328,10 @@ void demonstrateMongoDBFeatures(std::shared_ptr<cpp_dbc::DocumentDBConnection> c
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc MongoDB Document Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc MongoDB Document Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_MONGODB
     logError("MongoDB support is not enabled");
@@ -346,7 +346,7 @@ int main(int argc, char *argv[])
     if (args.showHelp)
     {
         printHelp("mongodb_example", "mongodb");
-        return 0;
+        return EXIT_OK_;
     }
     logOk("Arguments parsed");
 
@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
     if (!configResult)
     {
         logError("Failed to load configuration: " + configResult.error().what_s());
-        return 1;
+        return EXIT_ERROR_;
     }
 
     // Check if file was found
@@ -365,7 +365,7 @@ int main(int argc, char *argv[])
     {
         logError("Configuration file not found: " + args.configPath);
         logInfo("Use --config=<path> to specify config file");
-        return 1;
+        return EXIT_ERROR_;
     }
     logOk("Configuration loaded successfully");
 
@@ -378,14 +378,14 @@ int main(int argc, char *argv[])
     if (!dbResult)
     {
         logError("Failed to get database config: " + dbResult.error().what_s());
-        return 1;
+        return EXIT_ERROR_;
     }
 
     // Check if config was found
     if (!dbResult.value())
     {
         logError("MongoDB configuration not found");
-        return 1;
+        return EXIT_ERROR_;
     }
 
     auto &dbConfig = *dbResult.value();
@@ -407,14 +407,14 @@ int main(int argc, char *argv[])
         if (!conn)
         {
             logError("Failed to cast connection to DocumentDBConnection");
-            return 1;
+            return EXIT_ERROR_;
         }
         logOk("Connected to MongoDB");
 
         demonstrateBasicOperations(conn);
         demonstrateMongoDBFeatures(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -422,19 +422,19 @@ int main(int argc, char *argv[])
     catch (const cpp_dbc::DBException &e)
     {
         logError("Database error: " + e.what_s());
-        return 1;
+        return EXIT_ERROR_;
     }
     catch (const std::exception &e)
     {
         logError("Error: " + std::string(e.what()));
-        return 1;
+        return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
-    return 0;
+    return EXIT_OK_;
 #endif
 }

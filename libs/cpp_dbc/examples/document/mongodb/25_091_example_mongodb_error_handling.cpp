@@ -41,7 +41,7 @@
 #endif
 
 using namespace cpp_dbc::examples;
-using cpp_dbc::examples::log;  // Disambiguate from std::log
+using cpp_dbc::examples::logMsg; // Disambiguate from std::logMsg
 
 #if USE_MONGODB
 
@@ -57,7 +57,7 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
 {
     try
     {
-        log("");
+        logMsg("");
         logStep("Executing: " + operationName);
         operation();
         logOk("Operation completed successfully");
@@ -83,8 +83,8 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
 
 void demonstrateConnectionErrors(cpp_dbc::MongoDB::MongoDBDriver &driver)
 {
-    log("");
-    log("===Connection Errors ===");
+    logMsg("");
+    logMsg("===Connection Errors ===");
     logInfo("Demonstrating various connection error scenarios");
 
     // Wrong host
@@ -107,8 +107,8 @@ void demonstrateConnectionErrors(cpp_dbc::MongoDB::MongoDBDriver &driver)
 
 void demonstrateDuplicateKeyError(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("===Duplicate Key Errors ===");
+    logMsg("");
+    logMsg("===Duplicate Key Errors ===");
     logInfo("Demonstrating unique constraint violations");
 
     auto collection = conn->getCollection("error_test_users");
@@ -130,10 +130,10 @@ void demonstrateDuplicateKeyError(std::shared_ptr<cpp_dbc::DocumentDBConnection>
     // Try to insert duplicate
     executeWithErrorHandling("Insert duplicate email (should fail)", [&collection]()
                              {
-        logData("Attempting to insert another user with same email...");
-        collection->insertOne(R"({"email": "user@test.com", "name": "Duplicate User"})");
-        // This should throw a duplicate key error
-    });
+                                 logData("Attempting to insert another user with same email...");
+                                 collection->insertOne(R"({"email": "user@test.com", "name": "Duplicate User"})");
+                                 // This should throw a duplicate key error
+                             });
 
     // Clean up
     collection->deleteMany("{}");
@@ -142,8 +142,8 @@ void demonstrateDuplicateKeyError(std::shared_ptr<cpp_dbc::DocumentDBConnection>
 
 void demonstrateInvalidJsonError(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("===Invalid JSON Errors ===");
+    logMsg("");
+    logMsg("===Invalid JSON Errors ===");
     logInfo("Demonstrating JSON parsing errors");
 
     auto collection = conn->getCollection("error_test_json");
@@ -151,29 +151,29 @@ void demonstrateInvalidJsonError(std::shared_ptr<cpp_dbc::DocumentDBConnection> 
     // Invalid JSON - missing closing brace
     executeWithErrorHandling("Insert invalid JSON (missing brace)", [&conn, &collection]()
                              {
-        logData("Attempting to insert: {\"name\": \"test\"");
-        collection->insertOne(R"({"name": "test")"); // Missing closing brace
-    });
+                                 logData("Attempting to insert: {\"name\": \"test\"");
+                                 collection->insertOne(R"({"name": "test")"); // Missing closing brace
+                             });
 
     // Invalid JSON - trailing comma
     executeWithErrorHandling("Insert invalid JSON (trailing comma)", [&conn, &collection]()
                              {
-        logData("Attempting to insert: {\"name\": \"test\",}");
-        collection->insertOne(R"({"name": "test",})"); // Trailing comma
-    });
+                                 logData("Attempting to insert: {\"name\": \"test\",}");
+                                 collection->insertOne(R"({"name": "test",})"); // Trailing comma
+                             });
 
     // Invalid JSON in filter
     executeWithErrorHandling("Query with invalid filter", [&collection]()
                              {
-        logData("Attempting to find with invalid filter...");
-        collection->find(R"({"$invalid": })"); // Invalid JSON
-    });
+                                 logData("Attempting to find with invalid filter...");
+                                 collection->find(R"({"$invalid": })"); // Invalid JSON
+                             });
 }
 
 void demonstrateInvalidOperatorError(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("===Invalid Query Operator Errors ===");
+    logMsg("");
+    logMsg("===Invalid Query Operator Errors ===");
     logInfo("Demonstrating invalid MongoDB query operators");
 
     auto collection = conn->getCollection("error_test_operators");
@@ -207,8 +207,8 @@ void demonstrateInvalidOperatorError(std::shared_ptr<cpp_dbc::DocumentDBConnecti
 
 void demonstrateUpdateErrors(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("===Update Operation Errors ===");
+    logMsg("");
+    logMsg("===Update Operation Errors ===");
     logInfo("Demonstrating update-related errors");
 
     auto collection = conn->getCollection("error_test_update");
@@ -251,15 +251,15 @@ void demonstrateUpdateErrors(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn
 
 void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("===Nothrow API Usage ===");
+    logMsg("");
+    logMsg("===Nothrow API Usage ===");
     logInfo("Using std::nothrow API for exception-free error handling");
 
     auto collection = conn->getCollection("error_test_nothrow");
     collection->deleteMany("{}");
 
     // Insert using nothrow API
-    log("");
+    logMsg("");
     logStep("Using nothrow API for insertOne...");
 
     auto insertResult = collection->insertOne(std::nothrow, R"({"name": "test", "value": 42})");
@@ -288,7 +288,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
     }
 
     // Invalid operation using nothrow API
-    log("");
+    logMsg("");
     logStep("Testing invalid operation with nothrow API...");
 
     auto badResult = collection->insertOne(std::nothrow, R"(invalid json{)");
@@ -309,15 +309,15 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 
 void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("===Error Recovery Patterns ===");
+    logMsg("");
+    logMsg("===Error Recovery Patterns ===");
     logInfo("Demonstrating how to recover from errors");
 
     auto collection = conn->getCollection("error_test_recovery");
     collection->deleteMany("{}");
 
     // Pattern 1: Check and create
-    log("");
+    logMsg("");
     logStep("Pattern 1: Check before inserting (upsert pattern)...");
 
     std::string email = "recovery@test.com";
@@ -337,7 +337,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::DocumentDBConnection> con
     logOk("Check-and-create pattern completed");
 
     // Pattern 2: Use upsert option
-    log("");
+    logMsg("");
     logStep("Pattern 2: Using upsert option...");
 
     cpp_dbc::DocumentUpdateOptions upsertOpts;
@@ -359,7 +359,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::DocumentDBConnection> con
     logOk("Upsert pattern completed");
 
     // Pattern 3: Retry with backoff (simulated)
-    log("");
+    logMsg("");
     logStep("Pattern 3: Retry pattern...");
 
     int maxRetries = 3;
@@ -389,8 +389,8 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::DocumentDBConnection> con
 
 void cleanup(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 {
-    log("");
-    log("---Cleanup ---");
+    logMsg("");
+    logMsg("---Cleanup ---");
     logStep("Dropping test collections...");
 
     std::vector<std::string> collections = {
@@ -418,10 +418,10 @@ void cleanup(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc MongoDB Error Handling Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc MongoDB Error Handling Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_MONGODB
     logError("MongoDB support is not enabled");
@@ -510,7 +510,7 @@ int main(int argc, char *argv[])
         demonstrateErrorRecovery(conn);
         cleanup(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -526,10 +526,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

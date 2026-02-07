@@ -75,8 +75,8 @@ std::vector<std::tuple<int, std::string, std::string, double, int>> generateProd
 
 void demonstrateBasicBatchInsert(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Basic Batch Insert ---");
+    logMsg("");
+    logMsg("--- Basic Batch Insert ---");
 
     try
     {
@@ -135,8 +135,8 @@ void demonstrateBasicBatchInsert(std::shared_ptr<cpp_dbc::RelationalDBConnection
 
 void demonstrateBatchWithTransaction(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Batch Insert with Transaction ---");
+    logMsg("");
+    logMsg("--- Batch Insert with Transaction ---");
 
     try
     {
@@ -199,7 +199,13 @@ void demonstrateBatchWithTransaction(std::shared_ptr<cpp_dbc::RelationalDBConnec
     }
     catch (const cpp_dbc::DBException &e)
     {
-        try { conn->rollback(); } catch (...) {}
+        try
+        {
+            conn->rollback();
+        }
+        catch (...)
+        {
+        }
         conn->setAutoCommit(true);
         logError("Database error: " + e.what_s());
     }
@@ -207,8 +213,8 @@ void demonstrateBatchWithTransaction(std::shared_ptr<cpp_dbc::RelationalDBConnec
 
 void demonstrateBatchUpdate(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Batch Update ---");
+    logMsg("");
+    logMsg("--- Batch Update ---");
 
     try
     {
@@ -262,8 +268,8 @@ void demonstrateBatchUpdate(std::shared_ptr<cpp_dbc::RelationalDBConnection> con
 
 void demonstrateBatchDelete(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Batch Delete ---");
+    logMsg("");
+    logMsg("--- Batch Delete ---");
 
     try
     {
@@ -316,8 +322,8 @@ void demonstrateBatchDelete(std::shared_ptr<cpp_dbc::RelationalDBConnection> con
 
 void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Batch Performance Comparison ---");
+    logMsg("");
+    logMsg("--- Batch Performance Comparison ---");
 
     try
     {
@@ -343,7 +349,7 @@ void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::RelationalDB
         }
 
         // Method 1: Individual inserts
-        log("");
+        logMsg("");
         logStep("Method 1: Individual inserts...");
 
         auto startTime1 = std::chrono::high_resolution_clock::now();
@@ -393,7 +399,7 @@ void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::RelationalDB
         logData("Time: " + std::to_string(duration2) + " ms, Rows: " + std::to_string(rowsAffected2));
 
         // Summary
-        log("");
+        logMsg("");
         logOk("Performance Summary:");
         logData("Individual inserts: " + std::to_string(duration1) + " ms");
         logData("Transaction batch: " + std::to_string(duration2) + " ms");
@@ -408,7 +414,13 @@ void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::RelationalDB
     }
     catch (const cpp_dbc::DBException &e)
     {
-        try { conn->rollback(); } catch (...) {}
+        try
+        {
+            conn->rollback();
+        }
+        catch (...)
+        {
+        }
         conn->setAutoCommit(true);
         logError("Database error: " + e.what_s());
     }
@@ -422,7 +434,7 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
     demonstrateBatchDelete(conn);
     demonstrateBatchPerformanceComparison(conn);
 
-    log("");
+    logMsg("");
     logStep("Cleaning up tables...");
     conn->executeUpdate("DROP TABLE IF EXISTS batch_products");
     conn->executeUpdate("DROP TABLE IF EXISTS batch_orders");
@@ -433,10 +445,10 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc PostgreSQL Batch Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc PostgreSQL Batch Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_POSTGRESQL
     logError("PostgreSQL support is not enabled");
@@ -515,10 +527,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

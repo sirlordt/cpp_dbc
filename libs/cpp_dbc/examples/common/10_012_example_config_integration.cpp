@@ -41,10 +41,10 @@ using namespace cpp_dbc::examples;
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Configuration Integration Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Configuration Integration Example");
+    logMsg("========================================");
+    logMsg("");
 
     // Create a configuration manager
     cpp_dbc::config::DatabaseConfigManager configManager;
@@ -110,8 +110,8 @@ int main(int argc, char *argv[])
     auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
 
     // Example 1: Creating a connection directly from DatabaseConfig
-    log("");
-    log("--- Example 1: DatabaseConfig::createDBConnection() ---");
+    logMsg("");
+    logMsg("--- Example 1: DatabaseConfig::createDBConnection() ---");
 
     if (dbConfigOpt)
     {
@@ -141,8 +141,8 @@ int main(int argc, char *argv[])
     }
 
     // Example 2: Creating a connection from DriverManager with DatabaseConfig
-    log("");
-    log("--- Example 2: DriverManager::getDBConnection(dbConfig) ---");
+    logMsg("");
+    logMsg("--- Example 2: DriverManager::getDBConnection(dbConfig) ---");
 
     if (dbConfigOpt)
     {
@@ -164,8 +164,8 @@ int main(int argc, char *argv[])
     }
 
     // Example 3: Creating a connection from DriverManager with DatabaseConfigManager
-    log("");
-    log("--- Example 3: DriverManager::getDBConnection(configManager, name) ---");
+    logMsg("");
+    logMsg("--- Example 3: DriverManager::getDBConnection(configManager, name) ---");
 
     try
     {
@@ -183,8 +183,8 @@ int main(int argc, char *argv[])
     }
 
     // Example 4: Creating a connection from DatabaseConfigManager
-    log("");
-    log("--- Example 4: configManager.createDBConnection(name) ---");
+    logMsg("");
+    logMsg("--- Example 4: configManager.createDBConnection(name) ---");
 
     try
     {
@@ -209,8 +209,8 @@ int main(int argc, char *argv[])
     }
 
     // Example 5: Creating a connection pool
-    log("");
-    log("--- Example 5: configManager.createDBConnectionPool() ---");
+    logMsg("");
+    logMsg("--- Example 5: configManager.createDBConnectionPool() ---");
 
     try
     {
@@ -246,10 +246,10 @@ int main(int argc, char *argv[])
         logError(e.what_s());
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return 0;
 }

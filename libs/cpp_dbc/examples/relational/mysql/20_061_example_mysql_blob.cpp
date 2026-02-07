@@ -59,7 +59,7 @@ std::string generateRandomTempFilename()
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> distrib(10000, 99999);
 
-    return "/tmp/test_image_" + std::to_string(distrib(gen)) + ".jpg";
+    return (fs::temp_directory_path() / ("test_image_" + std::to_string(distrib(gen)) + ".jpg")).string();
 }
 
 // Helper function to generate random binary data
@@ -119,9 +119,11 @@ void writeBinaryFile(const std::string &filePath, const std::vector<uint8_t> &da
 // Helper function to create a temporary file with random data
 std::string createTempFile(const std::string &prefix, size_t size)
 {
-    std::string tempFilename = prefix + "_" +
-                               std::to_string(std::time(nullptr)) + "_" +
-                               std::to_string(std::rand()) + ".bin";
+    std::string tempFilename = (fs::temp_directory_path() /
+                                (prefix + "_" +
+                                 std::to_string(std::time(nullptr)) + "_" +
+                                 std::to_string(std::rand()) + ".bin"))
+                                   .string();
 
     auto data = generateRandomData(size);
     writeBinaryFile(tempFilename, data);
@@ -143,8 +145,8 @@ bool compareBinaryData(const std::vector<uint8_t> &data1, const std::vector<uint
 // Function to demonstrate basic BLOB operations
 void demonstrateBasicBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Basic BLOB Operations ---");
+    logMsg("");
+    logMsg("--- Basic BLOB Operations ---");
 
     try
     {
@@ -209,8 +211,8 @@ void demonstrateBasicBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnect
 // Function to demonstrate BLOB streaming operations
 void demonstrateBlobStreaming(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- BLOB Streaming Operations ---");
+    logMsg("");
+    logMsg("--- BLOB Streaming Operations ---");
 
     try
     {
@@ -246,7 +248,9 @@ void demonstrateBlobStreaming(std::shared_ptr<cpp_dbc::RelationalDBConnection> c
 
             if (blobStream)
             {
-                std::string retrievedFilename = "retrieved_" + tempFilename;
+                // Construct the retrieved filename in the same directory as the original file
+                fs::path p(tempFilename);
+                std::string retrievedFilename = (p.parent_path() / ("retrieved_" + p.filename().string())).string();
                 std::ofstream outFile(retrievedFilename, std::ios::binary);
 
                 uint8_t buffer[4096];
@@ -287,8 +291,8 @@ void demonstrateBlobStreaming(std::shared_ptr<cpp_dbc::RelationalDBConnection> c
 // Function to demonstrate BLOB object operations
 void demonstrateBlobObjects(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- BLOB Object Operations ---");
+    logMsg("");
+    logMsg("--- BLOB Object Operations ---");
 
     try
     {
@@ -359,8 +363,8 @@ void demonstrateBlobObjects(std::shared_ptr<cpp_dbc::RelationalDBConnection> con
 // Function to demonstrate image file BLOB operations
 void demonstrateImageBlob(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Image BLOB Operations ---");
+    logMsg("");
+    logMsg("--- Image BLOB Operations ---");
 
     try
     {
@@ -429,7 +433,7 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
     demonstrateBlobObjects(conn);
     demonstrateImageBlob(conn);
 
-    log("");
+    logMsg("");
     logStep("Cleaning up tables...");
     conn->executeUpdate("DROP TABLE IF EXISTS test_blobs");
     logOk("Tables dropped");
@@ -440,10 +444,10 @@ int main(int argc, char *argv[])
 {
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
 
-    log("========================================");
-    log("cpp_dbc MySQL BLOB Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc MySQL BLOB Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_MYSQL
     logError("MySQL support is not enabled");
@@ -528,10 +532,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

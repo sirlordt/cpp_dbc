@@ -12,7 +12,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
  *
- * @file kv_connection_pool_example.cpp
+ * @file 24_031_example_redis_connection_pool.cpp
  * @brief Example demonstrating Redis connection pooling
  *
  * This example demonstrates:
@@ -22,11 +22,11 @@
  * - Pool statistics monitoring
  *
  * Usage:
- *   ./kv_connection_pool_example [--config=<path>] [--db=<name>] [--help]
+ *   ./24_031_example_redis_connection_pool [--config=<path>] [--db=<name>] [--help]
  *
  * Examples:
- *   ./kv_connection_pool_example                    # Uses dev_redis from default config
- *   ./kv_connection_pool_example --db=test_redis   # Uses test_redis configuration
+ *   ./24_031_example_redis_connection_pool                    # Uses dev_redis from default config
+ *   ./24_031_example_redis_connection_pool --db=test_redis   # Uses test_redis configuration
  */
 
 #include "../../common/example_common.hpp"
@@ -102,10 +102,10 @@ void testPoolConnection(std::shared_ptr<cpp_dbc::KVDBConnectionPool> pool, int t
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Redis Connection Pool Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Redis Connection Pool Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_REDIS
     logError("Redis support is not enabled");
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
 
     if (args.showHelp)
     {
-        printHelp("kv_connection_pool_example", "redis");
+        printHelp("24_031_example_redis_connection_pool", "redis");
         return 0;
     }
     logOk("Arguments parsed");
@@ -174,8 +174,8 @@ int main(int argc, char *argv[])
     try
     {
         // ===== Pool Creation =====
-        log("");
-        log("--- Pool Creation ---");
+        logMsg("");
+        logMsg("--- Pool Creation ---");
 
         logStep("Creating Redis connection pool...");
         std::string url = "cpp_dbc:redis://" + dbConfig.getHost() + ":" + std::to_string(dbConfig.getPort()) + "/" + dbConfig.getDatabase();
@@ -190,8 +190,8 @@ int main(int argc, char *argv[])
         logData("Total connections: " + std::to_string(pool->getTotalDBConnectionCount()));
 
         // ===== Multi-threaded Access =====
-        log("");
-        log("--- Multi-threaded Access ---");
+        logMsg("");
+        logMsg("--- Multi-threaded Access ---");
 
         const int numThreads = 6;
         logStep("Starting " + std::to_string(numThreads) + " threads...");
@@ -211,8 +211,8 @@ int main(int argc, char *argv[])
         logOk("All threads completed");
 
         // ===== Final Statistics =====
-        log("");
-        log("--- Pool Statistics ---");
+        logMsg("");
+        logMsg("--- Pool Statistics ---");
 
         logData("Active connections: " + std::to_string(pool->getActiveDBConnectionCount()));
         logData("Idle connections: " + std::to_string(pool->getIdleDBConnectionCount()));
@@ -220,8 +220,8 @@ int main(int argc, char *argv[])
         logOk("Statistics retrieved");
 
         // ===== Cleanup =====
-        log("");
-        log("--- Cleanup ---");
+        logMsg("");
+        logMsg("--- Cleanup ---");
 
         logStep("Closing connection pool...");
         pool->close();
@@ -238,10 +238,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return 0;
 #endif

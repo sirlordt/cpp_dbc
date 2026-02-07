@@ -77,7 +77,7 @@ void printResults(std::shared_ptr<cpp_dbc::RelationalDBResultSet> rs)
         }
         logData(rowOss.str());
     }
-    log("");
+    logMsg("");
 }
 
 /**
@@ -120,9 +120,9 @@ void printResults(std::shared_ptr<cpp_dbc::RelationalDBResultSet> rs)
  */
 void demonstrateFirebirdJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("=== Firebird JSON Operations ===");
-    log("");
+    logMsg("");
+    logMsg("=== Firebird JSON Operations ===");
+    logMsg("");
 
     try
     {
@@ -158,42 +158,42 @@ void demonstrateFirebirdJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> co
         pstmt->close();
 
         // Query all JSON data
-        log("");
+        logMsg("");
         logStep("Example 1: Retrieving all JSON data");
         auto rs = conn->executeQuery("SELECT id, product_data FROM product_catalog ORDER BY id");
         printResults(rs);
-        rs->close();  // Close result set explicitly
+        rs->close(); // Close result set explicitly
 
         // Using LIKE for simple JSON searching (limited but works)
-        log("");
+        logMsg("");
         logStep("Example 2: Searching JSON using LIKE (finding 'Laptop')");
         rs = conn->executeQuery(
             "SELECT id, product_data FROM product_catalog "
             "WHERE product_data LIKE '%\"name\":\"Laptop\"%'");
         printResults(rs);
-        rs->close();  // Close result set explicitly
+        rs->close(); // Close result set explicitly
 
         // Search for products with specific color
-        log("");
+        logMsg("");
         logStep("Example 3: Searching for products with 'Silver' color");
         rs = conn->executeQuery(
             "SELECT id, product_data FROM product_catalog "
             "WHERE product_data LIKE '%Silver%'");
         printResults(rs);
-        rs->close();  // Close result set explicitly
+        rs->close(); // Close result set explicitly
 
         // Search for products in price range (requires parsing application-side)
-        log("");
+        logMsg("");
         logStep("Example 4: Filtering by price pattern");
         logInfo("Note: Complex JSON queries require application-side parsing");
         rs = conn->executeQuery(
             "SELECT id, product_data FROM product_catalog "
             "WHERE product_data LIKE '%\"price\":7%' OR product_data LIKE '%\"price\":4%'");
         printResults(rs);
-        rs->close();  // Close result set explicitly
+        rs->close(); // Close result set explicitly
 
         // Update JSON data
-        log("");
+        logMsg("");
         logStep("Example 5: Updating JSON data");
         conn->executeUpdate(
             "UPDATE product_catalog SET "
@@ -203,11 +203,11 @@ void demonstrateFirebirdJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> co
 
         rs = conn->executeQuery("SELECT id, product_data FROM product_catalog WHERE id = 1");
         printResults(rs);
-        rs->close();  // Close result set explicitly
+        rs->close(); // Close result set explicitly
 
         /* COMMENTED OUT - Stored procedure causes issues with Firebird cleanup
         // Create stored procedure for JSON-like extraction (simulated)
-        log("");
+        logMsg("");
         logStep("Example 6: Creating helper function for JSON name extraction");
 
         try
@@ -250,12 +250,12 @@ void demonstrateFirebirdJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> co
         */
 
         // Clean up
-        log("");
+        logMsg("");
         logStep("Cleaning up...");
         conn->executeUpdate("DROP TABLE product_catalog");
         logOk("Cleanup completed");
 
-        log("");
+        logMsg("");
         logInfo("Note: For full JSON support, consider:");
         logInfo("  - Firebird 4.0+ with JSON functions");
         logInfo("  - External UDF libraries");
@@ -271,10 +271,10 @@ void demonstrateFirebirdJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> co
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Firebird JSON Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Firebird JSON Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_FIREBIRD
     logError("Firebird support is not enabled");
@@ -361,10 +361,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

@@ -47,11 +47,11 @@ public:
 };
 
 // Helper function to execute a database operation and handle errors
-void executeWithErrorHandling(const std::string &operationName, std::function<void()> operation)
+void executeWithErrorHandling(const std::string &operationName, const std::function<void()> &operation)
 {
     try
     {
-        log("");
+        logMsg("");
         logStep("Executing: " + operationName);
         operation();
         logOk("Operation completed successfully");
@@ -148,8 +148,8 @@ void setupDatabase(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 // Function to demonstrate handling syntax errors
 void demonstrateSyntaxErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Syntax Errors ---");
+    logMsg("");
+    logMsg("--- Syntax Errors ---");
 
     executeWithErrorHandling("Syntax Error Example", [&conn]()
                              {
@@ -160,8 +160,8 @@ void demonstrateSyntaxErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> co
 // Function to demonstrate handling constraint violations
 void demonstrateConstraintViolations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Constraint Violations ---");
+    logMsg("");
+    logMsg("--- Constraint Violations ---");
 
     // Primary key violation
     executeWithErrorHandling("Primary Key Violation", [&conn]()
@@ -238,13 +238,12 @@ void demonstrateConstraintViolations(std::shared_ptr<cpp_dbc::RelationalDBConnec
 // Function to demonstrate handling data type errors
 void demonstrateDataTypeErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Data Type Errors ---");
+    logMsg("");
+    logMsg("--- Data Type Errors ---");
 
     // Invalid conversion
     executeWithErrorHandling("Type Conversion Error", [&conn]()
-                             {
-        conn->executeQuery("SELECT CAST('not_a_number' AS INTEGER) FROM RDB$DATABASE"); });
+                             { conn->executeQuery("SELECT CAST('not_a_number' AS INTEGER) FROM RDB$DATABASE"); });
 
     // Numeric overflow
     executeWithErrorHandling("Numeric Overflow", [&conn]()
@@ -256,60 +255,79 @@ void demonstrateDataTypeErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
 // Function to demonstrate handling transaction errors
 void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Transaction Errors ---");
+    logMsg("");
+    logMsg("--- Transaction Errors ---");
 
     // Transaction rollback example
     executeWithErrorHandling("Transaction Rollback", [&conn]()
                              {
-        conn->setAutoCommit(false);
+                                 // RAII guard to ensure autocommit is always restored
+                                 struct AutoCommitGuard
+                                 {
+                                     std::shared_ptr<cpp_dbc::RelationalDBConnection> &conn_;
+                                     explicit AutoCommitGuard(std::shared_ptr<cpp_dbc::RelationalDBConnection> &c) : conn_(c) {}
+                                     ~AutoCommitGuard()
+                                     {
+                                         try
+                                         {
+                                             conn_->setAutoCommit(true);
+                                         }
+                                         catch (...)
+                                         {
+                                         }
+                                     }
+                                 };
 
-        try {
-            auto pstmt1 = conn->prepareStatement(
-                "INSERT INTO error_test_customers (customer_id, name, email, credit_limit) "
-                "VALUES (?, ?, ?, ?)"
-            );
+                                 conn->setAutoCommit(false);
+                                 AutoCommitGuard guard(conn);
 
-            pstmt1->setInt(1, 10);
-            pstmt1->setString(2, "Transaction Test");
-            pstmt1->setString(3, "transaction@example.com");
-            pstmt1->setDouble(4, 1000.00);
-            pstmt1->executeUpdate();
+                                 try
+                                 {
+                                     auto pstmt1 = conn->prepareStatement(
+                                         "INSERT INTO error_test_customers (customer_id, name, email, credit_limit) "
+                                         "VALUES (?, ?, ?, ?)");
 
-            logData("First operation in transaction succeeded");
+                                     pstmt1->setInt(1, 10);
+                                     pstmt1->setString(2, "Transaction Test");
+                                     pstmt1->setString(3, "transaction@example.com");
+                                     pstmt1->setDouble(4, 1000.00);
+                                     pstmt1->executeUpdate();
 
-            // Second operation fails (primary key violation)
-            auto pstmt2 = conn->prepareStatement(
-                "INSERT INTO error_test_customers (customer_id, name, email, credit_limit) "
-                "VALUES (?, ?, ?, ?)"
-            );
+                                     logData("First operation in transaction succeeded");
 
-            pstmt2->setInt(1, 1); // ID 1 already exists
-            pstmt2->setString(2, "Will Fail");
-            pstmt2->setString(3, "will.fail@example.com");
-            pstmt2->setDouble(4, 500.00);
-            pstmt2->executeUpdate();
+                                     // Second operation fails (primary key violation)
+                                     auto pstmt2 = conn->prepareStatement(
+                                         "INSERT INTO error_test_customers (customer_id, name, email, credit_limit) "
+                                         "VALUES (?, ?, ?, ?)");
 
-            conn->commit();
-        }
-        catch (const cpp_dbc::DBException& e) {
-            logError("Error in transaction: " + e.what_s());
-            logStep("Rolling back transaction...");
-            conn->rollback();
+                                     pstmt2->setInt(1, 1); // ID 1 already exists
+                                     pstmt2->setString(2, "Will Fail");
+                                     pstmt2->setString(3, "will.fail@example.com");
+                                     pstmt2->setDouble(4, 500.00);
+                                     pstmt2->executeUpdate();
 
-            // Verify the rollback worked
-            auto rs = conn->executeQuery("SELECT COUNT(*) as cnt FROM error_test_customers WHERE customer_id = 10");
-            rs->next();
-            int count = rs->getInt("cnt");
-            logData("After rollback, customer ID 10 count: " + std::to_string(count));
+                                     conn->commit();
+                                 }
+                                 catch (const cpp_dbc::DBException &e)
+                                 {
+                                     logError("Error in transaction: " + e.what_s());
+                                     logStep("Rolling back transaction...");
+                                     conn->rollback();
 
-            if (count > 0) {
-                throw AppException("Transaction rollback failed!");
-            }
-            logOk("Rollback verified");
-        }
+                                     // Verify the rollback worked
+                                     auto rs = conn->executeQuery("SELECT COUNT(*) as cnt FROM error_test_customers WHERE customer_id = 10");
+                                     rs->next();
+                                     int count = rs->getInt("cnt");
+                                     logData("After rollback, customer ID 10 count: " + std::to_string(count));
 
-        conn->setAutoCommit(true); });
+                                     if (count > 0)
+                                     {
+                                         throw AppException("Transaction rollback failed!");
+                                     }
+                                     logOk("Rollback verified");
+                                 }
+                                 // AutoCommitGuard destructor will restore autocommit here
+                             });
 
     logInfo("Deadlock simulation would require multiple concurrent connections");
 }
@@ -317,31 +335,27 @@ void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::RelationalDBConnectio
 // Function to demonstrate handling connection errors
 void demonstrateConnectionErrors()
 {
-    log("");
-    log("--- Connection Errors ---");
+    logMsg("");
+    logMsg("--- Connection Errors ---");
 
     executeWithErrorHandling("Connection Error", []()
-                             {
-        auto conn = cpp_dbc::DriverManager::getDBConnection(
-            "cpp_dbc:firebird://localhost:3050/nonexistent_db",
-            "invalid_user",
-            "invalid_password"
-        ); });
+                             { auto conn = cpp_dbc::DriverManager::getDBConnection(
+                                   "cpp_dbc:firebird://localhost:3050/nonexistent_db",
+                                   "invalid_user",
+                                   "invalid_password"); });
 
     executeWithErrorHandling("Invalid Connection URL", []()
-                             {
-        auto conn = cpp_dbc::DriverManager::getDBConnection(
-            "invalid:url:format",
-            "user",
-            "password"
-        ); });
+                             { auto conn = cpp_dbc::DriverManager::getDBConnection(
+                                   "invalid:url:format",
+                                   "user",
+                                   "password"); });
 }
 
 // Function to demonstrate handling prepared statement errors
 void demonstratePreparedStatementErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Prepared Statement Errors ---");
+    logMsg("");
+    logMsg("--- Prepared Statement Errors ---");
 
     // Invalid parameter index
     executeWithErrorHandling("Invalid Parameter Index", [&conn]()
@@ -367,8 +381,8 @@ void demonstratePreparedStatementErrors(std::shared_ptr<cpp_dbc::RelationalDBCon
 // Function to demonstrate handling result set errors
 void demonstrateResultSetErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Result Set Errors ---");
+    logMsg("");
+    logMsg("--- Result Set Errors ---");
 
     // Invalid column name
     executeWithErrorHandling("Invalid Column Name", [&conn]()
@@ -388,8 +402,8 @@ void demonstrateResultSetErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection>
 // Function to demonstrate proper error recovery
 void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Error Recovery ---");
+    logMsg("");
+    logMsg("--- Error Recovery ---");
 
     try
     {
@@ -419,23 +433,20 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::RelationalDBConnection> c
 // Function to demonstrate Firebird-specific errors
 void demonstrateFirebirdSpecificErrors(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Firebird-Specific Error Handling ---");
+    logMsg("");
+    logMsg("--- Firebird-Specific Error Handling ---");
 
-    // Invalid generator/sequence
-    executeWithErrorHandling("Invalid Generator", [&conn]()
-                             {
-        conn->executeQuery("SELECT GEN_ID(nonexistent_generator, 1) FROM RDB$DATABASE"); });
+    // Invalid generator/sequence (Firebird-specific)
+    executeWithErrorHandling("Invalid Generator/Sequence", [&conn]()
+                             { conn->executeQuery("SELECT GEN_ID(nonexistent_generator, 1) FROM RDB$DATABASE"); });
 
     // Table does not exist
     executeWithErrorHandling("Table Not Found", [&conn]()
-                             {
-        conn->executeQuery("SELECT * FROM nonexistent_table"); });
+                             { conn->executeQuery("SELECT * FROM nonexistent_table"); });
 
     // Invalid stored procedure
     executeWithErrorHandling("Invalid Stored Procedure", [&conn]()
-                             {
-        conn->executeQuery("SELECT * FROM nonexistent_procedure"); });
+                             { conn->executeQuery("SELECT * FROM nonexistent_procedure"); });
 
     logInfo("Common Firebird error codes (GDSCODE) to handle:");
     logInfo("  - isc_no_priv: Insufficient privileges");
@@ -458,10 +469,22 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
     demonstrateErrorRecovery(conn);
     demonstrateFirebirdSpecificErrors(conn);
 
-    log("");
+    logMsg("");
     logStep("Cleaning up tables...");
-    try { conn->executeUpdate("DROP TABLE error_test_orders"); } catch (...) {}
-    try { conn->executeUpdate("DROP TABLE error_test_customers"); } catch (...) {}
+    try
+    {
+        conn->executeUpdate("DROP TABLE error_test_orders");
+    }
+    catch (...)
+    {
+    }
+    try
+    {
+        conn->executeUpdate("DROP TABLE error_test_customers");
+    }
+    catch (...)
+    {
+    }
     logOk("Tables dropped");
 }
 
@@ -469,10 +492,10 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Firebird Error Handling Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Firebird Error Handling Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_FIREBIRD
     logError("Firebird support is not enabled");
@@ -557,10 +580,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

@@ -204,8 +204,8 @@ void setupDatabase(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 void demonstrateInnerJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- INNER JOIN Example ---");
+    logMsg("");
+    logMsg("--- INNER JOIN Example ---");
     logInfo("INNER JOIN returns only the rows where there is a match in both tables");
     logStep("Query: Get all customers who have placed orders");
 
@@ -222,8 +222,8 @@ void demonstrateInnerJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 void demonstrateLeftJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- LEFT JOIN Example ---");
+    logMsg("");
+    logMsg("--- LEFT JOIN Example ---");
     logInfo("LEFT JOIN returns all rows from the left table and matching rows from the right table");
     logStep("Query: Get all customers and their orders (if any)");
 
@@ -240,8 +240,8 @@ void demonstrateLeftJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 void demonstrateRightJoinSimulation(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- RIGHT JOIN Simulation ---");
+    logMsg("");
+    logMsg("--- RIGHT JOIN Simulation ---");
     logInfo("SQLite doesn't support RIGHT JOIN directly. Use LEFT JOIN with swapped tables.");
     logStep("Query: Get all products and their orders (if any)");
 
@@ -258,8 +258,8 @@ void demonstrateRightJoinSimulation(std::shared_ptr<cpp_dbc::RelationalDBConnect
 
 void demonstrateCrossJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- CROSS JOIN Example ---");
+    logMsg("");
+    logMsg("--- CROSS JOIN Example ---");
     logInfo("CROSS JOIN returns the Cartesian product of the two tables");
     logStep("Query: Get all possible combinations of customers and product categories");
 
@@ -276,8 +276,8 @@ void demonstrateCrossJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 void demonstrateSelfJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- SELF JOIN Example ---");
+    logMsg("");
+    logMsg("--- SELF JOIN Example ---");
     logInfo("SELF JOIN is used to join a table to itself");
     logStep("Query: Find customers from the same country");
 
@@ -294,8 +294,8 @@ void demonstrateSelfJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 void demonstrateJoinWithAggregates(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- JOIN with Aggregate Functions Example ---");
+    logMsg("");
+    logMsg("--- JOIN with Aggregate Functions Example ---");
     logInfo("Shows how to use JOIN with aggregate functions like COUNT, SUM, AVG");
     logStep("Query: Get the total number of orders and total spending for each customer");
 
@@ -315,8 +315,8 @@ void demonstrateJoinWithAggregates(std::shared_ptr<cpp_dbc::RelationalDBConnecti
 
 void demonstrateMultiTableJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- Multi-Table JOIN Example ---");
+    logMsg("");
+    logMsg("--- Multi-Table JOIN Example ---");
     logInfo("Shows how to join more than two tables together");
     logStep("Query: Get detailed order information including customer and product details");
 
@@ -337,8 +337,8 @@ void demonstrateMultiTableJoin(std::shared_ptr<cpp_dbc::RelationalDBConnection> 
 
 void demonstrateJoinWithSubquery(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 {
-    log("");
-    log("--- JOIN with Subquery Example ---");
+    logMsg("");
+    logMsg("--- JOIN with Subquery Example ---");
     logInfo("Shows how to use JOIN with a subquery");
     logStep("Query: Find customers who have ordered products in the 'Electronics' category");
 
@@ -368,7 +368,7 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
     demonstrateMultiTableJoin(conn);
     demonstrateJoinWithSubquery(conn);
 
-    log("");
+    logMsg("");
     logStep("Cleaning up tables...");
     conn->executeUpdate("DROP TABLE IF EXISTS orders");
     conn->executeUpdate("DROP TABLE IF EXISTS customers");
@@ -379,10 +379,10 @@ void runAllDemonstrations(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc SQLite JOIN Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc SQLite JOIN Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_SQLITE
     logError("SQLite support is not enabled");
@@ -467,10 +467,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

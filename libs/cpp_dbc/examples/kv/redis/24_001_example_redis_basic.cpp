@@ -47,8 +47,8 @@ using namespace cpp_dbc::examples;
 void performRedisOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
     // ===== String Operations =====
-    log("");
-    log("--- String Operations ---");
+    logMsg("");
+    logMsg("--- String Operations ---");
 
     std::string key = "example_string";
     std::string value = "Hello, Redis!";
@@ -74,8 +74,8 @@ void performRedisOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     }
 
     // ===== Counter Operations =====
-    log("");
-    log("--- Counter Operations ---");
+    logMsg("");
+    logMsg("--- Counter Operations ---");
 
     std::string counterKey = "example_counter";
 
@@ -97,8 +97,8 @@ void performRedisOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     logOk("Counter operations complete");
 
     // ===== List Operations =====
-    log("");
-    log("--- List Operations ---");
+    logMsg("");
+    logMsg("--- List Operations ---");
 
     std::string listKey = "example_list";
 
@@ -129,8 +129,8 @@ void performRedisOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     logOk("List operations complete");
 
     // ===== Hash Operations =====
-    log("");
-    log("--- Hash Operations ---");
+    logMsg("");
+    logMsg("--- Hash Operations ---");
 
     std::string hashKey = "example_hash";
 
@@ -159,8 +159,8 @@ void performRedisOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     logOk("Hash operations complete");
 
     // ===== Set Operations =====
-    log("");
-    log("--- Set Operations ---");
+    logMsg("");
+    logMsg("--- Set Operations ---");
 
     std::string setKey = "example_set";
 
@@ -191,8 +191,8 @@ void performRedisOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     logOk("Set operations complete");
 
     // ===== Sorted Set Operations =====
-    log("");
-    log("--- Sorted Set Operations ---");
+    logMsg("");
+    logMsg("--- Sorted Set Operations ---");
 
     std::string zsetKey = "example_zset";
 
@@ -223,8 +223,8 @@ void performRedisOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     logOk("Sorted set operations complete");
 
     // ===== Key Scan =====
-    log("");
-    log("--- Key Scan ---");
+    logMsg("");
+    logMsg("--- Key Scan ---");
 
     logStep("Scanning for keys matching 'example_*'...");
     auto keys = conn->scanKeys("example_*");
@@ -238,8 +238,8 @@ void performRedisOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     logOk("Key scan complete");
 
     // ===== Server Info =====
-    log("");
-    log("--- Server Info ---");
+    logMsg("");
+    logMsg("--- Server Info ---");
 
     logStep("Pinging server...");
     std::string pong = conn->ping();
@@ -247,8 +247,8 @@ void performRedisOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     logOk("Server responded");
 
     // ===== Cleanup =====
-    log("");
-    log("--- Cleanup ---");
+    logMsg("");
+    logMsg("--- Cleanup ---");
 
     logStep("Deleting all example keys...");
     std::vector<std::string> keysToDelete = {
@@ -261,10 +261,10 @@ void performRedisOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Redis Key-Value Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Redis Key-Value Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_REDIS
     logError("Redis support is not enabled");
@@ -279,7 +279,7 @@ int main(int argc, char *argv[])
     if (args.showHelp)
     {
         printHelp("redis_example", "redis");
-        return 0;
+        return EXIT_OK_;
     }
     logOk("Arguments parsed");
 
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
     if (!configResult)
     {
         logError("Failed to load configuration: " + configResult.error().what_s());
-        return 1;
+        return EXIT_ERROR_;
     }
 
     // Check if file was found
@@ -298,7 +298,7 @@ int main(int argc, char *argv[])
     {
         logError("Configuration file not found: " + args.configPath);
         logInfo("Use --config=<path> to specify config file");
-        return 1;
+        return EXIT_ERROR_;
     }
     logOk("Configuration loaded successfully");
 
@@ -311,14 +311,14 @@ int main(int argc, char *argv[])
     if (!dbResult)
     {
         logError("Failed to get database config: " + dbResult.error().what_s());
-        return 1;
+        return EXIT_ERROR_;
     }
 
     // Check if config was found
     if (!dbResult.value())
     {
         logError("Redis configuration not found");
-        return 1;
+        return EXIT_ERROR_;
     }
 
     auto &dbConfig = *dbResult.value();
@@ -343,7 +343,7 @@ int main(int argc, char *argv[])
 
         performRedisOperations(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -351,19 +351,19 @@ int main(int argc, char *argv[])
     catch (const cpp_dbc::DBException &e)
     {
         logError("Database error: " + e.what_s());
-        return 1;
+        return EXIT_ERROR_;
     }
     catch (const std::exception &e)
     {
         logError("Error: " + std::string(e.what()));
-        return 1;
+        return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
-    return 0;
+    return EXIT_OK_;
 #endif
 }

@@ -105,8 +105,8 @@ cpp_dbc::config::DatabaseConfigManager createConfigProgrammatically()
 // Function to print database configurations
 void printDatabaseConfigs(const cpp_dbc::config::DatabaseConfigManager &configManager)
 {
-    log("");
-    log("--- Database Configurations ---");
+    logMsg("");
+    logMsg("--- Database Configurations ---");
 
     for (const auto &dbConfig : configManager.getAllDatabases())
     {
@@ -125,7 +125,7 @@ void printDatabaseConfigs(const cpp_dbc::config::DatabaseConfigManager &configMa
         }
 
         logData("Connection String: " + dbConfig.createConnectionString());
-        log("");
+        logMsg("");
     }
     logOk("Database configurations printed");
 }
@@ -133,8 +133,8 @@ void printDatabaseConfigs(const cpp_dbc::config::DatabaseConfigManager &configMa
 // Function to print connection pool configurations
 void printConnectionPoolConfigs(const cpp_dbc::config::DatabaseConfigManager &configManager)
 {
-    log("");
-    log("--- Connection Pool Configurations ---");
+    logMsg("");
+    logMsg("--- Connection Pool Configurations ---");
 
     auto poolConfigOpt = configManager.getDBConnectionPoolConfig("default");
     if (poolConfigOpt)
@@ -157,13 +157,13 @@ void printConnectionPoolConfigs(const cpp_dbc::config::DatabaseConfigManager &co
 // Function to print test queries
 void printTestQueries(const cpp_dbc::config::DatabaseConfigManager &configManager)
 {
-    log("");
-    log("--- Test Queries ---");
+    logMsg("");
+    logMsg("--- Test Queries ---");
 
     const auto &testQueries = configManager.getTestQueries();
 
     logData("Connection Test: " + testQueries.getConnectionTest());
-    log("");
+    logMsg("");
 
     logData("MySQL Queries:");
     for (const auto &query : testQueries.getQueriesForType("mysql"))
@@ -181,10 +181,10 @@ void printTestQueries(const cpp_dbc::config::DatabaseConfigManager &configManage
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Configuration Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Configuration Example");
+    logMsg("========================================");
+    logMsg("");
 
     // Create a configuration manager
     cpp_dbc::config::DatabaseConfigManager configManager;
@@ -224,8 +224,8 @@ int main(int argc, char *argv[])
     printTestQueries(configManager);
 
     // Example of using the configuration to create a connection
-    log("");
-    log("--- Connection Creation Example ---");
+    logMsg("");
+    logMsg("--- Connection Creation Example ---");
 
     auto dbConfigOpt = configManager.getDatabaseByName("dev_mysql");
     if (dbConfigOpt)
@@ -242,10 +242,10 @@ int main(int argc, char *argv[])
         logInfo("dev_mysql configuration not found");
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return 0;
 }

@@ -47,8 +47,8 @@ using namespace cpp_dbc::examples;
 #if USE_REDIS
 void demonstrateBulkDelete(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Bulk Key Deletion ---");
+    logMsg("");
+    logMsg("--- Bulk Key Deletion ---");
     logInfo("Using deleteKeys() to delete multiple keys at once");
 
     // Create test keys
@@ -99,8 +99,8 @@ void demonstrateBulkDelete(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 
 void demonstrateMsetMget(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- MSET/MGET Operations ---");
+    logMsg("");
+    logMsg("--- MSET/MGET Operations ---");
     logInfo("Using executeCommand for bulk set/get operations");
 
     // Build MSET arguments: key1 value1 key2 value2 ...
@@ -139,8 +139,8 @@ void demonstrateMsetMget(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 
 void demonstrateBatchHashOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Batch Hash Operations ---");
+    logMsg("");
+    logMsg("--- Batch Hash Operations ---");
     logInfo("Using HMSET to set multiple hash fields at once");
 
     std::string hashKey = "batch_user_profile";
@@ -179,8 +179,8 @@ void demonstrateBatchHashOperations(std::shared_ptr<cpp_dbc::KVDBConnection> con
 
 void demonstratePerformanceComparison(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Performance Comparison ---");
+    logMsg("");
+    logMsg("--- Performance Comparison ---");
     logInfo("Comparing individual vs batch operations");
 
     const int numKeys = 100;
@@ -265,8 +265,8 @@ void demonstratePerformanceComparison(std::shared_ptr<cpp_dbc::KVDBConnection> c
 
 void demonstrateBatchListOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Batch List Operations ---");
+    logMsg("");
+    logMsg("--- Batch List Operations ---");
     logInfo("Using LPUSH/RPUSH with multiple values");
 
     std::string listKey = "batch_queue";
@@ -296,8 +296,8 @@ void demonstrateBatchListOperations(std::shared_ptr<cpp_dbc::KVDBConnection> con
 
 void demonstrateBatchSetOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
 {
-    log("");
-    log("--- Batch Set Operations ---");
+    logMsg("");
+    logMsg("--- Batch Set Operations ---");
     logInfo("Using SADD with multiple members");
 
     std::string setKey = "batch_tags";
@@ -336,10 +336,10 @@ void demonstrateBatchSetOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc Redis Batch Operations Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc Redis Batch Operations Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_REDIS
     logError("Redis support is not enabled");
@@ -418,7 +418,7 @@ int main(int argc, char *argv[])
         demonstrateBatchSetOperations(conn);
         demonstratePerformanceComparison(conn);
 
-        log("");
+        logMsg("");
         logStep("Closing connection...");
         conn->close();
         logOk("Connection closed");
@@ -434,10 +434,10 @@ int main(int argc, char *argv[])
         return EXIT_ERROR_;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return EXIT_OK_;
 #endif

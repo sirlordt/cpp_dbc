@@ -54,9 +54,10 @@ std::string createTestDocument(int id, const std::string &name, double value)
 
 void testPoolConnection(std::shared_ptr<cpp_dbc::DocumentDBConnectionPool> pool, int threadId, const std::string &collectionName)
 {
+    std::shared_ptr<cpp_dbc::DocumentDBConnection> conn;
     try
     {
-        auto conn = pool->getDocumentDBConnection();
+        conn = pool->getDocumentDBConnection();
 
         {
             std::lock_guard<std::mutex> lock(consoleMutex);
@@ -100,16 +101,21 @@ void testPoolConnection(std::shared_ptr<cpp_dbc::DocumentDBConnectionPool> pool,
     {
         std::lock_guard<std::mutex> lock(consoleMutex);
         logError("Thread " + std::to_string(threadId) + " error: " + e.what_s());
+        // Ensure connection is returned to pool even on exception
+        if (conn)
+        {
+            conn->close();
+        }
     }
 }
 #endif
 
 int main(int argc, char *argv[])
 {
-    log("========================================");
-    log("cpp_dbc MongoDB Connection Pool Example");
-    log("========================================");
-    log("");
+    logMsg("========================================");
+    logMsg("cpp_dbc MongoDB Connection Pool Example");
+    logMsg("========================================");
+    logMsg("");
 
 #if !USE_MONGODB
     logError("MongoDB support is not enabled");
@@ -175,8 +181,8 @@ int main(int argc, char *argv[])
     try
     {
         // ===== Driver Registration =====
-        log("");
-        log("--- Driver Registration ---");
+        logMsg("");
+        logMsg("--- Driver Registration ---");
 
         logStep("Registering MongoDB driver...");
         auto driver = std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>();
@@ -184,13 +190,13 @@ int main(int argc, char *argv[])
         logOk("MongoDB driver registered");
 
         // ===== Pool Creation =====
-        log("");
-        log("--- Pool Creation ---");
+        logMsg("");
+        logMsg("--- Pool Creation ---");
 
         logStep("Creating MongoDB connection pool...");
 
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.withDatabaseConfig(dbConfig);  // Automatically sets URL, user, password, AND options
+        poolConfig.withDatabaseConfig(dbConfig); // Automatically sets URL, user, password, AND options
         poolConfig.setInitialSize(3);
         poolConfig.setMaxSize(10);
         poolConfig.setValidationQuery("{\"ping\": 1}");
@@ -203,8 +209,8 @@ int main(int argc, char *argv[])
         logData("Total connections: " + std::to_string(pool->getTotalDBConnectionCount()));
 
         // ===== Collection Setup =====
-        log("");
-        log("--- Collection Setup ---");
+        logMsg("");
+        logMsg("--- Collection Setup ---");
 
         const std::string testCollectionName = "connection_pool_example";
 
@@ -221,8 +227,8 @@ int main(int argc, char *argv[])
         logOk("Collection '" + testCollectionName + "' ready");
 
         // ===== Basic Operations =====
-        log("");
-        log("--- Basic Operations ---");
+        logMsg("");
+        logMsg("--- Basic Operations ---");
 
         logStep("Performing basic document operations...");
         {
@@ -249,8 +255,8 @@ int main(int argc, char *argv[])
         logOk("Basic operations completed");
 
         // ===== Multi-threaded Access =====
-        log("");
-        log("--- Multi-threaded Access ---");
+        logMsg("");
+        logMsg("--- Multi-threaded Access ---");
 
         const int numThreads = 5;
         logStep("Starting " + std::to_string(numThreads) + " threads...");
@@ -263,15 +269,24 @@ int main(int argc, char *argv[])
 
         logInfo("Waiting for all threads to complete...");
 
+        // bool allThreadsSucceeded = true;
         for (auto &future : futures)
         {
-            future.wait();
+            try
+            {
+                future.get(); // Use get() instead of wait() to propagate exceptions
+            }
+            catch (const std::exception &e)
+            {
+                logError("Thread task failed: " + std::string(e.what()));
+                // allThreadsSucceeded = false;
+            }
         }
         logOk("All threads completed");
 
         // ===== Verify Results =====
-        log("");
-        log("--- Verify Results ---");
+        logMsg("");
+        logMsg("--- Verify Results ---");
 
         logStep("Counting documents...");
         {
@@ -284,8 +299,8 @@ int main(int argc, char *argv[])
         logOk("Results verified");
 
         // ===== Pool Statistics =====
-        log("");
-        log("--- Pool Statistics ---");
+        logMsg("");
+        logMsg("--- Pool Statistics ---");
 
         logData("Active connections: " + std::to_string(pool->getActiveDBConnectionCount()));
         logData("Idle connections: " + std::to_string(pool->getIdleDBConnectionCount()));
@@ -293,8 +308,8 @@ int main(int argc, char *argv[])
         logOk("Statistics retrieved");
 
         // ===== Cleanup =====
-        log("");
-        log("--- Cleanup ---");
+        logMsg("");
+        logMsg("--- Cleanup ---");
 
         logStep("Dropping test collection...");
         {
@@ -322,10 +337,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    log("");
-    log("========================================");
+    logMsg("");
+    logMsg("========================================");
     logOk("Example completed successfully");
-    log("========================================");
+    logMsg("========================================");
 
     return 0;
 #endif
