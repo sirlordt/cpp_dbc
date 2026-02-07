@@ -6,7 +6,27 @@ The CPP_DBC library appears to be in a functional state with the following compo
 
 ### Recent Improvements (2026-02-06)
 
-**Major Examples Reorganization and Automation Improvements:**
+**Test Directory Reorganization and Parallel Test Runner Enhancements (21:44:02 PST):**
+1. **Test Directory Complete Restructuring:**
+   - Migrated all test files from flat structure to hierarchical, database-family-based organization
+   - Test files now organized by database family following the same pattern as examples
+   - 110 files changed (all test files moved to family-specific directories)
+   - Organization: common (10_xxx), relational/ (MySQL 20_xxx, PostgreSQL 21_xxx, SQLite 22_xxx, Firebird 23_xxx), kv/redis/ (24_xxx), document/mongodb/ (25_xxx), columnar/scylladb/ (26_xxx)
+   - Test structure: `test/common/`, `test/relational/mysql/`, `test/document/mongodb/`, `test/columnar/scylladb/`, etc.
+   - Added placeholder directories: `test/graph/.git_keep`, `test/timeseries/.git_keep`
+
+2. **Parallel Test Runner Enhancements (`run_test_parallel.sh`):**
+   - **Terminal Resize Handling:** Added SIGWINCH handler for proper TUI redraw on terminal resize
+   - **Dual Log File System:** Clean `.log` files (no ANSI) in `logs/test/`, colored `.log.ansi` files in `/tmp/cpp_dbc/logs/test/`
+   - **Temporary Directory Management:** Auto-cleanup of `/tmp` directories, keeps last 5 folders
+   - **Recursive Test Discovery:** Updated to discover tests in family-based subdirectories using `find`
+
+3. **Driver Documentation Updates:**
+   - Updated `how_add_new_db_drivers.md` with comprehensive test directory structure section
+   - Added family-prefixed path examples in all test file listings
+   - Enhanced CMakeLists.txt update instructions with include directory configuration
+
+**Major Examples Reorganization and Automation Improvements (16:40:00 PST):**
 1. **Examples Complete Restructuring:**
    - Migrated from flat structure to hierarchical, database-family-based organization
    - Implemented numeric prefix naming convention: `XX_YZZ_example_<db>_<feature>.cpp`

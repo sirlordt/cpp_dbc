@@ -647,6 +647,16 @@ fi
 
 echo -e "\n========== Running Tests ==========\n"
 
+# Clean up old SQLite test database files to prevent corruption
+# This removes *.db files and their associated WAL/SHM files from previous test runs
+if [ "$USE_SQLITE" = "ON" ]; then
+    echo "Cleaning up old SQLite test database files..."
+    rm -f "$TEST_BUILD_DIR"/*.db "$TEST_BUILD_DIR"/*.db-wal "$TEST_BUILD_DIR"/*.db-shm 2>/dev/null || true
+    # Also clean up YAML-configured external SQLite test DB
+    rm -f /tmp/cpp_dbc_test_sqlite.db /tmp/cpp_dbc_test_sqlite.db-wal /tmp/cpp_dbc_test_sqlite.db-shm 2>/dev/null || true
+    echo "SQLite database cleanup completed."
+fi
+
 # Function to run the test executable with appropriate options
 run_test() {
     cd "$TEST_BUILD_DIR"

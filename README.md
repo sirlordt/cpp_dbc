@@ -134,6 +134,23 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - **Example Discovery**: Use `./libs/cpp_dbc/run_examples.sh --list` to see all available examples
   - **Example Execution**: Use `./libs/cpp_dbc/run_examples.sh --run='pattern'` to run examples (supports wildcards)
 
+- **Tests**:
+  - Tests mirror the example organization structure with family-based directories
+  - **Common Tests** (`test/common/`): Core framework tests (10_xxx series) - database_config, db_config, db_exception, expected, yaml, integration
+  - **Relational Tests** (`test/relational/`):
+    - MySQL (20_xxx): Comprehensive tests for MySQL driver
+    - PostgreSQL (21_xxx): Comprehensive tests for PostgreSQL driver
+    - SQLite (22_xxx): Comprehensive tests for SQLite driver
+    - Firebird (23_xxx): Comprehensive tests for Firebird driver
+  - **Key-Value Tests** (`test/kv/`):
+    - Redis (24_xxx): Tests for Redis driver
+  - **Document Tests** (`test/document/`):
+    - MongoDB (25_xxx): Tests for MongoDB driver including cursor API tests
+  - **Columnar Tests** (`test/columnar/`):
+    - ScyllaDB (26_xxx): Tests for ScyllaDB driver
+  - **Test Resources**: Shared resources (`test_db_connections.yml`, `test.jpg`) located in `test/common/`
+  - **Parallel Execution**: Use `./helper.sh --run-test=parallel=N` to run N test prefixes in parallel
+
 ## Building the Library
 
 ### Prerequisites

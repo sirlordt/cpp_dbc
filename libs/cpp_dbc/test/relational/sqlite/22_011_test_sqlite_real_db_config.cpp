@@ -111,7 +111,7 @@ TEST_CASE("Specific SQLite database configurations", "[22_011_02_sqlite_real_db_
 
         // Check connection parameters
         REQUIRE(testSQLite.getType() == "sqlite");
-        REQUIRE(testSQLite.getDatabase() == "test_sqlite.db");
+        REQUIRE(testSQLite.getDatabase() == "/tmp/cpp_dbc_test_sqlite.db");
 
         // Check options
         REQUIRE(testSQLite.getOption("foreign_keys") == "true");
@@ -212,7 +212,7 @@ TEST_CASE("Select SQLite database for test environment", "[22_011_05_sqlite_real
 
     // Create connection string
     std::string connStr = dbConfig.createConnectionString();
-    REQUIRE(connStr == "cpp_dbc:sqlite://test_sqlite.db");
+    REQUIRE(connStr == "cpp_dbc:sqlite:///tmp/cpp_dbc_test_sqlite.db");
 #endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 

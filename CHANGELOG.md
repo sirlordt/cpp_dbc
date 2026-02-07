@@ -1,6 +1,80 @@
 # Changelog
 
-## 2026-02-06 16:40:00 PST [Current]
+## 2026-02-06 21:44:02 PST [Current]
+
+### Test Directory Reorganization and Parallel Test Runner Enhancements
+
+* **Test Directory Complete Restructuring:**
+  * Migrated all test files from flat structure to hierarchical, database-family-based organization
+  * Test files now organized by database family following the same pattern as examples
+  * Directory structure mirrors example organization for consistency
+
+* **New Test Directory Organization:**
+  * **Common Tests (10_xxx):** `test/common/` — Core framework tests (database_config, db_config, db_exception, expected, yaml, integration)
+  * **Relational Tests:**
+    * `test/relational/mysql/` — MySQL tests (20_xxx)
+    * `test/relational/postgresql/` — PostgreSQL tests (21_xxx)
+    * `test/relational/sqlite/` — SQLite tests (22_xxx)
+    * `test/relational/firebird/` — Firebird tests (23_xxx)
+  * **Key-Value Tests:**
+    * `test/kv/redis/` — Redis tests (24_xxx)
+  * **Document Tests:**
+    * `test/document/mongodb/` — MongoDB tests (25_xxx)
+  * **Columnar Tests:**
+    * `test/columnar/scylladb/` — ScyllaDB tests (26_xxx)
+  * **Placeholder Directories for Future Tests:**
+    * `test/graph/.git_keep` — Reserved for graph database tests
+    * `test/timeseries/.git_keep` — Reserved for time-series database tests
+
+* **Test CMakeLists.txt Updates:**
+  * Updated all test file paths to use family-prefixed paths (e.g., `relational/mysql/20_001_...`)
+  * Added include directories for each database family folder
+  * Updated file copy operations to use `common/` prefix for shared resources
+  * Common resources (`test_db_connections.yml`, `test.jpg`) now in `test/common/` directory
+
+* **Updated Driver Documentation (`how_add_new_db_drivers.md`):**
+  * Added comprehensive "Test Directory Structure" section in Phase 3
+  * Updated prefix assignment table with directory column showing full paths
+  * Updated all test file examples to include full family-prefixed paths
+  * Added detailed CMakeLists.txt update instructions:
+    * How to add family-prefixed test files
+    * How to configure include directories for test headers
+    * How to update common integration tests with new drivers
+  * Enhanced checklist with directory structure validation steps
+
+* **Parallel Test Runner Enhancements (`run_test_parallel.sh`):**
+  * **Terminal Resize Handling:**
+    * Added SIGWINCH signal handler for terminal resize events
+    * Implemented `handle_terminal_resize()` function with `TERM_RESIZED` flag
+    * TUI now properly redraws on terminal resize without visual artifacts
+    * Added `trap 'handle_terminal_resize' WINCH` in TUI initialization
+  * **Dual Log File System:**
+    * Clean `.log` files (ANSI codes stripped) — stored in `logs/test/TIMESTAMP/`
+    * Colored `.log.ansi` files (with ANSI codes) — stored in `/tmp/cpp_dbc/logs/test/TIMESTAMP/`
+    * Uses `tee` to split output stream: `tee "$log_file_ansi" | sed 's/\x1b\[[0-9;]*m//g' > "$log_file"`
+    * TUI displays colored output from `.ansi` files for better visual feedback
+    * Log files remain clean for easy reading and parsing
+  * **Temporary Directory Management:**
+    * Added `TEMP_ANSI_DIR` variable for `/tmp/cpp_dbc/logs/test/TIMESTAMP/` directory
+    * Added `cleanup_old_tmp_ansi_folders()` function to maintain temp directory
+    * Keeps last 5 folders in both project logs and `/tmp` directories
+    * Critical for VMs that suspend instead of reboot (prevents `/tmp` fill-up)
+    * Mirrored timestamp directory structure maintains correlation between logs
+  * **Recursive Test Discovery:**
+    * Updated `discover_prefixes()` to use `find` for recursive subdirectory search
+    * Automatically discovers tests in new family-based directory structure
+    * Replaced file loop with `find "$test_dir" -type f -name "*_*_test_*.cpp"`
+    * Supports unlimited nesting depth for future organizational needs
+
+* **Impact:**
+  * 110 files changed in git diff
+  * Test files moved to family-specific directories (no content changes)
+  * Better project organization with consistent structure across tests/examples
+  * Improved maintainability with tests grouped by database type
+  * Enhanced TUI stability with terminal resize support
+  * Cleaner logs for automated parsing while maintaining colored TUI
+
+## 2026-02-06 16:40:00 PST
 
 ### Major Examples Reorganization and Automation Improvements
 

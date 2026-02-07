@@ -4,7 +4,6 @@
 
 - Improvement: Add to helper the param helgrind to detect data races and deadlocks. When specified, run Valgrind with --tool=helgrind. Update all test result parsing to detect problems from helgrind and not only the memcheck tool.
 - Create a simple script to detect public method a class and check a bunch of .cpp test case and report if a method not found in the test code.
-- Reorganize the test source code in folders. family/smdb. relational/mysql/ kv/redis/ document/mongodb columnar/scylladb
 - NEW FEATURE: Add more examples.
 - NEW FEATURE: Add more debug messages?
 - PLANNED: Start to using in real project and test how easy is integrate in third party project. Maybe write an INTEGRATION.md to explain how full integrate in a real project.
@@ -15,6 +14,18 @@
    - Clickhouse?
 
 ## Completed Tasks
+
+- Test Directory Reorganization and Parallel Test Runner Enhancements (2026-02-06):
+  - Reorganized all test files into hierarchical, database-family-based directory structure
+  - Test organization now mirrors example structure: `test/common/`, `test/relational/mysql/`, `test/kv/redis/`, `test/document/mongodb/`, `test/columnar/scylladb/`
+  - Added placeholder directories: `test/graph/.git_keep`, `test/timeseries/.git_keep`
+  - Updated `test/CMakeLists.txt` with family-prefixed paths and include directories
+  - Enhanced `run_test_parallel.sh` with terminal resize handling (SIGWINCH)
+  - Implemented dual log file system: clean `.log` files + colored `.log.ansi` files in `/tmp`
+  - Added automatic cleanup of temporary directories in `/tmp` (keeps last 5)
+  - Updated recursive test discovery to support subdirectory structure
+  - Updated `how_add_new_db_drivers.md` with test directory structure documentation
+  - 110 files changed (all test files moved to family-specific directories)
 
 - Comprehensive Documentation for New Driver Development and Error Handling (2026-02-04):
   - Created `how_add_new_db_drivers.md`: Comprehensive guide (~1,500 lines) for adding new database drivers
