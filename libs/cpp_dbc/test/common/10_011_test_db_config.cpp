@@ -235,7 +235,7 @@ TEST_CASE("Create connection strings from configuration", "[10_011_06_db_config]
         // Verify connection strings for SQLite databases
         // SQLite connection strings are different as they don't have host/port
         REQUIRE(connectionStrings["dev_sqlite"] == "cpp_dbc:sqlite://:memory:");
-        REQUIRE(connectionStrings["test_sqlite"] == "cpp_dbc:sqlite://test_sqlite.db");
+        REQUIRE(connectionStrings["test_sqlite"] == "cpp_dbc:sqlite:///tmp/cpp_dbc_test_sqlite.db");
         REQUIRE(connectionStrings["prod_sqlite"] == "cpp_dbc:sqlite:///path/to/production.db");
 
         // Verify connection strings for ScyllaDB databases

@@ -473,6 +473,16 @@ start_test() {
             echo "=== Command: $cmd_display ==="
             echo ""
 
+            # Clean up SQLite database files before first run of SQLite tests (prefix 22_)
+            # This prevents corruption from previous test sessions without interfering with parallel tests
+            if [ "$prefix" = "22" ] && [ "$run_num" -eq 1 ]; then
+                local build_dir="$SCRIPT_DIR/build/libs/cpp_dbc/build"
+                echo "Cleaning up SQLite database files from previous test session..."
+                rm -f "$build_dir"/*.db "$build_dir"/*.db-wal "$build_dir"/*.db-shm 2>/dev/null || true
+                echo "SQLite cleanup completed."
+                echo ""
+            fi
+
             # Execute the test command
             # Use tee to write to both files: one with colors, one without
             "${cmd[@]}" 2>&1

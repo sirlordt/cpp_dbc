@@ -104,7 +104,7 @@ databases:
   # SQLite testing database
   - name: test_sqlite
     type: sqlite
-    database: "test_sqlite.db"
+    database: "/tmp/cpp_dbc_test_sqlite.db"
     options:
       foreign_keys: true
       journal_mode: WAL
