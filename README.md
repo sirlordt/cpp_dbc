@@ -149,7 +149,7 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - **Columnar Tests** (`test/columnar/`):
     - ScyllaDB (26_xxx): Tests for ScyllaDB driver
   - **Test Resources**: Shared resources (`test_db_connections.yml`, `test.jpg`) located in `test/common/`
-  - **Parallel Execution**: Use `./helper.sh --run-test parallel=N` to run N test prefixes in parallel
+  - **Parallel Execution**: Use `./helper.sh --run-test=parallel=N` to run N test prefixes in parallel
 
 ## Building the Library
 

@@ -951,7 +951,7 @@ For tests that are specific to a database family and cannot be shared with other
 #### Relational Database Tests
 
 Required files in `test/relational/sqlserver/`:
-```
+```text
 test/relational/sqlserver/27_001_test_sqlserver_real_common.cpp     # Test helpers
 test/relational/sqlserver/27_001_test_sqlserver_real_common.hpp     # Test helpers header
 test/relational/sqlserver/27_011_test_sqlserver_real_db_config.cpp

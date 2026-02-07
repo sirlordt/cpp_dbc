@@ -1805,7 +1805,7 @@ run_parallel_tests_tui() {
 
     # Create temporary directory for .ansi files with same structure as logs
     TEMP_ANSI_DIR="/tmp/cpp_dbc/logs/test/${TIMESTAMP}"
-    mkdir -p "$TEMP_ANSI_DIR"
+    mkdir -p -m 700 "$TEMP_ANSI_DIR"
 
     # Cleanup old log folders (keep only last MAX_LOG_FOLDERS)
     cleanup_old_log_folders
@@ -2212,7 +2212,7 @@ run_parallel_tests_simple() {
 
     # Create temporary directory for .ansi files with same structure as logs
     TEMP_ANSI_DIR="/tmp/cpp_dbc/logs/test/${TIMESTAMP}"
-    mkdir -p "$TEMP_ANSI_DIR"
+    mkdir -p -m 700 "$TEMP_ANSI_DIR"
 
     # Cleanup old log folders (keep only last MAX_LOG_FOLDERS)
     cleanup_old_log_folders
