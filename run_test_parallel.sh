@@ -489,7 +489,7 @@ start_test() {
             fi
 
             exit $exit_code
-        } | tee "$log_file_ansi" | sed 's/\x1b\[[0-9;]*m//g' > "$log_file"
+        } | tee "$log_file_ansi" | sed -u -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g; s/\x1B\[[@-~]//g; s/\r//g" > "$log_file"
 
     ) &
 
@@ -1821,7 +1821,11 @@ run_parallel_tests_tui() {
 
     # Create temporary directory for .ansi files with same structure as logs
     TEMP_ANSI_DIR="/tmp/cpp_dbc/logs/test/${TIMESTAMP}"
+    # Use restrictive umask to ensure parent directories are created with proper permissions
+    old_umask=$(umask)
+    umask 077
     mkdir -p -m 700 "$TEMP_ANSI_DIR"
+    umask "$old_umask"
 
     # Cleanup old log folders (keep only last MAX_LOG_FOLDERS)
     cleanup_old_log_folders
@@ -2228,7 +2232,11 @@ run_parallel_tests_simple() {
 
     # Create temporary directory for .ansi files with same structure as logs
     TEMP_ANSI_DIR="/tmp/cpp_dbc/logs/test/${TIMESTAMP}"
+    # Use restrictive umask to ensure parent directories are created with proper permissions
+    old_umask=$(umask)
+    umask 077
     mkdir -p -m 700 "$TEMP_ANSI_DIR"
+    umask "$old_umask"
 
     # Cleanup old log folders (keep only last MAX_LOG_FOLDERS)
     cleanup_old_log_folders
