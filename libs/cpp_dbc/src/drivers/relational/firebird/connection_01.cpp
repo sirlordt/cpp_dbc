@@ -273,7 +273,14 @@ namespace cpp_dbc::Firebird
     void FirebirdDBConnection::closeAllActiveResultSets()
     {
         FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets - Starting");
-        std::lock_guard<std::mutex> lock(m_resultSetsMutex);
+
+        // CRITICAL FIX: Acquire connection mutex FIRST to maintain consistent lock order
+        // Lock hierarchy: Connection Mutex → Result Set List Mutex → Result Set Mutex
+        // This prevents ABBA deadlock with executeQuery() and other operations
+        // See: libs/cpp_dbc/docs/bugs/firebird_lock_order_deadlock.md
+        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+        std::lock_guard<std::mutex> resultSetsLock(m_resultSetsMutex);
 
         int closedCount = 0;
         for (auto &weakRs : m_activeResultSets)

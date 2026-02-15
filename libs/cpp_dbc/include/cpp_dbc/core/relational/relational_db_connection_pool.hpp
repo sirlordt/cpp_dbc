@@ -186,7 +186,13 @@ namespace cpp_dbc
         std::weak_ptr<RelationalDBConnectionPool> m_pool; // Weak pointer to connection pool
         std::shared_ptr<std::atomic<bool>> m_poolAlive;   // Shared flag to check if pool is still alive
         std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
+
+        // CRITICAL FIX for Bug #2: Data race on m_lastUsedTime
+        // Protected by mutex since std::chrono::time_point is not guaranteed to be lock-free
+        // See: libs/cpp_dbc/docs/bugs/firebird_helgrind_analysis.md (Context 1)
+        mutable std::mutex m_lastUsedTimeMutex;
         std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
+
         std::atomic<bool> m_active{false};
         std::atomic<bool> m_closed{false};
 
@@ -194,6 +200,13 @@ namespace cpp_dbc
 
         // Helper method to check if pool is still valid
         bool isPoolValid() const override;
+
+        // Helper method to safely update last used time (protects against data race)
+        inline void updateLastUsedTime()
+        {
+            std::lock_guard<std::mutex> lock(m_lastUsedTimeMutex);
+            m_lastUsedTime = std::chrono::steady_clock::now();
+        }
 
     public:
         RelationalPooledDBConnection(std::shared_ptr<RelationalDBConnection> conn,
