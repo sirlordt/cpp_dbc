@@ -19,8 +19,14 @@ option(USE_CPP_YAML "Enable YAML configuration support" OFF)
 # Thread safety option for database drivers
 option(DB_DRIVER_THREAD_SAFE "Enable thread-safe database driver operations" ON)
 
-# Option for Address Sanitizer
+# Sanitizer options
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
+option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
+
+# Ensure ASAN and TSAN are not enabled simultaneously
+if(ENABLE_ASAN AND ENABLE_TSAN)
+    message(FATAL_ERROR "ENABLE_ASAN and ENABLE_TSAN cannot be used together. Please enable only one sanitizer.")
+endif()
 
 # Enable Address Sanitizer if requested
 if(ENABLE_ASAN)
@@ -32,8 +38,17 @@ if(ENABLE_ASAN)
 
     # Add compile definition to indicate ASAN is enabled
     add_compile_definitions(ASAN_ENABLED)
+elseif(ENABLE_TSAN)
+    message(STATUS "Thread Sanitizer enabled for tests")
+
+    # Enable TSAN flags
+    set(CMAKE_CXX_FLAGS "-fsanitize=thread -fno-omit-frame-pointer ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "-fsanitize=thread ${CMAKE_EXE_LINKER_FLAGS}")
+
+    # Add compile definition to indicate TSAN is enabled
+    add_compile_definitions(TSAN_ENABLED)
 else()
-    message(STATUS "Address Sanitizer disabled for tests")
+    message(STATUS "Address Sanitizer and Thread Sanitizer disabled for tests")
 endif()
 
 # Find required packages

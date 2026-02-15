@@ -42,7 +42,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {
@@ -99,7 +99,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {
@@ -156,7 +156,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {
@@ -213,7 +213,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {
@@ -271,7 +271,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {
@@ -329,7 +329,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {

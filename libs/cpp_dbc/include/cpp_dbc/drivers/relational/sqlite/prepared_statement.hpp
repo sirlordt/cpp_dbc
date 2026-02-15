@@ -11,10 +11,13 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <set>
+#include <mutex>
 
 namespace cpp_dbc::SQLite
 {
     class SQLiteDBConnection; // Forward declaration for friend
+    class SQLiteDBResultSet;  // Forward declaration for result set tracking
 
     /**
      * @brief SQLite prepared statement implementation
@@ -32,9 +35,10 @@ namespace cpp_dbc::SQLite
      *
      * @see SQLiteDBConnection, SQLiteDBResultSet
      */
-    class SQLiteDBPreparedStatement final : public RelationalDBPreparedStatement
+    class SQLiteDBPreparedStatement final : public RelationalDBPreparedStatement, public std::enable_shared_from_this<SQLiteDBPreparedStatement>
     {
         friend class SQLiteDBConnection;
+        friend class SQLiteDBResultSet;
 
     private:
         /**
@@ -44,6 +48,13 @@ namespace cpp_dbc::SQLite
          * preventing use-after-free errors.
          */
         std::weak_ptr<sqlite3> m_db;
+
+        /**
+         * @brief Weak reference to parent connection
+         *
+         * Used to register/unregister this statement and to register result sets
+         */
+        std::weak_ptr<SQLiteDBConnection> m_connection;
 
         std::string m_sql;
 
@@ -60,16 +71,18 @@ namespace cpp_dbc::SQLite
         std::vector<std::shared_ptr<Blob>> m_blobObjects;          // To keep blob objects alive
         std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
 
-#if DB_DRIVER_THREAD_SAFE
+        // Registry of active result sets created by this statement
+        std::set<std::weak_ptr<SQLiteDBResultSet>, std::owner_less<std::weak_ptr<SQLiteDBResultSet>>> m_activeResultSets;
+        std::recursive_mutex m_resultSetsMutex;  // Recursive to allow re-entry from closeAllResultSets()
+
         /**
-         * @brief Shared mutex with the parent Connection
+         * @brief Global file-level mutex shared across all connections to the same database file
          *
-         * This mutex is shared between the Connection and all PreparedStatements created from it.
-         * This ensures that when close() calls sqlite3_finalize(), no other thread can
-         * simultaneously use the same sqlite3* handle.
+         * This mutex is obtained from FileMutexRegistry via the parent Connection and is shared
+         * among ALL connections, PreparedStatements, and ResultSets for the SAME database file.
+         * This ensures complete file-level synchronization and eliminates ThreadSanitizer false positives.
          */
-        SharedConnMutex m_connMutex;
-#endif
+        std::shared_ptr<std::recursive_mutex> m_globalFileMutex;
 
         // Internal method called by connection when closing
         void notifyConnClosing();
@@ -77,12 +90,13 @@ namespace cpp_dbc::SQLite
         // Helper method to get sqlite3* safely, throws if connection is closed
         sqlite3 *getSQLiteConnection() const;
 
+        // Internal methods for result set registry
+        void registerResultSet(std::weak_ptr<SQLiteDBResultSet> rs);
+        void unregisterResultSet(std::weak_ptr<SQLiteDBResultSet> rs);
+        void closeAllResultSets();
+
     public:
-#if DB_DRIVER_THREAD_SAFE
-        SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, SharedConnMutex connMutex, const std::string &sql);
-#else
-        SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, const std::string &sql);
-#endif
+        SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, std::weak_ptr<SQLiteDBConnection> conn, std::shared_ptr<std::recursive_mutex> globalFileMutex, const std::string &sql);
         ~SQLiteDBPreparedStatement() override;
 
         void setInt(int parameterIndex, int value) override;

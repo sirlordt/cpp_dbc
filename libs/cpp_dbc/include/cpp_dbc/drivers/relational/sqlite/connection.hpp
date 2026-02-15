@@ -13,6 +13,7 @@
 #include <string>
 #include <mutex>
 #include <memory>
+#include <cpp_dbc/common/file_mutex_registry.hpp>
 
 namespace cpp_dbc::SQLite
 {
@@ -62,25 +63,40 @@ namespace cpp_dbc::SQLite
         // Cached URL
         std::string m_url;
 
+        // Normalized database file path
+        std::string m_dbPath;
+
+        /**
+         * @brief Global file-level mutex shared by all connections to the same database file
+         *
+         * This mutex is obtained from FileMutexRegistry and is shared among ALL connections
+         * to the SAME database file. This ensures:
+         * 1. Thread-safe access to sqlite3* handle across all operations
+         * 2. Eliminates ThreadSanitizer false positives (SQLite's internal POSIX locks are invisible)
+         * 3. Prevents "database is locked" errors under high concurrency
+         *
+         * The mutex is also shared with all PreparedStatements and ResultSets created from
+         * any connection to this file, ensuring complete synchronization at the file level.
+         */
+        std::shared_ptr<std::recursive_mutex> m_globalFileMutex;
+
         // Registry of active prepared statements (weak pointers to avoid preventing destruction)
         std::set<std::weak_ptr<SQLiteDBPreparedStatement>, std::owner_less<std::weak_ptr<SQLiteDBPreparedStatement>>> m_activeStatements;
-        std::mutex m_statementsMutex;
+        std::recursive_mutex m_statementsMutex;  // Recursive to allow re-entry from closeAllStatements()
 
-#if DB_DRIVER_THREAD_SAFE
-        /**
-         * @brief Shared mutex for connection and all its prepared statements
-         *
-         * This mutex is shared with all PreparedStatements created from this connection.
-         * Ensures that statement close operations (sqlite3_finalize) don't race
-         * with other operations on the sqlite3* handle.
-         */
-        mutable SharedConnMutex m_connMutex;
-#endif
+        // Registry of active result sets (weak pointers to avoid preventing destruction)
+        std::set<std::weak_ptr<SQLiteDBResultSet>, std::owner_less<std::weak_ptr<SQLiteDBResultSet>>> m_activeResultSets;
+        std::recursive_mutex m_resultSetsMutex;  // Recursive to allow re-entry from closeAllResultSets()
 
         // Internal methods for statement registry
         void registerStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
         void unregisterStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
         void closeAllStatements();
+
+        // Internal methods for result set registry
+        void registerResultSet(std::weak_ptr<SQLiteDBResultSet> rs);
+        void unregisterResultSet(std::weak_ptr<SQLiteDBResultSet> rs);
+        void closeAllResultSets();
 
     public:
         SQLiteDBConnection(const std::string &database,

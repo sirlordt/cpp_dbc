@@ -38,9 +38,10 @@ namespace cpp_dbc::SQLite
 {
 
     // SQLiteDBConnection implementation - Private methods
+
     void SQLiteDBConnection::registerStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt)
     {
-        std::lock_guard<std::mutex> lock(m_statementsMutex);
+        std::lock_guard<std::recursive_mutex> lock(m_statementsMutex);
         if (m_activeStatements.size() > 50)
         {
             std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
@@ -50,7 +51,7 @@ namespace cpp_dbc::SQLite
 
     void SQLiteDBConnection::unregisterStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt)
     {
-        std::lock_guard<std::mutex> lock(m_statementsMutex);
+        std::lock_guard<std::recursive_mutex> lock(m_statementsMutex);
         // Remove expired weak_ptrs and the specified one
         for (auto it = m_activeStatements.begin(); it != m_activeStatements.end();)
         {
@@ -69,12 +70,26 @@ namespace cpp_dbc::SQLite
 
     void SQLiteDBConnection::closeAllStatements()
     {
-        // CRITICAL: Must hold connection mutex to prevent other threads from using
+        // CRITICAL: Must hold global file mutex to prevent other threads from using
         // the sqlite3* connection while we close statements.
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-        std::lock_guard<std::mutex> stmtLock(m_statementsMutex);
+        std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
-        for (auto &weak_stmt : m_activeStatements)
+        // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
+        // When we call stmt->close(), it may call unregisterStatement() which modifies
+        // m_activeStatements, invalidating iterators if we iterate directly.
+        std::vector<std::weak_ptr<SQLiteDBPreparedStatement>> statementsToClose;
+        {
+            std::lock_guard<std::recursive_mutex> stmtLock(m_statementsMutex);
+            statementsToClose.reserve(m_activeStatements.size());
+            for (const auto &weak_stmt : m_activeStatements)
+            {
+                statementsToClose.push_back(weak_stmt);
+            }
+            m_activeStatements.clear();
+        }
+
+        // Now close all statements without holding the registry lock
+        for (auto &weak_stmt : statementsToClose)
         {
             auto stmt = weak_stmt.lock();
             if (stmt)
@@ -84,17 +99,83 @@ namespace cpp_dbc::SQLite
                 if (!result.has_value())
                 {
                     // Log the error but don't throw - connection is already closing
-                    SQLITE_DEBUG("Failed to close prepared statement: " << result.error().what_s());
+                    SQLITE_DEBUG("Failed to close prepared statement: %s", result.error().what_s().c_str());
                 }
             }
-            // If weak_ptr is expired, statement was already destroyed - nothing to do
         }
-        m_activeStatements.clear();
+    }
+
+    void SQLiteDBConnection::registerResultSet(std::weak_ptr<SQLiteDBResultSet> rs)
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_resultSetsMutex);
+        if (m_activeResultSets.size() > 50)
+        {
+            std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
+        }
+        m_activeResultSets.insert(rs);
+    }
+
+    void SQLiteDBConnection::unregisterResultSet(std::weak_ptr<SQLiteDBResultSet> rs)
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_resultSetsMutex);
+        // Remove expired weak_ptrs and the specified one
+        for (auto it = m_activeResultSets.begin(); it != m_activeResultSets.end();)
+        {
+            auto locked = it->lock();
+            auto rsLocked = rs.lock();
+            if (!locked || (rsLocked && locked.get() == rsLocked.get()))
+            {
+                it = m_activeResultSets.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    void SQLiteDBConnection::closeAllResultSets()
+    {
+        // CRITICAL: Must hold global file mutex to prevent other threads from using
+        // the sqlite3* connection while we close result sets.
+        std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
+
+        // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
+        // When we call rs->close(), it calls unregisterResultSet() which modifies
+        // m_activeResultSets, invalidating iterators if we iterate directly.
+        std::vector<std::weak_ptr<SQLiteDBResultSet>> resultSetsToClose;
+        {
+            std::lock_guard<std::recursive_mutex> rsLock(m_resultSetsMutex);
+            resultSetsToClose.reserve(m_activeResultSets.size());
+            for (const auto &weak_rs : m_activeResultSets)
+            {
+                resultSetsToClose.push_back(weak_rs);
+            }
+            m_activeResultSets.clear();
+        }
+
+        // Now close all result sets without holding the registry lock
+        for (auto &weak_rs : resultSetsToClose)
+        {
+            auto rs = weak_rs.lock();
+            if (rs)
+            {
+                try
+                {
+                    rs->close();
+                }
+                catch (...)
+                {
+                    // Ignore errors during shutdown
+                }
+            }
+        }
     }
 
     void SQLiteDBConnection::prepareForPoolReturn()
     {
-        // Close all active statements first
+        // Close all result sets first, then statements
+        closeAllResultSets();
         closeAllStatements();
 
         // Rollback any active transaction
@@ -115,13 +196,10 @@ namespace cpp_dbc::SQLite
         : m_db(nullptr), m_closed(false), m_autoCommit(true), m_transactionActive(false),
           m_isolationLevel(TransactionIsolationLevel::TRANSACTION_SERIALIZABLE), // SQLite default
           m_url("cpp_dbc:sqlite://" + database)
-#if DB_DRIVER_THREAD_SAFE
-        , m_connMutex(std::make_shared<std::recursive_mutex>())
-#endif
     {
         try
         {
-            SQLITE_DEBUG("Creating connection to: " << database);
+            SQLITE_DEBUG("Creating connection to: %s", database.c_str());
 
             // Verificar si el archivo existe (para bases de datos de archivo)
             if (database != ":memory:")
@@ -129,11 +207,11 @@ namespace cpp_dbc::SQLite
                 std::ifstream fileCheck(database.c_str());
                 if (!fileCheck)
                 {
-                    SQLITE_DEBUG("Database file does not exist, will be created: " << database);
+                    SQLITE_DEBUG("Database file does not exist, will be created: %s", database.c_str());
                 }
                 else
                 {
-                    SQLITE_DEBUG("Database file exists: " << database);
+                    SQLITE_DEBUG("Database file exists: %s", database.c_str());
                     fileCheck.close();
                 }
             }
@@ -148,7 +226,7 @@ namespace cpp_dbc::SQLite
             if (result != SQLITE_OK)
             {
                 std::string error = sqlite3_errmsg(rawDb);
-                SQLITE_DEBUG("1I2J3K4L5M6N: Failed to open database: " << error);
+                SQLITE_DEBUG("1I2J3K4L5M6N: Failed to open database: %s", error.c_str());
                 sqlite3_close_v2(rawDb);
                 throw DBException("SLGP6Q7R8S9T", "Failed to connect to SQLite database: " + error,
                                   system_utils::captureCallStack());
@@ -159,11 +237,30 @@ namespace cpp_dbc::SQLite
 
             SQLITE_DEBUG("Database opened successfully");
 
+            // Initialize mutex for synchronization
+            // SPECIAL CASE: :memory: databases are independent per connection
+            // Each :memory: creates a SEPARATE in-memory database, so they need LOCAL mutexes
+            if (database == ":memory:")
+            {
+                // Create a LOCAL mutex for this :memory: connection
+                // :memory: databases don't share data, so they don't need a global mutex
+                m_dbPath = ":memory:";
+                m_globalFileMutex = std::make_shared<std::recursive_mutex>();
+                SQLITE_DEBUG("Created LOCAL mutex for :memory: database");
+            }
+            else
+            {
+                // For file-based databases, use FileMutexRegistry for global file-level synchronization
+                m_dbPath = FileMutexRegistry::normalizePath(database);
+                m_globalFileMutex = FileMutexRegistry::getInstance().getMutexForFile(m_dbPath);
+                SQLITE_DEBUG("FileMutexRegistry initialized for: %s", m_dbPath.c_str());
+            }
+
             // Aplicar opciones de configuración
             SQLITE_DEBUG("Applying configuration options");
             for (const auto &option : options)
             {
-                SQLITE_DEBUG("Processing option: " << option.first << "=" << option.second);
+                SQLITE_DEBUG("Processing option: %s=%s", option.first.c_str(), option.second.c_str());
                 if (option.first == "foreign_keys" && option.second == "true")
                 {
                     executeUpdate("PRAGMA foreign_keys = ON");
@@ -197,12 +294,12 @@ namespace cpp_dbc::SQLite
         }
         catch (const DBException &e)
         {
-            SQLITE_DEBUG("3U4V5W6X7Y8Z: DBException: " << e.what_s());
+            SQLITE_DEBUG("3U4V5W6X7Y8Z: DBException: %s", e.what_s().c_str());
             throw;
         }
         catch (const std::exception &e)
         {
-            SQLITE_DEBUG("9A0B1C2D3E4F: std::exception: " << e.what());
+            SQLITE_DEBUG("9A0B1C2D3E4F: std::exception: %s", e.what());
             throw DBException("F1262039BA12", "SQLiteConnection constructor exception: " + std::string(e.what()),
                               system_utils::captureCallStack());
         }
@@ -233,9 +330,12 @@ namespace cpp_dbc::SQLite
         {
             try
             {
+                // Close all result sets FIRST (before statements)
+                closeAllResultSets();
+
                 // Notify all active statements that connection is closing
                 {
-                    std::lock_guard<std::mutex> lock(m_statementsMutex);
+                    std::lock_guard<std::recursive_mutex> lock(m_statementsMutex);
                     for (auto &weak_stmt : m_activeStatements)
                     {
                         auto stmt = weak_stmt.lock();
@@ -255,15 +355,15 @@ namespace cpp_dbc::SQLite
                     int result = sqlite3_finalize(stmt);
                     if (result != SQLITE_OK)
                     {
-                        SQLITE_DEBUG("1M2N3O4P5Q6R: Error finalizing SQLite statement during connection close: "
-                                     << sqlite3_errstr(result));
+                        SQLITE_DEBUG("1M2N3O4P5Q6R: Error finalizing SQLite statement during connection close: %s",
+                                     sqlite3_errstr(result));
                     }
                 }
 
                 // Call sqlite3_release_memory to free up caches and unused memory
                 [[maybe_unused]]
                 int releasedMemory = sqlite3_release_memory(1000000); // Try to release up to 1MB of memory
-                SQLITE_DEBUG("Released " << releasedMemory << " bytes of SQLite memory");
+                SQLITE_DEBUG("Released %d bytes of SQLite memory", releasedMemory);
 
                 // Smart pointer will automatically call sqlite3_close_v2 via SQLiteDbDeleter
                 m_db.reset();
@@ -275,7 +375,7 @@ namespace cpp_dbc::SQLite
             }
             catch (const std::exception &e)
             {
-                SQLITE_DEBUG("3Y4Z5A6B7C8D: Exception during SQLite connection close: " << e.what());
+                SQLITE_DEBUG("3Y4Z5A6B7C8D: Exception during SQLite connection close: %s", e.what());
                 // Asegurarse de que el db se establece a nullptr y closed a true incluso si hay una excepción
                 m_db.reset();
                 m_closed = true;

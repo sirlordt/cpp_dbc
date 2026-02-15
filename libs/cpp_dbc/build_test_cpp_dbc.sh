@@ -15,6 +15,7 @@ set -e  # Exit on error
 #   --firebird-off         Disable Firebird support
 #   --release              Build in Release mode (default: Debug)
 #   --asan                 Enable Address Sanitizer
+#   --tsan                 Enable Thread Sanitizer
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
 #   --debug-sqlite         Enable debug output for SQLite driver
@@ -38,6 +39,7 @@ USE_REDIS=OFF
 USE_CPP_YAML=ON
 BUILD_TYPE=Debug
 ENABLE_ASAN=OFF
+ENABLE_TSAN=OFF
 ENABLE_GCC_ANALYZER=OFF
 NO_REBUILD_DEPS=false
 DEBUG_CONNECTION_POOL=OFF
@@ -130,6 +132,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --asan)
             ENABLE_ASAN=ON
+            shift
+            ;;
+        --tsan)
+            ENABLE_TSAN=ON
             shift
             ;;
         --gcc-analyzer)
@@ -315,6 +321,7 @@ echo "  ScyllaDB support: $USE_SCYLLADB"
 echo "  Redis support: $USE_REDIS"
 echo "  Build type: $BUILD_TYPE"
 echo "  Address Sanitizer: $ENABLE_ASAN"
+echo "  Thread Sanitizer: $ENABLE_TSAN"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
@@ -410,6 +417,7 @@ cmake "${CPP_DBC_DIR}" \
       -DUSE_REDIS=$USE_REDIS \
       -DCPP_DBC_BUILD_TESTS=ON \
       -DENABLE_ASAN=$ENABLE_ASAN \
+      -DENABLE_TSAN=$ENABLE_TSAN \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
@@ -429,6 +437,13 @@ if [ "${ENABLE_ASAN}" = "OFF" ]; then
     echo "Address Sanitizer is disabled"
 else
     echo "Address Sanitizer is enabled"
+fi
+
+# Print status message about TSAN
+if [ "${ENABLE_TSAN}" = "OFF" ]; then
+    echo "Thread Sanitizer is disabled"
+else
+    echo "Thread Sanitizer is enabled"
 fi
 
 # Build the library and tests

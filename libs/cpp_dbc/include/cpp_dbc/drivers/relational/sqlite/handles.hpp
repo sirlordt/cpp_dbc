@@ -15,17 +15,18 @@ namespace cpp_dbc::SQLite
 {
 #if DB_DRIVER_THREAD_SAFE
     /**
-     * @brief Shared mutex type for connection and prepared statements
+     * @brief DEPRECATED: SharedConnMutex has been replaced by FileMutexRegistry
      *
-     * This shared_ptr to a recursive_mutex ensures that the Connection and all its
-     * PreparedStatements share the SAME mutex. This prevents race conditions when:
-     * - PreparedStatement destructor calls sqlite3_finalize()
-     * - Another thread uses the connection for queries or pool validation
+     * Previously, each Connection had its own mutex shared with PreparedStatements/ResultSets.
+     * Now, FileMutexRegistry provides a GLOBAL file-level mutex shared by ALL connections
+     * to the SAME database file. This:
+     * - Eliminates ThreadSanitizer false positives (SQLite's POSIX locks are invisible)
+     * - Prevents "database is locked" errors under high concurrency
+     * - Provides true file-level synchronization
      *
-     * Although SQLite is an embedded database without network protocol concerns,
-     * concurrent access to the sqlite3* handle from multiple threads is still unsafe.
+     * The typedef below is kept for reference but is NO LONGER USED in SQLite driver.
      */
-    using SharedConnMutex = std::shared_ptr<std::recursive_mutex>;
+    // using SharedConnMutex = std::shared_ptr<std::recursive_mutex>; // DEPRECATED
 #endif
 
     /**

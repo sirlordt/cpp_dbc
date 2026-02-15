@@ -18,6 +18,8 @@
 
 namespace cpp_dbc::SQLite
 {
+    class SQLiteDBPreparedStatement; // Forward declaration for prepared statement tracking
+
     /**
      * @brief SQLite ResultSet implementation
      *
@@ -28,7 +30,7 @@ namespace cpp_dbc::SQLite
      * Connection because SQLite uses a CURSOR-BASED model that maintains ongoing
      * communication with the database connection.
      *
-     * WHY SQLITE/FIREBIRD NEED SharedConnMutex (but MySQL/PostgreSQL don't):
+     * WHY SQLITE/FIREBIRD NEED GLOBAL FILE-LEVEL MUTEX (but MySQL/PostgreSQL don't):
      *
      * MySQL/PostgreSQL ("Store Result" model):
      * - mysql_store_result() / PQexec() fetch ALL data into client memory (MYSQL_RES* / PGresult*)
@@ -43,17 +45,22 @@ namespace cpp_dbc::SQLite
      * - sqlite3_finalize() / isc_dsql_free_statement() access the connection handle
      * - Concurrent access from multiple threads causes undefined behavior/crashes
      *
-     * RACE CONDITION SCENARIO (without SharedConnMutex):
+     * RACE CONDITION SCENARIO (without global file-level mutex):
      * Thread A: resultSet->next() -> sqlite3_step() [uses sqlite3* handle]
      * Thread B: connection->isValid() -> SELECT 1 [uses same sqlite3* handle]
      * Result: Memory corruption, crashes, undefined behavior
      *
      * SOLUTION:
-     * ResultSet shares the SAME mutex as Connection and PreparedStatements,
-     * ensuring all operations on the sqlite3* handle are serialized.
+     * ResultSet uses the GLOBAL file-level mutex from FileMutexRegistry.
+     * ALL connections, PreparedStatements, and ResultSets to the SAME database file
+     * share the SAME mutex, ensuring file-level synchronization and eliminating
+     * ThreadSanitizer false positives.
      */
-    class SQLiteDBResultSet final : public RelationalDBResultSet
+    class SQLiteDBResultSet final : public RelationalDBResultSet, public std::enable_shared_from_this<SQLiteDBResultSet>
     {
+        friend class SQLiteDBConnection;
+        friend class SQLiteDBPreparedStatement;
+
     private:
         /**
          * @brief Raw pointer to sqlite3_stmt
@@ -85,22 +92,24 @@ namespace cpp_dbc::SQLite
         bool m_hasData{false};
         bool m_closed{true};
         std::weak_ptr<SQLiteDBConnection> m_connection; // Weak reference to the connection
+        std::weak_ptr<SQLiteDBPreparedStatement> m_preparedStatement; // Optional weak reference to prepared statement (if created from PreparedStatement::executeQuery)
 
-#if DB_DRIVER_THREAD_SAFE
         /**
-         * @brief Shared mutex with the parent Connection
+         * @brief Global file-level mutex shared across all connections to the same database file
          *
          * CRITICAL: This is shared with Connection and PreparedStatements because
          * SQLite uses cursor-based iteration. Unlike MySQL/PostgreSQL where results
          * are fully loaded into client memory, SQLite's sqlite3_step() and
          * sqlite3_column_*() functions communicate with the sqlite3* connection
-         * handle on every call. Without this shared mutex, concurrent operations
-         * (e.g., pool validation while iterating results) would cause race conditions.
+         * handle on every call.
+         *
+         * This mutex is obtained from FileMutexRegistry and ensures that ALL operations
+         * on the SAME database file (across all connections) are serialized, eliminating
+         * ThreadSanitizer false positives and "database is locked" errors.
          *
          * See class documentation above for detailed explanation.
          */
-        SharedConnMutex m_connMutex;
-#endif
+        std::shared_ptr<std::recursive_mutex> m_globalFileMutex;
 
         /**
          * @brief Helper method to get the active statement pointer
@@ -111,12 +120,16 @@ namespace cpp_dbc::SQLite
             return m_stmt;
         }
 
+        /**
+         * @brief Initialize and register with parent objects
+         *
+         * CRITICAL: Must be called AFTER construction is complete, when shared_from_this() is valid.
+         * Cannot be called in constructor because weak_from_this() requires the shared_ptr to exist.
+         */
+        void initialize();
+
     public:
-#if DB_DRIVER_THREAD_SAFE
-        SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteDBConnection> conn, SharedConnMutex connMutex);
-#else
-        SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement = true, std::shared_ptr<SQLiteDBConnection> conn = nullptr);
-#endif
+        SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteDBConnection> conn, std::shared_ptr<SQLiteDBPreparedStatement> prepStmt, std::shared_ptr<std::recursive_mutex> globalFileMutex);
         ~SQLiteDBResultSet() override;
 
         SQLiteDBResultSet(const SQLiteDBResultSet &) = delete;

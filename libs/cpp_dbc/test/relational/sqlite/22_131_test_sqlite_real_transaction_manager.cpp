@@ -100,11 +100,13 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
     // Use a file-based SQLite database for multi-threaded tests
     std::string dbPath = "test_sqlite_transaction_multithread.db";
 
-    // Remove the database file if it exists
-    if (std::filesystem::exists(dbPath))
-    {
-        std::filesystem::remove(dbPath);
-    }
+    // Remove ALL SQLite database files (main db + WAL files)
+    [[maybe_unused]] std::error_code ec;
+    std::filesystem::remove(dbPath, ec);
+    std::filesystem::remove(dbPath + "-wal", ec);
+    std::filesystem::remove(dbPath + "-shm", ec);
+    std::filesystem::remove(dbPath + "-journal", ec);
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
     std::string connStr = "cpp_dbc:sqlite://" + dbPath;
 
@@ -191,11 +193,11 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
         pool.close();
     }
 
-    // Clean up the database file
-    if (std::filesystem::exists(dbPath))
-    {
-        std::filesystem::remove(dbPath);
-    }
+    // Clean up ALL database files
+    std::filesystem::remove(dbPath, ec);
+    std::filesystem::remove(dbPath + "-wal", ec);
+    std::filesystem::remove(dbPath + "-shm", ec);
+    std::filesystem::remove(dbPath + "-journal", ec);
 }
 
 // =============================================================================
@@ -212,11 +214,19 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
     // Use a file-based SQLite database for transaction tests
     std::string dbPath = "test_sqlite_transaction.db";
 
-    // Remove the database file if it exists
-    if (std::filesystem::exists(dbPath))
-    {
-        std::filesystem::remove(dbPath);
-    }
+    // Remove ALL SQLite database files (main db + WAL files)
+    // CRITICAL: Must remove all files to avoid "disk I/O error" under Helgrind
+    // caused by orphaned WAL files or filesystem async operations.
+    // Using noexcept version to avoid exceptions if files don't exist.
+    [[maybe_unused]] std::error_code ec;
+    std::filesystem::remove(dbPath, ec);              // main db file
+    std::filesystem::remove(dbPath + "-wal", ec);     // WAL file
+    std::filesystem::remove(dbPath + "-shm", ec);     // Shared memory file
+    std::filesystem::remove(dbPath + "-journal", ec); // Journal file (if not in WAL mode)
+
+    // CRITICAL: Give filesystem time to sync, especially under Helgrind (100x slower)
+    // 2 seconds ensures kernel completes async deletion before SQLite creates new files
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
     std::string connStr = "cpp_dbc:sqlite://" + dbPath;
 
@@ -248,7 +258,7 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
         // Create a test table and enable WAL mode for better concurrency
         auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate("PRAGMA journal_mode=WAL");
-        conn->executeUpdate("PRAGMA busy_timeout=5000");
+        conn->executeUpdate("PRAGMA busy_timeout=30000"); // Increased for Helgrind (100x slower execution)
         conn->executeUpdate("DROP TABLE IF EXISTS test_table");
         conn->executeUpdate("CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT)");
         conn->close();
@@ -458,11 +468,11 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
         pool.close();
     }
 
-    // Clean up the database file
-    if (std::filesystem::exists(dbPath))
-    {
-        std::filesystem::remove(dbPath);
-    }
+    // Clean up ALL database files
+    std::filesystem::remove(dbPath, ec);
+    std::filesystem::remove(dbPath + "-wal", ec);
+    std::filesystem::remove(dbPath + "-shm", ec);
+    std::filesystem::remove(dbPath + "-journal", ec);
 }
 
 #endif

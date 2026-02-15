@@ -57,17 +57,76 @@ namespace cpp_dbc::SQLite
         return conn.get();
     }
 
+    void SQLiteDBPreparedStatement::registerResultSet(std::weak_ptr<SQLiteDBResultSet> rs)
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_resultSetsMutex);
+        if (m_activeResultSets.size() > 20)  // Smaller threshold than Connection
+        {
+            std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
+        }
+        m_activeResultSets.insert(rs);
+    }
+
+    void SQLiteDBPreparedStatement::unregisterResultSet(std::weak_ptr<SQLiteDBResultSet> rs)
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_resultSetsMutex);
+        // Remove expired weak_ptrs and the specified one
+        for (auto it = m_activeResultSets.begin(); it != m_activeResultSets.end();)
+        {
+            auto locked = it->lock();
+            auto rsLocked = rs.lock();
+            if (!locked || (rsLocked && locked.get() == rsLocked.get()))
+            {
+                it = m_activeResultSets.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    void SQLiteDBPreparedStatement::closeAllResultSets()
+    {
+        std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
+
+        // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
+        // When we call rs->close(), it calls unregisterResultSet() which modifies
+        // m_activeResultSets, invalidating iterators if we iterate directly.
+        std::vector<std::weak_ptr<SQLiteDBResultSet>> resultSetsToClose;
+        {
+            std::lock_guard<std::recursive_mutex> rsLock(m_resultSetsMutex);
+            resultSetsToClose.reserve(m_activeResultSets.size());
+            for (const auto &weak_rs : m_activeResultSets)
+            {
+                resultSetsToClose.push_back(weak_rs);
+            }
+            m_activeResultSets.clear();
+        }
+
+        // Now close all result sets without holding the registry lock
+        for (auto &weak_rs : resultSetsToClose)
+        {
+            auto rs = weak_rs.lock();
+            if (rs)
+            {
+                try
+                {
+                    rs->close();
+                }
+                catch (...)
+                {
+                    // Ignore errors during shutdown
+                }
+            }
+        }
+    }
+
     // Public methods - Constructor and destructor
-#if DB_DRIVER_THREAD_SAFE
-    SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, SharedConnMutex connMutex, const std::string &sql)
-        : m_db(db), m_sql(sql), m_stmt(nullptr), m_closed(false), m_blobValues(), m_blobObjects(), m_streamObjects(),
-          m_connMutex(std::move(connMutex))
+    SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, std::weak_ptr<SQLiteDBConnection> conn, std::shared_ptr<std::recursive_mutex> globalFileMutex, const std::string &sql)
+        : m_db(db), m_connection(std::move(conn)), m_sql(sql), m_stmt(nullptr), m_closed(false), m_blobValues(), m_blobObjects(), m_streamObjects(),
+          m_globalFileMutex(std::move(globalFileMutex))
     {
-#else
-    SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, const std::string &sql)
-        : m_db(db), m_sql(sql), m_stmt(nullptr), m_closed(false), m_blobValues(), m_blobObjects(), m_streamObjects()
-    {
-#endif
         sqlite3 *dbPtr = getSQLiteConnection();
 
         sqlite3_stmt *rawStmt = nullptr;
@@ -272,6 +331,9 @@ namespace cpp_dbc::SQLite
 
     void SQLiteDBPreparedStatement::close()
     {
+        // Close all result sets FIRST (before closing statement)
+        closeAllResultSets();
+
         if (!m_closed && m_stmt)
         {
             // Check if connection is still valid before resetting
@@ -282,15 +344,15 @@ namespace cpp_dbc::SQLite
                 int resetResult = sqlite3_reset(m_stmt.get());
                 if (resetResult != SQLITE_OK)
                 {
-                    SQLITE_DEBUG("7K8L9M0N1O2P: Error resetting SQLite statement: "
-                                 << sqlite3_errstr(resetResult));
+                    SQLITE_DEBUG("7K8L9M0N1O2P: Error resetting SQLite statement: %s",
+                                 sqlite3_errstr(resetResult));
                 }
 
                 int clearResult = sqlite3_clear_bindings(m_stmt.get());
                 if (clearResult != SQLITE_OK)
                 {
-                    SQLITE_DEBUG("3Q4R5S6T7U8V: Error clearing SQLite statement bindings: "
-                                 << sqlite3_errstr(clearResult));
+                    SQLITE_DEBUG("3Q4R5S6T7U8V: Error clearing SQLite statement bindings: %s",
+                                 sqlite3_errstr(clearResult));
                 }
 
                 // Smart pointer will automatically call sqlite3_finalize via SQLiteStmtDeleter

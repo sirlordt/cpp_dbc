@@ -22,6 +22,7 @@ set -e  # Exit on error
 #   --auto                 Automatically run tests without user interaction
 #   --release              Run in Release mode (default: Debug)
 #   --asan                 Enable Address Sanitizer
+#   --tsan                 Enable Thread Sanitizer
 #   --valgrind             Run tests with Valgrind (memcheck - memory error detector)
 #   --helgrind             Run tests with Valgrind Helgrind (thread error detector)
 #   --helgrind-gs          Run tests with Helgrind in suppression generation mode
@@ -61,6 +62,8 @@ BUILD_TYPE=Debug
 ENABLE_GCC_ANALYZER=OFF
 ASAN_OPTIONS=""
 ENABLE_ASAN=false
+TSAN_OPTIONS=""
+ENABLE_TSAN=false
 RUN_CTEST=false
 USE_VALGRIND=false
 USE_HELGRIND=false
@@ -172,6 +175,11 @@ while [[ $# -gt 0 ]]; do
         --asan)
             ASAN_OPTIONS="handle_segv=0:allow_user_segv_handler=1:detect_leaks=1:print_stacktrace=1:halt_on_error=0"
             ENABLE_ASAN=true
+            shift
+            ;;
+        --tsan)
+            TSAN_OPTIONS="halt_on_error=0:history_size=7:suppressions=${SCRIPT_DIR}/libs/cpp_dbc/valgrind/tsan/suppression.conf"
+            ENABLE_TSAN=true
             shift
             ;;
         --valgrind)
@@ -389,6 +397,33 @@ if [ "$USE_VALGRIND" = true ] && [ "$ENABLE_ASAN" = true ]; then
     fi
 fi
 
+# Check for incompatible sanitizers (ASAN and TSAN cannot be used together)
+if [ "$ENABLE_ASAN" = true ] && [ "$ENABLE_TSAN" = true ]; then
+    echo -e "\nERROR: AddressSanitizer and ThreadSanitizer cannot be used together."
+    echo -e "Please use either --asan or --tsan, but not both.\n"
+    exit 1
+fi
+
+# Check for incompatible options (Valgrind and TSAN)
+if [ "$USE_VALGRIND" = true ] && [ "$ENABLE_TSAN" = true ]; then
+    echo -e "\nWARNING: Valgrind and ThreadSanitizer are not fully compatible."
+    echo -e "You should use either Valgrind or ThreadSanitizer, but not both."
+    echo -e "Consider not using --tsan with --valgrind.\n"
+
+    # Ask for confirmation if not in auto mode
+    if [ "$AUTO_MODE" = false ]; then
+        read -p "Do you want to continue anyway? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Exiting as requested."
+            exit 1
+        fi
+        echo -e "Continuing as requested. Expect potential issues.\n"
+    else
+        echo -e "Auto mode enabled. Continuing with both options. Expect potential issues.\n"
+    fi
+fi
+
 # Build the command to pass to run_test_cpp_dbc.sh
 CMD="./libs/cpp_dbc/run_test_cpp_dbc.sh"
 
@@ -441,6 +476,10 @@ fi
 
 if [ "$ENABLE_ASAN" = true ]; then
     CMD="$CMD --asan"
+fi
+
+if [ "$ENABLE_TSAN" = true ]; then
+    CMD="$CMD --tsan"
 fi
 
 if [ "$USE_VALGRIND" = true ]; then

@@ -18,6 +18,7 @@ set -e  # Exit on error
 #   --release              Run in Release mode (default: Debug)
 #   --gcc-analyzer         Enable GCC Static Analyzer (GCC 10+)
 #   --asan                 Enable Address Sanitizer
+#   --tsan                 Enable Thread Sanitizer
 #   --valgrind             Run tests with Valgrind (memcheck - memory error detector)
 #   --helgrind             Run tests with Valgrind Helgrind (thread error detector)
 #   --helgrind-gs          Run tests with Helgrind in suppression generation mode
@@ -63,6 +64,8 @@ BUILD_TYPE=Debug
 ENABLE_GCC_ANALYZER=OFF
 ASAN_OPTIONS=""
 ENABLE_ASAN=false
+TSAN_OPTIONS=""
+ENABLE_TSAN=false
 RUN_CTEST=false
 USE_VALGRIND=false
 VALGRIND_TOOL=""          # Valgrind tool: empty (memcheck), helgrind, helgrind-gs, helgrind-s, drd, drd-gs, drd-s
@@ -167,6 +170,11 @@ while [[ $# -gt 0 ]]; do
         --asan)
             ASAN_OPTIONS="handle_segv=0:allow_user_segv_handler=1:detect_leaks=1:print_stacktrace=1:halt_on_error=0"
             ENABLE_ASAN=true
+            shift
+            ;;
+        --tsan)
+            TSAN_OPTIONS="halt_on_error=0:history_size=7"
+            ENABLE_TSAN=true
             shift
             ;;
         --valgrind)
@@ -595,6 +603,10 @@ if [ "$SKIP_BUILD" = false ] && { [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = 
         BUILD_CMD="$BUILD_CMD --asan"
     fi
 
+    if [ "$ENABLE_TSAN" = true ]; then
+        BUILD_CMD="$BUILD_CMD --tsan"
+    fi
+
     if [ "$USE_CPP_YAML" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --yaml"
     else
@@ -810,6 +822,8 @@ run_test() {
 
         if [ -n "$ASAN_OPTIONS" ]; then
             env ASAN_OPTIONS="$ASAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS $@
+        elif [ -n "$TSAN_OPTIONS" ]; then
+            env TSAN_OPTIONS="$TSAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS $@
         else
             valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS $@
         fi
@@ -817,6 +831,8 @@ run_test() {
         # Not using Valgrind
         if [ -n "$ASAN_OPTIONS" ]; then
             env ASAN_OPTIONS="$ASAN_OPTIONS" "$TEST_EXECUTABLE" $COLOR_ARGS $@
+        elif [ -n "$TSAN_OPTIONS" ]; then
+            env TSAN_OPTIONS="$TSAN_OPTIONS" "$TEST_EXECUTABLE" $COLOR_ARGS $@
         else
             "$TEST_EXECUTABLE" $COLOR_ARGS $@
         fi
@@ -936,6 +952,8 @@ for ((run=1; run<=RUN_COUNT; run++)); do
         
         if [ -n "$ASAN_OPTIONS" ]; then
             env ASAN_OPTIONS="$ASAN_OPTIONS" ctest -C "$BUILD_TYPE" --output-on-failure
+        elif [ -n "$TSAN_OPTIONS" ]; then
+            env TSAN_OPTIONS="$TSAN_OPTIONS" ctest -C "$BUILD_TYPE" --output-on-failure
         else
             ctest -C "$BUILD_TYPE" --output-on-failure
         fi

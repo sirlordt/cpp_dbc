@@ -75,7 +75,7 @@ show_usage() {
   echo "  --run-test               Build (if needed) and run the tests"
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
   echo "                           Available options: clean,release,gcc-analyzer,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,valgrind,helgrind,helgrind-gs,helgrind-s,drd,drd-gs,drd-s,"
-  echo "                                              yaml,auto,asan,ctest,check,progress,run=N,parallel=N,test=FILTER,"
+  echo "                                              yaml,auto,asan,tsan,ctest,check,progress,run=N,parallel=N,test=FILTER,"
   echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Test filter formats (test=FILTER):"
   echo "                             - Prefix: test=20_* runs all tests starting with '20_'"
@@ -464,6 +464,9 @@ cmd_run_test() {
           ;;
         asan)
           run_test_cmd="$run_test_cmd --asan"
+          ;;
+        tsan)
+          run_test_cmd="$run_test_cmd --tsan"
           ;;
         ctest)
           run_test_cmd="$run_test_cmd --ctest"

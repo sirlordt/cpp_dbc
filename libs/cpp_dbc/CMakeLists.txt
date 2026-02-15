@@ -26,8 +26,13 @@ option(DEBUG_SCYLLADB "Enable debug output for ScyllaDB driver" OFF)
 option(DEBUG_REDIS "Enable debug output for Redis driver" OFF)
 option(DEBUG_ALL "Enable debug output for all drivers and components" OFF)
 
-# Sanitizer option
+# Sanitizer options
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
+option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
+
+# FileMutexRegistry option (mandatory for SQLite - ensures file-level synchronization)
+# This eliminates ThreadSanitizer false positives and prevents "database is locked" errors
+option(ENABLE_FILE_MUTEX_REGISTRY "Enable global file-level mutex registry for SQLite (mandatory, ~33% overhead)" ON)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 23)
@@ -93,6 +98,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<BOOL:${DEBUG_ALL}>:DEBUG_ALL=1>
     $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
     $<$<NOT:$<BOOL:${BACKWARD_HAS_DW}>>:BACKWARD_HAS_DW=0>
+    $<$<BOOL:${ENABLE_FILE_MUTEX_REGISTRY}>:ENABLE_FILE_MUTEX_REGISTRY=1>
+    $<$<NOT:$<BOOL:${ENABLE_FILE_MUTEX_REGISTRY}>>:ENABLE_FILE_MUTEX_REGISTRY=0>
 )
 
 # Include directories

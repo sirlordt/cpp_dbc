@@ -44,22 +44,15 @@ namespace cpp_dbc::SQLite
     // communicate with the sqlite3* connection handle on every call. This is different from
     // MySQL/PostgreSQL which load all results into client memory (MYSQL_RES*/PGresult*).
     //
-    // Because of this, SQLiteDBResultSet MUST share the same mutex as SQLiteDBConnection
-    // to prevent race conditions when multiple threads access the same connection
-    // (e.g., one thread iterating results while another does pool validation).
+    // Because of this, SQLiteDBResultSet MUST use the global file-level mutex from FileMutexRegistry
+    // to prevent race conditions when multiple threads access the same database file
+    // (e.g., one thread iterating results while another does pool validation or other operations).
     //
-#if DB_DRIVER_THREAD_SAFE
-    SQLiteDBResultSet::SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteDBConnection> conn, SharedConnMutex connMutex)
+    SQLiteDBResultSet::SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteDBConnection> conn, std::shared_ptr<SQLiteDBPreparedStatement> prepStmt, std::shared_ptr<std::recursive_mutex> globalFileMutex)
         : m_stmt(stmt), m_ownStatement(ownStatement), m_rowPosition(0), m_rowCount(0), m_fieldCount(0),
-          m_columnNames(), m_columnMap(), m_hasData(false), m_closed(false), m_connection(conn),
-          m_connMutex(std::move(connMutex))
+          m_columnNames(), m_columnMap(), m_hasData(false), m_closed(false), m_connection(conn), m_preparedStatement(prepStmt),
+          m_globalFileMutex(std::move(globalFileMutex))
     {
-#else
-    SQLiteDBResultSet::SQLiteDBResultSet(sqlite3_stmt *stmt, bool ownStatement, std::shared_ptr<SQLiteDBConnection> conn)
-        : m_stmt(stmt), m_ownStatement(ownStatement), m_rowPosition(0), m_rowCount(0), m_fieldCount(0),
-          m_columnNames(), m_columnMap(), m_hasData(false), m_closed(false), m_connection(conn)
-    {
-#endif
         if (m_stmt)
         {
             // Get column count
@@ -72,6 +65,23 @@ namespace cpp_dbc::SQLite
                 m_columnNames.push_back(name);
                 m_columnMap[name] = i;
             }
+        }
+        // NOTE: Registration with Connection/PreparedStatement is done in initialize()
+        // Cannot be done here because weak_from_this() requires shared_ptr to exist
+    }
+
+    void SQLiteDBResultSet::initialize()
+    {
+        // Register with Connection
+        if (auto connShared = m_connection.lock())
+        {
+            connShared->registerResultSet(std::weak_ptr<SQLiteDBResultSet>(shared_from_this()));
+        }
+
+        // Register with PreparedStatement if applicable
+        if (auto prepStmtShared = m_preparedStatement.lock())
+        {
+            prepStmtShared->registerResultSet(std::weak_ptr<SQLiteDBResultSet>(shared_from_this()));
         }
     }
 
@@ -336,10 +346,10 @@ namespace cpp_dbc::SQLite
 
     void SQLiteDBResultSet::close()
     {
-        // CRITICAL: Must use shared connection mutex because sqlite3_reset() and
+        // CRITICAL: Must use global file-level mutex because sqlite3_reset() and
         // sqlite3_finalize() access the sqlite3* connection handle internally.
-        // See class documentation for why SQLite needs SharedConnMutex but MySQL/PostgreSQL don't.
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        // See class documentation for why SQLite needs global file-level synchronization.
+        std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
         // Evitar cerrar dos veces o si ya está cerrado
         if (m_closed)
@@ -361,8 +371,8 @@ namespace cpp_dbc::SQLite
                     int resetResult = sqlite3_reset(m_stmt);
                     if (resetResult != SQLITE_OK)
                     {
-                        SQLITE_DEBUG("7A8B9C0D1E2F: Error resetting SQLite statement: "
-                                     << sqlite3_errstr(resetResult));
+                        SQLITE_DEBUG("7A8B9C0D1E2F: Error resetting SQLite statement: %s",
+                                     sqlite3_errstr(resetResult));
                     }
 
                     // Finalize the statement - only if connection is still valid
@@ -370,8 +380,8 @@ namespace cpp_dbc::SQLite
                     int finalizeResult = sqlite3_finalize(m_stmt);
                     if (finalizeResult != SQLITE_OK)
                     {
-                        SQLITE_DEBUG("8H9I0J1K2L3M: Error finalizing SQLite statement: "
-                                     << sqlite3_errstr(finalizeResult));
+                        SQLITE_DEBUG("8H9I0J1K2L3M: Error finalizing SQLite statement: %s",
+                                     sqlite3_errstr(finalizeResult));
                     }
                 }
                 else
@@ -382,7 +392,7 @@ namespace cpp_dbc::SQLite
             }
             catch (const std::exception &e)
             {
-                SQLITE_DEBUG("9S0T1U2V3W4X: Exception during SQLite statement close: " << e.what());
+                SQLITE_DEBUG("9S0T1U2V3W4X: Exception during SQLite statement close: %s", e.what());
             }
             catch (...)
             {
@@ -400,8 +410,21 @@ namespace cpp_dbc::SQLite
         m_columnNames.clear();
         m_columnMap.clear();
 
-        // Clear the connection reference
+        // Unregister from Connection
+        if (auto conn = m_connection.lock())
+        {
+            conn->unregisterResultSet(weak_from_this());
+        }
+
+        // Unregister from PreparedStatement
+        if (auto prepStmt = m_preparedStatement.lock())
+        {
+            prepStmt->unregisterResultSet(weak_from_this());
+        }
+
+        // Clear the references
         m_connection.reset();
+        m_preparedStatement.reset();
 
         // Sleep briefly to ensure resources are released
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -409,7 +432,7 @@ namespace cpp_dbc::SQLite
 
     bool SQLiteDBResultSet::isEmpty()
     {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
         return m_rowPosition == 0 && !m_hasData;
     }
