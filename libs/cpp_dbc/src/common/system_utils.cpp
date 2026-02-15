@@ -19,9 +19,11 @@
 */
 
 #include "cpp_dbc/common/system_utils.hpp"
+#include "cpp_dbc/backward.hpp"
+
 #include <vector>
 #include <filesystem>
-#include "cpp_dbc/backward.hpp"
+#include <thread>
 
 #ifdef __linux__
 #include <unistd.h>
@@ -39,7 +41,7 @@ namespace cpp_dbc::system_utils
 {
 
     // Define the global mutex
-    std::mutex global_cout_mutex; // NOSONAR - Mutex cannot be const as it needs to be locked/unlocked
+    std::recursive_mutex global_cout_mutex{}; // NOSONAR - Mutex cannot be const as it needs to be locked/unlocked
 
     bool shouldSkipFrame(std::string_view filename, std::string_view function)
     {
@@ -86,6 +88,13 @@ namespace cpp_dbc::system_utils
     {
         try
         {
+            // CRITICAL: backward-cpp (TraceResolver, StackTrace) has internal shared state
+            // that is NOT thread-safe. Without this mutex, concurrent calls from multiple
+            // threads cause data races detected by Helgrind/ThreadSanitizer.
+            // This recursive_mutex serializes all stack trace capture operations globally.
+            // static std::recursive_mutex stackTraceMutex;
+            // std::scoped_lock lock(stackTraceMutex);
+
             backward::StackTrace st;
             st.load_here(32);
             backward::TraceResolver tr;

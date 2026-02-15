@@ -22,14 +22,22 @@ set -e  # Exit on error
 #   --auto                 Automatically run tests without user interaction
 #   --release              Run in Release mode (default: Debug)
 #   --asan                 Enable Address Sanitizer
-#   --valgrind             Run tests with Valgrind
+#   --valgrind             Run tests with Valgrind (memcheck - memory error detector)
+#   --helgrind             Run tests with Valgrind Helgrind (thread error detector)
+#   --helgrind-gs          Run tests with Helgrind in suppression generation mode
+#   --helgrind-s           Run tests with Helgrind using custom suppressions from libs/cpp_dbc/valgrind/helgrind/suppression.conf
+#   --drd                  Run tests with Valgrind DRD (thread error detector - alternative to helgrind)
+#   --drd-gs               Run tests with DRD in suppression generation mode
+#   --drd-s                Run tests with DRD using custom suppressions from libs/cpp_dbc/valgrind/drd/suppression.conf
 #   --ctest                Run tests using CTest
 #   --check                Check shared library dependencies of test executable
 #   --clean                Clean build directories before building
 #   --rebuild              Rebuild the test targets before running
 #   --skip-build           Skip the build step
 #   --list                 List tests only (do not run)
-#   --run-test="tag"       Run only tests with the specified tag (use + to separate multiple tags, e.g. "tag1+tag2+tag3")
+#   --run-test="pattern"   Run only tests matching the pattern. Supports:
+#                          - Wildcards: "*mysql*" (contains), "20_*" (prefix), "*firebird" (suffix)
+#                          - Tags: "tag1+tag2" (multiple tags separated by +)
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
 #   --debug-sqlite         Enable debug output for SQLite driver
@@ -55,6 +63,12 @@ ASAN_OPTIONS=""
 ENABLE_ASAN=false
 RUN_CTEST=false
 USE_VALGRIND=false
+USE_HELGRIND=false
+USE_HELGRIND_GS=false
+USE_HELGRIND_S=false
+USE_DRD=false
+USE_DRD_GS=false
+USE_DRD_S=false
 CHECK_DEPENDENCIES=false
 REBUILD=false
 AUTO_MODE=false
@@ -63,6 +77,8 @@ RUN_SPECIFIC_TEST=""
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_MYSQL=OFF
+DEBUG_POSTGRES=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
@@ -162,6 +178,30 @@ while [[ $# -gt 0 ]]; do
             USE_VALGRIND=true
             shift
             ;;
+        --helgrind)
+            USE_HELGRIND=true
+            shift
+            ;;
+        --helgrind-gs)
+            USE_HELGRIND_GS=true
+            shift
+            ;;
+        --helgrind-s)
+            USE_HELGRIND_S=true
+            shift
+            ;;
+        --drd)
+            USE_DRD=true
+            shift
+            ;;
+        --drd-gs)
+            USE_DRD_GS=true
+            shift
+            ;;
+        --drd-s)
+            USE_DRD_S=true
+            shift
+            ;;
         --ctest)
             RUN_CTEST=true
             shift
@@ -215,6 +255,14 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             shift
             ;;
+        --debug-mysql)
+            DEBUG_MYSQL=ON
+            shift
+            ;;
+        --debug-postgresql)
+            DEBUG_POSTGRES=ON
+            shift
+            ;;
         --debug-firebird)
             DEBUG_FIREBIRD=ON
             shift
@@ -235,8 +283,11 @@ while [[ $# -gt 0 ]]; do
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
+            DEBUG_MYSQL=ON
+            DEBUG_POSTGRES=ON
             DEBUG_FIREBIRD=ON
             DEBUG_MONGODB=ON
+            DEBUG_SCYLLADB=ON
             DEBUG_REDIS=ON
             DEBUG_ALL=ON
             shift
@@ -276,7 +327,9 @@ while [[ $# -gt 0 ]]; do
             echo "  --release              Run in Release mode (default: Debug)"
             echo "  --gcc-analyzer         Enable GCC Static Analyzer (GCC 10+)"
             echo "  --asan                 Enable Address Sanitizer"
-            echo "  --valgrind             Run tests with Valgrind"
+            echo "  --valgrind             Run tests with Valgrind (memcheck - memory error detector)"
+            echo "  --helgrind             Run tests with Valgrind Helgrind (thread error detector)"
+            echo "  --drd                  Run tests with Valgrind DRD (thread error detector - alternative to helgrind)"
             echo "  --ctest                Run tests using CTest"
             echo "  --check                Check shared library dependencies of test executable"
             echo "  --clean                Clean build directories before building (Always activate the --rebuild flag)"
@@ -284,10 +337,14 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-build           Skip the build step"
             echo "  --list                 List tests only (do not run)"
             echo "  --run=N                Run all test sets N times (default: 1)"
-            echo "  --run-test=\"tag\"       Run only tests with the specified tag (use + to separate multiple tags, e.g. \"tag1+tag2+tag3\")"
+            echo "  --run-test=\"pattern\"   Run only tests matching the pattern. Supports:"
+            echo "                           - Wildcards: \"*mysql*\" (contains), \"20_*\" (prefix), \"*firebird\" (suffix)"
+            echo "                           - Tags: \"tag1+tag2\" (multiple tags separated by +)"
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
+            echo "  --debug-mysql          Enable debug output for MySQL driver"
+            echo "  --debug-postgresql     Enable debug output for PostgreSQL driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
             echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
@@ -390,6 +447,30 @@ if [ "$USE_VALGRIND" = true ]; then
     CMD="$CMD --valgrind"
 fi
 
+if [ "$USE_HELGRIND" = true ]; then
+    CMD="$CMD --helgrind"
+fi
+
+if [ "$USE_HELGRIND_GS" = true ]; then
+    CMD="$CMD --helgrind-gs"
+fi
+
+if [ "$USE_HELGRIND_S" = true ]; then
+    CMD="$CMD --helgrind-s"
+fi
+
+if [ "$USE_DRD" = true ]; then
+    CMD="$CMD --drd"
+fi
+
+if [ "$USE_DRD_GS" = true ]; then
+    CMD="$CMD --drd-gs"
+fi
+
+if [ "$USE_DRD_S" = true ]; then
+    CMD="$CMD --drd-s"
+fi
+
 if [ "$RUN_CTEST" = true ]; then
     CMD="$CMD --ctest"
 fi
@@ -433,6 +514,14 @@ fi
 
 if [ "$DEBUG_SQLITE" = "ON" ]; then
     CMD="$CMD --debug-sqlite"
+fi
+
+if [ "$DEBUG_MYSQL" = "ON" ]; then
+    CMD="$CMD --debug-mysql"
+fi
+
+if [ "$DEBUG_POSTGRES" = "ON" ]; then
+    CMD="$CMD --debug-postgresql"
 fi
 
 if [ "$DEBUG_FIREBIRD" = "ON" ]; then

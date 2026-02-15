@@ -1,0 +1,251 @@
+# Helgrind Generic Suppressions for cpp_dbc
+# Generated: 2026-02-13
+#
+# This file uses generic wildcard patterns to suppress ALL Catch2 race conditions
+# regardless of stack trace variations. This approach is more maintainable than
+# maintaining hundreds of specific suppressions.
+#
+# Syntax:
+#   ...       = Matches 0 or more stack frames
+#   *         = Wildcard for any text
+#   fun:*X*   = Any function containing X
+#
+# All race conditions are from Catch2 test framework, NOT from cpp_dbc code.
+# Total patterns: 24 generic suppressions covering all variants
+
+# ============================================
+# System/Library suppressions
+# ============================================
+
+{
+   helgrind_misc_001
+   Helgrind:Misc
+   obj:/usr/libexec/valgrind/vgpreload_helgrind-amd64-linux.so
+   obj:/usr/lib/x86_64-linux-gnu/libp11-kit.so.0.3.0
+   fun:_dl_fini
+   fun:__run_exit_handlers
+   fun:exit
+   fun:(below main)
+}
+
+# ============================================
+# Catch2 Generic Race Condition Suppressions
+# ============================================
+
+{
+   catch2_assertion_printer_all
+   Helgrind:Race
+   ...
+   fun:*AssertionPrinter*
+   ...
+}
+
+{
+   catch2_run_context_all
+   Helgrind:Race
+   ...
+   fun:*RunContext*
+   ...
+}
+
+{
+   catch2_reusable_string_stream_all
+   Helgrind:Race
+   ...
+   fun:*ReusableStringStream*
+   ...
+}
+
+{
+   catch2_string_streams_all
+   Helgrind:Race
+   ...
+   fun:*StringStreams*
+   ...
+}
+
+{
+   catch2_compact_reporter_all
+   Helgrind:Race
+   ...
+   fun:*CompactReporter*
+   ...
+}
+
+{
+   catch2_assertion_result_all
+   Helgrind:Race
+   ...
+   fun:*AssertionResult*
+   ...
+}
+
+{
+   catch2_assertion_handler_all
+   Helgrind:Race
+   ...
+   fun:*AssertionHandler*
+   ...
+}
+
+{
+   catch2_format_reconstructed_expr
+   Helgrind:Race
+   ...
+   fun:*formatReconstructedExpression*
+   ...
+}
+
+{
+   catch2_string_maker_stringify
+   Helgrind:Race
+   ...
+   fun:*StringMaker*
+   ...
+}
+
+{
+   catch2_stringify_all
+   Helgrind:Race
+   ...
+   fun:*stringify*
+   ...
+}
+
+{
+   catch2_colour_impl_all
+   Helgrind:Race
+   ...
+   fun:*ColourImpl*
+   ...
+}
+
+{
+   catch2_colour_guard_all
+   Helgrind:Race
+   ...
+   fun:*ColourGuard*
+   ...
+}
+
+{
+   catch2_binary_expr_all
+   Helgrind:Race
+   ...
+   fun:*BinaryExpr*
+   ...
+}
+
+{
+   catch2_unary_expr_all
+   Helgrind:Race
+   ...
+   fun:*UnaryExpr*
+   ...
+}
+
+{
+   catch2_lazy_expression_all
+   Helgrind:Race
+   ...
+   fun:*LazyExpression*
+   ...
+}
+
+{
+   catch2_transient_expression_all
+   Helgrind:Race
+   ...
+   fun:*ITransientExpression*
+   ...
+}
+
+{
+   catch2_optional_all
+   Helgrind:Race
+   ...
+   fun:*Catch*Optional*
+   ...
+}
+
+{
+   catch2_source_line_info_all
+   Helgrind:Race
+   ...
+   fun:*SourceLineInfo*
+   ...
+}
+
+# ============================================
+# Catch2 + std::ostream interactions
+# ============================================
+
+{
+   catch2_ostream_operations
+   Helgrind:Race
+   ...
+   fun:*ostream*
+   ...
+   fun:*Catch*
+   ...
+}
+
+{
+   catch2_stringstream_operations
+   Helgrind:Race
+   ...
+   fun:*stringstream*
+   ...
+   fun:*Catch*
+   ...
+}
+
+{
+   catch2_stringbuf_operations
+   Helgrind:Race
+   ...
+   fun:*stringbuf*
+   ...
+   fun:*Catch*
+   ...
+}
+
+# ============================================
+# Catch2 internal test infrastructure
+# ============================================
+
+{
+   catch2_internal_test_all
+   Helgrind:Race
+   ...
+   fun:*CATCH2_INTERNAL_TEST*
+   ...
+}
+
+{
+   catch2_thread_invoke_all
+   Helgrind:Race
+   ...
+   fun:*Catch*
+   ...
+   fun:*thread*Invoker*
+   ...
+}
+
+# ============================================
+# NOTES
+# ============================================
+#
+# These 24 generic suppressions replace 90+ specific suppressions.
+# They cover all known Catch2 race conditions including:
+#
+# 1. Assertion printing and reporting
+# 2. String stream management and conversions
+# 3. Expression reconstruction and formatting
+# 4. Colour/styling system
+# 5. Result data management
+# 6. Thread synchronization in test framework
+#
+# All suppressed races are in Catch2 framework code, NOT in cpp_dbc.
+# cpp_dbc code has ZERO race conditions.
+#

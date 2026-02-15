@@ -22,6 +22,7 @@
 #define SYSTEM_UTILS_HPP
 
 #include <mutex>
+#include <thread>
 #include <iostream>
 #include <iomanip>
 #include <chrono>
@@ -31,11 +32,18 @@
 #include <string_view>
 #include <vector>
 
+// Platform-specific includes for write() syscall (eliminates Helgrind false positives)
+#ifdef _WIN32
+#include <io.h> // _write(), _fileno()
+#else
+#include <unistd.h> // write(), STDOUT_FILENO
+#endif
+
 namespace cpp_dbc::system_utils
 {
 
     // Declare the mutex as external
-    extern std::mutex global_cout_mutex; // NOSONAR - Mutex cannot be const as it needs to be locked/unlocked
+    extern std::recursive_mutex global_cout_mutex; // NOSONAR - Mutex cannot be const as it needs to be locked/unlocked
 
     /**
      * @brief Represents a single frame in a captured call stack
@@ -113,7 +121,20 @@ namespace cpp_dbc::system_utils
     inline void safePrint(const std::string &mark, const std::string &message)
     {
         std::scoped_lock lock(global_cout_mutex);
-        std::cout << mark << ": " << message << std::endl;
+
+        // CRITICAL: Build output string BEFORE writing to avoid Helgrind false positives
+        // Using write() syscall instead of std::cout eliminates data races on FILE* buffer
+        // because write() is atomic and doesn't use buffered I/O that Helgrind can't track
+        std::string output = mark + ": " + message + "\n";
+
+#ifdef _WIN32
+        // Windows: use _write() syscall
+        _write(_fileno(stdout), output.c_str(), static_cast<unsigned int>(output.size()));
+#else
+        // POSIX: use write() syscall
+        // Ignore return value - this is debug output, not critical
+        [[maybe_unused]] auto result = write(STDOUT_FILENO, output.c_str(), output.size());
+#endif
     }
 
     /** @brief Get current time as "HH:MM:SS.mmm" string */
@@ -140,6 +161,34 @@ namespace cpp_dbc::system_utils
         std::ostringstream oss;
         oss << std::put_time(&tm, "%H:%M:%S")
             << '.' << std::setw(3) << std::setfill('0') << ms.count();
+
+        return oss.str();
+    }
+
+    /** @brief Get current time as "HH:MM:SS.microseconds" string (high precision) */
+    inline std::string currentTimeMicros()
+    {
+        using namespace std::chrono;
+
+        // Get current system time
+        auto now = system_clock::now();
+        auto micros = duration_cast<microseconds>(now.time_since_epoch()).count();
+
+        // Convert to time_t for formatting hours/minutes/seconds
+        std::time_t now_c = micros / 1000000;
+        auto usecs = micros % 1000000;
+
+        std::tm tm{};
+#if defined(_WIN32)
+        localtime_s(&tm, &now_c);
+#else
+        localtime_r(&now_c, &tm);
+#endif
+
+        // Format to string
+        std::ostringstream oss;
+        oss << std::put_time(&tm, "%H:%M:%S")
+            << '.' << std::setw(6) << std::setfill('0') << usecs;
 
         return oss.str();
     }
@@ -173,7 +222,15 @@ namespace cpp_dbc::system_utils
     inline void logWithTimestamp(const std::string &prefix, const std::string &message)
     {
         std::scoped_lock lock(global_cout_mutex);
-        std::cout << getCurrentTimestamp() << " " << prefix << " " << message << std::endl;
+
+        // Build output string before writing (same as safePrint)
+        std::string output = getCurrentTimestamp() + " " + prefix + " " + message + "\n";
+
+#ifdef _WIN32
+        _write(_fileno(stdout), output.c_str(), static_cast<unsigned int>(output.size()));
+#else
+        [[maybe_unused]] auto result = write(STDOUT_FILENO, output.c_str(), output.size());
+#endif
     }
 
     /** @brief Log an INFO message with timestamp */
@@ -319,6 +376,22 @@ namespace cpp_dbc::system_utils
      *       codebase (tests, examples, drivers) while respecting the Open/Closed Principle.
      */
     std::string snakeCaseToLowerCamelCase(const std::string &snakeCase);
+
+    /** @brief Convert a thread ID to a string representation */
+    inline std::string threadIdToString(std::thread::id threadId) noexcept
+    {
+        std::ostringstream oss;
+        oss << threadId;
+        return oss.str();
+    }
+
+    /** @brief Get the current thread ID as a string */
+    inline std::string getThreadId() noexcept
+    {
+        std::ostringstream oss;
+        oss << std::this_thread::get_id();
+        return oss.str();
+    }
 
 } // namespace cpp_dbc::system_utils
 

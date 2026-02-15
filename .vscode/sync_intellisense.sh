@@ -103,6 +103,29 @@ fi
 # Update c_cpp_properties.json with both defines and include paths
 echo "✏️  Updating $CPP_PROPERTIES..."
 
+# Step 1: Ensure the file has a "defines" section (add it if missing)
+if ! grep -q '"defines"' "$CPP_PROPERTIES"; then
+    echo "⚠️  'defines' section missing. Adding it..."
+    TMP_FILE=$(mktemp)
+    awk '
+    BEGIN { found_includepath = 0 }
+    {
+        print $0
+        if ($0 ~ /"includePath"/) {
+            found_includepath = 1
+        }
+        # After closing the includePath array, add defines
+        if (found_includepath == 1 && $0 ~ /],/) {
+            print "            \"defines\": [],"
+            found_includepath = 0
+        }
+    }
+    ' "$CPP_PROPERTIES" > "$TMP_FILE"
+    mv "$TMP_FILE" "$CPP_PROPERTIES"
+    echo "✓ 'defines' section added"
+fi
+
+# Step 2: Update both includePath and defines sections
 TMP_FILE=$(mktemp)
 
 # Use awk to update both includePath and defines sections

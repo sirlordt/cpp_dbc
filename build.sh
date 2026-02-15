@@ -31,6 +31,8 @@ BUILD_BENCHMARKS=OFF
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_MYSQL=OFF
+DEBUG_POSTGRES=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
@@ -117,6 +119,12 @@ do
         --debug-sqlite)
         DEBUG_SQLITE=ON
         ;;
+        --debug-mysql)
+        DEBUG_MYSQL=ON
+        ;;
+        --debug-postgresql)
+        DEBUG_POSTGRES=ON
+        ;;
         --debug-firebird)
         DEBUG_FIREBIRD=ON
         ;;
@@ -133,6 +141,8 @@ do
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
         DEBUG_SQLITE=ON
+        DEBUG_MYSQL=ON
+        DEBUG_POSTGRES=ON
         DEBUG_FIREBIRD=ON
         DEBUG_MONGODB=ON
         DEBUG_SCYLLADB=ON
@@ -170,6 +180,8 @@ do
         echo "  --debug-pool           Enable debug output for ConnectionPool"
         echo "  --debug-txmgr          Enable debug output for TransactionManager"
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
+        echo "  --debug-mysql          Enable debug output for MySQL driver"
+        echo "  --debug-postgresql     Enable debug output for PostgreSQL driver"
         echo "  --debug-firebird       Enable debug output for Firebird driver"
         echo "  --debug-mongodb        Enable debug output for MongoDB driver"
         echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
@@ -200,9 +212,12 @@ export BUILD_BENCHMARKS
 export DEBUG_CONNECTION_POOL
 export DEBUG_TRANSACTION_MANAGER
 export DEBUG_SQLITE
+export DEBUG_MYSQL
+export DEBUG_POSTGRES
 export DEBUG_FIREBIRD
 export DEBUG_MONGODB
 export DEBUG_SCYLLADB
+export DEBUG_REDIS
 export DEBUG_ALL
 export BACKWARD_HAS_DW
 export DB_DRIVER_THREAD_SAFE
@@ -303,6 +318,14 @@ if [ "$DEBUG_SQLITE" = "ON" ]; then
     DEBUG_PARAMS="$DEBUG_PARAMS --debug-sqlite"
 fi
 
+if [ "$DEBUG_MYSQL" = "ON" ]; then
+    DEBUG_PARAMS="$DEBUG_PARAMS --debug-mysql"
+fi
+
+if [ "$DEBUG_POSTGRES" = "ON" ]; then
+    DEBUG_PARAMS="$DEBUG_PARAMS --debug-postgresql"
+fi
+
 if [ "$DEBUG_FIREBIRD" = "ON" ]; then
     DEBUG_PARAMS="$DEBUG_PARAMS --debug-firebird"
 fi
@@ -313,6 +336,10 @@ fi
 
 if [ "$DEBUG_SCYLLADB" = "ON" ]; then
     DEBUG_PARAMS="$DEBUG_PARAMS --debug-scylladb"
+fi
+
+if [ "$DEBUG_REDIS" = "ON" ]; then
+    DEBUG_PARAMS="$DEBUG_PARAMS --debug-redis"
 fi
 
 if [ "$DEBUG_ALL" = "ON" ]; then
@@ -394,6 +421,8 @@ echo "Build completed successfully!"
     --debug-pool=$DEBUG_CONNECTION_POOL \
     --debug-txmgr=$DEBUG_TRANSACTION_MANAGER \
     --debug-sqlite=$DEBUG_SQLITE \
+    --debug-mysql=$DEBUG_MYSQL \
+    --debug-postgresql=$DEBUG_POSTGRES \
     --debug-firebird=$DEBUG_FIREBIRD \
     --debug-mongodb=$DEBUG_MONGODB \
     --debug-scylladb=$DEBUG_SCYLLADB \
@@ -424,6 +453,8 @@ echo "  Build benchmarks: $BUILD_BENCHMARKS"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  Debug MySQL: $DEBUG_MYSQL"
+echo "  Debug PostgreSQL: $DEBUG_POSTGRES"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  Debug ScyllaDB: $DEBUG_SCYLLADB"

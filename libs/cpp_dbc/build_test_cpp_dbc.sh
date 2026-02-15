@@ -18,7 +18,12 @@ set -e  # Exit on error
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
 #   --debug-sqlite         Enable debug output for SQLite driver
+#   --debug-mysql          Enable debug output for MySQL driver
+#   --debug-postgresql     Enable debug output for PostgreSQL driver
 #   --debug-firebird       Enable debug output for Firebird driver
+#   --debug-mongodb        Enable debug output for MongoDB driver
+#   --debug-scylladb       Enable debug output for ScyllaDB driver
+#   --debug-redis          Enable debug output for Redis driver
 #   --debug-all            Enable all debug output
 #   --help                 Show this help message
 
@@ -38,6 +43,8 @@ NO_REBUILD_DEPS=false
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_MYSQL=OFF
+DEBUG_POSTGRES=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
@@ -141,6 +148,14 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             shift
             ;;
+        --debug-mysql)
+            DEBUG_MYSQL=ON
+            shift
+            ;;
+        --debug-postgresql)
+            DEBUG_POSTGRES=ON
+            shift
+            ;;
         --debug-firebird)
             DEBUG_FIREBIRD=ON
             shift
@@ -161,6 +176,8 @@ while [[ $# -gt 0 ]]; do
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
+            DEBUG_MYSQL=ON
+            DEBUG_POSTGRES=ON
             DEBUG_FIREBIRD=ON
             DEBUG_MONGODB=ON
             DEBUG_SCYLLADB=ON
@@ -206,6 +223,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
+            echo "  --debug-mysql          Enable debug output for MySQL driver"
+            echo "  --debug-postgresql     Enable debug output for PostgreSQL driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
             echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
@@ -299,6 +318,8 @@ echo "  Address Sanitizer: $ENABLE_ASAN"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  Debug MySQL: $DEBUG_MYSQL"
+echo "  Debug PostgreSQL: $DEBUG_POSTGRES"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  Debug ScyllaDB: $DEBUG_SCYLLADB"
@@ -392,6 +413,8 @@ cmake "${CPP_DBC_DIR}" \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
+      -DDEBUG_MYSQL=$DEBUG_MYSQL \
+      -DDEBUG_POSTGRES=$DEBUG_POSTGRES \
       -DDEBUG_FIREBIRD=$DEBUG_FIREBIRD \
       -DDEBUG_MONGODB=$DEBUG_MONGODB \
       -DDEBUG_SCYLLADB=$DEBUG_SCYLLADB \
@@ -433,6 +456,8 @@ echo -e "\nTests built successfully!"
     --debug-pool=$DEBUG_CONNECTION_POOL \
     --debug-txmgr=$DEBUG_TRANSACTION_MANAGER \
     --debug-sqlite=$DEBUG_SQLITE \
+    --debug-mysql=$DEBUG_MYSQL \
+    --debug-postgresql=$DEBUG_POSTGRES \
     --debug-firebird=$DEBUG_FIREBIRD \
     --debug-mongodb=$DEBUG_MONGODB \
     --debug-scylladb=$DEBUG_SCYLLADB \

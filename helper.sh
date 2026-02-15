@@ -58,12 +58,12 @@ show_usage() {
   echo "  --run-build              Build via ./build.sh, logs to build/run-build-<timestamp>.log"
   echo "  --run-build=OPTIONS      Build with comma-separated options"
   echo "                           Available options: clean,release,gcc-analyzer,postgres,mysql,mysql-off,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
   echo "                           Example: --run-build=clean,sqlite,yaml,test,debug-pool"
   echo "  --run-build-dist         Build via ./build.dist.sh, logs to build/run-build-dist-<timestamp>.log"
   echo "  --run-build-dist=OPTIONS Build dist with comma-separated options"
   echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
   echo "                           Example: --run-build-dist=clean,sqlite,yaml,test,debug-sqlite"
   echo "  --check-test-log         Check the most recent test log file in logs/test/ for failures and memory issues"
   echo "  --check-test-log=PATH    Check the specified test log file for failures and memory issues"
@@ -74,11 +74,14 @@ show_usage() {
   echo "  --clean-conan-cache      Clear Conan local cache"
   echo "  --run-test               Build (if needed) and run the tests"
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
-  echo "                           Available options: clean,release,gcc-analyzer,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,valgrind,"
+  echo "                           Available options: clean,release,gcc-analyzer,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,valgrind,helgrind,helgrind-gs,helgrind-s,drd,drd-gs,drd-s,"
   echo "                                              yaml,auto,asan,ctest,check,progress,run=N,parallel=N,test=FILTER,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Test filter formats (test=FILTER):"
-  echo "                             - Wildcard: test=*mysql* matches test names containing 'mysql'"
+  echo "                             - Prefix: test=20_* runs all tests starting with '20_'"
+  echo "                             - Contains: test=*mysql* matches test names containing 'mysql'"
+  echo "                             - Suffix: test=*firebird matches test names ending with 'firebird'"
+  echo "                             - Complex: test=20_*Mysql*_10 matches complex patterns"
   echo "                             - Tags: test=tag1+tag2 runs tests with those specific tags"
   echo "                           Parallel execution (parallel=N):"
   echo "                             - Runs N test prefixes (10_, 20_, 21_, etc.) in parallel"
@@ -93,10 +96,17 @@ show_usage() {
   echo "                               with 23_ and 24_ starting first"
   echo "                           Example: --run-test=rebuild,mysql,valgrind,run=1,test=*mysql*"
   echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3,test=integration+mysql_real_right_join"
+  echo "                           Example: --run-test=rebuild,mysql,auto,test=20_*"
+  echo "                           Example: --run-test=rebuild,sqlite,auto,test=*firebird"
+  echo "                           Example: --run-test=rebuild,postgres,auto,test=21_*Prepared*"
   echo "                           Example: --run-test=clean,rebuild,sqlite,mysql,postgres,yaml,valgrind,auto,run=1"
   echo "                           Example: --run-test=rebuild,sqlite,mysql,postgres,yaml,auto,progress,run=1"
   echo "                           Example: --run-test=rebuild,sqlite,postgres,mysql,valgrind,auto,parallel=3,run=2"
   echo "                           Example: --run-test=rebuild,sqlite,mysql,valgrind,auto,parallel=5,parallel-order=23_,24_,run=2"
+  echo "                           Example: --run-test=rebuild,sqlite,postgres,mysql,helgrind-gs,auto,run=1  (generate Helgrind suppressions)"
+  echo "                           Example: --run-test=rebuild,sqlite,postgres,mysql,helgrind-s,auto,run=1   (use Helgrind custom suppressions)"
+  echo "                           Example: --run-test=rebuild,sqlite,postgres,mysql,drd-gs,auto,run=1       (generate DRD suppressions)"
+  echo "                           Example: --run-test=rebuild,sqlite,postgres,mysql,drd-s,auto,run=1        (use DRD custom suppressions)"
   echo "                           Note: progress option shows visual progress bar on 2 lines:"
   echo "                                 Line 1: [Run: 1/5] [Test: 3/10] name ██████████░░░░░░░░░░ 30% [Elapsed: 00:05:23]"
   echo "                                 Line 2: [Last: previous_test_name 00:01:45]"
@@ -108,7 +118,7 @@ show_usage() {
   echo "  --run-benchmarks=OPTIONS Run benchmarks with comma-separated options"
   echo "                           Available options: clean,release,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,"
   echo "                                              yaml,benchmark=Tag1+Tag2+Tag3,memory-usage,base-line,repetitions=3,iterations=1000,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Example: --run-benchmarks=mysql,postgresql"
   echo "                           Example: --run-benchmarks=benchmark=update+postgresql"
   echo "                           Example: --run-benchmarks=rebuild,mongodb,yaml,benchmark=mongodb+delete"
@@ -255,6 +265,14 @@ cmd_run_build() {
       debug-sqlite)
         build_cmd="$build_cmd --debug-sqlite"
         echo "Enabling debug output for SQLite driver"
+        ;;
+      debug-mysql)
+        build_cmd="$build_cmd --debug-mysql"
+        echo "Enabling debug output for MySQL driver"
+        ;;
+      debug-postgresql)
+        build_cmd="$build_cmd --debug-postgresql"
+        echo "Enabling debug output for PostgreSQL driver"
         ;;
       debug-firebird)
         build_cmd="$build_cmd --debug-firebird"
@@ -417,6 +435,24 @@ cmd_run_test() {
         valgrind)
           run_test_cmd="$run_test_cmd --valgrind"
           ;;
+        helgrind)
+          run_test_cmd="$run_test_cmd --helgrind"
+          ;;
+        helgrind-gs)
+          run_test_cmd="$run_test_cmd --helgrind-gs"
+          ;;
+        helgrind-s)
+          run_test_cmd="$run_test_cmd --helgrind-s"
+          ;;
+        drd)
+          run_test_cmd="$run_test_cmd --drd"
+          ;;
+        drd-gs)
+          run_test_cmd="$run_test_cmd --drd-gs"
+          ;;
+        drd-s)
+          run_test_cmd="$run_test_cmd --drd-s"
+          ;;
         yaml)
           run_test_cmd="$run_test_cmd --yaml"
           ;;
@@ -450,6 +486,14 @@ cmd_run_test() {
         debug-sqlite)
           run_test_cmd="$run_test_cmd --debug-sqlite"
           echo "Enabling debug output for SQLite driver"
+          ;;
+        debug-mysql)
+          run_test_cmd="$run_test_cmd --debug-mysql"
+          echo "Enabling debug output for MySQL driver"
+          ;;
+        debug-postgresql)
+          run_test_cmd="$run_test_cmd --debug-postgresql"
+          echo "Enabling debug output for PostgreSQL driver"
           ;;
         debug-firebird)
           run_test_cmd="$run_test_cmd --debug-firebird"
@@ -1256,6 +1300,14 @@ cmd_run_benchmarks() {
           run_benchmark_cmd="$run_benchmark_cmd --debug-sqlite"
           echo "Enabling debug output for SQLite driver"
           ;;
+        debug-mysql)
+          run_benchmark_cmd="$run_benchmark_cmd --debug-mysql"
+          echo "Enabling debug output for MySQL driver"
+          ;;
+        debug-postgresql)
+          run_benchmark_cmd="$run_benchmark_cmd --debug-postgresql"
+          echo "Enabling debug output for PostgreSQL driver"
+          ;;
         debug-firebird)
           run_benchmark_cmd="$run_benchmark_cmd --debug-firebird"
           echo "Enabling debug output for Firebird driver"
@@ -1636,6 +1688,14 @@ cmd_run_build_dist() {
       debug-sqlite)
         build_cmd="$build_cmd --debug-sqlite"
         echo "Enabling debug output for SQLite driver"
+        ;;
+      debug-mysql)
+        build_cmd="$build_cmd --debug-mysql"
+        echo "Enabling debug output for MySQL driver"
+        ;;
+      debug-postgresql)
+        build_cmd="$build_cmd --debug-postgresql"
+        echo "Enabling debug output for PostgreSQL driver"
         ;;
       debug-firebird)
         build_cmd="$build_cmd --debug-firebird"
