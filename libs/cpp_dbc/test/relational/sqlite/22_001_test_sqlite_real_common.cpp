@@ -123,12 +123,12 @@ namespace sqlite_test_helpers
             cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
             // Attempt to connect to SQLite
-            std::cout << "Attempting to connect to SQLite with connection string: " << connStr << std::endl;
+            cpp_dbc::system_utils::safePrint("[TEST]", "Attempting to connect to SQLite with connection string: " + connStr);
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
 
             // If we get here, the connection was successful
-            std::cout << "SQLite connection successful!" << std::endl;
+            cpp_dbc::system_utils::safePrint("[TEST]", "SQLite connection successful!");
 
             // Execute a simple query to verify the connection
             auto resultSet = conn->executeQuery("SELECT 1 as test_value");
@@ -141,7 +141,7 @@ namespace sqlite_test_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "SQLite connection error: " << e.what() << std::endl;
+            cpp_dbc::system_utils::safePrint("[TEST]", std::string("SQLite connection error: ") + e.what());
             return false;
         }
     }

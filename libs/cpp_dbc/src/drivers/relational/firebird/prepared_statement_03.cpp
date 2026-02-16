@@ -119,7 +119,6 @@ namespace cpp_dbc::Firebird
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeQuery(nothrow) - Starting");
             FIREBIRD_DEBUG("  m_closed: %s", (m_closed ? "true" : "false"));
             FIREBIRD_DEBUG("  m_stmt: %p", (void*)m_stmt);
-            FIREBIRD_DEBUG("  m_trPtr: %p, *m_trPtr: %ld", (void*)m_trPtr, (m_trPtr ? (long)*m_trPtr : 0L));
 
             if (m_closed)
             {
@@ -134,20 +133,28 @@ namespace cpp_dbc::Firebird
                 return cpp_dbc::unexpected(DBException("FB1NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
             }
 
+            // FIX #1: Access transaction handle safely via m_connection
+            auto conn = m_connection.lock();
+            if (!conn)
+            {
+                FIREBIRD_DEBUG("  Connection destroyed!");
+                return cpp_dbc::unexpected(DBException("FB9D2E3F4A5C", "Connection destroyed while executing query", system_utils::captureCallStack()));
+            }
+
             ISC_STATUS_ARRAY status;
 
-            // Execute the statement
+            // Execute the statement - now using conn->m_tr instead of m_trPtr
             FIREBIRD_DEBUG("  Executing statement with isc_dsql_execute...");
-            FIREBIRD_DEBUG("    m_trPtr=%p, *m_trPtr=%ld", (void*)m_trPtr, (m_trPtr ? (long)*m_trPtr : 0L));
+            FIREBIRD_DEBUG("    conn->m_tr=%ld", (long)conn->m_tr);
             FIREBIRD_DEBUG("    &m_stmt=%p, m_stmt=%p", (void*)&m_stmt, (void*)m_stmt);
-            if (isc_dsql_execute(status, m_trPtr, &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
+            if (isc_dsql_execute(status, &(conn->m_tr), &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
             {
                 std::string errorMsg = interpretStatusVector(status);
                 FIREBIRD_DEBUG("  Execute failed: %s", errorMsg.c_str());
 
                 // If autocommit is enabled, rollback the failed transaction and start a new one
-                auto conn = m_connection.lock();
-                if (conn && conn->getAutoCommit())
+                // Note: conn already locked earlier, just check if autocommit is enabled
+                if (conn->getAutoCommit())
                 {
                     FIREBIRD_DEBUG("  AutoCommit is enabled, rolling back failed transaction");
                     try
@@ -207,8 +214,8 @@ namespace cpp_dbc::Firebird
 
             // ownStatement = true means the ResultSet will free the statement when closed
             FIREBIRD_DEBUG("  Creating FirebirdResultSet with ownStatement=true");
+            // FIX #1: conn already locked at the beginning of method (line 137), just use it
             // Pass the connection to the ResultSet so it can read BLOBs
-            auto conn = m_connection.lock();
 #if DB_DRIVER_THREAD_SAFE
             // Pass shared mutex to ResultSet - required because Firebird uses cursor-based iteration
             // where isc_dsql_fetch() and isc_dsql_free_statement() access the connection handle.
@@ -263,13 +270,21 @@ namespace cpp_dbc::Firebird
                 return cpp_dbc::unexpected(DBException("FB2NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
             }
 
+            // FIX #1: Access transaction handle safely via m_connection
+            auto conn = m_connection.lock();
+            if (!conn)
+            {
+                FIREBIRD_DEBUG("  Connection destroyed!");
+                return cpp_dbc::unexpected(DBException("FB9D2E3F4A5D", "Connection destroyed while executing update", system_utils::captureCallStack()));
+            }
+
             ISC_STATUS_ARRAY status;
 
-            // Execute the statement
+            // Execute the statement - now using conn->m_tr instead of m_trPtr
             FIREBIRD_DEBUG("  Calling isc_dsql_execute...");
-            FIREBIRD_DEBUG("    m_trPtr=%p, *m_trPtr=%ld", (void*)m_trPtr, (m_trPtr ? (long)*m_trPtr : 0L));
+            FIREBIRD_DEBUG("    conn->m_tr=%ld", (long)conn->m_tr);
             FIREBIRD_DEBUG("    &m_stmt=%p, m_stmt=%p", (void*)&m_stmt, (void*)m_stmt);
-            if (isc_dsql_execute(status, m_trPtr, &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
+            if (isc_dsql_execute(status, &(conn->m_tr), &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
             {
                 // Save the error message BEFORE calling any other Firebird API functions
                 // because they will overwrite the status vector
@@ -278,8 +293,8 @@ namespace cpp_dbc::Firebird
 
                 // If autocommit is enabled, rollback the failed transaction and start a new one
                 // This ensures the connection is in a clean state for the next operation
-                auto conn = m_connection.lock();
-                if (conn && conn->getAutoCommit())
+                // Note: conn already locked earlier, just check if autocommit is enabled
+                if (conn->getAutoCommit())
                 {
                     FIREBIRD_DEBUG("  AutoCommit is enabled, rolling back failed transaction");
                     try
@@ -306,8 +321,8 @@ namespace cpp_dbc::Firebird
             if (isc_dsql_sql_info(status, &m_stmt, sizeof(infoBuffer), infoBuffer, sizeof(resultBuffer), resultBuffer))
             {
                 FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate(nothrow) - Failed to get sql_info, checking autocommit");
+                // FIX #1: conn already locked at the beginning of method (line 274), just use it
                 // If autocommit is enabled, commit the transaction even if we can't get the count
-                auto conn = m_connection.lock();
                 if (conn && conn->getAutoCommit())
                 {
                     FIREBIRD_DEBUG("  AutoCommit is enabled, calling commit()");
@@ -353,7 +368,7 @@ namespace cpp_dbc::Firebird
             // If autocommit is enabled, commit the transaction after the update
             // Note: commit() already calls startTransaction() internally when autoCommit is enabled
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate(nothrow) - Checking autocommit");
-            auto conn = m_connection.lock();
+            // FIX #1: conn already locked at the beginning of method (line 274), just use it
             if (conn)
             {
                 FIREBIRD_DEBUG("  Connection is valid");
@@ -407,9 +422,17 @@ namespace cpp_dbc::Firebird
                 return cpp_dbc::unexpected(DBException("FB3NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
             }
 
+            // FIX #1: Access transaction handle safely via m_connection
+            auto conn = m_connection.lock();
+            if (!conn)
+            {
+                return cpp_dbc::unexpected(DBException("FB9D2E3F4A5F", "Connection destroyed while executing statement", system_utils::captureCallStack()));
+            }
+
             ISC_STATUS_ARRAY status;
 
-            if (isc_dsql_execute(status, m_trPtr, &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
+            // Execute the statement - now using conn->m_tr instead of m_trPtr
+            if (isc_dsql_execute(status, &(conn->m_tr), &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
             {
                 std::string errorMsg = interpretStatusVector(status);
                 return cpp_dbc::unexpected(DBException("FBCX4Y5Z6A7B", "Failed to execute statement: " + errorMsg,

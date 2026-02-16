@@ -83,8 +83,21 @@ namespace cpp_dbc::Firebird
 
         // Prepare the statement
         FIREBIRD_DEBUG("  Preparing statement with SQL: %s", m_sql.c_str());
-        FIREBIRD_DEBUG("  m_trPtr=%p, *m_trPtr=%ld", (void*)m_trPtr, (m_trPtr ? (long)*m_trPtr : 0L));
-        if (isc_dsql_prepare(status, m_trPtr, &m_stmt, 0, m_sql.c_str(), SQL_DIALECT_V6, m_outputSqlda.get()))
+
+        // FIX #1: Access transaction handle safely via m_connection
+        auto conn = m_connection.lock();
+        if (!conn)
+        {
+            std::string errorMsg = "Connection destroyed while preparing statement";
+            FIREBIRD_DEBUG("  Failed to prepare statement: %s", errorMsg.c_str());
+            m_outputSqlda.reset();
+            ISC_STATUS_ARRAY freeStatus;
+            isc_dsql_free_statement(freeStatus, &m_stmt, DSQL_drop);
+            throw DBException("FB9D2E3F4A5B", errorMsg, system_utils::captureCallStack());
+        }
+
+        FIREBIRD_DEBUG("  conn->m_tr=%ld", (long)conn->m_tr);
+        if (isc_dsql_prepare(status, &(conn->m_tr), &m_stmt, 0, m_sql.c_str(), SQL_DIALECT_V6, m_outputSqlda.get()))
         {
             // Save the error message BEFORE calling any other Firebird API functions
             // because they will overwrite the status vector
@@ -212,25 +225,23 @@ namespace cpp_dbc::Firebird
 
 #if DB_DRIVER_THREAD_SAFE
     FirebirdDBPreparedStatement::FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db,
-                                                             isc_tr_handle *trPtr,
                                                              const std::string &sql,
                                                              SharedConnMutex connMutex,
                                                              std::weak_ptr<FirebirdDBConnection> conn)
-        : m_dbHandle(db), m_connection(conn), m_trPtr(trPtr), m_stmt(0), m_sql(sql),
+        : m_dbHandle(db), m_connection(conn), m_stmt(0), m_sql(sql),
           m_inputSqlda(nullptr), m_outputSqlda(nullptr), m_connMutex(std::move(connMutex))
     {
 #else
     FirebirdDBPreparedStatement::FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db,
-                                                             isc_tr_handle *trPtr,
                                                              const std::string &sql,
                                                              std::weak_ptr<FirebirdDBConnection> conn)
-        : m_dbHandle(db), m_connection(conn), m_trPtr(trPtr), m_stmt(0), m_sql(sql),
+        : m_dbHandle(db), m_connection(conn), m_stmt(0), m_sql(sql),
           m_inputSqlda(nullptr), m_outputSqlda(nullptr)
     {
 #endif
         FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Creating statement");
         FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
-        FIREBIRD_DEBUG("  trPtr: %p, *trPtr: %ld", (void*)trPtr, (trPtr ? (long)*trPtr : 0L));
+        // FIX #1: No longer using raw pointer trPtr - now accessing via m_connection
         prepareStatement();
         m_closed = false;
         FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Done, m_stmt=%p", (void*)m_stmt);

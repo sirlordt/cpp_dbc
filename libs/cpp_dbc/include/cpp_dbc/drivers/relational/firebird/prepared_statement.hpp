@@ -39,8 +39,34 @@ namespace cpp_dbc::Firebird
 
     private:
         std::weak_ptr<isc_db_handle> m_dbHandle;
-        std::weak_ptr<FirebirdDBConnection> m_connection; // Reference to connection for autocommit
-        isc_tr_handle *m_trPtr{nullptr};                  // Non-owning pointer to transaction handle (owned by Connection)
+
+        // ============================================================================
+        // FIX #1: Eliminate m_trPtr Dangling Pointer (USE-AFTER-FREE Bug)
+        // ============================================================================
+        // PROBLEM (BEFORE):
+        //   isc_tr_handle *m_trPtr{nullptr};  // Raw pointer to connection's m_tr
+        //
+        // This raw pointer caused USE-AFTER-FREE bugs:
+        //   - If the connection was destroyed while PreparedStatement existed,
+        //     m_trPtr pointed to FREED MEMORY (m_tr is a stack member of Connection)
+        //   - When executeUpdate() dereferenced it: isc_dsql_execute(..., m_trPtr, ...)
+        //     → SEGMENTATION FAULT or memory corruption
+        //
+        // SOLUTION (NOW):
+        //   std::weak_ptr<FirebirdDBConnection> m_connection;
+        //
+        // Benefits:
+        //   1. Lifecycle-safe: weak_ptr detects when connection is destroyed
+        //   2. Access pattern: lock() → check → use conn->m_tr → safe
+        //   3. Prevents dangling pointer bugs entirely
+        //   4. Matches SQLite's pattern with FileMutexRegistry
+        //
+        // Usage in methods (executeUpdate, executeQuery, etc.):
+        //   auto conn = m_connection.lock();
+        //   if (!conn) return unexpected("Connection destroyed");
+        //   isc_dsql_execute(status, &(conn->m_tr), ...);  // Safe access
+        // ============================================================================
+        std::weak_ptr<FirebirdDBConnection> m_connection;
         isc_stmt_handle m_stmt{};
         std::string m_sql;
         XSQLDAHandle m_inputSqlda;
@@ -81,11 +107,13 @@ namespace cpp_dbc::Firebird
 
     public:
 #if DB_DRIVER_THREAD_SAFE
-        FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db, isc_tr_handle *trPtr, const std::string &sql,
+        // FIX #1: Constructor no longer takes raw pointer trPtr
+        FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db, const std::string &sql,
                                     SharedConnMutex connMutex,
                                     std::weak_ptr<FirebirdDBConnection> conn = std::weak_ptr<FirebirdDBConnection>());
 #else
-        FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db, isc_tr_handle *trPtr, const std::string &sql,
+        // FIX #1: Constructor no longer takes raw pointer trPtr
+        FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db, const std::string &sql,
                                     std::weak_ptr<FirebirdDBConnection> conn = std::weak_ptr<FirebirdDBConnection>());
 #endif
         ~FirebirdDBPreparedStatement() override;

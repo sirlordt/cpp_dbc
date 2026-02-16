@@ -63,7 +63,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         try
         {
             // Attempt to connect to SQLite
-            std::cout << "Attempting to connect to SQLite with connection string: " << connStr << std::endl;
+            cpp_dbc::system_utils::safePrint("[TEST]", "Attempting to connect to SQLite with connection string: " + connStr);
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
 
@@ -190,7 +190,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         catch (const cpp_dbc::DBException &e)
         {
             std::string errorMsg = e.what_s();
-            std::cout << "SQLite real database error: " << errorMsg << std::endl;
+            cpp_dbc::system_utils::safePrint("[TEST]", "SQLite real database error: " + errorMsg);
             FAIL("SQLite real database test failed: " + std::string(e.what_s()));
         }
     }
@@ -324,7 +324,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         catch (const cpp_dbc::DBException &e)
         {
             std::string errorMsg = e.what_s();
-            std::cout << "SQLite date/time test error: " << errorMsg << std::endl;
+            cpp_dbc::system_utils::safePrint("[TEST]", "SQLite date/time test error: " + errorMsg);
             FAIL("SQLite date/time test failed: " + std::string(e.what_s()));
         }
     }

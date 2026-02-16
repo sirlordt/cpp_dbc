@@ -97,22 +97,24 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
 
     SECTION("Basic connection pool operations")
     {
-        poolConfig.setInitialSize(5);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(5);
-        poolConfig.setConnectionTimeout(5000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setIdleTimeout(30000);
-        poolConfig.setMaxLifetimeMillis(60000); // Default value
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(false);
-        poolConfig.setValidationQuery("SELECT 1");
+        // Create local pool config based on base config
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal = poolConfig;
+        poolConfigLocal.setInitialSize(5);
+        poolConfigLocal.setMaxSize(10);
+        poolConfigLocal.setMinIdle(5);
+        poolConfigLocal.setConnectionTimeout(5000);
+        poolConfigLocal.setValidationInterval(1000);
+        poolConfigLocal.setIdleTimeout(30000);
+        poolConfigLocal.setMaxLifetimeMillis(60000); // Default value
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(false);
+        poolConfigLocal.setValidationQuery("SELECT 1");
 
         // Set the transaction isolation level to SERIALIZABLE for SQLite
-        poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+        poolConfigLocal.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
 
         // Create a connection pool using factory method
-        auto pool = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
+        auto pool = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfigLocal);
 
         // Create a test table
         auto conn = pool->getRelationalDBConnection();
@@ -380,7 +382,7 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
                     }
                     catch (const std::exception& ex) {
                         failureCount++;
-                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
+                        cpp_dbc::system_utils::safePrint("[TEST]", "Load operation " + std::to_string(i) + " error: " + std::string(ex.what()));
                     } }));
             }
 

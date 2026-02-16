@@ -217,13 +217,15 @@ namespace cpp_dbc::Firebird
 
             FIREBIRD_DEBUG("  Creating FirebirdDBPreparedStatement...");
             FIREBIRD_DEBUG("    m_db.get()=%p, *m_db.get()=%ld", (void*)m_db.get(), (m_db.get() ? (long)*m_db.get() : 0L));
-            FIREBIRD_DEBUG("    &m_tr=%p, m_tr=%ld", (void*)&m_tr, (long)m_tr);
+            FIREBIRD_DEBUG("    m_tr=%ld", (long)m_tr);
+            // FIX #1: No longer passing raw pointer &m_tr
+            //         PreparedStatement will access conn->m_tr via m_connection weak_ptr
 #if DB_DRIVER_THREAD_SAFE
             auto stmt = std::make_shared<FirebirdDBPreparedStatement>(
-                std::weak_ptr<isc_db_handle>(m_db), &m_tr, sql, m_connMutex, shared_from_this());
+                std::weak_ptr<isc_db_handle>(m_db), sql, m_connMutex, shared_from_this());
 #else
             auto stmt = std::make_shared<FirebirdDBPreparedStatement>(
-                std::weak_ptr<isc_db_handle>(m_db), &m_tr, sql, shared_from_this());
+                std::weak_ptr<isc_db_handle>(m_db), sql, shared_from_this());
 #endif
 
             FIREBIRD_DEBUG("FirebirdConnection::prepareStatement(nothrow) - Done");

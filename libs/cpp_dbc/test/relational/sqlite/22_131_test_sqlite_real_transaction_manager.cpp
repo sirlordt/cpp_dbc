@@ -180,7 +180,7 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
                         successCount++;
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "SQLite thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::safePrint("[TEST]", std::string("SQLite thread operation failed: ") + e.what());
                     }
                 } }));
         }
