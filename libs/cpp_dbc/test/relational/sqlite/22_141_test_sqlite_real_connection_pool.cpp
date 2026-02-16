@@ -196,6 +196,10 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
             REQUIRE(rs != nullptr);
             REQUIRE(rs->next());
 
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
+
             conn->close();
 
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
@@ -266,6 +270,11 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
             auto rs = newConn->executeQuery("SELECT 1");
             REQUIRE(rs != nullptr);
             REQUIRE(rs->next());
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
+
             newConn->close();
         }
 
@@ -320,6 +329,11 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
                 auto rs = newConn->executeQuery("SELECT 1");
                 REQUIRE(rs != nullptr);
                 REQUIRE(rs->next());
+
+                // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+                // to prevent resource leaks and file locks
+                rs->close();
+
                 newConn->close();
             }
         }
@@ -349,9 +363,16 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
                         if (!rs || !rs->next())
                         {
                             failureCount++;
+                            if (rs) {
+                                rs->close();
+                            }
                             loadConn->close();
                             return;
                         }
+
+                        // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+                        // to prevent resource leaks and file locks
+                        rs->close();
 
                         std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
                         loadConn->close();

@@ -110,6 +110,21 @@ namespace cpp_dbc
          * @return std::string The connection URL (e.g., "jdbc:mysql://localhost:3306/mydb")
          */
         virtual std::string getURL() const = 0;
+
+        /**
+         * @brief Reset the connection state (nothrow version)
+         *
+         * This method allows derived classes to reset their internal state
+         * without throwing exceptions. The default implementation does nothing.
+         * Derived classes can override this to provide specific reset behavior.
+         *
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         *
+         * ```cpp
+         * conn->reset(std::nothrow);  // reset without exceptions
+         * ```
+         */
+        virtual void reset(std::nothrow_t) noexcept {}
     };
 
 } // namespace cpp_dbc

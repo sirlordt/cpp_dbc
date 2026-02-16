@@ -49,6 +49,10 @@ declare -A PREFIX_LAST_ACTIVITY   # Last time (epoch) log file changed
 declare -A PREFIX_HELGRIND_WARNING # Helgrind internal crash warnings (non-fatal)
 declare -a ALL_PREFIXES           # Array of all test prefixes
 
+# Cooldown tracking between runs
+LAST_COOLDOWN_RUN=0               # Track last run where cooldown was performed
+COOLDOWN_SECONDS=10               # Seconds to wait between completed runs
+
 # TUI variables
 SELECTED_INDEX=0
 TERM_ROWS=0
@@ -759,6 +763,84 @@ all_tests_done() {
         fi
     done
     return 0
+}
+
+# Check if all ACTIVE prefixes have completed a specific run number
+# Active = prefixes that have started at least one run (current_run > 0)
+# Returns 0 (success) if ALL active prefixes completed the run and are NOT running
+# Returns 1 (failure) if any active prefix hasn't completed or is still running
+check_run_completed() {
+    local check_run=$1
+
+    # Count active prefixes (those that have run at least once)
+    local active_count=0
+    local completed_count=0
+
+    for prefix in "${ALL_PREFIXES[@]}"; do
+        local current_run=${PREFIX_CURRENT_RUN[$prefix]:-0}
+        local status=${PREFIX_STATUS[$prefix]}
+
+        # Skip prefixes that have never started (current_run=0)
+        if [ $current_run -eq 0 ]; then
+            continue
+        fi
+
+        # This prefix is active
+        ((active_count++))
+
+        # Check if it completed the run we're checking
+        # Prefix completed this run if:
+        # - current_run >= check_run (completed this run or beyond)
+        # - status != "running" (not currently executing)
+        if [ $current_run -ge $check_run ] && [ "$status" != "running" ]; then
+            ((completed_count++))
+        fi
+    done
+
+    # If no active prefixes yet, return false
+    if [ $active_count -eq 0 ]; then
+        return 1
+    fi
+
+    # All active prefixes completed this run
+    [ $completed_count -eq $active_count ]
+}
+
+# Cooldown period between completed runs
+# Waits COOLDOWN_SECONDS before starting the next run
+cooldown_between_runs() {
+    local current_run=$1
+    local next_run=$((current_run + 1))
+
+    # Only perform cooldown if:
+    # 1. There are more runs pending (next_run <= RUN_COUNT)
+    # 2. We haven't already done cooldown for this run
+    # 3. All prefixes have completed the current run
+    if [ $next_run -le $RUN_COUNT ] && \
+       [ $current_run -gt $LAST_COOLDOWN_RUN ] && \
+       check_run_completed "$current_run"; then
+
+        # Mark that we've done cooldown for this run
+        LAST_COOLDOWN_RUN=$current_run
+
+        if [ "$SHOW_TUI" = true ]; then
+            # In TUI mode, just sleep (status will be visible in TUI)
+            sleep $COOLDOWN_SECONDS
+        else
+            # In simple mode, show countdown
+            echo ""
+            echo "========================================"
+            echo -e "${YELLOW}✓ Run $current_run completed for all tests${NC}"
+            echo -e "${YELLOW}⏳ Cooldown period before starting Run $next_run...${NC}"
+            echo "========================================"
+
+            for ((i=COOLDOWN_SECONDS; i>=1; i--)); do
+                echo -ne "\r${CYAN}Starting Run $next_run in $i seconds...${NC} "
+                sleep 1
+            done
+            echo -e "\n"
+        fi
+    fi
 }
 
 # Rename log file to indicate failure
@@ -1745,7 +1827,7 @@ tui_draw_right_panel() {
 
         local row=1
         for line in "${lines[@]}"; do
-            if [ $row -ge $content_height ]; then
+            if [ $row -gt $content_height ]; then
                 break
             fi
 
@@ -2044,6 +2126,10 @@ run_parallel_tests_tui() {
                     local current_run=${PREFIX_CURRENT_RUN[$prefix]}
                     local log_file="${PREFIX_LOG_FILE[$prefix]}"
 
+                    # Small delay to allow pipe buffers to flush (tee | sed) before reading log
+                    # This ensures the final "All tests passed" line is written to the log file
+                    sleep 0.2
+
                     # First check for Helgrind internal crash (known bug, treat as warning)
                     local helgrind_internal_crash=false
                     if ! check_helgrind_internal_crash "$log_file"; then
@@ -2102,6 +2188,12 @@ run_parallel_tests_tui() {
                     unset "PREFIX_PIDS[$prefix]"
                 fi
             fi
+        done
+
+        # Check if any complete run cycles finished, apply cooldown if needed
+        # Check all runs from the last cooldown to the current maximum run
+        for ((run=LAST_COOLDOWN_RUN+1; run<=RUN_COUNT; run++)); do
+            cooldown_between_runs "$run"
         done
 
         # Start new tests if we have capacity
@@ -2330,6 +2422,14 @@ get_test_progress_info() {
     completed_tests=$(echo "$completed_tests" | tr -d '\n\r')
     completed_tests="${completed_tests:-0}"
 
+    # Calculate current progress: if a test is actively running, it counts as current test
+    # So progress = completed_tests + 1 (the test that is running now)
+    local current_progress=$completed_tests
+    if [ -n "$test_name" ] && [ "$test_name" != "waiting..." ] && [ "$test_name" != "building..." ] && [ "$test_name" != "starting..." ]; then
+        # A real test is running, count it as the current test
+        current_progress=$((completed_tests + 1))
+    fi
+
     # If no test name found, check if still building or waiting
     if [ -z "$test_name" ]; then
         if grep -q "Building" "$log_file" 2>/dev/null; then
@@ -2346,7 +2446,7 @@ get_test_progress_info() {
         test_name="${test_name:0:32}..."
     fi
 
-    printf "%s|%s" "$test_name" "$completed_tests"
+    printf "%s|%s" "$test_name" "$current_progress"
 }
 
 # Display current status (simple mode)
@@ -2481,6 +2581,10 @@ run_parallel_tests_simple() {
                     local current_run=${PREFIX_CURRENT_RUN[$prefix]}
                     local log_file="${PREFIX_LOG_FILE[$prefix]}"
 
+                    # Small delay to allow pipe buffers to flush (tee | sed) before reading log
+                    # This ensures the final "All tests passed" line is written to the log file
+                    sleep 0.2
+
                     # First check for Helgrind internal crash (known bug, treat as warning)
                     local helgrind_internal_crash=false
                     if ! check_helgrind_internal_crash "$log_file"; then
@@ -2522,14 +2626,19 @@ run_parallel_tests_simple() {
                                 PREFIX_TOTAL_TESTS[$prefix]=$(count_total_tests_in_log "$log_file")
                             fi
 
+                            # Show final progress before changing status
+                            local final_count=$(grep -cE "All tests passed|[0-9]+ test case(s)? failed" "$log_file" 2>/dev/null || echo "0")
+                            local total_tests="${PREFIX_TOTAL_TESTS[$prefix]}"
+                            if [ -n "$total_tests" ] && [ "$total_tests" -gt 0 ]; then
+                                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ Run $current_run completed - ${final_count}/${total_tests} tests"
+                            fi
+
                             if [ $current_run -lt $RUN_COUNT ]; then
                                 # More runs needed, set back to pending
                                 PREFIX_STATUS[$prefix]="pending"
-                                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ Run $current_run - continuing to next run"
                             else
                                 # All runs completed successfully
                                 PREFIX_STATUS[$prefix]="completed"
-                                echo -e "${GREEN}[COMPLETED]${NC} ${prefix}_ - All $RUN_COUNT runs passed"
                             fi
                         fi
                     elif [ $exit_code -gt 128 ]; then
@@ -2555,6 +2664,12 @@ run_parallel_tests_simple() {
                     unset "PREFIX_PIDS[$prefix]"
                 fi
             fi
+        done
+
+        # Check if any complete run cycles finished, apply cooldown if needed
+        # Check all runs from the last cooldown to the current maximum run
+        for ((run=LAST_COOLDOWN_RUN+1; run<=RUN_COUNT; run++)); do
+            cooldown_between_runs "$run"
         done
 
         # Start new tests if we have capacity

@@ -222,7 +222,10 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
             cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         REQUIRE(setupConn != nullptr);
 
-        setupConn->executeUpdate("DROP TABLE IF EXISTS " + keyspace + ".concurrent_test");
+        // Drop tables if they exist from previous runs
+        setupConn->executeUpdate("DROP TABLE IF EXISTS " + keyspace + ".concurrent_test_counter");
+        setupConn->executeUpdate("DROP TABLE IF EXISTS " + keyspace + ".concurrent_test_info");
+
         // En Cassandra/ScyllaDB, una tabla con columnas counter no puede tener otras columnas
         // excepto la clave primaria, así que creamos dos tablas separadas
         setupConn->executeUpdate(

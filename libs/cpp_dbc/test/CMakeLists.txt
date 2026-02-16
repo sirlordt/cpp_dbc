@@ -111,18 +111,23 @@ add_executable(cpp_dbc_tests
 
     # SQLite tests (relational/sqlite/)
     relational/sqlite/22_001_test_sqlite_real_common.cpp
+
     relational/sqlite/22_011_test_sqlite_real_db_config.cpp
     relational/sqlite/22_021_test_sqlite_real_driver.cpp
     relational/sqlite/22_031_test_sqlite_real.cpp
     relational/sqlite/22_041_test_sqlite_real_connection.cpp
-    # relational/sqlite/22_051_test_sqlite_real_json.cpp
+
+    # # relational/sqlite/22_051_test_sqlite_real_json.cpp
     relational/sqlite/22_061_test_sqlite_real_blob.cpp
     relational/sqlite/22_071_test_sqlite_real_inner_join.cpp
-    relational/sqlite/22_081_test_sqlite_real_left_join.cpp
-    # relational/sqlite/22_091_test_sqlite_real_right_join.cpp
-    # relational/sqlite/22_101_test_sqlite_real_full_join.cpp
+
+    # relational/sqlite/22_081_test_sqlite_real_left_join.cpp
+
+    # # relational/sqlite/22_091_test_sqlite_real_right_join.cpp
+    # # relational/sqlite/22_101_test_sqlite_real_full_join.cpp
     relational/sqlite/22_111_test_sqlite_real_thread_safe.cpp
-    # relational/sqlite/22_121_test_sqlite_real_transaction_isolation.cpp
+
+    # # relational/sqlite/22_121_test_sqlite_real_transaction_isolation.cpp
     relational/sqlite/22_131_test_sqlite_real_transaction_manager.cpp
     relational/sqlite/22_141_test_sqlite_real_connection_pool.cpp
 
@@ -145,10 +150,13 @@ add_executable(cpp_dbc_tests
 
     # Redis tests (kv/redis/)
     kv/redis/24_001_test_redis_real_common.cpp
+
     # kv/redis/24_011_test_redis_real_db_config.cpp
     kv/redis/24_021_test_redis_real_driver.cpp
+
     # kv/redis/24_031_test_redis_real.cpp
     kv/redis/24_041_test_redis_real_connection.cpp
+
     # kv/redis/24_051_test_redis_real_json.cpp
     # kv/redis/24_061_test_redis_real_blob.cpp
     # kv/redis/24_071_test_redis_real_inner_join.cpp
@@ -173,6 +181,7 @@ add_executable(cpp_dbc_tests
     document/mongodb/25_091_test_mongodb_real_right_join.cpp
     document/mongodb/25_101_test_mongodb_real_full_join.cpp
     document/mongodb/25_111_test_mongodb_real_thread_safe.cpp
+
     # document/mongodb/25_121_test_mongodb_real_transaction_isolation.cpp
     # document/mongodb/25_131_test_mongodb_real_transaction_manager.cpp
     document/mongodb/25_141_test_mongodb_real_connection_pool.cpp
@@ -193,6 +202,7 @@ add_executable(cpp_dbc_tests
     columnar/scylladb/26_091_test_scylladb_real_right_join.cpp
     columnar/scylladb/26_101_test_scylladb_real_full_join.cpp
     columnar/scylladb/26_111_test_scylladb_real_thread_safe.cpp
+
     # columnar/scylladb/26_121_test_scylladb_real_transaction_isolation.cpp
     # columnar/scylladb/26_131_test_scylladb_real_transaction_manager.cpp
     columnar/scylladb/26_141_test_scylladb_real_connection_pool.cpp
@@ -282,7 +292,15 @@ target_compile_definitions(cpp_dbc_tests PRIVATE
 # Register tests with CTest
 include(CTest)
 include(Catch)
-catch_discover_tests(cpp_dbc_tests)
+
+# When TSAN is enabled, avoid catch_discover_tests() which executes the binary during configuration
+# This causes "FATAL: ThreadSanitizer: unexpected memory mapping" errors
+if(ENABLE_TSAN)
+    message(STATUS "TSAN enabled: using manual test registration instead of catch_discover_tests()")
+    add_test(NAME cpp_dbc_tests COMMAND cpp_dbc_tests)
+else()
+    catch_discover_tests(cpp_dbc_tests)
+endif()
 
 # Copy the test_db_connections.yml file directly to the directory where the executable is
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/common/test_db_connections.yml

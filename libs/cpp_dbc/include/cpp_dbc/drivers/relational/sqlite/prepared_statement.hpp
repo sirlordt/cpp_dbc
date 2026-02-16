@@ -72,8 +72,10 @@ namespace cpp_dbc::SQLite
         std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
 
         // Registry of active result sets created by this statement
+        // NOTE (2026-02-15): m_activeResultSets is now protected by m_globalFileMutex in all methods
+        // (registerResultSet, unregisterResultSet, closeAllResultSets) to avoid lock order violations.
         std::set<std::weak_ptr<SQLiteDBResultSet>, std::owner_less<std::weak_ptr<SQLiteDBResultSet>>> m_activeResultSets;
-        std::recursive_mutex m_resultSetsMutex;  // Recursive to allow re-entry from closeAllResultSets()
+        // std::recursive_mutex m_resultSetsMutex;  // REMOVED (2026-02-15). Replaced by m_globalFileMutex to eliminate lock order violations.
 
         /**
          * @brief Global file-level mutex shared across all connections to the same database file

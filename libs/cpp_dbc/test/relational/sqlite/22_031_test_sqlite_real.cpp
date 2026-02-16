@@ -37,19 +37,28 @@
 TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
 {
 #if USE_SQLITE
+    // Get SQLite configuration to check if cleanup is needed
+    auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite");
+
+    // CRITICAL: Cleanup SQLite database files before test to prevent "readonly database" errors
+    // under Helgrind/Valgrind when running multiple iterations (WAL mode issue)
+    // Only cleanup if using file-based database (not :memory:)
+    if (dbConfig.getDatabase() != ":memory:")
+    {
+        sqlite_test_helpers::cleanupSQLiteTestFiles(dbConfig.getDatabase());
+    }
+
+    // Get connection string from the database config (reuse dbConfig from outer scope)
+    std::string connStr = dbConfig.createConnectionString();
+
+    // Test connection
+
+    // Register the SQLite driver
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+
     // Skip this test if SQLite support is not enabled
     SECTION("Test SQLite real database operations")
     {
-        // Get SQLite configuration using the helper function
-        auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite");
-
-        // Get connection string from the database config
-        std::string connStr = dbConfig.createConnectionString();
-
-        // Test connection
-
-        // Register the SQLite driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
         try
         {
@@ -119,6 +128,10 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
             REQUIRE(countResult->next());
             REQUIRE(countResult->getInt("count") == 50);
 
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set before reusing variable
+            // to prevent resource leaks and file locks
+            countResult->close();
+
             // Rollback the transaction
             conn->rollback();
 
@@ -126,6 +139,9 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
             countResult = countStmt->executeQuery();
             REQUIRE(countResult->next());
             REQUIRE(countResult->getInt("count") == 100);
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set before reusing variable
+            countResult->close();
 
             // Now delete and commit
             conn->beginTransaction();
@@ -166,7 +182,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
             insertStmt->close();
 
             // Clean up
-            conn->executeUpdate("DROP TABLE IF EXISTS test_table");
+            // conn->executeUpdate("DROP TABLE IF EXISTS test_table");
 
             // Close the connection
             conn->close();
@@ -181,14 +197,6 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
 
     SECTION("SQLite date and time types test")
     {
-        // Get SQLite configuration using the helper function
-        auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite");
-
-        // Get connection string from the database config
-        std::string connStr = dbConfig.createConnectionString();
-
-        // Register the SQLite driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
         try
         {
@@ -201,9 +209,9 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
             conn->executeUpdate(
                 "CREATE TABLE test_datetime_types ("
                 "id INTEGER PRIMARY KEY, "
-                "date_col TEXT, "        // DATE stored as TEXT
-                "datetime_col TEXT, "    // DATETIME stored as TEXT
-                "time_col TEXT, "        // TIME stored as TEXT
+                "date_col TEXT, "     // DATE stored as TEXT
+                "datetime_col TEXT, " // DATETIME stored as TEXT
+                "time_col TEXT, "     // TIME stored as TEXT
                 "description TEXT"
                 ")");
 
@@ -213,9 +221,9 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
 
             // Test 1: Full date and time values
             pstmt->setInt(1, 1);
-            pstmt->setDate(2, "2023-01-15");                 // Using setDate()
-            pstmt->setTimestamp(3, "2023-01-15 14:30:00");   // Using setTimestamp()
-            pstmt->setString(4, "14:30:00");                 // TIME uses setString()
+            pstmt->setDate(2, "2023-01-15");               // Using setDate()
+            pstmt->setTimestamp(3, "2023-01-15 14:30:00"); // Using setTimestamp()
+            pstmt->setString(4, "14:30:00");               // TIME uses setString()
             pstmt->setString(5, "Afternoon meeting");
             pstmt->executeUpdate();
 
@@ -237,9 +245,9 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
 
             // Test 4: NULL values for date/time
             pstmt->setInt(1, 4);
-            pstmt->setNull(2, cpp_dbc::Types::VARCHAR);      // NULL date
-            pstmt->setNull(3, cpp_dbc::Types::VARCHAR);      // NULL datetime
-            pstmt->setNull(4, cpp_dbc::Types::VARCHAR);      // NULL time
+            pstmt->setNull(2, cpp_dbc::Types::VARCHAR); // NULL date
+            pstmt->setNull(3, cpp_dbc::Types::VARCHAR); // NULL datetime
+            pstmt->setNull(4, cpp_dbc::Types::VARCHAR); // NULL time
             pstmt->setString(5, "NULL test");
             pstmt->executeUpdate();
 
@@ -310,7 +318,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
             queryStmt->close();
             rs->close();
 
-            conn->executeUpdate("DROP TABLE test_datetime_types");
+            // conn->executeUpdate("DROP TABLE test_datetime_types");
             conn->close();
         }
         catch (const cpp_dbc::DBException &e)

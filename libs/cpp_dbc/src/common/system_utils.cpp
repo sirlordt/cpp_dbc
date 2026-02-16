@@ -84,8 +84,13 @@ namespace cpp_dbc::system_utils
         return false;
     }
 
-    std::vector<StackFrame> captureCallStack(bool captureAll, int skip) noexcept
+    std::vector<StackFrame> captureCallStack([[maybe_unused]] bool captureAll, [[maybe_unused]] int skip) noexcept
     {
+#if BACKWARD_HAS_DW == 0
+        // When libdw support is disabled (--dw-off flag), skip stack trace capture
+        // to eliminate overhead in production builds. Return empty vector immediately.
+        return {};
+#else
         try
         {
             // CRITICAL: backward-cpp (TraceResolver, StackTrace) has internal shared state
@@ -129,6 +134,7 @@ namespace cpp_dbc::system_utils
             // Return empty vector if stack capture fails - noexcept guarantee
             return {};
         }
+#endif
     }
 
     void printCallStack(const std::vector<StackFrame> &frames)

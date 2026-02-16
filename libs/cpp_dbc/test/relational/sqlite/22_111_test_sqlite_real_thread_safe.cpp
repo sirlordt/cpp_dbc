@@ -63,6 +63,15 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
 {
     // Get SQLite configuration using the helper function
     auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite");
+
+    // CRITICAL: Cleanup SQLite database files before test to prevent "readonly database" errors
+    // under Helgrind/Valgrind when running multiple iterations (WAL mode issue)
+    // Only cleanup if using file-based database (not :memory:)
+    if (dbConfig.getDatabase() != ":memory:")
+    {
+        sqlite_test_helpers::cleanupSQLiteTestFiles(dbConfig.getDatabase());
+    }
+
     std::string connStr = dbConfig.createConnectionString();
 
     // Register the SQLite driver
@@ -122,6 +131,11 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                                     pstmt->setInt(1, id);
                                     pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
                                     pstmt->executeUpdate();
+
+                                    // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+                                    // to prevent resource leaks and file locks
+                                    pstmt->close();
+
                                     inserted = true;
                                 }
                                 catch (const std::exception& e)
@@ -136,11 +150,16 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                                 auto selectStmt = conn->prepareStatement("SELECT * FROM thread_test WHERE id = ?");
                                 selectStmt->setInt(1, id);
                                 auto rs = selectStmt->executeQuery();
-                                
+
                                 if (rs->next())
                                 {
                                     successCount++;
                                 }
+
+                                // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set and statement after use
+                                // to prevent resource leaks and file locks
+                                rs->close();
+                                selectStmt->close();
                             }
                             else
                             {
@@ -179,9 +198,9 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         std::cout << "Multiple threads with individual connections: " << successCount << " successes, " << errorCount << " errors" << std::endl;
 
         // Clean up
-        auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
-        cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        cleanupConn->close();
+        // auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
+        // cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
+        // cleanupConn->close();
 
         // We expect most operations to succeed
         REQUIRE(successCount > 0);
@@ -242,6 +261,11 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                                 pstmt->setString(2, "Name " + std::to_string(id));
                                 pstmt->setDouble(3, id * 1.5);
                                 pstmt->executeUpdate();
+
+                                // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+                                // to prevent resource leaks and file locks
+                                pstmt->close();
+
                                 success = true;
                             }
                             catch (const std::exception& e)
@@ -277,9 +301,9 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         std::cout << "Connection pool concurrent access: " << successCount << " successes, " << errorCount << " errors" << std::endl;
 
         // Clean up
-        auto cleanupConn = pool->getRelationalDBConnection();
-        cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        cleanupConn->returnToPool();
+        // auto cleanupConn = pool->getRelationalDBConnection();
+        // cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
+        // cleanupConn->returnToPool();
 
         REQUIRE(successCount > 0);
     }
@@ -317,6 +341,10 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
             pstmt->setString(2, "Name " + std::to_string(i));
             pstmt->setDouble(3, i * 1.5);
             pstmt->executeUpdate();
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+            // to prevent resource leaks and file locks
+            pstmt->close();
         }
         setupConn->returnToPool();
 
@@ -344,7 +372,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                         auto pstmt = conn->prepareStatement("SELECT * FROM thread_test WHERE id = ?");
                         pstmt->setInt(1, targetId);
                         auto rs = pstmt->executeQuery();
-                        
+
                         if (rs->next())
                         {
                             // Read all columns
@@ -354,7 +382,12 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                             (void)id; (void)name; (void)value;
                             readCount++;
                         }
-                        
+
+                        // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set and statement after use
+                        // to prevent resource leaks and file locks
+                        rs->close();
+                        pstmt->close();
+
                         conn->returnToPool();
                     }
                     catch (const std::exception& e)
@@ -372,9 +405,9 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         std::cout << "Concurrent read operations: " << readCount << " reads, " << errorCount << " errors" << std::endl;
 
         // Clean up
-        auto cleanupConn = pool->getRelationalDBConnection();
-        cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        cleanupConn->returnToPool();
+        // auto cleanupConn = pool->getRelationalDBConnection();
+        // cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
+        // cleanupConn->returnToPool();
 
         // Most reads should succeed
         REQUIRE(readCount > numThreads * readsPerThread * 0.8);
@@ -446,6 +479,11 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                                         pstmt->setInt(2, j);
                                         pstmt->setString(3, "Data from thread " + std::to_string(i) + " op " + std::to_string(j));
                                         pstmt->executeUpdate();
+
+                                        // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+                                        // to prevent resource leaks and file locks
+                                        pstmt->close();
+
                                         insertCount++;
                                         success = true;
                                         break;
@@ -457,6 +495,11 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                                         {
                                             rs->getInt("cnt");
                                         }
+
+                                        // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+                                        // to prevent resource leaks and file locks
+                                        rs->close();
+
                                         selectCount++;
                                         success = true;
                                         break;
@@ -509,9 +552,9 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         }
 
         // Clean up
-        auto cleanupConn = pool->getRelationalDBConnection();
-        cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_stress_test");
-        cleanupConn->returnToPool();
+        // auto cleanupConn = pool->getRelationalDBConnection();
+        // cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_stress_test");
+        // cleanupConn->returnToPool();
 
         // Most operations should succeed (SQLite may have more contention)
         int totalOps = insertCount + selectCount + updateCount;
@@ -535,14 +578,18 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                     try
                     {
                         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
-                        
+
                         // Do a simple operation
                         auto rs = conn->executeQuery("SELECT 1 as test");
                         if (rs->next())
                         {
                             rs->getInt("test");
                         }
-                        
+
+                        // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+                        // to prevent resource leaks and file locks
+                        rs->close();
+
                         conn->close();
                         successCount++;
                     }

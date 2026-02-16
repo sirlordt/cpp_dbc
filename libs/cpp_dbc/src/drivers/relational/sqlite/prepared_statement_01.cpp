@@ -59,7 +59,16 @@ namespace cpp_dbc::SQLite
 
     void SQLiteDBPreparedStatement::registerResultSet(std::weak_ptr<SQLiteDBResultSet> rs)
     {
-        std::lock_guard<std::recursive_mutex> lock(m_resultSetsMutex);
+        // LOCK CONSISTENCY FIX (2026-02-15): Changed from m_resultSetsMutex to
+        // m_globalFileMutex to ensure ALL accesses to m_activeResultSets use the
+        // same mutex. Previously, closeAllResultSets() used m_globalFileMutex while
+        // registerResultSet()/unregisterResultSet() used m_resultSetsMutex, creating
+        // a data race (same data protected by different mutexes in different contexts).
+        //
+        // Now ALL access to m_activeResultSets is consistently protected by
+        // m_globalFileMutex, which is the file-level lock shared by all connections
+        // to the same SQLite database file.
+        std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);
         if (m_activeResultSets.size() > 20)  // Smaller threshold than Connection
         {
             std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
@@ -69,7 +78,11 @@ namespace cpp_dbc::SQLite
 
     void SQLiteDBPreparedStatement::unregisterResultSet(std::weak_ptr<SQLiteDBResultSet> rs)
     {
-        std::lock_guard<std::recursive_mutex> lock(m_resultSetsMutex);
+        // LOCK CONSISTENCY FIX (2026-02-15): Changed from m_resultSetsMutex to
+        // m_globalFileMutex for consistency with closeAllResultSets() and
+        // registerResultSet(). All modifications to m_activeResultSets must use
+        // the same mutex to prevent data races.
+        std::lock_guard<std::recursive_mutex> lock(*m_globalFileMutex);
         // Remove expired weak_ptrs and the specified one
         for (auto it = m_activeResultSets.begin(); it != m_activeResultSets.end();)
         {
@@ -88,21 +101,50 @@ namespace cpp_dbc::SQLite
 
     void SQLiteDBPreparedStatement::closeAllResultSets()
     {
+        // LOCK ORDER FIX (2026-02-15): Previously, this method acquired both
+        // m_globalFileMutex and then m_resultSetsMutex (nested lock). This caused
+        // Helgrind LockOrder violations because different code paths acquire locks
+        // in different relative orders:
+        //
+        // Path 1 (from pool): pool mutex → m_globalFileMutex → m_resultSetsMutex
+        // Path 2 (from destructor): m_globalFileMutex → m_resultSetsMutex
+        //
+        // This creates potential for deadlock if two threads simultaneously:
+        //   Thread A: holds pool mutex, waits for m_globalFileMutex
+        //   Thread B: holds m_globalFileMutex, waits for pool mutex (indirectly)
+        //
+        // SOLUTION: m_globalFileMutex is a file-level lock shared by all connections
+        // to the same SQLite database file (via FileMutexRegistry). It protects ALL
+        // access to the underlying sqlite3* connection. Since m_activeResultSets is
+        // part of the prepared statement state and is only accessed when working with
+        // the sqlite3* connection, it is already implicitly protected by
+        // m_globalFileMutex. Therefore, the additional m_resultSetsMutex lock is
+        // redundant and can be safely removed.
+        //
+        // SAFETY: Access to m_activeResultSets is now protected solely by
+        // m_globalFileMutex, which is acquired by ALL methods that interact with
+        // the SQLite prepared statement (execute, executeQuery, executeUpdate, etc.).
+        // This provides sufficient synchronization without introducing lock ordering
+        // issues.
+        //
+        // TRADE-OFF: This reduces lock granularity (broader lock scope) but eliminates
+        // potential deadlocks. Since SQLite operations are typically fast and
+        // m_globalFileMutex is already required for correctness with ThreadSanitizer,
+        // this is an acceptable trade-off.
+        //
+        // Reference: Helgrind error logs in logs/test/2026-02-15-18-46-52/22_RUN02_fail.log
         std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
         // CRITICAL: Copy weak_ptrs to temporary vector to avoid iterator invalidation.
         // When we call rs->close(), it calls unregisterResultSet() which modifies
         // m_activeResultSets, invalidating iterators if we iterate directly.
         std::vector<std::weak_ptr<SQLiteDBResultSet>> resultSetsToClose;
+        resultSetsToClose.reserve(m_activeResultSets.size());
+        for (const auto &weak_rs : m_activeResultSets)
         {
-            std::lock_guard<std::recursive_mutex> rsLock(m_resultSetsMutex);
-            resultSetsToClose.reserve(m_activeResultSets.size());
-            for (const auto &weak_rs : m_activeResultSets)
-            {
-                resultSetsToClose.push_back(weak_rs);
-            }
-            m_activeResultSets.clear();
+            resultSetsToClose.push_back(weak_rs);
         }
+        m_activeResultSets.clear();
 
         // Now close all result sets without holding the registry lock
         for (auto &weak_rs : resultSetsToClose)

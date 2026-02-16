@@ -276,12 +276,12 @@ namespace cpp_dbc
             {
                 if (!conn->m_closed)
                 {
-                    conn->getUnderlyingRelationalConnection()->prepareForPoolReturn();
+                    conn->getUnderlyingRelationalConnection()->reset(std::nothrow);
                 }
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception in prepareForPoolReturn: " << ex.what());
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception in reset: " << ex.what());
                 valid = false;
             }
         }
@@ -357,7 +357,11 @@ namespace cpp_dbc
         }
 
         // Notify maintenance thread that a connection was returned
+        // CRITICAL: Must hold mutex when calling notify_one() per POSIX requirements
+        //{ //The next guard_lock block all test. NOT WORK!!!!
+        // std::lock_guard lock(m_mutexMaintenance);
         m_maintenanceCondition.notify_one();
+        //}
     }
 
     std::shared_ptr<RelationalPooledDBConnection> RelationalDBConnectionPool::getIdleDBConnection()
@@ -662,8 +666,12 @@ namespace cpp_dbc
             }
         }
 
-        // Notify all waiting threads
+        // Notify all waiting threads to wake up and exit
+        // CRITICAL: Must hold mutex when calling notify_all() per POSIX requirements
+        //{ //The next guard_lock block all test. NOT WORK!!!!
+        // std::lock_guard lock(m_mutexMaintenance);
         m_maintenanceCondition.notify_all();
+        //}
 
         // Join maintenance thread (only if it was started)
         if (m_maintenanceThread.joinable())

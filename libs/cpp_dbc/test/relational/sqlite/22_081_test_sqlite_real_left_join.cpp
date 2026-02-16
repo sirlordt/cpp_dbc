@@ -41,6 +41,14 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
     // Get SQLite configuration using the helper function
     auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite");
 
+    // CRITICAL: Cleanup SQLite database files before test to prevent "readonly database" errors
+    // under Helgrind/Valgrind when running multiple iterations (WAL mode issue)
+    // Only cleanup if using file-based database (not :memory:)
+    if (dbConfig.getDatabase() != ":memory:")
+    {
+        sqlite_test_helpers::cleanupSQLiteTestFiles(dbConfig.getDatabase());
+    }
+
     // Get connection string directly from the database config
     std::string connStr = dbConfig.createConnectionString();
 
@@ -120,6 +128,10 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
             customerStmt->executeUpdate();
         }
 
+        // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+        // to prevent resource leaks and file locks
+        customerStmt->close();
+
         // Insert data into test_products
         auto productStmt = conn->prepareStatement(
             "INSERT INTO test_products (product_id, name, description, price, stock_quantity, is_active) "
@@ -149,6 +161,10 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
             productStmt->setBoolean(6, id % 2 == 1); // Odd IDs are active
             productStmt->executeUpdate();
         }
+
+        // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+        // to prevent resource leaks and file locks
+        productStmt->close();
 
         // Insert data into test_orders
         auto orderStmt = conn->prepareStatement(
@@ -194,6 +210,10 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
             orderStmt->setTimestamp(6, "2023-02-" + std::to_string(orderId % 28 + 1) + " 14:30:00");
             orderStmt->executeUpdate();
         }
+
+        // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+        // to prevent resource leaks and file locks
+        orderStmt->close();
 
         SECTION("Basic LEFT JOIN")
         {
@@ -243,6 +263,10 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
             }
 
             REQUIRE(rowCount == expectedResults.size());
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
         }
 
         SECTION("Three-table LEFT JOIN")
@@ -295,6 +319,10 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
             }
 
             REQUIRE(rowCount == expectedResults.size());
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
         }
 
         SECTION("LEFT JOIN with WHERE clause")
@@ -342,6 +370,10 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
             }
 
             REQUIRE(rowCount == expectedResults.size());
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
         }
 
         SECTION("LEFT JOIN with NULL check")
@@ -373,6 +405,10 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
             }
 
             REQUIRE(rowCount == expectedResults.size());
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
         }
 
         SECTION("LEFT JOIN with invalid column")
@@ -385,6 +421,7 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
 
             // This should throw an exception
             REQUIRE_THROWS_AS(conn->executeQuery(query), cpp_dbc::DBException);
+            conn->reset(std::nothrow);
         }
 
         SECTION("LEFT JOIN with type mismatch")
@@ -408,12 +445,16 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
             }
 
             REQUIRE(rowCount == customers.size());
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
         }
 
         // Clean up
-        conn->executeUpdate("DROP TABLE IF EXISTS test_orders");
-        conn->executeUpdate("DROP TABLE IF EXISTS test_products");
-        conn->executeUpdate("DROP TABLE IF EXISTS test_customers");
+        // conn->executeUpdate("DROP TABLE IF EXISTS test_orders");
+        // conn->executeUpdate("DROP TABLE IF EXISTS test_products");
+        // conn->executeUpdate("DROP TABLE IF EXISTS test_customers");
 
         // Close the connection
         conn->close();

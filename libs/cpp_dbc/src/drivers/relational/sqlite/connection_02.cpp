@@ -91,6 +91,7 @@ namespace cpp_dbc::SQLite
                 std::string errorMsg = sqlite3_errmsg(m_db.get());
                 return cpp_dbc::unexpected(DBException("R2Z3A4B5C6D7", "Failed to prepare query: " + errorMsg,
                                                        system_utils::captureCallStack()));
+                // std::vector<cpp_dbc::system_utils::StackFrame>()));
             }
 
             if (!stmt)
@@ -104,7 +105,7 @@ namespace cpp_dbc::SQLite
             // where sqlite3_step() and sqlite3_column_*() access the connection handle on every call.
             // Unlike MySQL/PostgreSQL where results are fully loaded into client memory.
             auto resultSet = std::make_shared<SQLiteDBResultSet>(stmt, true, self, nullptr, m_globalFileMutex);
-            resultSet->initialize();  // CRITICAL: Must be called after shared_ptr exists
+            resultSet->initialize(); // CRITICAL: Must be called after shared_ptr exists
             return std::shared_ptr<RelationalDBResultSet>(resultSet);
         }
         catch (const DBException &ex)
@@ -181,12 +182,12 @@ namespace cpp_dbc::SQLite
             }
 
             // Only change the state if we're actually changing the mode
-            if (this->m_autoCommit != autoCommit)
+            if (this->m_autoCommit.load(std::memory_order_acquire) != autoCommit)
             {
                 if (autoCommit)
                 {
                     // Enabling autocommit - commit any active transaction first
-                    if (m_transactionActive)
+                    if (m_transactionActive.load(std::memory_order_acquire))
                     {
                         auto commitResult = commit(std::nothrow);
                         if (!commitResult)
@@ -195,8 +196,8 @@ namespace cpp_dbc::SQLite
                         }
                     }
 
-                    this->m_autoCommit = true;
-                    this->m_transactionActive = false;
+                    this->m_autoCommit.store(true, std::memory_order_release);
+                    this->m_transactionActive.store(false, std::memory_order_release);
                 }
                 else
                 {
@@ -232,7 +233,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            return m_autoCommit;
+            return m_autoCommit.load(std::memory_order_acquire);
         }
         catch (const DBException &ex)
         {
@@ -264,14 +265,14 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            if (m_transactionActive)
+            if (m_transactionActive.load(std::memory_order_acquire))
             {
                 return false;
             }
 
-            if (m_autoCommit)
+            if (m_autoCommit.load(std::memory_order_acquire))
             {
-                m_autoCommit = false;
+                m_autoCommit.store(false, std::memory_order_release);
             }
 
             auto updateResult = executeUpdate(std::nothrow, "BEGIN TRANSACTION");
@@ -280,7 +281,7 @@ namespace cpp_dbc::SQLite
                 return cpp_dbc::unexpected(updateResult.error());
             }
 
-            m_transactionActive = true;
+            m_transactionActive.store(true, std::memory_order_release);
             return true;
         }
         catch (const DBException &ex)
@@ -305,7 +306,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            return m_transactionActive;
+            return m_transactionActive.load(std::memory_order_acquire);
         }
         catch (const DBException &ex)
         {
@@ -343,8 +344,8 @@ namespace cpp_dbc::SQLite
                 return cpp_dbc::unexpected(updateResult.error());
             }
 
-            m_transactionActive = false;
-            m_autoCommit = true;
+            m_transactionActive.store(false, std::memory_order_release);
+            m_autoCommit.store(true, std::memory_order_release);
             return {};
         }
         catch (const DBException &ex)
@@ -383,8 +384,8 @@ namespace cpp_dbc::SQLite
                 return cpp_dbc::unexpected(updateResult.error());
             }
 
-            m_transactionActive = false;
-            m_autoCommit = true;
+            m_transactionActive.store(false, std::memory_order_release);
+            m_autoCommit.store(true, std::memory_order_release);
             return {};
         }
         catch (const DBException &ex)

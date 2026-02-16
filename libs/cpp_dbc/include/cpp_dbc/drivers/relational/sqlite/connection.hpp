@@ -56,8 +56,8 @@ namespace cpp_dbc::SQLite
         SQLiteDbHandle m_db;
 
         bool m_closed{true};
-        bool m_autoCommit{true};
-        bool m_transactionActive{false};
+        std::atomic<bool> m_autoCommit{true};
+        std::atomic<bool> m_transactionActive{false};
         TransactionIsolationLevel m_isolationLevel;
 
         // Cached URL
@@ -81,12 +81,16 @@ namespace cpp_dbc::SQLite
         std::shared_ptr<std::recursive_mutex> m_globalFileMutex;
 
         // Registry of active prepared statements (weak pointers to avoid preventing destruction)
+        // NOTE (2026-02-15): m_activeStatements is now protected by m_globalFileMutex in all methods
+        // (registerStatement, unregisterStatement, closeAllStatements) to avoid lock order violations.
         std::set<std::weak_ptr<SQLiteDBPreparedStatement>, std::owner_less<std::weak_ptr<SQLiteDBPreparedStatement>>> m_activeStatements;
-        std::recursive_mutex m_statementsMutex;  // Recursive to allow re-entry from closeAllStatements()
+        // std::recursive_mutex m_statementsMutex;  // REMOVED (2026-02-15). Replaced by m_globalFileMutex to eliminate lock order violations.
 
         // Registry of active result sets (weak pointers to avoid preventing destruction)
+        // NOTE (2026-02-15): m_activeResultSets is now protected by m_globalFileMutex in all methods
+        // (registerResultSet, unregisterResultSet, closeAllResultSets) to avoid lock order violations.
         std::set<std::weak_ptr<SQLiteDBResultSet>, std::owner_less<std::weak_ptr<SQLiteDBResultSet>>> m_activeResultSets;
-        std::recursive_mutex m_resultSetsMutex;  // Recursive to allow re-entry from closeAllResultSets()
+        // std::recursive_mutex m_resultSetsMutex;  // REMOVED (2026-02-15). Replaced by m_globalFileMutex to eliminate lock order violations.
 
         // Internal methods for statement registry
         void registerStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
@@ -120,7 +124,7 @@ namespace cpp_dbc::SQLite
 
         void commit() override;
         void rollback() override;
-        void prepareForPoolReturn() override;
+        void reset(std::nothrow_t) noexcept override;
 
         // Transaction isolation level methods
         void setTransactionIsolation(TransactionIsolationLevel level) override;

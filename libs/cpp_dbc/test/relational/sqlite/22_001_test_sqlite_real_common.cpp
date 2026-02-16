@@ -20,6 +20,10 @@
 
 #include "22_001_test_sqlite_real_common.hpp"
 
+#include <filesystem>
+#include <chrono>
+#include <thread>
+
 namespace sqlite_test_helpers
 {
 
@@ -140,6 +144,52 @@ namespace sqlite_test_helpers
             std::cerr << "SQLite connection error: " << e.what() << std::endl;
             return false;
         }
+    }
+
+    void cleanupSQLiteTestFiles(const std::string &dbPath, int waitSeconds)
+    {
+        cpp_dbc::system_utils::safePrint("[TEST]", "=== Cleaning up SQLite database files ===");
+        cpp_dbc::system_utils::safePrint("[TEST]", "Database path: " + dbPath);
+
+        // Use error_code to avoid exceptions if files don't exist
+        std::error_code ec;
+
+        // Remove main database file
+        std::filesystem::remove(dbPath, ec);
+        if (!ec)
+        {
+            cpp_dbc::system_utils::safePrint("[TEST]", "  [OK] Removed: " + dbPath);
+        }
+
+        // Remove WAL (Write-Ahead Log) file
+        std::string walPath = dbPath + "-wal";
+        std::filesystem::remove(walPath, ec);
+        if (!ec)
+        {
+            cpp_dbc::system_utils::safePrint("[TEST]", "  [OK] Removed: " + walPath);
+        }
+
+        // Remove shared memory file
+        std::string shmPath = dbPath + "-shm";
+        std::filesystem::remove(shmPath, ec);
+        if (!ec)
+        {
+            cpp_dbc::system_utils::safePrint("[TEST]", "  [OK] Removed: " + shmPath);
+        }
+
+        // Remove journal file (used in non-WAL mode)
+        std::string journalPath = dbPath + "-journal";
+        std::filesystem::remove(journalPath, ec);
+        if (!ec)
+        {
+            cpp_dbc::system_utils::safePrint("[TEST]", "  [OK] Removed: " + journalPath);
+        }
+
+        // Wait for filesystem buffers to flush and locks to release
+        // This is CRITICAL under Helgrind/Valgrind where everything is slower
+        cpp_dbc::system_utils::safePrint("[TEST]", "Waiting " + std::to_string(waitSeconds) + " seconds for filesystem buffers to flush and locks to release...");
+        std::this_thread::sleep_for(std::chrono::seconds(waitSeconds));
+        cpp_dbc::system_utils::safePrint("[TEST]", "=== SQLite cleanup completed ===");
     }
 
 #endif

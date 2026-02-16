@@ -402,6 +402,17 @@ else
     echo "GCC Static Analyzer is disabled (use --gcc-analyzer to enable)"
 fi
 
+# Build sanitizer flags if enabled
+SANITIZER_FLAGS=""
+SANITIZER_LINKER_FLAGS=""
+if [ "${ENABLE_ASAN}" = "ON" ]; then
+    SANITIZER_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+    SANITIZER_LINKER_FLAGS="-fsanitize=address,undefined"
+elif [ "${ENABLE_TSAN}" = "ON" ]; then
+    SANITIZER_FLAGS="-fsanitize=thread -fno-omit-frame-pointer"
+    SANITIZER_LINKER_FLAGS="-fsanitize=thread"
+fi
+
 # Configure with CMake
 echo "Configuring with CMake..."
 cmake "${CPP_DBC_DIR}" \
@@ -429,7 +440,8 @@ cmake "${CPP_DBC_DIR}" \
       -DDEBUG_REDIS=$DEBUG_REDIS \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
-      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align ${ANALYZER_FLAG}" \
+      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align ${SANITIZER_FLAGS} ${ANALYZER_FLAG}" \
+      -DCMAKE_EXE_LINKER_FLAGS="${SANITIZER_LINKER_FLAGS}" \
       -Wno-dev
 
 # Print status message about ASAN

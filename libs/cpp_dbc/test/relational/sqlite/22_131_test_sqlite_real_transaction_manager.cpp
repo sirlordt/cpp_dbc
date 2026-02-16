@@ -82,6 +82,10 @@ TEST_CASE("SQLite TransactionContext tests", "[22_131_01_sqlite_real_transaction
     REQUIRE(rs->next());
     REQUIRE(rs->getInt("test_value") == 1);
 
+    // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+    // to prevent resource leaks and file locks
+    rs->close();
+
     // Close the connection
     conn->close();
 }
@@ -100,13 +104,9 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
     // Use a file-based SQLite database for multi-threaded tests
     std::string dbPath = "test_sqlite_transaction_multithread.db";
 
-    // Remove ALL SQLite database files (main db + WAL files)
-    [[maybe_unused]] std::error_code ec;
-    std::filesystem::remove(dbPath, ec);
-    std::filesystem::remove(dbPath + "-wal", ec);
-    std::filesystem::remove(dbPath + "-shm", ec);
-    std::filesystem::remove(dbPath + "-journal", ec);
-    std::this_thread::sleep_for(std::chrono::seconds(2));
+    // CRITICAL: Cleanup SQLite database files before test to prevent "disk I/O error" under Helgrind
+    // caused by orphaned WAL files or filesystem async operations
+    sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath, 2);
 
     std::string connStr = "cpp_dbc:sqlite://" + dbPath;
 
@@ -163,6 +163,12 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
                             rs->getInt("test_value");
                         }
 
+                        // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+                        // to prevent resource leaks and file locks
+                        if (rs) {
+                            rs->close();
+                        }
+
                         // Commit or rollback based on iteration
                         if (j % 2 == 0) {
                             manager.commitTransaction(txId);
@@ -193,11 +199,8 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
         pool.close();
     }
 
-    // Clean up ALL database files
-    std::filesystem::remove(dbPath, ec);
-    std::filesystem::remove(dbPath + "-wal", ec);
-    std::filesystem::remove(dbPath + "-shm", ec);
-    std::filesystem::remove(dbPath + "-journal", ec);
+    // Clean up ALL database files after test (no wait needed at end)
+    sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath, 0);
 }
 
 // =============================================================================
@@ -214,19 +217,10 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
     // Use a file-based SQLite database for transaction tests
     std::string dbPath = "test_sqlite_transaction.db";
 
-    // Remove ALL SQLite database files (main db + WAL files)
-    // CRITICAL: Must remove all files to avoid "disk I/O error" under Helgrind
-    // caused by orphaned WAL files or filesystem async operations.
-    // Using noexcept version to avoid exceptions if files don't exist.
-    [[maybe_unused]] std::error_code ec;
-    std::filesystem::remove(dbPath, ec);              // main db file
-    std::filesystem::remove(dbPath + "-wal", ec);     // WAL file
-    std::filesystem::remove(dbPath + "-shm", ec);     // Shared memory file
-    std::filesystem::remove(dbPath + "-journal", ec); // Journal file (if not in WAL mode)
-
-    // CRITICAL: Give filesystem time to sync, especially under Helgrind (100x slower)
-    // 2 seconds ensures kernel completes async deletion before SQLite creates new files
-    std::this_thread::sleep_for(std::chrono::seconds(2));
+    // CRITICAL: Cleanup SQLite database files before test to prevent "disk I/O error" under Helgrind
+    // caused by orphaned WAL files or filesystem async operations
+    // Using 2 seconds wait (sufficient for this test, vs 10 seconds default)
+    sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath, 2);
 
     std::string connStr = "cpp_dbc:sqlite://" + dbPath;
 
@@ -280,6 +274,10 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
 
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+            // to prevent resource leaks and file locks
+            pstmt->close();
+
             // Commit the transaction
             manager.commitTransaction(txId);
 
@@ -291,6 +289,10 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
             verifyConn->close();
         }
 
@@ -311,6 +313,10 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
 
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+            // to prevent resource leaks and file locks
+            pstmt->close();
+
             // Rollback the transaction
             manager.rollbackTransaction(txId);
 
@@ -321,6 +327,10 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             auto verifyConn = pool.getRelationalDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
             verifyConn->close();
         }
 
@@ -343,6 +353,10 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             pstmt1->setString(2, "Transaction 1");
             pstmt1->executeUpdate();
 
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+            // to prevent resource leaks and file locks
+            pstmt1->close();
+
             manager.commitTransaction(txId1);
             REQUIRE_FALSE(manager.isTransactionActive(txId1));
 
@@ -358,6 +372,10 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             pstmt2->setInt(1, 20);
             pstmt2->setString(2, "Transaction 2");
             pstmt2->executeUpdate();
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+            // to prevent resource leaks and file locks
+            pstmt2->close();
 
             manager.rollbackTransaction(txId2);
             REQUIRE_FALSE(manager.isTransactionActive(txId2));
@@ -376,6 +394,10 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             pstmt3->setString(2, "Transaction 3");
             pstmt3->executeUpdate();
 
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+            // to prevent resource leaks and file locks
+            pstmt3->close();
+
             manager.commitTransaction(txId3);
             REQUIRE_FALSE(manager.isTransactionActive(txId3));
 
@@ -387,14 +409,26 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             REQUIRE(rs1->next());
             REQUIRE(rs1->getString("name") == "Transaction 1");
 
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs1->close();
+
             // Transaction 2 (rolled back)
             auto rs2 = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 20");
             REQUIRE_FALSE(rs2->next()); // Should be no rows
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs2->close();
 
             // Transaction 3 (committed)
             auto rs3 = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 30");
             REQUIRE(rs3->next());
             REQUIRE(rs3->getString("name") == "Transaction 3");
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs3->close();
 
             verifyConn->close();
         }
@@ -411,12 +445,20 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             pstmt->setString(2, "Isolation Test");
             pstmt->executeUpdate();
 
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+            // to prevent resource leaks and file locks
+            pstmt->close();
+
             // Get a separate connection (not in the transaction)
             auto regularConn = pool.getRelationalDBConnection();
 
             // Verify the data is not visible outside the transaction
             auto rs = regularConn->executeQuery("SELECT * FROM test_table WHERE id = 100");
             REQUIRE_FALSE(rs->next()); // Should be no rows
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set before reusing variable
+            // to prevent resource leaks and file locks
+            rs->close();
 
             // Commit the transaction
             manager.commitTransaction(txId);
@@ -425,6 +467,10 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             rs = regularConn->executeQuery("SELECT * FROM test_table WHERE id = 100");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Isolation Test");
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
 
             regularConn->close();
         }
@@ -444,6 +490,10 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             pstmt->setString(2, "Timeout Test");
             pstmt->executeUpdate();
 
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+            // to prevent resource leaks and file locks
+            pstmt->close();
+
             // Poll for transaction timeout instead of using a fixed sleep
             auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
             while (manager.isTransactionActive(txId) && std::chrono::steady_clock::now() < deadline)
@@ -458,6 +508,10 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             auto verifyConn = pool.getRelationalDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 200");
             REQUIRE_FALSE(rs->next()); // Should be no rows
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
             verifyConn->close();
 
             // Reset the transaction timeout to a reasonable value
@@ -468,11 +522,8 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
         pool.close();
     }
 
-    // Clean up ALL database files
-    std::filesystem::remove(dbPath, ec);
-    std::filesystem::remove(dbPath + "-wal", ec);
-    std::filesystem::remove(dbPath + "-shm", ec);
-    std::filesystem::remove(dbPath + "-journal", ec);
+    // Clean up ALL database files after test (no wait needed at end)
+    sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath, 0);
 }
 
 #endif

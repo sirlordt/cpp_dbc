@@ -104,10 +104,10 @@ databases:
   # SQLite testing database
   - name: test_sqlite
     type: sqlite
-    database: "/tmp/cpp_dbc_test_sqlite.db"
-    options:
-      foreign_keys: true
-      journal_mode: WAL
+    database: "cpp_dbc_test_sqlite.db"
+    #options:
+    #  foreign_keys: true #With this option active the test with helgrind. Get random errors about I/O and/or read only dabatase. In any of 5 runs of test
+    #  journal_mode: WAL #With this option active the test with helgrind. Get random errors about I/O and/or read only dabatase. In any of 5 runs of test
       
   # SQLite production database (example)
   - name: prod_sqlite

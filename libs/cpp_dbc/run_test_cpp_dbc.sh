@@ -722,6 +722,17 @@ fi
 # Turn off command echoing if it was enabled by build_test_cpp_dbc.sh
 { set +x; } 2>/dev/null
 
+# CRITICAL FIX (2026-02-15): If --list was requested, list tests now
+# (after build if --rebuild was also specified) and exit
+if [ "$LIST_ONLY" = true ]; then
+    cd "$TEST_BUILD_DIR"
+    echo -e "Listing available tests:\n"
+    "$TEST_EXECUTABLE" --colour-mode=ansi --list-tests
+    echo -e "\nListing available tags:\n"
+    "$TEST_EXECUTABLE" --colour-mode=ansi --list-tags
+    exit 0
+fi
+
 echo -e "\nRunning tests..."
 
 # Check shared library dependencies if requested
@@ -840,12 +851,21 @@ run_test() {
 }
 
 # Handle the --list option
+# CRITICAL FIX (2026-02-15): When both --list and --rebuild are specified,
+# we must build BEFORE listing to ensure the binary is up-to-date.
+# Without this fix, "helper.sh --run-test=rebuild,..." with parallel mode
+# never recompiles modified files because it exits here before reaching
+# the build check at line 599.
 if [ "$LIST_ONLY" = true ]; then
-    echo -e "Listing available tests:\n"
-    run_test --list-tests
-    echo -e "\nListing available tags:\n"
-    run_test --list-tags
-    exit 0
+    # If --rebuild was NOT requested, list immediately without building
+    if [ "$REBUILD" = false ]; then
+        echo -e "Listing available tests:\n"
+        run_test --list-tests
+        echo -e "\nListing available tags:\n"
+        run_test --list-tags
+        exit 0
+    fi
+    # Otherwise (REBUILD=true), continue to build check below, then list and exit later
 fi
 
 # Initialize progress tracking variables
