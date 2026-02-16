@@ -181,7 +181,7 @@ TEST_CASE("Firebird TransactionManager multi-threaded tests", "[23_131_02_firebi
                         successCount++;
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "Firebird thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::safePrint("[TEST]", "Firebird thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }

@@ -117,9 +117,9 @@ namespace cpp_dbc::Firebird
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeQuery(nothrow) - Starting");
-            FIREBIRD_DEBUG("  m_closed: " << (m_closed ? "true" : "false"));
-            FIREBIRD_DEBUG("  m_stmt: " << m_stmt);
-            FIREBIRD_DEBUG("  m_trPtr: " << m_trPtr << ", *m_trPtr: " << (m_trPtr ? *m_trPtr : 0));
+            FIREBIRD_DEBUG("  m_closed: %s", (m_closed ? "true" : "false"));
+            FIREBIRD_DEBUG("  m_stmt: %p", (void*)m_stmt);
+            FIREBIRD_DEBUG("  m_trPtr: %p, *m_trPtr: %ld", (void*)m_trPtr, (m_trPtr ? (long)*m_trPtr : 0L));
 
             if (m_closed)
             {
@@ -138,12 +138,12 @@ namespace cpp_dbc::Firebird
 
             // Execute the statement
             FIREBIRD_DEBUG("  Executing statement with isc_dsql_execute...");
-            FIREBIRD_DEBUG("    m_trPtr=" << m_trPtr << ", *m_trPtr=" << (m_trPtr ? *m_trPtr : 0));
-            FIREBIRD_DEBUG("    &m_stmt=" << &m_stmt << ", m_stmt=" << m_stmt);
+            FIREBIRD_DEBUG("    m_trPtr=%p, *m_trPtr=%ld", (void*)m_trPtr, (m_trPtr ? (long)*m_trPtr : 0L));
+            FIREBIRD_DEBUG("    &m_stmt=%p, m_stmt=%p", (void*)&m_stmt, (void*)m_stmt);
             if (isc_dsql_execute(status, m_trPtr, &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
             {
                 std::string errorMsg = interpretStatusVector(status);
-                FIREBIRD_DEBUG("  Execute failed: " << errorMsg);
+                FIREBIRD_DEBUG("  Execute failed: %s", errorMsg.c_str());
 
                 // If autocommit is enabled, rollback the failed transaction and start a new one
                 auto conn = m_connection.lock();
@@ -163,11 +163,11 @@ namespace cpp_dbc::Firebird
                 return cpp_dbc::unexpected(DBException("E5F1A7B3C0D6", "Failed to execute query: " + errorMsg,
                                                        system_utils::captureCallStack()));
             }
-            FIREBIRD_DEBUG("  Execute succeeded, m_stmt after execute=" << m_stmt);
+            FIREBIRD_DEBUG("  Execute succeeded, m_stmt after execute=%p", (void*)m_stmt);
 
             // Allocate output SQLDA for results - need to copy and set up buffers
             int numCols = m_outputSqlda->sqld;
-            FIREBIRD_DEBUG("  Output columns: " << numCols);
+            FIREBIRD_DEBUG("  Output columns: %d", numCols);
             if (numCols == 0)
             {
                 numCols = 1; // At least allocate space for 1 column
@@ -182,7 +182,9 @@ namespace cpp_dbc::Firebird
             for (int i = 0; i < m_outputSqlda->sqld; ++i)
             {
                 resultSqlda->sqlvar[i] = m_outputSqlda->sqlvar[i];
-                FIREBIRD_DEBUG("    Column " << i << ": raw_sqltype=" << m_outputSqlda->sqlvar[i].sqltype << ", type=" << (resultSqlda->sqlvar[i].sqltype & ~1) << ", nullable=" << (m_outputSqlda->sqlvar[i].sqltype & 1) << ", len=" << resultSqlda->sqlvar[i].sqllen);
+                FIREBIRD_DEBUG("    Column %d: raw_sqltype=%d, type=%d, nullable=%d, len=%d",
+                    i, (int)m_outputSqlda->sqlvar[i].sqltype, (int)(resultSqlda->sqlvar[i].sqltype & ~1),
+                    (int)(m_outputSqlda->sqlvar[i].sqltype & 1), (int)resultSqlda->sqlvar[i].sqllen);
             }
 
             // IMPORTANT: Transfer ownership of the statement handle to the ResultSet
@@ -194,11 +196,11 @@ namespace cpp_dbc::Firebird
 
             // Create a new handle with the statement value
             isc_stmt_handle *stmtPtr = new isc_stmt_handle(m_stmt);
-            FIREBIRD_DEBUG("    stmtPtr: " << stmtPtr << ", *stmtPtr: " << *stmtPtr);
+            FIREBIRD_DEBUG("    stmtPtr: %p, *stmtPtr: %p", (void*)stmtPtr, (void*)(uintptr_t)*stmtPtr);
 
             // Transfer ownership - set our m_stmt to 0 so we don't free it in close()
             m_stmt = 0;
-            FIREBIRD_DEBUG("    m_stmt after transfer: " << m_stmt);
+            FIREBIRD_DEBUG("    m_stmt after transfer: %p", (void*)m_stmt);
 
             FirebirdStmtHandle stmtHandle(stmtPtr);
             XSQLDAHandle sqldaHandle(resultSqlda);
@@ -247,8 +249,8 @@ namespace cpp_dbc::Firebird
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            FIREBIRD_DEBUG("  m_closed: " << (m_closed ? "true" : "false"));
-            FIREBIRD_DEBUG("  m_stmt: " << m_stmt);
+            FIREBIRD_DEBUG("  m_closed: %s", (m_closed ? "true" : "false"));
+            FIREBIRD_DEBUG("  m_stmt: %p", (void*)m_stmt);
             if (m_closed)
             {
                 return cpp_dbc::unexpected(DBException("F6A2B8C4D1E7", "Statement is closed", system_utils::captureCallStack()));
@@ -265,14 +267,14 @@ namespace cpp_dbc::Firebird
 
             // Execute the statement
             FIREBIRD_DEBUG("  Calling isc_dsql_execute...");
-            FIREBIRD_DEBUG("    m_trPtr=" << m_trPtr << ", *m_trPtr=" << (m_trPtr ? *m_trPtr : 0));
-            FIREBIRD_DEBUG("    &m_stmt=" << &m_stmt << ", m_stmt=" << m_stmt);
+            FIREBIRD_DEBUG("    m_trPtr=%p, *m_trPtr=%ld", (void*)m_trPtr, (m_trPtr ? (long)*m_trPtr : 0L));
+            FIREBIRD_DEBUG("    &m_stmt=%p, m_stmt=%p", (void*)&m_stmt, (void*)m_stmt);
             if (isc_dsql_execute(status, m_trPtr, &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
             {
                 // Save the error message BEFORE calling any other Firebird API functions
                 // because they will overwrite the status vector
                 std::string errorMsg = interpretStatusVector(status);
-                FIREBIRD_DEBUG("  isc_dsql_execute failed: " << errorMsg);
+                FIREBIRD_DEBUG("  isc_dsql_execute failed: %s", errorMsg.c_str());
 
                 // If autocommit is enabled, rollback the failed transaction and start a new one
                 // This ensures the connection is in a clean state for the next operation
@@ -371,7 +373,7 @@ namespace cpp_dbc::Firebird
                 FIREBIRD_DEBUG("  Connection is null (weak_ptr expired)");
             }
 
-            FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate(nothrow) - Done, returning count=" << count);
+            FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate(nothrow) - Done, returning count=%llu", (unsigned long long)count);
             return count;
         }
         catch (const DBException &e)
@@ -437,8 +439,8 @@ namespace cpp_dbc::Firebird
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("FirebirdPreparedStatement::close(nothrow) - Starting");
-            FIREBIRD_DEBUG("  m_closed: " << (m_closed ? "true" : "false"));
-            FIREBIRD_DEBUG("  m_stmt: " << m_stmt);
+            FIREBIRD_DEBUG("  m_closed: %s", (m_closed ? "true" : "false"));
+            FIREBIRD_DEBUG("  m_stmt: %p", (void*)m_stmt);
 
             if (m_closed)
             {
@@ -499,7 +501,7 @@ namespace cpp_dbc::Firebird
         auto closeResult = close(std::nothrow);
         if (!closeResult)
         {
-            FIREBIRD_DEBUG("  close() failed during invalidation: " << closeResult.error().what());
+            FIREBIRD_DEBUG("  close() failed during invalidation: %s", closeResult.error().what());
         }
 
         FIREBIRD_DEBUG("FirebirdPreparedStatement::invalidate - Done");

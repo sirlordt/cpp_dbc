@@ -416,8 +416,8 @@ namespace cpp_dbc::Firebird
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("FirebirdResultSet::next - Starting");
-            FIREBIRD_DEBUG("  m_closed: " << (m_closed ? "true" : "false"));
-            FIREBIRD_DEBUG("  m_stmt valid: " << (m_stmt ? "yes" : "no"));
+            FIREBIRD_DEBUG("  m_closed: %s", (m_closed ? "true" : "false"));
+            FIREBIRD_DEBUG("  m_stmt valid: %s", (m_stmt ? "yes" : "no"));
 
             if (m_closed)
             {
@@ -437,29 +437,31 @@ namespace cpp_dbc::Firebird
                 return false;
             }
 
-            FIREBIRD_DEBUG("  m_stmt handle value: " << *m_stmt);
-            FIREBIRD_DEBUG("  m_sqlda valid: " << (m_sqlda ? "yes" : "no"));
+            FIREBIRD_DEBUG("  m_stmt handle value: %p", (void*)(uintptr_t)*m_stmt);
+            FIREBIRD_DEBUG("  m_sqlda valid: %s", (m_sqlda ? "yes" : "no"));
             if (m_sqlda)
             {
-                FIREBIRD_DEBUG("  m_sqlda->sqld: " << m_sqlda->sqld);
+                FIREBIRD_DEBUG("  m_sqlda->sqld: %d", (int)m_sqlda->sqld);
             }
 
             ISC_STATUS_ARRAY status;
             isc_stmt_handle *stmtPtr = m_stmt.get();
-            FIREBIRD_DEBUG("  Calling isc_dsql_fetch with stmtPtr=" << stmtPtr << ", *stmtPtr=" << *stmtPtr);
+            FIREBIRD_DEBUG("  Calling isc_dsql_fetch with stmtPtr=%p, *stmtPtr=%p", (void*)stmtPtr, (void*)(uintptr_t)*stmtPtr);
 
             ISC_STATUS fetchStatus = isc_dsql_fetch(status, stmtPtr, SQL_DIALECT_V6, m_sqlda.get());
-            FIREBIRD_DEBUG("  isc_dsql_fetch returned: " << fetchStatus);
+            FIREBIRD_DEBUG("  isc_dsql_fetch returned: %ld", (long)fetchStatus);
 
             if (fetchStatus == 0)
             {
                 m_rowPosition++;
                 m_hasData = true;
-                FIREBIRD_DEBUG("FirebirdResultSet::next - Got row " << m_rowPosition);
+                FIREBIRD_DEBUG("FirebirdResultSet::next - Got row %llu", (unsigned long long)m_rowPosition);
                 // Debug: print null indicators after fetch
                 for (size_t i = 0; i < m_fieldCount; ++i)
                 {
-                    FIREBIRD_DEBUG("  After fetch - Column " << i << ": nullInd=" << m_nullIndicators[i] << ", sqlind=" << static_cast<void *>(m_sqlda->sqlvar[i].sqlind) << ", *sqlind=" << (m_sqlda->sqlvar[i].sqlind ? *m_sqlda->sqlvar[i].sqlind : -999));
+                    FIREBIRD_DEBUG("  After fetch - Column %zu: nullInd=%d, sqlind=%p, *sqlind=%d",
+                        i, (int)m_nullIndicators[i], (void*)m_sqlda->sqlvar[i].sqlind,
+                        (m_sqlda->sqlvar[i].sqlind ? (int)*m_sqlda->sqlvar[i].sqlind : -999));
                 }
                 return true;
             }
@@ -472,7 +474,7 @@ namespace cpp_dbc::Firebird
             else
             {
                 std::string errorMsg = interpretStatusVector(status);
-                FIREBIRD_DEBUG("FirebirdResultSet::next - Error: " << errorMsg);
+                FIREBIRD_DEBUG("FirebirdResultSet::next - Error: %s", errorMsg.c_str());
                 return cpp_dbc::unexpected(DBException("B8C4D0E6F2A3", "Error fetching row: " + errorMsg,
                                                        system_utils::captureCallStack()));
             }

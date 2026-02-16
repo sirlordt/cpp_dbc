@@ -485,7 +485,7 @@ TEST_CASE("Firebird JSON data storage", "[23_051_01_firebird_real_json]")
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-        std::cout << "Firebird JSON text search execution time: " << duration << " ms" << std::endl;
+        cpp_dbc::system_utils::safePrint("[TEST]", "Firebird JSON text search execution time: " + std::to_string(duration) + " ms");
 
         // Should find at least one record
         REQUIRE(rs->next());

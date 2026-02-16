@@ -130,9 +130,9 @@ namespace cpp_dbc::Firebird
         try
         {
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
-            FIREBIRD_DEBUG("getDouble(columnIndex=" << columnIndex << ")");
+            FIREBIRD_DEBUG("getDouble(columnIndex=%zu)", columnIndex);
             std::string value = getColumnValue(columnIndex);
-            FIREBIRD_DEBUG("  getColumnValue returned: '" << value << "'");
+            FIREBIRD_DEBUG("  getColumnValue returned: '%s'", value.c_str());
             return value.empty() ? 0.0 : std::stod(value);
         }
         catch (const DBException &e)

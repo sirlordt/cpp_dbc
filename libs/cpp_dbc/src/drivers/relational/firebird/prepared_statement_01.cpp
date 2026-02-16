@@ -62,17 +62,17 @@ namespace cpp_dbc::Firebird
         FIREBIRD_DEBUG("FirebirdPreparedStatement::prepareStatement - Starting");
         ISC_STATUS_ARRAY status;
         isc_db_handle *db = getFirebirdConnection();
-        FIREBIRD_DEBUG("  db handle: " << db << ", *db: " << (db ? *db : 0));
+        FIREBIRD_DEBUG("  db handle: %p, *db: %ld", (void*)db, (db ? (long)*db : 0L));
 
         // Allocate statement handle
         FIREBIRD_DEBUG("  Allocating statement handle...");
         if (isc_dsql_allocate_statement(status, db, &m_stmt))
         {
-            FIREBIRD_DEBUG("  Failed to allocate statement: " << interpretStatusVector(status));
+            FIREBIRD_DEBUG("  Failed to allocate statement: %s", interpretStatusVector(status).c_str());
             throw DBException("E3F9A5B1C8D4", "Failed to allocate statement: " + interpretStatusVector(status),
                               system_utils::captureCallStack());
         }
-        FIREBIRD_DEBUG("  Statement allocated, m_stmt=" << m_stmt);
+        FIREBIRD_DEBUG("  Statement allocated, m_stmt=%p", (void*)m_stmt);
 
         // Allocate output SQLDA
         FIREBIRD_DEBUG("  Allocating output SQLDA...");
@@ -82,14 +82,14 @@ namespace cpp_dbc::Firebird
         m_outputSqlda.reset(outputSqlda);
 
         // Prepare the statement
-        FIREBIRD_DEBUG("  Preparing statement with SQL: " << m_sql);
-        FIREBIRD_DEBUG("  m_trPtr=" << m_trPtr << ", *m_trPtr=" << (m_trPtr ? *m_trPtr : 0));
+        FIREBIRD_DEBUG("  Preparing statement with SQL: %s", m_sql.c_str());
+        FIREBIRD_DEBUG("  m_trPtr=%p, *m_trPtr=%ld", (void*)m_trPtr, (m_trPtr ? (long)*m_trPtr : 0L));
         if (isc_dsql_prepare(status, m_trPtr, &m_stmt, 0, m_sql.c_str(), SQL_DIALECT_V6, m_outputSqlda.get()))
         {
             // Save the error message BEFORE calling any other Firebird API functions
             // because they will overwrite the status vector
             std::string errorMsg = interpretStatusVector(status);
-            FIREBIRD_DEBUG("  Failed to prepare statement: " << errorMsg);
+            FIREBIRD_DEBUG("  Failed to prepare statement: %s", errorMsg.c_str());
             m_outputSqlda.reset();
             ISC_STATUS_ARRAY freeStatus; // Use separate status array for cleanup
             isc_dsql_free_statement(freeStatus, &m_stmt, DSQL_drop);
@@ -97,13 +97,13 @@ namespace cpp_dbc::Firebird
             throw DBException("F4A0B6C2D9E5", "Failed to prepare statement: " + errorMsg,
                               system_utils::captureCallStack());
         }
-        FIREBIRD_DEBUG("  Statement prepared, m_stmt=" << m_stmt << ", output columns=" << m_outputSqlda->sqld);
+        FIREBIRD_DEBUG("  Statement prepared, m_stmt=%p, output columns=%d", (void*)m_stmt, (int)m_outputSqlda->sqld);
 
         // Reallocate output SQLDA if needed
         if (m_outputSqlda->sqld > m_outputSqlda->sqln)
         {
             int n = m_outputSqlda->sqld;
-            FIREBIRD_DEBUG("  Reallocating output SQLDA for " << n << " columns");
+            FIREBIRD_DEBUG("  Reallocating output SQLDA for %d columns", n);
             XSQLDA *newOutputSqlda = reinterpret_cast<XSQLDA *>(malloc(XSQLDA_LENGTH(n)));
             newOutputSqlda->sqln = static_cast<short>(n);
             newOutputSqlda->version = SQLDA_VERSION1;
@@ -111,7 +111,7 @@ namespace cpp_dbc::Firebird
 
             if (isc_dsql_describe(status, &m_stmt, SQL_DIALECT_V6, m_outputSqlda.get()))
             {
-                FIREBIRD_DEBUG("  Failed to describe statement: " << interpretStatusVector(status));
+                FIREBIRD_DEBUG("  Failed to describe statement: %s", interpretStatusVector(status).c_str());
                 throw DBException("A5B1C7D3E0F6", "Failed to describe statement: " + interpretStatusVector(status),
                                   system_utils::captureCallStack());
             }
@@ -122,7 +122,7 @@ namespace cpp_dbc::Firebird
         allocateInputSqlda();
 
         m_prepared = true;
-        FIREBIRD_DEBUG("FirebirdPreparedStatement::prepareStatement - Done, m_stmt=" << m_stmt);
+        FIREBIRD_DEBUG("FirebirdPreparedStatement::prepareStatement - Done, m_stmt=%p", (void*)m_stmt);
     }
 
     void FirebirdDBPreparedStatement::allocateInputSqlda()
@@ -229,16 +229,16 @@ namespace cpp_dbc::Firebird
     {
 #endif
         FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Creating statement");
-        FIREBIRD_DEBUG("  SQL: " << sql);
-        FIREBIRD_DEBUG("  trPtr: " << trPtr << ", *trPtr: " << (trPtr ? *trPtr : 0));
+        FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
+        FIREBIRD_DEBUG("  trPtr: %p, *trPtr: %ld", (void*)trPtr, (trPtr ? (long)*trPtr : 0L));
         prepareStatement();
         m_closed = false;
-        FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Done, m_stmt=" << m_stmt);
+        FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Done, m_stmt=%p", (void*)m_stmt);
     }
 
     FirebirdDBPreparedStatement::~FirebirdDBPreparedStatement()
     {
-        FIREBIRD_DEBUG("FirebirdPreparedStatement::destructor - Destroying statement, m_stmt=" << m_stmt);
+        FIREBIRD_DEBUG("FirebirdPreparedStatement::destructor - Destroying statement, m_stmt=%p", (void*)m_stmt);
         close();
         FIREBIRD_DEBUG("FirebirdPreparedStatement::destructor - Done");
     }

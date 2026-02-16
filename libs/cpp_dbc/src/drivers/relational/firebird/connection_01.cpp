@@ -51,10 +51,10 @@ namespace cpp_dbc::Firebird
 #endif
     {
         FIREBIRD_DEBUG("FirebirdConnection::constructor - Starting");
-        FIREBIRD_DEBUG("  host: " << host);
-        FIREBIRD_DEBUG("  port: " << port);
-        FIREBIRD_DEBUG("  database: " << database);
-        FIREBIRD_DEBUG("  user: " << user);
+        FIREBIRD_DEBUG("  host: %s", host.c_str());
+        FIREBIRD_DEBUG("  port: %d", port);
+        FIREBIRD_DEBUG("  database: %s", database.c_str());
+        FIREBIRD_DEBUG("  user: %s", user.c_str());
 
         ISC_STATUS_ARRAY status;
 
@@ -70,7 +70,7 @@ namespace cpp_dbc::Firebird
             connStr += ":";
         }
         connStr += database;
-        FIREBIRD_DEBUG("  Connection string: " << connStr);
+        FIREBIRD_DEBUG("  Connection string: %s", connStr.c_str());
 
         // Build DPB (Database Parameter Block)
         std::vector<char> dpb;
@@ -106,12 +106,12 @@ namespace cpp_dbc::Firebird
                                 static_cast<short>(dpb.size()), dpb.data()))
         {
             std::string errorMsg = interpretStatusVector(status);
-            FIREBIRD_DEBUG("  Failed to attach: " << errorMsg);
+            FIREBIRD_DEBUG("  Failed to attach: %s", errorMsg.c_str());
             delete dbHandle;
             throw DBException("FB7A8B9C0D1E", "Failed to connect to database: " + errorMsg,
                               system_utils::captureCallStack());
         }
-        FIREBIRD_DEBUG("  Attached successfully, dbHandle=" << dbHandle << ", *dbHandle=" << *dbHandle);
+        FIREBIRD_DEBUG("  Attached successfully, dbHandle=%p, *dbHandle=%p", (void*)dbHandle, (void*)(uintptr_t)*dbHandle);
 
         // Create shared_ptr with custom deleter
         m_db = std::shared_ptr<isc_db_handle>(dbHandle, FirebirdDbDeleter{});
@@ -122,7 +122,7 @@ namespace cpp_dbc::Firebird
         m_closed = false;
 
         // Start initial transaction if autocommit is enabled
-        FIREBIRD_DEBUG("  m_autoCommit: " << (m_autoCommit ? "true" : "false"));
+        FIREBIRD_DEBUG("  m_autoCommit: %s", (m_autoCommit ? "true" : "false"));
         if (m_autoCommit)
         {
             FIREBIRD_DEBUG("  Starting initial transaction...");
@@ -171,7 +171,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBConnection::startTransaction()
     {
         FIREBIRD_DEBUG("FirebirdConnection::startTransaction - Starting");
-        FIREBIRD_DEBUG("  m_tr: " << m_tr);
+        FIREBIRD_DEBUG("  m_tr: %ld", (long)m_tr);
 
         if (m_tr)
         {
@@ -211,23 +211,23 @@ namespace cpp_dbc::Firebird
         tpb.push_back(isc_tpb_wait);
 
         FIREBIRD_DEBUG("  Calling isc_start_transaction...");
-        FIREBIRD_DEBUG("    m_db.get()=" << m_db.get() << ", *m_db.get()=" << (m_db.get() ? *m_db.get() : 0));
+        FIREBIRD_DEBUG("    m_db.get()=%p, *m_db.get()=%p", (void*)m_db.get(), (void*)(uintptr_t)(m_db.get() ? *m_db.get() : 0));
         if (isc_start_transaction(status, &m_tr, 1, m_db.get(),
                                   static_cast<unsigned short>(tpb.size()), tpb.data()))
         {
             std::string errorMsg = interpretStatusVector(status);
-            FIREBIRD_DEBUG("  Failed to start transaction: " << errorMsg);
+            FIREBIRD_DEBUG("  Failed to start transaction: %s", errorMsg.c_str());
             throw DBException("FB8B9C0D1E2F", "Failed to start transaction: " + errorMsg,
                               system_utils::captureCallStack());
         }
 
         m_transactionActive = true;
-        FIREBIRD_DEBUG("FirebirdConnection::startTransaction - Done, m_tr=" << m_tr);
+        FIREBIRD_DEBUG("FirebirdConnection::startTransaction - Done, m_tr=%ld", (long)m_tr);
     }
 
     void FirebirdDBConnection::endTransaction(bool commit)
     {
-        FIREBIRD_DEBUG("FirebirdConnection::endTransaction - Starting, commit=" << (commit ? "true" : "false"));
+        FIREBIRD_DEBUG("FirebirdConnection::endTransaction - Starting, commit=%s", (commit ? "true" : "false"));
         if (!m_tr)
         {
             FIREBIRD_DEBUG("  No active transaction (m_tr=0), returning");
@@ -244,10 +244,10 @@ namespace cpp_dbc::Firebird
 
         if (commit)
         {
-            FIREBIRD_DEBUG("  Calling isc_commit_transaction, m_tr=" << m_tr);
+            FIREBIRD_DEBUG("  Calling isc_commit_transaction, m_tr=%ld", (long)m_tr);
             if (isc_commit_transaction(status, &m_tr))
             {
-                FIREBIRD_DEBUG("  isc_commit_transaction failed: " << interpretStatusVector(status));
+                FIREBIRD_DEBUG("  isc_commit_transaction failed: %s", interpretStatusVector(status).c_str());
                 throw DBException("FB9C0D1E2F3A", "Failed to commit transaction: " + interpretStatusVector(status),
                                   system_utils::captureCallStack());
             }
@@ -255,10 +255,10 @@ namespace cpp_dbc::Firebird
         }
         else
         {
-            FIREBIRD_DEBUG("  Calling isc_rollback_transaction, m_tr=" << m_tr);
+            FIREBIRD_DEBUG("  Calling isc_rollback_transaction, m_tr=%ld", (long)m_tr);
             if (isc_rollback_transaction(status, &m_tr))
             {
-                FIREBIRD_DEBUG("  isc_rollback_transaction failed: " << interpretStatusVector(status));
+                FIREBIRD_DEBUG("  isc_rollback_transaction failed: %s", interpretStatusVector(status).c_str());
                 throw DBException("FB0D1E2F3A4B", "Failed to rollback transaction: " + interpretStatusVector(status),
                                   system_utils::captureCallStack());
             }
@@ -299,7 +299,7 @@ namespace cpp_dbc::Firebird
             }
         }
         m_activeResultSets.clear();
-        FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets - Closed " << closedCount << " result sets");
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets - Closed %d result sets", closedCount);
     }
 
     void FirebirdDBConnection::closeAllActivePreparedStatements()
@@ -339,7 +339,7 @@ namespace cpp_dbc::Firebird
             }
         }
 
-        FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements - Invalidated " << invalidatedCount << " prepared statements");
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements - Invalidated %d prepared statements", invalidatedCount);
     }
 
     void FirebirdDBConnection::prepareForPoolReturn()
@@ -496,9 +496,9 @@ namespace cpp_dbc::Firebird
     void FirebirdDBConnection::returnToPool()
     {
         FIREBIRD_DEBUG("FirebirdConnection::returnToPool - Starting");
-        FIREBIRD_DEBUG("  m_transactionActive: " << (m_transactionActive ? "true" : "false"));
-        FIREBIRD_DEBUG("  m_autoCommit: " << (m_autoCommit ? "true" : "false"));
-        FIREBIRD_DEBUG("  m_tr: " << m_tr);
+        FIREBIRD_DEBUG("  m_transactionActive: %s", (m_transactionActive ? "true" : "false"));
+        FIREBIRD_DEBUG("  m_autoCommit: %s", (m_autoCommit ? "true" : "false"));
+        FIREBIRD_DEBUG("  m_tr: %ld", (long)m_tr);
 
         // NOTE: We don't call closeAllActiveResultSets() here because it's already
         // called in endTransaction() which will be invoked by commit()/rollback()
@@ -562,7 +562,7 @@ namespace cpp_dbc::Firebird
             }
         }
 
-        FIREBIRD_DEBUG("FirebirdConnection::returnToPool - Done, m_tr=" << m_tr);
+        FIREBIRD_DEBUG("FirebirdConnection::returnToPool - Done, m_tr=%ld", (long)m_tr);
     }
 
     bool FirebirdDBConnection::isPooled()

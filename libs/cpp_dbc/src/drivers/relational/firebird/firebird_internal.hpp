@@ -23,6 +23,8 @@
 
 #include <mutex>
 #include <iostream>
+#include <cstdio>
+#include "cpp_dbc/common/system_utils.hpp"
 
 // Thread-safety macros for conditional mutex locking
 // Using recursive_mutex to allow the same thread to acquire the lock multiple times
@@ -37,11 +39,19 @@
 #define DB_DRIVER_UNIQUE_LOCK(mutex) (void)0
 #endif
 
-// Debug macro for Firebird driver
+// Debug output is controlled by -DDEBUG_FIREBIRD=1 or -DDEBUG_ALL=1 CMake option
 #if (defined(DEBUG_FIREBIRD) && DEBUG_FIREBIRD) || (defined(DEBUG_ALL) && DEBUG_ALL)
-#define FIREBIRD_DEBUG(x) std::cout << "[Firebird] " << x << std::endl
+#define FIREBIRD_DEBUG(format, ...)                                                    \
+    do                                                                                  \
+    {                                                                                   \
+        char debug_buffer[1024];                                                        \
+        std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__);       \
+        cpp_dbc::system_utils::safePrint(                                               \
+            "[Firebird] [" + cpp_dbc::system_utils::currentTimeMillis() + "] [" + cpp_dbc::system_utils::getThreadId() + "]", \
+            debug_buffer);                                                              \
+    } while (0)
 #else
-#define FIREBIRD_DEBUG(x)
+#define FIREBIRD_DEBUG(...) ((void)0)
 #endif
 
 #endif // USE_FIREBIRD

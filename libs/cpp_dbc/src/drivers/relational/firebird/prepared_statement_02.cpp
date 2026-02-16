@@ -61,19 +61,19 @@ namespace cpp_dbc::Firebird
             XSQLVAR *var = &m_inputSqlda->sqlvar[idx];
             short sqlType = var->sqltype & ~1;
 
-            FIREBIRD_DEBUG("setDouble: parameterIndex=" << parameterIndex << ", value=" << value);
-            FIREBIRD_DEBUG("  sqlType=" << sqlType << ", sqlscale=" << var->sqlscale << ", sqllen=" << var->sqllen);
+            FIREBIRD_DEBUG("setDouble: parameterIndex=%d, value=%f", parameterIndex, value);
+            FIREBIRD_DEBUG("  sqlType=%d, sqlscale=%d, sqllen=%d", (int)sqlType, (int)var->sqlscale, (int)var->sqllen);
 
             // Handle DECIMAL/NUMERIC types which are stored as scaled integers
             if (var->sqlscale < 0)
             {
                 double scaleFactor = std::pow(10.0, -var->sqlscale);
-                FIREBIRD_DEBUG("  DECIMAL type detected, scaleFactor=" << scaleFactor);
+                FIREBIRD_DEBUG("  DECIMAL type detected, scaleFactor=%f", scaleFactor);
 
                 if (sqlType == SQL_SHORT)
                 {
                     short scaledValue = static_cast<short>(std::round(value * scaleFactor));
-                    FIREBIRD_DEBUG("  SQL_SHORT: scaledValue=" << scaledValue);
+                    FIREBIRD_DEBUG("  SQL_SHORT: scaledValue=%d", (int)scaledValue);
                     if (m_paramBuffers[idx].size() < sizeof(short))
                     {
                         m_paramBuffers[idx].resize(sizeof(short), 0);
@@ -85,7 +85,7 @@ namespace cpp_dbc::Firebird
                 else if (sqlType == SQL_LONG)
                 {
                     ISC_LONG scaledValue = static_cast<ISC_LONG>(std::round(value * scaleFactor));
-                    FIREBIRD_DEBUG("  SQL_LONG: scaledValue=" << scaledValue);
+                    FIREBIRD_DEBUG("  SQL_LONG: scaledValue=%ld", (long)scaledValue);
                     if (m_paramBuffers[idx].size() < sizeof(ISC_LONG))
                     {
                         m_paramBuffers[idx].resize(sizeof(ISC_LONG), 0);
@@ -97,7 +97,7 @@ namespace cpp_dbc::Firebird
                 else if (sqlType == SQL_INT64)
                 {
                     ISC_INT64 scaledValue = static_cast<ISC_INT64>(std::round(value * scaleFactor));
-                    FIREBIRD_DEBUG("  SQL_INT64: scaledValue=" << scaledValue);
+                    FIREBIRD_DEBUG("  SQL_INT64: scaledValue=%lld", (long long)scaledValue);
                     if (m_paramBuffers[idx].size() < sizeof(ISC_INT64))
                     {
                         m_paramBuffers[idx].resize(sizeof(ISC_INT64), 0);
@@ -115,12 +115,12 @@ namespace cpp_dbc::Firebird
             else if (sqlType == SQL_FLOAT)
             {
                 float floatValue = static_cast<float>(value);
-                FIREBIRD_DEBUG("  SQL_FLOAT: floatValue=" << floatValue);
+                FIREBIRD_DEBUG("  SQL_FLOAT: floatValue=%f", (double)floatValue);
                 setParameter(parameterIndex, &floatValue, sizeof(float), SQL_FLOAT);
             }
             else
             {
-                FIREBIRD_DEBUG("  SQL_DOUBLE: value=" << value);
+                FIREBIRD_DEBUG("  SQL_DOUBLE: value=%f", value);
                 setParameter(parameterIndex, &value, sizeof(double), SQL_DOUBLE);
             }
             return {};
@@ -164,7 +164,7 @@ namespace cpp_dbc::Firebird
             // Handle BLOB type - convert string to BLOB
             if (sqlType == SQL_BLOB)
             {
-                FIREBIRD_DEBUG("setString: parameterIndex=" << parameterIndex << " is BLOB type, converting to BLOB");
+                FIREBIRD_DEBUG("setString: parameterIndex=%d is BLOB type, converting to BLOB", parameterIndex);
                 // Convert string to bytes and use setBytes
                 std::vector<uint8_t> data(value.begin(), value.end());
 

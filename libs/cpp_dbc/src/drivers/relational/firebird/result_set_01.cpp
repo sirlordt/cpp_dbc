@@ -60,18 +60,18 @@ namespace cpp_dbc::Firebird
     {
 #endif
         FIREBIRD_DEBUG("FirebirdResultSet::constructor - Creating ResultSet");
-        FIREBIRD_DEBUG("  ownStatement: " << (ownStatement ? "true" : "false"));
-        FIREBIRD_DEBUG("  m_stmt valid: " << (m_stmt ? "yes" : "no"));
+        FIREBIRD_DEBUG("  ownStatement: %s", (ownStatement ? "true" : "false"));
+        FIREBIRD_DEBUG("  m_stmt valid: %s", (m_stmt ? "yes" : "no"));
         if (m_stmt)
         {
-            FIREBIRD_DEBUG("  m_stmt handle value: " << *m_stmt);
+            FIREBIRD_DEBUG("  m_stmt handle value: %p", (void*)(uintptr_t)*m_stmt);
         }
-        FIREBIRD_DEBUG("  m_sqlda valid: " << (m_sqlda ? "yes" : "no"));
+        FIREBIRD_DEBUG("  m_sqlda valid: %s", (m_sqlda ? "yes" : "no"));
 
         if (m_sqlda)
         {
             m_fieldCount = static_cast<size_t>(m_sqlda->sqld);
-            FIREBIRD_DEBUG("  Field count: " << m_fieldCount);
+            FIREBIRD_DEBUG("  Field count: %zu", m_fieldCount);
             initializeColumns();
         }
         m_closed = false;
@@ -121,7 +121,9 @@ namespace cpp_dbc::Firebird
             }
             m_columnNames.push_back(colName);
             m_columnMap[colName] = i;
-            FIREBIRD_DEBUG("  Column " << i << ": " << colName << " (raw_sqltype=" << var->sqltype << ", type=" << (var->sqltype & ~1) << ", nullable=" << (var->sqltype & 1) << ", len=" << var->sqllen << ", scale=" << var->sqlscale << ")");
+            FIREBIRD_DEBUG("  Column %zu: %s (raw_sqltype=%d, type=%d, nullable=%d, len=%d, scale=%d)",
+                i, colName.c_str(), (int)var->sqltype, (int)(var->sqltype & ~1),
+                (int)(var->sqltype & 1), (int)var->sqllen, (int)var->sqlscale);
 
             // Allocate buffer for data
             size_t bufferSize = static_cast<size_t>(var->sqllen);
@@ -137,21 +139,22 @@ namespace cpp_dbc::Firebird
             m_dataBuffers[i].resize(bufferSize + 1, 0);
             var->sqldata = m_dataBuffers[i].data();
             var->sqlind = &m_nullIndicators[i];
-            FIREBIRD_DEBUG("    Buffer " << i << ": size=" << bufferSize << ", sqldata=" << static_cast<void *>(var->sqldata) << ", sqlind=" << static_cast<void *>(var->sqlind) << ", *sqlind=" << *var->sqlind);
+            FIREBIRD_DEBUG("    Buffer %zu: size=%zu, sqldata=%p, sqlind=%p, *sqlind=%d",
+                i, bufferSize, (void*)var->sqldata, (void*)var->sqlind, (int)*var->sqlind);
         }
         FIREBIRD_DEBUG("FirebirdResultSet::initializeColumns - Done");
     }
 
     std::string FirebirdDBResultSet::getColumnValue(size_t columnIndex) const
     {
-        FIREBIRD_DEBUG("getColumnValue: columnIndex=" << columnIndex << ", m_fieldCount=" << m_fieldCount);
+        FIREBIRD_DEBUG("getColumnValue: columnIndex=%zu, m_fieldCount=%zu", columnIndex, m_fieldCount);
         if (columnIndex >= m_fieldCount)
         {
             throw DBException("A7B3C9D2E5F1", "Column index out of range: " + std::to_string(columnIndex),
                               system_utils::captureCallStack());
         }
 
-        FIREBIRD_DEBUG("  nullIndicator=" << m_nullIndicators[columnIndex]);
+        FIREBIRD_DEBUG("  nullIndicator=%d", (int)m_nullIndicators[columnIndex]);
         if (m_nullIndicators[columnIndex] < 0)
         {
             FIREBIRD_DEBUG("  returning empty (NULL)");
@@ -160,8 +163,8 @@ namespace cpp_dbc::Firebird
 
         XSQLVAR *var = &m_sqlda->sqlvar[columnIndex];
         short sqlType = var->sqltype & ~1;
-        FIREBIRD_DEBUG("  sqlType=" << sqlType << ", sqllen=" << var->sqllen << ", sqlscale=" << var->sqlscale);
-        FIREBIRD_DEBUG("  sqldata=" << static_cast<void *>(var->sqldata));
+        FIREBIRD_DEBUG("  sqlType=%d, sqllen=%d, sqlscale=%d", (int)sqlType, (int)var->sqllen, (int)var->sqlscale);
+        FIREBIRD_DEBUG("  sqldata=%p", (void*)var->sqldata);
 
         switch (sqlType)
         {
@@ -197,15 +200,12 @@ namespace cpp_dbc::Firebird
         case SQL_INT64:
         {
             ISC_INT64 value = *reinterpret_cast<ISC_INT64 *>(var->sqldata);
-            FIREBIRD_DEBUG("getColumnValue SQL_INT64: columnIndex=" << columnIndex
-                                                                    << ", sqldata=" << static_cast<void *>(var->sqldata)
-                                                                    << ", sqllen=" << var->sqllen
-                                                                    << ", sqlscale=" << var->sqlscale
-                                                                    << ", raw_value=" << value);
+            FIREBIRD_DEBUG("getColumnValue SQL_INT64: columnIndex=%zu, sqldata=%p, sqllen=%d, sqlscale=%d, raw_value=%lld",
+                columnIndex, (void*)var->sqldata, (int)var->sqllen, (int)var->sqlscale, (long long)value);
             if (var->sqlscale < 0)
             {
                 double scaled = static_cast<double>(value) / std::pow(10.0, -var->sqlscale);
-                FIREBIRD_DEBUG("  scaled_value=" << scaled);
+                FIREBIRD_DEBUG("  scaled_value=%f", scaled);
                 return std::to_string(scaled);
             }
             return std::to_string(value);

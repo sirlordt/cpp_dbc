@@ -47,7 +47,7 @@ namespace cpp_dbc::Firebird
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("FirebirdConnection::executeUpdate(nothrow) - Starting");
-            FIREBIRD_DEBUG("  SQL: " << sql);
+            FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
 
             // Check if this is a CREATE DATABASE statement
             // CREATE DATABASE requires special handling with isc_dsql_execute_immediate
@@ -106,7 +106,7 @@ namespace cpp_dbc::Firebird
                     }
                     catch (const DBException &e)
                     {
-                        FIREBIRD_DEBUG("  Commit before DDL failed: " << e.what());
+                        FIREBIRD_DEBUG("  Commit before DDL failed: %s", e.what());
                         return cpp_dbc::unexpected(e);
                     }
                 }
@@ -156,8 +156,8 @@ namespace cpp_dbc::Firebird
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("FirebirdConnection::setAutoCommit(nothrow) - Starting");
-            FIREBIRD_DEBUG("  Current autoCommit: " << (m_autoCommit ? "true" : "false"));
-            FIREBIRD_DEBUG("  New autoCommit: " << (autoCommit ? "true" : "false"));
+            FIREBIRD_DEBUG("  Current autoCommit: %s", (m_autoCommit ? "true" : "false"));
+            FIREBIRD_DEBUG("  New autoCommit: %s", (autoCommit ? "true" : "false"));
 
             if (m_autoCommit == autoCommit)
             {
@@ -181,7 +181,7 @@ namespace cpp_dbc::Firebird
             }
 
             m_autoCommit = autoCommit;
-            FIREBIRD_DEBUG("  AutoCommit set to: " << (m_autoCommit ? "true" : "false"));
+            FIREBIRD_DEBUG("  AutoCommit set to: %s", (m_autoCommit ? "true" : "false"));
 
             if (m_autoCommit && !m_tr)
             {
@@ -193,7 +193,7 @@ namespace cpp_dbc::Firebird
                 }
                 catch (const DBException &e)
                 {
-                    FIREBIRD_DEBUG("  startTransaction failed: " << e.what());
+                    FIREBIRD_DEBUG("  startTransaction failed: %s", e.what());
                     return cpp_dbc::unexpected(e);
                 }
             }
@@ -224,7 +224,7 @@ namespace cpp_dbc::Firebird
         {
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            FIREBIRD_DEBUG("FirebirdConnection::getAutoCommit(nothrow) - Returning " << (m_autoCommit ? "true" : "false"));
+            FIREBIRD_DEBUG("FirebirdConnection::getAutoCommit(nothrow) - Returning %s", (m_autoCommit ? "true" : "false"));
             return m_autoCommit;
         }
         catch (const DBException &e)
@@ -249,15 +249,15 @@ namespace cpp_dbc::Firebird
         try
         {
             FIREBIRD_DEBUG("FirebirdConnection::beginTransaction(nothrow) - Starting");
-            FIREBIRD_DEBUG("  m_autoCommit before: " << (m_autoCommit ? "true" : "false"));
-            FIREBIRD_DEBUG("  m_transactionActive: " << (m_transactionActive ? "true" : "false"));
+            FIREBIRD_DEBUG("  m_autoCommit before: %s", (m_autoCommit ? "true" : "false"));
+            FIREBIRD_DEBUG("  m_transactionActive: %s", (m_transactionActive ? "true" : "false"));
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             // Disable autocommit when beginning a manual transaction
             // This prevents executeUpdate from auto-committing
             m_autoCommit = false;
-            FIREBIRD_DEBUG("  m_autoCommit after: " << (m_autoCommit ? "true" : "false"));
+            FIREBIRD_DEBUG("  m_autoCommit after: %s", (m_autoCommit ? "true" : "false"));
 
             // If transaction is already active, just return true (like MySQL)
             if (m_transactionActive)
@@ -300,7 +300,7 @@ namespace cpp_dbc::Firebird
         {
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            FIREBIRD_DEBUG("FirebirdConnection::transactionActive(nothrow) - Returning " << (m_transactionActive ? "true" : "false"));
+            FIREBIRD_DEBUG("FirebirdConnection::transactionActive(nothrow) - Returning %s", (m_transactionActive ? "true" : "false"));
             return m_transactionActive;
         }
         catch (const DBException &e)
@@ -405,8 +405,8 @@ namespace cpp_dbc::Firebird
         try
         {
             FIREBIRD_DEBUG("FirebirdConnection::setTransactionIsolation(nothrow) - Starting");
-            FIREBIRD_DEBUG("  Current level: " << static_cast<int>(m_isolationLevel));
-            FIREBIRD_DEBUG("  New level: " << static_cast<int>(level));
+            FIREBIRD_DEBUG("  Current level: %d", static_cast<int>(m_isolationLevel));
+            FIREBIRD_DEBUG("  New level: %d", static_cast<int>(level));
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
@@ -437,7 +437,7 @@ namespace cpp_dbc::Firebird
             }
 
             m_isolationLevel = level;
-            FIREBIRD_DEBUG("  Isolation level set to: " << static_cast<int>(m_isolationLevel));
+            FIREBIRD_DEBUG("  Isolation level set to: %d", static_cast<int>(m_isolationLevel));
 
             // Restart the transaction if we had one active and autocommit is on
             if (hadActiveTransaction && m_autoCommit)
@@ -449,7 +449,7 @@ namespace cpp_dbc::Firebird
                 }
                 catch (const DBException &e)
                 {
-                    FIREBIRD_DEBUG("  Failed to restart transaction: " << e.what());
+                    FIREBIRD_DEBUG("  Failed to restart transaction: %s", e.what());
                     return cpp_dbc::unexpected(e);
                 }
             }
@@ -480,7 +480,7 @@ namespace cpp_dbc::Firebird
         {
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            FIREBIRD_DEBUG("FirebirdConnection::getTransactionIsolation(nothrow) - Returning " << static_cast<int>(m_isolationLevel));
+            FIREBIRD_DEBUG("FirebirdConnection::getTransactionIsolation(nothrow) - Returning %d", static_cast<int>(m_isolationLevel));
             return m_isolationLevel;
         }
         catch (const DBException &e)

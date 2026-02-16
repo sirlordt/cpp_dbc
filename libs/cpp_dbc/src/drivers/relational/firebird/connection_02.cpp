@@ -38,8 +38,8 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBConnection::beginTransaction()
     {
         FIREBIRD_DEBUG("FirebirdConnection::beginTransaction - Starting");
-        FIREBIRD_DEBUG("  m_autoCommit before: " << (m_autoCommit ? "true" : "false"));
-        FIREBIRD_DEBUG("  m_transactionActive: " << (m_transactionActive ? "true" : "false"));
+        FIREBIRD_DEBUG("  m_autoCommit before: %s", (m_autoCommit ? "true" : "false"));
+        FIREBIRD_DEBUG("  m_transactionActive: %s", (m_transactionActive ? "true" : "false"));
 
         DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
@@ -48,7 +48,7 @@ namespace cpp_dbc::Firebird
         // IMPORTANT: Must be done BEFORE checking m_transactionActive
         // because in Firebird, a transaction is always active (started in constructor)
         m_autoCommit = false;
-        FIREBIRD_DEBUG("  m_autoCommit after: " << (m_autoCommit ? "true" : "false"));
+        FIREBIRD_DEBUG("  m_autoCommit after: %s", (m_autoCommit ? "true" : "false"));
 
         // If transaction is already active, just return true (like MySQL)
         if (m_transactionActive)
@@ -156,7 +156,7 @@ namespace cpp_dbc::Firebird
     uint64_t FirebirdDBConnection::executeCreateDatabase(const std::string &sql)
     {
         FIREBIRD_DEBUG("FirebirdConnection::executeCreateDatabase - Starting");
-        FIREBIRD_DEBUG("  SQL: " << sql);
+        FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
 
         ISC_STATUS_ARRAY status;
         isc_db_handle db = 0;
@@ -167,7 +167,7 @@ namespace cpp_dbc::Firebird
         if (isc_dsql_execute_immediate(status, &db, &tr, 0, sql.c_str(), SQL_DIALECT_V6, nullptr))
         {
             std::string errorMsg = interpretStatusVector(status);
-            FIREBIRD_DEBUG("  Failed to create database or schema: " << errorMsg);
+            FIREBIRD_DEBUG("  Failed to create database or schema: %s", errorMsg.c_str());
             throw DBException("G8H4I0J6K2L8", "Failed to create database/schema: " + errorMsg,
                               system_utils::captureCallStack());
         }
@@ -195,9 +195,9 @@ namespace cpp_dbc::Firebird
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("FirebirdConnection::prepareStatement(nothrow) - Starting");
-            FIREBIRD_DEBUG("  SQL: " << sql);
-            FIREBIRD_DEBUG("  m_closed: " << (m_closed ? "true" : "false"));
-            FIREBIRD_DEBUG("  m_tr: " << m_tr);
+            FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
+            FIREBIRD_DEBUG("  m_closed: %s", (m_closed ? "true" : "false"));
+            FIREBIRD_DEBUG("  m_tr: %ld", (long)m_tr);
 
             if (m_closed)
             {
@@ -216,8 +216,8 @@ namespace cpp_dbc::Firebird
             }
 
             FIREBIRD_DEBUG("  Creating FirebirdDBPreparedStatement...");
-            FIREBIRD_DEBUG("    m_db.get()=" << m_db.get() << ", *m_db.get()=" << (m_db.get() ? *m_db.get() : 0));
-            FIREBIRD_DEBUG("    &m_tr=" << &m_tr << ", m_tr=" << m_tr);
+            FIREBIRD_DEBUG("    m_db.get()=%p, *m_db.get()=%ld", (void*)m_db.get(), (m_db.get() ? (long)*m_db.get() : 0L));
+            FIREBIRD_DEBUG("    &m_tr=%p, m_tr=%ld", (void*)&m_tr, (long)m_tr);
 #if DB_DRIVER_THREAD_SAFE
             auto stmt = std::make_shared<FirebirdDBPreparedStatement>(
                 std::weak_ptr<isc_db_handle>(m_db), &m_tr, sql, m_connMutex, shared_from_this());
@@ -251,7 +251,7 @@ namespace cpp_dbc::Firebird
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
             FIREBIRD_DEBUG("FirebirdConnection::executeQuery(nothrow) - Starting");
-            FIREBIRD_DEBUG("  SQL: " << sql);
+            FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
 
             // First, prepare the statement using the nothrow version
             auto stmtResult = prepareStatement(std::nothrow, sql);

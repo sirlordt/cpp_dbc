@@ -55,13 +55,13 @@ TEST_CASE("Firebird connection test", "[23_041_01_firebird_real_connection]")
         try
         {
             // Attempt to connect to Firebird
-            std::cout << "Attempting to connect to Firebird with connection string: " << connStr << std::endl;
-            std::cout << "Username: " << username << ", Password: " << password << std::endl;
+            cpp_dbc::system_utils::safePrint("[TEST]", "Attempting to connect to Firebird with connection string: " + connStr);
+            cpp_dbc::system_utils::safePrint("[TEST]", "Username: " + username + ", Password: " + password);
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // If we get here, the connection was successful
-            std::cout << "Firebird connection succeeded!" << std::endl;
+            cpp_dbc::system_utils::safePrint("[TEST]", "Firebird connection succeeded!");
 
             // Execute a simple query to verify the connection
             // Firebird uses RDB$DATABASE for simple queries
@@ -77,7 +77,7 @@ TEST_CASE("Firebird connection test", "[23_041_01_firebird_real_connection]")
         {
             // We expect an exception if the database doesn't exist
             std::string errorMsg = e.what_s();
-            std::cout << "Firebird connection error: " << errorMsg << std::endl;
+            cpp_dbc::system_utils::safePrint("[TEST]", "Firebird connection error: " + errorMsg);
 
             // Since we're just testing connectivity and driver registration,
             // we'll consider this a success if we get an error that indicates

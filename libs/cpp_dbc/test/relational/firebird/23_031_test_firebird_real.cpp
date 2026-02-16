@@ -216,7 +216,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
                         successCount++;
                     }
                     catch (const std::exception& e) {
-                        std::cout << "Thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::safePrint("[TEST]", "Thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
@@ -556,7 +556,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
                         conn_thread->returnToPool();
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "Thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::safePrint("[TEST]", "Thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
@@ -570,8 +570,8 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-        std::cout << "Firebird stress test completed in " << duration << " ms" << std::endl;
-        std::cout << "Operations per second: " << (numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)) << std::endl;
+        cpp_dbc::system_utils::safePrint("[TEST]", "Firebird stress test completed in " + std::to_string(duration) + " ms");
+        cpp_dbc::system_utils::safePrint("[TEST]", "Operations per second: " + std::to_string(numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)));
 
         // Verify that all operations were successful
         REQUIRE(successCount == numThreads * opsPerThread);

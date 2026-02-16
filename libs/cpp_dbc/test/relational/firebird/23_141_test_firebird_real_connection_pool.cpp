@@ -425,7 +425,7 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
                     }
                     catch (const std::exception& ex) {
                         failureCount++;
-                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
+                        cpp_dbc::system_utils::safePrint("[TEST]", "Load operation " + std::to_string(i) + " error: " + std::string(ex.what()));
                     } }));
             }
 
