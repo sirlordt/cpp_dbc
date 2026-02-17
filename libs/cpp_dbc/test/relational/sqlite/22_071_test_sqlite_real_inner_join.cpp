@@ -45,7 +45,7 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
     // Only cleanup if using file-based database (not :memory:)
     if (dbConfig.getDatabase() != ":memory:")
     {
-        sqlite_test_helpers::cleanupSQLiteTestFiles(dbConfig.getDatabase());
+        // sqlite_test_helpers::cleanupSQLiteTestFiles(dbConfig.getDatabase());
     }
 
     // Get connection string directly from the database config
@@ -60,6 +60,8 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
         cpp_dbc::system_utils::safePrint("[TEST]", "Attempting to connect to SQLite with connection string: " + connStr);
 
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
+
+        // std::this_thread::sleep_for(std::chrono::seconds(3));
 
         // Create test tables
         conn->executeUpdate("DROP TABLE IF EXISTS test_orders");

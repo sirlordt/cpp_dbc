@@ -39,7 +39,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("0Q4LMQ0ANYC8", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -114,13 +114,13 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("FHMW3W23EJ01", "Connection lost");
 
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeQuery(nothrow) - Starting");
             FIREBIRD_DEBUG("  m_closed: %s", (m_closed ? "true" : "false"));
-            FIREBIRD_DEBUG("  m_stmt: %p", (void*)m_stmt);
+            FIREBIRD_DEBUG("  m_stmt: %p", (void*)(uintptr_t)m_stmt);
 
-            if (m_closed)
+            if (m_closed.load(std::memory_order_acquire))
             {
                 FIREBIRD_DEBUG("  Statement is closed!");
                 return cpp_dbc::unexpected(DBException("D4E0F6A2B9C5", "Statement is closed", system_utils::captureCallStack()));
@@ -146,7 +146,7 @@ namespace cpp_dbc::Firebird
             // Execute the statement - now using conn->m_tr instead of m_trPtr
             FIREBIRD_DEBUG("  Executing statement with isc_dsql_execute...");
             FIREBIRD_DEBUG("    conn->m_tr=%ld", (long)conn->m_tr);
-            FIREBIRD_DEBUG("    &m_stmt=%p, m_stmt=%p", (void*)&m_stmt, (void*)m_stmt);
+            FIREBIRD_DEBUG("    &m_stmt=%p, m_stmt=%p", (void*)&m_stmt, (void*)(uintptr_t)m_stmt);
             if (isc_dsql_execute(status, &(conn->m_tr), &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
             {
                 std::string errorMsg = interpretStatusVector(status);
@@ -170,7 +170,7 @@ namespace cpp_dbc::Firebird
                 return cpp_dbc::unexpected(DBException("E5F1A7B3C0D6", "Failed to execute query: " + errorMsg,
                                                        system_utils::captureCallStack()));
             }
-            FIREBIRD_DEBUG("  Execute succeeded, m_stmt after execute=%p", (void*)m_stmt);
+            FIREBIRD_DEBUG("  Execute succeeded, m_stmt after execute=%p", (void*)(uintptr_t)m_stmt);
 
             // Allocate output SQLDA for results - need to copy and set up buffers
             int numCols = m_outputSqlda->sqld;
@@ -198,8 +198,8 @@ namespace cpp_dbc::Firebird
             // The ResultSet will own the statement and free it when closed
             // We set m_stmt to 0 so that PreparedStatement::close() won't try to free it
             FIREBIRD_DEBUG("  Transferring statement ownership to ResultSet");
-            FIREBIRD_DEBUG("    m_stmt value: " << m_stmt);
-            FIREBIRD_DEBUG("    &m_stmt address: " << &m_stmt);
+            FIREBIRD_DEBUG("    m_stmt value: %u", (unsigned)m_stmt);
+            FIREBIRD_DEBUG("    &m_stmt address: %p", (void*)&m_stmt);
 
             // Create a new handle with the statement value
             isc_stmt_handle *stmtPtr = new isc_stmt_handle(m_stmt);
@@ -207,23 +207,16 @@ namespace cpp_dbc::Firebird
 
             // Transfer ownership - set our m_stmt to 0 so we don't free it in close()
             m_stmt = 0;
-            FIREBIRD_DEBUG("    m_stmt after transfer: %p", (void*)m_stmt);
+            FIREBIRD_DEBUG("    m_stmt after transfer: %p", (void*)(uintptr_t)m_stmt);
 
             FirebirdStmtHandle stmtHandle(stmtPtr);
             XSQLDAHandle sqldaHandle(resultSqlda);
 
             // ownStatement = true means the ResultSet will free the statement when closed
             FIREBIRD_DEBUG("  Creating FirebirdResultSet with ownStatement=true");
-            // FIX #1: conn already locked at the beginning of method (line 137), just use it
-            // Pass the connection to the ResultSet so it can read BLOBs
-#if DB_DRIVER_THREAD_SAFE
-            // Pass shared mutex to ResultSet - required because Firebird uses cursor-based iteration
-            // where isc_dsql_fetch() and isc_dsql_free_statement() access the connection handle.
-            // Unlike MySQL/PostgreSQL where results are fully loaded into client memory.
-            auto resultSet = std::make_shared<FirebirdDBResultSet>(std::move(stmtHandle), std::move(sqldaHandle), true, conn, m_connMutex);
-#else
+            // ResultSet no longer receives m_connMutex as parameter
+            // It will access the mutex through m_connection when needed
             auto resultSet = std::make_shared<FirebirdDBResultSet>(std::move(stmtHandle), std::move(sqldaHandle), true, conn);
-#endif
 
             // Register the ResultSet with the connection for automatic cleanup
             if (conn)
@@ -254,11 +247,11 @@ namespace cpp_dbc::Firebird
         {
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate(nothrow) - Starting");
 
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("OVWWOPF0F4Y4", "Connection lost");
 
             FIREBIRD_DEBUG("  m_closed: %s", (m_closed ? "true" : "false"));
-            FIREBIRD_DEBUG("  m_stmt: %p", (void*)m_stmt);
-            if (m_closed)
+            FIREBIRD_DEBUG("  m_stmt: %p", (void*)(uintptr_t)m_stmt);
+            if (m_closed.load(std::memory_order_acquire))
             {
                 return cpp_dbc::unexpected(DBException("F6A2B8C4D1E7", "Statement is closed", system_utils::captureCallStack()));
             }
@@ -283,7 +276,7 @@ namespace cpp_dbc::Firebird
             // Execute the statement - now using conn->m_tr instead of m_trPtr
             FIREBIRD_DEBUG("  Calling isc_dsql_execute...");
             FIREBIRD_DEBUG("    conn->m_tr=%ld", (long)conn->m_tr);
-            FIREBIRD_DEBUG("    &m_stmt=%p, m_stmt=%p", (void*)&m_stmt, (void*)m_stmt);
+            FIREBIRD_DEBUG("    &m_stmt=%p, m_stmt=%p", (void*)&m_stmt, (void*)(uintptr_t)m_stmt);
             if (isc_dsql_execute(status, &(conn->m_tr), &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
             {
                 // Save the error message BEFORE calling any other Firebird API functions
@@ -291,20 +284,17 @@ namespace cpp_dbc::Firebird
                 std::string errorMsg = interpretStatusVector(status);
                 FIREBIRD_DEBUG("  isc_dsql_execute failed: %s", errorMsg.c_str());
 
-                // If autocommit is enabled, rollback the failed transaction and start a new one
-                // This ensures the connection is in a clean state for the next operation
-                // Note: conn already locked earlier, just check if autocommit is enabled
+                // If autocommit is enabled, rollback the failed statement using retaining mode.
+                // isc_rollback_retaining() discards the failed statement's changes but keeps
+                // the transaction handle (m_tr) alive, consistent with isc_commit_retaining()
+                // used on the success path. This avoids the heavy endTransaction() cycle
+                // (closeAllActiveResultSets + startTransaction) for a transient error.
                 if (conn->getAutoCommit())
                 {
-                    FIREBIRD_DEBUG("  AutoCommit is enabled, rolling back failed transaction");
-                    try
-                    {
-                        conn->rollback();
-                    }
-                    catch (...)
-                    {
-                        FIREBIRD_DEBUG("  Rollback failed, ignoring");
-                    }
+                    FIREBIRD_DEBUG("  AutoCommit is enabled, rolling back failed statement with isc_rollback_retaining()");
+                    ISC_STATUS_ARRAY rollbackStatus;
+                    isc_rollback_retaining(rollbackStatus, &conn->m_tr);
+                    FIREBIRD_DEBUG("  isc_rollback_retaining completed");
                 }
 
                 return cpp_dbc::unexpected(DBException("A7B3C9D5E2F8", "Failed to execute update: " + errorMsg,
@@ -321,13 +311,26 @@ namespace cpp_dbc::Firebird
             if (isc_dsql_sql_info(status, &m_stmt, sizeof(infoBuffer), infoBuffer, sizeof(resultBuffer), resultBuffer))
             {
                 FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate(nothrow) - Failed to get sql_info, checking autocommit");
-                // FIX #1: conn already locked at the beginning of method (line 274), just use it
-                // If autocommit is enabled, commit the transaction even if we can't get the count
                 if (conn && conn->getAutoCommit())
                 {
-                    FIREBIRD_DEBUG("  AutoCommit is enabled, calling commit()");
-                    conn->commit();
-                    FIREBIRD_DEBUG("  Commit completed");
+                    // Use isc_commit_retaining() instead of conn->commit() for autocommit mode.
+                    //
+                    // isc_commit_retaining() persists the data immediately (like a checkpoint)
+                    // BUT keeps the transaction handle (m_tr) alive and active. This means:
+                    //   - No need to close active ResultSets/cursors before committing
+                    //   - No need to call startTransaction() afterwards
+                    //   - No heavy endTransaction() cycle (closeAllActiveResultSets + sleep_for)
+                    //
+                    // This mirrors how SQLite handles autocommit: sqlite3_exec() persists data
+                    // atomically without a separate commit step or cursor lifecycle management.
+                    //
+                    // Contrast with autoCommit=false: when the user calls conn->commit()
+                    // explicitly, it goes through endTransaction(true) → isc_commit_transaction()
+                    // which properly terminates the transaction and starts a new one.
+                    FIREBIRD_DEBUG("  AutoCommit is enabled, calling isc_commit_retaining()");
+                    ISC_STATUS_ARRAY commitStatus;
+                    isc_commit_retaining(commitStatus, &conn->m_tr);
+                    FIREBIRD_DEBUG("  isc_commit_retaining completed");
                 }
                 FIREBIRD_DEBUG("  Returning 0 (unable to get count)");
                 return 0; // Unable to get count, return 0
@@ -365,22 +368,34 @@ namespace cpp_dbc::Firebird
                 }
             }
 
-            // If autocommit is enabled, commit the transaction after the update
-            // Note: commit() already calls startTransaction() internally when autoCommit is enabled
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate(nothrow) - Checking autocommit");
-            // FIX #1: conn already locked at the beginning of method (line 274), just use it
             if (conn)
             {
                 FIREBIRD_DEBUG("  Connection is valid");
                 if (conn->getAutoCommit())
                 {
-                    FIREBIRD_DEBUG("  AutoCommit is enabled, calling commit()");
-                    conn->commit();
-                    FIREBIRD_DEBUG("  Commit completed");
+                    // Use isc_commit_retaining() instead of conn->commit() for autocommit mode.
+                    //
+                    // isc_commit_retaining() persists the data immediately (like a checkpoint)
+                    // BUT keeps the transaction handle (m_tr) alive and active. This means:
+                    //   - No need to close active ResultSets/cursors before committing
+                    //   - No need to call startTransaction() afterwards
+                    //   - No heavy endTransaction() cycle (closeAllActiveResultSets + sleep_for)
+                    //
+                    // This mirrors how SQLite handles autocommit: sqlite3_exec() persists data
+                    // atomically without a separate commit step or cursor lifecycle management.
+                    //
+                    // Contrast with autoCommit=false: when the user calls conn->commit()
+                    // explicitly, it goes through endTransaction(true) → isc_commit_transaction()
+                    // which properly terminates the transaction and starts a new one.
+                    FIREBIRD_DEBUG("  AutoCommit is enabled, calling isc_commit_retaining()");
+                    ISC_STATUS_ARRAY commitStatus;
+                    isc_commit_retaining(commitStatus, &conn->m_tr);
+                    FIREBIRD_DEBUG("  isc_commit_retaining completed");
                 }
                 else
                 {
-                    FIREBIRD_DEBUG("  AutoCommit is disabled, skipping commit");
+                    FIREBIRD_DEBUG("  AutoCommit is disabled, data stays in active transaction until explicit commit()");
                 }
             }
             else
@@ -409,9 +424,9 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("4EPRL2TOTZ0P", "Connection lost");
 
-            if (m_closed)
+            if (m_closed.load(std::memory_order_acquire))
             {
                 return cpp_dbc::unexpected(DBException("B8C4D0E6F3A9", "Statement is closed", system_utils::captureCallStack()));
             }
@@ -459,16 +474,19 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            // Use special macro for close() - returns success if already closed (idempotent)
+            FIREBIRD_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
             FIREBIRD_DEBUG("FirebirdPreparedStatement::close(nothrow) - Starting");
             FIREBIRD_DEBUG("  m_closed: %s", (m_closed ? "true" : "false"));
-            FIREBIRD_DEBUG("  m_stmt: %p", (void*)m_stmt);
+            FIREBIRD_DEBUG("  m_stmt: %p", (void*)(uintptr_t)m_stmt);
 
-            if (m_closed)
+            // Unregister from connection if connection is still alive AND not in reset()
+            // During reset(), closeAllActivePreparedStatements() already holds the lock and clears the list
+            auto conn = m_connection.lock();
+            if (conn && !conn->isResetting())
             {
-                FIREBIRD_DEBUG("  Already closed, returning");
-                return {};
+                conn->unregisterStatement(weak_from_this());
             }
 
             ISC_STATUS_ARRAY status;
@@ -495,7 +513,7 @@ namespace cpp_dbc::Firebird
             m_inputSqlda.reset();
             m_outputSqlda.reset();
 
-            m_closed = true;
+            m_closed.store(true, std::memory_order_release);
             FIREBIRD_DEBUG("FirebirdPreparedStatement::close(nothrow) - Done");
             return {};
         }
@@ -524,7 +542,7 @@ namespace cpp_dbc::Firebird
         auto closeResult = close(std::nothrow);
         if (!closeResult)
         {
-            FIREBIRD_DEBUG("  close() failed during invalidation: %s", closeResult.error().what());
+            FIREBIRD_DEBUG("  close() failed during invalidation: %s", closeResult.error().what_s().c_str());
         }
 
         FIREBIRD_DEBUG("FirebirdPreparedStatement::invalidate - Done");

@@ -49,7 +49,7 @@ TEST_CASE("SQLite BLOB operations", "[22_061_01_sqlite_real_blob]")
     // Only cleanup if using file-based database (not :memory:)
     if (dbConfig.getDatabase() != ":memory:")
     {
-        sqlite_test_helpers::cleanupSQLiteTestFiles(dbConfig.getDatabase());
+        // sqlite_test_helpers::cleanupSQLiteTestFiles(dbConfig.getDatabase());
     }
 
     // Get connection string directly from the database config

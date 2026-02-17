@@ -20,6 +20,10 @@
 #define CPP_DBC_CORE_DB_CONNECTION_HPP
 
 #include <string>
+#include <new> // For std::nothrow_t
+#include "db_expected.hpp"
+#include "db_exception.hpp"
+#include "cpp_dbc/common/system_utils.hpp"
 
 namespace cpp_dbc
 {
@@ -115,16 +119,47 @@ namespace cpp_dbc
          * @brief Reset the connection state (nothrow version)
          *
          * This method allows derived classes to reset their internal state
-         * without throwing exceptions. The default implementation does nothing.
-         * Derived classes can override this to provide specific reset behavior.
+         * without throwing exceptions. The default implementation returns "Not implemented".
+         * Derived classes should override this to provide specific reset behavior.
          *
          * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing void on success, or DBException on failure
          *
          * ```cpp
-         * conn->reset(std::nothrow);  // reset without exceptions
+         * auto result = conn->reset(std::nothrow);
+         * if (!result) {
+         *     std::cerr << "Reset failed: " << result.error().what() << std::endl;
+         * }
          * ```
          */
-        virtual void reset(std::nothrow_t) noexcept {}
+        virtual cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept
+        {
+            return cpp_dbc::unexpected(DBException("ZDC68V9OMICL", "DBConnection::reset(std::nothrow) not implemented",
+                                                   system_utils::captureCallStack()));
+        }
+
+        /**
+         * @brief Close the database connection (nothrow version)
+         *
+         * This method allows derived classes to close the connection without
+         * throwing exceptions. The default implementation returns "Not implemented".
+         * Derived classes should override this to provide specific close behavior.
+         *
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing void on success, or DBException on failure
+         *
+         * ```cpp
+         * auto result = conn->close(std::nothrow);
+         * if (!result) {
+         *     std::cerr << "Close failed: " << result.error().what() << std::endl;
+         * }
+         * ```
+         */
+        virtual cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept
+        {
+            return cpp_dbc::unexpected(DBException("9Z47NTF70CB7", "DBConnection::close(std::nothrow) not implemented",
+                                                   system_utils::captureCallStack()));
+        }
     };
 
 } // namespace cpp_dbc

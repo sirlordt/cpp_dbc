@@ -124,7 +124,7 @@ namespace cpp_dbc::SQLite
 
         void commit() override;
         void rollback() override;
-        void reset(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;
 
         // Transaction isolation level methods
         void setTransactionIsolation(TransactionIsolationLevel level) override;

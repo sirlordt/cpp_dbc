@@ -43,7 +43,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("G1PFWP82F0TY", "Connection lost");
             return !m_hasData && m_rowPosition > 0;
         }
         catch (const DBException &e)
@@ -64,7 +64,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("49D6QLPRDFO5", "Connection lost");
             return m_rowPosition;
         }
         catch (const DBException &e)
@@ -85,7 +85,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("KKJ6AU7N7GC0", "Connection lost");
             std::string value = getColumnValue(columnIndex);
             return value.empty() ? 0 : std::stoi(value);
         }
@@ -107,7 +107,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("BKG4AMM82M79", "Connection lost");
             std::string value = getColumnValue(columnIndex);
             return value.empty() ? static_cast<int64_t>(0) : std::stoll(value);
         }
@@ -129,7 +129,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("WW48OXWIIVBF", "Connection lost");
             FIREBIRD_DEBUG("getDouble(columnIndex=%zu)", columnIndex);
             std::string value = getColumnValue(columnIndex);
             FIREBIRD_DEBUG("  getColumnValue returned: '%s'", value.c_str());
@@ -153,7 +153,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("FEKRO46JEMTL", "Connection lost");
             return getColumnValue(columnIndex);
         }
         catch (const DBException &e)
@@ -174,7 +174,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("C9VHRLKU1UYP", "Connection lost");
             std::string value = getColumnValue(columnIndex);
             if (value.empty())
                 return false;
@@ -201,7 +201,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("ICSJV6F47KZD", "Connection lost");
             if (columnIndex >= m_fieldCount)
             {
                 return cpp_dbc::unexpected(DBException("B4C0D6E2F9A5", "Column index out of range: " + std::to_string(columnIndex),
@@ -227,7 +227,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("7OAQLW6S1NV5", "Connection lost");
             return getColumnValue(columnIndex);
         }
         catch (const DBException &e)
@@ -248,7 +248,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("4Q9KI4JP2XTB", "Connection lost");
             return getColumnValue(columnIndex);
         }
         catch (const DBException &e)
@@ -269,7 +269,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("ZRWB1E4M2L52", "Connection lost");
             return getColumnValue(columnIndex);
         }
         catch (const DBException &e)
@@ -515,7 +515,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("FXE1E4KBWNL8", "Connection lost");
             return m_columnNames;
         }
         catch (const DBException &e)
@@ -536,7 +536,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("HJ4C76QCZV7E", "Connection lost");
             return m_fieldCount;
         }
         catch (const DBException &e)

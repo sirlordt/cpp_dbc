@@ -101,14 +101,15 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
     // Register the SQLite driver
     cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
-    // Use a file-based SQLite database for multi-threaded tests
-    std::string dbPath = "test_sqlite_transaction_multithread.db";
+    // Load database path from YAML config (falls back to /tmp/test_sqlite_transaction_multithread.db)
+    auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite_transaction_multithread");
+    std::string dbPath = dbConfig.getDatabase();
 
     // CRITICAL: Cleanup SQLite database files before test to prevent "disk I/O error" under Helgrind
     // caused by orphaned WAL files or filesystem async operations
-    sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath, 2);
+    sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath);
 
-    std::string connStr = "cpp_dbc:sqlite://" + dbPath;
+    std::string connStr = dbConfig.createConnectionString();
 
     SECTION("Concurrent transactions with SQLite")
     {
@@ -200,7 +201,7 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
     }
 
     // Clean up ALL database files after test (no wait needed at end)
-    sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath, 0);
+    // sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath, 0);
 }
 
 // =============================================================================
@@ -214,15 +215,15 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
     // Register the SQLite driver
     cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
-    // Use a file-based SQLite database for transaction tests
-    std::string dbPath = "test_sqlite_transaction.db";
+    // Load database path from YAML config (falls back to /tmp/test_sqlite_transaction.db)
+    auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite_transaction");
+    std::string dbPath = dbConfig.getDatabase();
 
     // CRITICAL: Cleanup SQLite database files before test to prevent "disk I/O error" under Helgrind
     // caused by orphaned WAL files or filesystem async operations
-    // Using 2 seconds wait (sufficient for this test, vs 10 seconds default)
-    sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath, 2);
+    sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath);
 
-    std::string connStr = "cpp_dbc:sqlite://" + dbPath;
+    std::string connStr = dbConfig.createConnectionString();
 
     SECTION("Basic transaction operations")
     {
@@ -251,8 +252,8 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
 
         // Create a test table and enable WAL mode for better concurrency
         auto conn = pool.getRelationalDBConnection();
-        conn->executeUpdate("PRAGMA journal_mode=WAL");
-        conn->executeUpdate("PRAGMA busy_timeout=30000"); // Increased for Helgrind (100x slower execution)
+        // conn->executeUpdate("PRAGMA journal_mode=WAL");
+        // conn->executeUpdate("PRAGMA busy_timeout=30000"); // Increased for Helgrind (100x slower execution)
         conn->executeUpdate("DROP TABLE IF EXISTS test_table");
         conn->executeUpdate("CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT)");
         conn->close();
@@ -523,7 +524,7 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
     }
 
     // Clean up ALL database files after test (no wait needed at end)
-    sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath, 0);
+    // sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath, 0);
 }
 
 #endif

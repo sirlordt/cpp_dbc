@@ -46,7 +46,7 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
     // Only cleanup if using file-based database (not :memory:)
     if (dbConfig.getDatabase() != ":memory:")
     {
-        sqlite_test_helpers::cleanupSQLiteTestFiles(dbConfig.getDatabase());
+        // sqlite_test_helpers::cleanupSQLiteTestFiles(dbConfig.getDatabase());
     }
 
     // Get connection string directly from the database config

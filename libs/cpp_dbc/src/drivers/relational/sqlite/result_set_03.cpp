@@ -539,7 +539,7 @@ namespace cpp_dbc::SQLite
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
             {
-                return cpp_dbc::unexpected(DBException("R3S4T5U6V7W8", "Column not found: " + columnName,
+                return cpp_dbc::unexpected(DBException("WDX9BB6U91FM", "Column not found: " + columnName,
                                                        system_utils::captureCallStack()));
             }
 

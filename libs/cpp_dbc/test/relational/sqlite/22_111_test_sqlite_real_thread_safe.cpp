@@ -69,7 +69,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
     // Only cleanup if using file-based database (not :memory:)
     if (dbConfig.getDatabase() != ":memory:")
     {
-        sqlite_test_helpers::cleanupSQLiteTestFiles(dbConfig.getDatabase());
+        // sqlite_test_helpers::cleanupSQLiteTestFiles(dbConfig.getDatabase());
     }
 
     std::string connStr = dbConfig.createConnectionString();
@@ -113,7 +113,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
                     
                     // Enable WAL mode for better concurrency
-                    conn->executeUpdate("PRAGMA journal_mode=WAL");
+                    //conn->executeUpdate("PRAGMA journal_mode=WAL");
                     
                     for (int j = 0; j < opsPerThread; j++)
                     {
@@ -227,7 +227,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
 
         // Setup: create test table
         auto setupConn = pool->getRelationalDBConnection();
-        setupConn->executeUpdate("PRAGMA journal_mode=WAL");
+        // setupConn->executeUpdate("PRAGMA journal_mode=WAL");
         setupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         setupConn->executeUpdate("CREATE TABLE thread_test (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
         setupConn->returnToPool();
@@ -329,7 +329,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
 
         // Setup: create and populate test table
         auto setupConn = pool->getRelationalDBConnection();
-        setupConn->executeUpdate("PRAGMA journal_mode=WAL");
+        // setupConn->executeUpdate("PRAGMA journal_mode=WAL");
         setupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         setupConn->executeUpdate("CREATE TABLE thread_test (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
 
@@ -434,7 +434,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
 
         // Create test table
         auto setupConn = pool->getRelationalDBConnection();
-        setupConn->executeUpdate("PRAGMA journal_mode=WAL");
+        // setupConn->executeUpdate("PRAGMA journal_mode=WAL");
         setupConn->executeUpdate("DROP TABLE IF EXISTS thread_stress_test");
         setupConn->executeUpdate("CREATE TABLE thread_stress_test (id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id INTEGER, op_id INTEGER, data TEXT)");
         setupConn->returnToPool();

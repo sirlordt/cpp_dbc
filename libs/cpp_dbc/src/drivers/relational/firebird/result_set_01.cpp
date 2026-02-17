@@ -47,18 +47,12 @@ namespace cpp_dbc::Firebird
     // (e.g., one thread iterating results while another does pool validation).
     // ============================================================================
 
-#if DB_DRIVER_THREAD_SAFE
-    FirebirdDBResultSet::FirebirdDBResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement,
-                                             std::shared_ptr<FirebirdDBConnection> conn, SharedConnMutex connMutex)
-        : m_stmt(std::move(stmt)), m_sqlda(std::move(sqlda)), m_ownStatement(ownStatement), m_connection(conn),
-          m_connMutex(std::move(connMutex))
-    {
-#else
-    FirebirdDBResultSet::FirebirdDBResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement,
+    FirebirdDBResultSet::FirebirdDBResultSet(FirebirdStmtHandle stmt,
+                                             XSQLDAHandle sqlda,
+                                             bool ownStatement,
                                              std::shared_ptr<FirebirdDBConnection> conn)
         : m_stmt(std::move(stmt)), m_sqlda(std::move(sqlda)), m_ownStatement(ownStatement), m_connection(conn)
     {
-#endif
         FIREBIRD_DEBUG("FirebirdResultSet::constructor - Creating ResultSet");
         FIREBIRD_DEBUG("  ownStatement: %s", (ownStatement ? "true" : "false"));
         FIREBIRD_DEBUG("  m_stmt valid: %s", (m_stmt ? "yes" : "no"));
@@ -74,7 +68,7 @@ namespace cpp_dbc::Firebird
             FIREBIRD_DEBUG("  Field count: %zu", m_fieldCount);
             initializeColumns();
         }
-        m_closed = false;
+        m_closed.store(false, std::memory_order_release);
         FIREBIRD_DEBUG("FirebirdResultSet::constructor - Done");
     }
 
@@ -86,7 +80,8 @@ namespace cpp_dbc::Firebird
         // will automatically expire when this object is destroyed, and
         // closeAllActiveResultSets() checks if weak_ptrs can be locked before using them.
 
-        close();
+        // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
+        [[maybe_unused]] auto closeResult = close(std::nothrow);
         FIREBIRD_DEBUG("FirebirdResultSet::destructor - Done");
     }
 
@@ -277,13 +272,11 @@ namespace cpp_dbc::Firebird
 
     void FirebirdDBResultSet::notifyConnClosing()
     {
-
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
         FIREBIRD_DEBUG("FirebirdResultSet::notifyConnClosing - Marking as closed due to connection closing");
         // Don't actually free the statement since the connection is closing
         // Just mark as closed to prevent further operations
-        m_closed = true;
+        // No lock needed - m_closed is atomic
+        m_closed.store(true, std::memory_order_release);
     }
 
 } // namespace cpp_dbc::Firebird

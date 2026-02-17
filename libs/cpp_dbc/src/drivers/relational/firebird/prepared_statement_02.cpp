@@ -43,7 +43,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("ZRWB1E4M2L52", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -143,7 +143,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("FXE1E4KBWNL8", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -230,7 +230,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("HJ4C76QCZV7E", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -260,7 +260,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("OJ9DMC2WW02G", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -296,7 +296,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("JVSOO8279IPP", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -336,7 +336,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("98XYZF12NSDR", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -378,7 +378,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("Z21IV6744VHW", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -391,7 +391,7 @@ namespace cpp_dbc::Firebird
             if (sscanf(value.c_str(), "%d:%d:%d",
                        &time.tm_hour, &time.tm_min, &time.tm_sec) != 3)
             {
-                return cpp_dbc::unexpected(DBException("P4Q5R6S7T8U9", "Invalid time format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("68TNRM1CR27K", "Invalid time format: " + value, system_utils::captureCallStack()));
             }
 
             ISC_TIME t;
@@ -409,7 +409,7 @@ namespace cpp_dbc::Firebird
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("B5C6D7E8F9G0", "Unknown exception in setTime", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("ZCA2M34XS47M", "Unknown exception in setTime", system_utils::captureCallStack()));
         }
     }
 
@@ -417,7 +417,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("6RG1MNZK18B1", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -462,7 +462,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("BX3YJGJ3LMQO", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -516,7 +516,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("W53CBC9BYKCO", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))

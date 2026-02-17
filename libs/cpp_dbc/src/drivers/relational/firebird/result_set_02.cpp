@@ -275,53 +275,88 @@ namespace cpp_dbc::Firebird
         return result.value();
     }
 
-    void FirebirdDBResultSet::close()
+    cpp_dbc::expected<void, cpp_dbc::DBException> FirebirdDBResultSet::close(std::nothrow_t) noexcept
     {
-
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        // Avoid double closing
-        if (m_closed)
+        try
         {
-            return;
-        }
+            // Use special macro for close() - returns success if already closed (idempotent)
+            FIREBIRD_LOCK_OR_RETURN_SUCCESS_IF_CLOSED();
 
-        // Mark as closed FIRST to prevent double-close attempts
-        m_closed = true;
-
-        if (m_ownStatement)
-        {
-            // Only attempt to free if we own the statement
-            if (m_stmt && m_stmt.get())
+            // Unregister from connection if connection is still alive AND not in reset()
+            // During reset(), closeAllActiveResultSets() already holds the lock and clears the list
+            auto conn = m_connection.lock();
+            if (conn && !conn->isResetting())
             {
-                isc_stmt_handle *stmtPtr = m_stmt.get();
+                conn->unregisterResultSet(weak_from_this());
+            }
 
-                if (stmtPtr && *stmtPtr != 0)
+            // Mark as closed FIRST to prevent double-close attempts
+            m_closed.store(true, std::memory_order_release);
+
+            if (m_ownStatement)
+            {
+                // Only attempt to free if we own the statement
+                if (m_stmt && m_stmt.get())
                 {
-                    // Free the statement
-                    ISC_STATUS_ARRAY status = {0};
-                    isc_dsql_free_statement(status, stmtPtr, DSQL_drop);
+                    isc_stmt_handle *stmtPtr = m_stmt.get();
 
-                    // CRITICAL: Add delay after freeing
-                    // isc_dsql_free_statement is asynchronous in Firebird
-                    // Without this delay, the transaction may end before Firebird completes
-                    // the statement freeing internally, causing crashes
-                    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+                    if (stmtPtr && *stmtPtr != 0)
+                    {
+                        // Free the statement
+                        ISC_STATUS_ARRAY status = {0};
+                        isc_dsql_free_statement(status, stmtPtr, DSQL_drop);
 
-                    FIREBIRD_DEBUG("ResultSet::close - Statement freed with 5ms delay");
+                        // CRITICAL: Add delay after freeing
+                        // isc_dsql_free_statement is asynchronous in Firebird
+                        // Without this delay, the transaction may end before Firebird completes
+                        // the statement freeing internally, causing crashes
+                        std::this_thread::sleep_for(std::chrono::milliseconds(25));
+
+                        FIREBIRD_DEBUG("ResultSet::close - Statement freed with 5ms delay");
+                    }
                 }
             }
-        }
 
-        // Reset our member variables
-        m_sqlda.reset();
-        m_stmt.reset();
+            // Reset our member variables
+            m_sqlda.reset();
+            m_stmt.reset();
+
+            return {};
+        }
+        catch (const cpp_dbc::DBException &e)
+        {
+            FIREBIRD_DEBUG("ResultSet::close - DBException: %s", e.what_s().c_str());
+            return cpp_dbc::unexpected(e);
+        }
+        catch (const std::exception &e)
+        {
+            FIREBIRD_DEBUG("ResultSet::close - Exception: %s", e.what());
+            return cpp_dbc::unexpected(cpp_dbc::DBException("V1YTXD7VTIY7",
+                                                            std::string("ResultSet close failed: ") + e.what(),
+                                                            cpp_dbc::system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            FIREBIRD_DEBUG("ResultSet::close - Unknown exception");
+            return cpp_dbc::unexpected(cpp_dbc::DBException("7OKHO1WCVD4X",
+                                                            "ResultSet close failed with unknown error",
+                                                            cpp_dbc::system_utils::captureCallStack()));
+        }
+    }
+
+    void FirebirdDBResultSet::close()
+    {
+        auto result = close(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
     }
 
     bool FirebirdDBResultSet::isEmpty()
     {
 
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        FIREBIRD_LOCK_OR_THROW("GTVGJY1OO1PS", "Connection lost");
 
         return !m_hasData && m_rowPosition == 0;
     }
@@ -329,7 +364,7 @@ namespace cpp_dbc::Firebird
     std::shared_ptr<Blob> FirebirdDBResultSet::getBlob(size_t columnIndex)
     {
 
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        FIREBIRD_LOCK_OR_THROW("BR4IRYH99OLH", "Connection lost");
 
         if (columnIndex >= m_fieldCount)
         {
@@ -413,13 +448,13 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("ZALQADMF0DBS", "Connection lost");
 
             FIREBIRD_DEBUG("FirebirdResultSet::next - Starting");
             FIREBIRD_DEBUG("  m_closed: %s", (m_closed ? "true" : "false"));
             FIREBIRD_DEBUG("  m_stmt valid: %s", (m_stmt ? "yes" : "no"));
 
-            if (m_closed)
+            if (m_closed.load(std::memory_order_acquire))
             {
                 FIREBIRD_DEBUG("FirebirdResultSet::next - ResultSet is closed, returning false");
                 return false;
@@ -437,7 +472,7 @@ namespace cpp_dbc::Firebird
                 return false;
             }
 
-            FIREBIRD_DEBUG("  m_stmt handle value: %p", (void*)(uintptr_t)*m_stmt);
+            FIREBIRD_DEBUG("  m_stmt handle value: %p", (void *)(uintptr_t)*m_stmt);
             FIREBIRD_DEBUG("  m_sqlda valid: %s", (m_sqlda ? "yes" : "no"));
             if (m_sqlda)
             {
@@ -446,7 +481,7 @@ namespace cpp_dbc::Firebird
 
             ISC_STATUS_ARRAY status;
             isc_stmt_handle *stmtPtr = m_stmt.get();
-            FIREBIRD_DEBUG("  Calling isc_dsql_fetch with stmtPtr=%p, *stmtPtr=%p", (void*)stmtPtr, (void*)(uintptr_t)*stmtPtr);
+            FIREBIRD_DEBUG("  Calling isc_dsql_fetch with stmtPtr=%p, *stmtPtr=%p", (void *)stmtPtr, (void *)(uintptr_t)*stmtPtr);
 
             ISC_STATUS fetchStatus = isc_dsql_fetch(status, stmtPtr, SQL_DIALECT_V6, m_sqlda.get());
             FIREBIRD_DEBUG("  isc_dsql_fetch returned: %ld", (long)fetchStatus);
@@ -460,8 +495,8 @@ namespace cpp_dbc::Firebird
                 for (size_t i = 0; i < m_fieldCount; ++i)
                 {
                     FIREBIRD_DEBUG("  After fetch - Column %zu: nullInd=%d, sqlind=%p, *sqlind=%d",
-                        i, (int)m_nullIndicators[i], (void*)m_sqlda->sqlvar[i].sqlind,
-                        (m_sqlda->sqlvar[i].sqlind ? (int)*m_sqlda->sqlvar[i].sqlind : -999));
+                                   i, (int)m_nullIndicators[i], (void *)m_sqlda->sqlvar[i].sqlind,
+                                   (m_sqlda->sqlvar[i].sqlind ? (int)*m_sqlda->sqlvar[i].sqlind : -999));
                 }
                 return true;
             }
@@ -497,7 +532,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("GCBPQQTEZH46", "Connection lost");
             return m_rowPosition == 0 && !m_hasData;
         }
         catch (const DBException &e)

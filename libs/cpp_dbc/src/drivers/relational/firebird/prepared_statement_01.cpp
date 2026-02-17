@@ -41,10 +41,8 @@ namespace cpp_dbc::Firebird
 
     void FirebirdDBPreparedStatement::notifyConnClosing()
     {
-
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        m_closed = true;
+        // No lock needed - m_closed is atomic
+        m_closed.store(true, std::memory_order_release);
     }
 
     isc_db_handle *FirebirdDBPreparedStatement::getFirebirdConnection() const
@@ -72,7 +70,7 @@ namespace cpp_dbc::Firebird
             throw DBException("E3F9A5B1C8D4", "Failed to allocate statement: " + interpretStatusVector(status),
                               system_utils::captureCallStack());
         }
-        FIREBIRD_DEBUG("  Statement allocated, m_stmt=%p", (void*)m_stmt);
+        FIREBIRD_DEBUG("  Statement allocated, m_stmt=%p", (void*)(uintptr_t)m_stmt);
 
         // Allocate output SQLDA
         FIREBIRD_DEBUG("  Allocating output SQLDA...");
@@ -110,7 +108,7 @@ namespace cpp_dbc::Firebird
             throw DBException("F4A0B6C2D9E5", "Failed to prepare statement: " + errorMsg,
                               system_utils::captureCallStack());
         }
-        FIREBIRD_DEBUG("  Statement prepared, m_stmt=%p, output columns=%d", (void*)m_stmt, (int)m_outputSqlda->sqld);
+        FIREBIRD_DEBUG("  Statement prepared, m_stmt=%p, output columns=%d", (void*)(uintptr_t)m_stmt, (int)m_outputSqlda->sqld);
 
         // Reallocate output SQLDA if needed
         if (m_outputSqlda->sqld > m_outputSqlda->sqln)
@@ -135,7 +133,7 @@ namespace cpp_dbc::Firebird
         allocateInputSqlda();
 
         m_prepared = true;
-        FIREBIRD_DEBUG("FirebirdPreparedStatement::prepareStatement - Done, m_stmt=%p", (void*)m_stmt);
+        FIREBIRD_DEBUG("FirebirdPreparedStatement::prepareStatement - Done, m_stmt=%p", (void*)(uintptr_t)m_stmt);
     }
 
     void FirebirdDBPreparedStatement::allocateInputSqlda()
@@ -223,34 +221,25 @@ namespace cpp_dbc::Firebird
     // FirebirdDBPreparedStatement Implementation - Public Methods
     // ============================================================================
 
-#if DB_DRIVER_THREAD_SAFE
-    FirebirdDBPreparedStatement::FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db,
-                                                             const std::string &sql,
-                                                             SharedConnMutex connMutex,
-                                                             std::weak_ptr<FirebirdDBConnection> conn)
-        : m_dbHandle(db), m_connection(conn), m_stmt(0), m_sql(sql),
-          m_inputSqlda(nullptr), m_outputSqlda(nullptr), m_connMutex(std::move(connMutex))
-    {
-#else
     FirebirdDBPreparedStatement::FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db,
                                                              const std::string &sql,
                                                              std::weak_ptr<FirebirdDBConnection> conn)
         : m_dbHandle(db), m_connection(conn), m_stmt(0), m_sql(sql),
           m_inputSqlda(nullptr), m_outputSqlda(nullptr)
     {
-#endif
         FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Creating statement");
         FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
-        // FIX #1: No longer using raw pointer trPtr - now accessing via m_connection
+        // No longer receives m_connMutex - accesses it through m_connection when needed
         prepareStatement();
-        m_closed = false;
-        FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Done, m_stmt=%p", (void*)m_stmt);
+        m_closed.store(false, std::memory_order_release);
+        FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Done, m_stmt=%p", (void*)(uintptr_t)m_stmt);
     }
 
     FirebirdDBPreparedStatement::~FirebirdDBPreparedStatement()
     {
-        FIREBIRD_DEBUG("FirebirdPreparedStatement::destructor - Destroying statement, m_stmt=%p", (void*)m_stmt);
-        close();
+        FIREBIRD_DEBUG("FirebirdPreparedStatement::destructor - Destroying statement, m_stmt=%p", (void*)(uintptr_t)m_stmt);
+        // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
+        [[maybe_unused]] auto closeResult = close(std::nothrow);
         FIREBIRD_DEBUG("FirebirdPreparedStatement::destructor - Done");
     }
 
@@ -427,7 +416,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("7OAQLW6S1NV5", "Connection lost in setInt");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -457,7 +446,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("4Q9KI4JP2XTB", "Connection lost in setLong");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))

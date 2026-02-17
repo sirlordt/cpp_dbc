@@ -251,6 +251,8 @@ namespace cpp_dbc
         cpp_dbc::expected<bool, DBException> transactionActive(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
 

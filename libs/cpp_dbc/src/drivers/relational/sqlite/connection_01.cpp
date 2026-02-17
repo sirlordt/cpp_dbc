@@ -252,7 +252,7 @@ namespace cpp_dbc::SQLite
         }
     }
 
-    void SQLiteDBConnection::reset(std::nothrow_t) noexcept
+    cpp_dbc::expected<void, cpp_dbc::DBException> SQLiteDBConnection::reset(std::nothrow_t) noexcept
     {
         try
         {
@@ -298,12 +298,27 @@ namespace cpp_dbc::SQLite
 
             // Reset auto-commit to true
             setAutoCommit(std::nothrow, true);
+
+            return {};
+        }
+        catch (const cpp_dbc::DBException &e)
+        {
+            SQLITE_DEBUG("DBException during connection reset: %s", e.what());
+            return cpp_dbc::unexpected(e);
+        }
+        catch (const std::exception &e)
+        {
+            SQLITE_DEBUG("Exception during connection reset: %s", e.what());
+            return cpp_dbc::unexpected(cpp_dbc::DBException("EZ8HHCVD9T2D",
+                                                            std::string("Reset failed: ") + e.what(),
+                                                            cpp_dbc::system_utils::captureCallStack()));
         }
         catch (...)
         {
-            // Method is noexcept, so we must catch all exceptions
-            // Log the error but don't propagate (best effort reset)
-            SQLITE_DEBUG("Exception during connection reset - ignoring (noexcept)");
+            SQLITE_DEBUG("Unknown exception during connection reset");
+            return cpp_dbc::unexpected(cpp_dbc::DBException("GZ8XD1JMH5QP",
+                                                            "Reset failed with unknown error",
+                                                            cpp_dbc::system_utils::captureCallStack()));
         }
     }
 

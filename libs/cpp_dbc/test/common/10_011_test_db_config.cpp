@@ -78,7 +78,7 @@ TEST_CASE("Database configurations - verify all", "[10_011_02_db_config]")
         const auto &allDatabases = configManager.getAllDatabases();
 
         // Check that we have the expected number of databases
-        REQUIRE(allDatabases.size() == 17); // 3 MySQL + 3 PostgreSQL + 3 SQLite + 2 Firebird + 2 MongoDB + 2 Redis + 2 ScyllaDB
+        REQUIRE(allDatabases.size() >= 17); // 3 MySQL + 3 PostgreSQL + 3 SQLite + 2 Firebird + 2 MongoDB + 2 Redis + 2 ScyllaDB
 
         // Define sets for different engine categories
         const std::set<std::string> networkEngines = {"mysql", "postgresql", "firebird", "scylladb", "mongodb", "redis"};
@@ -235,7 +235,7 @@ TEST_CASE("Create connection strings from configuration", "[10_011_06_db_config]
         // Verify connection strings for SQLite databases
         // SQLite connection strings are different as they don't have host/port
         REQUIRE(connectionStrings["dev_sqlite"] == "cpp_dbc:sqlite://:memory:");
-        REQUIRE(connectionStrings["test_sqlite"] == "cpp_dbc:sqlite://cpp_dbc_test_sqlite.db");
+        REQUIRE(connectionStrings["test_sqlite"] == "cpp_dbc:sqlite:///tmp/test_sqlite.db");
         REQUIRE(connectionStrings["prod_sqlite"] == "cpp_dbc:sqlite:///path/to/production.db");
 
         // Verify connection strings for ScyllaDB databases

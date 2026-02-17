@@ -12,6 +12,7 @@
 #include <string>
 #include <mutex>
 #include <memory>
+#include <atomic>
 
 namespace cpp_dbc::Firebird
 {
@@ -50,7 +51,8 @@ namespace cpp_dbc::Firebird
     private:
         FirebirdDbHandle m_db;
         isc_tr_handle m_tr;
-        bool m_closed{true};
+        std::atomic<bool> m_closed{true};
+        std::atomic<bool> m_resetting{false};  // True during reset() to prevent unregister deadlock
         bool m_autoCommit{true};
         bool m_transactionActive{false};
         TransactionIsolationLevel m_isolationLevel;
@@ -59,8 +61,6 @@ namespace cpp_dbc::Firebird
         // Registry of active prepared statements and result sets
         std::set<std::weak_ptr<FirebirdDBPreparedStatement>, std::owner_less<std::weak_ptr<FirebirdDBPreparedStatement>>> m_activeStatements;
         std::set<std::weak_ptr<FirebirdDBResultSet>, std::owner_less<std::weak_ptr<FirebirdDBResultSet>>> m_activeResultSets;
-        std::mutex m_statementsMutex;
-        std::mutex m_resultSetsMutex;
 
 #if DB_DRIVER_THREAD_SAFE
         /**
@@ -95,6 +95,27 @@ namespace cpp_dbc::Firebird
         uint64_t executeCreateDatabase(const std::string &sql);
 
     public:
+#if DB_DRIVER_THREAD_SAFE
+        /**
+         * @brief Get the connection mutex for PreparedStatement/ResultSet access
+         *
+         * This method allows PreparedStatement and ResultSet to access the connection
+         * mutex through their weak_ptr<FirebirdDBConnection>, implementing the
+         * requirement that they don't store the mutex directly.
+         *
+         * @return Reference to the connection's recursive_mutex
+         */
+        std::recursive_mutex &getConnectionMutex() { return *m_connMutex; }
+#endif
+
+        /**
+         * @brief Check if connection is currently in reset() operation
+         * @return true if reset() is active, false otherwise
+         *
+         * Used by ResultSet/PreparedStatement to avoid unregister deadlock during closeAll*()
+         */
+        bool isResetting() const noexcept { return m_resetting.load(std::memory_order_acquire); }
+
         FirebirdDBConnection(const std::string &host,
                              int port,
                              const std::string &database,
@@ -130,6 +151,21 @@ namespace cpp_dbc::Firebird
         // Get the connection URL
         std::string getURL() const override;
 
+        /**
+         * @brief Reset connection state - close all statements/resultsets and rollback (nothrow version)
+         *
+         * Override of DBConnection::reset(std::nothrow_t).
+         * Called by close() and prepareForPoolReturn() to ensure clean state.
+         * Always performs:
+         * 1. Close all active PreparedStatements
+         * 2. Close all active ResultSets
+         * 3. Rollback any active transaction
+         *
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing void on success, or DBException on failure
+         */
+        cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -160,6 +196,9 @@ namespace cpp_dbc::Firebird
 
         cpp_dbc::expected<void, DBException>
             rollback(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<void, cpp_dbc::DBException>
+            close(std::nothrow_t) noexcept override;
 
         cpp_dbc::expected<void, DBException>
         setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;

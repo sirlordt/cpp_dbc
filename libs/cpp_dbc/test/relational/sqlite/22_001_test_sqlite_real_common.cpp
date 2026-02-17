@@ -23,6 +23,8 @@
 #include <filesystem>
 #include <chrono>
 #include <thread>
+#include <mutex>
+#include <set>
 
 namespace sqlite_test_helpers
 {
@@ -74,10 +76,10 @@ namespace sqlite_test_helpers
         }
         else
         {
-            // Fallback to default values if configuration not found
+            // Fallback: derive path from name so each config gets its own file
             dbConfig.setName(databaseName);
             dbConfig.setType("sqlite");
-            dbConfig.setDatabase(useInMemory ? ":memory:" : "sqlite_test.db");
+            dbConfig.setDatabase(useInMemory ? ":memory:" : "/tmp/" + databaseName + ".db");
 
             // Add default queries as options
             dbConfig.setOption("query__create_table",
@@ -90,10 +92,10 @@ namespace sqlite_test_helpers
                                "DROP TABLE IF EXISTS test_table");
         }
 #else
-        // Hardcoded values when YAML is not available
+        // Derive path from name so each config gets its own file
         dbConfig.setName(databaseName);
         dbConfig.setType("sqlite");
-        dbConfig.setDatabase(useInMemory ? ":memory:" : "sqlite_test.db");
+        dbConfig.setDatabase(useInMemory ? ":memory:" : "/tmp/" + databaseName + ".db");
 
         // Add default queries as options
         dbConfig.setOption("query__create_table",
@@ -148,6 +150,20 @@ namespace sqlite_test_helpers
 
     void cleanupSQLiteTestFiles(const std::string &dbPath, int waitSeconds)
     {
+        // Guard: only run cleanup once per file per test process
+        static std::mutex s_cleanupMutex;
+        static std::set<std::string> s_cleanedPaths;
+
+        {
+            std::scoped_lock lock(s_cleanupMutex);
+            if (s_cleanedPaths.count(dbPath) > 0)
+            {
+                cpp_dbc::system_utils::safePrint("[TEST]", "=== SQLite cleanup skipped (already done for: " + dbPath + ") ===");
+                return;
+            }
+            s_cleanedPaths.insert(dbPath);
+        }
+
         cpp_dbc::system_utils::safePrint("[TEST]", "=== Cleaning up SQLite database files ===");
         cpp_dbc::system_utils::safePrint("[TEST]", "Database path: " + dbPath);
 

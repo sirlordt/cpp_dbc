@@ -23,6 +23,7 @@
 #include <string>
 #include <memory>
 #include <iostream>
+#include <optional>
 #include <tuple>
 
 #include <cpp_dbc/cpp_dbc.hpp>
@@ -87,7 +88,7 @@ namespace sqlite_test_helpers
      * @example
      * ```cpp
      * // Cleanup with default 10 second wait
-     * cleanupSQLiteTestFiles("/tmp/cpp_dbc_test_sqlite.db");
+     * cleanupSQLiteTestFiles("/tmp/test_sqlite.db");
      *
      * // Cleanup with custom 5 second wait
      * cleanupSQLiteTestFiles("/tmp/my_test.db", 5);

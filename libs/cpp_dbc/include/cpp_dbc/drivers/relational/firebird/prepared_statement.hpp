@@ -7,10 +7,10 @@
 #endif
 
 #if USE_FIREBIRD
-#include <vector>
-#include <string>
-#include <memory>
 #include <atomic>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace cpp_dbc::Firebird
 {
@@ -33,9 +33,11 @@ namespace cpp_dbc::Firebird
      *
      * @see FirebirdDBConnection, FirebirdDBResultSet
      */
-    class FirebirdDBPreparedStatement final : public RelationalDBPreparedStatement
+    class FirebirdDBPreparedStatement final : public RelationalDBPreparedStatement,
+                                               public std::enable_shared_from_this<FirebirdDBPreparedStatement>
     {
         friend class FirebirdDBConnection;
+        friend class FirebirdConnectionLock;
 
     private:
         std::weak_ptr<isc_db_handle> m_dbHandle;
@@ -71,7 +73,7 @@ namespace cpp_dbc::Firebird
         std::string m_sql;
         XSQLDAHandle m_inputSqlda;
         XSQLDAHandle m_outputSqlda;
-        bool m_closed{true};
+        std::atomic<bool> m_closed{true};
         bool m_prepared{false};
         std::atomic<bool> m_invalidated{false}; // Set to true when connection invalidates this statement due to DDL
 
@@ -81,17 +83,6 @@ namespace cpp_dbc::Firebird
         std::vector<std::vector<uint8_t>> m_blobValues;
         std::vector<std::shared_ptr<Blob>> m_blobObjects;
         std::vector<std::shared_ptr<InputStream>> m_streamObjects;
-
-#if DB_DRIVER_THREAD_SAFE
-        /**
-         * @brief Shared mutex with the parent Connection
-         *
-         * This mutex is shared between the Connection and all PreparedStatements created from it.
-         * This ensures that when close() calls isc_dsql_free_statement(), no other thread can
-         * simultaneously use the same database handle.
-         */
-        SharedConnMutex m_connMutex;
-#endif
 
         void notifyConnClosing();
         isc_db_handle *getFirebirdConnection() const;
@@ -106,16 +97,11 @@ namespace cpp_dbc::Firebird
         void invalidate();
 
     public:
-#if DB_DRIVER_THREAD_SAFE
-        // FIX #1: Constructor no longer takes raw pointer trPtr
-        FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db, const std::string &sql,
-                                    SharedConnMutex connMutex,
-                                    std::weak_ptr<FirebirdDBConnection> conn = std::weak_ptr<FirebirdDBConnection>());
-#else
-        // FIX #1: Constructor no longer takes raw pointer trPtr
-        FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db, const std::string &sql,
-                                    std::weak_ptr<FirebirdDBConnection> conn = std::weak_ptr<FirebirdDBConnection>());
-#endif
+        // Constructor no longer takes SharedConnMutex parameter
+        // The mutex is accessed through m_connection weak_ptr when needed
+        FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db,
+                                    const std::string &sql,
+                                    std::weak_ptr<FirebirdDBConnection> conn);
         ~FirebirdDBPreparedStatement() override;
 
         void setInt(int parameterIndex, int value) override;

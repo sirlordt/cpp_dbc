@@ -356,12 +356,13 @@ namespace cpp_dbc
             }
         }
 
-        // Notify maintenance thread that a connection was returned
-        // CRITICAL: Must hold mutex when calling notify_one() per POSIX requirements
-        //{ //The next guard_lock block all test. NOT WORK!!!!
-        // std::lock_guard lock(m_mutexMaintenance);
-        m_maintenanceCondition.notify_one();
-        //}
+        // Notify maintenance thread that a connection was returned.
+        // m_mutexMaintenance is held only for the duration of notify_one() — maintenance
+        // work now runs outside this lock, so this cannot cause a deadlock or stall.
+        {
+            std::lock_guard maintLock(m_mutexMaintenance);
+            m_maintenanceCondition.notify_one();
+        }
     }
 
     std::shared_ptr<RelationalPooledDBConnection> RelationalDBConnectionPool::getIdleDBConnection()
@@ -521,10 +522,16 @@ namespace cpp_dbc
     {
         do
         {
-            // Wait for 30 seconds or until notified (e.g., when close() is called)
-            std::unique_lock lock(m_mutexMaintenance);
-            m_maintenanceCondition.wait_for(lock, std::chrono::seconds(30), [this]
-                                            { return !m_running; });
+            // Wait for 30 seconds or until notified (e.g., when close() is called).
+            // IMPORTANT: m_mutexMaintenance is released at the end of this block so that
+            // returnConnection() and close() can acquire it briefly for notify_one/all
+            // without blocking during the entire maintenance body.
+            {
+                std::unique_lock lock(m_mutexMaintenance);
+                m_maintenanceCondition.wait_for(lock, std::chrono::seconds(30), [this]
+                                                { return !m_running; });
+            }
+            // m_mutexMaintenance is now released. Maintenance runs without holding it.
 
             if (!m_running)
             {
@@ -666,12 +673,12 @@ namespace cpp_dbc
             }
         }
 
-        // Notify all waiting threads to wake up and exit
-        // CRITICAL: Must hold mutex when calling notify_all() per POSIX requirements
-        //{ //The next guard_lock block all test. NOT WORK!!!!
-        // std::lock_guard lock(m_mutexMaintenance);
-        m_maintenanceCondition.notify_all();
-        //}
+        // Notify all waiting threads (maintenance thread) to wake up and exit.
+        // m_mutexMaintenance is held only for the duration of notify_all().
+        {
+            std::lock_guard lock(m_mutexMaintenance);
+            m_maintenanceCondition.notify_all();
+        }
 
         // Join maintenance thread (only if it was started)
         if (m_maintenanceThread.joinable())
@@ -763,7 +770,7 @@ namespace cpp_dbc
         }
     }
 
-    void RelationalPooledDBConnection::close()
+    cpp_dbc::expected<void, cpp_dbc::DBException> RelationalPooledDBConnection::close(std::nothrow_t) noexcept
     {
         // Use atomic exchange to ensure only one thread processes the close
         bool expected = false;
@@ -824,26 +831,53 @@ namespace cpp_dbc
                 else if (m_conn)
                 {
                     // If pool is invalid, actually close the connection
-                    m_conn->close();
+                    auto result = m_conn->close(std::nothrow);
+                    if (!result)
+                    {
+                        CP_DEBUG("RelationalPooledDBConnection::close - Failed to close underlying connection: " << result.error().what());
+                        return result;
+                    }
                 }
+
+                return {};
             }
-            catch (const std::bad_weak_ptr &)
+            catch (const std::bad_weak_ptr &e)
             {
                 // shared_from_this failed, just close the connection
                 m_closed.store(true);
                 if (m_conn)
                 {
-                    m_conn->close();
+                    auto result = m_conn->close(std::nothrow);
+                    if (!result)
+                    {
+                        return result;
+                    }
                 }
+                return cpp_dbc::unexpected(cpp_dbc::DBException("54A9H0C3BX8E",
+                                                                std::string("Failed to obtain shared_from_this: ") + e.what(),
+                                                                cpp_dbc::system_utils::captureCallStack()));
             }
-            catch (const std::exception &)
+            catch (const cpp_dbc::DBException &e)
             {
-                // Any other exception, just close the connection
+                // DBException from underlying connection, just return it
                 m_closed.store(true);
                 if (m_conn)
                 {
-                    m_conn->close();
+                    m_conn->close(std::nothrow);
                 }
+                return cpp_dbc::unexpected(e);
+            }
+            catch (const std::exception &e)
+            {
+                // Any other exception, close the connection and return error
+                m_closed.store(true);
+                if (m_conn)
+                {
+                    m_conn->close(std::nothrow);
+                }
+                return cpp_dbc::unexpected(cpp_dbc::DBException("VYPDCT5DIRVF",
+                                                                std::string("Exception in close: ") + e.what(),
+                                                                cpp_dbc::system_utils::captureCallStack()));
             }
             catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
             {
@@ -851,9 +885,23 @@ namespace cpp_dbc
                 m_closed.store(true);
                 if (m_conn)
                 {
-                    m_conn->close();
+                    m_conn->close(std::nothrow);
                 }
+                return cpp_dbc::unexpected(cpp_dbc::DBException("85ZGPKW5MX8J",
+                                                                "Unknown exception in close",
+                                                                cpp_dbc::system_utils::captureCallStack()));
             }
+        }
+
+        return {};
+    }
+
+    void RelationalPooledDBConnection::close()
+    {
+        auto result = close(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
         }
     }
 
@@ -1132,6 +1180,57 @@ namespace cpp_dbc
             return cpp_dbc::unexpected(DBException("094612AE91B8",
                                                    "rollback failed: unknown error",
                                                    system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<void, cpp_dbc::DBException> RelationalPooledDBConnection::reset(std::nothrow_t) noexcept
+    {
+        try
+        {
+            if (!m_conn)
+            {
+                return cpp_dbc::unexpected(cpp_dbc::DBException("YNH9PJK5FCZF",
+                                                                "Underlying connection is null",
+                                                                cpp_dbc::system_utils::captureCallStack()));
+            }
+
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(cpp_dbc::DBException("9U7LGHL2AK0P",
+                                                                "Connection is closed",
+                                                                cpp_dbc::system_utils::captureCallStack()));
+            }
+
+            updateLastUsedTime();
+
+            // Delegate to underlying connection's reset
+            auto result = m_conn->reset(std::nothrow);
+            if (!result)
+            {
+                CP_DEBUG("RelationalPooledDBConnection::reset - Underlying connection reset failed: " << result.error().what());
+                return result; // Propagate the error from underlying connection
+            }
+
+            return {};
+        }
+        catch (const cpp_dbc::DBException &ex)
+        {
+            CP_DEBUG("RelationalPooledDBConnection::reset - DBException: " << ex.what());
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            CP_DEBUG("RelationalPooledDBConnection::reset - Exception: " << ex.what());
+            return cpp_dbc::unexpected(cpp_dbc::DBException("MCWII3UL99D9",
+                                                            std::string("Reset failed: ") + ex.what(),
+                                                            cpp_dbc::system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            CP_DEBUG("RelationalPooledDBConnection::reset - Unknown exception");
+            return cpp_dbc::unexpected(cpp_dbc::DBException("30QCX7A6W8JK",
+                                                            "Reset failed: unknown error",
+                                                            cpp_dbc::system_utils::captureCallStack()));
         }
     }
 

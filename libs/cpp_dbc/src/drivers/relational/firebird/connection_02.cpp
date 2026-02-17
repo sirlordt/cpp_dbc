@@ -41,7 +41,7 @@ namespace cpp_dbc::Firebird
         FIREBIRD_DEBUG("  m_autoCommit before: %s", (m_autoCommit ? "true" : "false"));
         FIREBIRD_DEBUG("  m_transactionActive: %s", (m_transactionActive ? "true" : "false"));
 
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        FIREBIRD_CONNECTION_LOCK_OR_THROW("EE7S9A4PFML2", "Connection closed");
 
         // Disable autocommit when beginning a manual transaction
         // This prevents executeUpdate from auto-committing
@@ -65,7 +65,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBConnection::transactionActive()
     {
 
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        FIREBIRD_CONNECTION_LOCK_OR_THROW("PCUNDMG16GK6", "Connection closed");
 
         return m_transactionActive;
     }
@@ -75,7 +75,7 @@ namespace cpp_dbc::Firebird
         FIREBIRD_DEBUG("FirebirdConnection::commit - Starting");
 
         FIREBIRD_DEBUG("  Acquiring lock...");
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        FIREBIRD_CONNECTION_LOCK_OR_THROW("QWXDAZV96H5U", "Connection closed");
         FIREBIRD_DEBUG("  Lock acquired");
 
         FIREBIRD_DEBUG("  Calling endTransaction(true)...");
@@ -94,7 +94,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBConnection::rollback()
     {
 
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        FIREBIRD_CONNECTION_LOCK_OR_THROW("8JHA5W6QHDGE", "Connection closed");
 
         endTransaction(false);
 
@@ -107,7 +107,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
 
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        FIREBIRD_CONNECTION_LOCK_OR_THROW("12FDXAMCF67W", "Connection closed");
 
         // If the isolation level is already set to the requested level, do nothing
         if (m_isolationLevel == level)
@@ -143,7 +143,7 @@ namespace cpp_dbc::Firebird
     TransactionIsolationLevel FirebirdDBConnection::getTransactionIsolation()
     {
 
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
+        FIREBIRD_CONNECTION_LOCK_OR_THROW("BO917VEC61VZ", "Connection closed");
 
         return m_isolationLevel;
     }
@@ -192,7 +192,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_CONNECTION_LOCK_OR_RETURN("11Z6HRLRBNND", "Connection closed");
 
             FIREBIRD_DEBUG("FirebirdConnection::prepareStatement(nothrow) - Starting");
             FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
@@ -208,25 +208,21 @@ namespace cpp_dbc::Firebird
             if (!m_tr)
             {
                 FIREBIRD_DEBUG("  No active transaction, starting one...");
-                auto startTrResult = beginTransaction(std::nothrow);
-                if (!startTrResult)
-                {
-                    return cpp_dbc::unexpected(startTrResult.error());
-                }
+                // Use startTransaction() directly to avoid corrupting m_autoCommit.
+                // beginTransaction() sets m_autoCommit=false as a side effect, which
+                // prevents isc_commit_retaining() from being called in executeUpdate(),
+                // causing all pool-managed connections (re-borrowed after reset()) to
+                // silently roll back their INSERTs instead of committing them.
+                startTransaction();
             }
 
             FIREBIRD_DEBUG("  Creating FirebirdDBPreparedStatement...");
             FIREBIRD_DEBUG("    m_db.get()=%p, *m_db.get()=%ld", (void*)m_db.get(), (m_db.get() ? (long)*m_db.get() : 0L));
             FIREBIRD_DEBUG("    m_tr=%ld", (long)m_tr);
-            // FIX #1: No longer passing raw pointer &m_tr
-            //         PreparedStatement will access conn->m_tr via m_connection weak_ptr
-#if DB_DRIVER_THREAD_SAFE
-            auto stmt = std::make_shared<FirebirdDBPreparedStatement>(
-                std::weak_ptr<isc_db_handle>(m_db), sql, m_connMutex, shared_from_this());
-#else
+            // PreparedStatement no longer receives m_connMutex as parameter
+            // It will access the mutex through m_connection weak_ptr when needed
             auto stmt = std::make_shared<FirebirdDBPreparedStatement>(
                 std::weak_ptr<isc_db_handle>(m_db), sql, shared_from_this());
-#endif
 
             FIREBIRD_DEBUG("FirebirdConnection::prepareStatement(nothrow) - Done");
             return cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>(std::static_pointer_cast<RelationalDBPreparedStatement>(stmt));
@@ -250,7 +246,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_CONNECTION_LOCK_OR_RETURN("NVCJZFQZP6C1", "Connection closed");
 
             FIREBIRD_DEBUG("FirebirdConnection::executeQuery(nothrow) - Starting");
             FIREBIRD_DEBUG("  SQL: %s", sql.c_str());

@@ -7,6 +7,7 @@
 #endif
 
 #if USE_FIREBIRD
+#include <atomic>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -51,9 +52,11 @@ namespace cpp_dbc::Firebird
      * ResultSet shares the SAME mutex as Connection and PreparedStatements,
      * ensuring all operations on the database handle are serialized.
      */
-    class FirebirdDBResultSet final : public RelationalDBResultSet
+    class FirebirdDBResultSet final : public RelationalDBResultSet,
+                                       public std::enable_shared_from_this<FirebirdDBResultSet>
     {
         friend class FirebirdDBConnection;
+        friend class FirebirdConnectionLock;
 
     private:
         FirebirdStmtHandle m_stmt;
@@ -64,29 +67,13 @@ namespace cpp_dbc::Firebird
         std::vector<std::string> m_columnNames;
         std::map<std::string, size_t> m_columnMap;
         bool m_hasData{false};
-        bool m_closed{true};
+        std::atomic<bool> m_closed{true};
         bool m_fetchedFirst{false};
         std::weak_ptr<FirebirdDBConnection> m_connection;
 
         // Buffer for SQLDA data
         std::vector<std::vector<char>> m_dataBuffers;
         std::vector<short> m_nullIndicators;
-
-#if DB_DRIVER_THREAD_SAFE
-        /**
-         * @brief Shared mutex with the parent Connection
-         *
-         * CRITICAL: This is shared with Connection and PreparedStatements because
-         * Firebird uses cursor-based iteration. Unlike MySQL/PostgreSQL where results
-         * are fully loaded into client memory, Firebird's isc_dsql_fetch() communicates
-         * with the database connection handle on every call. Without this shared mutex,
-         * concurrent operations (e.g., pool validation while iterating results) would
-         * cause race conditions.
-         *
-         * See class documentation above for detailed explanation.
-         */
-        SharedConnMutex m_connMutex;
-#endif
 
         /**
          * @brief Initialize column metadata from SQLDA
@@ -109,13 +96,12 @@ namespace cpp_dbc::Firebird
         void notifyConnClosing();
 
     public:
-#if DB_DRIVER_THREAD_SAFE
-        FirebirdDBResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement,
-                            std::shared_ptr<FirebirdDBConnection> conn, SharedConnMutex connMutex);
-#else
-        FirebirdDBResultSet(FirebirdStmtHandle stmt, XSQLDAHandle sqlda, bool ownStatement = true,
-                            std::shared_ptr<FirebirdDBConnection> conn = nullptr);
-#endif
+        // Constructor no longer takes SharedConnMutex parameter
+        // The mutex is accessed through m_connection when needed
+        FirebirdDBResultSet(FirebirdStmtHandle stmt,
+                            XSQLDAHandle sqlda,
+                            bool ownStatement,
+                            std::shared_ptr<FirebirdDBConnection> conn);
         ~FirebirdDBResultSet() override;
 
         FirebirdDBResultSet(const FirebirdDBResultSet &) = delete;
@@ -209,6 +195,8 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept override;
         cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::Firebird

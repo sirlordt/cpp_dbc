@@ -74,6 +74,79 @@ namespace cpp_dbc::system_utils
     };
 
     /**
+     * @brief RAII guard for atomic flags
+     *
+     * Sets an atomic<T> to a specified value on construction and restores it to
+     * another value on destruction. Useful for preventing re-entrancy or signaling
+     * operation state across threads. Exception-safe through RAII guarantees.
+     *
+     * Example usage:
+     * ```cpp
+     * // Boolean flag
+     * std::atomic<bool> m_processing{false};
+     * {
+     *     cpp_dbc::system_utils::AtomicGuard<bool> guard(m_processing, true, false);
+     *     // m_processing is now true
+     *     // ... do work ...
+     * } // m_processing automatically reset to false
+     *
+     * // Integer counter
+     * std::atomic<int> m_refCount{0};
+     * {
+     *     cpp_dbc::system_utils::AtomicGuard<int> guard(m_refCount, 1, 0);
+     *     // m_refCount is now 1
+     *     // ... do work ...
+     * } // m_refCount reset to 0
+     *
+     * // Enum state
+     * enum class State { Idle, Processing };
+     * std::atomic<State> m_state{State::Idle};
+     * {
+     *     cpp_dbc::system_utils::AtomicGuard<State> guard(m_state, State::Processing, State::Idle);
+     *     // m_state is now Processing
+     *     // ... do work ...
+     * } // m_state reset to Idle
+     * ```
+     *
+     * @tparam T Type of the atomic value (bool, int, enum, etc.)
+     * @note Non-copyable and non-movable to prevent accidental double-reset
+     */
+    template <typename T>
+    class AtomicGuard
+    {
+    private:
+        std::atomic<T> &m_flag;
+        T m_resetValue;
+
+    public:
+        /**
+         * @brief Constructs the guard and sets the flag to setValue
+         * @param flag Reference to the atomic<T> to guard
+         * @param setValue Value to set on construction
+         * @param resetValue Value to restore on destruction
+         */
+        explicit AtomicGuard(std::atomic<T> &flag, T setValue, T resetValue) noexcept
+            : m_flag(flag), m_resetValue(resetValue)
+        {
+            m_flag.store(setValue, std::memory_order_release);
+        }
+
+        /**
+         * @brief Destroys the guard and resets the flag to resetValue
+         */
+        ~AtomicGuard() noexcept
+        {
+            m_flag.store(m_resetValue, std::memory_order_release);
+        }
+
+        // Prevent copying and moving to avoid double-reset bugs
+        AtomicGuard(const AtomicGuard &) = delete;
+        AtomicGuard &operator=(const AtomicGuard &) = delete;
+        AtomicGuard(AtomicGuard &&) = delete;
+        AtomicGuard &operator=(AtomicGuard &&) = delete;
+    };
+
+    /**
      * @brief Parse a database connection URL into its components
      *
      * Parses URLs in the format: prefix://host:port/database
