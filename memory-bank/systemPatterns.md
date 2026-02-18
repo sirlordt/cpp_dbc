@@ -124,6 +124,12 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Static class members track initialization state for thread safety
   - Prevents race conditions during SQLite library initialization
 - Connection objects are not thread-safe and should not be shared between threads
+- **Single Connection Mutex Model (Firebird):** All statement/result-set registry access uses a single shared `m_connMutex` — eliminates ABBA deadlock between separate registry mutexes and the connection mutex
+- **AtomicGuard<T> RAII:** `system_utils::AtomicGuard<T>` provides exception-safe management of `std::atomic<T>` flags (set on construction, restored on destruction, non-copyable)
+- **Pool Lock Order Rule:** Connection close operations must happen OUTSIDE pool locks. Pool locks (`m_mutexAllConnections`, `m_mutexIdleConnections`) are always acquired BEFORE per-connection mutex. Closing inside pool locks inverts this order → Helgrind LockOrder violation
+- **Printf-Style Debug Output:** All debug macros (`FIREBIRD_DEBUG`, `CP_DEBUG`) use printf-style format strings — `operator<<` is not atomic and causes interleaved output + Helgrind false positives under concurrency
+- **`m_resetting` Anti-Deadlock Flag:** `FirebirdDBConnection::m_resetting` (`atomic<bool>`) signals `ResultSet::close()` to skip unregister during `closeAllActiveResultSets()` — prevents re-entrant lock acquisition through the close→unregister→lock cycle
+- **Nothrow API returns expected<void,DBException>:** Base class `reset(nothrow)` and `close(nothrow)` must return explicit errors rather than silently doing nothing; silent no-ops hide missing implementations
 
 ### Resource Management
 - Smart pointers are used for automatic resource management:

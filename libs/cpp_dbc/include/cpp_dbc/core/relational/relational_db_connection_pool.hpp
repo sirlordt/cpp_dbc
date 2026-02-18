@@ -204,7 +204,7 @@ namespace cpp_dbc
         // Helper method to safely update last used time (protects against data race)
         inline void updateLastUsedTime()
         {
-            std::lock_guard<std::mutex> lock(m_lastUsedTimeMutex);
+            std::scoped_lock<std::mutex> lock(m_lastUsedTimeMutex);
             m_lastUsedTime = std::chrono::steady_clock::now();
         }
 

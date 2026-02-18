@@ -2,9 +2,41 @@
 
 ## Current Status
 
-The CPP_DBC library appears to be in a functional state with the following components implemented:
+The CPP_DBC library is in active development with comprehensive Helgrind thread-safety hardening complete.
 
-### Recent Improvements (2026-02-06)
+### Recent Improvements (2026-02-17)
+
+**Helgrind Thread-Safety Hardening — Firebird Driver Refactor + Connection Pool Lock Order Fixes:**
+
+1. **Firebird USE-AFTER-FREE Bug Fixed:**
+   - Eliminated raw `isc_tr_handle *m_trPtr` from `FirebirdDBPreparedStatement`; now accesses `m_connection.lock()->m_tr` via weak_ptr
+   - Affected all `executeQuery()`, `executeUpdate()`, `execute()`, `prepareStatement()` methods
+
+2. **Firebird Mutex Model Simplified (ABBA Deadlock Eliminated):**
+   - Removed `m_statementsMutex` and `m_resultSetsMutex`; all registry access uses single `m_connMutex`
+   - `m_closed` → `std::atomic<bool>`; added `m_resetting` atomic flag to break re-entrant lock cycle in `closeAllActiveResultSets()`
+
+3. **Connection Pool Close Outside Locks (CRITICAL Fix):**
+   - All pool types collect connections under locks, close OUTSIDE locks to fix Helgrind LockOrder violations
+   - Added `connection_pool_internal.hpp` shared internal header
+
+4. **MinIdle Replenishment Outside Locks in `maintenanceTask()`**
+
+5. **Printf-Style Debug Output:** Firebird/pool debug converted from `operator<<` to `printf`-style
+
+6. **`AtomicGuard<T>` RAII Template** in `system_utils.hpp`
+
+7. **DBConnection/DBResultSet nothrow API:** `reset(nothrow)` and `close(nothrow)` now return `expected<void,DBException>`
+
+8. **Valgrind Suppressions:** ScyllaDB heap-address reuse + glibc GLIBC_2.34 clockwait false positives
+
+9. **`run_test_parallel.sh`:** Clock jump detection + PGID-based process group kill
+
+10. **Bug docs deleted:** `docs/bugs/README.md`, `docs/bugs/firebird_helgrind_analysis.md` — all bugs resolved
+
+---
+
+### Previous Improvements (2026-02-06)
 
 **Test Directory Reorganization and Parallel Test Runner Enhancements (21:44:02 PST):**
 1. **Test Directory Complete Restructuring:**

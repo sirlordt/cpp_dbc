@@ -19,15 +19,8 @@
 #include "cpp_dbc/core/relational/relational_db_connection_pool.hpp"
 #include "cpp_dbc/config/database_config.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
+#include "../connection_pool_internal.hpp"
 #include <algorithm>
-#include <iostream>
-
-// Debug output is controlled by -DDEBUG_CONNECTION_POOL=1 CMake option
-#if (defined(DEBUG_CONNECTION_POOL) && DEBUG_CONNECTION_POOL) || (defined(DEBUG_ALL) && DEBUG_ALL)
-#define CP_DEBUG(x) std::cout << x << std::endl
-#else
-#define CP_DEBUG(x)
-#endif
 
 namespace cpp_dbc
 {
@@ -161,13 +154,13 @@ namespace cpp_dbc
 
     RelationalDBConnectionPool::~RelationalDBConnectionPool()
     {
-        CP_DEBUG("RelationalDBConnectionPool::~RelationalDBConnectionPool - Starting destructor at "
-                 << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+        CP_DEBUG("RelationalDBConnectionPool::~RelationalDBConnectionPool - Starting destructor at %lld",
+                 (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
         RelationalDBConnectionPool::close();
 
-        CP_DEBUG("RelationalDBConnectionPool::~RelationalDBConnectionPool - Destructor completed at "
-                 << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+        CP_DEBUG("RelationalDBConnectionPool::~RelationalDBConnectionPool - Destructor completed at %lld",
+                 (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
     }
 
     std::shared_ptr<RelationalDBConnection> RelationalDBConnectionPool::createDBConnection()
@@ -200,7 +193,7 @@ namespace cpp_dbc
         {
             // Pool is not managed by shared_ptr, weakPool remains empty
             // This can happen if the pool is stack-allocated
-            CP_DEBUG("RelationalDBConnectionPool::createPooledDBConnection - bad_weak_ptr: " << ex.what());
+            CP_DEBUG("RelationalDBConnectionPool::createPooledDBConnection - bad_weak_ptr: %s", ex.what());
         }
 
         // Create the pooled connection
@@ -218,7 +211,7 @@ namespace cpp_dbc
         }
         catch ([[maybe_unused]] const DBException &ex)
         {
-            CP_DEBUG("RelationalDBConnectionPool::validateConnection - DBException: " << ex.what());
+            CP_DEBUG("RelationalDBConnectionPool::validateConnection - DBException: %s", ex.what());
             return false;
         }
     }
@@ -240,7 +233,7 @@ namespace cpp_dbc
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception during close: " << ex.what());
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception during close: %s", ex.what());
             }
             return;
         }
@@ -281,7 +274,7 @@ namespace cpp_dbc
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception in reset: " << ex.what());
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception in reset: %s", ex.what());
                 valid = false;
             }
         }
@@ -302,7 +295,7 @@ namespace cpp_dbc
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception resetting transaction isolation: " << ex.what());
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception resetting transaction isolation: %s", ex.what());
                 valid = false;
             }
         }
@@ -321,38 +314,65 @@ namespace cpp_dbc
         }
         else
         {
-            // Use scoped_lock for consistent lock ordering to prevent deadlock
-            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+            // CRITICAL FIX (preventive): createPooledDBConnection() must NOT be called while
+            // holding pool locks. Even for relational drivers (MySQL, PostgreSQL, Firebird),
+            // calling driver-level connection creation under pool locks can create lock ordering
+            // cycles if those drivers acquire internal mutexes during connection establishment.
+            //
+            // Fix: Remove invalid connection under locks, create replacement OUTSIDE locks,
+            // then re-acquire locks to insert replacement.
+            m_activeConnections--;
 
-            // Replace invalid connection with a new one
-            try
+            // Step 1: Under locks — remove the invalid connection from both collections
             {
-                m_activeConnections--;
-                auto it = std::ranges::find(m_allConnections, conn);
-                if (it != m_allConnections.end())
-                {
-                    *it = createPooledDBConnection();
-                    m_idleConnections.push(*it);
-                }
-            }
-            catch ([[maybe_unused]] const std::exception &ex)
-            {
+                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
                     m_allConnections.erase(it);
                 }
-                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception replacing invalid connection: " << ex.what());
+                // Also clean it from the idle queue if it somehow ended up there
+                std::queue<std::shared_ptr<RelationalPooledDBConnection>> tempQueue;
+                while (!m_idleConnections.empty())
+                {
+                    auto c = m_idleConnections.front();
+                    m_idleConnections.pop();
+                    if (c != conn)
+                    {
+                        tempQueue.push(c);
+                    }
+                }
+                m_idleConnections = tempQueue;
             }
+            // Locks released here
 
-            // Close the old invalid connection (conn still points to the original invalid connection)
+            // Step 2: Close the old invalid connection OUTSIDE locks
             try
             {
                 conn->getUnderlyingRelationalConnection()->close();
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception closing invalid connection: " << ex.what());
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception closing invalid connection: %s", ex.what());
+            }
+
+            // Step 3: Create replacement connection OUTSIDE locks (avoids lock ordering cycle)
+            std::shared_ptr<RelationalPooledDBConnection> replacement;
+            try
+            {
+                replacement = createPooledDBConnection();
+            }
+            catch ([[maybe_unused]] const std::exception &ex)
+            {
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception creating replacement connection: %s", ex.what());
+            }
+
+            // Step 4: Under locks — insert replacement into pool collections
+            if (replacement)
+            {
+                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                m_allConnections.push_back(replacement);
+                m_idleConnections.push(replacement);
             }
         }
 
@@ -360,7 +380,7 @@ namespace cpp_dbc
         // m_mutexMaintenance is held only for the duration of notify_one() — maintenance
         // work now runs outside this lock, so this cannot cause a deadlock or stall.
         {
-            std::lock_guard maintLock(m_mutexMaintenance);
+            std::scoped_lock maintLock(m_mutexMaintenance);
             m_maintenanceCondition.notify_one();
         }
     }
@@ -385,7 +405,7 @@ namespace cpp_dbc
                 }
                 catch ([[maybe_unused]] const std::exception &ex)
                 {
-                    CP_DEBUG("RelationalDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: " << ex.what());
+                    CP_DEBUG("RelationalDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: %s", ex.what());
                 }
 
                 // Remove invalid connection from allConnections
@@ -512,7 +532,7 @@ namespace cpp_dbc
         }
         catch ([[maybe_unused]] const std::exception &ex)
         {
-            CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - Exception in prepareForBorrow: " << ex.what());
+            CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - Exception in prepareForBorrow: %s", ex.what());
         }
 
         return result;
@@ -540,67 +560,87 @@ namespace cpp_dbc
 
             auto now = std::chrono::steady_clock::now();
 
-            // Ensure no body touch the allConnections and idleConnections variables when is used by this thread
+            // Expire old connections under locks (no new connection creation here)
             // Use scoped_lock for consistent lock ordering to prevent deadlock
-            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
-
-            // Check all connections for expired ones
-            for (auto it = m_allConnections.begin(); it != m_allConnections.end();)
             {
-                auto pooledConn = *it;
+                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
 
-                // Skip active connections
-                if (pooledConn->isActive())
+                // Check all connections for expired ones
+                for (auto it = m_allConnections.begin(); it != m_allConnections.end();)
                 {
-                    ++it;
-                    continue;
-                }
+                    auto pooledConn = *it;
 
-                // Check if the connection has been idle for too long
-                auto idleTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                    now - pooledConn->getLastUsedTime())
-                                    .count();
-
-                // Check if the connection has lived for too long
-                auto lifeTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                    now - pooledConn->getCreationTime())
-                                    .count();
-
-                bool expired = (idleTime > m_idleTimeoutMillis) ||
-                               (lifeTime > m_maxLifetimeMillis);
-
-                // Close and remove expired connections if we have more than minIdle
-                if (expired && m_allConnections.size() > m_minIdle)
-                {
-                    // Remove from idle queue if present
-                    std::queue<std::shared_ptr<RelationalPooledDBConnection>> tempQueue;
-                    while (!m_idleConnections.empty())
+                    // Skip active connections
+                    if (pooledConn->isActive())
                     {
-                        auto conn = m_idleConnections.front();
-                        m_idleConnections.pop();
-
-                        if (conn != pooledConn)
-                        {
-                            tempQueue.push(conn);
-                        }
+                        ++it;
+                        continue;
                     }
-                    m_idleConnections = tempQueue;
 
-                    // Remove from allConnections
-                    it = m_allConnections.erase(it);
-                }
-                else
-                {
-                    ++it;
+                    // Check if the connection has been idle for too long
+                    auto idleTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        now - pooledConn->getLastUsedTime())
+                                        .count();
+
+                    // Check if the connection has lived for too long
+                    auto lifeTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        now - pooledConn->getCreationTime())
+                                        .count();
+
+                    bool expired = (idleTime > m_idleTimeoutMillis) ||
+                                   (lifeTime > m_maxLifetimeMillis);
+
+                    // Close and remove expired connections if we have more than minIdle
+                    if (expired && m_allConnections.size() > m_minIdle)
+                    {
+                        // Remove from idle queue if present
+                        std::queue<std::shared_ptr<RelationalPooledDBConnection>> tempQueue;
+                        while (!m_idleConnections.empty())
+                        {
+                            auto conn = m_idleConnections.front();
+                            m_idleConnections.pop();
+
+                            if (conn != pooledConn)
+                            {
+                                tempQueue.push(conn);
+                            }
+                        }
+                        m_idleConnections = tempQueue;
+
+                        // Remove from allConnections
+                        it = m_allConnections.erase(it);
+                    }
+                    else
+                    {
+                        ++it;
+                    }
                 }
             }
+            // Locks released here — replenishment happens outside locks
 
-            // Ensure we have at least minIdle connections
-            while (m_running && m_allConnections.size() < m_minIdle)
+            // CRITICAL FIX (preventive): createPooledDBConnection() must NOT be called while
+            // holding pool locks. Replenish minIdle connections OUTSIDE locks to avoid potential
+            // lock ordering cycles with driver-internal mutexes.
+            size_t currentTotal;
             {
-                auto pooledConn = createPooledDBConnection();
-                m_idleConnections.push(pooledConn);
-                m_allConnections.push_back(pooledConn);
+                std::scoped_lock lockCheck(m_mutexAllConnections);
+                currentTotal = m_allConnections.size();
+            }
+            while (m_running && currentTotal < m_minIdle)
+            {
+                try
+                {
+                    auto pooledConn = createPooledDBConnection();
+                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                    m_idleConnections.push(pooledConn);
+                    m_allConnections.push_back(pooledConn);
+                    currentTotal = m_allConnections.size();
+                }
+                catch ([[maybe_unused]] const std::exception &ex)
+                {
+                    CP_DEBUG("RelationalDBConnectionPool::maintenanceTask - Exception creating minIdle connection: %s", ex.what());
+                    break;
+                }
             }
         } while (m_running);
     }
@@ -638,33 +678,29 @@ namespace cpp_dbc
             m_poolAlive->store(false);
         }
 
-        CP_DEBUG("RelationalDBConnectionPool::close - Waiting for active operations to complete at "
-                 << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+        CP_DEBUG("RelationalDBConnectionPool::close - Waiting for active operations to complete at %lld", (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
         // Wait for all active operations to complete
         {
             auto waitStart = std::chrono::steady_clock::now();
-            CP_DEBUG("RelationalDBConnectionPool::close - Initial active connections: " << m_activeConnections.load());
+            CP_DEBUG("RelationalDBConnectionPool::close - Initial active connections: %zu", m_activeConnections.load());
 
             while (m_activeConnections.load() > 0)
             {
-                CP_DEBUG("RelationalDBConnectionPool::close - Waiting for " << m_activeConnections.load()
-                                                                            << " active connections to finish at "
-                                                                            << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+                CP_DEBUG("RelationalDBConnectionPool::close - Waiting for %zu active connections to finish at %lld",
+                         m_activeConnections.load(), (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
                 auto elapsed = std::chrono::steady_clock::now() - waitStart;
                 auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
 
                 if (elapsed_seconds > 0 && elapsed_seconds % 1 == 0)
                 {
-                    CP_DEBUG("RelationalDBConnectionPool::close - Waited " << elapsed_seconds
-                                                                           << " seconds for active connections");
+                    CP_DEBUG("RelationalDBConnectionPool::close - Waited %lld seconds for active connections", elapsed_seconds);
                 }
 
                 if (elapsed > std::chrono::seconds(10))
                 {
-                    CP_DEBUG("RelationalDBConnectionPool::close - Timeout waiting for active connections, forcing close at "
-                             << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+                    CP_DEBUG("RelationalDBConnectionPool::close - Timeout waiting for active connections, forcing close at %lld", (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
                     // Force active connections to be marked as inactive
                     m_activeConnections.store(0);
@@ -676,7 +712,7 @@ namespace cpp_dbc
         // Notify all waiting threads (maintenance thread) to wake up and exit.
         // m_mutexMaintenance is held only for the duration of notify_all().
         {
-            std::lock_guard lock(m_mutexMaintenance);
+            std::scoped_lock lock(m_mutexMaintenance);
             m_maintenanceCondition.notify_all();
         }
 
@@ -687,40 +723,37 @@ namespace cpp_dbc
         }
 
         // Close all connections
-        // Use scoped_lock for consistent lock ordering to prevent deadlock
-        std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+        // CRITICAL: Collect connections under pool locks, then close OUTSIDE pool locks.
+        // Closing a connection acquires per-connection mutex (m_connMutex).
+        // initializePool() establishes order: m_connMutex FIRST, then pool locks.
+        // Closing inside pool locks would invert that order → Helgrind LockOrder violation.
+        std::vector<std::shared_ptr<RelationalPooledDBConnection>> connectionsToClose;
+        {
+            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+            connectionsToClose = m_allConnections;
+            while (!m_idleConnections.empty())
+            {
+                m_idleConnections.pop();
+            }
+            m_allConnections.clear();
+        }
 
-        for (const auto &conn : m_allConnections)
+        // Close each connection outside pool locks (per-connection mutex acquired here)
+        for (const auto &conn : connectionsToClose)
         {
             try
             {
                 if (conn && conn->getUnderlyingConnection())
                 {
-                    // Mark connection as inactive before closing
                     conn->setActive(false);
-
-                    // Close the underlying connection
                     conn->getUnderlyingConnection()->close();
-
-                    // Ensure the connection is properly returned to the pool
-                    if (conn->getUnderlyingConnection()->isPooled())
-                    {
-                        conn->getUnderlyingConnection()->returnToPool();
-                    }
                 }
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("RelationalDBConnectionPool::close - Exception during connection close: " << ex.what());
+                CP_DEBUG("RelationalDBConnectionPool::close - Exception during connection close: %s", ex.what());
             }
         }
-
-        // Clear collections
-        while (!m_idleConnections.empty())
-        {
-            m_idleConnections.pop();
-        }
-        m_allConnections.clear();
     }
 
     bool RelationalDBConnectionPool::isRunning() const
@@ -765,7 +798,7 @@ namespace cpp_dbc
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("RelationalPooledDBConnection::~RelationalPooledDBConnection - Exception: " << ex.what());
+                CP_DEBUG("RelationalPooledDBConnection::~RelationalPooledDBConnection - Exception: %s", ex.what());
             }
         }
     }
@@ -834,7 +867,7 @@ namespace cpp_dbc
                     auto result = m_conn->close(std::nothrow);
                     if (!result)
                     {
-                        CP_DEBUG("RelationalPooledDBConnection::close - Failed to close underlying connection: " << result.error().what());
+                        CP_DEBUG("RelationalPooledDBConnection::close - Failed to close underlying connection: %s", result.error().what());
                         return result;
                     }
                 }
@@ -1207,7 +1240,7 @@ namespace cpp_dbc
             auto result = m_conn->reset(std::nothrow);
             if (!result)
             {
-                CP_DEBUG("RelationalPooledDBConnection::reset - Underlying connection reset failed: " << result.error().what());
+                CP_DEBUG("RelationalPooledDBConnection::reset - Underlying connection reset failed: %s", result.error().what());
                 return result; // Propagate the error from underlying connection
             }
 
@@ -1215,12 +1248,12 @@ namespace cpp_dbc
         }
         catch (const cpp_dbc::DBException &ex)
         {
-            CP_DEBUG("RelationalPooledDBConnection::reset - DBException: " << ex.what());
+            CP_DEBUG("RelationalPooledDBConnection::reset - DBException: %s", ex.what());
             return cpp_dbc::unexpected(ex);
         }
         catch (const std::exception &ex)
         {
-            CP_DEBUG("RelationalPooledDBConnection::reset - Exception: " << ex.what());
+            CP_DEBUG("RelationalPooledDBConnection::reset - Exception: %s", ex.what());
             return cpp_dbc::unexpected(cpp_dbc::DBException("MCWII3UL99D9",
                                                             std::string("Reset failed: ") + ex.what(),
                                                             cpp_dbc::system_utils::captureCallStack()));
@@ -1410,7 +1443,7 @@ namespace cpp_dbc
         // CRITICAL FIX for Bug #2: Protect read access with mutex to prevent data race
         // Maintenance thread reads this while worker threads write
         // See: libs/cpp_dbc/docs/bugs/firebird_helgrind_analysis.md (Context 1)
-        std::lock_guard<std::mutex> lock(m_lastUsedTimeMutex);
+        std::scoped_lock<std::mutex> lock(m_lastUsedTimeMutex);
         return m_lastUsedTime;
     }
 
@@ -1455,14 +1488,14 @@ namespace cpp_dbc
         catch ([[maybe_unused]] const std::bad_weak_ptr &ex)
         {
             // shared_from_this failed, keep as closed
-            CP_DEBUG("RelationalPooledDBConnection::returnToPool - bad_weak_ptr: " << ex.what());
+            CP_DEBUG("RelationalPooledDBConnection::returnToPool - bad_weak_ptr: %s", ex.what());
             m_closed.store(true);
         }
         catch ([[maybe_unused]] const std::exception &ex)
         {
             // Any other exception, keep as closed
             m_closed.store(true);
-            CP_DEBUG("RelationalPooledDBConnection::returnToPool - Exception: " << ex.what());
+            CP_DEBUG("RelationalPooledDBConnection::returnToPool - Exception: %s", ex.what());
         }
         catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
         {

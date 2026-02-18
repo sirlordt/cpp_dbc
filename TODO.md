@@ -15,6 +15,18 @@
 
 ## Completed Tasks
 
+- Helgrind Thread-Safety Hardening — Firebird Driver Refactor + Connection Pool Lock Order Fixes (2026-02-17):
+  - Fixed Firebird USE-AFTER-FREE bug: eliminated raw `m_trPtr`, now uses `m_connection.lock()->m_tr`
+  - Fixed Firebird ABBA deadlock: removed `m_statementsMutex`/`m_resultSetsMutex`, single `m_connMutex` for all registry access
+  - Fixed Connection Pool LockOrder violations: close connections OUTSIDE pool locks across all pool types (Relational, Columnar, Document, KV)
+  - Fixed MinIdle replenishment: `createPooledDBConnection()` called outside pool locks in `maintenanceTask()`
+  - Added `AtomicGuard<T>` RAII template in `system_utils.hpp`
+  - Hardened DBConnection/DBResultSet nothrow API: `reset(nothrow)` and `close(nothrow)` return `expected<void,DBException>`
+  - Added 2 new Helgrind false-positive suppressions (ScyllaDB heap-address reuse, glibc clockwait)
+  - Converted all debug output to printf-style for thread-safe non-interleaved logging
+  - Added clock jump detection and PGID-based process group kill in `run_test_parallel.sh`
+  - Deleted resolved bug documentation (`docs/bugs/README.md`, `docs/bugs/firebird_helgrind_analysis.md`)
+
 - Test Directory Reorganization and Parallel Test Runner Enhancements (2026-02-06):
   - Reorganized all test files into hierarchical, database-family-based directory structure
   - Test organization now mirrors example structure: `test/common/`, `test/relational/mysql/`, `test/kv/redis/`, `test/document/mongodb/`, `test/columnar/scylladb/`

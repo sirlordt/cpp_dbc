@@ -41,20 +41,33 @@ This directory contains Helgrind suppression files and analysis documentation fo
 
 ---
 
-## ⚠️ Important: All Errors Are False Positives
+## ⚠️ Important: Errors Status (Updated 2026-02-17)
 
-**As of 2026-02-14, ALL ~620,000 Helgrind errors in cpp_dbc tests are FALSE POSITIVES.**
+**As of 2026-02-17, ALL remaining Helgrind errors in cpp_dbc tests are FALSE POSITIVES from third-party database client libraries.**
 
-These errors originate from third-party database client libraries, **NOT from cpp_dbc code**. See [ANALYSIS.md](./ANALYSIS.md) for complete investigation.
+### Real Bugs — FIXED (2026-02-17)
 
-### Summary by Driver
+The following REAL bugs were found in cpp_dbc's Firebird driver and connection pool, and have been **fully fixed**:
+
+| Bug | Type | Status |
+|-----|------|--------|
+| Firebird `m_trPtr` raw pointer (USE-AFTER-FREE) | REAL BUG | ✅ Fixed 2026-02-17 |
+| Firebird lock order violation: `m_connMutex` ↔ `m_statementsMutex`/`m_resultSetsMutex` (ABBA deadlock) | REAL BUG | ✅ Fixed 2026-02-17 |
+| Connection pool: closing connections inside pool locks (LockOrder) | REAL BUG | ✅ Fixed 2026-02-17 |
+| `m_closed`/`m_resetting` non-atomic bools (data race) | REAL BUG | ✅ Fixed 2026-02-17 |
+
+See [research/HELGRIND_FIX_COMPLETE_SUMMARY.md](../../../../research/HELGRIND_FIX_COMPLETE_SUMMARY.md) for complete fix documentation.
+
+### Remaining False Positives (Library Internals)
+
+These errors originate from **third-party database client libraries**, NOT from cpp_dbc code. See [ANALYSIS.md](./ANALYSIS.md) for complete investigation.
 
 | Driver | Errors | Root Cause | Evidence |
 |--------|--------|------------|----------|
 | **Firebird** | ~482k | BSS global variables + internal threads | [ANALYSIS.md#1-firebird](./ANALYSIS.md#1-firebird-libfbclientso) |
 | **PostgreSQL** | 216 | Async I/O during `PQconnectdb` | [ANALYSIS.md#2-postgresql](./ANALYSIS.md#2-postgresql-libpqso) |
-| **SQLite** | 15+ | POSIX file locks (WAL mode) + lock order violations | [ANALYSIS.md#3-sqlite](./ANALYSIS.md#3-sqlite-libsqlite3so) |
-| **ScyllaDB** | ~137k | Lock-free queues (libuv) | [ANALYSIS.md#4-scylladb-cassandra](./ANALYSIS.md#4-scylladb--cassandra-libcassandraso) |
+| **SQLite** | 15+ | POSIX file locks (WAL mode) | [ANALYSIS.md#3-sqlite](./ANALYSIS.md#3-sqlite-libsqlite3so) |
+| **ScyllaDB** | ~137k | Lock-free queues (libuv) + heap address reuse | [ANALYSIS.md#4-scylladb-cassandra](./ANALYSIS.md#4-scylladb--cassandra-libcassandraso) |
 | **MySQL** | 2 | OpenSSL 3.x lock type mismatch | [ANALYSIS.md#5-mysql](./ANALYSIS.md#5-mysql-libmysqlclientso--openssl-3x) |
 
 ### Why They're False Positives
@@ -377,7 +390,7 @@ For questions or issues:
 
 ---
 
-**Last Updated**: 2026-02-14
+**Last Updated**: 2026-02-17
 **Helgrind Version**: 3.18.1
 **Total Suppressions**: 50+ generic patterns
 **Analysis**: Complete - see ANALYSIS.md

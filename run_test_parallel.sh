@@ -53,6 +53,9 @@ declare -a ALL_PREFIXES           # Array of all test prefixes
 LAST_COOLDOWN_RUN=0               # Track last run where cooldown was performed
 COOLDOWN_SECONDS=10               # Seconds to wait between completed runs
 
+# Clock jump detection (protects against NTP corrections and VM suspend/resume)
+LAST_LOOP_TIME=0                  # Timestamp of previous main loop iteration
+
 # TUI variables
 SELECTED_INDEX=0
 TERM_ROWS=0
@@ -633,6 +636,32 @@ check_test_completion() {
     return 0  # Completed
 }
 
+# Detect wall-clock jumps (NTP correction, VM suspend/resume) and reset activity
+# timers to prevent false timeouts. Must be called once per main loop iteration.
+# A jump is detected when the delta between two consecutive iterations is much
+# larger than the expected sleep interval (0.5s). Threshold: 30s.
+detect_and_handle_clock_jump() {
+    local current_time
+    current_time=$(date +%s)
+
+    if [ "$LAST_LOOP_TIME" -gt 0 ]; then
+        local delta=$((current_time - LAST_LOOP_TIME))
+        if [ "$delta" -gt 30 ]; then
+            # Clock jumped forward (NTP fix after VM restore with stale RTC clock).
+            # Reset all running tests' activity timestamps so the timeout checker
+            # uses the corrected clock baseline and does not fire spuriously.
+            for prefix in "${ALL_PREFIXES[@]}"; do
+                if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
+                    PREFIX_LAST_ACTIVITY[$prefix]=$current_time
+                    PREFIX_LAST_LOG_SIZE[$prefix]=0  # Force size recheck next iteration
+                fi
+            done
+        fi
+    fi
+
+    LAST_LOOP_TIME=$current_time
+}
+
 # Check if a running test has timed out (no log activity for TEST_TIMEOUT_SECONDS)
 # Returns 0 if timed out, 1 if still active
 check_test_timeout() {
@@ -675,7 +704,9 @@ check_test_timeout() {
     return 1  # Not timed out yet
 }
 
-# Kill a test process due to timeout
+# Kill a test process due to timeout.
+# Kills the entire process group (PGID) to reach deep descendants like Helgrind
+# that pkill -P misses (it only kills direct children of the tracked subshell PID).
 kill_test_timeout() {
     local prefix=$1
     local pid="${PREFIX_PIDS[$prefix]}"
@@ -685,19 +716,31 @@ kill_test_timeout() {
         return
     fi
 
-    # Try graceful termination first
-    kill -TERM "$pid" 2>/dev/null || true
+    # Resolve the process group ID so we can kill all descendants at once.
+    # Guard against PGID 0/1 (kernel/init) which would be catastrophic to kill.
+    local pgid
+    pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
 
-    # Also kill child processes
-    pkill -TERM -P "$pid" 2>/dev/null || true
+    if [ -n "$pgid" ] && [ "$pgid" -gt 1 ]; then
+        # Graceful termination of the whole process group
+        kill -TERM -"$pgid" 2>/dev/null || true
+    else
+        # Fallback: kill tracked PID + direct children only
+        kill -TERM "$pid" 2>/dev/null || true
+        pkill -TERM -P "$pid" 2>/dev/null || true
+    fi
 
     # Wait a bit for graceful shutdown
     sleep 2
 
     # Force kill if still running
     if kill -0 "$pid" 2>/dev/null; then
-        kill -KILL "$pid" 2>/dev/null || true
-        pkill -KILL -P "$pid" 2>/dev/null || true
+        if [ -n "$pgid" ] && [ "$pgid" -gt 1 ]; then
+            kill -KILL -"$pgid" 2>/dev/null || true
+        else
+            kill -KILL "$pid" 2>/dev/null || true
+            pkill -KILL -P "$pid" 2>/dev/null || true
+        fi
     fi
 
     # Append timeout message to log file
@@ -2101,6 +2144,9 @@ run_parallel_tests_tui() {
 
     # Main loop
     while ! all_tests_done; do
+        # Detect NTP corrections / VM resume clock jumps before checking timeouts
+        detect_and_handle_clock_jump
+
         # Check for timeouts and completed tests
         for prefix in "${ALL_PREFIXES[@]}"; do
             if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
@@ -2552,6 +2598,9 @@ run_parallel_tests_simple() {
     display_status
 
     while ! all_tests_done; do
+        # Detect NTP corrections / VM resume clock jumps before checking timeouts
+        detect_and_handle_clock_jump
+
         # Check for timeouts and completed tests
         for prefix in "${ALL_PREFIXES[@]}"; do
             if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
@@ -2846,9 +2895,14 @@ cleanup() {
         if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
             local pid=${PREFIX_PIDS[$prefix]}
             if [ -n "$pid" ]; then
-                kill -TERM "$pid" 2>/dev/null || true
-                # Also kill child processes
-                pkill -P "$pid" 2>/dev/null || true
+                local pgid
+                pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
+                if [ -n "$pgid" ] && [ "$pgid" -gt 1 ]; then
+                    kill -TERM -"$pgid" 2>/dev/null || true
+                else
+                    kill -TERM "$pid" 2>/dev/null || true
+                    pkill -P "$pid" 2>/dev/null || true
+                fi
             fi
             # Clean up .ansi file for interrupted tests (commented: handled by cleanup_old_tmp_ansi_folders)
             # strip_ansi_from_log "$prefix"

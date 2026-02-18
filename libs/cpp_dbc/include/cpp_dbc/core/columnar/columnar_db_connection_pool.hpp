@@ -192,6 +192,7 @@ namespace cpp_dbc
         std::weak_ptr<ColumnarDBConnectionPool> m_pool;
         std::shared_ptr<std::atomic<bool>> m_poolAlive; // Shared flag to check if pool is still alive
         std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
+        mutable std::mutex m_lastUsedTimeMutex; // CRITICAL FIX: Protect m_lastUsedTime from data race with maintenance thread
         std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
         std::atomic<bool> m_active{false};
         std::atomic<bool> m_closed{false};
@@ -200,6 +201,13 @@ namespace cpp_dbc
 
         // Helper method to check if pool is still valid
         bool isPoolValid() const final;
+
+        // Helper method to safely update last used time (protects against data race with maintenance thread)
+        inline void updateLastUsedTime()
+        {
+            std::scoped_lock<std::mutex> lock(m_lastUsedTimeMutex);
+            m_lastUsedTime = std::chrono::steady_clock::now();
+        }
 
     public:
         ColumnarPooledDBConnection(std::shared_ptr<ColumnarDBConnection> conn,

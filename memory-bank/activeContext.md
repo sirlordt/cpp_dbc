@@ -37,7 +37,21 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Test Directory Reorganization and Parallel Test Runner Enhancements** (2026-02-06 21:44:02 PST):
+1. **Helgrind Thread-Safety Hardening — Firebird Driver Refactor + Connection Pool Lock Order Fixes** (2026-02-17 PST):
+   - **Firebird USE-AFTER-FREE Fix:** Eliminated raw `m_trPtr` from `FirebirdDBPreparedStatement`. All methods now access `m_connection.lock()->m_tr` via weak_ptr — lifecycle-safe
+   - **Firebird Mutex Model:** Removed `m_statementsMutex` / `m_resultSetsMutex`. All registry access uses single `m_connMutex` — eliminates ABBA deadlock
+   - **Firebird `m_closed`/`m_resetting` as atomics:** Prevents data races on connection state flags
+   - **Printf-style debug output:** Firebird/pool debug output converted from `operator<<` to `printf`-style for non-interleaved Helgrind-safe output
+   - **Connection Pool Close Outside Locks:** All pool types now collect connections under locks, then close OUTSIDE locks — fixes Helgrind LockOrder violations
+   - **Connection Pool MinIdle Replenishment Outside Locks:** `maintenanceTask()` calls `createPooledDBConnection()` outside pool locks
+   - **`AtomicGuard<T>` RAII template:** New `system_utils::AtomicGuard<T>` for exception-safe atomic flag management
+   - **DBConnection/DBResultSet nothrow API:** `reset(nothrow)` and `close(nothrow)` now return `expected<void,DBException>` with explicit errors (no more silent no-ops)
+   - **Valgrind suppressions:** 2 new false-positive suppressions (ScyllaDB heap-address reuse, glibc GLIBC_2.34 clockwait)
+   - **`run_test_parallel.sh`:** Clock jump detection (NTP/VM resume), PGID-based process group kill
+   - **`connection_pool_internal.hpp`:** New shared internal header for all pool implementations
+   - **Bug docs deleted:** `docs/bugs/README.md` and `docs/bugs/firebird_helgrind_analysis.md` — all tracked bugs resolved
+
+2. **Test Directory Reorganization and Parallel Test Runner Enhancements** (2026-02-06 21:44:02 PST):
    - **Test Directory Complete Restructuring:**
      - Migrated all test files to hierarchical, database-family-based organization
      - Test structure mirrors example organization for consistency

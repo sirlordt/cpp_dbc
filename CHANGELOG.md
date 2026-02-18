@@ -1,6 +1,125 @@
 # Changelog
 
-## 2026-02-06 21:44:02 PST [Current]
+## 2026-02-17 16:22:49 PST [Current]
+
+### Helgrind Thread-Safety Hardening: Connection Pool Lock Order Fixes, Firebird Driver Refactor, and Test Infrastructure Improvements
+
+#### Staged Changes: Connection Pool Internal Refactor + Test Script Improvements
+
+* **Connection Pool Internal Header (`connection_pool_internal.hpp`):**
+  * Extracted shared internal types and helpers used across all pool implementations (relational, columnar, document, kv) into a single internal header
+  * Reduces duplication and ensures consistent lock-ordering discipline across all pool types
+
+* **Connection Pool — Close Outside Pool Locks (CRITICAL Helgrind fix):**
+  * `RelationalDBConnectionPool::close()`: Collect connections under pool locks, then close them **outside** pool locks
+  * Root cause: Closing a connection acquires `m_connMutex` (per-connection); previously this happened inside `scoped_lock(m_mutexAllConnections, m_mutexIdleConnections)`, inverting the established lock order (`m_connMutex` first → pool locks)
+  * Same fix applied to `ColumnarDBConnectionPool`, `DocumentDBConnectionPool`, `KVDBConnectionPool`
+  * Removed `returnToPool()` call from `close()` path (connections closed directly, no pool re-entry)
+
+* **Connection Pool — MinIdle Replenishment Outside Pool Locks:**
+  * `maintenanceTask()`: `createPooledDBConnection()` now called **outside** pool locks
+  * Prevents potential lock-ordering cycles with driver-internal mutexes during connection creation
+  * Size check (`m_allConnections.size()`) performed under separate `scoped_lock` to maintain correctness
+
+* **Connection Pool — Debug Output Modernized:**
+  * Changed all `CP_DEBUG` calls from `operator<<` stream style to `printf`-style format strings
+  * Eliminates potential data races on stream objects under Helgrind observation
+
+* **`run_test_parallel.sh` — NTP/VM Resume Clock Jump Detection:**
+  * Added `detect_and_handle_clock_jump()`: detects when wall-clock advances more than 30 seconds between loop iterations (caused by NTP correction after VM suspend/resume with stale RTC)
+  * When jump detected: resets all running test activity timestamps to prevent false timeout kills
+  * `LAST_LOOP_TIME` tracks previous iteration timestamp; called once per main loop in both TUI and simple modes
+
+* **`run_test_parallel.sh` — Process Group Kill (PGID-based):**
+  * `kill_test_timeout()` and `cleanup()` now resolve PGID via `ps -o pgid=` and send `SIGTERM`/`SIGKILL` to `-$pgid` (entire process group)
+  * Correctly terminates deep descendants such as Helgrind/Valgrind child processes that `pkill -P` misses
+  * Safety guard: PGID 0 and 1 are never killed (kernel/init protection)
+
+* **Deleted Bug Documentation (Bugs Now Fixed):**
+  * Removed `libs/cpp_dbc/docs/bugs/README.md` — all tracked Firebird bugs resolved
+  * Removed `libs/cpp_dbc/docs/bugs/firebird_helgrind_analysis.md` — analysis complete; Firebird driver fully refactored
+
+---
+
+#### Commit `3327c62`: Refactor Firebird Driver Mutex Model and Harden nothrow API Across Drivers
+
+* **`AtomicGuard<T>` RAII Template (`system_utils.hpp`):**
+  * New template: `AtomicGuard<T>` — sets `atomic<T>` to a value on construction, restores on destruction
+  * Exception-safe, non-copyable, non-movable to prevent double-reset bugs
+  * Used internally to mark `m_resetting` flag on `FirebirdDBConnection` during `closeAllActiveResultSets()`
+
+* **`DBConnection` Base Class — Hardened nothrow API:**
+  * `reset(std::nothrow_t)`: Changed from `virtual void reset() noexcept {}` (silent no-op) to `virtual expected<void,DBException>` returning explicit "Not implemented" error (`ZDC68V9OMICL`)
+  * `close(std::nothrow_t)`: New virtual method returning `expected<void,DBException>` — was absent from base class
+
+* **`DBResultSet` Base Class — nothrow close():**
+  * Added `close(std::nothrow_t)` returning `expected<void,DBException>` with default "Not implemented" error (`3FROYWSMRL4N`)
+
+* **Firebird `FirebirdDBConnection` — Mutex Model Simplification:**
+  * **Removed** `m_statementsMutex` and `m_resultSetsMutex` — two independent mutexes for statement/result-set registries that enabled ABBA deadlock
+  * All access to `m_activeStatements` and `m_activeResultSets` now serialized through the single shared `m_connMutex`
+  * `m_closed` changed from `bool` to `std::atomic<bool>` — eliminates data race between concurrent threads
+  * Added `m_resetting` (`std::atomic<bool>`) — signals `ResultSet::close()` to skip the "unregister" step during `closeAllActiveResultSets()`, preventing re-entrant lock acquisition
+  * Added `getConnectionMutex()` — PreparedStatement/ResultSet can acquire connection mutex via `m_connection.lock()` without storing it separately
+  * Added `isResetting()` accessor — checked by ResultSet to conditionally skip unregister
+  * Added `reset(std::nothrow_t)` and `close(std::nothrow_t)` overrides
+
+* **`FirebirdDBPreparedStatement` — Simplified Construction:**
+  * Inherits `std::enable_shared_from_this<FirebirdDBPreparedStatement>`
+  * Constructor no longer takes `SharedConnMutex connMutex` — mutex obtained via `m_connection.lock()->getConnectionMutex()` when needed
+  * `m_closed` changed from `bool` to `std::atomic<bool>`
+  * `m_connMutex` member removed
+
+* **`FirebirdDBResultSet` — enable_shared_from_this:**
+  * Inherits `std::enable_shared_from_this<FirebirdDBResultSet>`
+
+* **`RelationalPooledDBConnection` — reset() and close() overrides:**
+  * Added proper `reset(std::nothrow_t)` and `close(std::nothrow_t)` implementations delegating to the underlying connection
+
+* **Valgrind Helgrind Suppressions — Two New False Positives:**
+  * **ScyllaDB `CassSessionDeleter` heap-address reuse:** Two different mutexes occupy the same heap address at different points in the test (pool mutex freed → libuv internal mutex allocated at same address). Helgrind can't distinguish → false LockOrder report. Anchored to `CassSessionDeleter + uv_loop_close`
+  * **glibc GLIBC_2.34 `pthread_cond_clockwait` internal signal:** glibc's newer `pthread_cond_clockwait` emits an internal `pthread_cond_signal` as part of futex unbind. Helgrind reports "signal without lock". Identical pattern to `helgrind-glibc2X-005` (which suppresses 3M+ occurrences of the older variant)
+
+---
+
+#### Commit `e3736ee`: Fix Firebird Use-After-Free Bug and Improve SQLite Test Thread Safety
+
+* **Firebird `FirebirdDBPreparedStatement` — Eliminate `m_trPtr` Dangling Pointer (USE-AFTER-FREE Fix):**
+  * **Before:** `isc_tr_handle *m_trPtr{nullptr}` — raw pointer to the connection's `m_tr` member
+  * **Problem:** If connection was destroyed while PreparedStatement still existed, `m_trPtr` pointed to freed memory → SEGFAULT on `isc_dsql_execute()`
+  * **After:** Access via `m_connection.lock()->m_tr` — lifecycle-safe through weak_ptr
+  * All `executeQuery()`, `executeUpdate()`, and `execute()` methods updated
+  * Constructor no longer takes `isc_tr_handle *trPtr` parameter
+
+* **SQLite Tests — Thread-Safe Output:**
+  * Replaced all `std::cout`/`std::cerr` calls in SQLite test files with `cpp_dbc::system_utils::safePrint()` — atomic output, no interleaving under Helgrind
+  * Files: `22_001`, `22_031`, `22_041`, `22_071`, `22_081`, `22_111`
+
+* **SQLite Tests — Driver Registration Outside SECTION:**
+  * Moved `DriverManager::registerDriver()` and connection setup to test-case scope (outside `SECTION` blocks)
+  * Prevents double-registration when multiple sections run under the same `TEST_CASE`
+
+* **SQLite Tests — Database Path from YAML Config:**
+  * Transaction manager tests now load database path from YAML config (`test_sqlite_transaction_multithread`, `test_sqlite_transaction`) instead of hardcoded filenames
+
+* **SQLite Tests — Disabled WAL Mode Under Helgrind:**
+  * `PRAGMA journal_mode=WAL` disabled in thread-safety tests — WAL mode creates Helgrind false positives via POSIX shared-memory locks
+
+* **SQLite Tests — Connection String Assertion Fix:**
+  * `22_011_test_sqlite_real_config.cpp`: Changed from hardcoded `"cpp_dbc:sqlite://cpp_dbc_test_sqlite.db"` to `"cpp_dbc:sqlite://" + dbConfig.getDatabase()` for portability
+
+---
+
+#### Commit `bf312e8`: Refactor Firebird Driver Debug Output for Thread Safety
+
+* **Firebird Driver — Printf-Style Debug Output:**
+  * Replaced all `FIREBIRD_DEBUG("..." << value)` stream-style output with `FIREBIRD_DEBUG("... %s", value)` printf-style
+  * `operator<<` is not atomic — causes interleaved/garbled output and Helgrind false positives under concurrent execution
+  * Applied across all Firebird driver implementation files
+
+---
+
+## 2026-02-06 21:44:02 PST
 
 ### Test Directory Reorganization and Parallel Test Runner Enhancements
 

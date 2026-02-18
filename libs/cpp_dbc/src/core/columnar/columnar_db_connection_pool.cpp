@@ -19,15 +19,8 @@
 #include "cpp_dbc/core/columnar/columnar_db_connection_pool.hpp"
 #include "cpp_dbc/config/database_config.hpp"
 #include "cpp_dbc/common/system_utils.hpp"
+#include "../connection_pool_internal.hpp"
 #include <algorithm>
-#include <iostream>
-
-// Debug output is controlled by -DDEBUG_CONNECTION_POOL=1 CMake option
-#if (defined(DEBUG_CONNECTION_POOL) && DEBUG_CONNECTION_POOL) || (defined(DEBUG_ALL) && DEBUG_ALL)
-#define CP_DEBUG(x) std::cout << x << std::endl
-#else
-#define CP_DEBUG(x)
-#endif
 
 namespace cpp_dbc
 {
@@ -160,13 +153,11 @@ namespace cpp_dbc
 
     ColumnarDBConnectionPool::~ColumnarDBConnectionPool()
     {
-        CP_DEBUG("ColumnarDBConnectionPool::~ColumnarDBConnectionPool - Starting destructor at "
-                 << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+        CP_DEBUG("ColumnarDBConnectionPool::~ColumnarDBConnectionPool - Starting destructor at %lld", (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
         close();
 
-        CP_DEBUG("ColumnarDBConnectionPool::~ColumnarDBConnectionPool - Destructor completed at "
-                 << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+        CP_DEBUG("ColumnarDBConnectionPool::~ColumnarDBConnectionPool - Destructor completed at %lld", (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
     }
 
     std::shared_ptr<ColumnarDBConnection> ColumnarDBConnectionPool::createDBConnection()
@@ -199,7 +190,7 @@ namespace cpp_dbc
         {
             // Pool is not managed by shared_ptr, weakPool remains empty
             // This can happen if the pool is stack-allocated
-            CP_DEBUG("ColumnarDBConnectionPool::createPooledDBConnection - bad_weak_ptr: " << ex.what());
+            CP_DEBUG("ColumnarDBConnectionPool::createPooledDBConnection - bad_weak_ptr: %s", ex.what());
         }
 
         // Create the pooled connection
@@ -215,8 +206,9 @@ namespace cpp_dbc
             auto resultSet = conn->executeQuery(m_validationQuery);
             return true;
         }
-        catch (const DBException &)
+        catch ([[maybe_unused]] const DBException &ex)
         {
+            CP_DEBUG("ColumnarDBConnectionPool::validateConnection - Exception: %s", ex.what());
             return false;
         }
     }
@@ -238,7 +230,7 @@ namespace cpp_dbc
             }
             catch (const DBException &ex)
             {
-                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception during close (pool shutting down): " << ex.what());
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception during close (pool shutting down): %s", ex.what());
             }
             return;
         }
@@ -276,7 +268,7 @@ namespace cpp_dbc
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception in prepareForPoolReturn: " << ex.what());
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception in prepareForPoolReturn: %s", ex.what());
                 valid = false;
             }
         }
@@ -295,39 +287,65 @@ namespace cpp_dbc
         }
         else
         {
-            // Use scoped_lock for consistent lock ordering to prevent deadlock
-            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+            m_activeConnections--;
 
-            // Replace invalid connection with a new one
-            try
+            // Step 1: Remove invalid connection from both collections under locks
             {
+                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
-                    *it = createPooledDBConnection();
-                    m_idleConnections.push(*it);
+                    m_allConnections.erase(it);
                 }
-                m_activeConnections--;
-            }
-            catch (const std::exception &ex)
-            {
-                m_activeConnections--;
-                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception replacing invalid connection: " << ex.what());
+                // Clean idle queue of this connection
+                std::queue<std::shared_ptr<ColumnarPooledDBConnection>> tempQueue;
+                while (!m_idleConnections.empty())
+                {
+                    auto c = m_idleConnections.front();
+                    m_idleConnections.pop();
+                    if (c != conn)
+                    {
+                        tempQueue.push(c);
+                    }
+                }
+                m_idleConnections = tempQueue;
             }
 
-            // Close the old invalid connection (conn still points to the original invalid connection)
+            // Step 2: Close the old invalid connection OUTSIDE locks
             try
             {
                 conn->getUnderlyingColumnarConnection()->close();
             }
-            catch (const std::exception &ex)
+            catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception closing invalid connection: " << ex.what());
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception closing invalid connection: %s", ex.what());
+            }
+
+            // Step 3: Create replacement OUTSIDE locks (driver connection creation may acquire its own locks)
+            std::shared_ptr<ColumnarPooledDBConnection> replacement;
+            try
+            {
+                replacement = createPooledDBConnection();
+            }
+            catch ([[maybe_unused]] const std::exception &ex)
+            {
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception creating replacement connection: %s", ex.what());
+            }
+
+            // Step 4: Insert replacement under locks
+            if (replacement)
+            {
+                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                m_allConnections.push_back(replacement);
+                m_idleConnections.push(replacement);
             }
         }
 
         // Notify maintenance thread that a connection was returned
-        m_maintenanceCondition.notify_one();
+        {
+            std::scoped_lock maintLock(m_mutexMaintenance);
+            m_maintenanceCondition.notify_one();
+        }
     }
 
     std::shared_ptr<ColumnarPooledDBConnection> ColumnarDBConnectionPool::getIdleDBConnection()
@@ -351,7 +369,7 @@ namespace cpp_dbc
                 }
                 catch (const DBException &ex)
                 {
-                    CP_DEBUG("ColumnarDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: " << ex.what());
+                    CP_DEBUG("ColumnarDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: %s", ex.what());
                 }
 
                 // Remove invalid connection from allConnections
@@ -478,10 +496,12 @@ namespace cpp_dbc
     {
         do
         {
-            // Wait for 30 seconds or until notified (e.g., when close() is called)
-            std::unique_lock lock(m_mutexMaintenance);
-            m_maintenanceCondition.wait_for(lock, std::chrono::seconds(30), [this]
-                                            { return !m_running; });
+            {   // sub-scope: m_mutexMaintenance released at end of this block
+                // Wait for 30 seconds or until notified (e.g., when close() is called)
+                std::unique_lock lock(m_mutexMaintenance);
+                m_maintenanceCondition.wait_for(lock, std::chrono::seconds(30), [this]
+                                                { return !m_running; });
+            }
 
             if (!m_running)
             {
@@ -490,67 +510,87 @@ namespace cpp_dbc
 
             auto now = std::chrono::steady_clock::now();
 
-            // Lock both mutexes in consistent order to prevent deadlocks
-            // Always lock m_mutexAllConnections first, then m_mutexIdleConnections
-            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+            {   // sub-scope: release lockBoth before replenishment to prevent lock-order inversion
+                // Lock both mutexes in consistent order to prevent deadlocks
+                // Always lock m_mutexAllConnections first, then m_mutexIdleConnections
+                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
 
-            // Check all connections for expired ones
-            for (auto it = m_allConnections.begin(); it != m_allConnections.end();)
-            {
-                auto pooledConn = *it;
-
-                // Skip active connections
-                if (pooledConn->isActive())
+                // Check all connections for expired ones
+                for (auto it = m_allConnections.begin(); it != m_allConnections.end();)
                 {
-                    ++it;
-                    continue;
-                }
+                    auto pooledConn = *it;
 
-                // Check if the connection has been idle for too long
-                auto idleTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                    now - pooledConn->getLastUsedTime())
-                                    .count();
-
-                // Check if the connection has lived for too long
-                auto lifeTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                    now - pooledConn->getCreationTime())
-                                    .count();
-
-                bool expired = (idleTime > m_idleTimeoutMillis) ||
-                               (lifeTime > m_maxLifetimeMillis);
-
-                // Close and remove expired connections if we have more than minIdle
-                if (expired && m_allConnections.size() > m_minIdle)
-                {
-                    // Remove from idle queue if present
-                    std::queue<std::shared_ptr<ColumnarPooledDBConnection>> tempQueue;
-                    while (!m_idleConnections.empty())
+                    // Skip active connections
+                    if (pooledConn->isActive())
                     {
-                        auto conn = m_idleConnections.front();
-                        m_idleConnections.pop();
-
-                        if (conn != pooledConn)
-                        {
-                            tempQueue.push(conn);
-                        }
+                        ++it;
+                        continue;
                     }
-                    m_idleConnections = tempQueue;
 
-                    // Remove from allConnections
-                    it = m_allConnections.erase(it);
-                }
-                else
-                {
-                    ++it;
+                    // Check if the connection has been idle for too long
+                    auto idleTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        now - pooledConn->getLastUsedTime())
+                                        .count();
+
+                    // Check if the connection has lived for too long
+                    auto lifeTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        now - pooledConn->getCreationTime())
+                                        .count();
+
+                    bool expired = (idleTime > m_idleTimeoutMillis) ||
+                                   (lifeTime > m_maxLifetimeMillis);
+
+                    // Close and remove expired connections if we have more than minIdle
+                    if (expired && m_allConnections.size() > m_minIdle)
+                    {
+                        // Remove from idle queue if present
+                        std::queue<std::shared_ptr<ColumnarPooledDBConnection>> tempQueue;
+                        while (!m_idleConnections.empty())
+                        {
+                            auto conn = m_idleConnections.front();
+                            m_idleConnections.pop();
+
+                            if (conn != pooledConn)
+                            {
+                                tempQueue.push(conn);
+                            }
+                        }
+                        m_idleConnections = tempQueue;
+
+                        // Remove from allConnections
+                        it = m_allConnections.erase(it);
+                    }
+                    else
+                    {
+                        ++it;
+                    }
                 }
             }
 
-            // Ensure we have at least minIdle connections
-            while (m_running && m_allConnections.size() < m_minIdle)
+            // Replenish minIdle connections OUTSIDE locks to prevent lock-order inversion
+            // (createPooledDBConnection may acquire driver-internal locks)
+            size_t currentTotal;
             {
-                auto pooledConn = createPooledDBConnection();
-                m_idleConnections.push(pooledConn);
-                m_allConnections.push_back(pooledConn);
+                std::scoped_lock lockCheck(m_mutexAllConnections);
+                currentTotal = m_allConnections.size();
+            }
+            while (m_running && currentTotal < m_minIdle)
+            {
+                try
+                {
+                    auto pooledConn = createPooledDBConnection();
+                    {
+                        std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                        m_idleConnections.push(pooledConn);
+                        m_allConnections.push_back(pooledConn);
+                        currentTotal = m_allConnections.size();
+                    }
+                }
+                catch ([[maybe_unused]] const std::exception &ex)
+                {
+                    CP_DEBUG("ColumnarDBConnectionPool::maintenanceTask - Exception creating minIdle connection: %s", ex.what());
+                    break;
+                }
             }
         } while (m_running);
     }
@@ -588,33 +628,28 @@ namespace cpp_dbc
             m_poolAlive->store(false);
         }
 
-        CP_DEBUG("ColumnarDBConnectionPool::close - Waiting for active operations to complete at "
-                 << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+        CP_DEBUG("ColumnarDBConnectionPool::close - Waiting for active operations to complete at %lld", (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
         // Wait for all active operations to complete
         {
             auto waitStart = std::chrono::steady_clock::now();
-            CP_DEBUG("ColumnarDBConnectionPool::close - Initial active connections: " << m_activeConnections.load());
+            CP_DEBUG("ColumnarDBConnectionPool::close - Initial active connections: %zu", m_activeConnections.load());
 
             while (m_activeConnections.load() > 0)
             {
-                CP_DEBUG("ColumnarDBConnectionPool::close - Waiting for " << m_activeConnections.load()
-                                                                          << " active connections to finish at "
-                                                                          << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+                CP_DEBUG("ColumnarDBConnectionPool::close - Waiting for %zu active connections to finish at %lld", m_activeConnections.load(), (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
                 auto elapsed = std::chrono::steady_clock::now() - waitStart;
                 auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
 
                 if (elapsed_seconds > 0 && elapsed_seconds % 1 == 0)
                 {
-                    CP_DEBUG("ColumnarDBConnectionPool::close - Waited " << elapsed_seconds
-                                                                         << " seconds for active connections");
+                    CP_DEBUG("ColumnarDBConnectionPool::close - Waited %lld seconds for active connections", (long long)elapsed_seconds);
                 }
 
                 if (elapsed > std::chrono::seconds(10))
                 {
-                    CP_DEBUG("ColumnarDBConnectionPool::close - Timeout waiting for active connections, forcing close at "
-                             << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+                    CP_DEBUG("ColumnarDBConnectionPool::close - Timeout waiting for active connections, forcing close at %lld", (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
                     // Force active connections to be marked as inactive
                     m_activeConnections.store(0);
@@ -624,7 +659,10 @@ namespace cpp_dbc
         }
 
         // Notify all waiting threads
-        m_maintenanceCondition.notify_all();
+        {
+            std::scoped_lock lock(m_mutexMaintenance);
+            m_maintenanceCondition.notify_all();
+        }
 
         // Join maintenance thread (only if it was started)
         if (m_maintenanceThread.joinable())
@@ -633,40 +671,37 @@ namespace cpp_dbc
         }
 
         // Close all connections
-        // Use scoped_lock for consistent lock ordering to prevent deadlock
-        std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+        // CRITICAL: Collect connections under pool locks, then close OUTSIDE pool locks.
+        // Closing a connection acquires per-connection mutex (m_connMutex).
+        // initializePool() establishes order: m_connMutex FIRST, then pool locks.
+        // Closing inside pool locks would invert that order → Helgrind LockOrder violation.
+        std::vector<std::shared_ptr<ColumnarPooledDBConnection>> connectionsToClose;
+        {
+            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+            connectionsToClose = m_allConnections;
+            while (!m_idleConnections.empty())
+            {
+                m_idleConnections.pop();
+            }
+            m_allConnections.clear();
+        }
 
-        for (const auto &conn : m_allConnections)
+        // Close each connection outside pool locks (per-connection mutex acquired here)
+        for (const auto &conn : connectionsToClose)
         {
             try
             {
                 if (conn && conn->getUnderlyingConnection())
                 {
-                    // Mark connection as inactive before closing
                     conn->setActive(false);
-
-                    // Close the underlying connection
                     conn->getUnderlyingConnection()->close();
-
-                    // Ensure the connection is properly returned to the pool
-                    if (conn->getUnderlyingConnection()->isPooled())
-                    {
-                        conn->getUnderlyingConnection()->returnToPool();
-                    }
                 }
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("ColumnarDBConnectionPool::close - Exception during connection close: " << ex.what());
+                CP_DEBUG("ColumnarDBConnectionPool::close - Exception during connection close: %s", ex.what());
             }
         }
-
-        // Clear collections
-        while (!m_idleConnections.empty())
-        {
-            m_idleConnections.pop();
-        }
-        m_allConnections.clear();
     }
 
     bool ColumnarDBConnectionPool::isRunning() const
@@ -709,7 +744,7 @@ namespace cpp_dbc
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("ColumnarPooledDBConnection::~ColumnarPooledDBConnection - Exception: " << ex.what());
+                CP_DEBUG("ColumnarPooledDBConnection::~ColumnarPooledDBConnection - Exception: %s", ex.what());
             }
         }
     }
@@ -723,7 +758,7 @@ namespace cpp_dbc
             try
             {
                 // Return to pool instead of actually closing
-                m_lastUsedTime = std::chrono::steady_clock::now();
+                updateLastUsedTime();
 
                 // Check if pool is still alive using the shared atomic flag
                 if (isPoolValid())
@@ -780,7 +815,7 @@ namespace cpp_dbc
             }
             catch (const std::exception &ex)
             {
-                CP_DEBUG("ColumnarPooledDBConnection::close - Exception during return to pool: " << ex.what());
+                CP_DEBUG("ColumnarPooledDBConnection::close - Exception during return to pool: %s", ex.what());
                 m_closed.store(true);
                 if (m_conn)
                 {
@@ -810,7 +845,7 @@ namespace cpp_dbc
         {
             throw DBException("A61A8B1BF33C", "Connection is closed", system_utils::captureCallStack());
         }
-        m_lastUsedTime = std::chrono::steady_clock::now();
+        updateLastUsedTime();
         return m_conn->prepareStatement(query);
     }
 
@@ -822,7 +857,7 @@ namespace cpp_dbc
             {
                 return cpp_dbc::unexpected(DBException("A61A8B1BF33C", "Connection is closed", system_utils::captureCallStack()));
             }
-            m_lastUsedTime = std::chrono::steady_clock::now();
+            updateLastUsedTime();
             return m_conn->prepareStatement(std::nothrow, query);
         }
         catch (const DBException &ex)
@@ -849,7 +884,7 @@ namespace cpp_dbc
         {
             throw DBException("0AF43G67D005", "Connection is closed", system_utils::captureCallStack());
         }
-        m_lastUsedTime = std::chrono::steady_clock::now();
+        updateLastUsedTime();
         return m_conn->executeQuery(query);
     }
 
@@ -861,7 +896,7 @@ namespace cpp_dbc
             {
                 return cpp_dbc::unexpected(DBException("0AF43G67D005", "Connection is closed", system_utils::captureCallStack()));
             }
-            m_lastUsedTime = std::chrono::steady_clock::now();
+            updateLastUsedTime();
             return m_conn->executeQuery(std::nothrow, query);
         }
         catch (const DBException &ex)
@@ -888,7 +923,7 @@ namespace cpp_dbc
         {
             throw DBException("4E6D7284F5E2", "Connection is closed", system_utils::captureCallStack());
         }
-        m_lastUsedTime = std::chrono::steady_clock::now();
+        updateLastUsedTime();
         return m_conn->executeUpdate(query);
     }
 
@@ -900,7 +935,7 @@ namespace cpp_dbc
             {
                 return cpp_dbc::unexpected(DBException("4E6D7284F5E2", "Connection is closed", system_utils::captureCallStack()));
             }
-            m_lastUsedTime = std::chrono::steady_clock::now();
+            updateLastUsedTime();
             return m_conn->executeUpdate(std::nothrow, query);
         }
         catch (const DBException &ex)
@@ -927,7 +962,7 @@ namespace cpp_dbc
         {
             throw DBException("C8D9E0F1G2H3", "Connection is closed", system_utils::captureCallStack());
         }
-        m_lastUsedTime = std::chrono::steady_clock::now();
+        updateLastUsedTime();
         return m_conn->beginTransaction();
     }
 
@@ -939,7 +974,7 @@ namespace cpp_dbc
             {
                 return cpp_dbc::unexpected(DBException("C8D9E0F1G2H3", "Connection is closed", system_utils::captureCallStack()));
             }
-            m_lastUsedTime = std::chrono::steady_clock::now();
+            updateLastUsedTime();
             return m_conn->beginTransaction(std::nothrow);
         }
         catch (const DBException &ex)
@@ -966,7 +1001,7 @@ namespace cpp_dbc
         {
             throw DBException("F43ECCD8427F", "Connection is closed", system_utils::captureCallStack());
         }
-        m_lastUsedTime = std::chrono::steady_clock::now();
+        updateLastUsedTime();
         m_conn->commit();
     }
 
@@ -978,7 +1013,7 @@ namespace cpp_dbc
             {
                 return cpp_dbc::unexpected(DBException("F43ECCD8427F", "Connection is closed", system_utils::captureCallStack()));
             }
-            m_lastUsedTime = std::chrono::steady_clock::now();
+            updateLastUsedTime();
             return m_conn->commit(std::nothrow);
         }
         catch (const DBException &ex)
@@ -1005,7 +1040,7 @@ namespace cpp_dbc
         {
             throw DBException("1A5723BF02C7", "Connection is closed", system_utils::captureCallStack());
         }
-        m_lastUsedTime = std::chrono::steady_clock::now();
+        updateLastUsedTime();
         m_conn->rollback();
     }
 
@@ -1017,7 +1052,7 @@ namespace cpp_dbc
             {
                 return cpp_dbc::unexpected(DBException("1A5723BF02C7", "Connection is closed", system_utils::captureCallStack()));
             }
-            m_lastUsedTime = std::chrono::steady_clock::now();
+            updateLastUsedTime();
             return m_conn->rollback(std::nothrow);
         }
         catch (const DBException &ex)
@@ -1055,6 +1090,7 @@ namespace cpp_dbc
 
     std::chrono::time_point<std::chrono::steady_clock> ColumnarPooledDBConnection::getLastUsedTime() const
     {
+        std::scoped_lock<std::mutex> lock(m_lastUsedTimeMutex);
         return m_lastUsedTime;
     }
 
@@ -1080,7 +1116,7 @@ namespace cpp_dbc
         try
         {
             // Return to pool instead of actually closing
-            m_lastUsedTime = std::chrono::steady_clock::now();
+            updateLastUsedTime();
 
             // Check if pool is still alive using the shared atomic flag
             if (isPoolValid())
@@ -1097,12 +1133,12 @@ namespace cpp_dbc
         }
         catch (const std::bad_weak_ptr &ex)
         {
-            CP_DEBUG("ColumnarPooledDBConnection::returnToPool - shared_from_this failed: " << ex.what());
+            CP_DEBUG("ColumnarPooledDBConnection::returnToPool - shared_from_this failed: %s", ex.what());
             m_closed.store(true);
         }
         catch (const std::exception &ex)
         {
-            CP_DEBUG("ColumnarPooledDBConnection::returnToPool - Exception: " << ex.what());
+            CP_DEBUG("ColumnarPooledDBConnection::returnToPool - Exception: %s", ex.what());
             m_closed.store(true);
         }
         catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
