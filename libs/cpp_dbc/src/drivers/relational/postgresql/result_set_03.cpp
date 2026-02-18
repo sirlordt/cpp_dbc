@@ -465,6 +465,65 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
+    cpp_dbc::expected<void, DBException> PostgreSQLDBResultSet::close(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            if (m_result)
+            {
+                // Smart pointer will automatically call PQclear via PGresultDeleter
+                m_result.reset();
+                m_rowPosition = 0;
+                m_rowCount = 0;
+                m_fieldCount = 0;
+            }
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("N934PDAA0GM6",
+                                                               std::string("close failed: ") + ex.what(),
+                                                               system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("6HL8OTNIZDP4",
+                                                               "close failed: unknown error",
+                                                               system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::isEmpty(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+            return m_rowCount == 0;
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("MVMU880YWK23",
+                                                               std::string("isEmpty failed: ") + ex.what(),
+                                                               system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("AGP9SII10X7C",
+                                                               "isEmpty failed: unknown error",
+                                                               system_utils::captureCallStack()));
+        }
+    }
+
 } // namespace cpp_dbc::PostgreSQL
 
 #endif // USE_POSTGRESQL

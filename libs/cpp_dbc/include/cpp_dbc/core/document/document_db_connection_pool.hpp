@@ -234,8 +234,9 @@ namespace cpp_dbc
         void close() override;
         bool isClosed() const override;
         void returnToPool() override;
-        bool isPooled() override;
+        bool isPooled() const override;
         std::string getURL() const override;
+        void reset() override;
 
         // Overridden DocumentDBConnection interface methods
         std::string getDatabaseName() const override;
@@ -263,8 +264,22 @@ namespace cpp_dbc
         void commitTransaction(const std::string &sessionId) override;
         void abortTransaction(const std::string &sessionId) override;
         bool supportsTransactions() override;
+        void prepareForPoolReturn() override;
 
-        // Nothrow versions - delegate to underlying connection
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        // DBConnection nothrow interface
+        expected<void, DBException> close(std::nothrow_t) noexcept override;
+        expected<void, DBException> reset(std::nothrow_t) noexcept override;
+        expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
+        expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
+        expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+        expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+
+        // DocumentDBConnection nothrow interface - delegate to underlying connection
+        expected<std::string, DBException> getDatabaseName(std::nothrow_t) const noexcept override;
         expected<std::vector<std::string>, DBException> listDatabases(std::nothrow_t) noexcept override;
         expected<std::shared_ptr<DocumentDBCollection>, DBException> getCollection(
             std::nothrow_t, const std::string &collectionName) noexcept override;
@@ -282,8 +297,19 @@ namespace cpp_dbc
             std::nothrow_t, const std::string &json) noexcept override;
         expected<std::shared_ptr<DocumentDBData>, DBException> runCommand(
             std::nothrow_t, const std::string &command) noexcept override;
+        expected<bool, DBException> databaseExists(std::nothrow_t, const std::string &databaseName) noexcept override;
+        expected<void, DBException> useDatabase(std::nothrow_t, const std::string &databaseName) noexcept override;
+        expected<bool, DBException> collectionExists(std::nothrow_t, const std::string &collectionName) noexcept override;
         expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfo(std::nothrow_t) noexcept override;
         expected<std::shared_ptr<DocumentDBData>, DBException> getServerStatus(std::nothrow_t) noexcept override;
+        expected<bool, DBException> ping(std::nothrow_t) noexcept override;
+        expected<std::string, DBException> startSession(std::nothrow_t) noexcept override;
+        expected<void, DBException> endSession(std::nothrow_t, const std::string &sessionId) noexcept override;
+        expected<void, DBException> startTransaction(std::nothrow_t, const std::string &sessionId) noexcept override;
+        expected<void, DBException> commitTransaction(std::nothrow_t, const std::string &sessionId) noexcept override;
+        expected<void, DBException> abortTransaction(std::nothrow_t, const std::string &sessionId) noexcept override;
+        expected<bool, DBException> supportsTransactions(std::nothrow_t) noexcept override;
+        expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
 
         // DBConnectionPooled interface methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const override;

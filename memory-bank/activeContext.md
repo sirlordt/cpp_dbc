@@ -37,7 +37,19 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Helgrind Thread-Safety Hardening — Firebird Driver Refactor + Connection Pool Lock Order Fixes** (2026-02-17 PST):
+1. **Complete Nothrow API Implementation Across All Drivers** (2026-02-18 PST):
+   - **Base Class Pure Virtual Promotion:** All nothrow methods in `DBConnection`, `DBResultSet`, and `RelationalDBConnection` changed from default virtual implementations to `= 0` pure virtual — every driver is now required to implement them
+   - **New `void reset()` pure virtual:** Added throwing variant of `reset()` to `DBConnection` (was missing); all drivers implement it as a wrapper around `reset(std::nothrow_t)`
+   - **New `isEmpty(std::nothrow_t)` pure virtual:** Added to `DBResultSet`; all result set implementations provide it
+   - **`prepareForPoolReturn()` / `prepareForBorrow()` now pure virtual:** Previously had inline default implementations; now each driver provides its own implementation
+   - **Per-driver nothrow implementations:** All 7 drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, Redis, ScyllaDB) now implement the full nothrow API surface: `close`, `reset`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `prepareForPoolReturn`, `prepareForBorrow`
+   - **Throwing wrappers centralized:** All throwing methods now delegate to their nothrow counterpart — single code path, no duplication
+   - **Connection pool wrappers updated:** All 4 pool wrapper types now override the new pure virtual nothrow methods
+   - **New source files:** `connection_05.cpp` (MongoDB), `connection_02.cpp` (ScyllaDB), `connection_03.cpp` (Firebird, MySQL), `connection_02.cpp` (SQLite), `result_set_03.cpp` (MySQL, PostgreSQL, SQLite), `cursor_02.cpp` (MongoDB)
+   - **CMakeLists.txt:** Added `mongodb/connection_05.cpp` and `scylladb/connection_02.cpp` to the build
+   - **Helgrind suppression:** Added `scylladb_connection_close_nothrow_lockorder_heap_reuse` for ScyllaDB false positive (heap address reuse of freed `m_connMutex` maps to `uv_mutex` in `cass_session_close`)
+
+2. **Helgrind Thread-Safety Hardening — Firebird Driver Refactor + Connection Pool Lock Order Fixes** (2026-02-17 PST):
    - **Firebird USE-AFTER-FREE Fix:** Eliminated raw `m_trPtr` from `FirebirdDBPreparedStatement`. All methods now access `m_connection.lock()->m_tr` via weak_ptr — lifecycle-safe
    - **Firebird Mutex Model:** Removed `m_statementsMutex` / `m_resultSetsMutex`. All registry access uses single `m_connMutex` — eliminates ABBA deadlock
    - **Firebird `m_closed`/`m_resetting` as atomics:** Prevents data races on connection state flags

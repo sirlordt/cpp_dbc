@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file connection_02.cpp
- * @brief Redis connection implementation - hash, set, sorted set, scan, server throwing + executeRaw, getDatabaseIndex, selectDatabase, setPooled
+ * @brief Redis connection implementation - hash, set, sorted set, scan, server throwing + executeRaw, getDatabaseIndex, selectDatabase
  */
 
 #include "cpp_dbc/drivers/kv/driver_redis.hpp"
@@ -319,12 +319,6 @@ namespace cpp_dbc::Redis
         {
             throw DBException("B2E7F1C9A0D3", "Failed to select Redis database: " + std::to_string(index), system_utils::captureCallStack());
         }
-    }
-
-    void RedisConnection::setPooled(bool pooled)
-    {
-        REDIS_LOCK_GUARD(m_mutex);
-        m_pooled = pooled;
     }
 
 } // namespace cpp_dbc::Redis

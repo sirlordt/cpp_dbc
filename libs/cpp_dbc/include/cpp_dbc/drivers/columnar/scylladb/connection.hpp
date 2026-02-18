@@ -76,8 +76,9 @@ namespace cpp_dbc::ScyllaDB
             void close() override;
             bool isClosed() const override;
             void returnToPool() override;
-            bool isPooled() override;
+            bool isPooled() const override;
             std::string getURL() const override;
+            void reset() override;
 
             // ColumnarDBConnection interface
             std::shared_ptr<ColumnarDBPreparedStatement> prepareStatement(const std::string &query) override;
@@ -87,14 +88,28 @@ namespace cpp_dbc::ScyllaDB
             bool beginTransaction() override;
             void commit() override;
             void rollback() override;
+            void prepareForPoolReturn() override;
 
-            // Nothrow API
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
+            // DBConnection nothrow interface
+            cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
+            cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+            cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+
+            // ColumnarDBConnection nothrow interface
             cpp_dbc::expected<std::shared_ptr<ColumnarDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &query) noexcept override;
             cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &query) noexcept override;
             cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &query) noexcept override;
             cpp_dbc::expected<bool, DBException> beginTransaction(std::nothrow_t) noexcept override;
             cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
             cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
         };
 } // namespace cpp_dbc::ScyllaDB
 

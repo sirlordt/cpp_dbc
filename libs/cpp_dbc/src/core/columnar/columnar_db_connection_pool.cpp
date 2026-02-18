@@ -749,7 +749,7 @@ namespace cpp_dbc
         }
     }
 
-    void ColumnarPooledDBConnection::close()
+    cpp_dbc::expected<void, DBException> ColumnarPooledDBConnection::close(std::nothrow_t) noexcept
     {
         // Use atomic exchange to ensure only one thread processes the close
         bool expected = false;
@@ -832,11 +832,24 @@ namespace cpp_dbc
                 }
             }
         }
+        return {};
+    }
+
+    void ColumnarPooledDBConnection::close()
+    {
+        auto result = close(std::nothrow);
+        if (!result)
+            throw result.error();
     }
 
     bool ColumnarPooledDBConnection::isClosed() const
     {
         return m_closed || m_conn->isClosed();
+    }
+
+    cpp_dbc::expected<bool, DBException> ColumnarPooledDBConnection::isClosed(std::nothrow_t) const noexcept
+    {
+        return m_closed.load() || m_conn->isClosed();
     }
 
     std::shared_ptr<ColumnarDBPreparedStatement> ColumnarPooledDBConnection::prepareStatement(const std::string &query)
@@ -1083,6 +1096,15 @@ namespace cpp_dbc
         return m_conn->getURL();
     }
 
+    cpp_dbc::expected<std::string, DBException> ColumnarPooledDBConnection::getURL(std::nothrow_t) const noexcept
+    {
+        if (m_closed)
+        {
+            return cpp_dbc::unexpected(DBException("VUMH1XH7ZJ05", "Connection is closed", system_utils::captureCallStack()));
+        }
+        return m_conn->getURL(std::nothrow);
+    }
+
     std::chrono::time_point<std::chrono::steady_clock> ColumnarPooledDBConnection::getCreationTime() const
     {
         return m_creationTime;
@@ -1104,13 +1126,13 @@ namespace cpp_dbc
         return m_active;
     }
 
-    void ColumnarPooledDBConnection::returnToPool()
+    cpp_dbc::expected<void, DBException> ColumnarPooledDBConnection::returnToPool(std::nothrow_t) noexcept
     {
-        // Use atomic exchange to ensure only one thread processes the close
+        // Use atomic exchange to ensure only one thread processes the return
         bool expected = false;
         if (!m_closed.compare_exchange_strong(expected, true))
         {
-            return;
+            return {};
         }
 
         try
@@ -1125,7 +1147,7 @@ namespace cpp_dbc
                 if (auto poolShared = m_pool.lock())
                 {
                     // FIX: Reset m_closed BEFORE returnConnection() to prevent race condition
-                    // (see close() method for full explanation of the bug)
+                    // (see close(nothrow) method for full explanation of the bug)
                     m_closed.store(false);
                     poolShared->returnConnection(std::static_pointer_cast<ColumnarPooledDBConnection>(this->shared_from_this()));
                 }
@@ -1146,11 +1168,48 @@ namespace cpp_dbc
             CP_DEBUG("ColumnarPooledDBConnection::returnToPool - Unknown exception caught");
             m_closed.store(true);
         }
+        return {};
     }
 
-    bool ColumnarPooledDBConnection::isPooled()
+    void ColumnarPooledDBConnection::returnToPool()
+    {
+        auto result = returnToPool(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
+    bool ColumnarPooledDBConnection::isPooled() const
     {
         return this->m_active == false;
+    }
+
+    cpp_dbc::expected<bool, DBException> ColumnarPooledDBConnection::isPooled(std::nothrow_t) const noexcept
+    {
+        return !m_active.load();
+    }
+
+    void ColumnarPooledDBConnection::reset()
+    {
+        auto result = reset(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
+    cpp_dbc::expected<void, DBException> ColumnarPooledDBConnection::reset(std::nothrow_t) noexcept
+    {
+        return prepareForPoolReturn(std::nothrow);
+    }
+
+    void ColumnarPooledDBConnection::prepareForPoolReturn()
+    {
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
+    cpp_dbc::expected<void, DBException> ColumnarPooledDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    {
+        return m_conn->prepareForPoolReturn(std::nothrow);
     }
 
     std::shared_ptr<DBConnection> ColumnarPooledDBConnection::getUnderlyingConnection()

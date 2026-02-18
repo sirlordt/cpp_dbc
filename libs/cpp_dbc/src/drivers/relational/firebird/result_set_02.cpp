@@ -355,10 +355,12 @@ namespace cpp_dbc::Firebird
 
     bool FirebirdDBResultSet::isEmpty()
     {
-
-        FIREBIRD_LOCK_OR_THROW("GTVGJY1OO1PS", "Connection lost");
-
-        return !m_hasData && m_rowPosition == 0;
+        auto result = isEmpty(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::shared_ptr<Blob> FirebirdDBResultSet::getBlob(size_t columnIndex)
@@ -546,6 +548,27 @@ namespace cpp_dbc::Firebird
         catch (...)
         {
             return cpp_dbc::unexpected(DBException("F057A5E4BFC9", "Unknown exception in isBeforeFirst", system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> FirebirdDBResultSet::isEmpty(std::nothrow_t) noexcept
+    {
+        try
+        {
+            FIREBIRD_LOCK_OR_RETURN("VEMY08W2KUSH", "Connection lost");
+            return !m_hasData && m_rowPosition == 0;
+        }
+        catch (const DBException &e)
+        {
+            return cpp_dbc::unexpected(e);
+        }
+        catch (const std::exception &e)
+        {
+            return cpp_dbc::unexpected(DBException("SYWIX7DMFIQZ", std::string("Exception in isEmpty: ") + e.what(), system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("2VAZEE71DBW6", "Unknown exception in isEmpty", system_utils::captureCallStack()));
         }
     }
 

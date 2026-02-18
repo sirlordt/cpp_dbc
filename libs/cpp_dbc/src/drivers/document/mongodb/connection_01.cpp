@@ -266,55 +266,11 @@ namespace cpp_dbc::MongoDB
 
     void MongoDBConnection::close()
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed)
-            return;
-
-        MONGODB_DEBUG("MongoDBConnection::close - Closing connection");
-
-        // Close all active cursors BEFORE destroying the client
-        // This is critical: cursors must be destroyed before the client
+        auto result = close(std::nothrow);
+        if (!result.has_value())
         {
-            std::scoped_lock cursorsLock(m_cursorsMutex);
-            MONGODB_DEBUG("MongoDBConnection::close - Closing " << m_activeCursors.size() << " active cursors");
-
-            for (const auto &weakCursor : m_activeCursors)
-            {
-                if (auto cursor = weakCursor.lock())
-                {
-                    try
-                    {
-                        cursor->close();
-                    }
-                    catch ([[maybe_unused]] const std::exception &ex)
-                    {
-                        // Ignore errors during cleanup
-                        MONGODB_DEBUG("MongoDBConnection::close - Exception ignored during cursor cleanup: " << ex.what());
-                    }
-                }
-            }
-
-            m_activeCursors.clear();
+            throw result.error();
         }
-
-        // End all active sessions
-        {
-            std::scoped_lock sessionsLock(m_sessionsMutex);
-            m_sessions.clear();
-        }
-
-        // Clear active collections
-        {
-            std::scoped_lock collectionsLock(m_collectionsMutex);
-            m_activeCollections.clear();
-        }
-
-        // Now it's safe to destroy the client
-        m_client.reset();
-        m_closed = true;
-
-        MONGODB_DEBUG("MongoDBConnection::close - Connection closed");
     }
 
     bool MongoDBConnection::isClosed() const
@@ -324,15 +280,14 @@ namespace cpp_dbc::MongoDB
 
     void MongoDBConnection::returnToPool()
     {
-        // If pooled, just mark as available (pool handles this)
-        // If not pooled, close the connection
-        if (!m_pooled)
+        auto result = returnToPool(std::nothrow);
+        if (!result.has_value())
         {
-            close();
+            throw result.error();
         }
     }
 
-    bool MongoDBConnection::isPooled()
+    bool MongoDBConnection::isPooled() const
     {
         return m_pooled;
     }
@@ -342,66 +297,64 @@ namespace cpp_dbc::MongoDB
         return m_url;
     }
 
+    void MongoDBConnection::reset()
+    {
+        auto result = reset(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
     // ============================================================================
     // MongoDBConnection Implementation - DocumentDBConnection Interface (Database Ops)
     // ============================================================================
 
     std::string MongoDBConnection::getDatabaseName() const
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        return m_databaseName;
+        auto result = getDatabaseName(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return *result;
     }
 
     std::vector<std::string> MongoDBConnection::listDatabases()
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        validateConnection();
-
-        std::vector<std::string> result;
-
-        bson_error_t error;
-        char **names = mongoc_client_get_database_names_with_opts(m_client.get(), nullptr, &error);
-
-        if (!names)
+        auto result = listDatabases(std::nothrow);
+        if (!result)
         {
-            throw DBException("N8O9P0Q1R2S3", std::string("Failed to list databases: ") + error.message, system_utils::captureCallStack());
+            throw result.error();
         }
-
-        for (char **ptr = names; *ptr; ptr++)
-        {
-            result.emplace_back(*ptr);
-        }
-
-        bson_strfreev(names);
-        return result;
+        return *result;
     }
 
     bool MongoDBConnection::databaseExists(const std::string &databaseName)
     {
-        auto databases = listDatabases();
-        return std::ranges::find(databases, databaseName) != databases.end();
+        auto result = databaseExists(std::nothrow, databaseName);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return *result;
     }
 
     void MongoDBConnection::useDatabase(const std::string &databaseName)
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        validateConnection();
-        m_databaseName = databaseName;
+        auto result = useDatabase(std::nothrow, databaseName);
+        if (!result)
+        {
+            throw result.error();
+        }
     }
 
     void MongoDBConnection::dropDatabase(const std::string &databaseName)
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        validateConnection();
-
-        MongoDatabaseHandle db(mongoc_client_get_database(m_client.get(), databaseName.c_str()));
-
-        bson_error_t error;
-        bool success = mongoc_database_drop(db.get(), &error);
-
-        if (!success)
+        auto result = dropDatabase(std::nothrow, databaseName);
+        if (!result)
         {
-            throw DBException("O9P0Q1R2S3T4", std::string("Failed to drop database: ") + error.message, system_utils::captureCallStack());
+            throw result.error();
         }
     }
 

@@ -446,84 +446,73 @@ namespace cpp_dbc::SQLite
 
     SQLiteDBConnection::~SQLiteDBConnection()
     {
-        // Make sure to close the connection and clean up resources
-        try
-        {
-            close();
-        }
-        catch (...)
-        {
-            // Ignore exceptions during destruction
-        }
+        // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
+        [[maybe_unused]] auto closeResult = close(std::nothrow);
     }
 
     void SQLiteDBConnection::close()
     {
-        if (!m_closed && m_db)
+        auto result = close(std::nothrow);
+        if (!result)
         {
-            try
-            {
-                // Close all result sets FIRST (before statements)
-                closeAllResultSets();
+            throw result.error();
+        }
+    }
 
-                // Close all prepared statements properly
-                // closeAllStatements() now includes safety net for leaked statements
-                closeAllStatements();
-
-                // Call sqlite3_release_memory to free up caches and unused memory
-                [[maybe_unused]]
-                int releasedMemory = sqlite3_release_memory(1000000); // Try to release up to 1MB of memory
-                SQLITE_DEBUG("Released %d bytes of SQLite memory", releasedMemory);
-
-                // Smart pointer will automatically call sqlite3_close_v2 via SQLiteDbDeleter
-                m_db.reset();
-                m_closed = true;
-
-                // Sleep for 10ms to avoid problems with concurrency and memory stability
-                // This helps ensure all resources are properly released
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
-            catch (const std::exception &e)
-            {
-                SQLITE_DEBUG("3Y4Z5A6B7C8D: Exception during SQLite connection close: %s", e.what());
-                // Asegurarse de que el db se establece a nullptr y closed a true incluso si hay una excepción
-                m_db.reset();
-                m_closed = true;
-            }
+    void SQLiteDBConnection::reset()
+    {
+        auto result = reset(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
         }
     }
 
     bool SQLiteDBConnection::isClosed() const
     {
-        return m_closed;
+        auto result = isClosed(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     void SQLiteDBConnection::returnToPool()
     {
-        // Don't physically close the connection, just mark it as available
-        // so it can be reused by the pool
-
-        // Reset the connection state if necessary
-        try
+        auto result = returnToPool(std::nothrow);
+        if (!result)
         {
-            // Make sure autocommit is enabled for the next time the connection is used
-            if (!m_autoCommit)
-            {
-                setAutoCommit(true);
-            }
-
-            // We don't set closed = true because we want to keep the connection open
-            // Just mark it as available for reuse
-        }
-        catch (...)
-        {
-            // Ignore errors during cleanup
+            throw result.error();
         }
     }
 
-    bool SQLiteDBConnection::isPooled()
+    bool SQLiteDBConnection::isPooled() const
     {
-        return false;
+        auto result = isPooled(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    void SQLiteDBConnection::prepareForPoolReturn()
+    {
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+    }
+
+    void SQLiteDBConnection::prepareForBorrow()
+    {
+        auto result = prepareForBorrow(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
     }
 
     std::shared_ptr<RelationalDBPreparedStatement> SQLiteDBConnection::prepareStatement(const std::string &sql)
@@ -634,7 +623,12 @@ namespace cpp_dbc::SQLite
 
     std::string SQLiteDBConnection::getURL() const
     {
-        return m_url;
+        auto result = getURL(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
 } // namespace cpp_dbc::SQLite

@@ -129,7 +129,18 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - **Pool Lock Order Rule:** Connection close operations must happen OUTSIDE pool locks. Pool locks (`m_mutexAllConnections`, `m_mutexIdleConnections`) are always acquired BEFORE per-connection mutex. Closing inside pool locks inverts this order → Helgrind LockOrder violation
 - **Printf-Style Debug Output:** All debug macros (`FIREBIRD_DEBUG`, `CP_DEBUG`) use printf-style format strings — `operator<<` is not atomic and causes interleaved output + Helgrind false positives under concurrency
 - **`m_resetting` Anti-Deadlock Flag:** `FirebirdDBConnection::m_resetting` (`atomic<bool>`) signals `ResultSet::close()` to skip unregister during `closeAllActiveResultSets()` — prevents re-entrant lock acquisition through the close→unregister→lock cycle
-- **Nothrow API returns expected<void,DBException>:** Base class `reset(nothrow)` and `close(nothrow)` must return explicit errors rather than silently doing nothing; silent no-ops hide missing implementations
+- **Nothrow API — Pure Virtual Base Class Pattern (2026-02-18):**
+  - All nothrow methods in `DBConnection`, `DBResultSet`, and `RelationalDBConnection` are `= 0` pure virtual — no default implementations
+  - Every driver MUST implement the complete nothrow API surface: `close`, `reset`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `prepareForPoolReturn`, `prepareForBorrow`
+  - Throwing method wrappers delegate to their nothrow counterpart — single code path, no duplication:
+    ```cpp
+    void MySQLDBConnection::close() {
+        auto result = close(std::nothrow);
+        if (!result.has_value()) throw result.error();
+    }
+    ```
+  - Connection pool wrappers (`*PooledDBConnection`) also override all nothrow pure virtuals
+  - **Rule:** Base class nothrow methods returning "not implemented" errors are a smell — they allow silently broken drivers. Promote to `= 0` immediately.
 
 ### Resource Management
 - Smart pointers are used for automatic resource management:

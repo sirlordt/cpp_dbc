@@ -444,14 +444,8 @@ namespace cpp_dbc
          * This method is called when a connection is returned to the pool.
          * For KV stores, this is typically a no-op as they don't have
          * transactions or prepared statements.
-         *
-         * The default implementation does nothing.
          */
-        virtual void prepareForPoolReturn()
-        {
-            // Default implementation: do nothing
-            // KV stores typically don't need cleanup
-        }
+        virtual void prepareForPoolReturn() = 0;
 
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
@@ -810,6 +804,13 @@ namespace cpp_dbc
          */
         virtual expected<std::map<std::string, std::string>, DBException> getServerInfo(
             std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Prepare the connection for return to pool (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate exception-free operation
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

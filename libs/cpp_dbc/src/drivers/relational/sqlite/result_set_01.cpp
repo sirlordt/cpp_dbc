@@ -346,95 +346,21 @@ namespace cpp_dbc::SQLite
 
     void SQLiteDBResultSet::close()
     {
-        // CRITICAL: Must use global file-level mutex because sqlite3_reset() and
-        // sqlite3_finalize() access the sqlite3* connection handle internally.
-        // See class documentation for why SQLite needs global file-level synchronization.
-        std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
-
-        // Evitar cerrar dos veces o si ya está cerrado
-        if (m_closed)
+        auto result = close(std::nothrow);
+        if (!result)
         {
-            return;
+            throw result.error();
         }
-
-        if (m_ownStatement && m_stmt)
-        {
-            try
-            {
-                // Verificar si la conexión todavía está activa
-                auto conn = m_connection.lock();
-                bool connectionValid = conn && !conn->isClosed();
-
-                if (connectionValid)
-                {
-                    // Reset the statement first to ensure all data is cleared
-                    int resetResult = sqlite3_reset(m_stmt);
-                    if (resetResult != SQLITE_OK)
-                    {
-                        SQLITE_DEBUG("7A8B9C0D1E2F: Error resetting SQLite statement: %s",
-                                     sqlite3_errstr(resetResult));
-                    }
-
-                    // Finalize the statement - only if connection is still valid
-                    // If connection is closed, it already finalized all statements via sqlite3_next_stmt()
-                    int finalizeResult = sqlite3_finalize(m_stmt);
-                    if (finalizeResult != SQLITE_OK)
-                    {
-                        SQLITE_DEBUG("8H9I0J1K2L3M: Error finalizing SQLite statement: %s",
-                                     sqlite3_errstr(finalizeResult));
-                    }
-                }
-                else
-                {
-                    SQLITE_DEBUG("5M6N7O8P9Q0R: SQLiteResultSet::close - Connection is closed or invalid, skipping statement finalization");
-                    // Don't finalize - connection already did it
-                }
-            }
-            catch (const std::exception &e)
-            {
-                SQLITE_DEBUG("9S0T1U2V3W4X: Exception during SQLite statement close: %s", e.what());
-            }
-            catch (...)
-            {
-                SQLITE_DEBUG("5Y6Z7A8B9C0D: Unknown exception during SQLite statement close");
-            }
-        }
-
-        // Clear the pointer
-        m_stmt = nullptr;
-
-        // Marcar como cerrado antes de limpiar los datos
-        m_closed = true;
-
-        // Clear any cached data
-        m_columnNames.clear();
-        m_columnMap.clear();
-
-        // Unregister from Connection
-        if (auto conn = m_connection.lock())
-        {
-            conn->unregisterResultSet(weak_from_this());
-        }
-
-        // Unregister from PreparedStatement
-        if (auto prepStmt = m_preparedStatement.lock())
-        {
-            prepStmt->unregisterResultSet(weak_from_this());
-        }
-
-        // Clear the references
-        m_connection.reset();
-        m_preparedStatement.reset();
-
-        // Sleep briefly to ensure resources are released
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     bool SQLiteDBResultSet::isEmpty()
     {
-        std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
-
-        return m_rowPosition == 0 && !m_hasData;
+        auto result = isEmpty(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::shared_ptr<Blob> SQLiteDBResultSet::getBlob(size_t columnIndex)

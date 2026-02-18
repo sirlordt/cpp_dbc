@@ -179,6 +179,40 @@ catch (const DBException &e) {
 
 ## Exception-Free API (nothrow)
 
+> **Updated 2026-02-18:** All nothrow methods in `DBConnection`, `DBResultSet`, and `RelationalDBConnection` are now pure virtual (`= 0`). Every driver must implement the complete nothrow API surface. There are no default implementations that silently do nothing or return "not implemented" errors.
+
+### Nothrow API Completeness Rule
+
+Every driver must implement ALL of the following nothrow methods from `DBConnection`:
+- `close(std::nothrow_t) noexcept`
+- `reset(std::nothrow_t) noexcept`
+- `isClosed(std::nothrow_t) const noexcept`
+- `returnToPool(std::nothrow_t) noexcept`
+- `isPooled(std::nothrow_t) const noexcept`
+- `getURL(std::nothrow_t) const noexcept`
+
+Relational drivers additionally implement:
+- `prepareForPoolReturn(std::nothrow_t) noexcept`
+- `prepareForBorrow(std::nothrow_t) noexcept`
+
+### Throwing Wrappers Delegate to Nothrow
+
+All throwing method variants must delegate to their nothrow counterpart (single code path):
+
+```cpp
+// Pattern: throwing wrapper always delegates to nothrow implementation
+void MySQLDBConnection::close()
+{
+    auto result = close(std::nothrow);
+    if (!result.has_value())
+    {
+        throw result.error();
+    }
+}
+```
+
+This ensures consistent behavior between the two API surfaces and reduces code duplication.
+
 ### Using expected<T, E>
 
 The nothrow API returns `cpp_dbc::expected<T, DBException>`:

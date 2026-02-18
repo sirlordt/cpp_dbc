@@ -37,120 +37,69 @@ namespace cpp_dbc::Firebird
 
     bool FirebirdDBConnection::beginTransaction()
     {
-        FIREBIRD_DEBUG("FirebirdConnection::beginTransaction - Starting");
-        FIREBIRD_DEBUG("  m_autoCommit before: %s", (m_autoCommit ? "true" : "false"));
-        FIREBIRD_DEBUG("  m_transactionActive: %s", (m_transactionActive ? "true" : "false"));
-
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("EE7S9A4PFML2", "Connection closed");
-
-        // Disable autocommit when beginning a manual transaction
-        // This prevents executeUpdate from auto-committing
-        // IMPORTANT: Must be done BEFORE checking m_transactionActive
-        // because in Firebird, a transaction is always active (started in constructor)
-        m_autoCommit = false;
-        FIREBIRD_DEBUG("  m_autoCommit after: %s", (m_autoCommit ? "true" : "false"));
-
-        // If transaction is already active, just return true (like MySQL)
-        if (m_transactionActive)
+        auto result = beginTransaction(std::nothrow);
+        if (!result)
         {
-            FIREBIRD_DEBUG("FirebirdConnection::beginTransaction - Transaction already active, returning true");
-            return true;
+            throw result.error();
         }
-
-        startTransaction();
-        FIREBIRD_DEBUG("FirebirdConnection::beginTransaction - Done");
-        return true;
+        return *result;
     }
 
     bool FirebirdDBConnection::transactionActive()
     {
-
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("PCUNDMG16GK6", "Connection closed");
-
-        return m_transactionActive;
+        auto result = transactionActive(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return *result;
     }
 
     void FirebirdDBConnection::commit()
     {
-        FIREBIRD_DEBUG("FirebirdConnection::commit - Starting");
-
-        FIREBIRD_DEBUG("  Acquiring lock...");
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("QWXDAZV96H5U", "Connection closed");
-        FIREBIRD_DEBUG("  Lock acquired");
-
-        FIREBIRD_DEBUG("  Calling endTransaction(true)...");
-        endTransaction(true);
-        FIREBIRD_DEBUG("  endTransaction completed");
-
-        if (m_autoCommit)
+        auto result = commit(std::nothrow);
+        if (!result)
         {
-            FIREBIRD_DEBUG("  AutoCommit is enabled, calling startTransaction()...");
-            startTransaction();
-            FIREBIRD_DEBUG("  startTransaction completed");
+            throw result.error();
         }
-        FIREBIRD_DEBUG("FirebirdConnection::commit - Done");
     }
 
     void FirebirdDBConnection::rollback()
     {
-
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("8JHA5W6QHDGE", "Connection closed");
-
-        endTransaction(false);
-
-        if (m_autoCommit)
+        auto result = rollback(std::nothrow);
+        if (!result)
         {
-            startTransaction();
+            throw result.error();
         }
     }
 
     void FirebirdDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
-
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("12FDXAMCF67W", "Connection closed");
-
-        // If the isolation level is already set to the requested level, do nothing
-        if (m_isolationLevel == level)
+        auto result = setTransactionIsolation(std::nothrow, level);
+        if (!result)
         {
-            return;
-        }
-
-        // If a transaction is active, we need to end it first, change the isolation level,
-        // and restart the transaction with the new isolation level
-        bool hadActiveTransaction = m_transactionActive;
-        if (m_transactionActive)
-        {
-            // Commit the current transaction (or rollback if autocommit is off)
-            if (m_autoCommit)
-            {
-                endTransaction(true); // Commit
-            }
-            else
-            {
-                endTransaction(false); // Rollback
-            }
-        }
-
-        m_isolationLevel = level;
-
-        // Restart the transaction if we had one active and autocommit is on
-        if (hadActiveTransaction && m_autoCommit)
-        {
-            startTransaction();
+            throw result.error();
         }
     }
 
     TransactionIsolationLevel FirebirdDBConnection::getTransactionIsolation()
     {
-
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("BO917VEC61VZ", "Connection closed");
-
-        return m_isolationLevel;
+        auto result = getTransactionIsolation(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return *result;
     }
 
     std::string FirebirdDBConnection::getURL() const
     {
-        return m_url;
+        auto result = getURL(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return *result;
     }
 
     uint64_t FirebirdDBConnection::executeCreateDatabase(const std::string &sql)

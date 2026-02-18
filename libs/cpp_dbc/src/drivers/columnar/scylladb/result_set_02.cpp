@@ -34,7 +34,64 @@
 
 namespace cpp_dbc::ScyllaDB
 {
-    // Nothrow API
+    // Nothrow API - DBResultSet interface
+
+    cpp_dbc::expected<void, DBException> ScyllaDBResultSet::close(std::nothrow_t) noexcept
+    {
+        try
+        {
+            SCYLLADB_DEBUG("ScyllaDBResultSet::close - Closing result set");
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+            m_iterator.reset();
+            m_result.reset();
+            m_currentRow = nullptr;
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "MLVT1AF9ZP3W",
+                std::string("Error closing result set: ") + ex.what()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "MLVT1AF9ZP3W",
+                "Unknown error closing result set"));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> ScyllaDBResultSet::isEmpty(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+            SCYLLADB_DEBUG("ScyllaDBResultSet::isEmpty - Result is " << (m_rowCount == 0 ? "empty" : "not empty"));
+            return m_rowCount == 0;
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "F512VQ5M0HV8",
+                std::string("Error checking if result set is empty: ") + ex.what()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException(
+                "F512VQ5M0HV8",
+                "Unknown error checking if result set is empty"));
+        }
+    }
+
+    // Nothrow API - ColumnarDBResultSet interface
 
     cpp_dbc::expected<bool, DBException> ScyllaDBResultSet::next(std::nothrow_t) noexcept
     {

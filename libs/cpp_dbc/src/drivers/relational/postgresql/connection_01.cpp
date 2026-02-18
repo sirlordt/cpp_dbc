@@ -144,18 +144,11 @@ namespace cpp_dbc::PostgreSQL
 
     void PostgreSQLDBConnection::prepareForPoolReturn()
     {
-        // Close all active statements first
-        closeAllStatements();
-
-        // Rollback any active transaction
-        auto txActive = transactionActive(std::nothrow);
-        if (txActive.has_value() && txActive.value())
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result.has_value())
         {
-            rollback(std::nothrow);
+            throw result.error();
         }
-
-        // Reset auto-commit to true
-        setAutoCommit(std::nothrow, true);
     }
 
     // Constructor
@@ -223,106 +216,75 @@ namespace cpp_dbc::PostgreSQL
     // Destructor
     PostgreSQLDBConnection::~PostgreSQLDBConnection()
     {
-        PostgreSQLDBConnection::close();
+        // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
+        [[maybe_unused]] auto closeResult = close(std::nothrow);
     }
 
     // DBConnection interface
     void PostgreSQLDBConnection::close()
     {
-        if (!m_closed && m_conn)
+        auto result = close(std::nothrow);
+        if (!result.has_value())
         {
-            // Close all active statements before closing the connection
-            // This ensures statement deallocation while we have exclusive access
-            closeAllStatements();
+            throw result.error();
+        }
+    }
 
-            // Sleep for 25ms to avoid problems with concurrency
-            std::this_thread::sleep_for(std::chrono::milliseconds(25));
-
-            // shared_ptr will automatically call PQfinish via PGconnDeleter
-            m_conn.reset();
-            m_closed = true;
+    void PostgreSQLDBConnection::reset()
+    {
+        auto result = reset(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
         }
     }
 
     bool PostgreSQLDBConnection::isClosed() const
     {
-        return m_closed;
+        auto result = isClosed(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
-    /**
-     * @brief Return this connection to the connection pool for reuse
-     *
-     * @details
-     * **CRITICAL: Statement Cleanup Before Pool Return**
-     *
-     * This method prepares the connection for reuse by another thread. The most
-     * important step is closing all active prepared statements BEFORE the connection
-     * becomes available to other threads.
-     *
-     * **Why closeAllStatements() is Essential Here:**
-     *
-     * Consider this scenario WITHOUT closeAllStatements():
-     * 1. Thread A creates connection, creates PreparedStatement, uses it
-     * 2. Thread A calls conn->returnToPool() - connection goes back to pool
-     * 3. Thread B gets the same connection from pool, starts using it
-     * 4. Thread A's PreparedStatement goes out of scope, destructor runs
-     * 5. Destructor deallocates the prepared statement on the PostgreSQL server
-     * 6. This uses the PGconn* connection that Thread B is also using
-     * 7. RACE CONDITION: Two threads accessing same PGconn* simultaneously
-     * 8. Result: Protocol errors, potential corruption, undefined behavior
-     *
-     * **With closeAllStatements():**
-     * 1. Thread A creates connection, creates PreparedStatement, uses it
-     * 2. Thread A calls conn->returnToPool()
-     * 3. returnToPool() calls closeAllStatements() - ALL statements closed NOW
-     * 4. Statement deallocation runs while Thread A still has exclusive access
-     * 5. Connection goes back to pool (clean, no active statements)
-     * 6. Thread B gets the connection - it's completely clean
-     * 7. Thread A's PreparedStatement destructor finds statement already closed
-     * 8. No server communication needed - safe!
-     *
-     * @note We don't set m_closed = true because the connection remains open
-     * for reuse. Only the statements are closed.
-     *
-     * @see closeAllStatements() for the statement cleanup implementation
-     * @see m_activeStatements for the design rationale of using weak_ptr
-     */
     void PostgreSQLDBConnection::returnToPool()
     {
-        try
+        auto result = returnToPool(std::nothrow);
+        if (!result.has_value())
         {
-            // CRITICAL: Close all active statements BEFORE making connection available
-            // This prevents race conditions when another thread gets this connection
-            closeAllStatements();
-
-            // Restore autocommit for the next user of this connection
-            if (!m_autoCommit)
-            {
-                setAutoCommit(true);
-            }
-
-            // Note: We don't set m_closed = true because the connection remains open
-            // for reuse by the pool. Only the statements are closed.
-        }
-        catch ([[maybe_unused]] const std::exception &ex)
-        {
-            // Ignore errors during cleanup - connection may still be usable
-            PG_DEBUG("PostgreSQLDBConnection::returnToPool - Exception during cleanup: " << ex.what());
-        }
-        catch (...) // NOSONAR - Intentional catch-all for non-std::exception types during cleanup
-        {
-            PG_DEBUG("PostgreSQLDBConnection::returnToPool - Unknown exception during cleanup");
+            throw result.error();
         }
     }
 
-    bool PostgreSQLDBConnection::isPooled()
+    bool PostgreSQLDBConnection::isPooled() const
     {
-        return false;
+        auto result = isPooled(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::string PostgreSQLDBConnection::getURL() const
     {
-        return m_url;
+        auto result = getURL(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
+    void PostgreSQLDBConnection::prepareForBorrow()
+    {
+        auto result = prepareForBorrow(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
     }
 
     // RelationalDBConnection interface

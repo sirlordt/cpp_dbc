@@ -356,15 +356,11 @@ namespace cpp_dbc::Firebird
 
     void FirebirdDBConnection::prepareForPoolReturn()
     {
-        // Reset connection state: close all statements/resultsets and rollback
-        auto resetResult = reset(std::nothrow);
-        if (!resetResult)
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result)
         {
-            FIREBIRD_DEBUG("prepareForPoolReturn: Failed to reset connection state: %s", resetResult.error().what_s().c_str());
+            throw result.error();
         }
-
-        // Reset auto-commit to true (default state for pooled connections).
-        setAutoCommit(std::nothrow, true);
     }
 
     // ============================================================================
@@ -430,22 +426,10 @@ namespace cpp_dbc::Firebird
     // ============================================================================
     void FirebirdDBConnection::prepareForBorrow()
     {
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("XYFTNH67T063", "Connection closed");
-
-        if (m_closed)
+        auto result = prepareForBorrow(std::nothrow);
+        if (!result)
         {
-            return;
-        }
-
-        // Refresh the MVCC snapshot by rolling back and starting a new transaction.
-        // This ensures the borrowed connection can see all DDL changes committed
-        // after the previous transaction started.
-        if (m_tr && m_autoCommit)
-        {
-            FIREBIRD_DEBUG("FirebirdConnection::prepareForBorrow - Refreshing transaction for fresh MVCC snapshot");
-            // rollback() will start a new transaction if autoCommit is true,
-            // giving us a fresh snapshot of the current database state.
-            rollback(std::nothrow);
+            throw result.error();
         }
     }
 
@@ -516,43 +500,42 @@ namespace cpp_dbc::Firebird
         }
     }
 
+    void FirebirdDBConnection::reset()
+    {
+        auto result = reset(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+    }
+
     bool FirebirdDBConnection::isClosed() const
     {
-
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("KKO37BV98NDS", "Connection closed");
-
-        return m_closed.load(std::memory_order_acquire);
+        auto result = isClosed(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     void FirebirdDBConnection::returnToPool()
     {
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("1HVCKK97ATIE", "Connection closed");
-
-        FIREBIRD_DEBUG("FirebirdConnection::returnToPool - Starting");
-
-        // Prepare for pool return: close all statements/resultsets, rollback, reset autocommit
-        prepareForPoolReturn();
-
-        // Start a fresh transaction for the next use
-        if (!m_tr && !m_closed.load(std::memory_order_acquire))
+        auto result = returnToPool(std::nothrow);
+        if (!result)
         {
-            FIREBIRD_DEBUG("  Starting fresh transaction for pool reuse");
-            try
-            {
-                startTransaction();
-            }
-            catch (...)
-            {
-                FIREBIRD_DEBUG("  Failed to start fresh transaction");
-            }
+            throw result.error();
         }
-
-        FIREBIRD_DEBUG("FirebirdConnection::returnToPool - Done, m_tr=%ld", (long)m_tr);
     }
 
-    bool FirebirdDBConnection::isPooled()
+    bool FirebirdDBConnection::isPooled() const
     {
-        return false; // Not pooled by default
+        auto result = isPooled(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::shared_ptr<RelationalDBPreparedStatement> FirebirdDBConnection::prepareStatement(const std::string &sql)
@@ -596,10 +579,12 @@ namespace cpp_dbc::Firebird
 
     bool FirebirdDBConnection::getAutoCommit()
     {
-
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("KEGHRXGUZRLE", "Connection closed");
-
-        return m_autoCommit;
+        auto result = getAutoCommit(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return *result;
     }
 
 } // namespace cpp_dbc::Firebird

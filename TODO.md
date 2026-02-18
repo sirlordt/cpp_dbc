@@ -15,6 +15,15 @@
 
 ## Completed Tasks
 
+- Complete Nothrow API Implementation Across All Drivers (2026-02-18):
+  - Promoted all nothrow methods in `DBConnection`, `DBResultSet`, `RelationalDBConnection` to pure virtual `= 0`
+  - Added `void reset()`, `isEmpty(nothrow)`, `prepareForPoolReturn(nothrow)`, `prepareForBorrow(nothrow)` pure virtuals
+  - Implemented complete nothrow API in all 7 drivers: MySQL, PostgreSQL, SQLite, Firebird, MongoDB, Redis, ScyllaDB
+  - All throwing method wrappers now delegate to nothrow implementations (single code path)
+  - All connection pool wrappers override new nothrow pure virtuals
+  - Added new source files: `connection_05.cpp` (MongoDB), `connection_02.cpp` (ScyllaDB), `connection_03.cpp` (Firebird, MySQL), `result_set_03.cpp` (MySQL, PostgreSQL, SQLite)
+  - Added Helgrind suppression for ScyllaDB `close(nothrow)` heap-address-reuse false positive
+
 - Helgrind Thread-Safety Hardening — Firebird Driver Refactor + Connection Pool Lock Order Fixes (2026-02-17):
   - Fixed Firebird USE-AFTER-FREE bug: eliminated raw `m_trPtr`, now uses `m_connection.lock()->m_tr`
   - Fixed Firebird ABBA deadlock: removed `m_statementsMutex`/`m_resultSetsMutex`, single `m_connMutex` for all registry access

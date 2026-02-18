@@ -214,15 +214,15 @@ namespace cpp_dbc
                                      std::shared_ptr<std::atomic<bool>> poolAlive);
         ~RelationalPooledDBConnection() override;
 
-        // Overridden DBConnection interface methods
         // DBConnection interface methods
         void close() override;
         bool isClosed() const override;
         void returnToPool() override;
-        bool isPooled() override;
+        bool isPooled() const override;
         std::string getURL() const override;
+        void reset() override;
 
-        // Overridden RelationalDBConnection interface methods
+        // RelationalDBConnection interface methods
         std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
         std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
         uint64_t executeUpdate(const std::string &sql) override;
@@ -233,15 +233,28 @@ namespace cpp_dbc
         void commit() override;
         void rollback() override;
 
-        // Transaction management methods
         bool beginTransaction() override;
         bool transactionActive() override;
 
-        // Transaction isolation level methods
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
-        // Nothrow API
+        void prepareForPoolReturn() override;
+        void prepareForBorrow() override;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        // DBConnection nothrow interface
+        cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+
+        // RelationalDBConnection nothrow interface
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
@@ -251,10 +264,10 @@ namespace cpp_dbc
         cpp_dbc::expected<bool, DBException> transactionActive(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
         // DBConnectionPooled interface methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const override;

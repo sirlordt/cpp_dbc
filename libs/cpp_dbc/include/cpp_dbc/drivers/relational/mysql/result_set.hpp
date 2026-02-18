@@ -226,6 +226,8 @@ namespace cpp_dbc::MySQL
             std::vector<uint8_t> getBytes(const std::string &columnName) override;
 
             // Nothrow API
+            cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
             cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;
             cpp_dbc::expected<bool, DBException> isBeforeFirst(std::nothrow_t) noexcept override;
             cpp_dbc::expected<bool, DBException> isAfterLast(std::nothrow_t) noexcept override;

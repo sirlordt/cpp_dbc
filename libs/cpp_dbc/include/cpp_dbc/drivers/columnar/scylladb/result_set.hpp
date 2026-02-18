@@ -138,7 +138,11 @@ namespace cpp_dbc::ScyllaDB
             std::vector<uint8_t> getBytes(size_t columnIndex) override;
             std::vector<uint8_t> getBytes(const std::string &columnName) override;
 
-            // Nothrow API
+            // Nothrow API - DBResultSet interface
+            cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
+
+            // Nothrow API - ColumnarDBResultSet interface
             cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;
             cpp_dbc::expected<bool, DBException> isBeforeFirst(std::nothrow_t) noexcept override;
             cpp_dbc::expected<bool, DBException> isAfterLast(std::nothrow_t) noexcept override;

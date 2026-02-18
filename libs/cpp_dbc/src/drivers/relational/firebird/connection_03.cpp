@@ -549,6 +549,132 @@ namespace cpp_dbc::Firebird
         }
     }
 
+    cpp_dbc::expected<bool, DBException>
+    FirebirdDBConnection::isClosed(std::nothrow_t) const noexcept
+    {
+        return m_closed.load(std::memory_order_acquire);
+    }
+
+    cpp_dbc::expected<bool, DBException>
+    FirebirdDBConnection::isPooled(std::nothrow_t) const noexcept
+    {
+        return false;
+    }
+
+    cpp_dbc::expected<std::string, DBException>
+    FirebirdDBConnection::getURL(std::nothrow_t) const noexcept
+    {
+        return m_url;
+    }
+
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::returnToPool(std::nothrow_t) noexcept
+    {
+        try
+        {
+            FIREBIRD_CONNECTION_LOCK_OR_RETURN("HFEEQDUN8QKD", "Connection closed");
+
+            FIREBIRD_DEBUG("FirebirdConnection::returnToPool(nothrow) - Starting");
+
+            // Prepare for pool return: close all statements/resultsets, rollback, reset autocommit
+            prepareForPoolReturn(std::nothrow);
+
+            // Start a fresh transaction for the next use
+            if (!m_tr && !m_closed.load(std::memory_order_acquire))
+            {
+                FIREBIRD_DEBUG("  Starting fresh transaction for pool reuse");
+                try
+                {
+                    startTransaction();
+                }
+                catch (...)
+                {
+                    FIREBIRD_DEBUG("  Failed to start fresh transaction");
+                }
+            }
+
+            FIREBIRD_DEBUG("FirebirdConnection::returnToPool(nothrow) - Done, m_tr=%ld", (long)m_tr);
+            return {};
+        }
+        catch (const DBException &e)
+        {
+            return cpp_dbc::unexpected(e);
+        }
+        catch (const std::exception &e)
+        {
+            return cpp_dbc::unexpected(DBException("21I433I3JGSM",
+                                                   std::string("returnToPool failed: ") + e.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("RX0KXBFWZ9AP",
+                                                   "returnToPool failed with unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    {
+        // Reset connection state: close all statements/resultsets and rollback
+        auto resetResult = reset(std::nothrow);
+        if (!resetResult)
+        {
+            FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to reset: %s",
+                           resetResult.error().what_s().c_str());
+            // Continue anyway - try to at least reset autoCommit
+        }
+
+        // Reset auto-commit to true (default state for pooled connections)
+        setAutoCommit(std::nothrow, true);
+
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        // See MVCC documentation in connection_01.cpp prepareForBorrow() comment block
+        // for explanation of why this is needed.
+        try
+        {
+            FIREBIRD_CONNECTION_LOCK_OR_RETURN("HR0QTJ2GVXFT", "Connection closed");
+
+            if (m_closed)
+            {
+                return {};
+            }
+
+            // Refresh the MVCC snapshot by rolling back and starting a new transaction.
+            // This ensures the borrowed connection can see all DDL changes committed
+            // after the previous transaction started.
+            if (m_tr && m_autoCommit)
+            {
+                FIREBIRD_DEBUG("FirebirdConnection::prepareForBorrow(nothrow) - Refreshing MVCC snapshot");
+                rollback(std::nothrow);
+            }
+
+            return {};
+        }
+        catch (const DBException &e)
+        {
+            return cpp_dbc::unexpected(e);
+        }
+        catch (const std::exception &e)
+        {
+            return cpp_dbc::unexpected(DBException("MJSBD64U3FD2",
+                                                   std::string("prepareForBorrow failed: ") + e.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("Y2Z6MSE9WN8P",
+                                                   "prepareForBorrow failed with unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
 } // namespace cpp_dbc::Firebird
 
 #endif // USE_FIREBIRD

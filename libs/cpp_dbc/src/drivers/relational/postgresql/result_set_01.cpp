@@ -68,25 +68,21 @@ namespace cpp_dbc::PostgreSQL
 
     void PostgreSQLDBResultSet::close()
     {
-
-        DB_DRIVER_LOCK_GUARD(m_mutex);
-
-        if (m_result)
+        auto result = close(std::nothrow);
+        if (!result)
         {
-            // Smart pointer will automatically call PQclear via PGresultDeleter
-            m_result.reset();
-            m_rowPosition = 0;
-            m_rowCount = 0;
-            m_fieldCount = 0;
+            throw result.error();
         }
     }
 
     bool PostgreSQLDBResultSet::isEmpty()
     {
-
-        DB_DRIVER_LOCK_GUARD(m_mutex);
-
-        return m_rowCount == 0;
+        auto result = isEmpty(std::nothrow);
+        if (!result)
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     bool PostgreSQLDBResultSet::next()

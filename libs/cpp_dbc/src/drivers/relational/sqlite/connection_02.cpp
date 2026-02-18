@@ -470,6 +470,121 @@ namespace cpp_dbc::SQLite
         }
     }
 
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::close(std::nothrow_t) noexcept
+    {
+        try
+        {
+            if (!m_closed && m_db)
+            {
+                // Close all result sets FIRST (before statements)
+                // closeAllResultSets() acquires m_globalFileMutex internally
+                closeAllResultSets();
+
+                // Close all prepared statements properly
+                // closeAllStatements() includes safety net for leaked statements
+                closeAllStatements();
+
+                // Call sqlite3_release_memory to free up caches and unused memory
+                [[maybe_unused]]
+                int releasedMemory = sqlite3_release_memory(1000000);
+                SQLITE_DEBUG("Released %d bytes of SQLite memory", releasedMemory);
+
+                // Smart pointer will automatically call sqlite3_close_v2 via SQLiteDbDeleter
+                m_db.reset();
+                m_closed = true;
+
+                // Sleep for 10ms to avoid problems with concurrency and memory stability
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            // Ensure cleanup even on error
+            m_db.reset();
+            m_closed = true;
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            SQLITE_DEBUG("Exception during SQLite close: %s", ex.what());
+            m_db.reset();
+            m_closed = true;
+            return cpp_dbc::unexpected(DBException("GRFPVO09UYNU",
+                                                   std::string("close failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            m_db.reset();
+            m_closed = true;
+            return cpp_dbc::unexpected(DBException("FHR9J06XNVWS",
+                                                   "close failed with unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::isClosed(std::nothrow_t) const noexcept
+    {
+        return m_closed;
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::returnToPool(std::nothrow_t) noexcept
+    {
+        try
+        {
+            // Reset the connection state for the next borrower
+            // reset() closes result sets, statements, rolls back and resets autocommit
+            auto resetResult = reset(std::nothrow);
+            if (!resetResult)
+            {
+                SQLITE_DEBUG("returnToPool(nothrow): reset failed: %s",
+                             resetResult.error().what_s().c_str());
+                // Continue - try to at least restore autocommit
+            }
+
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("EYX8UAKL1E9B",
+                                                   std::string("returnToPool failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("2XFKGOI6JLT8",
+                                                   "returnToPool failed with unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::isPooled(std::nothrow_t) const noexcept
+    {
+        return false;
+    }
+
+    cpp_dbc::expected<std::string, DBException> SQLiteDBConnection::getURL(std::nothrow_t) const noexcept
+    {
+        return m_url;
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    {
+        // Delegate to reset() which closes result sets, statements, rolls back, and resets autocommit
+        return reset(std::nothrow);
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        // No-op for SQLite: no MVCC snapshot refresh needed
+        return {};
+    }
+
 } // namespace cpp_dbc::SQLite
 
 #endif // USE_SQLITE

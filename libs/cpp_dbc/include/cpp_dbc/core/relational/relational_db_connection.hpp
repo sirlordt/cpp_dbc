@@ -184,21 +184,18 @@ namespace cpp_dbc
          * - Close all active prepared statements and result sets
          * - Rollback any active transaction
          * - Reset auto-commit to true
-         *
-         * The default implementation only rolls back any active transaction.
-         * Subclasses should override to close statements/result sets.
          */
-        virtual void prepareForPoolReturn()
-        {
-            // Default implementation: rollback if transaction is active
-            auto txActive = transactionActive(std::nothrow);
-            if (txActive.has_value() && txActive.value())
-            {
-                rollback(std::nothrow);
-            }
-            // Reset auto-commit to true
-            setAutoCommit(std::nothrow, true);
-        }
+        // Previous default implementation (kept for reference):
+        // virtual void prepareForPoolReturn()
+        // {
+        //     auto txActive = transactionActive(std::nothrow);
+        //     if (txActive.has_value() && txActive.value())
+        //     {
+        //         rollback(std::nothrow);
+        //     }
+        //     setAutoCommit(std::nothrow, true);
+        // }
+        virtual void prepareForPoolReturn() = 0;
 
         /**
          * @brief Prepare the connection for borrowing from pool
@@ -206,15 +203,14 @@ namespace cpp_dbc
          * This method is called when a connection is borrowed from the pool.
          * It ensures the connection has a fresh transaction snapshot for
          * databases that use MVCC (like Firebird).
-         *
-         * The default implementation is a no-op for most databases.
-         * Firebird overrides this to refresh its transaction.
          */
-        virtual void prepareForBorrow()
-        {
-            // Default: no-op for most databases
-            // Firebird overrides to ensure fresh transaction snapshot
-        }
+        // Previous default implementation (kept for reference):
+        // virtual void prepareForBorrow()
+        // {
+        //     // Default: no-op for most databases
+        //     // Firebird overrides to ensure fresh transaction snapshot
+        // }
+        virtual void prepareForBorrow() = 0;
 
         // Transaction isolation level
         /**
@@ -319,6 +315,22 @@ namespace cpp_dbc
          */
         virtual cpp_dbc::expected<void, DBException>
             rollback(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Prepare the connection for return to pool (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException>
+            prepareForPoolReturn(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Prepare the connection for borrowing from pool (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException>
+            prepareForBorrow(std::nothrow_t) noexcept = 0;
 
         /**
          * @brief Set the transaction isolation level (nothrow version)

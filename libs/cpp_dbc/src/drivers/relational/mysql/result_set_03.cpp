@@ -543,6 +543,66 @@ namespace cpp_dbc::MySQL
         }
     }
 
+    cpp_dbc::expected<void, DBException> MySQLDBResultSet::close(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            if (m_result)
+            {
+                // Smart pointer will automatically call mysql_free_result via MySQLResDeleter
+                m_result.reset();
+                m_currentRow = nullptr;
+                m_rowPosition = 0;
+                m_rowCount = 0;
+                m_fieldCount = 0;
+            }
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("4G5YN08HQYRQ",
+                                                   std::string("close failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("1VPGMU1SBFSE",
+                                                   "close failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> MySQLDBResultSet::isEmpty(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+            return m_rowCount == 0;
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("VT6GP25FE0PJ",
+                                                   std::string("isEmpty failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("A9D77C6NFBBY",
+                                                   "isEmpty failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
 } // namespace cpp_dbc::MySQL
 
 #endif // USE_MYSQL

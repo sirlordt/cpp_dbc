@@ -1267,6 +1267,13 @@ namespace cpp_dbc
         }
     }
 
+    void RelationalPooledDBConnection::reset()
+    {
+        auto result = reset(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
     bool RelationalPooledDBConnection::beginTransaction()
     {
         if (m_closed)
@@ -1457,25 +1464,23 @@ namespace cpp_dbc
         return m_active;
     }
 
-    void RelationalPooledDBConnection::returnToPool()
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::returnToPool(std::nothrow_t) noexcept
     {
-        // Use atomic exchange to ensure only one thread processes the close
+        // Use atomic exchange to ensure only one thread processes the return
         bool expected = false;
         if (!m_closed.compare_exchange_strong(expected, true))
         {
-            return;
+            return {}; // Already being returned/closed by another thread
         }
 
         try
         {
-            // Return to pool instead of actually closing
             updateLastUsedTime();
 
             // Check if pool is still alive using the shared atomic flag
             // Use qualified call to avoid virtual dispatch issues when called from destructor
             if (RelationalPooledDBConnection::isPoolValid())
             {
-                // Try to obtain a shared_ptr from the weak_ptr
                 if (auto poolShared = m_pool.lock())
                 {
                     // FIX: Reset m_closed BEFORE returnConnection() to prevent race condition
@@ -1484,27 +1489,45 @@ namespace cpp_dbc
                     poolShared->returnConnection(std::static_pointer_cast<RelationalPooledDBConnection>(this->shared_from_this()));
                 }
             }
+            return {};
         }
-        catch ([[maybe_unused]] const std::bad_weak_ptr &ex)
+        catch (const std::bad_weak_ptr &ex)
         {
-            // shared_from_this failed, keep as closed
             CP_DEBUG("RelationalPooledDBConnection::returnToPool - bad_weak_ptr: %s", ex.what());
             m_closed.store(true);
+            return cpp_dbc::unexpected(DBException("KDDVEFIZ5QUR",
+                std::string("Failed to obtain shared_from_this: ") + ex.what(),
+                system_utils::captureCallStack()));
         }
-        catch ([[maybe_unused]] const std::exception &ex)
+        catch (const DBException &ex)
         {
-            // Any other exception, keep as closed
             m_closed.store(true);
-            CP_DEBUG("RelationalPooledDBConnection::returnToPool - Exception: %s", ex.what());
+            return cpp_dbc::unexpected(ex);
         }
-        catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
+        catch (const std::exception &ex)
         {
-            CP_DEBUG("RelationalPooledDBConnection::returnToPool - Unknown exception caught");
             m_closed.store(true);
+            return cpp_dbc::unexpected(DBException("8BN1W05EH7WK",
+                std::string("Exception in returnToPool: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...) // NOSONAR
+        {
+            m_closed.store(true);
+            return cpp_dbc::unexpected(DBException("UF9WYX7K0BXP",
+                "Unknown exception in returnToPool",
+                system_utils::captureCallStack()));
         }
     }
 
-    bool RelationalPooledDBConnection::isPooled()
+    void RelationalPooledDBConnection::returnToPool()
+    {
+        auto result = returnToPool(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
+    bool RelationalPooledDBConnection::isPooled() const
     {
         return this->m_active == false;
     }
@@ -1517,6 +1540,129 @@ namespace cpp_dbc
     std::shared_ptr<RelationalDBConnection> RelationalPooledDBConnection::getUnderlyingRelationalConnection()
     {
         return m_conn;
+    }
+
+    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::isClosed(std::nothrow_t) const noexcept
+    {
+        try
+        {
+            return m_closed.load() || m_conn->isClosed();
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("BN34G8KUX6ME",
+                std::string("Exception in isClosed: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("WSNMUM5N7H1P",
+                "Unknown exception in isClosed",
+                system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::isPooled(std::nothrow_t) const noexcept
+    {
+        return {m_active.load() == false};
+    }
+
+    cpp_dbc::expected<std::string, DBException> RelationalPooledDBConnection::getURL(std::nothrow_t) const noexcept
+    {
+        try
+        {
+            return m_conn->getURL();
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("Q5DCM8OT8N0W",
+                std::string("Exception in getURL: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("AA0NDFST3OH6",
+                "Unknown exception in getURL",
+                system_utils::captureCallStack()));
+        }
+    }
+
+    void RelationalPooledDBConnection::prepareForPoolReturn()
+    {
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("73OMW2XSN96G",
+                    "Connection is closed",
+                    system_utils::captureCallStack()));
+            }
+            return m_conn->prepareForPoolReturn(std::nothrow);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("OQMJG6WW63AJ",
+                std::string("Exception in prepareForPoolReturn: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("QKW97Z7IUWBJ",
+                "Unknown exception in prepareForPoolReturn",
+                system_utils::captureCallStack()));
+        }
+    }
+
+    void RelationalPooledDBConnection::prepareForBorrow()
+    {
+        auto result = prepareForBorrow(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        try
+        {
+            if (m_closed)
+            {
+                return cpp_dbc::unexpected(DBException("V4JST5V0D1K7",
+                    "Connection is closed",
+                    system_utils::captureCallStack()));
+            }
+            return m_conn->prepareForBorrow(std::nothrow);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("CGZ2A2QAG5V6",
+                std::string("Exception in prepareForBorrow: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("46DOUWCV6R8S",
+                "Unknown exception in prepareForBorrow",
+                system_utils::captureCallStack()));
+        }
     }
 
     // MySQL connection pool implementation

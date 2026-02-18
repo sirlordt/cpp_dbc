@@ -181,8 +181,9 @@ namespace cpp_dbc::MongoDB
             void close() override;
             bool isClosed() const override;
             void returnToPool() override;
-            bool isPooled() override;
+            bool isPooled() const override;
             std::string getURL() const override;
+            void reset() override;
 
             // DocumentDBConnection interface
             std::string getDatabaseName() const override;
@@ -216,30 +217,6 @@ namespace cpp_dbc::MongoDB
             bool supportsTransactions() override;
             void prepareForPoolReturn() override;
 
-            // ====================================================================
-            // NOTHROW VERSIONS - Exception-free API
-            // ====================================================================
-
-            expected<std::vector<std::string>, DBException> listDatabases(std::nothrow_t) noexcept override;
-            expected<std::shared_ptr<DocumentDBCollection>, DBException> getCollection(
-                std::nothrow_t, const std::string &collectionName) noexcept override;
-            expected<std::vector<std::string>, DBException> listCollections(std::nothrow_t) noexcept override;
-            expected<std::shared_ptr<DocumentDBCollection>, DBException> createCollection(
-                std::nothrow_t,
-                const std::string &collectionName,
-                const std::string &options = "") noexcept override;
-            expected<void, DBException> dropCollection(
-                std::nothrow_t, const std::string &collectionName) noexcept override;
-            expected<void, DBException> dropDatabase(
-                std::nothrow_t, const std::string &databaseName) noexcept override;
-            expected<std::shared_ptr<DocumentDBData>, DBException> createDocument(std::nothrow_t) noexcept override;
-            expected<std::shared_ptr<DocumentDBData>, DBException> createDocument(
-                std::nothrow_t, const std::string &json) noexcept override;
-            expected<std::shared_ptr<DocumentDBData>, DBException> runCommand(
-                std::nothrow_t, const std::string &command) noexcept override;
-            expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfo(std::nothrow_t) noexcept override;
-            expected<std::shared_ptr<DocumentDBData>, DBException> getServerStatus(std::nothrow_t) noexcept override;
-
             // MongoDB-specific methods
 
             /**
@@ -261,6 +238,58 @@ namespace cpp_dbc::MongoDB
              * @param pooled true if the connection is managed by a pool
              */
             void setPooled(bool pooled);
+
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
+            // DBConnection nothrow interface
+            expected<void, DBException> close(std::nothrow_t) noexcept override;
+            expected<void, DBException> reset(std::nothrow_t) noexcept override;
+            expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
+            expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
+            expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+            expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+
+            // DocumentDBConnection nothrow interface
+            expected<std::string, DBException> getDatabaseName(std::nothrow_t) const noexcept override;
+            expected<std::vector<std::string>, DBException> listDatabases(std::nothrow_t) noexcept override;
+            expected<bool, DBException> databaseExists(
+                std::nothrow_t, const std::string &databaseName) noexcept override;
+            expected<void, DBException> useDatabase(
+                std::nothrow_t, const std::string &databaseName) noexcept override;
+            expected<void, DBException> dropDatabase(
+                std::nothrow_t, const std::string &databaseName) noexcept override;
+            expected<std::shared_ptr<DocumentDBCollection>, DBException> getCollection(
+                std::nothrow_t, const std::string &collectionName) noexcept override;
+            expected<std::vector<std::string>, DBException> listCollections(std::nothrow_t) noexcept override;
+            expected<bool, DBException> collectionExists(
+                std::nothrow_t, const std::string &collectionName) noexcept override;
+            expected<std::shared_ptr<DocumentDBCollection>, DBException> createCollection(
+                std::nothrow_t,
+                const std::string &collectionName,
+                const std::string &options = "") noexcept override;
+            expected<void, DBException> dropCollection(
+                std::nothrow_t, const std::string &collectionName) noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> createDocument(std::nothrow_t) noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> createDocument(
+                std::nothrow_t, const std::string &json) noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> runCommand(
+                std::nothrow_t, const std::string &command) noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfo(std::nothrow_t) noexcept override;
+            expected<std::shared_ptr<DocumentDBData>, DBException> getServerStatus(std::nothrow_t) noexcept override;
+            expected<bool, DBException> ping(std::nothrow_t) noexcept override;
+            expected<std::string, DBException> startSession(std::nothrow_t) noexcept override;
+            expected<void, DBException> endSession(
+                std::nothrow_t, const std::string &sessionId) noexcept override;
+            expected<void, DBException> startTransaction(
+                std::nothrow_t, const std::string &sessionId) noexcept override;
+            expected<void, DBException> commitTransaction(
+                std::nothrow_t, const std::string &sessionId) noexcept override;
+            expected<void, DBException> abortTransaction(
+                std::nothrow_t, const std::string &sessionId) noexcept override;
+            expected<bool, DBException> supportsTransactions(std::nothrow_t) noexcept override;
+            expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
         };
 
 } // namespace cpp_dbc::MongoDB

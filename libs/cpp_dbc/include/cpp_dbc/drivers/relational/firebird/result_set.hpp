@@ -160,6 +160,8 @@ namespace cpp_dbc::Firebird
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
 
+        cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isBeforeFirst(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isAfterLast(std::nothrow_t) noexcept override;
@@ -195,8 +197,6 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept override;
         cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t columnIndex) noexcept override;
         cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
-
-        cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::Firebird

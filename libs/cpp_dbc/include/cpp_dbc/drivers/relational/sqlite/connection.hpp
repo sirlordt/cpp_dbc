@@ -108,9 +108,10 @@ namespace cpp_dbc::SQLite
         ~SQLiteDBConnection() override;
 
         void close() override;
+        void reset() override;
         bool isClosed() const override;
         void returnToPool() override;
-        bool isPooled() override;
+        bool isPooled() const override;
 
         std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
         std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
@@ -124,6 +125,8 @@ namespace cpp_dbc::SQLite
 
         void commit() override;
         void rollback() override;
+        void prepareForPoolReturn() override;
+        void prepareForBorrow() override;
         cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;
 
         // Transaction isolation level methods
@@ -145,6 +148,14 @@ namespace cpp_dbc::SQLite
         cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::SQLite

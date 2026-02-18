@@ -22,7 +22,6 @@
 #include <new> // For std::nothrow_t
 #include "db_expected.hpp"
 #include "db_exception.hpp"
-#include "cpp_dbc/common/system_utils.hpp"
 
 namespace cpp_dbc
 {
@@ -66,28 +65,23 @@ namespace cpp_dbc
          */
         virtual bool isEmpty() = 0;
 
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
         /**
          * @brief Close the result set and release resources (nothrow version)
-         *
-         * This method allows derived classes to close the result set without
-         * throwing exceptions. The default implementation returns "Not implemented".
-         * Derived classes should override this to provide specific close behavior.
-         *
          * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
          * @return expected containing void on success, or DBException on failure
-         *
-         * ```cpp
-         * auto result = resultSet->close(std::nothrow);
-         * if (!result) {
-         *     std::cerr << "Close failed: " << result.error().what() << std::endl;
-         * }
-         * ```
          */
-        virtual cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept
-        {
-            return cpp_dbc::unexpected(DBException("3FROYWSMRL4N", "DBResultSet::close(std::nothrow) not implemented",
-                                                   system_utils::captureCallStack()));
-        }
+        virtual cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Check if the result set is empty (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing true if empty, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

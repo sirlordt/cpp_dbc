@@ -37,6 +37,70 @@ namespace cpp_dbc::MongoDB
     // MongoDBCursor NOTHROW VERSIONS
     // ====================================================================
 
+    expected<void, DBException> MongoDBCursor::close(std::nothrow_t) noexcept
+    {
+        try
+        {
+            MONGODB_DEBUG("MongoDBCursor::close - Closing cursor");
+            MONGODB_LOCK_GUARD(*m_connMutex);
+            m_cursor.reset();
+            m_currentDoc.reset();
+            m_exhausted = true;
+            MONGODB_DEBUG("MongoDBCursor::close - Done");
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "J9KXB070QW7V",
+                std::string("Error closing cursor: ") + ex.what()));
+        }
+        catch (...)
+        {
+            return unexpected<DBException>(DBException(
+                "J9KXB070QW7V",
+                "Unknown error closing cursor"));
+        }
+    }
+
+    expected<bool, DBException> MongoDBCursor::isEmpty(std::nothrow_t) noexcept
+    {
+        try
+        {
+            MONGODB_LOCK_GUARD(*m_connMutex);
+            validateCursor();
+            if (!m_iterationStarted)
+            {
+                // Inline hasNext() logic to avoid self-deadlock (mutex is non-recursive)
+                validateConnection();
+                if (m_exhausted)
+                    return true;
+                return !mongoc_cursor_more(m_cursor.get());
+            }
+            return m_exhausted && !m_currentDoc;
+        }
+        catch (const DBException &ex)
+        {
+            return unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "AZQEHZGWG55P",
+                std::string("Error checking if cursor is empty: ") + ex.what()));
+        }
+        catch (...)
+        {
+            return unexpected<DBException>(DBException(
+                "AZQEHZGWG55P",
+                "Unknown error checking if cursor is empty"));
+        }
+    }
+
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBCursor::current(std::nothrow_t) noexcept
     {
         try

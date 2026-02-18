@@ -853,7 +853,7 @@ namespace cpp_dbc
         return m_poolAlive && *m_poolAlive && !m_pool.expired();
     }
 
-    void KVPooledDBConnection::close()
+    cpp_dbc::expected<void, DBException> KVPooledDBConnection::close(std::nothrow_t) noexcept
     {
         // Use atomic exchange to ensure only one thread processes the close
         bool expected = false;
@@ -948,6 +948,14 @@ namespace cpp_dbc
                 }
             }
         }
+        return {};
+    }
+
+    void KVPooledDBConnection::close()
+    {
+        auto result = close(std::nothrow);
+        if (!result)
+            throw result.error();
     }
 
     bool KVPooledDBConnection::isClosed() const
@@ -955,13 +963,18 @@ namespace cpp_dbc
         return m_closed || (m_conn && m_conn->isClosed());
     }
 
-    void KVPooledDBConnection::returnToPool()
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::isClosed(std::nothrow_t) const noexcept
     {
-        // Use atomic exchange to ensure only one thread processes the close
+        return m_closed.load() || (m_conn && m_conn->isClosed());
+    }
+
+    cpp_dbc::expected<void, DBException> KVPooledDBConnection::returnToPool(std::nothrow_t) noexcept
+    {
+        // Use atomic exchange to ensure only one thread processes the return
         bool expected = false;
         if (!m_closed.compare_exchange_strong(expected, true))
         {
-            return;
+            return {};
         }
 
         try
@@ -976,7 +989,7 @@ namespace cpp_dbc
                 if (auto poolShared = m_pool.lock())
                 {
                     // FIX: Reset m_closed BEFORE returnConnection() to prevent race condition
-                    // (see close() method for full explanation of the bug)
+                    // (see close(nothrow) method for full explanation of the bug)
                     m_closed.store(false);
                     poolShared->returnConnection(std::static_pointer_cast<KVPooledDBConnection>(this->shared_from_this()));
                 }
@@ -997,9 +1010,22 @@ namespace cpp_dbc
             CP_DEBUG("KVPooledDBConnection::returnToPool - Unknown exception caught");
             m_closed.store(true);
         }
+        return {};
     }
 
-    bool KVPooledDBConnection::isPooled()
+    void KVPooledDBConnection::returnToPool()
+    {
+        auto result = returnToPool(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
+    bool KVPooledDBConnection::isPooled() const
+    {
+        return true;
+    }
+
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::isPooled(std::nothrow_t) const noexcept
     {
         return true;
     }
@@ -1011,6 +1037,39 @@ namespace cpp_dbc
             return m_conn->getURL();
         }
         return "";
+    }
+
+    cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::getURL(std::nothrow_t) const noexcept
+    {
+        if (m_closed)
+        {
+            return cpp_dbc::unexpected(DBException("WDBWCPX3AUDK", "Connection is closed", system_utils::captureCallStack()));
+        }
+        return m_conn->getURL(std::nothrow);
+    }
+
+    void KVPooledDBConnection::reset()
+    {
+        auto result = reset(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
+    cpp_dbc::expected<void, DBException> KVPooledDBConnection::reset(std::nothrow_t) noexcept
+    {
+        return prepareForPoolReturn(std::nothrow);
+    }
+
+    void KVPooledDBConnection::prepareForPoolReturn()
+    {
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
+    cpp_dbc::expected<void, DBException> KVPooledDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    {
+        return m_conn->prepareForPoolReturn(std::nothrow);
     }
 
     // Forward all KVDBConnection methods to underlying connection

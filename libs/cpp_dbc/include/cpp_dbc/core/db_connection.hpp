@@ -23,7 +23,6 @@
 #include <new> // For std::nothrow_t
 #include "db_expected.hpp"
 #include "db_exception.hpp"
-#include "cpp_dbc/common/system_utils.hpp"
 
 namespace cpp_dbc
 {
@@ -103,7 +102,7 @@ namespace cpp_dbc
          * @return true if the connection is pooled
          * @return false if the connection is standalone
          */
-        virtual bool isPooled() = 0;
+        virtual bool isPooled() const = 0;
 
         /**
          * @brief Get the connection URL
@@ -116,50 +115,64 @@ namespace cpp_dbc
         virtual std::string getURL() const = 0;
 
         /**
-         * @brief Reset the connection state (nothrow version)
+         * @brief Reset the connection state
          *
-         * This method allows derived classes to reset their internal state
-         * without throwing exceptions. The default implementation returns "Not implemented".
-         * Derived classes should override this to provide specific reset behavior.
+         * Closes all active prepared statements and result sets, rolls back
+         * any active transaction, and resets auto-commit to true. Called
+         * internally by close() and prepareForPoolReturn().
          *
-         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
-         * @return expected containing void on success, or DBException on failure
-         *
-         * ```cpp
-         * auto result = conn->reset(std::nothrow);
-         * if (!result) {
-         *     std::cerr << "Reset failed: " << result.error().what() << std::endl;
-         * }
-         * ```
+         * @throws DBException if reset fails
          */
-        virtual cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept
-        {
-            return cpp_dbc::unexpected(DBException("ZDC68V9OMICL", "DBConnection::reset(std::nothrow) not implemented",
-                                                   system_utils::captureCallStack()));
-        }
+        virtual void reset() = 0;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
 
         /**
          * @brief Close the database connection (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Reset the connection state (nothrow version)
          *
-         * This method allows derived classes to close the connection without
-         * throwing exceptions. The default implementation returns "Not implemented".
-         * Derived classes should override this to provide specific close behavior.
+         * Called by close() and prepareForPoolReturn() to ensure clean state.
          *
          * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
          * @return expected containing void on success, or DBException on failure
-         *
-         * ```cpp
-         * auto result = conn->close(std::nothrow);
-         * if (!result) {
-         *     std::cerr << "Close failed: " << result.error().what() << std::endl;
-         * }
-         * ```
          */
-        virtual cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept
-        {
-            return cpp_dbc::unexpected(DBException("9Z47NTF70CB7", "DBConnection::close(std::nothrow) not implemented",
-                                                   system_utils::captureCallStack()));
-        }
+        virtual cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Check if the connection is closed (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing true if closed, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept = 0;
+
+        /**
+         * @brief Return the connection to its connection pool (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Check if the connection is managed by a pool (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing true if pooled, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept = 0;
+
+        /**
+         * @brief Get the connection URL (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing the connection URL string, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept = 0;
     };
 
 } // namespace cpp_dbc

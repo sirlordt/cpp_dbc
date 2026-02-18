@@ -231,8 +231,9 @@ namespace cpp_dbc
         void close() override;
         bool isClosed() const override;
         void returnToPool() override;
-        bool isPooled() override;
+        bool isPooled() const override;
         std::string getURL() const override;
+        void reset() override;
 
         // KVDBConnection interface delegated methods
         bool setString(const std::string &key, const std::string &value,
@@ -272,6 +273,7 @@ namespace cpp_dbc
         bool flushDB(bool async = false) override;
         std::string ping() override;
         std::map<std::string, std::string> getServerInfo() override;
+        void prepareForPoolReturn() override;
 
         // DBConnectionPooled interface methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const override;
@@ -403,6 +405,15 @@ namespace cpp_dbc
 
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(
             std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+
+        // DBConnection nothrow interface
+        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
     };
 
     // Specialized connection pool for Redis

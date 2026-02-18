@@ -1,6 +1,77 @@
 # Changelog
 
-## 2026-02-17 16:22:49 PST [Current]
+## 2026-02-18 00:54:58 PST [Current]
+
+### Complete Nothrow API Implementation Across All Drivers and Base Classes
+
+This release completes the exception-free (`nothrow`) API across the entire cpp_dbc driver stack. All base class nothrow methods are now pure virtual, forcing every driver to provide a concrete implementation. The connection pool wrapper classes (`RelationalPooledDBConnection`, `DocumentPooledDBConnection`, etc.) also receive full nothrow overrides.
+
+#### Base Class Changes — Pure Virtual Promotion
+
+* **`DBConnection` (`db_connection.hpp`):**
+  * `close(std::nothrow_t)`, `reset(std::nothrow_t)` — changed from default "not implemented" virtual implementations to `= 0` pure virtual
+  * Added new pure virtuals: `void reset()`, `isClosed(std::nothrow_t) const noexcept`, `returnToPool(std::nothrow_t) noexcept`, `isPooled(std::nothrow_t) const noexcept`, `getURL(std::nothrow_t) const noexcept`
+
+* **`DBResultSet` (`db_result_set.hpp`):**
+  * `close(std::nothrow_t)` — changed from default virtual to `= 0`
+  * Added `isEmpty(std::nothrow_t) noexcept = 0`
+
+* **`RelationalDBConnection` (`relational_db_connection.hpp`):**
+  * `prepareForPoolReturn()` and `prepareForBorrow()` — changed from inline default implementations to `= 0`
+  * Added pure virtuals: `prepareForPoolReturn(std::nothrow_t) noexcept = 0`, `prepareForBorrow(std::nothrow_t) noexcept = 0`
+
+#### Driver Implementations — New Nothrow Methods
+
+All 7 drivers now implement the complete nothrow API surface. New source files were created to house the new implementations:
+
+* **PostgreSQL** (`connection_03.cpp`, `result_set_03.cpp`):
+  * `close(nothrow)`: acquires `m_connMutex`, calls `closeAllStatements()`, sleeps 25ms, resets `PGconn`
+  * `reset(nothrow)`: closes all statements, rolls back active transaction, resets auto-commit to `true`
+  * `prepareForPoolReturn(nothrow)`: delegates to `reset(nothrow)`
+  * `prepareForBorrow(nothrow)`: no-op for PostgreSQL
+  * Result set: `close(nothrow)` resets `PGresult`; `isEmpty(nothrow)` checks `m_rowCount`
+
+* **MySQL** (`connection_03.cpp`, `result_set_03.cpp`):
+  * Full nothrow implementations for all `DBConnection` and `RelationalDBConnection` methods
+  * `reset(nothrow)`: closes statements and result sets, rolls back transaction, resets auto-commit
+
+* **SQLite** (`connection_02.cpp`, `result_set_03.cpp`):
+  * Integrates with `FileMutexRegistry` for sanitizer-safe locking
+  * `close(nothrow)`, `reset(nothrow)`, `prepareForPoolReturn(nothrow)`, `prepareForBorrow(nothrow)`
+
+* **Firebird** (`connection_03.cpp`):
+  * `reset(nothrow)`: rolls back active transaction, resets transaction state
+  * `prepareForBorrow(nothrow)`: refreshes MVCC transaction snapshot
+
+* **MongoDB** (`connection_05.cpp`):
+  * Full `DBConnection` nothrow overrides for `close`, `reset`, `isClosed`, `returnToPool`, `isPooled`, `getURL`
+
+* **Redis** (`connection_06.cpp`):
+  * Full `DBConnection` nothrow overrides for `close`, `reset`, `isClosed`, `returnToPool`, `isPooled`, `getURL`
+
+* **ScyllaDB** (`connection_02.cpp`):
+  * Full `DBConnection` nothrow overrides
+  * `close(nothrow)` calls `cass_session_close()` asynchronously via RAII handle
+
+#### Connection Pool Wrappers — New Nothrow Overrides
+
+All pool wrapper classes (`RelationalPooledDBConnection`, `DocumentPooledDBConnection`, `KVPooledDBConnection`, `ColumnarPooledDBConnection`) now override all new pure virtual nothrow methods. The relational pool wrapper additionally implements `void reset()`, `prepareForPoolReturn()`, and `prepareForBorrow()`.
+
+#### Throwing Wrappers — Delegate to Nothrow Implementations
+
+All throwing method variants (`close()`, `reset()`, `isClosed()`, etc.) in every driver now delegate to their corresponding nothrow implementation. This centralizes error handling in a single code path and eliminates duplication.
+
+#### Build System
+
+* **`CMakeLists.txt`:** Added `src/drivers/document/mongodb/connection_05.cpp` and `src/drivers/columnar/scylladb/connection_02.cpp` to the build
+
+#### Helgrind Suppressions
+
+* **`valgrind/helgrind/suppression.conf`:** Added `scylladb_connection_close_nothrow_lockorder_heap_reuse` — suppresses a Helgrind LockOrder false positive in `ScyllaDBConnection::close(std::nothrow_t)`. Root cause: `cass_session_close()` acquires `uv_mutex`; Helgrind's heap-address-reuse tracking incorrectly maps the freed `m_connMutex` address to a new `uv_mutex`, creating a spurious lock order violation
+
+---
+
+## 2026-02-17 16:22:49 PST
 
 ### Helgrind Thread-Safety Hardening: Connection Pool Lock Order Fixes, Firebird Driver Refactor, and Test Infrastructure Improvements
 

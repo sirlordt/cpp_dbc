@@ -2,9 +2,34 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development with comprehensive Helgrind thread-safety hardening complete.
+The CPP_DBC library is in active development. The nothrow API is now complete across all drivers.
 
-### Recent Improvements (2026-02-17)
+### Recent Improvements (2026-02-18)
+
+**Complete Nothrow API Implementation Across All Drivers:**
+
+1. **Base Class Pure Virtual Promotion:**
+   - `DBConnection`: `close(nothrow)`, `reset(nothrow)` promoted from default virtual → `= 0`; new pure virtuals: `void reset()`, `isClosed(nothrow) const`, `returnToPool(nothrow)`, `isPooled(nothrow) const`, `getURL(nothrow) const`
+   - `DBResultSet`: `close(nothrow)` promoted → `= 0`; new `isEmpty(nothrow) = 0`
+   - `RelationalDBConnection`: `prepareForPoolReturn()`, `prepareForBorrow()` promoted → `= 0`; new `prepareForPoolReturn(nothrow)`, `prepareForBorrow(nothrow)` pure virtuals
+
+2. **All 7 Drivers Implement Complete Nothrow API:**
+   - PostgreSQL, MySQL, SQLite, Firebird, MongoDB, Redis, ScyllaDB — all implement `close`, `reset`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `prepareForPoolReturn`, `prepareForBorrow` (nothrow)
+   - Throwing methods delegate to nothrow implementations (single code path)
+
+3. **Connection Pool Wrappers Updated:**
+   - All 4 pool types (relational, document, kv, columnar) now override all new pure virtual nothrow methods
+
+4. **New Source Files:**
+   - `mongodb/connection_05.cpp`, `scylladb/connection_02.cpp`, `firebird/connection_03.cpp`, `mysql/connection_03.cpp`, `mysql/result_set_03.cpp`, `postgresql/result_set_03.cpp`, `sqlite/connection_02.cpp`, `sqlite/result_set_03.cpp`
+
+5. **Build System:** `mongodb/connection_05.cpp` and `scylladb/connection_02.cpp` added to CMakeLists.txt
+
+6. **Helgrind Suppression:** `scylladb_connection_close_nothrow_lockorder_heap_reuse` — ScyllaDB false positive from heap address reuse
+
+---
+
+### Previous Improvements (2026-02-17)
 
 **Helgrind Thread-Safety Hardening — Firebird Driver Refactor + Connection Pool Lock Order Fixes:**
 

@@ -765,13 +765,13 @@ namespace cpp_dbc
         }
     }
 
-    void DocumentPooledDBConnection::close()
+    expected<void, DBException> DocumentPooledDBConnection::close(std::nothrow_t) noexcept
     {
         // Use atomic exchange to ensure only one thread processes the close
         bool expected = false;
         if (!m_closed.compare_exchange_strong(expected, true))
         {
-            return;
+            return {};
         }
 
         try
@@ -842,11 +842,24 @@ namespace cpp_dbc
             CP_DEBUG("DocumentPooledDBConnection::close - Unknown exception caught");
             m_closed = true;
         }
+        return {};
+    }
+
+    void DocumentPooledDBConnection::close()
+    {
+        auto result = close(std::nothrow);
+        if (!result)
+            throw result.error();
     }
 
     bool DocumentPooledDBConnection::isClosed() const
     {
         return m_closed || m_conn->isClosed();
+    }
+
+    expected<bool, DBException> DocumentPooledDBConnection::isClosed(std::nothrow_t) const noexcept
+    {
+        return m_closed.load() || m_conn->isClosed();
     }
 
     // Implementation of DBConnectionPooled interface methods
@@ -873,14 +886,26 @@ namespace cpp_dbc
         return m_active;
     }
 
-    void DocumentPooledDBConnection::returnToPool()
+    expected<void, DBException> DocumentPooledDBConnection::returnToPool(std::nothrow_t) noexcept
     {
-        this->close();
+        return close(std::nothrow);
     }
 
-    bool DocumentPooledDBConnection::isPooled()
+    void DocumentPooledDBConnection::returnToPool()
+    {
+        auto result = returnToPool(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
+    bool DocumentPooledDBConnection::isPooled() const
     {
         return this->m_active == false;
+    }
+
+    expected<bool, DBException> DocumentPooledDBConnection::isPooled(std::nothrow_t) const noexcept
+    {
+        return !m_active.load();
     }
 
     std::string DocumentPooledDBConnection::getURL() const
@@ -891,6 +916,39 @@ namespace cpp_dbc
         }
         // Can't modify m_lastUsedTime in a const method
         return m_conn->getURL();
+    }
+
+    expected<std::string, DBException> DocumentPooledDBConnection::getURL(std::nothrow_t) const noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("KV03UAMVXQX7", "Connection is closed", system_utils::captureCallStack()));
+        }
+        return m_conn->getURL(std::nothrow);
+    }
+
+    void DocumentPooledDBConnection::reset()
+    {
+        auto result = reset(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
+    expected<void, DBException> DocumentPooledDBConnection::reset(std::nothrow_t) noexcept
+    {
+        return prepareForPoolReturn(std::nothrow);
+    }
+
+    void DocumentPooledDBConnection::prepareForPoolReturn()
+    {
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result)
+            throw result.error();
+    }
+
+    expected<void, DBException> DocumentPooledDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    {
+        return m_conn->prepareForPoolReturn(std::nothrow);
     }
 
     std::shared_ptr<DBConnection> DocumentPooledDBConnection::getUnderlyingConnection()
@@ -1244,6 +1302,122 @@ namespace cpp_dbc
         }
         updateLastUsedTime();
         return m_conn->getServerStatus(std::nothrow);
+    }
+
+    expected<std::string, DBException> DocumentPooledDBConnection::getDatabaseName(std::nothrow_t) const noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("QI6DG2WF85Q2", "Connection is closed"));
+        }
+        return m_conn->getDatabaseName(std::nothrow);
+    }
+
+    expected<bool, DBException> DocumentPooledDBConnection::databaseExists(
+        std::nothrow_t, const std::string &databaseName) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("FABBX2QR62GT", "Connection is closed"));
+        }
+        updateLastUsedTime();
+        return m_conn->databaseExists(std::nothrow, databaseName);
+    }
+
+    expected<void, DBException> DocumentPooledDBConnection::useDatabase(
+        std::nothrow_t, const std::string &databaseName) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("CFZMARADNIPZ", "Connection is closed"));
+        }
+        updateLastUsedTime();
+        return m_conn->useDatabase(std::nothrow, databaseName);
+    }
+
+    expected<bool, DBException> DocumentPooledDBConnection::collectionExists(
+        std::nothrow_t, const std::string &collectionName) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("AEDVQNDH5OBR", "Connection is closed"));
+        }
+        updateLastUsedTime();
+        return m_conn->collectionExists(std::nothrow, collectionName);
+    }
+
+    expected<bool, DBException> DocumentPooledDBConnection::ping(std::nothrow_t) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("218DK7FXM1U4", "Connection is closed"));
+        }
+        updateLastUsedTime();
+        return m_conn->ping(std::nothrow);
+    }
+
+    expected<std::string, DBException> DocumentPooledDBConnection::startSession(std::nothrow_t) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("WTWINKFWO8WZ", "Connection is closed"));
+        }
+        updateLastUsedTime();
+        return m_conn->startSession(std::nothrow);
+    }
+
+    expected<void, DBException> DocumentPooledDBConnection::endSession(
+        std::nothrow_t, const std::string &sessionId) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("X7VNI3HTM5NN", "Connection is closed"));
+        }
+        updateLastUsedTime();
+        return m_conn->endSession(std::nothrow, sessionId);
+    }
+
+    expected<void, DBException> DocumentPooledDBConnection::startTransaction(
+        std::nothrow_t, const std::string &sessionId) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("YYJXBAMEI07O", "Connection is closed"));
+        }
+        updateLastUsedTime();
+        return m_conn->startTransaction(std::nothrow, sessionId);
+    }
+
+    expected<void, DBException> DocumentPooledDBConnection::commitTransaction(
+        std::nothrow_t, const std::string &sessionId) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("VQ2C4Y9YU1LX", "Connection is closed"));
+        }
+        updateLastUsedTime();
+        return m_conn->commitTransaction(std::nothrow, sessionId);
+    }
+
+    expected<void, DBException> DocumentPooledDBConnection::abortTransaction(
+        std::nothrow_t, const std::string &sessionId) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("A7VGP008305O", "Connection is closed"));
+        }
+        updateLastUsedTime();
+        return m_conn->abortTransaction(std::nothrow, sessionId);
+    }
+
+    expected<bool, DBException> DocumentPooledDBConnection::supportsTransactions(std::nothrow_t) noexcept
+    {
+        if (m_closed)
+        {
+            return unexpected<DBException>(DBException("PLV8XFKGJ0PO", "Connection is closed"));
+        }
+        updateLastUsedTime();
+        return m_conn->supportsTransactions(std::nothrow);
     }
 
     // MongoDB connection pool implementation

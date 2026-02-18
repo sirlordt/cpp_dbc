@@ -277,6 +277,7 @@ if(USE_MONGODB)
         src/drivers/document/mongodb/connection_02.cpp
         src/drivers/document/mongodb/connection_03.cpp
         src/drivers/document/mongodb/connection_04.cpp
+        src/drivers/document/mongodb/connection_05.cpp
 
         # MongoDBDriver
         src/drivers/document/mongodb/driver_01.cpp
@@ -316,6 +317,7 @@ if(USE_SCYLLADB)
 
         # ScyllaDBConnection
         src/drivers/columnar/scylladb/connection_01.cpp
+        src/drivers/columnar/scylladb/connection_02.cpp
 
         # ScyllaDBDriver
         src/drivers/columnar/scylladb/driver_01.cpp

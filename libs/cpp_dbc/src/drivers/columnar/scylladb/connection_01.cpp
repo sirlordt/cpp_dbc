@@ -108,17 +108,9 @@ namespace cpp_dbc::ScyllaDB
 
     void ScyllaDBConnection::close()
     {
-        SCYLLADB_DEBUG("ScyllaDBConnection::close - Closing connection");
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
-        if (!m_closed && m_session)
-        {
-            CassFutureHandle close_future(cass_session_close(m_session.get()));
-            cass_future_wait(close_future.get());
-            m_session.reset();
-            m_cluster.reset();
-            m_closed = true;
-            SCYLLADB_DEBUG("ScyllaDBConnection::close - Connection closed");
-        }
+        auto result = close(std::nothrow);
+        if (!result.has_value())
+            throw result.error();
     }
 
     bool ScyllaDBConnection::isClosed() const
@@ -128,11 +120,12 @@ namespace cpp_dbc::ScyllaDB
 
     void ScyllaDBConnection::returnToPool()
     {
-        SCYLLADB_DEBUG("ScyllaDBConnection::returnToPool - No-op");
-        // No-op for now
+        auto result = returnToPool(std::nothrow);
+        if (!result.has_value())
+            throw result.error();
     }
 
-    bool ScyllaDBConnection::isPooled()
+    bool ScyllaDBConnection::isPooled() const
     {
         return false;
     }
@@ -140,6 +133,20 @@ namespace cpp_dbc::ScyllaDB
     std::string ScyllaDBConnection::getURL() const
     {
         return m_url;
+    }
+
+    void ScyllaDBConnection::reset()
+    {
+        auto result = reset(std::nothrow);
+        if (!result.has_value())
+            throw result.error();
+    }
+
+    void ScyllaDBConnection::prepareForPoolReturn()
+    {
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result.has_value())
+            throw result.error();
     }
 
     std::shared_ptr<ColumnarDBPreparedStatement> ScyllaDBConnection::prepareStatement(const std::string &query)
@@ -174,110 +181,24 @@ namespace cpp_dbc::ScyllaDB
 
     bool ScyllaDBConnection::beginTransaction()
     {
-        SCYLLADB_DEBUG("ScyllaDBConnection::beginTransaction - Transactions not supported in ScyllaDB driver");
-        // Scylla/Cassandra doesn't support ACID transactions in the traditional sense
-        // Lightweight Transactions (LWT) exist but are different.
-        return false;
+        auto result = beginTransaction(std::nothrow);
+        if (!result.has_value())
+            throw result.error();
+        return *result;
     }
 
     void ScyllaDBConnection::commit()
     {
-        SCYLLADB_DEBUG("ScyllaDBConnection::commit - No-op");
+        auto result = commit(std::nothrow);
+        if (!result.has_value())
+            throw result.error();
     }
 
     void ScyllaDBConnection::rollback()
     {
-        SCYLLADB_DEBUG("ScyllaDBConnection::rollback - No-op");
-    }
-
-    // Nothrow API
-
-    cpp_dbc::expected<std::shared_ptr<ColumnarDBPreparedStatement>, DBException> ScyllaDBConnection::prepareStatement(std::nothrow_t, const std::string &query) noexcept
-    {
-        SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Preparing query: " << query);
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
-        if (m_closed || !m_session)
-        {
-            SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Connection closed");
-            return cpp_dbc::unexpected(DBException("S0T1U2V3W4X5", "Connection closed", system_utils::captureCallStack()));
-        }
-
-        CassFutureHandle future(cass_session_prepare(m_session.get(), query.c_str()));
-
-        if (cass_future_error_code(future.get()) != CASS_OK)
-        {
-            const char *message;
-            size_t length;
-            cass_future_error_message(future.get(), &message, &length);
-            std::string errorMsg(message, length);
-            SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Prepare failed: " << errorMsg);
-            return cpp_dbc::unexpected(DBException("T1U2V3W4X5Y6", errorMsg, system_utils::captureCallStack()));
-        }
-
-        const CassPrepared *prepared = cass_future_get_prepared(future.get());
-        SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Query prepared successfully");
-        return std::shared_ptr<ColumnarDBPreparedStatement>(std::make_shared<ScyllaDBPreparedStatement>(m_session, query, prepared));
-    }
-
-    cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException> ScyllaDBConnection::executeQuery(std::nothrow_t, const std::string &query) noexcept
-    {
-        SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Executing query: " << query);
-        DB_DRIVER_LOCK_GUARD(m_connMutex);
-        if (m_closed || !m_session)
-        {
-            SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Connection closed");
-            return cpp_dbc::unexpected(DBException("8A350B08A3B3", "Connection closed", system_utils::captureCallStack()));
-        }
-
-        CassStatementHandle statement(cass_statement_new(query.c_str(), 0));
-        CassFutureHandle future(cass_session_execute(m_session.get(), statement.get()));
-
-        if (cass_future_error_code(future.get()) != CASS_OK)
-        {
-            const char *message;
-            size_t length;
-            cass_future_error_message(future.get(), &message, &length);
-            std::string errorMsg(message, length);
-            SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Execution failed: " << errorMsg);
-            return cpp_dbc::unexpected(DBException("772E10871903", errorMsg, system_utils::captureCallStack()));
-        }
-
-        const CassResult *result = cass_future_get_result(future.get());
-        SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Query executed successfully");
-        return std::shared_ptr<ColumnarDBResultSet>(std::make_shared<ScyllaDBResultSet>(result));
-    }
-
-    cpp_dbc::expected<uint64_t, DBException> ScyllaDBConnection::executeUpdate(std::nothrow_t, const std::string &query) noexcept
-    {
-        SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - Executing update: " << query);
-        auto res = executeQuery(std::nothrow, query);
-        if (!res)
-        {
-            SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - Update failed");
-            return cpp_dbc::unexpected(res.error());
-        }
-
-        // Use shared helper for consistent heuristic-based estimation
-        // (Cassandra/ScyllaDB doesn't provide actual affected row counts)
-        return estimateAffectedRows(query);
-    }
-
-    cpp_dbc::expected<bool, DBException> ScyllaDBConnection::beginTransaction(std::nothrow_t) noexcept
-    {
-        SCYLLADB_DEBUG("ScyllaDBConnection::beginTransaction - Transactions not supported");
-        return false;
-    }
-
-    cpp_dbc::expected<void, DBException> ScyllaDBConnection::commit(std::nothrow_t) noexcept
-    {
-        SCYLLADB_DEBUG("ScyllaDBConnection::commit - No-op");
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> ScyllaDBConnection::rollback(std::nothrow_t) noexcept
-    {
-        SCYLLADB_DEBUG("ScyllaDBConnection::rollback - No-op");
-        return {};
+        auto result = rollback(std::nothrow);
+        if (!result.has_value())
+            throw result.error();
     }
 
 } // namespace cpp_dbc::ScyllaDB
