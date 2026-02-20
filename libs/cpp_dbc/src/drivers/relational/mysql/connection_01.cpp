@@ -154,15 +154,6 @@ namespace cpp_dbc::MySQL
         m_activeStatements.clear();
     }
 
-    void MySQLDBConnection::prepareForPoolReturn()
-    {
-        auto result = prepareForPoolReturn(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
     MySQLDBConnection::MySQLDBConnection(const std::string &host,
                                          int port,
                                          const std::string &database,
@@ -306,15 +297,6 @@ namespace cpp_dbc::MySQL
         return result.value();
     }
 
-    void MySQLDBConnection::prepareForBorrow()
-    {
-        auto result = prepareForBorrow(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
     std::shared_ptr<RelationalDBPreparedStatement> MySQLDBConnection::prepareStatement(const std::string &sql)
     {
         auto result = prepareStatement(std::nothrow, sql);
@@ -396,6 +378,24 @@ namespace cpp_dbc::MySQL
     void MySQLDBConnection::rollback()
     {
         auto result = rollback(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    void MySQLDBConnection::prepareForPoolReturn()
+    {
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    void MySQLDBConnection::prepareForBorrow()
+    {
+        auto result = prepareForBorrow(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();

@@ -2,30 +2,51 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. The nothrow API is now complete across all drivers.
+The CPP_DBC library is in active development. The nothrow API is complete across all drivers. Source files are now reorganized with canonical method ordering.
 
-### Recent Improvements (2026-02-18)
+### Recent Improvements (2026-02-19)
+
+**Source File Reorganization: Canonical Method Ordering and File Splitting:**
+
+1. **File Splitting — 7 New Source Files:**
+   - MySQL: `result_set_04.cpp` (blob/binary nothrow methods)
+   - PostgreSQL: `result_set_04.cpp` (blob/binary nothrow methods)
+   - SQLite: `result_set_04.cpp`, `result_set_05.cpp`
+   - Firebird: `result_set_05.cpp`, `prepared_statement_04.cpp`, `connection_04.cpp`
+
+2. **Canonical Method Ordering (All Result Sets):**
+   - Consistent order across all 4 drivers: `close` → `isEmpty` → `next` → navigation → type-by-index/by-name interleaved → metadata → blob/binary (separate file)
+
+3. **Header Reordering:**
+   - MySQL, PostgreSQL, SQLite `result_set.hpp`: nothrow declarations interleaved by type (by-index + by-name together)
+   - Firebird `connection.hpp`: "NOTHROW VERSIONS" section comment repositioned
+   - SQLite `connection.hpp`: `reset(nothrow)` moved to nothrow section
+
+4. **Firebird File Redistribution:**
+   - `connection_01.cpp` → constructor/destructor/`executeCreateDatabase()`
+   - `connection_02.cpp` → ALL throwing wrappers
+   - `connection_03.cpp` → nothrow methods part 1
+   - `connection_04.cpp` (NEW) → nothrow methods part 2
+   - `prepared_statement_04.cpp` (NEW) → `executeUpdate`/`execute`/`close`/`invalidate` nothrow
+
+5. **Error Code Fix:** `firebird/blob.hpp` — `"FB_BLOB_CONN_CLOSED"` → `"LMHROWFG5PNN"`
+
+6. **No Functional Changes:** All implementations preserved exactly as they were
+
+7. **CMakeLists.txt:** Added 7 new source files
+
+---
+
+### Previous Improvements (2026-02-18)
 
 **Complete Nothrow API Implementation Across All Drivers:**
 
-1. **Base Class Pure Virtual Promotion:**
-   - `DBConnection`: `close(nothrow)`, `reset(nothrow)` promoted from default virtual → `= 0`; new pure virtuals: `void reset()`, `isClosed(nothrow) const`, `returnToPool(nothrow)`, `isPooled(nothrow) const`, `getURL(nothrow) const`
-   - `DBResultSet`: `close(nothrow)` promoted → `= 0`; new `isEmpty(nothrow) = 0`
-   - `RelationalDBConnection`: `prepareForPoolReturn()`, `prepareForBorrow()` promoted → `= 0`; new `prepareForPoolReturn(nothrow)`, `prepareForBorrow(nothrow)` pure virtuals
-
-2. **All 7 Drivers Implement Complete Nothrow API:**
-   - PostgreSQL, MySQL, SQLite, Firebird, MongoDB, Redis, ScyllaDB — all implement `close`, `reset`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `prepareForPoolReturn`, `prepareForBorrow` (nothrow)
-   - Throwing methods delegate to nothrow implementations (single code path)
-
-3. **Connection Pool Wrappers Updated:**
-   - All 4 pool types (relational, document, kv, columnar) now override all new pure virtual nothrow methods
-
-4. **New Source Files:**
-   - `mongodb/connection_05.cpp`, `scylladb/connection_02.cpp`, `firebird/connection_03.cpp`, `mysql/connection_03.cpp`, `mysql/result_set_03.cpp`, `postgresql/result_set_03.cpp`, `sqlite/connection_02.cpp`, `sqlite/result_set_03.cpp`
-
-5. **Build System:** `mongodb/connection_05.cpp` and `scylladb/connection_02.cpp` added to CMakeLists.txt
-
-6. **Helgrind Suppression:** `scylladb_connection_close_nothrow_lockorder_heap_reuse` — ScyllaDB false positive from heap address reuse
+- All nothrow methods promoted to pure virtual `= 0` in base classes
+- All 7 drivers implement complete nothrow API surface
+- Throwing methods delegate to nothrow implementations (single code path)
+- Connection pool wrappers updated for new pure virtuals
+- New source files: `mongodb/connection_05.cpp`, `scylladb/connection_02.cpp`, `firebird/connection_03.cpp`, `mysql/connection_03.cpp`, `result_set_03.cpp` (MySQL, PostgreSQL, SQLite)
+- Helgrind suppression for ScyllaDB false positive
 
 ---
 

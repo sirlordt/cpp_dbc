@@ -136,7 +136,9 @@ The project uses:
   - Internal headers (`*_internal.hpp`) contain shared declarations and definitions
   - Split files: `driver_*.cpp`, `connection_*.cpp`, `prepared_statement_*.cpp`, `result_set_*.cpp`
   - MongoDB-specific: `collection_*.cpp`, `cursor_*.cpp`, `document_*.cpp`
-  - Benefits: faster incremental compilation, better code organization, easier navigation
+  - File counts per relational driver: MySQL (4 result_set, 3 prepared_statement, 3 connection), PostgreSQL (4 result_set), SQLite (5 result_set), Firebird (5 result_set, 4 prepared_statement, 4 connection)
+  - Canonical method ordering across all result sets: `close` → `isEmpty` → `next` → navigation → type accessors (by-index/by-name interleaved) → metadata → blob/binary (separate file)
+  - Benefits: faster incremental compilation, better code organization, easier navigation, consistent structure across drivers
 - **Developer Documentation:**
   - `libs/cpp_dbc/docs/how_add_new_db_drivers.md`: Comprehensive guide for adding new database drivers (5 phases)
   - `libs/cpp_dbc/docs/error_handling_patterns.md`: Complete guide to DBException, error codes, and nothrow API

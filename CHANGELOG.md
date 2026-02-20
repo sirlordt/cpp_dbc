@@ -1,6 +1,60 @@
 # Changelog
 
-## 2026-02-18 00:54:58 PST [Current]
+## 2026-02-19 21:23:56 PST [Current]
+
+### Source File Reorganization: Canonical Method Ordering and File Splitting Across All Relational Drivers
+
+This release reorganizes all relational driver source files for consistency and maintainability. **No functional logic changes** — all method implementations are preserved exactly as they were.
+
+#### File Splitting — New Source Files
+
+Seven new `.cpp` files were added to reduce individual file sizes and improve compilation parallelism:
+
+* **MySQL**: `result_set_04.cpp` (blob/binary nothrow methods: `getColumnCount`, `getBlob`, `getBinaryStream`, `getBytes`)
+* **PostgreSQL**: `result_set_04.cpp` (blob/binary nothrow methods)
+* **SQLite**: `result_set_04.cpp` (blob/binary nothrow methods), `result_set_05.cpp` (additional result set methods)
+* **Firebird**: `result_set_05.cpp` (by-name nothrow methods + `getColumnNames`/`getColumnCount`), `prepared_statement_04.cpp` (`executeUpdate`, `execute`, `close`, `invalidate` nothrow methods), `connection_04.cpp` (nothrow methods part 2: `commit`, `rollback`, `close`, `setTransactionIsolation`, `getTransactionIsolation`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `prepareForPoolReturn`, `prepareForBorrow`)
+
+#### Canonical Method Ordering (All Result Sets)
+
+All result set nothrow methods across all 4 drivers are now ordered consistently:
+
+1. `close` → `isEmpty` → `next` → `isBeforeFirst` → `isAfterLast` → `getRow`
+2. Type accessors interleaved by-index/by-name: `getInt(index)`, `getInt(name)`, `getLong(index)`, `getLong(name)`, etc.
+3. `getDate`, `getTimestamp`, `getTime` (index/name pairs)
+4. `getColumnNames`, `getColumnCount`
+5. Blob/binary methods in a separate new file
+
+#### Header Declaration Reordering
+
+* **MySQL, PostgreSQL, SQLite `result_set.hpp`**: Nothrow method declarations reordered to interleave by-index and by-name variants of the same type together
+* **Firebird `connection.hpp`**: "NOTHROW VERSIONS" section comment repositioned above `reset(std::nothrow_t)`
+* **SQLite `connection.hpp`**: `reset(std::nothrow_t)` moved to the nothrow methods section
+
+#### Firebird Connection File Redistribution
+
+* **`connection_01.cpp`**: Now contains constructor, destructor, and `executeCreateDatabase()` (raw ISC API)
+* **`connection_02.cpp`**: Now contains ALL throwing wrapper methods (delegating to nothrow implementations)
+* **`connection_03.cpp`**: Now contains nothrow methods part 1 (`reset`, `prepareStatement`, `executeQuery`, `executeUpdate`, `setAutoCommit`, `getAutoCommit`, `beginTransaction`, `transactionActive`)
+* **`connection_04.cpp`** (NEW): Nothrow methods part 2 (`commit`, `rollback`, `close`, pool/isolation/URL methods)
+
+#### Firebird Prepared Statement Redistribution
+
+* **`prepared_statement_02.cpp`**: Gained `setInt(nothrow)` and `setLong(nothrow)` from `_01.cpp`; lost blob/binary methods to `_03.cpp`
+* **`prepared_statement_03.cpp`**: Gained blob/binary setters from `_02.cpp`; lost `executeUpdate`/`execute`/`close`/`invalidate` to `_04.cpp`
+* **`prepared_statement_04.cpp`** (NEW): `executeUpdate(nothrow)`, `execute(nothrow)`, `close(nothrow)`, `invalidate()`
+
+#### Error Code Fix
+
+* **`firebird/blob.hpp`**: Changed non-compliant error code `"FB_BLOB_CONN_CLOSED"` to properly formatted 12-char code `"LMHROWFG5PNN"`
+
+#### Build System
+
+* **`CMakeLists.txt`**: Added 7 new source files across all 4 relational drivers
+
+---
+
+## 2026-02-18 00:54:58 PST
 
 ### Complete Nothrow API Implementation Across All Drivers and Base Classes
 

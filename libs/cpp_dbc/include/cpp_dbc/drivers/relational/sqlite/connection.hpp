@@ -127,7 +127,6 @@ namespace cpp_dbc::SQLite
         void rollback() override;
         void prepareForPoolReturn() override;
         void prepareForBorrow() override;
-        cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;
 
         // Transaction isolation level methods
         void setTransactionIsolation(TransactionIsolationLevel level) override;
@@ -150,6 +149,7 @@ namespace cpp_dbc::SQLite
         cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
 
         cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;

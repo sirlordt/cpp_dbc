@@ -2,7 +2,6 @@
 
 ## Pending Tasks
 
-- Improvement: Add to helper the param helgrind to detect data races and deadlocks. When specified, run Valgrind with --tool=helgrind. Update all test result parsing to detect problems from helgrind and not only the memcheck tool.
 - Create a simple script to detect public method a class and check a bunch of .cpp test case and report if a method not found in the test code.
 - NEW FEATURE: Add more examples.
 - NEW FEATURE: Add more debug messages?
@@ -15,6 +14,15 @@
 
 ## Completed Tasks
 
+- Source File Reorganization: Canonical Method Ordering and File Splitting (2026-02-19):
+  - Split result set implementations across all 4 relational drivers into additional files (7 new .cpp files total)
+  - Established canonical method ordering for all result set nothrow methods across all drivers
+  - Redistributed Firebird connection and prepared statement methods across 4 files each
+  - Interleaved by-index/by-name type accessor declarations in result_set.hpp headers
+  - Fixed non-compliant error code in `firebird/blob.hpp` (`"FB_BLOB_CONN_CLOSED"` → `"LMHROWFG5PNN"`)
+  - No functional logic changes — purely organizational
+
+- Improvement: Add to helper the param helgrind to detect data races and deadlocks. When specified, run Valgrind with --tool=helgrind. Update all test result parsing to detect problems from helgrind and not only the memcheck tool.
 - Complete Nothrow API Implementation Across All Drivers (2026-02-18):
   - Promoted all nothrow methods in `DBConnection`, `DBResultSet`, `RelationalDBConnection` to pure virtual `= 0`
   - Added `void reset()`, `isEmpty(nothrow)`, `prepareForPoolReturn(nothrow)`, `prepareForBorrow(nothrow)` pure virtuals

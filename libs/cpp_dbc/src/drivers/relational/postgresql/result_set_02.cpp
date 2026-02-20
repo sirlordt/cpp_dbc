@@ -39,6 +39,65 @@ namespace cpp_dbc::PostgreSQL
 {
 
     // Nothrow API implementation for PostgreSQLDBResultSet
+    cpp_dbc::expected<void, DBException> PostgreSQLDBResultSet::close(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+
+            if (m_result)
+            {
+                // Smart pointer will automatically call PQclear via PGresultDeleter
+                m_result.reset();
+                m_rowPosition = 0;
+                m_rowCount = 0;
+                m_fieldCount = 0;
+            }
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("N934PDAA0GM6",
+                                                               std::string("close failed: ") + ex.what(),
+                                                               system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("6HL8OTNIZDP4",
+                                                               "close failed: unknown error",
+                                                               system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::isEmpty(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(m_mutex);
+            return m_rowCount == 0;
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("MVMU880YWK23",
+                                                               std::string("isEmpty failed: ") + ex.what(),
+                                                               system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("AGP9SII10X7C",
+                                                               "isEmpty failed: unknown error",
+                                                               system_utils::captureCallStack()));
+        }
+    }
+
     cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::next(std::nothrow_t) noexcept
     {
         try
@@ -155,6 +214,32 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
+    cpp_dbc::expected<int, DBException> PostgreSQLDBResultSet::getInt(std::nothrow_t, const std::string &columnName) noexcept
+    {
+        try
+        {
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("LFNW4BOER18E", "Column not found: " + columnName, system_utils::captureCallStack()));
+            }
+
+            return getInt(std::nothrow, it->second + 1); // +1 because getInt(int) is 1-based
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("FE573C284D9A", ex.what(), system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("18CA4D3B2E07", "Unknown error in PostgreSQLDBResultSet::getInt", system_utils::captureCallStack()));
+        }
+    }
+
     cpp_dbc::expected<int64_t, DBException> PostgreSQLDBResultSet::getLong(std::nothrow_t, size_t columnIndex) noexcept
     {
         try
@@ -195,6 +280,32 @@ namespace cpp_dbc::PostgreSQL
         catch (...)
         {
             return cpp_dbc::unexpected<DBException>(DBException("5C6A2D3E7F1B", "Unknown error in PostgreSQLDBResultSet::getLong", system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<int64_t, DBException> PostgreSQLDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
+    {
+        try
+        {
+            auto it = m_columnMap.find(columnName);
+            if (it == m_columnMap.end())
+            {
+                return cpp_dbc::unexpected<DBException>(DBException("7C8D9E0F1G2H", "Column not found: " + columnName, system_utils::captureCallStack()));
+            }
+
+            return getLong(std::nothrow, it->second + 1);
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("3D9B7C5E8F2A", ex.what(), system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected<DBException>(DBException("6A2E9F1D7B4C", "Unknown error in PostgreSQLDBResultSet::getLong", system_utils::captureCallStack()));
         }
     }
 
@@ -241,264 +352,6 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
-    cpp_dbc::expected<std::string, DBException> PostgreSQLDBResultSet::getString(std::nothrow_t, size_t columnIndex) noexcept
-    {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("1A2B3C4D5E6F", "Invalid column index or row position", system_utils::captureCallStack()));
-            }
-
-            auto idx = static_cast<int>(columnIndex - 1);
-            int row = m_rowPosition - 1;
-
-            if (PQgetisnull(m_result.get(), row, idx))
-            {
-                return std::string("");
-            }
-
-            return std::string(PQgetvalue(m_result.get(), row, idx));
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("3E7C9A1B5D2F", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("8F4D2E6B9A3C", "Unknown error in PostgreSQLDBResultSet::getString", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::getBoolean(std::nothrow_t, size_t columnIndex) noexcept
-    {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("F7096FE7EDFC", "Invalid column index or row position", system_utils::captureCallStack()));
-            }
-
-            auto idx = static_cast<int>(columnIndex - 1);
-            int row = m_rowPosition - 1;
-
-            if (PQgetisnull(m_result.get(), row, idx))
-            {
-                return false;
-            }
-
-            auto value = std::string(PQgetvalue(m_result.get(), row, idx));
-            return (value == "t" || value == "true" || value == "1" || value == "TRUE" || value == "True");
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("4B9D3F7A2E8C", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("1C5E8B3D7F2A", "Unknown error in PostgreSQLDBResultSet::getBoolean", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::isNull(std::nothrow_t, size_t columnIndex) noexcept
-    {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("3M4N5O6P7Q8R", "Invalid column index or row position", system_utils::captureCallStack()));
-            }
-
-            auto idx = static_cast<int>(columnIndex - 1);
-            int row = m_rowPosition - 1;
-
-            return PQgetisnull(m_result.get(), row, idx);
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("5D9F2A7B3E8C", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("1B7C3D9E5F2A", "Unknown error in PostgreSQLDBResultSet::isNull", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<std::string, DBException> PostgreSQLDBResultSet::getDate(std::nothrow_t, size_t columnIndex) noexcept
-    {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("RDEMHHV22EAB", "Invalid column index or row position", system_utils::captureCallStack()));
-            }
-
-            auto idx = static_cast<int>(columnIndex - 1);
-            int row = m_rowPosition - 1;
-
-            if (PQgetisnull(m_result.get(), row, idx))
-            {
-                return std::string("");
-            }
-
-            return std::string(PQgetvalue(m_result.get(), row, idx));
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("B1PBVRJNEU5K", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("S7Z4TK049LW3", "Unknown error in PostgreSQLDBResultSet::getDate", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<std::string, DBException> PostgreSQLDBResultSet::getTimestamp(std::nothrow_t, size_t columnIndex) noexcept
-    {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("9ZQ22DP6MLDU", "Invalid column index or row position", system_utils::captureCallStack()));
-            }
-
-            auto idx = static_cast<int>(columnIndex - 1);
-            int row = m_rowPosition - 1;
-
-            if (PQgetisnull(m_result.get(), row, idx))
-            {
-                return std::string("");
-            }
-
-            return std::string(PQgetvalue(m_result.get(), row, idx));
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("H9FNOH6H3K3S", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("NI3XBYW2DEB0", "Unknown error in PostgreSQLDBResultSet::getTimestamp", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<std::string, DBException> PostgreSQLDBResultSet::getTime(std::nothrow_t, size_t columnIndex) noexcept
-    {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-
-            if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("MHWEPBV3PB0Y", "Invalid column index or row position", system_utils::captureCallStack()));
-            }
-
-            auto idx = static_cast<int>(columnIndex - 1);
-            int row = m_rowPosition - 1;
-
-            if (PQgetisnull(m_result.get(), row, idx))
-            {
-                return std::string("");
-            }
-
-            return std::string(PQgetvalue(m_result.get(), row, idx));
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("QDTK2KI58XQM", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("K0NPWTJWFTA8", "Unknown error in PostgreSQLDBResultSet::getTime", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<int, DBException> PostgreSQLDBResultSet::getInt(std::nothrow_t, const std::string &columnName) noexcept
-    {
-        try
-        {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("LFNW4BOER18E", "Column not found: " + columnName, system_utils::captureCallStack()));
-            }
-
-            return getInt(std::nothrow, it->second + 1); // +1 because getInt(int) is 1-based
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("FE573C284D9A", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("18CA4D3B2E07", "Unknown error in PostgreSQLDBResultSet::getInt", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<int64_t, DBException> PostgreSQLDBResultSet::getLong(std::nothrow_t, const std::string &columnName) noexcept
-    {
-        try
-        {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("7C8D9E0F1G2H", "Column not found: " + columnName, system_utils::captureCallStack()));
-            }
-
-            return getLong(std::nothrow, it->second + 1);
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("3D9B7C5E8F2A", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("6A2E9F1D7B4C", "Unknown error in PostgreSQLDBResultSet::getLong", system_utils::captureCallStack()));
-        }
-    }
-
     cpp_dbc::expected<double, DBException> PostgreSQLDBResultSet::getDouble(std::nothrow_t, const std::string &columnName) noexcept
     {
         try
@@ -522,58 +375,6 @@ namespace cpp_dbc::PostgreSQL
         catch (...)
         {
             return cpp_dbc::unexpected<DBException>(DBException("4D7F6E2A8B1C", "Unknown error in PostgreSQLDBResultSet::getDouble", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<std::string, DBException> PostgreSQLDBResultSet::getString(std::nothrow_t, const std::string &columnName) noexcept
-    {
-        try
-        {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("32DF0933F6D5", "Column not found: " + columnName, system_utils::captureCallStack()));
-            }
-
-            return getString(std::nothrow, it->second + 1);
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("1F3D5A7C9B2E", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("8C4E2B6F1A9D", "Unknown error in PostgreSQLDBResultSet::getString", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<bool, DBException> PostgreSQLDBResultSet::getBoolean(std::nothrow_t, const std::string &columnName) noexcept
-    {
-        try
-        {
-            auto it = m_columnMap.find(columnName);
-            if (it == m_columnMap.end())
-            {
-                return cpp_dbc::unexpected<DBException>(DBException("7G8H9I0J1K2L", "Column not found: " + columnName, system_utils::captureCallStack()));
-            }
-
-            return getBoolean(std::nothrow, it->second + 1);
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("9F3A7B2D5E8C", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected<DBException>(DBException("2D5F8A3C7B1E", "Unknown error in PostgreSQLDBResultSet::getBoolean", system_utils::captureCallStack()));
         }
     }
 

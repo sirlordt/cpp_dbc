@@ -152,6 +152,10 @@ namespace cpp_dbc::Firebird
         // Get the connection URL
         std::string getURL() const override;
 
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
         /**
          * @brief Reset connection state - close all statements/resultsets and rollback (nothrow version)
          *
@@ -166,10 +170,6 @@ namespace cpp_dbc::Firebird
          * @return expected containing void on success, or DBException on failure
          */
         cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;
-
-        // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
-        // ====================================================================
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>
         prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;

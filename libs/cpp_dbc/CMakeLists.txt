@@ -140,6 +140,7 @@ if(USE_MYSQL)
         src/drivers/relational/mysql/result_set_01.cpp
         src/drivers/relational/mysql/result_set_02.cpp
         src/drivers/relational/mysql/result_set_03.cpp
+        src/drivers/relational/mysql/result_set_04.cpp
 
         # MySQLDBPreparedStatement
         src/drivers/relational/mysql/prepared_statement_01.cpp
@@ -170,6 +171,7 @@ if(USE_POSTGRESQL)
         src/drivers/relational/postgresql/result_set_01.cpp
         src/drivers/relational/postgresql/result_set_02.cpp
         src/drivers/relational/postgresql/result_set_03.cpp
+        src/drivers/relational/postgresql/result_set_04.cpp
 
         # PostgreSQLDBPreparedStatement
         src/drivers/relational/postgresql/prepared_statement_01.cpp
@@ -201,6 +203,8 @@ if(USE_SQLITE)
         src/drivers/relational/sqlite/result_set_01.cpp
         src/drivers/relational/sqlite/result_set_02.cpp
         src/drivers/relational/sqlite/result_set_03.cpp
+        src/drivers/relational/sqlite/result_set_04.cpp
+        src/drivers/relational/sqlite/result_set_05.cpp
 
         # SQLiteDBPreparedStatement
         src/drivers/relational/sqlite/prepared_statement_01.cpp
@@ -232,16 +236,19 @@ if(USE_FIREBIRD)
         src/drivers/relational/firebird/result_set_02.cpp
         src/drivers/relational/firebird/result_set_03.cpp
         src/drivers/relational/firebird/result_set_04.cpp
+        src/drivers/relational/firebird/result_set_05.cpp
 
         # FirebirdDBPreparedStatement
         src/drivers/relational/firebird/prepared_statement_01.cpp
         src/drivers/relational/firebird/prepared_statement_02.cpp
         src/drivers/relational/firebird/prepared_statement_03.cpp
+        src/drivers/relational/firebird/prepared_statement_04.cpp
 
         # FirebirdDBConnection
         src/drivers/relational/firebird/connection_01.cpp
         src/drivers/relational/firebird/connection_02.cpp
         src/drivers/relational/firebird/connection_03.cpp
+        src/drivers/relational/firebird/connection_04.cpp
 
         # FirebirdDBDriver
         src/drivers/relational/firebird/driver_01.cpp

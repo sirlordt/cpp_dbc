@@ -53,7 +53,7 @@ namespace cpp_dbc::Firebird
                 auto conn = m_connection.lock();
                 if (!conn)
                 {
-                    throw DBException("FB_BLOB_CONN_CLOSED", "Connection has been closed", system_utils::captureCallStack());
+                    throw DBException("LMHROWFG5PNN", "Connection has been closed", system_utils::captureCallStack());
                 }
                 return conn;
             }

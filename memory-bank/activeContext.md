@@ -37,19 +37,27 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Complete Nothrow API Implementation Across All Drivers** (2026-02-18 PST):
-   - **Base Class Pure Virtual Promotion:** All nothrow methods in `DBConnection`, `DBResultSet`, and `RelationalDBConnection` changed from default virtual implementations to `= 0` pure virtual — every driver is now required to implement them
-   - **New `void reset()` pure virtual:** Added throwing variant of `reset()` to `DBConnection` (was missing); all drivers implement it as a wrapper around `reset(std::nothrow_t)`
-   - **New `isEmpty(std::nothrow_t)` pure virtual:** Added to `DBResultSet`; all result set implementations provide it
-   - **`prepareForPoolReturn()` / `prepareForBorrow()` now pure virtual:** Previously had inline default implementations; now each driver provides its own implementation
-   - **Per-driver nothrow implementations:** All 7 drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, Redis, ScyllaDB) now implement the full nothrow API surface: `close`, `reset`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `prepareForPoolReturn`, `prepareForBorrow`
-   - **Throwing wrappers centralized:** All throwing methods now delegate to their nothrow counterpart — single code path, no duplication
-   - **Connection pool wrappers updated:** All 4 pool wrapper types now override the new pure virtual nothrow methods
-   - **New source files:** `connection_05.cpp` (MongoDB), `connection_02.cpp` (ScyllaDB), `connection_03.cpp` (Firebird, MySQL), `connection_02.cpp` (SQLite), `result_set_03.cpp` (MySQL, PostgreSQL, SQLite), `cursor_02.cpp` (MongoDB)
-   - **CMakeLists.txt:** Added `mongodb/connection_05.cpp` and `scylladb/connection_02.cpp` to the build
-   - **Helgrind suppression:** Added `scylladb_connection_close_nothrow_lockorder_heap_reuse` for ScyllaDB false positive (heap address reuse of freed `m_connMutex` maps to `uv_mutex` in `cass_session_close`)
+1. **Source File Reorganization: Canonical Method Ordering and File Splitting** (2026-02-19 PST):
+   - **File Splitting:** 7 new `.cpp` files added across all 4 relational drivers to reduce file sizes and improve compilation parallelism:
+     - MySQL: `result_set_04.cpp` (blob/binary nothrow methods)
+     - PostgreSQL: `result_set_04.cpp` (blob/binary nothrow methods)
+     - SQLite: `result_set_04.cpp`, `result_set_05.cpp`
+     - Firebird: `result_set_05.cpp`, `prepared_statement_04.cpp`, `connection_04.cpp`
+   - **Canonical Method Ordering:** All result set nothrow methods reordered consistently across all drivers: `close` → `isEmpty` → `next` → navigation → type-by-index/by-name interleaved → metadata → blob/binary (separate file)
+   - **Header Declaration Reordering:** MySQL, PostgreSQL, SQLite result_set.hpp declarations reordered to interleave by-index/by-name variants
+   - **Firebird Connection Redistribution:** connection_01 (constructor/destructor/executeCreateDatabase), connection_02 (all throwing wrappers), connection_03 (nothrow part 1), connection_04 NEW (nothrow part 2)
+   - **Firebird PreparedStatement Redistribution:** Rebalanced across 4 files with new `prepared_statement_04.cpp`
+   - **Error Code Fix:** `firebird/blob.hpp` — `"FB_BLOB_CONN_CLOSED"` → `"LMHROWFG5PNN"` (12-char alphanumeric format)
+   - **No functional logic changes** — all method implementations preserved exactly as they were
+   - **CMakeLists.txt:** Added 7 new source files to build
 
-2. **Helgrind Thread-Safety Hardening — Firebird Driver Refactor + Connection Pool Lock Order Fixes** (2026-02-17 PST):
+2. **Complete Nothrow API Implementation Across All Drivers** (2026-02-18 PST):
+   - Base class nothrow methods promoted to pure virtual `= 0` in `DBConnection`, `DBResultSet`, `RelationalDBConnection`
+   - All 7 drivers implement full nothrow API surface
+   - Throwing wrappers delegate to nothrow implementations (single code path)
+   - Connection pool wrappers updated for new pure virtuals
+
+3. **Helgrind Thread-Safety Hardening — Firebird Driver Refactor + Connection Pool Lock Order Fixes** (2026-02-17 PST):
    - **Firebird USE-AFTER-FREE Fix:** Eliminated raw `m_trPtr` from `FirebirdDBPreparedStatement`. All methods now access `m_connection.lock()->m_tr` via weak_ptr — lifecycle-safe
    - **Firebird Mutex Model:** Removed `m_statementsMutex` / `m_resultSetsMutex`. All registry access uses single `m_connMutex` — eliminates ABBA deadlock
    - **Firebird `m_closed`/`m_resetting` as atomics:** Prevents data races on connection state flags

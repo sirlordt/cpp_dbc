@@ -26,10 +26,16 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
    - **Implementation Split Architecture**: Each driver .cpp is split into multiple focused files:
      - `*_internal.hpp`: Internal declarations and shared definitions
      - `driver_*.cpp`: Driver class implementation
-     - `connection_*.cpp`: Connection class implementation
-     - `prepared_statement_*.cpp`: PreparedStatement class implementation
-     - `result_set_*.cpp`: ResultSet class implementation
+     - `connection_*.cpp`: Connection class implementation (up to 4 files for Firebird)
+     - `prepared_statement_*.cpp`: PreparedStatement class implementation (up to 4 files for Firebird)
+     - `result_set_*.cpp`: ResultSet class implementation (up to 5 files for SQLite/Firebird)
      - MongoDB-specific: `collection_*.cpp`, `cursor_*.cpp`, `document_*.cpp`
+   - **Canonical Method Ordering (Result Sets)**: All result set nothrow methods follow a consistent ordering across all drivers:
+     1. `close` → `isEmpty` → `next` → `isBeforeFirst` → `isAfterLast` → `getRow`
+     2. Type accessors interleaved: `getInt(index)`, `getInt(name)`, `getLong(index)`, `getLong(name)`, etc.
+     3. `getDate`, `getTimestamp`, `getTime` (index/name pairs)
+     4. `getColumnNames`, `getColumnCount`
+     5. Blob/binary methods in a separate dedicated file
 3. **Connection Management Layer**: Connection pooling and transaction management in the `src/` directory
 4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/blob.hpp` (base classes) and database-specific implementations in the driver subfolders (e.g., `drivers/relational/mysql/blob.hpp`)
 5. **Key-Value Layer**: Key-Value operations support in `drivers/kv/` directory
