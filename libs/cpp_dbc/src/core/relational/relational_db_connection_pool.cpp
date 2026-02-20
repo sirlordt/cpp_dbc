@@ -375,12 +375,11 @@ namespace cpp_dbc
             }
         }
 
-        // Notify maintenance thread that a connection was returned.
-        // m_mutexMaintenance is held only for the duration of notify_one() — maintenance
-        // work now runs outside this lock, so this cannot cause a deadlock or stall.
+        // Notify waiting borrowers that a connection is available.
+        // m_connectionAvailable uses m_mutexPool (same as idle queue).
         {
-            std::scoped_lock maintLock(m_mutexMaintenance);
-            m_maintenanceCondition.notify_one();
+            std::scoped_lock lockPool(m_mutexPool);
+            m_connectionAvailable.notify_one();
         }
     }
 
@@ -486,33 +485,60 @@ namespace cpp_dbc
                 candidate->getUnderlyingRelationalConnection()->close();
             }
         }
-        // If no connection available, wait until one becomes available
+        // If no connection available, wait on CV until one is returned to idle
         if (result == nullptr)
         {
-            auto waitStart = std::chrono::steady_clock::now();
+            auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(m_maxWaitMillis);
 
-            // Wait until a connection is returned to the pool or timeout
-            do
+            std::unique_lock lockPool(m_mutexPool);
+            while (result == nullptr)
             {
-                auto now = std::chrono::steady_clock::now();
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-                auto waitedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - waitStart).count();
-
-                if (waitedMs >= m_maxWaitMillis)
-                {
-                    throw DBException("88D90026A76A", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
-                }
+                auto status = m_connectionAvailable.wait_until(lockPool, deadline);
 
                 if (!m_running.load())
                 {
                     throw DBException("58566A84D1A1", "Connection pool is closed", system_utils::captureCallStack());
                 }
 
-                result = this->getIdleDBConnection();
+                // Try to pop from idle queue (we hold m_mutexPool)
+                if (!m_idleConnections.empty())
+                {
+                    result = m_idleConnections.front();
+                    m_idleConnections.pop();
 
-            } while (result == nullptr);
+                    // Validate if testOnBorrow is configured
+                    if (m_testOnBorrow)
+                    {
+                        lockPool.unlock();
+                        bool valid = validateConnection(result->getUnderlyingRelationalConnection());
+                        lockPool.lock();
+
+                        if (!valid)
+                        {
+                            // Remove invalid connection from allConnections
+                            auto it = std::ranges::find(m_allConnections, result);
+                            if (it != m_allConnections.end())
+                            {
+                                m_allConnections.erase(it);
+                            }
+
+                            // Close outside lock
+                            auto badConn = result;
+                            result = nullptr;
+                            lockPool.unlock();
+                            try { badConn->getUnderlyingRelationalConnection()->close(); } catch (...) {}
+                            lockPool.lock();
+
+                            continue; // Retry
+                        }
+                    }
+                }
+
+                if (result == nullptr && status == std::cv_status::timeout)
+                {
+                    throw DBException("88D90026A76A", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
+                }
+            }
         }
 
         // Mark as active and reset closed flag (connection is being reused)
@@ -541,15 +567,14 @@ namespace cpp_dbc
         do
         {
             // Wait for 30 seconds or until notified (e.g., when close() is called).
-            // IMPORTANT: m_mutexMaintenance is released at the end of this block so that
-            // returnConnection() and close() can acquire it briefly for notify_one/all
-            // without blocking during the entire maintenance body.
+            // Uses m_mutexPool so both CVs (m_maintenanceCondition + m_connectionAvailable)
+            // share the same mutex. The lock is released during wait_for().
             {
-                std::unique_lock lock(m_mutexMaintenance);
+                std::unique_lock lock(m_mutexPool);
                 m_maintenanceCondition.wait_for(lock, std::chrono::seconds(30), [this]
                                                 { return !m_running; });
             }
-            // m_mutexMaintenance is now released. Maintenance runs without holding it.
+            // m_mutexPool is now released. Maintenance runs without holding it.
 
             if (!m_running)
             {
@@ -706,11 +731,12 @@ namespace cpp_dbc
             }
         }
 
-        // Notify all waiting threads (maintenance thread) to wake up and exit.
-        // m_mutexMaintenance is held only for the duration of notify_all().
+        // Notify all waiting threads to wake up and exit.
+        // Both CVs use m_mutexPool.
         {
-            std::scoped_lock lock(m_mutexMaintenance);
+            std::scoped_lock lock(m_mutexPool);
             m_maintenanceCondition.notify_all();
+            m_connectionAvailable.notify_all();
         }
 
         // Join maintenance thread (only if it was started)
