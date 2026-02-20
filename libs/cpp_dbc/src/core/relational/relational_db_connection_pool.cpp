@@ -217,8 +217,6 @@ namespace cpp_dbc
 
     void RelationalDBConnectionPool::returnConnection(std::shared_ptr<RelationalPooledDBConnection> conn)
     {
-        std::scoped_lock lock(m_mutexReturnConnection);
-
         if (!conn)
         {
             return;
@@ -253,6 +251,10 @@ namespace cpp_dbc
             }
         }
 
+        // ========================================
+        // Phase 1: I/O OUTSIDE any lock
+        // Connection is marked active=true → maintenance skips it, borrowers can't see it.
+        // ========================================
         bool valid = true;
 
         if (m_testOnReturn)
@@ -262,8 +264,6 @@ namespace cpp_dbc
 
         if (valid)
         {
-            // Clean up the connection before returning to pool
-            // This closes all statements, rolls back transactions, resets auto-commit
             try
             {
                 if (!conn->m_closed)
@@ -280,7 +280,6 @@ namespace cpp_dbc
 
         if (valid)
         {
-            // Reset transaction isolation level if needed
             try
             {
                 if (!conn->m_closed)
@@ -299,30 +298,24 @@ namespace cpp_dbc
             }
         }
 
+        // ========================================
+        // Phase 2: Pool state under m_mutexPool only (NO I/O)
+        // ========================================
         if (valid)
         {
-            // Mark as inactive and update last used time
+            std::scoped_lock lockPool(m_mutexPool);
             conn->setActive(false);
-
-            // Add to idle connections queue
-            {
-                std::scoped_lock lockPool(m_mutexPool);
-                m_idleConnections.push(conn);
-                m_activeConnections--;
-            }
+            m_idleConnections.push(conn);
+            m_activeConnections--;
+            m_connectionAvailable.notify_one();
         }
         else
         {
-            // CRITICAL FIX (preventive): createPooledDBConnection() must NOT be called while
-            // holding pool locks. Even for relational drivers (MySQL, PostgreSQL, Firebird),
-            // calling driver-level connection creation under pool locks can create lock ordering
-            // cycles if those drivers acquire internal mutexes during connection establishment.
-            //
-            // Fix: Remove invalid connection under locks, create replacement OUTSIDE locks,
-            // then re-acquire locks to insert replacement.
+            // Invalid connection — remove from pool and replace.
+            // createPooledDBConnection() must NOT be called under pool locks.
             m_activeConnections--;
 
-            // Step 1: Under pool lock — remove the invalid connection from both collections
+            // Step 1: Under pool lock — remove invalid connection from both collections
             {
                 std::scoped_lock lockPool(m_mutexPool);
                 auto it = std::ranges::find(m_allConnections, conn);
@@ -330,7 +323,6 @@ namespace cpp_dbc
                 {
                     m_allConnections.erase(it);
                 }
-                // Also clean it from the idle queue if it somehow ended up there
                 std::queue<std::shared_ptr<RelationalPooledDBConnection>> tempQueue;
                 while (!m_idleConnections.empty())
                 {
@@ -343,9 +335,8 @@ namespace cpp_dbc
                 }
                 m_idleConnections = tempQueue;
             }
-            // Locks released here
 
-            // Step 2: Close the old invalid connection OUTSIDE locks
+            // Step 2: Close invalid connection OUTSIDE locks
             try
             {
                 conn->getUnderlyingRelationalConnection()->close();
@@ -355,7 +346,7 @@ namespace cpp_dbc
                 CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception closing invalid connection: %s", ex.what());
             }
 
-            // Step 3: Create replacement connection OUTSIDE locks (avoids lock ordering cycle)
+            // Step 3: Create replacement OUTSIDE locks
             std::shared_ptr<RelationalPooledDBConnection> replacement;
             try
             {
@@ -366,20 +357,14 @@ namespace cpp_dbc
                 CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception creating replacement connection: %s", ex.what());
             }
 
-            // Step 4: Under pool lock — insert replacement into pool collections
+            // Step 4: Insert replacement under lock + notify
             if (replacement)
             {
                 std::scoped_lock lockPool(m_mutexPool);
                 m_allConnections.push_back(replacement);
                 m_idleConnections.push(replacement);
+                m_connectionAvailable.notify_one();
             }
-        }
-
-        // Notify waiting borrowers that a connection is available.
-        // m_connectionAvailable uses m_mutexPool (same as idle queue).
-        {
-            std::scoped_lock lockPool(m_mutexPool);
-            m_connectionAvailable.notify_one();
         }
     }
 

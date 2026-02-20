@@ -79,7 +79,6 @@ namespace cpp_dbc
         std::vector<std::shared_ptr<RelationalPooledDBConnection>> m_allConnections;
         std::queue<std::shared_ptr<RelationalPooledDBConnection>> m_idleConnections;
         mutable std::mutex m_mutexGetConnection;
-        mutable std::mutex m_mutexReturnConnection;
         mutable std::mutex m_mutexPool;              // Protects m_allConnections + m_idleConnections + CVs
         std::condition_variable m_maintenanceCondition;   // Wakes maintenance thread on close()
         std::condition_variable m_connectionAvailable;    // Wakes borrowers when connection returns to idle
