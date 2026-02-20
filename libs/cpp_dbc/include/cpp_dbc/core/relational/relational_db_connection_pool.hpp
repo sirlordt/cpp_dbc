@@ -80,8 +80,7 @@ namespace cpp_dbc
         std::queue<std::shared_ptr<RelationalPooledDBConnection>> m_idleConnections;
         mutable std::mutex m_mutexGetConnection;
         mutable std::mutex m_mutexReturnConnection;
-        mutable std::mutex m_mutexAllConnections;
-        mutable std::mutex m_mutexIdleConnections;
+        mutable std::mutex m_mutexPool;              // Protects m_allConnections + m_idleConnections
         mutable std::mutex m_mutexMaintenance;
         std::condition_variable m_maintenanceCondition;
         std::atomic<bool> m_running{true};

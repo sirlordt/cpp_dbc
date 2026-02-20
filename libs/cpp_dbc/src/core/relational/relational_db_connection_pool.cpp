@@ -95,10 +95,9 @@ namespace cpp_dbc
             {
                 auto pooledConn = createPooledDBConnection();
 
-                // Add to idle connections and all connections lists under proper locks
-                // Use scoped_lock for consistent lock ordering to prevent deadlock
+                // Add to idle connections and all connections lists under pool lock
                 {
-                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                    std::scoped_lock lock(m_mutexPool);
                     m_idleConnections.push(pooledConn);
                     m_allConnections.push_back(pooledConn);
                 }
@@ -211,7 +210,7 @@ namespace cpp_dbc
         }
         catch ([[maybe_unused]] const DBException &ex)
         {
-            CP_DEBUG("RelationalDBConnectionPool::validateConnection - DBException: %s", ex.what());
+            CP_DEBUG("RelationalDBConnectionPool::validateConnection - DBException: %s", ex.what_s().c_str());
             return false;
         }
     }
@@ -246,7 +245,7 @@ namespace cpp_dbc
 
         // Additional safety check: verify connection is in allConnections
         {
-            std::scoped_lock lockAll(m_mutexAllConnections);
+            std::scoped_lock lockPool(m_mutexPool);
             auto it = std::ranges::find(m_allConnections, conn);
             if (it == m_allConnections.end())
             {
@@ -307,7 +306,7 @@ namespace cpp_dbc
 
             // Add to idle connections queue
             {
-                std::scoped_lock lockIdle(m_mutexIdleConnections);
+                std::scoped_lock lockPool(m_mutexPool);
                 m_idleConnections.push(conn);
                 m_activeConnections--;
             }
@@ -323,9 +322,9 @@ namespace cpp_dbc
             // then re-acquire locks to insert replacement.
             m_activeConnections--;
 
-            // Step 1: Under locks — remove the invalid connection from both collections
+            // Step 1: Under pool lock — remove the invalid connection from both collections
             {
-                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                std::scoped_lock lockPool(m_mutexPool);
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
@@ -367,10 +366,10 @@ namespace cpp_dbc
                 CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception creating replacement connection: %s", ex.what());
             }
 
-            // Step 4: Under locks — insert replacement into pool collections
+            // Step 4: Under pool lock — insert replacement into pool collections
             if (replacement)
             {
-                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                std::scoped_lock lockPool(m_mutexPool);
                 m_allConnections.push_back(replacement);
                 m_idleConnections.push(replacement);
             }
@@ -387,8 +386,7 @@ namespace cpp_dbc
 
     std::shared_ptr<RelationalPooledDBConnection> RelationalDBConnectionPool::getIdleDBConnection()
     {
-        // Lock both mutexes in consistent order to prevent deadlock
-        std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+        std::scoped_lock lock(m_mutexPool);
 
         if (!m_idleConnections.empty())
         {
@@ -465,7 +463,7 @@ namespace cpp_dbc
         // If no connection available, check if we can create a new one
         size_t currentSize;
         {
-            std::scoped_lock lock_all(m_mutexAllConnections);
+            std::scoped_lock lock_pool(m_mutexPool);
             currentSize = m_allConnections.size();
         }
         if (result == nullptr && currentSize < m_maxSize)
@@ -473,7 +471,7 @@ namespace cpp_dbc
             auto candidate = createPooledDBConnection();
 
             {
-                std::scoped_lock lock_all(m_mutexAllConnections);
+                std::scoped_lock lock_pool(m_mutexPool);
                 // Recheck size under lock to prevent exceeding m_maxSize under concurrent creation
                 if (m_allConnections.size() < m_maxSize)
                 {
@@ -560,10 +558,9 @@ namespace cpp_dbc
 
             auto now = std::chrono::steady_clock::now();
 
-            // Expire old connections under locks (no new connection creation here)
-            // Use scoped_lock for consistent lock ordering to prevent deadlock
+            // Expire old connections under lock (no new connection creation here)
             {
-                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                std::scoped_lock lock(m_mutexPool);
 
                 // Check all connections for expired ones
                 for (auto it = m_allConnections.begin(); it != m_allConnections.end();)
@@ -623,7 +620,7 @@ namespace cpp_dbc
             // lock ordering cycles with driver-internal mutexes.
             size_t currentTotal;
             {
-                std::scoped_lock lockCheck(m_mutexAllConnections);
+                std::scoped_lock lock(m_mutexPool);
                 currentTotal = m_allConnections.size();
             }
             while (m_running && currentTotal < m_minIdle)
@@ -631,7 +628,7 @@ namespace cpp_dbc
                 try
                 {
                     auto pooledConn = createPooledDBConnection();
-                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                    std::scoped_lock lock(m_mutexPool);
                     m_idleConnections.push(pooledConn);
                     m_allConnections.push_back(pooledConn);
                     currentTotal = m_allConnections.size();
@@ -652,13 +649,13 @@ namespace cpp_dbc
 
     size_t RelationalDBConnectionPool::getIdleDBConnectionCount() const
     {
-        std::scoped_lock lock(m_mutexIdleConnections);
+        std::scoped_lock lock(m_mutexPool);
         return m_idleConnections.size();
     }
 
     size_t RelationalDBConnectionPool::getTotalDBConnectionCount() const
     {
-        std::scoped_lock lock(m_mutexAllConnections);
+        std::scoped_lock lock(m_mutexPool);
         return m_allConnections.size();
     }
 
@@ -683,11 +680,11 @@ namespace cpp_dbc
         // Wait for all active operations to complete
         {
             auto waitStart = std::chrono::steady_clock::now();
-            CP_DEBUG("RelationalDBConnectionPool::close - Initial active connections: %zu", m_activeConnections.load());
+            CP_DEBUG("RelationalDBConnectionPool::close - Initial active connections: %d", m_activeConnections.load());
 
             while (m_activeConnections.load() > 0)
             {
-                CP_DEBUG("RelationalDBConnectionPool::close - Waiting for %zu active connections to finish at %lld",
+                CP_DEBUG("RelationalDBConnectionPool::close - Waiting for %d active connections to finish at %lld",
                          m_activeConnections.load(), (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
                 auto elapsed = std::chrono::steady_clock::now() - waitStart;
@@ -695,7 +692,7 @@ namespace cpp_dbc
 
                 if (elapsed_seconds > 0 && elapsed_seconds % 1 == 0)
                 {
-                    CP_DEBUG("RelationalDBConnectionPool::close - Waited %lld seconds for active connections", elapsed_seconds);
+                    CP_DEBUG("RelationalDBConnectionPool::close - Waited %ld seconds for active connections", elapsed_seconds);
                 }
 
                 if (elapsed > std::chrono::seconds(10))
@@ -729,7 +726,7 @@ namespace cpp_dbc
         // Closing inside pool locks would invert that order → Helgrind LockOrder violation.
         std::vector<std::shared_ptr<RelationalPooledDBConnection>> connectionsToClose;
         {
-            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+            std::scoped_lock lock(m_mutexPool);
             connectionsToClose = m_allConnections;
             while (!m_idleConnections.empty())
             {
@@ -783,18 +780,21 @@ namespace cpp_dbc
         {
             try
             {
-                // If the pool is no longer alive, close the physical connection
-                // Use qualified call to avoid virtual dispatch in destructor
-                // NOSONAR(cpp:S1699) - intentional qualified call in destructor to avoid virtual dispatch
-                if (!RelationalPooledDBConnection::isPoolValid())
+                // CRITICAL: Never call returnToPool() or shared_from_this() from destructor.
+                // When the destructor runs, refcount is already 0, so shared_from_this()
+                // throws bad_weak_ptr. Instead, do direct cleanup:
+                // 1. Decrement active counter if this connection was active
+                // 2. Close the underlying physical connection
+                if (m_active.load())
                 {
-                    m_conn->close();
+                    if (auto pool = m_pool.lock())
+                    {
+                        pool->m_activeConnections--;
+                    }
+                    m_active.store(false);
                 }
-                else
-                {
-                    // NOSONAR - Return to pool - using qualified call to avoid virtual dispatch in destructor
-                    RelationalPooledDBConnection::returnToPool();
-                }
+
+                m_conn->close();
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
@@ -837,13 +837,13 @@ namespace cpp_dbc
                         //   1. close() sets m_closed = true (compare_exchange)
                         //   2. returnConnection() is called
                         //   3. Inside returnConnection():
-                        //      - LOCK(m_mutexIdleConnections)
+                        //      - LOCK(m_mutexPool)
                         //      - m_idleConnections.push(conn)  <-- Connection available with m_closed=TRUE
-                        //      - UNLOCK(m_mutexIdleConnections) <-- Race window opens here
+                        //      - UNLOCK(m_mutexPool) <-- Race window opens here
                         //   4. m_closed.store(false)  <-- Too late if Thread B already got the connection
                         //
                         // Thread B (acquiring connection) - executes between steps 3 and 4:
-                        //   1. getIdleDBConnection() acquires m_mutexIdleConnections
+                        //   1. getIdleDBConnection() acquires m_mutexPool
                         //   2. Pops connection from idle queue (m_closed is still TRUE)
                         //   3. Returns connection to caller
                         //   4. Caller calls ping() -> sees m_closed=true -> throws "Connection is closed"
@@ -867,7 +867,7 @@ namespace cpp_dbc
                     auto result = m_conn->close(std::nothrow);
                     if (!result)
                     {
-                        CP_DEBUG("RelationalPooledDBConnection::close - Failed to close underlying connection: %s", result.error().what());
+                        CP_DEBUG("RelationalPooledDBConnection::close - Failed to close underlying connection: %s", result.error().what_s().c_str());
                         return result;
                     }
                 }
@@ -1240,7 +1240,7 @@ namespace cpp_dbc
             auto result = m_conn->reset(std::nothrow);
             if (!result)
             {
-                CP_DEBUG("RelationalPooledDBConnection::reset - Underlying connection reset failed: %s", result.error().what());
+                CP_DEBUG("RelationalPooledDBConnection::reset - Underlying connection reset failed: %s", result.error().what_s().c_str());
                 return result; // Propagate the error from underlying connection
             }
 
@@ -1248,7 +1248,7 @@ namespace cpp_dbc
         }
         catch (const cpp_dbc::DBException &ex)
         {
-            CP_DEBUG("RelationalPooledDBConnection::reset - DBException: %s", ex.what());
+            CP_DEBUG("RelationalPooledDBConnection::reset - DBException: %s", ex.what_s().c_str());
             return cpp_dbc::unexpected(ex);
         }
         catch (const std::exception &ex)
@@ -1496,8 +1496,8 @@ namespace cpp_dbc
             CP_DEBUG("RelationalPooledDBConnection::returnToPool - bad_weak_ptr: %s", ex.what());
             m_closed.store(true);
             return cpp_dbc::unexpected(DBException("KDDVEFIZ5QUR",
-                std::string("Failed to obtain shared_from_this: ") + ex.what(),
-                system_utils::captureCallStack()));
+                                                   std::string("Failed to obtain shared_from_this: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
         }
         catch (const DBException &ex)
         {
@@ -1508,15 +1508,15 @@ namespace cpp_dbc
         {
             m_closed.store(true);
             return cpp_dbc::unexpected(DBException("8BN1W05EH7WK",
-                std::string("Exception in returnToPool: ") + ex.what(),
-                system_utils::captureCallStack()));
+                                                   std::string("Exception in returnToPool: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
         }
         catch (...) // NOSONAR
         {
             m_closed.store(true);
             return cpp_dbc::unexpected(DBException("UF9WYX7K0BXP",
-                "Unknown exception in returnToPool",
-                system_utils::captureCallStack()));
+                                                   "Unknown exception in returnToPool",
+                                                   system_utils::captureCallStack()));
         }
     }
 
@@ -1551,14 +1551,14 @@ namespace cpp_dbc
         catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("BN34G8KUX6ME",
-                std::string("Exception in isClosed: ") + ex.what(),
-                system_utils::captureCallStack()));
+                                                   std::string("Exception in isClosed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException("WSNMUM5N7H1P",
-                "Unknown exception in isClosed",
-                system_utils::captureCallStack()));
+                                                   "Unknown exception in isClosed",
+                                                   system_utils::captureCallStack()));
         }
     }
 
@@ -1580,14 +1580,14 @@ namespace cpp_dbc
         catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("Q5DCM8OT8N0W",
-                std::string("Exception in getURL: ") + ex.what(),
-                system_utils::captureCallStack()));
+                                                   std::string("Exception in getURL: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException("AA0NDFST3OH6",
-                "Unknown exception in getURL",
-                system_utils::captureCallStack()));
+                                                   "Unknown exception in getURL",
+                                                   system_utils::captureCallStack()));
         }
     }
 
@@ -1605,8 +1605,8 @@ namespace cpp_dbc
             if (m_closed)
             {
                 return cpp_dbc::unexpected(DBException("73OMW2XSN96G",
-                    "Connection is closed",
-                    system_utils::captureCallStack()));
+                                                       "Connection is closed",
+                                                       system_utils::captureCallStack()));
             }
             return m_conn->prepareForPoolReturn(std::nothrow);
         }
@@ -1617,14 +1617,14 @@ namespace cpp_dbc
         catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("OQMJG6WW63AJ",
-                std::string("Exception in prepareForPoolReturn: ") + ex.what(),
-                system_utils::captureCallStack()));
+                                                   std::string("Exception in prepareForPoolReturn: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException("QKW97Z7IUWBJ",
-                "Unknown exception in prepareForPoolReturn",
-                system_utils::captureCallStack()));
+                                                   "Unknown exception in prepareForPoolReturn",
+                                                   system_utils::captureCallStack()));
         }
     }
 
@@ -1642,8 +1642,8 @@ namespace cpp_dbc
             if (m_closed)
             {
                 return cpp_dbc::unexpected(DBException("V4JST5V0D1K7",
-                    "Connection is closed",
-                    system_utils::captureCallStack()));
+                                                       "Connection is closed",
+                                                       system_utils::captureCallStack()));
             }
             return m_conn->prepareForBorrow(std::nothrow);
         }
@@ -1654,14 +1654,14 @@ namespace cpp_dbc
         catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("CGZ2A2QAG5V6",
-                std::string("Exception in prepareForBorrow: ") + ex.what(),
-                system_utils::captureCallStack()));
+                                                   std::string("Exception in prepareForBorrow: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException("46DOUWCV6R8S",
-                "Unknown exception in prepareForBorrow",
-                system_utils::captureCallStack()));
+                                                   "Unknown exception in prepareForBorrow",
+                                                   system_utils::captureCallStack()));
         }
     }
 

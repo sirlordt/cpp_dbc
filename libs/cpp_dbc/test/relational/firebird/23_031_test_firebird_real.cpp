@@ -372,7 +372,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         pstmt->setString(4, "Hello, World!");
         pstmt->setDate(5, "2023-01-15");
         pstmt->setTimestamp(6, "2023-01-15 14:30:00");
-        pstmt->setInt(7, 1);                        // Boolean as smallint
+        pstmt->setInt(7, 1); // Boolean as smallint
 
         pstmt->executeUpdate();
         pstmt->close(); // Close prepared statement after use (required for Firebird)
@@ -434,7 +434,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
             "INSERT INTO test_time_types (id, time_col, description) VALUES (?, ?, ?)");
 
         pstmt->setInt(1, 1);
-        pstmt->setTime(2, "14:30:00");           // TIME using setTime method
+        pstmt->setTime(2, "14:30:00"); // TIME using setTime method
         pstmt->setString(3, "Afternoon meeting");
         pstmt->executeUpdate();
         pstmt->close(); // Close after each use (required for Firebird)
@@ -442,7 +442,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         pstmt = conn->prepareStatement(
             "INSERT INTO test_time_types (id, time_col, description) VALUES (?, ?, ?)");
         pstmt->setInt(1, 2);
-        pstmt->setTime(2, "08:15:30");           // TIME with seconds
+        pstmt->setTime(2, "08:15:30"); // TIME with seconds
         pstmt->setString(3, "Morning routine");
         pstmt->executeUpdate();
         pstmt->close();
@@ -450,7 +450,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         pstmt = conn->prepareStatement(
             "INSERT INTO test_time_types (id, time_col, description) VALUES (?, ?, ?)");
         pstmt->setInt(1, 3);
-        pstmt->setTime(2, "23:59:59");           // Late night
+        pstmt->setTime(2, "23:59:59"); // Late night
         pstmt->setString(3, "End of day");
         pstmt->executeUpdate();
         pstmt->close();
