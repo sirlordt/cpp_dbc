@@ -16,10 +16,9 @@
  * @brief Connection pool internal utilities - not part of public API
  *
  * Provides the CP_DEBUG macro shared by all connection pool implementations
- * (relational, document, etc.). The macro is thread-safe and uses the same
- * mechanism as FIREBIRD_DEBUG: it formats the message with snprintf() into a
- * stack buffer, then delegates to cpp_dbc::system_utils::safePrint() which
- * serialises output with an internal mutex.
+ * (relational, document, etc.). The macro is thread-safe and delegates to
+ * cpp_dbc::system_utils::logWithTimesMillis() which prepends [HH:MM:SS.mmm]
+ * and [thread_id] automatically and serialises output with an internal mutex.
  *
  * Usage (printf-style, identical to FIREBIRD_DEBUG):
  *   CP_DEBUG("Pool::close - active connections: %zu", m_activeConnections.load());
@@ -35,7 +34,7 @@
 #include "cpp_dbc/common/system_utils.hpp"
 
 // Undefine any prior CP_DEBUG (e.g. the no-op from high_perf_logger.hpp) so that our
-// safePrint-based, DEBUG_CONNECTION_POOL-controlled version takes precedence.
+// logWithTimesMillis-based, DEBUG_CONNECTION_POOL-controlled version takes precedence.
 #ifdef CP_DEBUG
 #undef CP_DEBUG
 #endif
@@ -47,10 +46,7 @@
     {                                                                                            \
         char cp_debug_buf[1024];                                                                 \
         std::snprintf(cp_debug_buf, sizeof(cp_debug_buf), format, ##__VA_ARGS__);                \
-        cpp_dbc::system_utils::safePrint(                                                        \
-            "[ConnectionPool] [" + cpp_dbc::system_utils::currentTimeMillis() + "] [" +         \
-                cpp_dbc::system_utils::getThreadId() + "]",                                      \
-            cp_debug_buf);                                                                       \
+        cpp_dbc::system_utils::logWithTimesMillis("ConnectionPool", cp_debug_buf);               \
     } while (0)
 #else
 #define CP_DEBUG(format, ...) ((void)0)

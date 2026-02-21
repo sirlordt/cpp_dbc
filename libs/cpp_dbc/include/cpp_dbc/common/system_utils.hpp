@@ -21,13 +21,12 @@
 #ifndef SYSTEM_UTILS_HPP
 #define SYSTEM_UTILS_HPP
 
+#include <charconv>
 #include <mutex>
 #include <thread>
 #include <iostream>
-#include <iomanip>
 #include <chrono>
 #include <ctime>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -215,11 +214,10 @@ namespace cpp_dbc::system_utils
     {
         using namespace std::chrono;
 
-        // Get current system time
         auto now = system_clock::now();
-
-        // Convert to time_t for formatting hours/minutes/seconds
         std::time_t now_c = system_clock::to_time_t(now);
+        auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
+
         std::tm tm{};
 #if defined(_WIN32)
         localtime_s(&tm, &now_c);
@@ -227,15 +225,11 @@ namespace cpp_dbc::system_utils
         localtime_r(&now_c, &tm);
 #endif
 
-        // Extract milliseconds
-        auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
-
-        // Format to string
-        std::ostringstream oss;
-        oss << std::put_time(&tm, "%H:%M:%S")
-            << '.' << std::setw(3) << std::setfill('0') << ms.count();
-
-        return oss.str();
+        // Stack buffer: "HH:MM:SS.mmm" = 12 chars + null
+        char buf[16];
+        std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm);
+        std::snprintf(buf + n, sizeof(buf) - n, "%03d", static_cast<int>(ms.count()));
+        return buf;
     }
 
     /** @brief Get current time as "HH:MM:SS.microseconds" string (high precision) */
@@ -243,11 +237,8 @@ namespace cpp_dbc::system_utils
     {
         using namespace std::chrono;
 
-        // Get current system time
         auto now = system_clock::now();
         auto micros = duration_cast<microseconds>(now.time_since_epoch()).count();
-
-        // Convert to time_t for formatting hours/minutes/seconds
         std::time_t now_c = micros / 1000000;
         auto usecs = micros % 1000000;
 
@@ -258,37 +249,61 @@ namespace cpp_dbc::system_utils
         localtime_r(&now_c, &tm);
 #endif
 
-        // Format to string
-        std::ostringstream oss;
-        oss << std::put_time(&tm, "%H:%M:%S")
-            << '.' << std::setw(6) << std::setfill('0') << usecs;
-
-        return oss.str();
+        // Stack buffer: "HH:MM:SS.uuuuuu" = 15 chars + null
+        char buf[20];
+        std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm);
+        std::snprintf(buf + n, sizeof(buf) - n, "%06lld", static_cast<long long>(usecs));
+        return buf;
     }
 
-    /** @brief Get current timestamp as "[YYYY-MM-DD HH:MM:SS.mmm]" string */
+    /** @brief Get current timestamp as "YYYY-MM-DD HH:MM:SS.mmm" string */
     inline std::string getCurrentTimestamp()
     {
         auto now = std::chrono::system_clock::now();
-        auto time_t_now = std::chrono::system_clock::to_time_t(now);
-
-        // Get milliseconds
+        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                       now.time_since_epoch()) %
                   1000;
 
         std::tm tm{};
 #if defined(_WIN32)
-        localtime_s(&tm, &time_t_now);
+        localtime_s(&tm, &now_c);
 #else
-        localtime_r(&time_t_now, &tm);
+        localtime_r(&now_c, &tm);
 #endif
 
-        std::stringstream ss;
-        ss << std::put_time(&tm, "[%Y-%m-%d %H:%M:%S");
-        ss << "." << std::setfill('0') << std::setw(3) << ms.count() << "]";
+        // Stack buffer: "YYYY-MM-DD HH:MM:SS.mmm" = 23 chars + null
+        char buf[28];
+        std::size_t n = std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S.", &tm);
+        std::snprintf(buf + n, sizeof(buf) - n, "%03d", static_cast<int>(ms.count()));
+        return buf;
+    }
 
-        return ss.str();
+    /** @brief Convert a thread ID to a short string (last 6 digits of hash, for non-current threads) */
+    inline std::string threadIdToString(std::thread::id threadId) noexcept
+    {
+        char buf[12];
+        // Truncate to last 6 digits: avoids the huge pthread_t value while staying useful for logs
+        auto hash = std::hash<std::thread::id>{}(threadId) % 1000000UL;
+        auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), hash);
+        return std::string(buf, ptr);
+    }
+
+    /** @brief Get the current thread OS-native TID as a string (matches htop/ps output) */
+    inline std::string getThreadId() noexcept
+    {
+        char buf[12];
+#if defined(__linux__)
+        // gettid() returns the kernel TID: short integer, same as shown in htop/ps
+        auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), static_cast<unsigned long>(::gettid()));
+#elif defined(_WIN32)
+        auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), static_cast<unsigned long>(GetCurrentThreadId()));
+#else
+        // Fallback: truncated hash
+        auto hash = std::hash<std::thread::id>{}(std::this_thread::get_id()) % 1000000UL;
+        auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), hash);
+#endif
+        return std::string(buf, ptr);
     }
 
     /** @brief Log a message with timestamp prefix (thread-safe) */
@@ -297,7 +312,48 @@ namespace cpp_dbc::system_utils
         std::scoped_lock lock(global_cout_mutex);
 
         // Build output string before writing (same as safePrint)
-        std::string output = getCurrentTimestamp() + " " + prefix + " " + message + "\n";
+        // reserve() + append() avoids intermediate allocations from operator+
+        auto ts = getCurrentTimestamp();
+        auto tid = getThreadId();
+        std::string output;
+        output.reserve(ts.size() + tid.size() + prefix.size() + message.size() + 12);
+        output += '[';
+        output.append(ts);
+        output += "] [";
+        output.append(tid);
+        output += "] [";
+        output.append(prefix);
+        output += "] ";
+        output.append(message);
+        output += '\n';
+
+#ifdef _WIN32
+        _write(_fileno(stdout), output.c_str(), static_cast<unsigned int>(output.size()));
+#else
+        [[maybe_unused]] auto result = write(STDOUT_FILENO, output.c_str(), output.size());
+#endif
+    }
+
+    /** @brief Log a message with timestamp prefix (thread-safe) */
+    inline void logWithTimesMillis(const std::string &prefix, const std::string &message)
+    {
+        std::scoped_lock lock(global_cout_mutex);
+
+        // Build output string before writing (same as safePrint)
+        // reserve() + append() avoids intermediate allocations from operator+
+        auto ts = currentTimeMillis();
+        auto tid = getThreadId();
+        std::string output;
+        output.reserve(ts.size() + tid.size() + prefix.size() + message.size() + 12);
+        output += '[';
+        output.append(ts);
+        output += "] [";
+        output.append(tid);
+        output += "] [";
+        output.append(prefix);
+        output += "] ";
+        output.append(message);
+        output += '\n';
 
 #ifdef _WIN32
         _write(_fileno(stdout), output.c_str(), static_cast<unsigned int>(output.size()));
@@ -449,22 +505,6 @@ namespace cpp_dbc::system_utils
      *       codebase (tests, examples, drivers) while respecting the Open/Closed Principle.
      */
     std::string snakeCaseToLowerCamelCase(const std::string &snakeCase);
-
-    /** @brief Convert a thread ID to a string representation */
-    inline std::string threadIdToString(std::thread::id threadId) noexcept
-    {
-        std::ostringstream oss;
-        oss << threadId;
-        return oss.str();
-    }
-
-    /** @brief Get the current thread ID as a string */
-    inline std::string getThreadId() noexcept
-    {
-        std::ostringstream oss;
-        oss << std::this_thread::get_id();
-        return oss.str();
-    }
 
 } // namespace cpp_dbc::system_utils
 

@@ -22,7 +22,6 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <random>
 
 #include <catch2/catch_test_macros.hpp>
@@ -31,6 +30,7 @@
 #include "24_001_test_redis_real_common.hpp"
 
 #include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 #include <cpp_dbc/core/kv/kv_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 
@@ -212,7 +212,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
                         }
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "Thread " << i << " error: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " error: " + std::string(e.what()));
                     } }));
             }
 
@@ -227,71 +227,6 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
 
             // Verify all threads succeeded
             REQUIRE(successCount == numThreads);
-        }
-
-        // Test connection pool under load
-        SECTION("Connection pool under load")
-        {
-            const uint64_t numOperations = 50; // More operations than max connections
-            std::atomic<int> successCount(0);
-            std::atomic<int> failureCount(0);
-            std::vector<std::thread> threads;
-
-            for (uint64_t i = 0; i < numOperations; i++)
-            {
-                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
-                                              {
-                    try {
-                        // Get connection from pool (may block if pool is exhausted)
-                        auto loadConn = pool->getKVDBConnection();
-                        if (!loadConn)
-                        {
-                            failureCount++;
-                            return;
-                        }
-
-                        // Do a simple ping
-                        std::string pong = loadConn->ping();
-                        if (pong != "PONG")
-                        {
-                            failureCount++;
-                            loadConn->close();
-                            return;
-                        }
-
-                        // Simulate some work
-                        std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
-
-                        // Close the connection
-                        loadConn->close();
-
-                        // Increment success count
-                        successCount++;
-                    }
-                    catch (const std::exception& ex) {
-                        failureCount++;
-                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
-                    } }));
-            }
-
-            // Wait for all threads to complete
-            for (auto &t : threads)
-            {
-                if (t.joinable())
-                {
-                    t.join();
-                }
-            }
-
-            // Thread-safe assertions on main thread
-            REQUIRE(failureCount == 0);
-            REQUIRE(successCount == numOperations);
-
-            // Verify pool returned to initial state
-            REQUIRE(pool->getActiveDBConnectionCount() == 0);
-            auto idleCount = pool->getIdleDBConnectionCount();
-            REQUIRE(idleCount >= 3);  // At least minIdle connections
-            REQUIRE(idleCount <= 10); // No more than maxSize connections
         }
 
         // Clean up test keys
@@ -506,7 +441,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
         // Test connection pool under load (advanced pool)
         SECTION("Connection pool under load")
         {
-            const uint64_t numOperations = 20; // Fewer operations for smaller pool
+            const uint64_t numOperations = 40;
             std::atomic<int> successCount(0);
             std::atomic<int> failureCount(0);
             std::vector<std::thread> threads;
@@ -537,7 +472,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
                     }
                     catch (const std::exception& ex) {
                         failureCount++;
-                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Load operation " + std::to_string(i) + " error: " + std::string(ex.what()));
                     } }));
             }
 

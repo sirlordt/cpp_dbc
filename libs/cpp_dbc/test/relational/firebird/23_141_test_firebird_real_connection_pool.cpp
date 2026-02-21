@@ -394,7 +394,7 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
         SECTION("Connection pool under load")
         {
             // Cap concurrent operations to pool's max size to avoid connection timeout issues
-            const uint64_t numOperations = 10; // matches poolConfigLocal.setMaxSize(10)
+            const uint64_t numOperations = 40;
             std::atomic<int> successCount(0);
             std::atomic<int> failureCount(0);
             std::vector<std::thread> threads;
@@ -425,7 +425,7 @@ TEST_CASE("Real Firebird connection pool tests", "[23_141_01_firebird_real_conne
                     }
                     catch (const std::exception& ex) {
                         failureCount++;
-                        cpp_dbc::system_utils::safePrint("[TEST]", "Load operation " + std::to_string(i) + " error: " + std::string(ex.what()));
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Load operation " + std::to_string(i) + " error: " + std::string(ex.what()));
                     } }));
             }
 

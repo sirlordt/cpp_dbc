@@ -77,9 +77,11 @@ add_executable(cpp_dbc_tests
 
     # MySQL tests (relational/mysql/)
     relational/mysql/20_001_test_mysql_real_common.cpp
+
     relational/mysql/20_011_test_mysql_real_db_config.cpp
     relational/mysql/20_021_test_mysql_real_driver.cpp
     relational/mysql/20_031_test_mysql_real.cpp
+
     relational/mysql/20_041_test_mysql_real_connection.cpp
     relational/mysql/20_051_test_mysql_real_json.cpp
     relational/mysql/20_061_test_mysql_real_blob.cpp

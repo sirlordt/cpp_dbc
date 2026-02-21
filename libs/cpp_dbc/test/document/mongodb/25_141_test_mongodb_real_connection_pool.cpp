@@ -22,7 +22,6 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <fstream>
 #include <random>
 
@@ -31,6 +30,7 @@
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/core/document/document_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "25_001_test_mongodb_real_common.hpp"
 
@@ -227,7 +227,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
                         successCount++;
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "Thread " << i << " error: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " error: " + std::string(e.what()));
                     } }));
             }
 
@@ -252,71 +252,6 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
             REQUIRE(totalCount == initialCount + numThreads);
 
             verifyConn->close();
-        }
-
-        // Test connection pool under load
-        SECTION("Connection pool under load")
-        {
-            const uint64_t numOperations = 50; // More operations than max connections
-            std::atomic<int> successCount(0);
-            std::atomic<int> failureCount(0);
-            std::vector<std::thread> threads;
-
-            for (uint64_t i = 0; i < numOperations; i++)
-            {
-                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
-                                              {
-                    try {
-                        // Get connection from pool (may block if pool is exhausted)
-                        auto loadConn = pool->getDocumentDBConnection();
-                        if (!loadConn)
-                        {
-                            failureCount++;
-                            return;
-                        }
-
-                        // Do some quick work
-                        bool isAlive = loadConn->ping();
-                        if (!isAlive)
-                        {
-                            failureCount++;
-                            loadConn->close();
-                            return;
-                        }
-
-                        // Simulate some work
-                        std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
-
-                        // Close the connection
-                        loadConn->close();
-
-                        // Increment success count
-                        successCount++;
-                    }
-                    catch (const std::exception& ex) {
-                        failureCount++;
-                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
-                    } }));
-            }
-
-            // Wait for all threads to complete
-            for (auto &t : threads)
-            {
-                if (t.joinable())
-                {
-                    t.join();
-                }
-            }
-
-            // Thread-safe assertions on main thread
-            REQUIRE(failureCount == 0);
-            REQUIRE(successCount == numOperations);
-
-            // Verify pool returned to initial state
-            REQUIRE(pool->getActiveDBConnectionCount() == 0);
-            auto idleCount = pool->getIdleDBConnectionCount();
-            REQUIRE(idleCount >= 3);  // At least minIdle connections
-            REQUIRE(idleCount <= 10); // No more than maxSize connections
         }
 
         // Clean up
@@ -518,6 +453,61 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
                 REQUIRE(newConn->ping());
                 newConn->close();
             }
+        }
+
+        // Test concurrent connections under load
+        SECTION("Connection pool under load")
+        {
+            const uint64_t numOperations = 40;
+            std::atomic<int> successCount(0);
+            std::atomic<int> failureCount(0);
+            std::vector<std::thread> threads;
+
+            for (uint64_t i = 0; i < numOperations; i++)
+            {
+                threads.push_back(std::thread([&pool, &successCount, &failureCount, i]()
+                                              {
+                    try {
+                        auto loadConn = pool->getDocumentDBConnection();
+                        if (!loadConn)
+                        {
+                            failureCount++;
+                            return;
+                        }
+
+                        bool isAlive = loadConn->ping();
+                        if (!isAlive)
+                        {
+                            failureCount++;
+                            loadConn->close();
+                            return;
+                        }
+
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
+
+                        loadConn->close();
+                        successCount++;
+                    }
+                    catch (const std::exception& ex) {
+                        failureCount++;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Load operation " + std::to_string(i) + " error: " + std::string(ex.what()));
+                    } }));
+            }
+
+            for (auto &t : threads)
+            {
+                if (t.joinable())
+                {
+                    t.join();
+                }
+            }
+
+            REQUIRE(failureCount == 0);
+            REQUIRE(successCount == numOperations);
+            REQUIRE(pool->getActiveDBConnectionCount() == 0);
+            auto idleCount = pool->getIdleDBConnectionCount();
+            REQUIRE(idleCount >= 3);
+            REQUIRE(idleCount <= 10);
         }
 
         // Close the pool

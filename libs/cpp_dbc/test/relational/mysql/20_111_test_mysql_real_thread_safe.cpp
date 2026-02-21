@@ -27,7 +27,6 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <random>
 #include <mutex>
 #include <condition_variable>
@@ -135,16 +134,16 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
                         catch (const std::exception& e)
                         {
                             errorCount++;
-                            std::cerr << "Thread " << i << " op " << j << " error: " << e.what() << std::endl;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(e.what()));
                         }
                     }
-                    
+
                     conn->close();
                 }
                 catch (const std::exception& e)
                 {
                     errorCount += opsPerThread;
-                    std::cerr << "Thread " << i << " connection error: " << e.what() << std::endl;
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection error: " + std::string(e.what()));
                 } });
         }
 
@@ -161,7 +160,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
             t.join();
         }
 
-        std::cout << "Multiple threads with individual connections: " << successCount << " successes, " << errorCount << " errors" << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Multiple threads with individual connections: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
         // Clean up
         auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -226,7 +225,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
                     catch (const std::exception& e)
                     {
                         errorCount++;
-                        std::cerr << "Thread " << i << " error: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " error: " + std::string(e.what()));
                     }
                 } });
         }
@@ -236,7 +235,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
             t.join();
         }
 
-        std::cout << "Connection pool concurrent access: " << successCount << " successes, " << errorCount << " errors" << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection pool concurrent access: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
         // Clean up
         auto cleanupConn = pool->getRelationalDBConnection();
@@ -328,7 +327,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
             t.join();
         }
 
-        std::cout << "Concurrent read operations: " << readCount << " reads, " << errorCount << " errors" << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Concurrent read operations: " + std::to_string(readCount) + " reads, " + std::to_string(errorCount) + " errors");
 
         // Clean up
         auto cleanupConn = pool->getRelationalDBConnection();
@@ -435,14 +434,14 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-        std::cout << "High concurrency stress test completed in " << duration << " ms" << std::endl;
-        std::cout << "  Inserts: " << insertCount << std::endl;
-        std::cout << "  Selects: " << selectCount << std::endl;
-        std::cout << "  Updates: " << updateCount << std::endl;
-        std::cout << "  Errors: " << errorCount << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "High concurrency stress test completed in " + std::to_string(duration) + " ms");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Inserts: " + std::to_string(insertCount.load()));
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Selects: " + std::to_string(selectCount.load()));
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Updates: " + std::to_string(updateCount.load()));
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Errors: " + std::to_string(errorCount.load()));
         if (duration > 0)
         {
-            std::cout << "  Operations per second: " << ((insertCount + selectCount + updateCount) * 1000.0 / static_cast<double>(duration)) << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Operations per second: " + std::to_string((insertCount + selectCount + updateCount) * 1000.0 / static_cast<double>(duration)));
         }
 
         // Clean up
@@ -486,7 +485,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
                     catch (const std::exception& e)
                     {
                         errorCount++;
-                        std::cerr << "Connection error: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection error: " + std::string(e.what()));
                     }
                 } });
         }
@@ -496,7 +495,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
             t.join();
         }
 
-        std::cout << "Rapid connection test: " << successCount << " successes, " << errorCount << " errors" << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Rapid connection test: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
         REQUIRE(successCount > numThreads * connectionsPerThread * 0.9); // At least 90% success rate
     }

@@ -166,24 +166,24 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
-        poolConfig.setInitialSize(2);           // Reduced for tests
-        poolConfig.setMaxSize(5);               // Reduced for tests
-        poolConfig.setMinIdle(1);               // Reduced for tests
-        poolConfig.setConnectionTimeout(10000); // Shorter timeout
-        poolConfig.setValidationInterval(500);  // Shorter interval
-        poolConfig.setIdleTimeout(5000);        // Shorter idle timeout
-        poolConfig.setMaxLifetimeMillis(10000); // Shorter lifetime
+        poolConfig.setInitialSize(3);
+        poolConfig.setMaxSize(5);
+        poolConfig.setMinIdle(1);
+        poolConfig.setConnectionTimeout(10000);
+        poolConfig.setValidationInterval(500);
+        poolConfig.setIdleTimeout(5000);
+        poolConfig.setMaxLifetimeMillis(10000);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
         // Create a connection pool using factory method
         auto poolPtr = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
+        auto &pool = *poolPtr;
 
         // Create a test table using RECREATE TABLE
-        auto conn = poolPtr->getRelationalDBConnection();
+        auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate(createTableQuery);
-
         conn->returnToPool();
 
         // Test multiple connections in parallel
@@ -195,14 +195,12 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
 
         for (int i = 0; i < numThreads; i++)
         {
-            threads.push_back(std::thread([poolPtr, i, opsPerThread, insertDataQuery, &successCount]()
+            threads.push_back(std::thread([&pool, i, opsPerThread, insertDataQuery, &successCount]()
                                           {
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
-                        // Get a connection from the pool
-                        auto conn_thread = poolPtr->getRelationalDBConnection();
+                        auto conn_thread = pool.getRelationalDBConnection();
 
-                        // Insert a row
                         int id = i * 100 + j;
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
                         pstmt->setInt(1, id);
@@ -211,37 +209,36 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
                         pstmt->executeUpdate();
 
                         conn_thread->returnToPool();
-
-                        // Increment success counter
                         successCount++;
                     }
                     catch (const std::exception& e) {
-                        cpp_dbc::system_utils::safePrint("[TEST]", "Thread operation failed: " + std::string(e.what()));
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
 
-        // Wait for all threads to complete
-        for (std::thread &t : threads)
+        for (auto &t : threads)
         {
             t.join();
         }
 
-        // Verify that all operations were successful
-        REQUIRE((successCount.load() == numThreads * opsPerThread || successCount.load() == (numThreads * opsPerThread - 1)));
+        REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the data
-        conn = poolPtr->getRelationalDBConnection();
-
-        auto rs = conn->executeQuery("SELECT COUNT(*) as cnt FROM test_table");
+        conn = pool.getRelationalDBConnection();
+        // NOTE: 'count' is a reserved keyword in Firebird SQL (built-in aggregate function),
+        // so it cannot be used as a column alias. Use 'count_' instead.
+        auto rs = conn->executeQuery("SELECT COUNT(*) as count_ FROM test_table");
         REQUIRE(rs->next());
-        int count = rs->getInt(0); // Use column index for Firebird
-        rs->close();               // Close ResultSet before dropping table (required for Firebird)
-        conn->executeUpdate(dropTableQuery);
-        REQUIRE(count == numThreads * opsPerThread);
+        REQUIRE(rs->getInt("COUNT_") == numThreads * opsPerThread); // Firebird returns uppercase column names
+        rs->close(); // Close ResultSet before dropping table (required for Firebird)
 
         // Clean up
+        conn->executeUpdate(dropTableQuery);
         conn->returnToPool();
+
+        // Close the pool
+        pool.close();
     }
 
     SECTION("Firebird transaction management")
@@ -556,7 +553,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
                         conn_thread->returnToPool();
                     }
                     catch (const std::exception& e) {
-                        cpp_dbc::system_utils::safePrint("[TEST]", "Thread operation failed: " + std::string(e.what()));
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
@@ -570,8 +567,8 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-        cpp_dbc::system_utils::safePrint("[TEST]", "Firebird stress test completed in " + std::to_string(duration) + " ms");
-        cpp_dbc::system_utils::safePrint("[TEST]", "Operations per second: " + std::to_string(numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)));
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Firebird stress test completed in " + std::to_string(duration) + " ms");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Operations per second: " + std::to_string(numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)));
 
         // Verify that all operations were successful
         REQUIRE(successCount == numThreads * opsPerThread);

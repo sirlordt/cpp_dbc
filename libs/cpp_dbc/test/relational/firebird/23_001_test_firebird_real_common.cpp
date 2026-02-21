@@ -144,14 +144,14 @@ namespace firebird_test_helpers
             try
             {
                 auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
-                cpp_dbc::system_utils::safePrint("[TEST]", "Firebird database exists and connection successful!");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Firebird database exists and connection successful!");
                 conn->close();
                 return true;
             }
             catch (const std::exception &)
             {
                 // Database doesn't exist, try to create it
-                cpp_dbc::system_utils::safePrint("[TEST]", "Database doesn't exist, attempting to create it...");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Database doesn't exist, attempting to create it...");
             }
 
             // Build the Firebird connection string for CREATE DATABASE
@@ -178,7 +178,7 @@ namespace firebird_test_helpers
                                                  "PAGE_SIZE 4096 "
                                                  "DEFAULT CHARACTER SET UTF8";
 
-            cpp_dbc::system_utils::safePrint("[TEST]", "Executing: " + createDbSql);
+            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Executing: " + createDbSql);
 
             ISC_STATUS_ARRAY status;
             isc_db_handle db = 0;
@@ -189,23 +189,23 @@ namespace firebird_test_helpers
             if (isc_dsql_execute_immediate(status, &db, &tr, 0, createDbSql.c_str(), SQL_DIALECT_V6, nullptr))
             {
                 std::string errorMsg = cpp_dbc::Firebird::interpretStatusVector(status);
-                cpp_dbc::system_utils::safePrint("[TEST]", "Failed to create database: " + errorMsg);
-                cpp_dbc::system_utils::safePrint("[TEST]", "");
-                cpp_dbc::system_utils::safePrint("[TEST]", "To fix this, you may need to:");
-                cpp_dbc::system_utils::safePrint("[TEST]", "1. Ensure the directory exists and is writable by the Firebird server");
-                cpp_dbc::system_utils::safePrint("[TEST]", "2. Configure Firebird to allow database creation in the target directory");
-                cpp_dbc::system_utils::safePrint("[TEST]", "   Edit /etc/firebird/3.0/firebird.conf (or similar path)");
-                cpp_dbc::system_utils::safePrint("[TEST]", "   Set: DatabaseAccess = Full");
-                cpp_dbc::system_utils::safePrint("[TEST]", "3. Restart Firebird: sudo systemctl restart firebird3.0");
-                cpp_dbc::system_utils::safePrint("[TEST]", "");
-                cpp_dbc::system_utils::safePrint("[TEST]", "Alternatively, create the database manually:");
-                cpp_dbc::system_utils::safePrint("[TEST]", "   isql-fb -user " + username + " -password " + password);
-                cpp_dbc::system_utils::safePrint("[TEST]", "   SQL> CREATE DATABASE '" + database + "';");
-                cpp_dbc::system_utils::safePrint("[TEST]", "   SQL> quit;");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Failed to create database: " + errorMsg);
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "To fix this, you may need to:");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "1. Ensure the directory exists and is writable by the Firebird server");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "2. Configure Firebird to allow database creation in the target directory");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "   Edit /etc/firebird/3.0/firebird.conf (or similar path)");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "   Set: DatabaseAccess = Full");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "3. Restart Firebird: sudo systemctl restart firebird3.0");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Alternatively, create the database manually:");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "   isql-fb -user " + username + " -password " + password);
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "   SQL> CREATE DATABASE '" + database + "';");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "   SQL> quit;");
                 return false;
             }
 
-            cpp_dbc::system_utils::safePrint("[TEST]", "Firebird database created successfully!");
+            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Firebird database created successfully!");
 
             // Detach from the newly created database
             if (db)
@@ -217,7 +217,7 @@ namespace firebird_test_helpers
         }
         catch (const std::exception &e)
         {
-            cpp_dbc::system_utils::safePrint("[TEST]", "Database creation error: " + std::string(e.what()));
+            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Database creation error: " + std::string(e.what()));
             return false;
         }
     }
@@ -229,7 +229,7 @@ namespace firebird_test_helpers
             // First, try to create the database if it doesn't exist
             if (!firebird_test_helpers::tryCreateDatabase())
             {
-                cpp_dbc::system_utils::safePrint("[TEST]", "Failed to create database, but continuing with connection test...");
+                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Failed to create database, but continuing with connection test...");
             }
 
             // Get database configuration
@@ -244,13 +244,13 @@ namespace firebird_test_helpers
             cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
 
             // Attempt to connect to Firebird
-            cpp_dbc::system_utils::safePrint("[TEST]", "Attempting to connect to Firebird with connection string: " + connStr);
-            cpp_dbc::system_utils::safePrint("[TEST]", "Username: " + username + ", Password: " + password);
+            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Attempting to connect to Firebird with connection string: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Username: " + username + ", Password: " + password);
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // If we get here, the connection was successful
-            cpp_dbc::system_utils::safePrint("[TEST]", "Firebird connection successful!");
+            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Firebird connection successful!");
 
             // Execute a simple query to verify the connection
             // Get the connection_test query from config
@@ -267,7 +267,7 @@ namespace firebird_test_helpers
         }
         catch (const std::exception &e)
         {
-            cpp_dbc::system_utils::safePrint("[TEST]", "Firebird connection error: " + std::string(e.what()));
+            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Firebird connection error: " + std::string(e.what()));
             return false;
         }
     }

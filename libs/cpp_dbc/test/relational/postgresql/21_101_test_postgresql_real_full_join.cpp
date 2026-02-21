@@ -21,7 +21,6 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include <iostream>
 #include <optional>
 
 #include <catch2/catch_test_macros.hpp>
@@ -31,6 +30,7 @@
 #include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "21_001_test_postgresql_real_common.hpp"
 
@@ -448,7 +448,7 @@ TEST_CASE("PostgreSQL FULL JOIN operations", "[21_101_01_postgresql_real_full_jo
                 std::string productName = rs->getString("product_name");
                 // Verify the product name is one of the expected ones
                 bool validProduct = false;
-                std::cout << "Found product: " << productName << std::endl;
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Found product: " + productName);
 
                 for (const auto &expected : expectedResults)
                 {

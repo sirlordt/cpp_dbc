@@ -24,7 +24,6 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -32,6 +31,7 @@
 #include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "21_001_test_postgresql_real_common.hpp"
 
@@ -181,7 +181,7 @@ TEST_CASE("PostgreSQL TransactionManager multi-threaded tests", "[21_131_02_post
                         successCount++;
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "PostgreSQL thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }

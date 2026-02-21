@@ -20,13 +20,13 @@
 
 #include <string>
 #include <memory>
-#include <iostream>
 #include <fstream>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/config/database_config.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "20_001_test_mysql_real_common.hpp"
 #include "21_001_test_postgresql_real_common.hpp"
@@ -159,12 +159,12 @@ TEST_CASE("Real database integration with all drivers", "[10_061_02_integration]
                     }
                     catch (const std::exception &e)
                     {
-                        std::cerr << "DEBUG: SQLite exception: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "DEBUG: SQLite exception: " + std::string(e.what()));
                         throw; // Re-throw to be caught by the outer catch block
                     }
                     catch (...)
                     {
-                        std::cerr << "DEBUG: Unknown SQLite exception occurred" << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "DEBUG: Unknown SQLite exception occurred");
                         throw; // Re-throw to be caught by the outer catch block
                     }
                 }
@@ -190,12 +190,12 @@ TEST_CASE("Real database integration with all drivers", "[10_061_02_integration]
                     }
                     catch (const std::exception &e)
                     {
-                        std::cerr << "DEBUG: Firebird exception: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "DEBUG: Firebird exception: " + std::string(e.what()));
                         throw; // Re-throw to be caught by the outer catch block
                     }
                     catch (...)
                     {
-                        std::cerr << "DEBUG: Unknown Firebird exception occurred" << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "DEBUG: Unknown Firebird exception occurred");
                         throw; // Re-throw to be caught by the outer catch block
                     }
                 }

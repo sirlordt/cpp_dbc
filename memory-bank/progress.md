@@ -2,9 +2,38 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. The nothrow API is complete across all drivers. Source files are now reorganized with canonical method ordering.
+The CPP_DBC library is in active development. The relational connection pool now uses a direct handoff mechanism eliminating the "stolen wakeup" race. system_utils logging is zero-allocation and unified across all debug macros.
 
-### Recent Improvements (2026-02-19)
+### Recent Improvements (2026-02-21)
+
+**Direct Handoff Connection Pool, system_utils Performance Refactoring, and Debug Macro Unification:**
+
+1. **RelationalDBConnectionPool — Direct Handoff:**
+   - `m_mutexGetConnection` removed → single `m_mutexPool` for all pool state
+   - `ConnectionRequest` struct + `m_waitQueue` (`std::deque`) enable direct connection assignment to waiting borrowers (no more "stolen wakeup")
+   - `getIdleDBConnection()` removed, merged into `getRelationalDBConnection()` with deadline wait
+   - `returnConnection()` fixes: pool-closing exit, orphan handling, reset-failure → invalid, `updateLastUsedTime()`, notifies inside lock
+
+2. **system_utils.hpp — Zero-Allocation Time Formatting + Thread Utilities:**
+   - `currentTimeMillis()`, `currentTimeMicros()`, `getCurrentTimestamp()`: stack buffers + `strftime` + `snprintf` (no `ostringstream`)
+   - `<iomanip>`, `<sstream>` removed; `<charconv>` added
+   - New: `getThreadId()` — OS-native TID (`gettid()` Linux, `GetCurrentThreadId()` Windows)
+   - New: `threadIdToString(id)` — last 6 digits of hash via `std::to_chars`
+   - New: `logWithTimesMillis(prefix, msg)` — `[HH:MM:SS.mmm] [TID] [prefix] message`
+
+3. **system_utils.cpp:** Re-enabled `stackTraceMutex` in `captureCallStack()` for thread-safe stack trace capture
+
+4. **Debug Macro Unification:** `CP_DEBUG`, `FIREBIRD_DEBUG`, `SQLITE_DEBUG` → all use `logWithTimesMillis()`
+
+5. **Format fixes:** `%zu`→`%d`, `%lld`→`%ld`, `ex.what()`→`ex.what_s().c_str()` in non-relational pools
+
+6. **Helgrind:** Suppression `glibc_clockwait_internal_signal_broadcast` broadened via `pthread_cond_*_WRK` wildcard
+
+7. **Tests:** All pool tests use `logWithTimesMillis("TEST", ...)` instead of `std::cerr`
+
+---
+
+### Previous Improvements (2026-02-19)
 
 **Source File Reorganization: Canonical Method Ordering and File Splitting:**
 

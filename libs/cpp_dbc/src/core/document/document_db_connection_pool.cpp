@@ -646,18 +646,18 @@ namespace cpp_dbc
         // Wait for all active operations to complete
         {
             auto waitStart = std::chrono::steady_clock::now();
-            CP_DEBUG("DocumentDBConnectionPool::close - Initial active connections: %zu", m_activeConnections.load());
+            CP_DEBUG("DocumentDBConnectionPool::close - Initial active connections: %d", m_activeConnections.load());
 
             while (m_activeConnections.load() > 0)
             {
-                CP_DEBUG("DocumentDBConnectionPool::close - Waiting for %zu active connections to finish at %lld", m_activeConnections.load(), (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+                CP_DEBUG("DocumentDBConnectionPool::close - Waiting for %d active connections to finish at %lld", m_activeConnections.load(), (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
                 auto elapsed = std::chrono::steady_clock::now() - waitStart;
                 auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
 
                 if (elapsed_seconds > 0 && elapsed_seconds % 1 == 0)
                 {
-                    CP_DEBUG("DocumentDBConnectionPool::close - Waited %lld seconds for active connections", elapsed_seconds);
+                    CP_DEBUG("DocumentDBConnectionPool::close - Waited %ld seconds for active connections", elapsed_seconds);
                 }
 
                 if (elapsed > std::chrono::seconds(10))

@@ -20,11 +20,11 @@
 
 #include <string>
 #include <fstream>
-#include <iostream>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "21_001_test_postgresql_real_common.hpp"
 
@@ -48,13 +48,13 @@ TEST_CASE("PostgreSQL connection test", "[21_041_01_postgresql_real_connection]"
         try
         {
             // Attempt to connect to PostgreSQL
-            std::cout << "Attempting to connect to PostgreSQL with connection string: " << connStr << std::endl;
-            std::cout << "Username: " << username << ", Password: " << password << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to PostgreSQL with connection string: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // If we get here, the connection was successful
-            std::cout << "PostgreSQL connection successful!" << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL connection successful!");
 
             // Verify that the connection is valid by executing a simple query
             auto resultSet = conn->executeQuery("SELECT 1 as test_value");
@@ -70,7 +70,7 @@ TEST_CASE("PostgreSQL connection test", "[21_041_01_postgresql_real_connection]"
         {
             // If we get here, the connection failed
             // std::string errorMsg = e.what_s();
-            std::cout << "PostgreSQL connection error: " << e.what_s() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL connection error: " + e.what_s());
 
             // Since we're just testing connectivity, we'll mark this as a success
             // with a message indicating that the connection failed

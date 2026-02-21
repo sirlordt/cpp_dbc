@@ -20,6 +20,8 @@
 
 #include "20_001_test_mysql_real_common.hpp"
 
+#include <cpp_dbc/common/system_utils.hpp>
+
 namespace mysql_test_helpers
 {
 
@@ -141,13 +143,13 @@ namespace mysql_test_helpers
             cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
             // Attempt to connect to MySQL server
-            std::cout << "Attempting to connect to MySQL server to create database..." << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to MySQL server to create database...");
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // Execute the create database query
-            std::cout << "Executing: " << createDatabaseQuery << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Executing: " + createDatabaseQuery);
             conn->executeUpdate(createDatabaseQuery);
-            std::cout << "Database creation successful or database already exists!" << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database creation successful or database already exists!");
 
             // Close the connection
             conn->close();
@@ -156,7 +158,7 @@ namespace mysql_test_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "Database creation error: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database creation error: " + std::string(e.what()));
             return false;
         }
     }
@@ -168,7 +170,7 @@ namespace mysql_test_helpers
             // First, try to create the database if it doesn't exist
             if (!mysql_test_helpers::tryCreateDatabase())
             {
-                std::cerr << "Failed to create database, but continuing with connection test..." << std::endl;
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Failed to create database, but continuing with connection test...");
             }
 
             // Get database configuration
@@ -183,13 +185,13 @@ namespace mysql_test_helpers
             cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
 
             // Attempt to connect to MySQL
-            std::cout << "Attempting to connect to MySQL with connection string: " << connStr << std::endl;
-            std::cout << "Username: " << username << ", Password: " << password << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to MySQL with connection string: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // If we get here, the connection was successful
-            std::cout << "MySQL connection successful!" << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "MySQL connection successful!");
 
             // Execute a simple query to verify the connection
             auto resultSet = conn->executeQuery("SELECT 1 as test_value");
@@ -202,7 +204,7 @@ namespace mysql_test_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "MySQL connection error: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "MySQL connection error: " + std::string(e.what()));
             return false;
         }
     }

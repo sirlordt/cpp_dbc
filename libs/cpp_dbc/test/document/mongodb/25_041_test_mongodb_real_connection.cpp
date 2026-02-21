@@ -19,11 +19,11 @@
 
 #include <string>
 #include <fstream>
-#include <iostream>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "25_001_test_mongodb_real_common.hpp"
 
@@ -50,8 +50,8 @@ TEST_CASE("MongoDB connection test", "[25_041_01_mongodb_real_connection]")
         try
         {
             // Attempt to connect to MongoDB
-            std::cout << "Attempting to connect to MongoDB with connection string: " << connStr << std::endl;
-            std::cout << "Username: " << username << ", Password: " << password << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to MongoDB with connection string: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
                 driver->connectDocument(connStr, username, password));

@@ -29,6 +29,7 @@
 #include "cpp_dbc/core/relational/relational_db_result_set.hpp"
 
 #include <queue>
+#include <deque>
 #include <vector>
 #include <mutex>
 #include <condition_variable>
@@ -78,13 +79,24 @@ namespace cpp_dbc
         TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
         std::vector<std::shared_ptr<RelationalPooledDBConnection>> m_allConnections;
         std::queue<std::shared_ptr<RelationalPooledDBConnection>> m_idleConnections;
-        mutable std::mutex m_mutexGetConnection;
-        mutable std::mutex m_mutexPool;              // Protects m_allConnections + m_idleConnections + CVs
+        mutable std::mutex m_mutexPool;              // Protects m_allConnections + m_idleConnections + CVs + m_waitQueue
         std::condition_variable m_maintenanceCondition;   // Wakes maintenance thread on close()
-        std::condition_variable m_connectionAvailable;    // Wakes borrowers when connection returns to idle
+        std::condition_variable m_connectionAvailable;    // Wakes borrowers (direct handoff or state change)
         std::atomic<bool> m_running{true};
         std::atomic<int> m_activeConnections{0};
+        size_t m_pendingCreations{0};               // Connections being created outside lock (guarded by m_mutexPool)
         std::jthread m_maintenanceThread;
+
+        // Direct handoff mechanism: eliminates "stolen wakeup" race condition.
+        // When a connection is returned and threads are waiting, the connection is
+        // assigned directly to a specific waiter instead of entering the idle queue.
+        // This prevents the returning thread from immediately re-borrowing its own connection.
+        struct ConnectionRequest
+        {
+            std::shared_ptr<RelationalPooledDBConnection> conn; // Filled by returner
+            bool fulfilled{false};                              // Set true by returner under m_mutexPool
+        };
+        std::deque<ConnectionRequest *> m_waitQueue; // Stack-local requests from waiting borrowers
 
         // Creates a new physical connection
         std::shared_ptr<RelationalDBConnection> createDBConnection();
@@ -100,8 +112,6 @@ namespace cpp_dbc
 
         // Maintenance thread function
         void maintenanceTask();
-
-        std::shared_ptr<RelationalPooledDBConnection> getIdleDBConnection();
 
     protected:
         // Sets the transaction isolation level for the pool

@@ -22,13 +22,13 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <fstream>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/core/columnar/columnar_db_connection.hpp>
+#include <cpp_dbc/core/columnar/columnar_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
 
@@ -229,12 +229,12 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
         // Now test the timestamp column that's been re-enabled
         // Timestamp format may vary, just check it's not empty
         std::string timestamp = rs->getTimestamp("timestamp_col");
-        std::cout << "DEBUG - Timestamp value returned: '" << timestamp << "'" << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "DEBUG - Timestamp value returned: '" + timestamp + "'");
         REQUIRE_FALSE(timestamp.empty());
 
         // Test the time column using getTime()
         std::string time = rs->getTime("time_col");
-        std::cout << "DEBUG - Time value returned: '" << time << "'" << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "DEBUG - Time value returned: '" + time + "'");
         REQUIRE_FALSE(time.empty());
         REQUIRE(time == "14:30:00");
 
@@ -344,14 +344,14 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
                             }
                         }
                         catch (const std::exception& e) {
-                            std::cerr << "Thread operation failed: " << e.what() << std::endl;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
                         }
                     }
                     
                     threadConn->close();
                 }
                 catch (const std::exception& e) {
-                    std::cerr << "Thread connection failed: " << e.what() << std::endl;
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread connection failed: " + std::string(e.what()));
                 } }));
         }
 
@@ -364,8 +364,8 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-        std::cout << "ScyllaDB stress test completed in " << duration << " ms" << std::endl;
-        std::cout << "Operations per second: " << (numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)) << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "ScyllaDB stress test completed in " + std::to_string(duration) + " ms");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Operations per second: " + std::to_string(numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)));
 
         // Verify that most operations were successful
         REQUIRE(successCount > numThreads * opsPerThread * 0.8); // At least 80% success rate
@@ -383,6 +383,87 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
         // Clean up
         conn->executeUpdate(dropTableQuery);
         conn->close();
+    }
+    SECTION("ScyllaDB connection pool")
+    {
+        // Create a connection pool configuration with shorter timeouts for tests
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
+        poolConfig.setUrl(connStr);
+        poolConfig.setUsername(username);
+        poolConfig.setPassword(password);
+        poolConfig.setInitialSize(3);
+        poolConfig.setMaxSize(5);
+        poolConfig.setMinIdle(1);
+        poolConfig.setConnectionTimeout(10000);
+        poolConfig.setValidationInterval(500);
+        poolConfig.setIdleTimeout(5000);
+        poolConfig.setMaxLifetimeMillis(10000);
+        poolConfig.setTestOnBorrow(true);
+        poolConfig.setTestOnReturn(true);
+        poolConfig.setValidationQuery("SELECT now() FROM system.local");
+
+        // Create a connection pool using factory method
+        auto poolPtr = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(poolConfig);
+        auto &pool = *poolPtr;
+
+        // Create keyspace and test table
+        auto conn = pool.getColumnarDBConnection();
+        conn->executeUpdate(createKeyspaceQuery);
+        conn->executeUpdate(dropTableQuery); // Drop table if it exists
+        conn->executeUpdate(createTableQuery);
+        conn->returnToPool();
+
+        // Test multiple connections in parallel
+        const int numThreads = 10;
+        const int opsPerThread = 5;
+
+        std::atomic<int> successCount(0);
+        std::vector<std::thread> threads;
+
+        for (int i = 0; i < numThreads; i++)
+        {
+            threads.push_back(std::thread([&pool, i, opsPerThread, insertDataQuery, &successCount]()
+                                          {
+                for (int j = 0; j < opsPerThread; j++) {
+                    try {
+                        auto conn_thread = pool.getColumnarDBConnection();
+
+                        int id = i * 100 + j;
+                        auto pstmt = conn_thread->prepareStatement(insertDataQuery);
+                        pstmt->setInt(1, id);
+                        pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
+                        pstmt->setDouble(3, id * 1.5);
+                        pstmt->executeUpdate();
+
+                        conn_thread->returnToPool();
+                        successCount++;
+                    }
+                    catch (const std::exception& e) {
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
+                    }
+                } }));
+        }
+
+        for (auto &t : threads)
+        {
+            t.join();
+        }
+
+        REQUIRE(successCount == numThreads * opsPerThread);
+
+        // Verify the data (ScyllaDB COUNT(*) returns bigint → getLong)
+        conn = pool.getColumnarDBConnection();
+        auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_keyspace.test_table");
+        REQUIRE(rs->next());
+        REQUIRE(rs->getLong("count") == static_cast<long>(numThreads * opsPerThread));
+        rs->close();
+
+        // Clean up
+        conn->executeUpdate(dropTableQuery);
+        conn->returnToPool();
+
+        // Close the pool
+        pool.close();
     }
 }
 #else

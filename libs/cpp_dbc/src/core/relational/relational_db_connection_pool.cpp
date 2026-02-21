@@ -224,6 +224,9 @@ namespace cpp_dbc
 
         if (!m_running.load())
         {
+            // Pool is closing — decrement counter so close() doesn't wait forever
+            conn->setActive(false);
+            m_activeConnections--;
             try
             {
                 conn->getUnderlyingRelationalConnection()->close();
@@ -238,6 +241,7 @@ namespace cpp_dbc
         // Check if connection is already inactive (already returned to pool)
         if (!conn->isActive())
         {
+            CP_DEBUG("returnConnection - SKIPPED: connection already inactive");
             return;
         }
 
@@ -247,6 +251,10 @@ namespace cpp_dbc
             auto it = std::ranges::find(m_allConnections, conn);
             if (it == m_allConnections.end())
             {
+                conn->setActive(false);
+                m_activeConnections--;
+                CP_DEBUG("returnConnection - ORPHAN: connection not in allConnections, active=%d", m_activeConnections.load());
+                m_connectionAvailable.notify_one(); // Inside lock — freed slot
                 return;
             }
         }
@@ -268,7 +276,12 @@ namespace cpp_dbc
             {
                 if (!conn->m_closed)
                 {
-                    conn->getUnderlyingRelationalConnection()->reset(std::nothrow);
+                    auto resetResult = conn->getUnderlyingRelationalConnection()->reset(std::nothrow);
+                    if (!resetResult)
+                    {
+                        CP_DEBUG("RelationalDBConnectionPool::returnConnection - reset failed: %s", resetResult.error().what_s().c_str());
+                        valid = false;
+                    }
                 }
             }
             catch ([[maybe_unused]] const std::exception &ex)
@@ -303,21 +316,52 @@ namespace cpp_dbc
         // ========================================
         if (valid)
         {
+            conn->updateLastUsedTime(); // Mark return time for HikariCP validation skip
             std::scoped_lock lockPool(m_mutexPool);
             conn->setActive(false);
-            m_idleConnections.push(conn);
             m_activeConnections--;
-            m_connectionAvailable.notify_one();
+
+            // Direct handoff: if threads are waiting, give the connection directly
+            // to the first waiter instead of pushing to idle. This eliminates the
+            // "stolen wakeup" race where the returning thread immediately re-borrows
+            // its own connection before the CV-notified thread can acquire the mutex.
+            if (!m_waitQueue.empty())
+            {
+                auto *request = m_waitQueue.front();
+                m_waitQueue.pop_front();
+                request->conn = conn;
+                request->fulfilled = true;
+                conn->setActive(true);
+                m_activeConnections++;
+                CP_DEBUG("returnConnection - HANDOFF: direct to waiter, active=%d, waiters=%zu, total=%zu",
+                         m_activeConnections.load(), m_waitQueue.size(), m_allConnections.size());
+                m_connectionAvailable.notify_all(); // Wake all so fulfilled waiter checks its flag
+            }
+            else
+            {
+                m_idleConnections.push(conn);
+                CP_DEBUG("returnConnection - VALID: pushed to idle, active=%d, idle=%zu, total=%zu",
+                         m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size());
+                m_connectionAvailable.notify_one();
+            }
         }
         else
         {
-            // Invalid connection — remove from pool and replace.
-            // createPooledDBConnection() must NOT be called under pool locks.
-            m_activeConnections--;
+            // Invalid connection — remove from pool, create replacement.
+            // All notifications INSIDE lock to avoid Helgrind false positives.
 
-            // Step 1: Under pool lock — remove invalid connection from both collections
+            // Step 1: Remove invalid from pool (under lock) + notify freed slot
             {
                 std::scoped_lock lockPool(m_mutexPool);
+
+                // CRITICAL: Mark inactive + closed BEFORE decrementing counter.
+                // Pitfall #2: Without this, destructor decrements AGAIN → underflow.
+                // Pitfall #5: Without m_closed=true, destructor double-closes.
+                conn->setActive(false);
+                conn->m_closed.store(true);
+                m_activeConnections--;
+                CP_DEBUG("returnConnection - INVALID: active=%d", m_activeConnections.load());
+
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
@@ -334,9 +378,12 @@ namespace cpp_dbc
                     }
                 }
                 m_idleConnections = tempQueue;
+
+                // Notify inside lock: freed slot allows waiting borrower to create
+                m_connectionAvailable.notify_one();
             }
 
-            // Step 2: Close invalid connection OUTSIDE locks
+            // Step 2: Close invalid connection OUTSIDE locks (I/O)
             try
             {
                 conn->getUnderlyingRelationalConnection()->close();
@@ -346,7 +393,12 @@ namespace cpp_dbc
                 CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception closing invalid connection: %s", ex.what());
             }
 
-            // Step 3: Create replacement OUTSIDE locks
+            // Step 3: Create replacement OUTSIDE locks (I/O)
+            if (!m_running.load())
+            {
+                return; // Pool closing, skip replacement
+            }
+
             std::shared_ptr<RelationalPooledDBConnection> replacement;
             try
             {
@@ -354,78 +406,55 @@ namespace cpp_dbc
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception creating replacement connection: %s", ex.what());
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - Exception creating replacement: %s", ex.what());
             }
 
-            // Step 4: Insert replacement under lock + notify
+            // Step 4: Insert replacement under lock with direct handoff
             if (replacement)
             {
-                std::scoped_lock lockPool(m_mutexPool);
-                m_allConnections.push_back(replacement);
-                m_idleConnections.push(replacement);
-                m_connectionAvailable.notify_one();
+                std::shared_ptr<RelationalPooledDBConnection> discardReplacement;
+                {
+                    std::scoped_lock lockPool(m_mutexPool);
+                    if (m_running.load() && m_allConnections.size() < m_maxSize)
+                    {
+                        m_allConnections.push_back(replacement);
+
+                        // Direct handoff for replacement if waiters exist
+                        if (!m_waitQueue.empty())
+                        {
+                            auto *request = m_waitQueue.front();
+                            m_waitQueue.pop_front();
+                            request->conn = replacement;
+                            request->fulfilled = true;
+                            replacement->setActive(true);
+                            m_activeConnections++;
+                            CP_DEBUG("returnConnection - REPLACEMENT HANDOFF: active=%d, waiters=%zu, total=%zu",
+                                     m_activeConnections.load(), m_waitQueue.size(), m_allConnections.size());
+                            m_connectionAvailable.notify_all();
+                        }
+                        else
+                        {
+                            m_idleConnections.push(replacement);
+                            CP_DEBUG("returnConnection - REPLACEMENT: pushed to idle, active=%d, idle=%zu, total=%zu",
+                                     m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size());
+                            m_connectionAvailable.notify_one();
+                        }
+                    }
+                    else
+                    {
+                        // Pool full or closing — discard replacement
+                        replacement->m_closed.store(true);
+                        discardReplacement = replacement;
+                    }
+                }
+
+                // Close discarded replacement outside lock
+                if (discardReplacement)
+                {
+                    try { discardReplacement->getUnderlyingRelationalConnection()->close(); } catch (...) {}
+                }
             }
         }
-    }
-
-    std::shared_ptr<RelationalPooledDBConnection> RelationalDBConnectionPool::getIdleDBConnection()
-    {
-        std::scoped_lock lock(m_mutexPool);
-
-        if (!m_idleConnections.empty())
-        {
-            auto conn = m_idleConnections.front();
-            m_idleConnections.pop();
-
-            // Test connection before use if configured
-            if (m_testOnBorrow && !validateConnection(conn->getUnderlyingRelationalConnection()))
-            {
-                // Close the invalid underlying connection to prevent resource leak
-                try
-                {
-                    conn->getUnderlyingRelationalConnection()->close();
-                }
-                catch ([[maybe_unused]] const std::exception &ex)
-                {
-                    CP_DEBUG("RelationalDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: %s", ex.what());
-                }
-
-                // Remove invalid connection from allConnections
-                // Let the caller (getRelationalDBConnection) create replacement outside locks
-                auto it = std::ranges::find(m_allConnections, conn);
-                if (it != m_allConnections.end())
-                {
-                    m_allConnections.erase(it);
-                }
-
-                // NOSONAR - Original code that created connection inside locks (kept for reference):
-                // if (m_running.load())
-                // {
-                //     try
-                //     {
-                //         auto newConn = createPooledDBConnection();
-                //         m_allConnections.push_back(newConn);
-                //         return newConn;
-                //     }
-                //     catch ([[maybe_unused]] const std::exception &ex)
-                //     {
-                //         CP_DEBUG("RelationalDBConnectionPool::getIdleDBConnection - Exception creating new connection: " << ex.what());
-                //         return nullptr;
-                //     }
-                // }
-
-                return nullptr;
-            }
-
-            return conn;
-        }
-        else if (m_allConnections.size() < m_maxSize)
-        {
-            // Signal that we need to create a new connection
-            return nullptr;
-        }
-
-        return nullptr;
     }
 
     std::shared_ptr<DBConnection> RelationalDBConnectionPool::getDBConnection()
@@ -435,116 +464,239 @@ namespace cpp_dbc
 
     std::shared_ptr<RelationalDBConnection> RelationalDBConnectionPool::getRelationalDBConnection()
     {
-        std::unique_lock lock(m_mutexGetConnection);
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(m_maxWaitMillis);
 
-        if (!m_running.load())
+        while (true) // Retry loop for testOnBorrow validation failures
         {
-            throw DBException("5Q6R7S8T9U0V", "Connection pool is closed", system_utils::captureCallStack());
-        }
+            std::shared_ptr<RelationalPooledDBConnection> result;
+            bool handedOff = false;
 
-        std::shared_ptr<RelationalPooledDBConnection> result = this->getIdleDBConnection();
-
-        // If no connection available, check if we can create a new one
-        size_t currentSize;
-        {
-            std::scoped_lock lock_pool(m_mutexPool);
-            currentSize = m_allConnections.size();
-        }
-        if (result == nullptr && currentSize < m_maxSize)
-        {
-            auto candidate = createPooledDBConnection();
-
+            // ========================================
+            // Phase 1: Acquire candidate under m_mutexPool (NO I/O)
+            // ========================================
             {
-                std::scoped_lock lock_pool(m_mutexPool);
-                // Recheck size under lock to prevent exceeding m_maxSize under concurrent creation
-                if (m_allConnections.size() < m_maxSize)
-                {
-                    m_allConnections.push_back(candidate);
-                    result = candidate;
-                }
-            }
-
-            // If we couldn't register the connection (pool became full), close it
-            if (result == nullptr && candidate && candidate->getUnderlyingRelationalConnection())
-            {
-                candidate->getUnderlyingRelationalConnection()->close();
-            }
-        }
-        // If no connection available, wait on CV until one is returned to idle
-        if (result == nullptr)
-        {
-            auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(m_maxWaitMillis);
-
-            std::unique_lock lockPool(m_mutexPool);
-            while (result == nullptr)
-            {
-                auto status = m_connectionAvailable.wait_until(lockPool, deadline);
+                std::unique_lock lockPool(m_mutexPool);
 
                 if (!m_running.load())
                 {
-                    throw DBException("58566A84D1A1", "Connection pool is closed", system_utils::captureCallStack());
+                    throw DBException("5Q6R7S8T9U0V", "Connection pool is closed", system_utils::captureCallStack());
                 }
 
-                // Try to pop from idle queue (we hold m_mutexPool)
-                if (!m_idleConnections.empty())
+                // Unified acquire loop: idle check → create → wait (with direct handoff)
+                // CRITICAL: Always check idle BEFORE wait_until to prevent lost notifications.
+                // When a thread is in an unlock/lock cycle (create I/O, discard I/O), a
+                // notify from returnConnection() has no waiting thread to wake.
+                // The returned connection sits in idle unclaimed. Without checking idle
+                // at the top of the loop, the thread goes straight to wait_until and
+                // misses the idle connection → timeout.
+                while (!result)
                 {
-                    result = m_idleConnections.front();
-                    m_idleConnections.pop();
-
-                    // Validate if testOnBorrow is configured
-                    if (m_testOnBorrow)
+                    // Step 1: Check idle (catches connections from lost notifications)
+                    if (!m_idleConnections.empty())
                     {
-                        lockPool.unlock();
-                        bool valid = validateConnection(result->getUnderlyingRelationalConnection());
-                        lockPool.lock();
-
-                        if (!valid)
-                        {
-                            // Remove invalid connection from allConnections
-                            auto it = std::ranges::find(m_allConnections, result);
-                            if (it != m_allConnections.end())
-                            {
-                                m_allConnections.erase(it);
-                            }
-
-                            // Close outside lock
-                            auto badConn = result;
-                            result = nullptr;
-                            lockPool.unlock();
-                            try { badConn->getUnderlyingRelationalConnection()->close(); } catch (...) {}
-                            lockPool.lock();
-
-                            continue; // Retry
-                        }
+                        result = m_idleConnections.front();
+                        m_idleConnections.pop();
+                        CP_DEBUG("borrow - GOT IDLE: active=%d, idle=%zu, total=%zu",
+                                 m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size());
+                        break;
                     }
+
+                    // Step 2: Try creating if pool has room
+                    if (m_allConnections.size() + m_pendingCreations < m_maxSize)
+                    {
+                        CP_DEBUG("borrow - CREATING: total=%zu, pending=%zu, max=%zu",
+                                 m_allConnections.size(), m_pendingCreations, m_maxSize);
+                        m_pendingCreations++;
+                        lockPool.unlock();
+                        try
+                        {
+                            auto candidate = createPooledDBConnection();
+                            lockPool.lock();
+                            m_pendingCreations--;
+
+                            // Recheck size under lock (another thread may have filled the pool)
+                            if (m_allConnections.size() < m_maxSize)
+                            {
+                                m_allConnections.push_back(candidate);
+                                result = candidate;
+                            }
+                            else if (candidate)
+                            {
+                                // Pool became full — discard candidate
+                                CP_DEBUG("borrow - DISCARD candidate: total=%zu >= max=%zu", m_allConnections.size(), m_maxSize);
+                                candidate->m_closed.store(true); // Prevent destructor returnToPool()
+                                lockPool.unlock();
+                                try { candidate->getUnderlyingRelationalConnection()->close(); } catch (...) {}
+                                lockPool.lock();
+                            }
+                        }
+                        catch (...)
+                        {
+                            lockPool.lock();
+                            m_pendingCreations--;
+                        }
+                        continue; // ALWAYS re-check idle after any unlock/lock cycle
+                    }
+
+                    // Step 3: Nothing available — wait on CV with direct handoff request.
+                    // The ConnectionRequest is stack-local. Its pointer is stored in
+                    // m_waitQueue. When a returner has a connection and sees waiters, it
+                    // pops the front request, writes the connection into it, and sets
+                    // fulfilled=true — all under m_mutexPool. This eliminates the "stolen
+                    // wakeup" race: the connection never enters the idle queue when waiters
+                    // exist, so the returning thread can't immediately re-borrow it.
+                    //
+                    // CRITICAL: Inner loop keeps the request in its FIFO position.
+                    // Non-fulfilled wakeups (from notify_all) must NOT dequeue and
+                    // re-enqueue — that would push the thread to the back of the queue,
+                    // causing deadline starvation under Helgrind's serialized execution.
+                    ConnectionRequest request;
+                    m_waitQueue.push_back(&request);
+                    CP_DEBUG("borrow - WAITING on CV: active=%d, idle=%zu, total=%zu, pending=%zu, waiters=%zu",
+                             m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size(),
+                             m_pendingCreations, m_waitQueue.size());
+
+                    while (true) // Inner wait loop — request stays in queue at FIFO position
+                    {
+                        std::cv_status status;
+                        try
+                        {
+                            status = m_connectionAvailable.wait_until(lockPool, deadline);
+                        }
+                        catch (...)
+                        {
+                            // Safety: remove from queue if wait_until throws (extremely rare)
+                            std::erase(m_waitQueue, &request);
+                            throw;
+                        }
+
+                        // Check if we received a direct handoff (connection already active + counted)
+                        if (request.fulfilled)
+                        {
+                            result = request.conn;
+                            handedOff = true;
+                            CP_DEBUG("borrow - HANDOFF received: active=%d, idle=%zu, total=%zu",
+                                     m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size());
+                            break; // Exit inner loop; outer loop also exits (result is set)
+                        }
+
+                        // Not fulfilled — check termination conditions (stay in queue)
+                        if (!m_running.load())
+                        {
+                            std::erase(m_waitQueue, &request);
+                            throw DBException("58566A84D1A1", "Connection pool is closed", system_utils::captureCallStack());
+                        }
+
+                        if (status == std::cv_status::timeout)
+                        {
+                            std::erase(m_waitQueue, &request);
+                            // One last idle check before throwing (connection may have arrived
+                            // between the timeout and re-acquiring the lock)
+                            if (!m_idleConnections.empty())
+                            {
+                                result = m_idleConnections.front();
+                                m_idleConnections.pop();
+                                CP_DEBUG("borrow - GOT IDLE after timeout: active=%d, idle=%zu",
+                                         m_activeConnections.load(), m_idleConnections.size());
+                                break; // Exit inner loop with result set
+                            }
+                            CP_DEBUG("borrow - TIMEOUT: active=%d, idle=%zu, total=%zu, pending=%zu",
+                                     m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size(), m_pendingCreations);
+                            throw DBException("88D90026A76A", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
+                        }
+
+                        // Spurious/non-fulfilled wakeup — check if idle connection appeared
+                        // (from maintenance replenish or non-handoff source)
+                        if (!m_idleConnections.empty())
+                        {
+                            std::erase(m_waitQueue, &request);
+                            result = m_idleConnections.front();
+                            m_idleConnections.pop();
+                            CP_DEBUG("borrow - GOT IDLE after wakeup: active=%d, idle=%zu",
+                                     m_activeConnections.load(), m_idleConnections.size());
+                            break; // Exit inner loop with result set
+                        }
+
+                        // Nothing available — stay in queue at same FIFO position, re-wait.
+                        // DO NOT dequeue and re-enqueue (would cause FIFO starvation).
+                        CP_DEBUG("borrow - CV WAKEUP (re-waiting): idle=%zu, total=%zu",
+                                 m_idleConnections.size(), m_allConnections.size());
+                    } // End inner wait loop
                 }
 
-                if (result == nullptr && status == std::cv_status::timeout)
+                // Mark active UNDER lock (prevents maintenance from stealing)
+                // Skip for handoff — returner already set active + incremented counter
+                if (!handedOff)
                 {
-                    throw DBException("88D90026A76A", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
+                    result->setActive(true);
+                    m_activeConnections++;
+                }
+                result->m_closed.store(false); // Defensive: always ensure not-closed
+            } // lockPool released
+
+            // ========================================
+            // Phase 2: Validate OUTSIDE lock (I/O)
+            // HikariCP pattern: skip validation for recently-used connections.
+            // If the connection was active within m_validationTimeoutMillis, it's almost
+            // certainly still valid. This eliminates SELECT 1 overhead for hot connections.
+            // ========================================
+            if (m_testOnBorrow)
+            {
+                auto timeSinceLastUse = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - result->getLastUsedTime()).count();
+
+                if (timeSinceLastUse > m_validationTimeoutMillis)
+                {
+                    CP_DEBUG("borrow - VALIDATING (timeSinceLastUse=%lld ms > %ld ms)", (long long)timeSinceLastUse, m_validationTimeoutMillis);
+                }
+
+                if (timeSinceLastUse > m_validationTimeoutMillis &&
+                    !validateConnection(result->getUnderlyingRelationalConnection()))
+                {
+                    CP_DEBUG("borrow - VALIDATION FAILED: removing connection, active=%d", m_activeConnections.load());
+                    // Validation failed — undo active marking, remove from pool
+                    {
+                        std::scoped_lock lockPool(m_mutexPool);
+                        result->setActive(false);
+                        result->m_closed.store(true);
+                        m_activeConnections--;
+
+                        auto it = std::ranges::find(m_allConnections, result);
+                        if (it != m_allConnections.end())
+                        {
+                            m_allConnections.erase(it);
+                        }
+                        // Notify inside lock — freed slot allows waiting threads to create
+                        m_connectionAvailable.notify_one();
+                    }
+
+                    // Close invalid connection outside lock
+                    try { result->getUnderlyingRelationalConnection()->close(); } catch (...) {}
+
+                    // Check if we still have time to retry
+                    if (std::chrono::steady_clock::now() >= deadline)
+                    {
+                        throw DBException("88D90026A76A", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
+                    }
+
+                    continue; // Retry with new candidate
                 }
             }
-        }
 
-        // Mark as active and reset closed flag (connection is being reused)
-        result->setActive(true);
-        result->m_closed.store(false);
-        m_activeConnections++;
+            // ========================================
+            // Phase 3: prepareForBorrow (outside lock)
+            // ========================================
+            try
+            {
+                result->getUnderlyingRelationalConnection()->prepareForBorrow();
+            }
+            catch ([[maybe_unused]] const std::exception &ex)
+            {
+                CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - Exception in prepareForBorrow: %s", ex.what());
+            }
 
-        // Prepare connection for borrowing - this ensures fresh transaction snapshot
-        // for databases that use MVCC (like Firebird). Without this, connections
-        // created at pool initialization may have stale transaction snapshots that
-        // can't see DDL changes made after the pool was created.
-        try
-        {
-            result->getUnderlyingRelationalConnection()->prepareForBorrow();
+            return result;
         }
-        catch ([[maybe_unused]] const std::exception &ex)
-        {
-            CP_DEBUG("RelationalDBConnectionPool::getRelationalDBConnection - Exception in prepareForBorrow: %s", ex.what());
-        }
-
-        return result;
     }
 
     void RelationalDBConnectionPool::maintenanceTask()
@@ -641,6 +793,7 @@ namespace cpp_dbc
                     std::scoped_lock lock(m_mutexPool);
                     m_idleConnections.push(pooledConn);
                     m_allConnections.push_back(pooledConn);
+                    m_connectionAvailable.notify_one(); // Wake waiting borrower if any
                     currentTotal = m_allConnections.size();
                 }
                 catch ([[maybe_unused]] const std::exception &ex)
@@ -854,7 +1007,7 @@ namespace cpp_dbc
                         //   4. m_closed.store(false)  <-- Too late if Thread B already got the connection
                         //
                         // Thread B (acquiring connection) - executes between steps 3 and 4:
-                        //   1. getIdleDBConnection() acquires m_mutexPool
+                        //   1. getRelationalDBConnection() acquires m_mutexPool
                         //   2. Pops connection from idle queue (m_closed is still TRUE)
                         //   3. Returns connection to caller
                         //   4. Caller calls ping() -> sees m_closed=true -> throws "Connection is closed"

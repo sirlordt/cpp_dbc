@@ -14,6 +14,18 @@
 
 ## Completed Tasks
 
+- Direct Handoff Connection Pool + system_utils Performance Refactoring (2026-02-21):
+  - Replaced 2-mutex borrow model (`m_mutexGetConnection` + `m_mutexPool`) with single `m_mutexPool`
+  - Added `ConnectionRequest` struct + `m_waitQueue` for direct handoff: eliminates "stolen wakeup" race
+  - Removed `getIdleDBConnection()` (merged into `getRelationalDBConnection()` with deadline-based wait)
+  - `returnConnection()`: added pool-closing exit, orphan detection, reset-failure → invalid, `updateLastUsedTime()`
+  - `currentTimeMillis()`, `currentTimeMicros()`, `getCurrentTimestamp()`: replaced `ostringstream` with stack buffers
+  - New `getThreadId()` (OS-native TID), `threadIdToString()`, `logWithTimesMillis()` in system_utils.hpp
+  - Re-enabled `stackTraceMutex` in `captureCallStack()` for thread-safe stack trace capture
+  - Unified `CP_DEBUG`, `FIREBIRD_DEBUG`, `SQLITE_DEBUG` macros to use `logWithTimesMillis()`
+  - Fixed `%zu`→`%d`, `%lld`→`%ld`, `ex.what()`→`ex.what_s().c_str()` in non-relational pool files
+  - Broadened Helgrind suppression `glibc_clockwait_internal_signal_broadcast` via `pthread_cond_*_WRK` wildcard
+
 - Source File Reorganization: Canonical Method Ordering and File Splitting (2026-02-19):
   - Split result set implementations across all 4 relational drivers into additional files (7 new .cpp files total)
   - Established canonical method ordering for all result set nothrow methods across all drivers

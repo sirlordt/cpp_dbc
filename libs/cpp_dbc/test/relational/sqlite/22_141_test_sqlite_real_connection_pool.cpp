@@ -344,7 +344,7 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
         // Note: SQLite has limited concurrency support, so we use fewer operations
         SECTION("Connection pool under load")
         {
-            const uint64_t numOperations = 20; // Fewer operations for SQLite
+            const uint64_t numOperations = 40;
             std::atomic<int> successCount(0);
             std::atomic<int> failureCount(0);
             std::vector<std::thread> threads;
@@ -382,7 +382,7 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
                     }
                     catch (const std::exception& ex) {
                         failureCount++;
-                        cpp_dbc::system_utils::safePrint("[TEST]", "Load operation " + std::to_string(i) + " error: " + std::string(ex.what()));
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Load operation " + std::to_string(i) + " error: " + std::string(ex.what()));
                     } }));
             }
 

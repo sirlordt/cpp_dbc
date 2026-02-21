@@ -41,22 +41,30 @@ This directory contains Helgrind suppression files and analysis documentation fo
 
 ---
 
-## ⚠️ Important: Errors Status (Updated 2026-02-17)
+## ⚠️ Important: Errors Status (Updated 2026-02-21)
 
-**As of 2026-02-17, ALL remaining Helgrind errors in cpp_dbc tests are FALSE POSITIVES from third-party database client libraries.**
+**As of 2026-02-21, ALL remaining Helgrind errors in cpp_dbc tests are FALSE POSITIVES from third-party database client libraries.**
 
-### Real Bugs — FIXED (2026-02-17)
+### Real Bugs — FIXED
 
 The following REAL bugs were found in cpp_dbc's Firebird driver and connection pool, and have been **fully fixed**:
 
-| Bug | Type | Status |
-|-----|------|--------|
-| Firebird `m_trPtr` raw pointer (USE-AFTER-FREE) | REAL BUG | ✅ Fixed 2026-02-17 |
-| Firebird lock order violation: `m_connMutex` ↔ `m_statementsMutex`/`m_resultSetsMutex` (ABBA deadlock) | REAL BUG | ✅ Fixed 2026-02-17 |
-| Connection pool: closing connections inside pool locks (LockOrder) | REAL BUG | ✅ Fixed 2026-02-17 |
-| `m_closed`/`m_resetting` non-atomic bools (data race) | REAL BUG | ✅ Fixed 2026-02-17 |
+| Bug | Type | Fixed |
+|-----|------|-------|
+| Firebird `m_trPtr` raw pointer (USE-AFTER-FREE) | REAL BUG | ✅ 2026-02-17 |
+| Firebird lock order violation: `m_connMutex` ↔ `m_statementsMutex`/`m_resultSetsMutex` (ABBA deadlock) | REAL BUG | ✅ 2026-02-17 |
+| Connection pool: closing connections inside pool locks (LockOrder) | REAL BUG | ✅ 2026-02-17 |
+| `m_closed`/`m_resetting` non-atomic bools (data race) | REAL BUG | ✅ 2026-02-17 |
+| `captureCallStack()`: `backward::StackTrace::load_here()` called without serialization | REAL BUG | ✅ 2026-02-21 |
 
 See [research/HELGRIND_FIX_COMPLETE_SUMMARY.md](../../../../research/HELGRIND_FIX_COMPLETE_SUMMARY.md) for complete fix documentation.
+
+### Suppression Changes (2026-02-21)
+
+`glibc_clockwait_internal_signal_maintenance_task` renamed to `glibc_clockwait_internal_signal_broadcast` and broadened:
+- Now uses `fun:pthread_cond_*_WRK` wildcard to cover both `signal` and `broadcast` glibc internal variants
+- Removed specific maintenance task stack frame requirements (false positive appears from multiple call sites)
+- Evidence updated: observed in MySQL (broadcast), PostgreSQL (signal), Firebird (signal) — all from inside `__pthread_cond_wait_common`
 
 ### Remaining False Positives (Library Internals)
 

@@ -208,7 +208,7 @@ namespace cpp_dbc
         }
         catch ([[maybe_unused]] const DBException &ex)
         {
-            CP_DEBUG("ColumnarDBConnectionPool::validateConnection - Exception: %s", ex.what());
+            CP_DEBUG("ColumnarDBConnectionPool::validateConnection - Exception: %s", ex.what_s().c_str());
             return false;
         }
     }
@@ -230,7 +230,7 @@ namespace cpp_dbc
             }
             catch (const DBException &ex)
             {
-                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception during close (pool shutting down): %s", ex.what());
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Exception during close (pool shutting down): %s", ex.what_s().c_str());
             }
             return;
         }
@@ -369,7 +369,7 @@ namespace cpp_dbc
                 }
                 catch (const DBException &ex)
                 {
-                    CP_DEBUG("ColumnarDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: %s", ex.what());
+                    CP_DEBUG("ColumnarDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: %s", ex.what_s().c_str());
                 }
 
                 // Remove invalid connection from allConnections
@@ -633,11 +633,11 @@ namespace cpp_dbc
         // Wait for all active operations to complete
         {
             auto waitStart = std::chrono::steady_clock::now();
-            CP_DEBUG("ColumnarDBConnectionPool::close - Initial active connections: %zu", m_activeConnections.load());
+            CP_DEBUG("ColumnarDBConnectionPool::close - Initial active connections: %d", m_activeConnections.load());
 
             while (m_activeConnections.load() > 0)
             {
-                CP_DEBUG("ColumnarDBConnectionPool::close - Waiting for %zu active connections to finish at %lld", m_activeConnections.load(), (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+                CP_DEBUG("ColumnarDBConnectionPool::close - Waiting for %d active connections to finish at %lld", m_activeConnections.load(), (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
                 auto elapsed = std::chrono::steady_clock::now() - waitStart;
                 auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();

@@ -24,7 +24,6 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -32,6 +31,7 @@
 #include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "20_001_test_mysql_real_common.hpp"
 
@@ -184,7 +184,7 @@ TEST_CASE("MySQL TransactionManager multi-threaded tests", "[20_131_02_mysql_rea
                         successCount++;
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "MySQL thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "MySQL thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }

@@ -37,7 +37,26 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Source File Reorganization: Canonical Method Ordering and File Splitting** (2026-02-19 PST):
+1. **Direct Handoff Connection Pool, system_utils Performance Refactoring, and Debug Macro Unification** (2026-02-21 PST):
+   - **RelationalDBConnectionPool — Direct Handoff:**
+     - Removed `m_mutexGetConnection` (2 mutexes → 1 unified `m_mutexPool`)
+     - Added `ConnectionRequest` struct + `m_waitQueue` (`std::deque`) for direct handoff: returned connections are assigned directly to waiting borrowers → eliminates "stolen wakeup" race
+     - Removed `getIdleDBConnection()` (merged into `getRelationalDBConnection()` with deadline-based wait)
+     - `returnConnection()` fixes: pool-closing early exit, orphan detection, reset-failure marks connection invalid, `updateLastUsedTime()` on return, all notifies inside lock
+   - **system_utils.hpp — Performance + New Thread Utilities:**
+     - `currentTimeMillis()`, `currentTimeMicros()`, `getCurrentTimestamp()`: replaced `ostringstream`/`put_time`/`setfill` with stack buffers + `strftime` + `snprintf` (zero heap allocation)
+     - Removed `<iomanip>`, `<sstream>`; added `<charconv>`
+     - New `getThreadId()`: OS-native TID via `gettid()` (Linux) / `GetCurrentThreadId()` (Windows), using `std::to_chars`
+     - New `threadIdToString(id)`: last 6 digits of thread ID hash via `std::to_chars`
+     - New `logWithTimesMillis(prefix, msg)`: structured `[HH:MM:SS.mmm] [TID] [prefix] message` log line
+     - `getCurrentTimestamp()` format changed: brackets removed (was `[YYYY-MM-DD ...]`, now `YYYY-MM-DD ...`)
+   - **system_utils.cpp:** Re-enabled `stackTraceMutex` in `captureCallStack()` — serializes `backward::StackTrace::load_here()` calls (thread-safe)
+   - **Debug Macro Unification:** `CP_DEBUG`, `FIREBIRD_DEBUG`, `SQLITE_DEBUG` all simplified to use `logWithTimesMillis()` instead of manual prefix construction
+   - **Printf fixes:** `%zu` → `%d` for `atomic<int>::load()`, `%lld` → `%ld` for elapsed, `ex.what()` → `ex.what_s().c_str()`
+   - **Helgrind suppression broadened:** `glibc_clockwait_internal_signal_broadcast` now covers both `signal` and `broadcast` variants via wildcard
+   - **Test updates:** all pool tests use `logWithTimesMillis("TEST", ...)` instead of `std::cerr`
+
+2. **Source File Reorganization: Canonical Method Ordering and File Splitting** (2026-02-19 PST):
    - **File Splitting:** 7 new `.cpp` files added across all 4 relational drivers to reduce file sizes and improve compilation parallelism:
      - MySQL: `result_set_04.cpp` (blob/binary nothrow methods)
      - PostgreSQL: `result_set_04.cpp` (blob/binary nothrow methods)

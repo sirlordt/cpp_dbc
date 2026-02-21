@@ -194,14 +194,12 @@ namespace cpp_dbc::Firebird
 
 // Debug output is controlled by -DDEBUG_FIREBIRD=1 or -DDEBUG_ALL=1 CMake option
 #if (defined(DEBUG_FIREBIRD) && DEBUG_FIREBIRD) || (defined(DEBUG_ALL) && DEBUG_ALL)
-#define FIREBIRD_DEBUG(format, ...)                                                                                           \
-    do                                                                                                                        \
-    {                                                                                                                         \
-        char debug_buffer[1024];                                                                                              \
-        std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__);                                             \
-        cpp_dbc::system_utils::safePrint(                                                                                     \
-            "[Firebird] [" + cpp_dbc::system_utils::currentTimeMillis() + "] [" + cpp_dbc::system_utils::getThreadId() + "]", \
-            debug_buffer);                                                                                                    \
+#define FIREBIRD_DEBUG(format, ...)                                                    \
+    do                                                                                 \
+    {                                                                                  \
+        char debug_buffer[1024];                                                       \
+        std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__);      \
+        cpp_dbc::system_utils::logWithTimesMillis("Firebird", debug_buffer);           \
     } while (0)
 #else
 #define FIREBIRD_DEBUG(...) ((void)0)

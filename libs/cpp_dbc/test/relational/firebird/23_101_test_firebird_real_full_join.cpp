@@ -416,7 +416,7 @@ TEST_CASE("Firebird FULL JOIN operations", "[23_101_01_firebird_real_full_join]"
     SECTION("FULL OUTER JOIN with WHERE clause")
     {
         // First, let's debug by printing the contents of test_products table
-        cpp_dbc::system_utils::safePrint("[TEST]", "\n=== DEBUG: Contents of test_products table ===");
+        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "\n=== DEBUG: Contents of test_products table ===");
         auto debugRs = conn->executeQuery("SELECT product_id, name, price FROM test_products ORDER BY product_id");
         size_t debugCount = 0;
         while (debugRs->next())
@@ -425,10 +425,10 @@ TEST_CASE("Firebird FULL JOIN operations", "[23_101_01_firebird_real_full_join]"
             int productId = debugRs->getInt("PRODUCT_ID");
             std::string name = debugRs->getString("NAME");
             double price = debugRs->getDouble("PRICE");
-            cpp_dbc::system_utils::safePrint("[TEST]", "  Product " + std::to_string(productId) + ": " + name + " - Price: " + std::to_string(price));
+            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  Product " + std::to_string(productId) + ": " + name + " - Price: " + std::to_string(price));
         }
-        cpp_dbc::system_utils::safePrint("[TEST]", "  Total products: " + std::to_string(debugCount));
-        cpp_dbc::system_utils::safePrint("[TEST]", "=== END DEBUG ===");
+        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  Total products: " + std::to_string(debugCount));
+        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "=== END DEBUG ===");
 
         // Test FULL OUTER JOIN with additional filtering
         // Filter for products with price < 100.00 (using decimal literal for DECIMAL column)
@@ -441,7 +441,7 @@ TEST_CASE("Firebird FULL JOIN operations", "[23_101_01_firebird_real_full_join]"
             "WHERE p.price < 100.00 "
             "ORDER BY COALESCE(c.name, ''), p.name";
 
-        cpp_dbc::system_utils::safePrint("[TEST]", "\n=== DEBUG: Query results ===");
+        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "\n=== DEBUG: Query results ===");
         auto rs = conn->executeQuery(query);
 
         // Just verify we get some results - the exact count may vary
@@ -452,10 +452,10 @@ TEST_CASE("Firebird FULL JOIN operations", "[23_101_01_firebird_real_full_join]"
             rowCount++;
             std::string customerName = rs->isNull("CUSTOMER_NAME") ? "NULL" : rs->getString("CUSTOMER_NAME");
             std::string productName = rs->getString("PRODUCT_NAME");
-            cpp_dbc::system_utils::safePrint("[TEST]", "  Row " + std::to_string(rowCount) + ": Customer=" + customerName + ", Product=" + productName);
+            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  Row " + std::to_string(rowCount) + ": Customer=" + customerName + ", Product=" + productName);
         }
-        cpp_dbc::system_utils::safePrint("[TEST]", "  Total rows: " + std::to_string(rowCount));
-        cpp_dbc::system_utils::safePrint("[TEST]", "=== END DEBUG ===");
+        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  Total rows: " + std::to_string(rowCount));
+        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "=== END DEBUG ===");
 
         // We should get at least 1 row (products with price < 100)
         // Headphones (99.99), Keyboard (49.99), Mouse (29.99)

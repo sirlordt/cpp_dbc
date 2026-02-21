@@ -1,6 +1,95 @@
 # Changelog
 
-## 2026-02-19 21:23:56 PST [Current]
+## 2026-02-21 02:48:55 PST [Current]
+
+### Direct Handoff Connection Pool, system_utils Performance Refactoring, and Debug Macro Unification
+
+This release focuses on correctness and performance of the relational connection pool, elimination of heap allocations in time-formatting utilities, and unification of the debug logging API across all driver debug macros.
+
+#### RelationalDBConnectionPool — Direct Handoff Mechanism
+
+The relational connection pool was substantially redesigned to eliminate the "stolen wakeup" race condition that could cause deadlocks under high concurrency:
+
+**Root Cause of the Race:**
+When a connection was returned and a CV notification was sent, the returning thread itself (or any other non-waiting thread) could immediately call `getRelationalDBConnection()` and "steal" the connection before the awakened waiter could acquire the mutex. This starved waiters indefinitely.
+
+**Fix — Direct Handoff (inspired by Java's `LinkedTransferQueue`):**
+- Added `ConnectionRequest` struct (contains a connection slot + fulfilled flag) and `m_waitQueue` (`std::deque<ConnectionRequest*>`) as new members
+- When `returnConnection()` has a valid connection and `m_waitQueue` is non-empty, the connection is assigned directly into the first waiter's `ConnectionRequest` struct instead of entering the idle queue
+- The waiter checks its own `request.fulfilled` flag — no stealing possible because the connection is pre-assigned
+
+**Mutex Simplification:**
+- Removed `m_mutexGetConnection` (the separate borrow mutex) — pool now uses a single `m_mutexPool` for all state
+- `getIdleDBConnection()` private method removed — its logic was merged into `getRelationalDBConnection()` with deadline-based waiting
+
+**Additional `returnConnection()` Fixes:**
+- **Pool-closing early exit**: if `m_running` is false, decrements counter before closing the connection (prevents `close()` from waiting forever)
+- **Orphan detection**: connections not found in `m_allConnections` now properly decrement counter and notify
+- **Reset failure handling**: if `reset(nothrow)` fails, the connection is marked invalid (before this it silently ignored reset errors)
+- `updateLastUsedTime()` called on every valid return (enables HikariCP-style validation skip)
+- **Replacement handoff**: when an invalid connection is replaced, the new connection uses the same direct handoff logic
+- All `notify_one()` / `notify_all()` calls are now **inside** `m_mutexPool` lock for Helgrind correctness
+
+#### system_utils.hpp — Performance Refactoring and New Thread Utilities
+
+Three time-formatting functions were rewritten to eliminate heap allocations from `std::ostringstream`:
+
+| Function | Before | After |
+|----------|--------|-------|
+| `currentTimeMillis()` | `ostringstream` + `put_time` + `setfill` | `strftime` + `snprintf` into stack buffer |
+| `currentTimeMicros()` | `ostringstream` + `put_time` + `setfill` | `strftime` + `snprintf` into stack buffer |
+| `getCurrentTimestamp()` | `stringstream` + `put_time` | `strftime` + `snprintf` into stack buffer |
+
+Includes removed: `<iomanip>`, `<sstream>` (replaced by `<charconv>`).
+
+**New functions:**
+
+* `getThreadId()`: Returns the OS-native TID as a string — `gettid()` on Linux, `GetCurrentThreadId()` on Windows, hash fallback on other platforms. Uses `std::to_chars` (zero allocation).
+* `threadIdToString(id)`: Converts any `std::thread::id` to its last 6 hash digits via `std::to_chars`.
+* `logWithTimesMillis(prefix, message)`: Structured log line with format `[HH:MM:SS.mmm] [TID] [prefix] message\n`. Uses `write()` directly (non-interleaving, Helgrind-safe).
+
+`logWithTimestamp()` was also enhanced to include `[TID]` in the output format.
+
+**Note:** `getCurrentTimestamp()` output format changed — brackets removed: was `[YYYY-MM-DD HH:MM:SS.mmm]`, now `YYYY-MM-DD HH:MM:SS.mmm`.
+
+#### system_utils.cpp — Re-enabled `stackTraceMutex`
+
+`captureCallStack()` re-enables `std::recursive_mutex stackTraceMutex` + `std::scoped_lock lock(stackTraceMutex)` (were commented out during Helgrind investigation). This serializes calls to `backward::StackTrace::load_here()`, which accesses `dlopen`/`dlsym` globals that are not thread-safe, preventing data races visible to Helgrind/ThreadSanitizer.
+
+#### Debug Macro Unification — `logWithTimesMillis`
+
+All driver debug macros now delegate to `logWithTimesMillis()` instead of manually constructing a prefix string and calling `safePrint()`:
+
+* **`CP_DEBUG`** (`connection_pool_internal.hpp`): `safePrint("[ConnectionPool] [" + currentTimeMillis() + "] [" + getThreadId() + "]", ...)` → `logWithTimesMillis("ConnectionPool", ...)`
+* **`FIREBIRD_DEBUG`** (`firebird_internal.hpp`): same pattern → `logWithTimesMillis("Firebird", ...)`
+* **`SQLITE_DEBUG`** (`sqlite_internal.hpp`): same pattern → `logWithTimesMillis("SQLite", ...)`
+
+Reduces code duplication and ensures consistent log format across all debug output paths.
+
+#### Printf Format Specifier Fixes (Columnar, Document, KV Pools)
+
+* `%zu` → `%d` for `m_activeConnections.load()` (`std::atomic<int>::load()` returns `int`, not `size_t`)
+* `%lld` → `%ld` for `elapsed_seconds`
+* `ex.what()` → `ex.what_s().c_str()` for `DBException` catches (consistent with project conventions)
+
+#### Helgrind Suppression — Broader glibc clockwait Coverage
+
+Suppression `glibc_clockwait_internal_signal_maintenance_task` renamed to `glibc_clockwait_internal_signal_broadcast` and broadened:
+
+* Wildcard `fun:pthread_cond_*_WRK` covers both `signal` and `broadcast` variants
+* Removed specific maintenance task stack frame requirements — now triggers from any call site inside `__pthread_cond_wait_common`
+* Updated evidence: observed in MySQL (`broadcast` from `getRelationalDBConnection()`), PostgreSQL (`signal`), and Firebird (`signal` from `maintenanceTask()`)
+
+#### Test Updates
+
+* All connection pool tests across all drivers: replaced `std::cerr` with `logWithTimesMillis("TEST", ...)` for thread-safe, timestamped output
+* `20_141_test_mysql_real_connection_pool.cpp`: reduced `numOperations` 50 → 40
+* `10_101_test_high_perf_logger.cpp`: `safePrint` → `logWithTimesMillis`
+* `test/CMakeLists.txt`: minor blank line formatting improvements
+
+---
+
+## 2026-02-19 21:23:56 PST
 
 ### Source File Reorganization: Canonical Method Ordering and File Splitting Across All Relational Drivers
 

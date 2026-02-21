@@ -21,7 +21,6 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include <iostream>
 #include <fstream>
 #include <random>
 #include <sstream>
@@ -31,6 +30,7 @@
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "21_001_test_postgresql_real_common.hpp"
 
@@ -547,7 +547,7 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         catch (const cpp_dbc::DBException &e)
         {
             // JSON schema validation might not be available in older PostgreSQL versions
-            std::cout << "JSON schema validation test skipped: " << e.what_s() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "JSON schema validation test skipped: " + e.what_s());
         }
 
         // Test error handling with JSON path expressions

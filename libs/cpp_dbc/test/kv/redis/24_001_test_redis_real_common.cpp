@@ -24,6 +24,8 @@
 #include <iomanip>
 #include <chrono>
 
+#include <cpp_dbc/common/system_utils.hpp>
+
 namespace redis_test_helpers
 {
 
@@ -120,23 +122,23 @@ namespace redis_test_helpers
             std::string connStr = buildRedisConnectionString(dbConfig);
 
             // Attempt to connect to Redis
-            std::cout << "Attempting to connect to Redis with connection string: " << connStr << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to Redis with connection string: " + connStr);
 
             auto driver = getRedisDriver();
             auto conn = driver->connectKV(connStr, username, password);
 
             if (!conn)
             {
-                std::cerr << "Redis connection returned null" << std::endl;
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Redis connection returned null");
                 return false;
             }
 
             // If we get here, the connection was successful
-            std::cout << "Redis connection successful!" << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Redis connection successful!");
 
             // Try to ping the server
             std::string pingResult = conn->ping();
-            std::cout << "Redis ping result: " << pingResult << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Redis ping result: " + pingResult);
 
             // Close the connection
             conn->close();
@@ -145,7 +147,7 @@ namespace redis_test_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "Redis connection error: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Redis connection error: " + std::string(e.what()));
             return false;
         }
     }

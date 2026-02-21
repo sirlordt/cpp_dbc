@@ -27,7 +27,7 @@
 void testConcurrentLogging()
 {
 #ifdef ENABLE_HIGH_PERF_DEBUG_LOGGER
-    cpp_dbc::system_utils::safePrint("TEST", "\n=== Test: Concurrent Logging from Multiple Threads ===");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "\n=== Test: Concurrent Logging from Multiple Threads ===");
 
     constexpr int NUM_THREADS = 8;
     constexpr int LOGS_PER_THREAD = 500;
@@ -75,7 +75,7 @@ void testConcurrentLogging()
     char msg[256];
     std::snprintf(msg, sizeof(msg), "Starting %d threads, %d logs per thread (%d total logs)...",
                   NUM_THREADS, LOGS_PER_THREAD, NUM_THREADS * LOGS_PER_THREAD);
-    cpp_dbc::system_utils::safePrint("TEST", msg);
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", msg);
 
     start.store(true, std::memory_order_release);
 
@@ -86,29 +86,29 @@ void testConcurrentLogging()
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
 
     std::snprintf(msg, sizeof(msg), "✓ All threads completed in %ldms", duration.count());
-    cpp_dbc::system_utils::safePrint("TEST", msg);
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", msg);
 
     double avgMicroseconds = static_cast<double>(duration.count()) * 1000.0 / (NUM_THREADS * LOGS_PER_THREAD);
     std::snprintf(msg, sizeof(msg), "✓ Average: %.2f microseconds per log", avgMicroseconds);
-    cpp_dbc::system_utils::safePrint("TEST", msg);
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", msg);
 
     // Give writer thread time to flush
-    cpp_dbc::system_utils::safePrint("TEST", "Waiting for disk flush...");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Waiting for disk flush...");
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     size_t overruns = cpp_dbc::debug::HighPerfLogger::getInstance().getOverrunCount();
     std::snprintf(msg, sizeof(msg), "✓ Buffer overruns: %zu", overruns);
-    cpp_dbc::system_utils::safePrint("TEST", msg);
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", msg);
 
     if (overruns > 0)
     {
-        cpp_dbc::system_utils::safePrint("TEST", "  (Some logs were lost due to buffer overflow - this is expected under high load)");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  (Some logs were lost due to buffer overflow - this is expected under high load)");
     }
 
-    cpp_dbc::system_utils::safePrint("TEST", "✓ Test PASSED");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "✓ Test PASSED");
 #else
-    cpp_dbc::system_utils::safePrint("TEST", "\n=== Test SKIPPED: ENABLE_HIGH_PERF_DEBUG_LOGGER not defined ===");
-    cpp_dbc::system_utils::safePrint("TEST", "Build with -DENABLE_HIGH_PERF_DEBUG_LOGGER=ON to enable this test.");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "\n=== Test SKIPPED: ENABLE_HIGH_PERF_DEBUG_LOGGER not defined ===");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Build with -DENABLE_HIGH_PERF_DEBUG_LOGGER=ON to enable this test.");
 #endif
 }
 
@@ -118,7 +118,7 @@ void testConcurrentLogging()
 void testBasicLogging()
 {
 #ifdef ENABLE_HIGH_PERF_DEBUG_LOGGER
-    cpp_dbc::system_utils::safePrint("TEST", "\n=== Test: Basic Logging ===");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "\n=== Test: Basic Logging ===");
 
     // Test different log contexts
     HP_LOG("TestContext", "Test message 1: %s", "simple string");
@@ -130,13 +130,13 @@ void testBasicLogging()
     CP_DEBUG("Connection pool test: size=%d", 10);
     MYSQL_DEBUG("MySQL driver test: query=%s", "SELECT * FROM users");
 
-    cpp_dbc::system_utils::safePrint("TEST", "✓ Basic logging completed");
-    cpp_dbc::system_utils::safePrint("TEST", "✓ Test PASSED");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "✓ Basic logging completed");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "✓ Test PASSED");
 
     // Give writer thread time to flush
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #else
-    cpp_dbc::system_utils::safePrint("TEST", "\n=== Test SKIPPED: ENABLE_HIGH_PERF_DEBUG_LOGGER not defined ===");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "\n=== Test SKIPPED: ENABLE_HIGH_PERF_DEBUG_LOGGER not defined ===");
 #endif
 }
 
@@ -146,14 +146,14 @@ void testBasicLogging()
 void testRingBufferWraparound()
 {
 #ifdef ENABLE_HIGH_PERF_DEBUG_LOGGER
-    cpp_dbc::system_utils::safePrint("TEST", "\n=== Test: Ring Buffer Wraparound ===");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "\n=== Test: Ring Buffer Wraparound ===");
 
     constexpr size_t BUFFER_SIZE = cpp_dbc::debug::HighPerfLogger::BUFFER_SIZE;
     constexpr size_t EXTRA_LOGS = 500;
 
     char msg[256];
     std::snprintf(msg, sizeof(msg), "Writing %zu logs to trigger wraparound...", BUFFER_SIZE + EXTRA_LOGS);
-    cpp_dbc::system_utils::safePrint("TEST", msg);
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", msg);
 
     for (size_t i = 0; i < BUFFER_SIZE + EXTRA_LOGS; ++i)
     {
@@ -162,42 +162,42 @@ void testRingBufferWraparound()
         if (i % 500 == 0)
         {
             std::snprintf(msg, sizeof(msg), "  Progress: %zu/%zu", i, BUFFER_SIZE + EXTRA_LOGS);
-            cpp_dbc::system_utils::safePrint("TEST", msg);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", msg);
         }
     }
 
-    cpp_dbc::system_utils::safePrint("TEST", "✓ Wraparound test completed");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "✓ Wraparound test completed");
 
     // Give writer thread time to flush
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     size_t overruns = cpp_dbc::debug::HighPerfLogger::getInstance().getOverrunCount();
     std::snprintf(msg, sizeof(msg), "✓ Buffer overruns: %zu", overruns);
-    cpp_dbc::system_utils::safePrint("TEST", msg);
-    cpp_dbc::system_utils::safePrint("TEST", "✓ Test PASSED");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", msg);
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "✓ Test PASSED");
 #else
-    cpp_dbc::system_utils::safePrint("TEST", "\n=== Test SKIPPED: ENABLE_HIGH_PERF_DEBUG_LOGGER not defined ===");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "\n=== Test SKIPPED: ENABLE_HIGH_PERF_DEBUG_LOGGER not defined ===");
 #endif
 }
 
 int main()
 {
-    cpp_dbc::system_utils::safePrint("TEST", "========================================");
-    cpp_dbc::system_utils::safePrint("TEST", "High-Performance Logger Test Suite");
-    cpp_dbc::system_utils::safePrint("TEST", "========================================");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "========================================");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "High-Performance Logger Test Suite");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "========================================");
 
 #ifdef ENABLE_HIGH_PERF_DEBUG_LOGGER
-    cpp_dbc::system_utils::safePrint("TEST", "Logger is ENABLED");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Logger is ENABLED");
 
     char msg[256];
     std::snprintf(msg, sizeof(msg), "Buffer size: %zu entries", cpp_dbc::debug::HighPerfLogger::BUFFER_SIZE);
-    cpp_dbc::system_utils::safePrint("TEST", msg);
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", msg);
 
     std::snprintf(msg, sizeof(msg), "Message size: %zu bytes", cpp_dbc::debug::HighPerfLogger::MSG_SIZE);
-    cpp_dbc::system_utils::safePrint("TEST", msg);
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", msg);
 #else
-    cpp_dbc::system_utils::safePrint("TEST", "Logger is DISABLED");
-    cpp_dbc::system_utils::safePrint("TEST", "Build with -DENABLE_HIGH_PERF_DEBUG_LOGGER=ON to enable.");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Logger is DISABLED");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Build with -DENABLE_HIGH_PERF_DEBUG_LOGGER=ON to enable.");
 #endif
 
     try
@@ -206,14 +206,14 @@ int main()
         testConcurrentLogging();
         testRingBufferWraparound();
 
-        cpp_dbc::system_utils::safePrint("TEST", "\n========================================");
-        cpp_dbc::system_utils::safePrint("TEST", "All tests completed successfully!");
-        cpp_dbc::system_utils::safePrint("TEST", "========================================");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "\n========================================");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "All tests completed successfully!");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "========================================");
 
 #ifdef ENABLE_HIGH_PERF_DEBUG_LOGGER
-        cpp_dbc::system_utils::safePrint("TEST", "\nShutting down logger...");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "\nShutting down logger...");
         cpp_dbc::debug::HighPerfLogger::getInstance().shutdown();
-        cpp_dbc::system_utils::safePrint("TEST", "Check log file in: logs/debug/YYYY-MM-DD-HH-mm-SS/ConnectionPool.log");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Check log file in: logs/debug/YYYY-MM-DD-HH-mm-SS/ConnectionPool.log");
 #endif
 
         return 0;
@@ -222,7 +222,7 @@ int main()
     {
         char errorMsg[512];
         std::snprintf(errorMsg, sizeof(errorMsg), "ERROR: %s", e.what());
-        cpp_dbc::system_utils::safePrint("ERROR", errorMsg);
+        cpp_dbc::system_utils::logWithTimesMillis("ERROR", errorMsg);
         return 1;
     }
 }

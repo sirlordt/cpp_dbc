@@ -24,7 +24,6 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <fstream>
 
 #include <catch2/catch_test_macros.hpp>
@@ -33,6 +32,8 @@
 #include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
+
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "21_001_test_postgresql_real_common.hpp"
 
@@ -153,20 +154,20 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
 
     SECTION("PostgreSQL connection pool")
     {
-        // Create a connection pool configuration
+        // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
-        poolConfig.setInitialSize(5);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(3);
-        poolConfig.setConnectionTimeout(5000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setIdleTimeout(30000);
-        poolConfig.setMaxLifetimeMillis(60000);
+        poolConfig.setInitialSize(3);
+        poolConfig.setMaxSize(5);
+        poolConfig.setMinIdle(1);
+        poolConfig.setConnectionTimeout(10000);
+        poolConfig.setValidationInterval(500);
+        poolConfig.setIdleTimeout(5000);
+        poolConfig.setMaxLifetimeMillis(10000);
         poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(false);
+        poolConfig.setTestOnReturn(true);
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
@@ -177,11 +178,11 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
-        conn->close();
+        conn->returnToPool();
 
         // Test multiple connections in parallel
-        const int numThreads = 5;
-        const int opsPerThread = 10;
+        const int numThreads = 10;
+        const int opsPerThread = 5;
 
         std::atomic<int> successCount(0);
         std::vector<std::thread> threads;
@@ -192,36 +193,29 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
                                           {
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
-                        // Get a connection from the pool
                         auto conn_thread = pool.getRelationalDBConnection();
 
-                        // Insert a row
-                        auto pstmt = conn_thread->prepareStatement(insertDataQuery);
                         int id = i * 100 + j;
+                        auto pstmt = conn_thread->prepareStatement(insertDataQuery);
                         pstmt->setInt(1, id);
                         pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
                         pstmt->setDouble(3, id * 1.5);
                         pstmt->executeUpdate();
 
-                        // Return the connection to the pool
-                        conn_thread->close();
-
-                        // Increment success counter
+                        conn_thread->returnToPool();
                         successCount++;
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "Thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
 
-        // Wait for all threads to complete
         for (auto &t : threads)
         {
             t.join();
         }
 
-        // Verify that all operations were successful
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the data
@@ -229,10 +223,11 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
+        rs->close();
 
         // Clean up
         conn->executeUpdate(dropTableQuery);
-        conn->close();
+        conn->returnToPool();
 
         // Close the pool
         pool.close();
@@ -478,7 +473,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
                         conn_thread->close();
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "Thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
@@ -492,8 +487,8 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-        std::cout << "PostgreSQL stress test completed in " << duration << " ms" << std::endl;
-        std::cout << "Operations per second: " << (numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)) << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL stress test completed in " + std::to_string(duration) + " ms");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Operations per second: " + std::to_string(numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)));
 
         // Verify that all operations were successful
         REQUIRE(successCount == numThreads * opsPerThread);

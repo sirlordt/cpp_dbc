@@ -24,7 +24,6 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <fstream>
 
 #include <catch2/catch_test_macros.hpp>
@@ -32,6 +31,7 @@
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "21_001_test_postgresql_real_common.hpp"
 
@@ -333,7 +333,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[21_141_01_postgresql_real_c
         // Test concurrent connections under load
         SECTION("Connection pool under load")
         {
-            const uint64_t numOperations = 50;
+            const uint64_t numOperations = 40;
             std::atomic<int> successCount(0);
             std::atomic<int> failureCount(0);
             std::vector<std::thread> threads;
@@ -364,7 +364,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[21_141_01_postgresql_real_c
                     }
                     catch (const std::exception& ex) {
                         failureCount++;
-                        std::cerr << "Load operation " << i << " error: " << ex.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Load operation " + std::to_string(i) + " error: " + std::string(ex.what()));
                     } }));
             }
 

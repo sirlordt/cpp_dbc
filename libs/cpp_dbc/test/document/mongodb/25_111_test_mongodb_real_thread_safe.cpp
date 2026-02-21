@@ -22,8 +22,6 @@
 #include <thread>
 #include <vector>
 #include <atomic>
-#include <mutex>
-#include <iostream>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -73,7 +71,6 @@ TEST_CASE("MongoDB thread safety tests", "[25_111_01_mongodb_real_thread_safe]")
 
         // Shared variables for tracking results
         std::atomic<int> successCount(0);
-        std::mutex outputMutex;
 
         // Create and launch threads
         std::vector<std::thread> threads;
@@ -107,8 +104,7 @@ TEST_CASE("MongoDB thread safety tests", "[25_111_01_mongodb_real_thread_safe]")
                         if (foundDoc && foundDoc->getInt("id") == id) {
                             successCount++;
                         } else {
-                            std::lock_guard<std::mutex> lock(outputMutex);
-                            std::cerr << "Thread " << i << " failed to verify document " << id << std::endl;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " failed to verify document " + std::to_string(id));
                         }
                     }
                     
@@ -116,8 +112,7 @@ TEST_CASE("MongoDB thread safety tests", "[25_111_01_mongodb_real_thread_safe]")
                     conn->close();
                 }
                 catch (const std::exception& e) {
-                    std::lock_guard<std::mutex> lock(outputMutex);
-                    std::cerr << "Thread " << i << " failed with exception: " << e.what() << std::endl;
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " failed with exception: " + std::string(e.what()));
                 } }));
         }
 

@@ -97,8 +97,8 @@ namespace cpp_dbc::system_utils
             // that is NOT thread-safe. Without this mutex, concurrent calls from multiple
             // threads cause data races detected by Helgrind/ThreadSanitizer.
             // This recursive_mutex serializes all stack trace capture operations globally.
-            // static std::recursive_mutex stackTraceMutex;
-            // std::scoped_lock lock(stackTraceMutex);
+            static std::recursive_mutex stackTraceMutex;
+            std::scoped_lock lock(stackTraceMutex);
 
             backward::StackTrace st;
             st.load_here(32);

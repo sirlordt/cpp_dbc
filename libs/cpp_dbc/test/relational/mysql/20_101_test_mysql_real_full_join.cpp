@@ -41,9 +41,9 @@
 // Test case for MySQL FULL JOIN operations (emulated with UNION)
 TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_join]")
 {
-    cpp_dbc::system_utils::safePrint("TEST_CASE", "╔════════════════════════════════════════════════════════════════════════╗");
-    cpp_dbc::system_utils::safePrint("TEST_CASE", "║ STARTING TEST_CASE: MySQL FULL JOIN operations (emulated)             ║");
-    cpp_dbc::system_utils::safePrint("TEST_CASE", "╚════════════════════════════════════════════════════════════════════════╝");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST_CASE", "╔════════════════════════════════════════════════════════════════════════╗");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST_CASE", "║ STARTING TEST_CASE: MySQL FULL JOIN operations (emulated)             ║");
+    cpp_dbc::system_utils::logWithTimesMillis("TEST_CASE", "╚════════════════════════════════════════════════════════════════════════╝");
 
     // Skip these tests if we can't connect to MySQL
     if (!mysql_test_helpers::canConnectToMySQL())
@@ -68,24 +68,24 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
     REQUIRE(conn != nullptr);
 
     // Create test tables
-    cpp_dbc::system_utils::safePrint("DDL", "Starting DROP TABLE operations");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Starting DROP TABLE operations");
 
-    cpp_dbc::system_utils::safePrint("DDL", "Dropping test_orders...");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Dropping test_orders...");
     conn->executeUpdate("DROP TABLE IF EXISTS test_orders");
-    cpp_dbc::system_utils::safePrint("DDL", "✓ test_orders dropped successfully");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ test_orders dropped successfully");
 
-    cpp_dbc::system_utils::safePrint("DDL", "Dropping test_customers...");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Dropping test_customers...");
     conn->executeUpdate("DROP TABLE IF EXISTS test_customers");
-    cpp_dbc::system_utils::safePrint("DDL", "✓ test_customers dropped successfully");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ test_customers dropped successfully");
 
-    cpp_dbc::system_utils::safePrint("DDL", "Dropping test_products...");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Dropping test_products...");
     conn->executeUpdate("DROP TABLE IF EXISTS test_products");
-    cpp_dbc::system_utils::safePrint("DDL", "✓ test_products dropped successfully");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ test_products dropped successfully");
 
-    cpp_dbc::system_utils::safePrint("DDL", "All tables dropped, starting CREATE TABLE operations");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "All tables dropped, starting CREATE TABLE operations");
 
     // Create test_customers table
-    cpp_dbc::system_utils::safePrint("DDL", "Creating test_customers table...");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Creating test_customers table...");
     conn->executeUpdate(
         "CREATE TABLE test_customers ("
         "customer_id INT PRIMARY KEY, "
@@ -95,10 +95,10 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
         "credit_limit DECIMAL(10,2), "
         "created_at DATETIME"
         ")");
-    cpp_dbc::system_utils::safePrint("DDL", "✓ test_customers table created successfully");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ test_customers table created successfully");
 
     // Create test_products table
-    cpp_dbc::system_utils::safePrint("DDL", "Creating test_products table...");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Creating test_products table...");
     conn->executeUpdate(
         "CREATE TABLE test_products ("
         "product_id INT PRIMARY KEY, "
@@ -108,10 +108,10 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
         "stock_quantity INT, "
         "is_active BOOLEAN"
         ")");
-    cpp_dbc::system_utils::safePrint("DDL", "✓ test_products table created successfully");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ test_products table created successfully");
 
     // Create test_orders table
-    cpp_dbc::system_utils::safePrint("DDL", "Creating test_orders table...");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Creating test_orders table...");
     conn->executeUpdate(
         "CREATE TABLE test_orders ("
         "order_id INT PRIMARY KEY, "
@@ -123,15 +123,15 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
         "FOREIGN KEY (customer_id) REFERENCES test_customers(customer_id), "
         "FOREIGN KEY (product_id) REFERENCES test_products(product_id)"
         ")");
-    cpp_dbc::system_utils::safePrint("DDL", "✓ test_orders table created successfully");
-    cpp_dbc::system_utils::safePrint("DDL", "All tables created, starting data insertion");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ test_orders table created successfully");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "All tables created, starting data insertion");
 
     // Insert data into test_customers
-    cpp_dbc::system_utils::safePrint("DDL", "Preparing INSERT statement for test_customers...");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Preparing INSERT statement for test_customers...");
     auto customerStmt = conn->prepareStatement(
         "INSERT INTO test_customers (customer_id, name, email, phone, credit_limit, created_at) "
         "VALUES (?, ?, ?, ?, ?, ?)");
-    cpp_dbc::system_utils::safePrint("DDL", "✓ test_customers INSERT statement prepared");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ test_customers INSERT statement prepared");
 
     // Insert 7 customers (some won't have orders)
     std::vector<std::pair<int, std::string>> customers = {
@@ -143,7 +143,7 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
         {6, "Eva Wilson"},
         {7, "Frank Miller"}};
 
-    cpp_dbc::system_utils::safePrint("DDL", "Inserting 7 customers into test_customers...");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Inserting 7 customers into test_customers...");
     for (const auto &customer : customers)
     {
         customerStmt->setInt(1, customer.first);
@@ -154,14 +154,14 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
         customerStmt->setTimestamp(6, "2023-01-" + std::to_string(customer.first + 10) + " 10:00:00");
         customerStmt->executeUpdate();
     }
-    cpp_dbc::system_utils::safePrint("DDL", "✓ All customers inserted successfully");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ All customers inserted successfully");
 
     // Insert data into test_products
-    cpp_dbc::system_utils::safePrint("DDL", "Preparing INSERT statement for test_products...");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Preparing INSERT statement for test_products...");
     auto productStmt = conn->prepareStatement(
         "INSERT INTO test_products (product_id, name, description, price, stock_quantity, is_active) "
         "VALUES (?, ?, ?, ?, ?, ?)");
-    cpp_dbc::system_utils::safePrint("DDL", "✓ test_products INSERT statement prepared");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ test_products INSERT statement prepared");
 
     // Insert 7 products (some won't be ordered)
     std::vector<std::tuple<int, std::string, double>> products = {
@@ -173,7 +173,7 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
         {106, "Keyboard", 49.99},
         {107, "Mouse", 29.99}};
 
-    cpp_dbc::system_utils::safePrint("DDL", "Inserting 7 products into test_products...");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Inserting 7 products into test_products...");
     for (const auto &product : products)
     {
         int id = std::get<0>(product);
@@ -188,14 +188,14 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
         productStmt->setBoolean(6, id % 2 == 1); // Odd IDs are active
         productStmt->executeUpdate();
     }
-    cpp_dbc::system_utils::safePrint("DDL", "✓ All products inserted successfully");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ All products inserted successfully");
 
     // Insert data into test_orders
-    cpp_dbc::system_utils::safePrint("DDL", "Preparing INSERT statement for test_orders...");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Preparing INSERT statement for test_orders...");
     auto orderStmt = conn->prepareStatement(
         "INSERT INTO test_orders (order_id, customer_id, product_id, quantity, total_price, order_date) "
         "VALUES (?, ?, ?, ?, ?, ?)");
-    cpp_dbc::system_utils::safePrint("DDL", "✓ test_orders INSERT statement prepared");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ test_orders INSERT statement prepared");
 
     // Insert 8 orders (some customers and products won't have orders)
     std::vector<std::tuple<int, int, int, int>> orders = {
@@ -208,7 +208,7 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
         {1007, 4, 102, 1},
         {1008, 5, 103, 1}};
 
-    cpp_dbc::system_utils::safePrint("DDL", "Inserting 8 orders into test_orders...");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Inserting 8 orders into test_orders...");
     for (const auto &order : orders)
     {
         int orderId = std::get<0>(order);
@@ -237,12 +237,12 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
         orderStmt->setTimestamp(6, "2023-02-" + std::to_string(orderId % 28 + 1) + " 14:30:00");
         orderStmt->executeUpdate();
     }
-    cpp_dbc::system_utils::safePrint("DDL", "✓ All orders inserted successfully");
-    cpp_dbc::system_utils::safePrint("DDL", "Database setup completed, ready for tests");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ All orders inserted successfully");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Database setup completed, ready for tests");
 
     SECTION("Basic FULL JOIN (emulated with UNION)")
     {
-        cpp_dbc::system_utils::safePrint("SECTION", "=== STARTING SECTION: Basic FULL JOIN ===");
+        cpp_dbc::system_utils::logWithTimesMillis("SECTION", "=== STARTING SECTION: Basic FULL JOIN ===");
         // Test FULL JOIN between customers and orders using UNION
         std::string query =
             "SELECT c.customer_id, c.name, o.order_id, o.total_price "
@@ -307,7 +307,7 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
 
     SECTION("FULL JOIN between products and orders (emulated with UNION)")
     {
-        cpp_dbc::system_utils::safePrint("SECTION", "=== STARTING SECTION: FULL JOIN between products and orders ===");
+        cpp_dbc::system_utils::logWithTimesMillis("SECTION", "=== STARTING SECTION: FULL JOIN between products and orders ===");
         // Test FULL JOIN between products and orders using UNION
         std::string query =
             "SELECT p.product_id, p.name, o.order_id, o.quantity "
@@ -372,7 +372,7 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
 
     SECTION("Three-table FULL JOIN (emulated with UNION)")
     {
-        cpp_dbc::system_utils::safePrint("SECTION", "=== STARTING SECTION: Three-table FULL JOIN ===");
+        cpp_dbc::system_utils::logWithTimesMillis("SECTION", "=== STARTING SECTION: Three-table FULL JOIN ===");
         // Test FULL JOIN across all three tables using UNION
         std::string query =
             "SELECT c.name as customer_name, p.name as product_name, o.quantity, o.total_price "
@@ -449,7 +449,7 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
 
     SECTION("FULL JOIN with WHERE clause (emulated with UNION)")
     {
-        cpp_dbc::system_utils::safePrint("SECTION", "=== STARTING SECTION: FULL JOIN with WHERE clause ===");
+        cpp_dbc::system_utils::logWithTimesMillis("SECTION", "=== STARTING SECTION: FULL JOIN with WHERE clause ===");
         // Test FULL JOIN with additional filtering
         std::string query =
             "SELECT c.name as customer_name, p.name as product_name, o.quantity, o.total_price "
@@ -524,7 +524,7 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
 
     SECTION("FULL JOIN with invalid column (emulated with UNION)")
     {
-        cpp_dbc::system_utils::safePrint("SECTION", "=== STARTING SECTION: FULL JOIN with invalid column ===");
+        cpp_dbc::system_utils::logWithTimesMillis("SECTION", "=== STARTING SECTION: FULL JOIN with invalid column ===");
         // Test FULL JOIN with an invalid column name
         std::string query =
             "SELECT c.customer_id, c.name, o.order_id, o.non_existent_column "
@@ -541,17 +541,17 @@ TEST_CASE("MySQL FULL JOIN operations (emulated)", "[20_101_01_mysql_real_full_j
     }
 
     // Clean up
-    cpp_dbc::system_utils::safePrint("DDL", "Starting cleanup - dropping all test tables");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Starting cleanup - dropping all test tables");
     conn->executeUpdate("DROP TABLE IF EXISTS test_orders");
-    cpp_dbc::system_utils::safePrint("DDL", "✓ test_orders dropped (cleanup)");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ test_orders dropped (cleanup)");
     conn->executeUpdate("DROP TABLE IF EXISTS test_products");
-    cpp_dbc::system_utils::safePrint("DDL", "✓ test_products dropped (cleanup)");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ test_products dropped (cleanup)");
     conn->executeUpdate("DROP TABLE IF EXISTS test_customers");
-    cpp_dbc::system_utils::safePrint("DDL", "✓ test_customers dropped (cleanup)");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ test_customers dropped (cleanup)");
 
     // Close the connection
-    cpp_dbc::system_utils::safePrint("DDL", "Closing database connection");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "Closing database connection");
     conn->close();
-    cpp_dbc::system_utils::safePrint("DDL", "✓ Connection closed, test complete");
+    cpp_dbc::system_utils::logWithTimesMillis("DDL", "✓ Connection closed, test complete");
 }
 #endif

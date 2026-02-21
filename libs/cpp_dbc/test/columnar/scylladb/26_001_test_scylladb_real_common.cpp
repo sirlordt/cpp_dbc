@@ -18,6 +18,8 @@
 
 #include "26_001_test_scylladb_real_common.hpp"
 
+#include <cpp_dbc/common/system_utils.hpp>
+
 namespace scylla_test_helpers
 {
 
@@ -125,14 +127,14 @@ namespace scylla_test_helpers
             cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
             // Attempt to connect to ScyllaDB
-            std::cout << "Attempting to connect to ScyllaDB to create keyspace..." << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to ScyllaDB to create keyspace...");
             auto conn = cpp_dbc::DriverManager::getDBConnection(connStr, dbConfig.getUsername(), dbConfig.getPassword());
 
             // Execute the create keyspace query
-            std::cout << "Executing: " << createKeyspaceQuery << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Executing: " + createKeyspaceQuery);
             auto columnarConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(conn);
             columnarConn->executeUpdate(createKeyspaceQuery);
-            std::cout << "Keyspace creation successful or keyspace already exists!" << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Keyspace creation successful or keyspace already exists!");
 
             // Close the connection
             conn->close();
@@ -140,7 +142,7 @@ namespace scylla_test_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "Keyspace creation error: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Keyspace creation error: " + std::string(e.what()));
             return false;
         }
     }
@@ -152,7 +154,7 @@ namespace scylla_test_helpers
             // First, try to create the keyspace if it doesn't exist
             if (!tryCreateKeyspace())
             {
-                std::cerr << "Failed to create keyspace, but continuing with connection test..." << std::endl;
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Failed to create keyspace, but continuing with connection test...");
             }
 
             auto dbConfig = getScyllaConfig("dev_scylla");
@@ -165,15 +167,15 @@ namespace scylla_test_helpers
             cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
 
             // Attempt to connect to ScyllaDB
-            std::cout << "Attempting to connect to ScyllaDB with connection string: " << connStr << std::endl;
-            std::cout << "Username: " << dbConfig.getUsername() << ", Password: " << dbConfig.getPassword() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to ScyllaDB with connection string: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + dbConfig.getUsername() + ", Password: " + dbConfig.getPassword());
 
             auto conn = cpp_dbc::DriverManager::getDBConnection(connStr, dbConfig.getUsername(), dbConfig.getPassword());
 
             // If we get here, the connection was successful
             if (conn != nullptr)
             {
-                std::cout << "ScyllaDB connection successful!" << std::endl;
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "ScyllaDB connection successful!");
 
                 // Close the connection
                 conn->close();
@@ -183,7 +185,7 @@ namespace scylla_test_helpers
         }
         catch (const std::exception &e)
         {
-            std::cout << "Cannot connect to ScyllaDB: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Cannot connect to ScyllaDB: " + std::string(e.what()));
             return false;
         }
     }

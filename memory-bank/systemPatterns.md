@@ -133,7 +133,7 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - **Single Connection Mutex Model (Firebird):** All statement/result-set registry access uses a single shared `m_connMutex` — eliminates ABBA deadlock between separate registry mutexes and the connection mutex
 - **AtomicGuard<T> RAII:** `system_utils::AtomicGuard<T>` provides exception-safe management of `std::atomic<T>` flags (set on construction, restored on destruction, non-copyable)
 - **Pool Lock Order Rule:** Connection close operations must happen OUTSIDE pool locks. Pool locks (`m_mutexAllConnections`, `m_mutexIdleConnections`) are always acquired BEFORE per-connection mutex. Closing inside pool locks inverts this order → Helgrind LockOrder violation
-- **Printf-Style Debug Output:** All debug macros (`FIREBIRD_DEBUG`, `CP_DEBUG`) use printf-style format strings — `operator<<` is not atomic and causes interleaved output + Helgrind false positives under concurrency
+- **Printf-Style Debug Output / `logWithTimesMillis`:** All debug macros (`FIREBIRD_DEBUG`, `SQLITE_DEBUG`, `CP_DEBUG`) use `system_utils::logWithTimesMillis(prefix, msg)` which formats `[HH:MM:SS.mmm] [TID] [prefix] message` and writes atomically via `write()` — `operator<<` is not atomic and causes interleaved output + Helgrind false positives under concurrency
 - **`m_resetting` Anti-Deadlock Flag:** `FirebirdDBConnection::m_resetting` (`atomic<bool>`) signals `ResultSet::close()` to skip unregister during `closeAllActiveResultSets()` — prevents re-entrant lock acquisition through the close→unregister→lock cycle
 - **Nothrow API — Pure Virtual Base Class Pattern (2026-02-18):**
   - All nothrow methods in `DBConnection`, `DBResultSet`, and `RelationalDBConnection` are `= 0` pure virtual — no default implementations
@@ -177,6 +177,13 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Pool sets `m_poolAlive` to `false` in `close()` before cleanup
   - Prevents use-after-free when pool is destroyed while connections are in use
   - Graceful handling of connection return when pool is already closed
+- **Direct Handoff (RelationalDBConnectionPool, 2026-02-21):**
+  - `ConnectionRequest` struct + `m_waitQueue` (`std::deque<ConnectionRequest*>`) for zero-race connection handoff
+  - On `returnConnection()`: if `m_waitQueue` is non-empty, connection is assigned directly to the first waiter's `ConnectionRequest::conn` field and `fulfilled = true` — no idle queue push, no race
+  - On `getRelationalDBConnection()`: if pool is full, push a stack-local `ConnectionRequest` into `m_waitQueue` and wait on `m_connectionAvailable` CV, then check `request.fulfilled`
+  - Single `m_mutexPool` for all pool state (removed `m_mutexGetConnection`)
+  - Eliminates "stolen wakeup": returning thread cannot re-borrow the connection it just assigned to a waiter
+  - All `notify_one()` / `notify_all()` calls inside `m_mutexPool` lock for Helgrind correctness
 - Deadlock prevention with `std::scoped_lock`:
   - All connection pool implementations use `std::scoped_lock` for consistent lock ordering
   - Prevents deadlock when acquiring multiple mutexes (`m_mutexAllConnections` and `m_mutexIdleConnections`)
