@@ -125,12 +125,12 @@ namespace sqlite_test_helpers
             cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
             // Attempt to connect to SQLite
-            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Attempting to connect to SQLite with connection string: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to SQLite with connection string: " + connStr);
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
 
             // If we get here, the connection was successful
-            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "SQLite connection successful!");
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite connection successful!");
 
             // Execute a simple query to verify the connection
             auto resultSet = conn->executeQuery("SELECT 1 as test_value");
@@ -143,7 +143,7 @@ namespace sqlite_test_helpers
         }
         catch (const std::exception &e)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", std::string("SQLite connection error: ") + e.what());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", std::string("SQLite connection error: ") + e.what());
             return false;
         }
     }
@@ -158,14 +158,14 @@ namespace sqlite_test_helpers
             std::scoped_lock lock(s_cleanupMutex);
             if (s_cleanedPaths.count(dbPath) > 0)
             {
-                cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "=== SQLite cleanup skipped (already done for: " + dbPath + ") ===");
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "=== SQLite cleanup skipped (already done for: " + dbPath + ") ===");
                 return;
             }
             s_cleanedPaths.insert(dbPath);
         }
 
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "=== Cleaning up SQLite database files ===");
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Database path: " + dbPath);
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "=== Cleaning up SQLite database files ===");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database path: " + dbPath);
 
         // Use error_code to avoid exceptions if files don't exist
         std::error_code ec;
@@ -174,7 +174,7 @@ namespace sqlite_test_helpers
         std::filesystem::remove(dbPath, ec);
         if (!ec)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  [OK] Removed: " + dbPath);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  [OK] Removed: " + dbPath);
         }
 
         // Remove WAL (Write-Ahead Log) file
@@ -182,7 +182,7 @@ namespace sqlite_test_helpers
         std::filesystem::remove(walPath, ec);
         if (!ec)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  [OK] Removed: " + walPath);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  [OK] Removed: " + walPath);
         }
 
         // Remove shared memory file
@@ -190,7 +190,7 @@ namespace sqlite_test_helpers
         std::filesystem::remove(shmPath, ec);
         if (!ec)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  [OK] Removed: " + shmPath);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  [OK] Removed: " + shmPath);
         }
 
         // Remove journal file (used in non-WAL mode)
@@ -198,14 +198,14 @@ namespace sqlite_test_helpers
         std::filesystem::remove(journalPath, ec);
         if (!ec)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  [OK] Removed: " + journalPath);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  [OK] Removed: " + journalPath);
         }
 
         // Wait for filesystem buffers to flush and locks to release
         // This is CRITICAL under Helgrind/Valgrind where everything is slower
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Waiting " + std::to_string(waitSeconds) + " seconds for filesystem buffers to flush and locks to release...");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Waiting " + std::to_string(waitSeconds) + " seconds for filesystem buffers to flush and locks to release...");
         std::this_thread::sleep_for(std::chrono::seconds(waitSeconds));
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "=== SQLite cleanup completed ===");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "=== SQLite cleanup completed ===");
     }
 
 #endif

@@ -181,7 +181,7 @@ TEST_CASE("Firebird TransactionManager multi-threaded tests", "[23_131_02_firebi
                         successCount++;
                     }
                     catch (const std::exception& e) {
-                        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Firebird thread operation failed: " + std::string(e.what()));
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Firebird thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }

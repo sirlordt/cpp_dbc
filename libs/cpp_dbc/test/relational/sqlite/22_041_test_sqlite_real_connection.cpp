@@ -51,7 +51,7 @@ TEST_CASE("SQLite connection test", "[22_041_01_sqlite_real_connection]")
         try
         {
             // Attempt to connect to SQLite
-            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Attempting to connect to SQLite with connection string: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to SQLite with connection string: " + connStr);
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
 
@@ -123,7 +123,7 @@ TEST_CASE("SQLite connection test", "[22_041_01_sqlite_real_connection]")
         catch (const cpp_dbc::DBException &e)
         {
             std::string errorMsg = e.what_s();
-            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "SQLite connection error: " + errorMsg);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite connection error: " + errorMsg);
             FAIL("SQLite connection failed: " + std::string(e.what_s()));
         }
     }
@@ -183,7 +183,7 @@ TEST_CASE("SQLite in-memory database test", "[22_041_02_sqlite_real_connection]"
         catch (const cpp_dbc::DBException &e)
         {
             std::string errorMsg = e.what_s();
-            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "SQLite in-memory database error: " + errorMsg);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite in-memory database error: " + errorMsg);
             FAIL("SQLite in-memory database test failed: " + std::string(e.what_s()));
         }
     }

@@ -58,7 +58,7 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
     try
     {
         // Attempt to connect to SQLite
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Attempting to connect to SQLite with connection string: " + connStr);
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to SQLite with connection string: " + connStr);
 
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
 
@@ -462,7 +462,7 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
     catch (const cpp_dbc::DBException &e)
     {
         std::string errorMsg = e.what_s();
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "SQLite real database error: " + errorMsg);
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite real database error: " + errorMsg);
         FAIL("SQLite real database test failed: " + std::string(e.what_s()));
     }
 }

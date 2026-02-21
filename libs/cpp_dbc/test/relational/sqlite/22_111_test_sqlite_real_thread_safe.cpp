@@ -169,7 +169,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                         catch (const std::exception& e)
                         {
                             errorCount++;
-                            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(e.what()));
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(e.what()));
                         }
                     }
                     
@@ -178,7 +178,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                 catch (const std::exception& e)
                 {
                     errorCount += opsPerThread;
-                    cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Thread " + std::to_string(i) + " connection error: " + std::string(e.what()));
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection error: " + std::string(e.what()));
                 } });
         }
 
@@ -195,7 +195,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
             t.join();
         }
 
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Multiple threads with individual connections: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Multiple threads with individual connections: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
         // Clean up
         // auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
@@ -288,7 +288,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                     catch (const std::exception& e)
                     {
                         errorCount++;
-                        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Thread " + std::to_string(i) + " error: " + std::string(e.what()));
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " error: " + std::string(e.what()));
                     }
                 } });
         }
@@ -298,7 +298,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
             t.join();
         }
 
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Connection pool concurrent access: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection pool concurrent access: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
         // Clean up
         // auto cleanupConn = pool->getRelationalDBConnection();
@@ -402,7 +402,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
             t.join();
         }
 
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Concurrent read operations: " + std::to_string(readCount) + " reads, " + std::to_string(errorCount) + " errors");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Concurrent read operations: " + std::to_string(readCount) + " reads, " + std::to_string(errorCount) + " errors");
 
         // Clean up
         // auto cleanupConn = pool->getRelationalDBConnection();
@@ -541,14 +541,14 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "High concurrency stress test completed in " + std::to_string(duration) + " ms");
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  Inserts: " + std::to_string(insertCount));
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  Selects: " + std::to_string(selectCount));
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  Updates: " + std::to_string(updateCount));
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  Errors: " + std::to_string(errorCount));
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "High concurrency stress test completed in " + std::to_string(duration) + " ms");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Inserts: " + std::to_string(insertCount));
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Selects: " + std::to_string(selectCount));
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Updates: " + std::to_string(updateCount));
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Errors: " + std::to_string(errorCount));
         if (duration > 0)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "  Operations per second: " + std::to_string((insertCount + selectCount + updateCount) * 1000.0 / static_cast<double>(duration)));
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Operations per second: " + std::to_string((insertCount + selectCount + updateCount) * 1000.0 / static_cast<double>(duration)));
         }
 
         // Clean up
@@ -596,7 +596,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                     catch (const std::exception& e)
                     {
                         errorCount++;
-                        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", std::string("Connection error: ") + e.what());
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", std::string("Connection error: ") + e.what());
                     }
                 } });
         }
@@ -606,7 +606,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
             t.join();
         }
 
-        cpp_dbc::system_utils::logWithTimesMillis("[TEST]", "Rapid connection test: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Rapid connection test: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
         REQUIRE(successCount > numThreads * connectionsPerThread * 0.9); // At least 90% success rate
     }
