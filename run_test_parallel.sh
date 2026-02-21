@@ -1343,6 +1343,56 @@ display_detailed_summary() {
     echo ""
 }
 
+# Display Valgrind/Helgrind ERROR SUMMARY lines that have suppressed > 0.
+# Shows one entry per log file (the last occurrence, which belongs to the last
+# Helgrind process that ran in that file).  Only prints the section when at
+# least one file has suppressions.
+display_valgrind_suppression_summary() {
+    local has_any=false
+    local -a entries=()
+
+    while IFS= read -r log_file; do
+        local rel_path="${log_file#$SCRIPT_DIR/}"
+        local last_line_num=""
+        local last_content=""
+
+        # Keep only the last ERROR SUMMARY line with suppressed > 0
+        while IFS=: read -r line_num content; do
+            last_line_num="$line_num"
+            last_content=$(echo "$content" | sed 's/^==[0-9]*== //')
+        done < <(grep -n "ERROR SUMMARY:.*suppressed: [1-9]" "$log_file" 2>/dev/null)
+
+        if [ -n "$last_line_num" ]; then
+            has_any=true
+            entries+=("  ${last_content} => ${rel_path}:${last_line_num}")
+        fi
+    done < <(find "$LOG_DIR" -maxdepth 1 -name "*_RUN*.log" -type f | sort)
+
+    [ "$has_any" = false ] && return
+
+    echo ""
+    echo -e "${YELLOW}========================================"
+    echo -e "  Valgrind Suppression Summary"
+    echo -e "========================================${NC}"
+    for entry in "${entries[@]}"; do
+        echo "$entry"
+    done
+    echo ""
+}
+
+# Save the timing + suppression report to $LOG_DIR/final_report.log (no ANSI).
+save_report_to_file() {
+    local report_file="$LOG_DIR/final_report.log"
+    {
+        echo "Test Run Report - $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "Log directory: $LOG_DIR/"
+        echo ""
+        display_detailed_summary
+        display_valgrind_suppression_summary
+    } 2>&1 | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g; s/\x1B\[[@-~]//g; s/\x1B[()][0-9A-Za-z]//g; s/\r//g" > "$report_file"
+    echo "Final report saved to: ${report_file#$SCRIPT_DIR/}"
+}
+
 # ============================================================================
 # Summarize Mode Functions
 # ============================================================================
@@ -1613,6 +1663,9 @@ run_summarize_mode() {
         echo "Summary: $completed passed, $failed failed"
     fi
     echo ""
+
+    display_valgrind_suppression_summary
+    save_report_to_file
 }
 
 # ============================================================================
@@ -2425,6 +2478,9 @@ run_parallel_tests_tui() {
     echo "Logs saved in: $LOG_DIR/"
     echo ""
 
+    display_valgrind_suppression_summary
+    save_report_to_file
+
     if [ $failed -gt 0 ]; then
         exit 1
     fi
@@ -2871,6 +2927,9 @@ run_parallel_tests_simple() {
     echo "Total time: $total_elapsed_str"
     echo "Logs saved in: $LOG_DIR/"
     echo ""
+
+    display_valgrind_suppression_summary
+    save_report_to_file
 
     if [ $failed -gt 0 ]; then
         exit 1

@@ -187,7 +187,7 @@ namespace cpp_dbc
     };
 
     // RelationalPooledDBConnection wraps a physical relational database connection
-    class RelationalPooledDBConnection : public DBConnectionPooled, public RelationalDBConnection, public std::enable_shared_from_this<RelationalPooledDBConnection>
+    class RelationalPooledDBConnection final : public DBConnectionPooled, public RelationalDBConnection, public std::enable_shared_from_this<RelationalPooledDBConnection>
     {
     private:
         std::shared_ptr<RelationalDBConnection> m_conn;
@@ -215,6 +215,13 @@ namespace cpp_dbc
             std::scoped_lock<std::mutex> lock(m_lastUsedTimeMutex);
             m_lastUsedTime = std::chrono::steady_clock::now();
         }
+
+    protected:
+        // Pool lifecycle overrides - only callable by RelationalDBConnectionPool (declared as friend).
+        void prepareForPoolReturn() override;
+        void prepareForBorrow() override;
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
     public:
         RelationalPooledDBConnection(std::shared_ptr<RelationalDBConnection> conn,
@@ -247,9 +254,6 @@ namespace cpp_dbc
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
-        void prepareForPoolReturn() override;
-        void prepareForBorrow() override;
-
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -274,8 +278,6 @@ namespace cpp_dbc
         cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
         // DBConnectionPooled interface methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const override;
@@ -293,7 +295,7 @@ namespace cpp_dbc
     // Specialized connection pools for MySQL, PostgreSQL, SQLite, and Firebird
     namespace MySQL
     {
-        class MySQLConnectionPool : public RelationalDBConnectionPool
+        class MySQLConnectionPool final : public RelationalDBConnectionPool
         {
         public:
             // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
@@ -314,7 +316,7 @@ namespace cpp_dbc
 
     namespace PostgreSQL
     {
-        class PostgreSQLConnectionPool : public RelationalDBConnectionPool
+        class PostgreSQLConnectionPool final : public RelationalDBConnectionPool
         {
         public:
             // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
@@ -335,7 +337,7 @@ namespace cpp_dbc
 
     namespace SQLite
     {
-        class SQLiteConnectionPool : public RelationalDBConnectionPool
+        class SQLiteConnectionPool final : public RelationalDBConnectionPool
         {
         public:
             // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
@@ -356,7 +358,7 @@ namespace cpp_dbc
 
     namespace Firebird
     {
-        class FirebirdConnectionPool : public RelationalDBConnectionPool
+        class FirebirdConnectionPool final : public RelationalDBConnectionPool
         {
         public:
             // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern

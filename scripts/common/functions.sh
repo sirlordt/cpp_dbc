@@ -433,3 +433,211 @@ print_header() {
     echo -e "${BOLD}${title}${NC}"
     print_line "="
 }
+
+# ============================================================================
+# Docker DB Container Management Functions
+# ============================================================================
+
+# Get Docker detection info for a DB driver
+# Arguments:
+#   $1 - driver name (mysql, postgres, mongodb, redis, scylladb, firebird)
+# Output: "IMAGE_KEYWORD:STANDARD_PORT" or empty string if not supported
+# Usage:
+#   info=$(get_driver_docker_info "mysql")  # Returns "mysql:3306"
+get_driver_docker_info() {
+    local driver="$1"
+    case "$driver" in
+        mysql)      echo "mysql:3306"    ;;
+        postgres)   echo "postgres:5432" ;;
+        mongodb)    echo "mongo:27017"   ;;
+        redis)      echo "redis:6379"    ;;
+        scylladb)   echo "scylla:9042"   ;;
+        firebird)   echo "firebird:3050" ;;
+        *)          echo "" ;;
+    esac
+}
+
+# Find a Docker container for a given DB driver.
+# Matching strategy:
+#   1. Primary: match by port mapping "127.0.0.1:PORT->" (most reliable,
+#      handles custom image names like ubuntu-22-04-redis)
+#   2. Fallback: match by image name keyword (for non-standard port setups)
+# Arguments:
+#   $1 - driver name (mysql, postgres, mongodb, redis, scylladb, firebird)
+# Output: container name (stdout) if found
+# Returns: 0 if found, 1 if not found
+# Usage:
+#   container=$(find_db_container "mysql") && echo "Found: $container"
+find_db_container() {
+    local driver="$1"
+    local driver_info
+    driver_info=$(get_driver_docker_info "$driver")
+    if [ -z "$driver_info" ]; then
+        return 1
+    fi
+
+    local image_keyword="${driver_info%%:*}"
+    local port="${driver_info##*:}"
+
+    # Primary: match by port mapping (works even with custom image names)
+    local container
+    container=$(docker ps -a --format "{{.Names}}\t{{.Ports}}" 2>/dev/null \
+        | awk -F'\t' -v p="$port" '$2 ~ "127\\.0\\.0\\.1:"p"->" {print $1}' \
+        | head -1)
+
+    if [ -n "$container" ]; then
+        echo "$container"
+        return 0
+    fi
+
+    # Fallback: match by image name keyword
+    container=$(docker ps -a --format "{{.Names}}\t{{.Image}}" 2>/dev/null \
+        | awk -F'\t' -v img="$image_keyword" 'tolower($2) ~ img {print $1}' \
+        | head -1)
+
+    if [ -n "$container" ]; then
+        echo "$container"
+        return 0
+    fi
+
+    return 1
+}
+
+# Wait for a Docker container to be running and healthy.
+# Polls docker inspect every second without hardcoded sleep times.
+# For containers with a healthcheck: waits for health == "healthy".
+# For containers without a healthcheck: "running" state is sufficient.
+# Prints one dot per second while waiting (inline, no newline).
+# Sets global WAIT_ELAPSED_SECONDS to the actual wait time on return.
+# Arguments:
+#   $1 - container name
+#   $2 - max wait in seconds (default: 120)
+# Returns: 0 if ready, 1 if timed out
+# Usage:
+#   printf "Waiting... "
+#   if wait_for_container "my_container" 120; then
+#       echo " ready (${WAIT_ELAPSED_SECONDS}s)"
+#   fi
+WAIT_ELAPSED_SECONDS=0
+wait_for_container() {
+    local container="$1"
+    local max_wait="${2:-120}"
+    WAIT_ELAPSED_SECONDS=0
+
+    while [ "$WAIT_ELAPSED_SECONDS" -lt "$max_wait" ]; do
+        local status health
+        status=$(docker inspect --format='{{.State.Status}}' "$container" 2>/dev/null)
+        health=$(docker inspect \
+            --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
+            "$container" 2>/dev/null)
+
+        if [ "$status" = "running" ]; then
+            if [ "$health" = "none" ] || [ "$health" = "healthy" ]; then
+                return 0
+            fi
+        fi
+
+        printf "."
+        sleep 1
+        ((WAIT_ELAPSED_SECONDS++))
+    done
+
+    return 1
+}
+
+# Restart Docker containers for the enabled DB drivers before running tests.
+# - Checks Docker availability and user access privileges.
+# - For each driver, finds the matching container by port then by image name.
+# - If no container found for a driver: prints a warning and continues.
+# - Restarts all found containers, then waits for each to be ready.
+# - Intended to run BEFORE the TUI or test execution starts.
+# Arguments:
+#   $@ - enabled driver names (e.g., mysql postgres mongodb redis scylladb firebird)
+#        SQLite is automatically skipped (no container needed).
+# Usage:
+#   restart_db_containers_for_test mysql postgres mongodb
+restart_db_containers_for_test() {
+    local -a drivers=("$@")
+    if [ ${#drivers[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    # Check Docker availability
+    if ! command -v docker &>/dev/null; then
+        print_warning "Docker not found — skipping DB container restart."
+        return 0
+    fi
+
+    # Check Docker access privileges (non-fatal)
+    if ! docker ps &>/dev/null 2>&1; then
+        print_warning "Cannot access Docker (no permissions?) — skipping DB container restart."
+        return 0
+    fi
+
+    print_header "DB Container Restart"
+
+    local -a containers_to_restart=()
+    local -a driver_labels=()
+
+    for driver in "${drivers[@]}"; do
+        [ "$driver" = "sqlite" ] && continue  # No container needed for SQLite
+
+        local container
+        container=$(find_db_container "$driver")
+        if [ -n "$container" ]; then
+            print_info "  [${driver}] Found container: ${container}"
+            containers_to_restart+=("$container")
+            driver_labels+=("$driver")
+        else
+            print_warning "  [${driver}] No local Docker container found — skipping (tests may fail to connect)"
+        fi
+    done
+
+    if [ ${#containers_to_restart[@]} -eq 0 ]; then
+        echo ""
+        print_warning "No DB containers found to restart. Continuing with tests."
+        echo ""
+        return 0
+    fi
+
+    echo ""
+    print_info "Restarting ${#containers_to_restart[@]} container(s)..."
+    echo ""
+
+    for i in "${!containers_to_restart[@]}"; do
+        local container="${containers_to_restart[$i]}"
+        local label="${driver_labels[$i]}"
+        printf "  %-12s %-52s " "[${label}]" "${container}"
+        if docker restart "$container" >/dev/null 2>&1; then
+            echo -e "${GREEN}restarted${NC}"
+        else
+            echo -e "${RED}FAILED to restart${NC}"
+        fi
+    done
+
+    echo ""
+    print_info "Waiting for containers to be ready (polling state, no fixed delays)..."
+    echo ""
+
+    local all_ready=true
+    for i in "${!containers_to_restart[@]}"; do
+        local container="${containers_to_restart[$i]}"
+        local label="${driver_labels[$i]}"
+        printf "  %-12s %-52s " "[${label}]" "${container}"
+        if wait_for_container "$container" 120; then
+            echo -e " ${GREEN}ready${NC} (${WAIT_ELAPSED_SECONDS}s)"
+        else
+            echo -e " ${YELLOW}TIMEOUT${NC} (${WAIT_ELAPSED_SECONDS}s — proceeding anyway)"
+            all_ready=false
+        fi
+    done
+
+    echo ""
+    if [ "$all_ready" = true ]; then
+        print_success "All DB containers are ready."
+    else
+        print_warning "Some containers may not be fully ready. Proceeding with tests anyway."
+    fi
+    print_line "-"
+    echo ""
+}

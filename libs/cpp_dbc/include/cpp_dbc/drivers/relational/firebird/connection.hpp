@@ -94,6 +94,13 @@ namespace cpp_dbc::Firebird
          */
         uint64_t executeCreateDatabase(const std::string &sql);
 
+    protected:
+        // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
+        void prepareForPoolReturn() override;
+        void prepareForBorrow() override;
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
+
     public:
 #if DB_DRIVER_THREAD_SAFE
         /**
@@ -142,8 +149,6 @@ namespace cpp_dbc::Firebird
 
         void commit() override;
         void rollback() override;
-        void prepareForPoolReturn() override;
-        void prepareForBorrow() override;
 
         // Transaction isolation level methods
         void setTransactionIsolation(TransactionIsolationLevel level) override;
@@ -218,12 +223,6 @@ namespace cpp_dbc::Firebird
 
         cpp_dbc::expected<std::string, DBException>
             getURL(std::nothrow_t) const noexcept override;
-
-        cpp_dbc::expected<void, DBException>
-            prepareForPoolReturn(std::nothrow_t) noexcept override;
-
-        cpp_dbc::expected<void, DBException>
-            prepareForBorrow(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::Firebird

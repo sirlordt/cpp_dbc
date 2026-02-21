@@ -45,6 +45,18 @@ This document describes the relationships and call hierarchy between shell scrip
 │                                                                           │ │
 └───────────────────────────────────────────────────────────────────────────┘ │
                                                                               │
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        C++ CODE ANALYSIS TOOLS (standalone)                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   list_class.sh          List unique class names in files (no deps)          │
+│                                                                              │
+│   list_public_methods.sh Inspect a class's public interface (no deps)        │
+│                                                                              │
+│   list_class_usage.sh ──► list_public_methods.sh                             │
+│       Find call sites of a class's methods in target files                   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Script Categories
@@ -119,6 +131,11 @@ The `scripts/common/functions.sh` file is the **central location for all shared 
 | **Valgrind** | |
 | `check_valgrind_errors` | Check log file for Valgrind errors (silent) |
 | `check_valgrind_errors_verbose` | Check log file for Valgrind errors (with output) |
+| **Docker DB Container Management** | |
+| `get_driver_docker_info` | Returns `"IMAGE_KEYWORD:PORT"` for a given driver name |
+| `find_db_container` | Finds a Docker container for a driver (by port mapping, then image name) |
+| `wait_for_container` | Polls `docker inspect` until container is running/healthy (no fixed sleep) |
+| `restart_db_containers_for_test` | Restarts all DB containers for enabled drivers and waits for readiness |
 | **Print Utilities** | |
 | `print_color`, `print_success`, `print_error`, `print_warning`, `print_info` | Colored output helpers |
 | `print_line`, `print_header` | Formatting helpers |
@@ -148,7 +165,111 @@ When adding new functions to `scripts/common/functions.sh`:
 3. Use the guard pattern (already in place) to prevent multiple inclusions
 4. Test with all scripts that source it
 
-### 6. Utility Scripts (Root Level)
+### 6. C++ Code Analysis Scripts (Root Level)
+
+Standalone read-only tools for exploring the C++ codebase. They require only `python3`
+(standard library) and `bash`. No `pip3` installs, no side effects on the build.
+
+| Script | Purpose | Dependencies |
+|--------|---------|--------------|
+| `list_class.sh` | List all unique C++ class names found in a set of files | none |
+| `list_public_methods.sh` | Show the public interface of a single class (header + implementation locations) | none |
+| `list_class_usage.sh` | Find every call site of a class's public methods in target files | calls `list_public_methods.sh` |
+
+#### `list_class.sh` — Enumerate classes in files
+
+```bash
+# All *.cpp files under a directory (quote the glob)
+./list_class.sh --folder="./libs/cpp_dbc/src/drivers/*.cpp"
+
+# All *.hpp header files
+./list_class.sh --folder="./libs/cpp_dbc/include/*.hpp"
+
+# Whole directory (searches *.cpp, *.hpp, *.h recursively)
+./list_class.sh --folder=./libs/cpp_dbc/src/
+```
+
+**Output**: `Classes found (N unique · M files searched):` followed by a comma-separated list.
+
+**Detection strategy**:
+- `class/struct Name` declarations (any file type)
+- `ClassName::` implementation markers (UpperCamelCase, 3+ chars)
+- Namespace names (from `namespace X` declarations) are automatically subtracted
+  to prevent false positives like `MySQL`, `Firebird`, `cpp_dbc`
+
+---
+
+#### `list_public_methods.sh` — Inspect a class's public interface
+
+```bash
+# Default: structured output
+./list_public_methods.sh --class=RelationalDBConnectionPool
+
+# One-line signature format
+./list_public_methods.sh --class=MySQLDBConnection --output-format=lineal
+
+# Specify a different project root
+./list_public_methods.sh --class=DatabaseConfigManager --dir=/path/to/project
+```
+
+**Arguments**:
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--class=ClassName` | *(required)* | C++ class name to inspect |
+| `--dir=PATH` | script directory | Project root (where to search headers) |
+| `--output-format=structured` | default | Multi-field breakdown per method |
+| `--output-format=lineal` | | One-line signature per method |
+
+**Structured output sections** (in order):
+1. `ancestors:` — base classes with access specifier and header location
+2. `header:` — all public methods pointing to their `.hpp:line`
+3. `implementation:` — non-inline methods pointing to their `.cpp:line`
+
+**Method `Kind` values**: `constructor`, `destructor`, `factory` (static returning same type), `method`
+
+---
+
+#### `list_class_usage.sh` — Find call sites of a class's methods
+
+```bash
+# Single file
+./list_class_usage.sh --class=DatabaseConfigManager \
+    --file=libs/cpp_dbc/test/relational/firebird/23_001_test_firebird_real_common.cpp
+
+# Glob pattern (quote to prevent shell expansion)
+./list_class_usage.sh --class=DatabaseConfigManager --file="libs/cpp_dbc/test/*.cpp"
+
+# Whole directory
+./list_class_usage.sh --class=MySQLDBConnection --file=libs/cpp_dbc/test/
+```
+
+**Arguments**:
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--class=ClassName` | *(required)* | C++ class whose methods to search for |
+| `--file=PATH_OR_GLOB` | `.` | Files to search (quote globs) |
+| `--dir=PATH` | script directory | Project root for finding the class header |
+
+**Call patterns detected** (per method `m`):
+- `obj.m(` — instance call via dot
+- `ptr->m(` — pointer call via arrow
+- `Class::m(` — qualified / static call
+- `obj.m<` — template method call
+
+**Dependency**: internally calls `list_public_methods.sh` to discover the class's
+public method names, then searches for those names in the target files.
+
+#### Dependency diagram
+
+```text
+list_class_usage.sh
+    │
+    └──► list_public_methods.sh   (subprocess, structured output parsed for method names)
+```
+
+### 7. Utility Scripts (Root Level)
 
 | Script | Purpose | Called By |
 |--------|---------|-----------|
@@ -157,7 +278,7 @@ When adding new functions to `scripts/common/functions.sh`:
 | `update_extern.sh` | Update external dependencies | Manual usage |
 | `sonar_qube_issues_fetch.sh` | Fetch SonarQube issues | Manual usage |
 
-### 7. Example Scripts (`libs/cpp_dbc/examples/`)
+### 8. Example Scripts (`libs/cpp_dbc/examples/`)
 
 | Script | Purpose | Called By |
 |--------|---------|-----------|
@@ -188,7 +309,19 @@ helper.sh --run-build=OPTIONS
 ```text
 helper.sh --run-test=OPTIONS
     │
-    ├─► [if parallel=N] run_test_parallel.sh
+    ├─► [if Docker available + drivers enabled]
+    │   restart_db_containers_for_test()   ← runs BEFORE TUI, outside parallel runner
+    │       │
+    │       ├─► find_db_container() per driver (port mapping → image name fallback)
+    │       │     If no container found: WARNING printed, driver skipped (non-fatal)
+    │       │
+    │       ├─► docker restart <container> for each found container
+    │       │
+    │       └─► wait_for_container() per container (polls docker inspect, no fixed delays)
+    │             State: running + health=healthy|none → ready
+    │             Timeout 120s per container → WARNING, proceeds anyway
+    │
+    ├─► [if parallel=N] run_test_parallel.sh   ← TUI starts here
     │       │
     │       └─► run_test.sh (N parallel instances)
     │
@@ -204,6 +337,19 @@ helper.sh --run-test=OPTIONS
                     │
                     └─► ctest or direct test execution
 ```
+
+#### DB Container Restart Behavior
+
+| Condition | Behavior |
+|-----------|----------|
+| Docker not installed | Warning printed, restart skipped, tests continue |
+| No Docker access privileges | Warning printed, restart skipped, tests continue |
+| Container not found for a driver | Warning printed for that driver only, others proceed |
+| Container found | `docker restart` → poll `docker inspect` until running/healthy |
+| Container healthy healthcheck | Waits for `health == "healthy"` (up to 120s) |
+| Container without healthcheck | Waits for `status == "running"` (immediate in most cases) |
+| Container timeout (120s) | Warning printed, proceeds with tests anyway |
+| SQLite driver | Always skipped (no container, file-based DB) |
 
 ### Distribution Build Chain
 

@@ -2,9 +2,30 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. The relational connection pool now uses a direct handoff mechanism eliminating the "stolen wakeup" race. system_utils logging is zero-allocation and unified across all debug macros.
+The CPP_DBC library is in active development. Pool lifecycle methods are now encapsulated as `protected` behind `friend` declarations. A C++ code analysis toolset (4 scripts) enables test coverage reporting. Docker containers auto-restart before tests. Valgrind suppression summaries are saved as final reports.
 
-### Recent Improvements (2026-02-21)
+### Recent Improvements (2026-02-21 14:25 PST)
+
+**Pool Lifecycle API Hardening, C++ Code Analysis Toolset, Docker Container Auto-Restart, and Valgrind Suppression Report:**
+
+1. **Pool Lifecycle — Protected API + `final` classes:**
+   - `prepareForPoolReturn()`, `prepareForBorrow()` (and nothrow) moved to `protected` in `RelationalDBConnection`
+   - `friend class RelationalDBConnectionPool` + `friend class RelationalPooledDBConnection` enforce access restriction
+   - All driver connection headers updated; pool classes marked `final`
+
+2. **C++ Code Analysis Toolset (4 new scripts):**
+   - `list_class.sh` — class name discovery; `list_public_methods.sh` — public interface inspection
+   - `list_class_usage.sh` — call site search; `test_coverage.sh` — per-class test coverage with presets
+
+3. **Docker DB Container Auto-Restart:**
+   - `helper.sh` tracks enabled drivers and calls `restart_db_containers_for_test()` before tests
+   - 4 new functions in `scripts/common/functions.sh` (port-first detection, polling wait, graceful skip)
+
+4. **Valgrind Suppression Summary:**
+   - `display_valgrind_suppression_summary()` + `save_report_to_file()` in `run_test_parallel.sh`
+   - Report written to `$LOG_DIR/final_report.log` at end of every run mode
+
+### Previous Improvements (2026-02-21 02:48 PST)
 
 **Direct Handoff Connection Pool, system_utils Performance Refactoring, and Debug Macro Unification:**
 

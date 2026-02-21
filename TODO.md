@@ -1,8 +1,6 @@
 # TODO
 
 ## Pending Tasks
-
-- Create a simple script to detect public method a class and check a bunch of .cpp test case and report if a method not found in the test code.
 - NEW FEATURE: Add more examples.
 - NEW FEATURE: Add more debug messages?
 - PLANNED: Start to using in real project and test how easy is integrate in third party project. Maybe write an INTEGRATION.md to explain how full integrate in a real project.
@@ -13,6 +11,13 @@
    - Clickhouse?
 
 ## Completed Tasks
+
+- Pool Lifecycle API Hardening, C++ Code Analysis Toolset, Docker Container Auto-Restart, and Valgrind Suppression Report (2026-02-21):
+  - Moved `prepareForPoolReturn()` / `prepareForBorrow()` (and nothrow) to `protected` in `RelationalDBConnection` with `friend` declarations
+  - Added 4 C++ code analysis scripts: `list_class.sh`, `list_public_methods.sh`, `list_class_usage.sh`, `test_coverage.sh`
+  - Resolved TODO: "Create a simple script to detect public method a class and check a bunch of .cpp test case and report if a method not found in the test code" → `test_coverage.sh` + supporting scripts
+  - Added Docker container auto-restart before tests via 4 new functions in `scripts/common/functions.sh`
+  - Added `display_valgrind_suppression_summary()` and `save_report_to_file()` to `run_test_parallel.sh`
 
 - Direct Handoff Connection Pool + system_utils Performance Refactoring (2026-02-21):
   - Replaced 2-mutex borrow model (`m_mutexGetConnection` + `m_mutexPool`) with single `m_mutexPool`

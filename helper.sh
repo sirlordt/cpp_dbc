@@ -333,6 +333,8 @@ cmd_run_test() {
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
   # Get current directory
   local current_dir=$(pwd)
+  # Track DB drivers explicitly enabled by the user (used for container restart)
+  local -a enabled_db_drivers=()
 
   # Check if parallel mode is requested
   local parallel_count=0
@@ -410,27 +412,34 @@ cmd_run_test() {
           ;;
         sqlite)
           run_test_cmd="$run_test_cmd --sqlite"
+          enabled_db_drivers+=("sqlite")
           ;;
         firebird)
           run_test_cmd="$run_test_cmd --firebird"
+          enabled_db_drivers+=("firebird")
           ;;
         mongodb)
           run_test_cmd="$run_test_cmd --mongodb"
+          enabled_db_drivers+=("mongodb")
           ;;
         scylladb)
           run_test_cmd="$run_test_cmd --scylladb"
+          enabled_db_drivers+=("scylladb")
           ;;
         redis)
           run_test_cmd="$run_test_cmd --redis"
+          enabled_db_drivers+=("redis")
           ;;
         mysql)
           run_test_cmd="$run_test_cmd --mysql"
+          enabled_db_drivers+=("mysql")
           ;;
         mysql-off)
           run_test_cmd="$run_test_cmd --mysql-off"
           ;;
         postgres)
           run_test_cmd="$run_test_cmd --postgres"
+          enabled_db_drivers+=("postgres")
           ;;
         valgrind)
           run_test_cmd="$run_test_cmd --valgrind"
@@ -546,6 +555,12 @@ cmd_run_test() {
     echo "Debug: Final test tags: '$test_tags'"
     run_test_cmd="$run_test_cmd --run-test=$test_tags"
     echo "Setting test tags to: $test_tags"
+  fi
+
+  # Restart DB containers for enabled drivers before any test execution.
+  # This runs outside the TUI so output is clear and sequential.
+  if [ ${#enabled_db_drivers[@]} -gt 0 ]; then
+    restart_db_containers_for_test "${enabled_db_drivers[@]}"
   fi
 
   # If parallel mode is enabled, use the parallel runner

@@ -1,6 +1,105 @@
 # Changelog
 
-## 2026-02-21 02:48:55 PST [Current]
+## 2026-02-21 14:25:02 PST [Current]
+
+### Pool Lifecycle API Hardening, C++ Code Analysis Toolset, Docker Container Auto-Restart, and Valgrind Suppression Report
+
+#### RelationalDBConnection — Pool Lifecycle Methods Moved to Protected
+
+`prepareForPoolReturn()`, `prepareForBorrow()`, and their nothrow versions were public virtual methods, making them part of the library's external API despite being exclusively an internal pool concern. They are now `protected`:
+
+- Forward declarations for `RelationalDBConnectionPool` and `RelationalPooledDBConnection` added to `relational_db_connection.hpp` so the base class can declare them as `friend`s
+- `friend class RelationalDBConnectionPool` and `friend class RelationalPooledDBConnection` added to `RelationalDBConnection` — only these two classes can call the pool lifecycle methods
+- All four driver connection headers (MySQL, PostgreSQL, SQLite, Firebird) updated: lifecycle overrides moved from the `public` section to a new `protected` section with a clarifying comment
+- `RelationalPooledDBConnection` pool lifecycle overrides similarly moved to `protected`
+- `RelationalPooledDBConnection`, `MySQLConnectionPool`, `PostgreSQLConnectionPool`, `SQLiteConnectionPool`, `FirebirdConnectionPool` all marked `final` — removes virtual dispatch overhead and communicates intentional non-inheritance
+
+**Impact**: Code calling `conn->prepareForPoolReturn()` directly from outside pool infrastructure will now fail to compile — enforcing the intended encapsulation.
+
+#### C++ Code Analysis Toolset — 4 New Standalone Scripts
+
+Four new root-level scripts for exploring C++ codebases. All are read-only, require only `python3` (standard library) and `bash`, and have no side effects on the build.
+
+**`list_class.sh`** — List unique C++ class names in files
+
+```bash
+./list_class.sh --folder="./libs/cpp_dbc/src/drivers/*.cpp"
+./list_class.sh --folder=./libs/cpp_dbc/src/
+```
+
+Detects classes via `class/struct` declarations, `ClassName::` implementation markers, and subtracts namespace names to avoid false positives.
+
+**`list_public_methods.sh`** — Inspect a class's public interface
+
+```bash
+./list_public_methods.sh --class=RelationalDBConnectionPool
+./list_public_methods.sh --class=MySQLDBConnection --output-format=lineal
+```
+
+Outputs ancestors (with header location), public method declarations (`.hpp:line`), and implementation locations (`.cpp:line`). Structured or one-line format.
+
+**`list_class_usage.sh`** — Find call sites of a class's public methods
+
+```bash
+./list_class_usage.sh --class=DatabaseConfigManager --file="libs/cpp_dbc/test/*.cpp"
+./list_class_usage.sh --class=MySQLDBConnection --file=libs/cpp_dbc/test/
+```
+
+Delegates method discovery to `list_public_methods.sh`, then searches target files for `.method(`, `->method(`, `Class::method(`, and template variants.
+
+**`test_coverage.sh`** — Analyze test coverage per C++ class
+
+```bash
+./test_coverage.sh --src=libs/cpp_dbc/include --test=libs/cpp_dbc/test
+./test_coverage.sh --check=db-driver
+./test_coverage.sh --check=db-pool --min-coverage=80
+```
+
+Processes multiple classes in parallel (`--workers=N`). Presets:
+- `db-driver` — all driver connection classes under `include/cpp_dbc/drivers`
+- `db-pool` — all `*DBConnectionPool` and `*PooledDBConnection` classes under `include/cpp_dbc/core`
+
+Options: `--min-coverage=N` (only show classes below N%), `--class=PATTERNS` (filter by name/glob), `--workers=N`.
+
+All four scripts documented in `libs/cpp_dbc/docs/shell_script_dependencies.md` under the new "C++ Code Analysis Scripts" section.
+
+#### Docker DB Container Auto-Restart Before Tests
+
+`helper.sh` now restarts relevant database containers before any test execution, ensuring a clean container state each run.
+
+**`helper.sh` changes:**
+- Added `enabled_db_drivers` array populated as driver flags are parsed (sqlite, firebird, mongodb, scylladb, redis, mysql, postgres)
+- After option parsing, calls `restart_db_containers_for_test "${enabled_db_drivers[@]}"` — runs **outside** the TUI so output is sequential and readable
+
+**`scripts/common/functions.sh` — 4 new Docker functions:**
+
+| Function | Purpose |
+|----------|---------|
+| `get_driver_docker_info driver` | Returns `"IMAGE_KEYWORD:PORT"` (e.g. `"mysql:3306"`) |
+| `find_db_container driver` | Finds container: primary by port mapping `127.0.0.1:PORT->`, fallback by image name |
+| `wait_for_container container [max_s]` | Polls `docker inspect` every second; waits for `running`+`healthy` (or `running`+no-healthcheck); 120s default timeout; sets `WAIT_ELAPSED_SECONDS` |
+| `restart_db_containers_for_test drivers...` | Orchestrates restart: finds containers, runs `docker restart`, waits for readiness |
+
+**Graceful degradation:**
+- No Docker installed → warning, skip
+- No Docker access privileges → warning, skip
+- Container not found for a driver → warning for that driver only, others proceed
+- Container timeout → warning, tests continue anyway
+- SQLite always skipped (file-based, no container)
+
+#### Valgrind Suppression Summary and Final Report in `run_test_parallel.sh`
+
+Two new functions added to all three execution modes (TUI, simple, summarize):
+
+**`display_valgrind_suppression_summary()`**: Scans all `*_RUN*.log` files in `$LOG_DIR`; for each file that contains at least one `ERROR SUMMARY: ... suppressed: N>0` line, shows the last such line (the final Helgrind process result) with the file path and line number. Section printed only when at least one suppressed error exists.
+
+**`save_report_to_file()`**: Captures `display_detailed_summary` + `display_valgrind_suppression_summary` output (ANSI stripped) and writes it to `$LOG_DIR/final_report.log`. Useful for CI/CD artifact collection or post-run review.
+
+Both are called at the end of `run_parallel_tests_tui()`, `run_parallel_tests_simple()`, and `run_summarize_mode()`.
+
+---
+
+## 2026-02-21 02:48:55 PST
 
 ### Direct Handoff Connection Pool, system_utils Performance Refactoring, and Debug Macro Unification
 

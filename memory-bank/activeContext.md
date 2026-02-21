@@ -37,7 +37,27 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Direct Handoff Connection Pool, system_utils Performance Refactoring, and Debug Macro Unification** (2026-02-21 PST):
+1. **Pool Lifecycle API Hardening, C++ Code Analysis Toolset, Docker Container Auto-Restart, and Valgrind Suppression Report** (2026-02-21 14:25 PST):
+   - **Pool Lifecycle Methods — Protected API:**
+     - `prepareForPoolReturn()`, `prepareForBorrow()` (and nothrow versions) moved from `public` to `protected` in `RelationalDBConnection`
+     - Forward declarations + `friend class RelationalDBConnectionPool` / `friend class RelationalPooledDBConnection` added — only pool infrastructure can call lifecycle methods
+     - All four driver headers (MySQL, PostgreSQL, SQLite, Firebird) updated: lifecycle overrides moved to protected section
+     - `RelationalPooledDBConnection`, `MySQLConnectionPool`, `PostgreSQLConnectionPool`, `SQLiteConnectionPool`, `FirebirdConnectionPool` marked `final`
+   - **C++ Code Analysis Toolset (4 new standalone scripts):**
+     - `list_class.sh`: Lists unique C++ class names in files (Python3 + bash, no deps)
+     - `list_public_methods.sh`: Inspects a class's public interface (structured or lineal output)
+     - `list_class_usage.sh`: Finds all call sites of a class's public methods in target files
+     - `test_coverage.sh`: Analyzes test coverage per class; parallel workers; presets `--check=db-driver` / `--check=db-pool`
+   - **Docker DB Container Auto-Restart:**
+     - `helper.sh`: Tracks `enabled_db_drivers` array; calls `restart_db_containers_for_test()` before TUI/test execution
+     - `scripts/common/functions.sh`: 4 new functions (`get_driver_docker_info`, `find_db_container`, `wait_for_container`, `restart_db_containers_for_test`)
+     - SQLite always skipped; graceful degradation on missing Docker / missing container / timeout
+   - **Valgrind Suppression Summary:**
+     - `display_valgrind_suppression_summary()` + `save_report_to_file()` added to `run_test_parallel.sh`
+     - Called at end of TUI, simple, and summarize modes; report saved to `$LOG_DIR/final_report.log`
+   - **Documentation:** `shell_script_dependencies.md` updated with C++ analysis tools and Docker management sections
+
+2. **Direct Handoff Connection Pool, system_utils Performance Refactoring, and Debug Macro Unification** (2026-02-21 02:48 PST):
    - **RelationalDBConnectionPool — Direct Handoff:**
      - Removed `m_mutexGetConnection` (2 mutexes → 1 unified `m_mutexPool`)
      - Added `ConnectionRequest` struct + `m_waitQueue` (`std::deque`) for direct handoff: returned connections are assigned directly to waiting borrowers → eliminates "stolen wakeup" race

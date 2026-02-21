@@ -32,6 +32,9 @@
 
 namespace cpp_dbc
 {
+    // Forward declarations for pool classes that need access to pool lifecycle methods
+    class RelationalDBConnectionPool;
+    class RelationalPooledDBConnection;
 
     /**
      * @brief Abstract class for relational (SQL) database connections
@@ -68,6 +71,9 @@ namespace cpp_dbc
      */
     class RelationalDBConnection : public DBConnection
     {
+        friend class RelationalDBConnectionPool;
+        friend class RelationalPooledDBConnection;
+
     public:
         ~RelationalDBConnection() override = default;
 
@@ -176,42 +182,6 @@ namespace cpp_dbc
          */
         virtual void rollback() = 0;
 
-        /**
-         * @brief Prepare the connection for return to pool
-         *
-         * This method is called when a connection is returned to the pool.
-         * It should:
-         * - Close all active prepared statements and result sets
-         * - Rollback any active transaction
-         * - Reset auto-commit to true
-         */
-        // Previous default implementation (kept for reference):
-        // virtual void prepareForPoolReturn()
-        // {
-        //     auto txActive = transactionActive(std::nothrow);
-        //     if (txActive.has_value() && txActive.value())
-        //     {
-        //         rollback(std::nothrow);
-        //     }
-        //     setAutoCommit(std::nothrow, true);
-        // }
-        virtual void prepareForPoolReturn() = 0;
-
-        /**
-         * @brief Prepare the connection for borrowing from pool
-         *
-         * This method is called when a connection is borrowed from the pool.
-         * It ensures the connection has a fresh transaction snapshot for
-         * databases that use MVCC (like Firebird).
-         */
-        // Previous default implementation (kept for reference):
-        // virtual void prepareForBorrow()
-        // {
-        //     // Default: no-op for most databases
-        //     // Firebird overrides to ensure fresh transaction snapshot
-        // }
-        virtual void prepareForBorrow() = 0;
-
         // Transaction isolation level
         /**
          * @brief Set the transaction isolation level
@@ -317,22 +287,6 @@ namespace cpp_dbc
             rollback(std::nothrow_t) noexcept = 0;
 
         /**
-         * @brief Prepare the connection for return to pool (nothrow version)
-         * @param nothrow std::nothrow tag to indicate exception-free operation
-         * @return expected containing void on success, or DBException on failure
-         */
-        virtual cpp_dbc::expected<void, DBException>
-            prepareForPoolReturn(std::nothrow_t) noexcept = 0;
-
-        /**
-         * @brief Prepare the connection for borrowing from pool (nothrow version)
-         * @param nothrow std::nothrow tag to indicate exception-free operation
-         * @return expected containing void on success, or DBException on failure
-         */
-        virtual cpp_dbc::expected<void, DBException>
-            prepareForBorrow(std::nothrow_t) noexcept = 0;
-
-        /**
          * @brief Set the transaction isolation level (nothrow version)
          * @param nothrow std::nothrow tag to indicate exception-free operation
          * @param level The desired isolation level
@@ -348,6 +302,41 @@ namespace cpp_dbc
          */
         virtual cpp_dbc::expected<TransactionIsolationLevel, DBException>
             getTransactionIsolation(std::nothrow_t) noexcept = 0;
+    protected:
+        // Pool lifecycle methods - internal detail, not part of the public API.
+        // Only accessible by RelationalDBConnectionPool and RelationalPooledDBConnection (declared as friends above).
+
+        /**
+         * @brief Prepare the connection for return to pool
+         *
+         * Called when a connection is returned to the pool. Implementations should:
+         * - Close all active prepared statements and result sets
+         * - Rollback any active transaction
+         * - Reset auto-commit to true
+         */
+        virtual void prepareForPoolReturn() = 0;
+
+        /**
+         * @brief Prepare the connection for borrowing from pool
+         *
+         * Called when a connection is borrowed from the pool.
+         * Firebird overrides this to ensure a fresh MVCC transaction snapshot.
+         */
+        virtual void prepareForBorrow() = 0;
+
+        /**
+         * @brief Prepare the connection for return to pool (nothrow version)
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException>
+            prepareForPoolReturn(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Prepare the connection for borrowing from pool (nothrow version)
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException>
+            prepareForBorrow(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

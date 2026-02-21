@@ -147,6 +147,12 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
     ```
   - Connection pool wrappers (`*PooledDBConnection`) also override all nothrow pure virtuals
   - **Rule:** Base class nothrow methods returning "not implemented" errors are a smell — they allow silently broken drivers. Promote to `= 0` immediately.
+- **Pool Lifecycle Methods — Protected + Friend Pattern (2026-02-21):**
+  - `prepareForPoolReturn()`, `prepareForBorrow()` (and nothrow versions) are pool-internal lifecycle hooks — they must not be part of the public API
+  - Moved to `protected` in `RelationalDBConnection` with forward declarations + `friend class RelationalDBConnectionPool` / `friend class RelationalPooledDBConnection`
+  - All driver concrete classes (`MySQL`, `PostgreSQL`, `SQLite`, `Firebird`) override them in their `protected` section
+  - Pool concrete classes marked `final` — communicates intentional non-inheritance and removes virtual dispatch overhead
+  - **Rule:** Methods that are implementation details of a specific usage context (pool lifecycle) should be `protected` + accessed only through `friend` declarations, not exposed in the public API.
 
 ### Resource Management
 - Smart pointers are used for automatic resource management:
