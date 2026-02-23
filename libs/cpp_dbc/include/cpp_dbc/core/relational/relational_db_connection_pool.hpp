@@ -195,11 +195,12 @@ namespace cpp_dbc
         std::shared_ptr<std::atomic<bool>> m_poolAlive;   // Shared flag to check if pool is still alive
         std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
 
-        // CRITICAL FIX for Bug #2: Data race on m_lastUsedTime
-        // Protected by mutex since std::chrono::time_point is not guaranteed to be lock-free
+        // std::chrono::time_point is trivially copyable (wraps int64_t nanoseconds),
+        // so std::atomic<time_point> is lock-free on x86-64. Eliminates m_lastUsedTimeMutex.
         // See: libs/cpp_dbc/docs/bugs/firebird_helgrind_analysis.md (Context 1)
-        mutable std::mutex m_lastUsedTimeMutex;
-        std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
+        static_assert(std::atomic<std::chrono::steady_clock::time_point>::is_always_lock_free,
+                      "time_point atomic must be lock-free on this platform");
+        std::atomic<std::chrono::steady_clock::time_point> m_lastUsedTime;
 
         std::atomic<bool> m_active{false};
         std::atomic<bool> m_closed{false};
@@ -209,11 +210,10 @@ namespace cpp_dbc
         // Helper method to check if pool is still valid
         bool isPoolValid() const override;
 
-        // Helper method to safely update last used time (protects against data race)
-        inline void updateLastUsedTime()
+        // Helper method to safely update last used time
+        inline void updateLastUsedTime() noexcept
         {
-            std::scoped_lock<std::mutex> lock(m_lastUsedTimeMutex);
-            m_lastUsedTime = std::chrono::steady_clock::now();
+            m_lastUsedTime.store(std::chrono::steady_clock::now(), std::memory_order_relaxed);
         }
 
     protected:

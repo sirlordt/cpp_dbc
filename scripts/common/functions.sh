@@ -641,3 +641,141 @@ restart_db_containers_for_test() {
     print_line "-"
     echo ""
 }
+
+# ============================================================================
+# Test Completion Notification (Gotify / curl-based)
+# ============================================================================
+
+# Send a Gotify notification after tests complete.
+#
+# Reads NOTIFY_COMMAND from <project_root>/.env.secrets.
+# If the file is absent or NOTIFY_COMMAND is empty, returns silently.
+#
+# NOTIFY_COMMAND format (placeholders replaced before execution):
+#   curl "URL?token=TOKEN" -F "title=@__TITLE__@" -F "message=@__MESSAGE__@" -F "priority=N"
+#
+# Message format built from final_report.log (parallel runs):
+#   [PASSED]      10_ - 5 runs
+#   [PASSED]      20_ - 3 runs
+#   [FAILED]      20_ - run 4
+#   [INTERRUPTED] 21_ - run 3
+#
+# For non-parallel runs (no report file): single-line pass/fail summary.
+#
+# Arguments:
+#   $1 - project root directory (where .env.secrets lives)
+#   $2 - path to final_report.log (empty string for non-parallel runs)
+#   $3 - overall exit code (0 = success, non-zero = failure)
+# Usage:
+#   send_test_notification "$project_root" "$report_file" "$exit_code"
+send_test_notification() {
+    local project_root="$1"
+    local report_file="${2:-}"
+    local exit_code="${3:-0}"
+
+    # Load NOTIFY_COMMAND from .env.secrets
+    local secrets_file="$project_root/.env.secrets"
+    if [ ! -f "$secrets_file" ]; then
+        return 0
+    fi
+
+    # Extract NOTIFY_COMMAND value from file (supports unquoted values with spaces)
+    local NOTIFY_COMMAND
+    NOTIFY_COMMAND=$(grep '^NOTIFY_COMMAND=' "$secrets_file" | head -1 | sed 's/^NOTIFY_COMMAND=//')
+
+    if [ -z "$NOTIFY_COMMAND" ]; then
+        return 0
+    fi
+
+    # Check curl is available
+    if ! command -v curl &>/dev/null; then
+        print_warning "send_test_notification: curl not found, cannot send notification."
+        return 0
+    fi
+
+    # ── Build compact message from final_report.log (parallel mode) ──────────
+    local message=""
+    local has_failures=false
+    local has_interrupted=false
+
+    if [ -n "$report_file" ] && [ -f "$report_file" ]; then
+        while IFS= read -r line; do
+            # Parse compact summary lines (written at top of final_report.log)
+            # PASSED: [PASSED] 10_ - 5 run(s) or [PASSED] 10_ - 5 run(s) (with warnings)
+            if [[ "$line" =~ ^\[PASSED\]\ ([0-9]+_)\ -\ ([0-9]+)\ run ]]; then
+                local prefix="${BASH_REMATCH[1]}"
+                local runs="${BASH_REMATCH[2]}"
+                message+="[PASSED] ${prefix} - ${runs} run(s)"$'\n'
+
+            # FAILED: [FAILED] 20_ - Failed at run 4
+            elif [[ "$line" =~ ^\[FAILED\]\ ([0-9]+_)\ -\ Failed\ at\ run\ ([0-9]+) ]]; then
+                local prefix="${BASH_REMATCH[1]}"
+                local run_num="${BASH_REMATCH[2]}"
+                message+="[FAILED] ${prefix} - run ${run_num}"$'\n'
+                has_failures=true
+
+            # INTERRUPTED: [INTERRUPTED] 21_ - Stopped at run 3
+            elif [[ "$line" =~ ^\[INTERRUPTED\]\ ([0-9]+_)\ -\ Stopped\ at\ run\ ([0-9]+) ]]; then
+                local prefix="${BASH_REMATCH[1]}"
+                local run_num="${BASH_REMATCH[2]}"
+                message+="[INTERRUPTED] ${prefix} - run ${run_num}"$'\n'
+                has_interrupted=true
+
+            # Summary line: Summary: 7 passed, 1 failed (...)
+            elif [[ "$line" =~ ^Summary:\ [0-9] ]]; then
+                message+="$line"$'\n'
+
+            # Total time: 00:44:45
+            elif [[ "$line" =~ ^Total\ time:\ ([0-9]{2}:[0-9]{2}:[0-9]{2}) ]]; then
+                message+="Total time: ${BASH_REMATCH[1]}"$'\n'
+            fi
+        done < "$report_file"
+    fi
+
+    # Fallback: no report file (non-parallel run) or empty parse result
+    if [ -z "$message" ]; then
+        if [ "$exit_code" -eq 0 ]; then
+            message="Tests completed successfully."
+        else
+            message="Tests completed with failures (exit code: ${exit_code})."
+            has_failures=true
+        fi
+    fi
+
+    # ── Build title ───────────────────────────────────────────────────────────
+    local title
+    if [ "$has_failures" = true ]; then
+        title="Tests finished: FAILED"
+    elif [ "$has_interrupted" = true ]; then
+        title="Tests finished: interrupted"
+    else
+        title="Tests finished: all passed"
+    fi
+
+    # ── Substitute placeholders ───────────────────────────────────────────────
+    # Replace @__TITLE__@ inline (title has no newlines, safe for direct sub).
+    # Replace @__MESSAGE__@ with a shell variable reference so multiline message
+    # is preserved correctly through eval.
+    # NOTE: intermediate variable prevents bash from misinterpreting the inner '}'
+    # as closing the outer '${...//}' parameter expansion.
+    local _msg_ref='${_NOTIFY_MSG}'
+    local cmd="${NOTIFY_COMMAND//@__TITLE__@/${title}}"
+    cmd="${cmd//@__MESSAGE__@/$_msg_ref}"
+
+    # ── Execute synchronously and show result ─────────────────────────────────
+    print_line "-"
+    print_info "Sending notification: ${title}"
+    local _notify_exit=0
+    (
+        export _NOTIFY_MSG="$message"
+        eval "$cmd" >/dev/null 2>&1
+    ) || _notify_exit=$?
+
+    if [ "$_notify_exit" -eq 0 ]; then
+        print_success "Notification sent successfully."
+    else
+        print_warning "Notification failed (curl exit code: ${_notify_exit}). Check NOTIFY_COMMAND in .env.secrets."
+    fi
+    print_line "-"
+    echo ""
+}

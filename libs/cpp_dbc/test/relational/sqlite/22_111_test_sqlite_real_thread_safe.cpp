@@ -86,8 +86,8 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         setupConn->executeUpdate("CREATE TABLE thread_test (id INTEGER PRIMARY KEY, value TEXT)");
         setupConn->close();
 
-        const int numThreads = 5;
-        const int opsPerThread = 10;
+        const int numThreads = 10;
+        const int opsPerThread = 20;
         std::atomic<int> successCount(0);
         std::atomic<int> errorCount(0);
         std::vector<std::thread> threads;
@@ -203,7 +203,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         // cleanupConn->close();
 
         // We expect most operations to succeed
-        REQUIRE(successCount > 0);
+        REQUIRE(successCount > numThreads * opsPerThread * 0.95); // At least 95% success rate
     }
 
     SECTION("Connection pool concurrent access")
@@ -232,8 +232,8 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         setupConn->executeUpdate("CREATE TABLE thread_test (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
         setupConn->returnToPool();
 
-        const int numThreads = 5;
-        const int opsPerThread = 10;
+        const int numThreads = 10;
+        const int opsPerThread = 20;
         std::atomic<int> successCount(0);
         std::atomic<int> errorCount(0);
         std::vector<std::thread> threads;
@@ -305,7 +305,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         // cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
         // cleanupConn->returnToPool();
 
-        REQUIRE(successCount > 0);
+        REQUIRE(successCount > numThreads * opsPerThread * 0.95); // At least 95% success rate
     }
 
     SECTION("Concurrent read operations with connection pool")
@@ -334,7 +334,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         setupConn->executeUpdate("CREATE TABLE thread_test (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
 
         // Insert test data
-        for (int i = 0; i < 50; i++)
+        for (int i = 0; i < 100; i++)
         {
             auto pstmt = setupConn->prepareStatement("INSERT INTO thread_test (id, name, value) VALUES (?, ?, ?)");
             pstmt->setInt(1, i);
@@ -348,8 +348,8 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         }
         setupConn->returnToPool();
 
-        const int numThreads = 5;
-        const int readsPerThread = 20;
+        const int numThreads = 10;
+        const int readsPerThread = 50;
         std::atomic<int> readCount(0);
         std::atomic<int> errorCount(0);
         std::vector<std::thread> threads;
@@ -360,7 +360,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                                  {
                 std::random_device rd;
                 std::mt19937 gen(rd());
-                std::uniform_int_distribution<> idDist(0, 49);
+                std::uniform_int_distribution<> idDist(0, 99);
 
                 for (int j = 0; j < readsPerThread; j++)
                 {
@@ -410,7 +410,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         // cleanupConn->returnToPool();
 
         // Most reads should succeed
-        REQUIRE(readCount > numThreads * readsPerThread * 0.8);
+        REQUIRE(readCount > numThreads * readsPerThread * 0.95); // At least 95% success rate
     }
 
     SECTION("High concurrency stress test")
@@ -439,8 +439,8 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         setupConn->executeUpdate("CREATE TABLE thread_stress_test (id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id INTEGER, op_id INTEGER, data TEXT)");
         setupConn->returnToPool();
 
-        const int numThreads = 10;
-        const int opsPerThread = 20;
+        const int numThreads = 30;
+        const int opsPerThread = 50;
         std::atomic<int> insertCount(0);
         std::atomic<int> selectCount(0);
         std::atomic<int> updateCount(0);
@@ -558,12 +558,12 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
 
         // Most operations should succeed (SQLite may have more contention)
         int totalOps = insertCount + selectCount + updateCount;
-        REQUIRE(totalOps > numThreads * opsPerThread * 0.5); // At least 50% success rate for SQLite
+        REQUIRE(totalOps > numThreads * opsPerThread * 0.95); // At least 95% success rate
     }
 
     SECTION("Rapid connection open/close stress test")
     {
-        const int numThreads = 5;
+        const int numThreads = 10;
         const int connectionsPerThread = 10;
         std::atomic<int> successCount(0);
         std::atomic<int> errorCount(0);
@@ -608,7 +608,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
 
         cpp_dbc::system_utils::logWithTimesMillis("TEST", "Rapid connection test: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
-        REQUIRE(successCount > numThreads * connectionsPerThread * 0.9); // At least 90% success rate
+        REQUIRE(successCount > numThreads * connectionsPerThread * 0.95); // At least 95% success rate
     }
 }
 

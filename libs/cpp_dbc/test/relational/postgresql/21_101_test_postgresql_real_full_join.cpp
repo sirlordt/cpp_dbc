@@ -567,11 +567,6 @@ TEST_CASE("PostgreSQL FULL JOIN operations", "[21_101_01_postgresql_real_full_jo
         REQUIRE_THROWS_AS(conn->executeQuery(query), cpp_dbc::DBException);
     }
 
-    // Clean up
-    conn->executeUpdate("DROP TABLE IF EXISTS test_orders");
-    conn->executeUpdate("DROP TABLE IF EXISTS test_products");
-    conn->executeUpdate("DROP TABLE IF EXISTS test_customers");
-
     // Close the connection
     conn->close();
 }

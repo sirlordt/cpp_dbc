@@ -50,7 +50,7 @@ TEST_CASE("Firebird database configurations", "[23_011_01_firebird_real_db_confi
         auto firebirdDatabases = configManager.getDatabasesByType("firebird");
 
         // Check that we have the expected number of Firebird databases
-        REQUIRE(firebirdDatabases.size() == 2);
+        REQUIRE(firebirdDatabases.size() == 3);
 
         // Check that all databases have the correct type
         for (const auto &db : firebirdDatabases)
@@ -67,6 +67,7 @@ TEST_CASE("Firebird database configurations", "[23_011_01_firebird_real_db_confi
 
         REQUIRE(std::find(dbNames.begin(), dbNames.end(), "dev_firebird") != dbNames.end());
         REQUIRE(std::find(dbNames.begin(), dbNames.end(), "test_firebird") != dbNames.end());
+        REQUIRE(std::find(dbNames.begin(), dbNames.end(), "prod_firebird") != dbNames.end());
     }
 #endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
@@ -92,11 +93,15 @@ TEST_CASE("Specific Firebird database configuration", "[23_011_02_firebird_real_
 
         // Check connection parameters
         REQUIRE(devFirebird.getType() == "firebird");
-        REQUIRE(!devFirebird.getHost().empty());
-        REQUIRE(devFirebird.getPort() > 0);
-        REQUIRE(!devFirebird.getDatabase().empty());
-        REQUIRE(!devFirebird.getUsername().empty());
-        REQUIRE(!devFirebird.getPassword().empty());
+        REQUIRE(devFirebird.getHost() == "localhost");
+        REQUIRE(devFirebird.getPort() == 3050);
+        REQUIRE(devFirebird.getDatabase() == "/firebird/data/test_firebird.fdb");
+        REQUIRE(devFirebird.getUsername() == "SYSDBA");
+        REQUIRE(devFirebird.getPassword() == "dsystems");
+
+        // Check Firebird-specific options
+        REQUIRE(devFirebird.getOption("charset") == "UTF8");
+        REQUIRE(devFirebird.getOption("role") == "RDB$ADMIN");
     }
 
     SECTION("Verify test_firebird configuration")
@@ -111,17 +116,50 @@ TEST_CASE("Specific Firebird database configuration", "[23_011_02_firebird_real_
 
         // Check connection parameters
         REQUIRE(testFirebird.getType() == "firebird");
-        REQUIRE(!testFirebird.getHost().empty());
-        REQUIRE(testFirebird.getPort() > 0);
+        REQUIRE(testFirebird.getHost() == "localhost");
+        REQUIRE(testFirebird.getPort() == 3050);
         REQUIRE(!testFirebird.getDatabase().empty());
-        REQUIRE(!testFirebird.getUsername().empty());
-        REQUIRE(!testFirebird.getPassword().empty());
+        REQUIRE(testFirebird.getUsername() == "SYSDBA");
+
+        // Check Firebird-specific options
+        REQUIRE(testFirebird.getOption("charset") == "UTF8");
+        REQUIRE(testFirebird.getOption("role") == "RDB$ADMIN");
+    }
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+}
+
+// Test case to verify Firebird test queries
+TEST_CASE("Firebird test queries", "[23_011_03_firebird_real_db_config]")
+{
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
+
+    SECTION("Verify Firebird test queries")
+    {
+        const cpp_dbc::config::TestQueries &testQueries = configManager.getTestQueries();
+        auto firebirdQueries = testQueries.getQueriesForType("firebird");
+
+        // Check that all expected queries exist
+        REQUIRE(firebirdQueries["create_table"].find("CREATE") != std::string::npos);
+        REQUIRE(firebirdQueries["insert_data"].find("INSERT INTO") != std::string::npos);
+        REQUIRE(firebirdQueries["select_data"].find("SELECT") != std::string::npos);
+        REQUIRE(firebirdQueries["drop_table"].find("DROP TABLE") != std::string::npos);
+
+        // Check Firebird parameter style (? placeholders)
+        REQUIRE(firebirdQueries["insert_data"].find("?") != std::string::npos);
+        REQUIRE(firebirdQueries["select_data"].find("?") != std::string::npos);
+
+        // Check Firebird-specific connection test query
+        REQUIRE(firebirdQueries["connection_test"].find("RDB$DATABASE") != std::string::npos);
     }
 #endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
 // Test database configurations for different environments
-TEST_CASE("Select Firebird database for dev environment", "[23_011_03_firebird_real_db_config]")
+TEST_CASE("Select Firebird database for dev environment", "[23_011_04_firebird_real_db_config]")
 {
 #if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
     SKIP("YAML support is disabled");
@@ -145,10 +183,17 @@ TEST_CASE("Select Firebird database for dev environment", "[23_011_03_firebird_r
 
     // Verify the connection string format
     REQUIRE(connStr.find("cpp_dbc:firebird://") == 0);
+
+    // Verify that we can access the credentials
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+
+    REQUIRE(username == "SYSDBA");
+    REQUIRE(password == "dsystems");
 #endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
 }
 
-TEST_CASE("Select Firebird database for test environment", "[23_011_04_firebird_real_db_config]")
+TEST_CASE("Select Firebird database for test environment", "[23_011_05_firebird_real_db_config]")
 {
 #if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
     SKIP("YAML support is disabled");
@@ -156,6 +201,30 @@ TEST_CASE("Select Firebird database for test environment", "[23_011_04_firebird_
     // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
     cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
     std::string dbName = "test_firebird";
+    auto dbConfigOpt = configManager.getDatabaseByName(dbName);
+
+    // Check that the database was found
+    REQUIRE(dbConfigOpt.has_value());
+
+    // Get the reference to the database config
+    const auto &dbConfig = dbConfigOpt->get();
+
+    REQUIRE(dbConfig.getType() == "firebird");
+
+    // Create connection string
+    std::string connStr = dbConfig.createConnectionString();
+    REQUIRE(connStr.find("cpp_dbc:firebird://") == 0);
+#endif // defined(USE_CPP_YAML) && USE_CPP_YAML == 1
+}
+
+TEST_CASE("Select Firebird database for prod environment", "[23_011_06_firebird_real_db_config]")
+{
+#if !defined(USE_CPP_YAML) || USE_CPP_YAML != 1
+    SKIP("YAML support is disabled");
+#else
+    // Use the cpp_dbc::config::YamlConfigLoader to load the configuration
+    cpp_dbc::config::DatabaseConfigManager configManager = cpp_dbc::config::YamlConfigLoader::loadFromFile(common_test_helpers::getConfigFilePath());
+    std::string dbName = "prod_firebird";
     auto dbConfigOpt = configManager.getDatabaseByName(dbName);
 
     // Check that the database was found

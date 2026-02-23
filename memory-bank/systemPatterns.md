@@ -132,7 +132,7 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - Connection objects are not thread-safe and should not be shared between threads
 - **Single Connection Mutex Model (Firebird):** All statement/result-set registry access uses a single shared `m_connMutex` — eliminates ABBA deadlock between separate registry mutexes and the connection mutex
 - **AtomicGuard<T> RAII:** `system_utils::AtomicGuard<T>` provides exception-safe management of `std::atomic<T>` flags (set on construction, restored on destruction, non-copyable)
-- **Pool Lock Order Rule:** Connection close operations must happen OUTSIDE pool locks. Pool locks (`m_mutexAllConnections`, `m_mutexIdleConnections`) are always acquired BEFORE per-connection mutex. Closing inside pool locks inverts this order → Helgrind LockOrder violation
+- **Pool Lock Order Rule:** Connection close operations must happen OUTSIDE pool locks. Pool lock (`m_mutexPool`) is always acquired BEFORE per-connection mutex. Closing inside pool lock inverts this order → Helgrind LockOrder violation
 - **Printf-Style Debug Output / `logWithTimesMillis`:** All debug macros (`FIREBIRD_DEBUG`, `SQLITE_DEBUG`, `CP_DEBUG`) use `system_utils::logWithTimesMillis(prefix, msg)` which formats `[HH:MM:SS.mmm] [TID] [prefix] message` and writes atomically via `write()` — `operator<<` is not atomic and causes interleaved output + Helgrind false positives under concurrency
 - **`m_resetting` Anti-Deadlock Flag:** `FirebirdDBConnection::m_resetting` (`atomic<bool>`) signals `ResultSet::close()` to skip unregister during `closeAllActiveResultSets()` — prevents re-entrant lock acquisition through the close→unregister→lock cycle
 - **Nothrow API — Pure Virtual Base Class Pattern (2026-02-18):**
@@ -183,17 +183,22 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Pool sets `m_poolAlive` to `false` in `close()` before cleanup
   - Prevents use-after-free when pool is destroyed while connections are in use
   - Graceful handling of connection return when pool is already closed
-- **Direct Handoff (RelationalDBConnectionPool, 2026-02-21):**
+- **Direct Handoff — ALL Pool Families (relational 2026-02-21, all others 2026-02-22):**
   - `ConnectionRequest` struct + `m_waitQueue` (`std::deque<ConnectionRequest*>`) for zero-race connection handoff
   - On `returnConnection()`: if `m_waitQueue` is non-empty, connection is assigned directly to the first waiter's `ConnectionRequest::conn` field and `fulfilled = true` — no idle queue push, no race
-  - On `getRelationalDBConnection()`: if pool is full, push a stack-local `ConnectionRequest` into `m_waitQueue` and wait on `m_connectionAvailable` CV, then check `request.fulfilled`
-  - Single `m_mutexPool` for all pool state (removed `m_mutexGetConnection`)
+  - On `getXDBConnection()`: if pool is full, push a stack-local `ConnectionRequest` into `m_waitQueue` and wait on `m_connectionAvailable` CV, then check `request.fulfilled`
+  - Single `m_mutexPool` for all pool state (replaces 5 separate mutexes: `m_mutexGetConnection`, `m_mutexReturnConnection`, `m_mutexAllConnections`, `m_mutexIdleConnections`, `m_mutexMaintenance`)
   - Eliminates "stolen wakeup": returning thread cannot re-borrow the connection it just assigned to a waiter
   - All `notify_one()` / `notify_all()` calls inside `m_mutexPool` lock for Helgrind correctness
-- Deadlock prevention with `std::scoped_lock`:
-  - All connection pool implementations use `std::scoped_lock` for consistent lock ordering
-  - Prevents deadlock when acquiring multiple mutexes (`m_mutexAllConnections` and `m_mutexIdleConnections`)
-  - Applied to all database types: relational, document, columnar, and key-value pools
+  - `m_pendingCreations` (size_t, guarded by `m_mutexPool`) prevents pool overshoot when multiple threads create connections simultaneously outside the lock
+- **Atomic Time-Point for Last-Used Time (all pools, 2026-02-22):**
+  - `m_lastUsedTimeMutex` eliminated; `m_lastUsedTime` is `std::atomic<std::chrono::steady_clock::time_point>`
+  - `static_assert(::is_always_lock_free)` enforced at compile time (x86-64: `time_point` wraps `int64_t`, always lock-free)
+  - `memory_order_relaxed` for both store and load — sufficient for HikariCP-style validation skip (approximation, stale reads tolerable)
+- **Qualified Destructor Close Pattern:**
+  - Pool destructors call `XDBConnectionPool::close()` (qualified name) rather than `close()` (virtual dispatch)
+  - Avoids S1699: calling virtual method in destructor bypasses derived class overrides and may access destroyed state
+  - Rule: `close()` logic that must run in destructor should either be inlined or called with the fully qualified class name
 
 ### Connection Pooling (continued)
 - Connection pool implementations for different database types:

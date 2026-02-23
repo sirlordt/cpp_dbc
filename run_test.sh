@@ -45,7 +45,8 @@ set -e  # Exit on error
 #   --debug-mongodb        Enable debug output for MongoDB driver
 #   --debug-redis          Enable debug output for Redis driver
 #   --debug-all            Enable all debug output
-#   --dw-off               Disable libdw support for stack traces
+#   --dw-on                Enable libdw support for stack traces (default for tests: OFF)
+#   --dw-off               Disable libdw support for stack traces (default for tests)
 #   --db-driver-thread-safe-off  Disable thread-safe database driver operations
 #   --help                 Show this help message
 
@@ -87,7 +88,7 @@ DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
-DW_OFF=false
+DW_OFF=true
 DB_DRIVER_THREAD_SAFE_OFF=false
 SHOW_PROGRESS=false
 SKIP_BUILD=false
@@ -300,6 +301,10 @@ while [[ $# -gt 0 ]]; do
             DEBUG_ALL=ON
             shift
             ;;
+        --dw-on)
+            DW_OFF=false
+            shift
+            ;;
         --dw-off)
             DW_OFF=true
             shift
@@ -358,7 +363,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
-            echo "  --dw-off               Disable libdw support for stack traces"
+            echo "  --dw-on                Enable libdw support for stack traces (default for tests: OFF)"
+            echo "  --dw-off               Disable libdw support for stack traces (default for tests)"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
             echo "  --progress             Show visual progress bar during test execution"
             echo "  --help                 Show this help message"
@@ -583,9 +589,9 @@ if [ "$DEBUG_ALL" = "ON" ]; then
     CMD="$CMD --debug-all"
 fi
 
-# Add dw-off option if specified
-if [ "$DW_OFF" = true ]; then
-    CMD="$CMD --dw-off"
+# Add dw-on option if explicitly enabled (default for tests is OFF)
+if [ "$DW_OFF" = false ]; then
+    CMD="$CMD --dw-on"
 fi
 
 # Add db-driver-thread-safe-off option if specified

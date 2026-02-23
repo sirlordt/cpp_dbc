@@ -460,11 +460,6 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
             manager.setTransactionTimeout(30); // 30 seconds
         }
 
-        // Clean up
-        auto cleanupConn = pool.getRelationalDBConnection();
-        cleanupConn->executeUpdate(dropTableQuery);
-        cleanupConn->close();
-
         // Close the pool
         pool.close();
     }

@@ -2,9 +2,40 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. Pool lifecycle methods are now encapsulated as `protected` behind `friend` declarations. A C++ code analysis toolset (4 scripts) enables test coverage reporting. Docker containers auto-restart before tests. Valgrind suppression summaries are saved as final reports.
+The CPP_DBC library is in active development. All four connection pool families (relational, columnar, document, KV) now share a unified single-mutex + direct-handoff architecture. `m_lastUsedTime` is lock-free via `std::atomic<time_point>`. A post-test notification system and improved test quality thresholds are in place.
 
-### Recent Improvements (2026-02-21 14:25 PST)
+### Recent Improvements (2026-02-22 19:18 PST)
+
+**Unified Pool Mutex, Atomic Time-Point, Direct Handoff for All Pools, Notifications, and Test Quality:**
+
+1. **Columnar/Document/KV Pools — Unified Mutex + Direct Handoff:**
+   - 5 mutexes → single `m_mutexPool`; `getIdleDBConnection()` removed; `getXDBConnection()` uses CV-based wait with deadline
+   - `ConnectionRequest` + `m_waitQueue` direct handoff; `m_connectionAvailable` CV; `m_pendingCreations` counter
+   - `returnConnection()` fixes: pool-closing exit, orphan handling, reset-failure → invalid, `updateLastUsedTime()`
+   - Destructors now call qualified `XDBConnectionPool::close()` (avoids S1699 virtual dispatch)
+
+2. **`std::atomic<time_point>` — Lock-Free Last-Used Time:**
+   - `m_lastUsedTimeMutex` removed; `m_lastUsedTime` → `std::atomic<steady_clock::time_point>` with `memory_order_relaxed`
+   - `static_assert` verifies lock-free at compile time; eliminates one mutex per pooled connection
+
+3. **`libdw` Disabled by Default:** `BACKWARD_HAS_DW=OFF` in all test scripts; `--dw-on` opt-in, `--dw-off` no-op
+
+4. **Test Notification System:**
+   - `send_test_notification()` in `scripts/common/functions.sh` sends Gotify/curl notification after tests
+   - Reads `NOTIFY_COMMAND` from `.env.secrets` (gitignored); graceful skip if absent or `curl` missing
+   - Triggered from `helper.sh` for both parallel and non-parallel runs
+
+5. **`run_test_parallel.sh` — Compact Summary Refactor:**
+   - `display_compact_summary()` replaces ~130 lines of duplicate code in 3 modes
+   - `extract_catch2_warnings()` detects Catch2 `WARN()` across runs (deduplicated)
+   - `reconstruct_helgrind_warnings()` rebuilds warnings map in summarize mode
+   - `save_report_to_file()` now includes compact summary + elapsed time
+
+6. **Firebird `role` Option:** `isc_dpb_sql_role_name` in DPB; `test_db_connections.yml` updated; new `prod_firebird` example; `READ_UNCOMMITTED` MVCC behavior test added
+
+7. **Test Quality:** All thresholds raised to 95%; connection timeout 2000 ms → 3500 ms; PostgreSQL tests fixed (`returnToPool()`, removed inline cleanup, added `rs->close()`); SQLite new metadata + stress sections
+
+### Previous Improvements (2026-02-21 14:25 PST)
 
 **Pool Lifecycle API Hardening, C++ Code Analysis Toolset, Docker Container Auto-Restart, and Valgrind Suppression Report:**
 

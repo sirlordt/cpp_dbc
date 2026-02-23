@@ -211,7 +211,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
 
         cpp_dbc::system_utils::logWithTimesMillis("TEST", "Rapid connection test: " + std::to_string(successCount.load()) + " successes, " + std::to_string(errorCount.load()) + " errors");
 
-        REQUIRE(successCount > numThreads * connectionsPerThread * 0.9); // At least 90% success rate
+        REQUIRE(successCount > numThreads * connectionsPerThread * 0.95); // At least 95% success rate
     }
 
     SECTION("Concurrent read/write operations")
@@ -378,8 +378,8 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
         cpp_dbc::system_utils::logWithTimesMillis("TEST", "Concurrent read/write test: " + std::to_string(readSuccessCount.load()) + " reads, " + std::to_string(writeSuccessCount.load()) + " writes, " + std::to_string(errorCount.load()) + " errors");
 
         // Verify that most operations succeeded
-        REQUIRE(readSuccessCount > numReaders * readsPerThread * 0.9);
-        REQUIRE(writeSuccessCount > numWriters * writesPerThread * 0.9);
+        REQUIRE(readSuccessCount > numReaders * readsPerThread * 0.95);   // At least 95% success rate
+        REQUIRE(writeSuccessCount > numWriters * writesPerThread * 0.95); // At least 95% success rate
 
         // Verify that counters were incremented
         auto verifyConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
@@ -406,8 +406,8 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
         double counterValue = static_cast<double>(totalCounters);
         double writeSuccess = static_cast<double>(writeSuccessCount.load());
 
-        REQUIRE(counterValue >= writeSuccess * 0.9);
-        REQUIRE(counterValue <= writeSuccess * 1.1);
+        REQUIRE(counterValue >= writeSuccess * 0.95); // At least 95% of writes reflected in counter
+        REQUIRE(counterValue <= writeSuccess * 1.1);  // Counter must not exceed 110% of writes (eventual consistency tolerance)
     }
 }
 

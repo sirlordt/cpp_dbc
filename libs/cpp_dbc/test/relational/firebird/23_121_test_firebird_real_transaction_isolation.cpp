@@ -13,7 +13,7 @@
  * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
  * See the LICENSE.md file in the project root for more information.
 
- @file test_firebird_real_transaction_isolation.cpp
+ @file 23_121_test_firebird_real_transaction_isolation.cpp
  @brief Tests for Firebird transaction isolation levels
 
 */
@@ -59,9 +59,15 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
             // Check default isolation level (should be READ_COMMITTED for Firebird)
             REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
-            // Set and check each isolation level
+            // Set and check each isolation level.
+            // Note: Firebird maps READ_UNCOMMITTED to READ_COMMITTED internally via MVCC,
+            // so getTransactionIsolation() may return READ_UNCOMMITTED (what was set) but
+            // actual behavior prevents dirty reads.
             conn->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED);
-            REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED);
+            auto actualLevel = conn->getTransactionIsolation();
+            // Accept READ_UNCOMMITTED or READ_COMMITTED — Firebird may normalize it
+            REQUIRE((actualLevel == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED ||
+                     actualLevel == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED));
 
             conn->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
             REQUIRE(conn->getTransactionIsolation() == cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
@@ -79,6 +85,84 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
         {
             // If we can't connect to a real database, skip the test
             SKIP("Could not connect to Firebird database: " + std::string(e.what_s()));
+        }
+    }
+
+    SECTION("Firebird READ_UNCOMMITTED isolation behavior")
+    {
+        // Create a Firebird driver
+        cpp_dbc::Firebird::FirebirdDBDriver driver;
+
+        try
+        {
+            // Create test table
+            auto setupConn = driver.connectRelational(connStr, username, password);
+            setupConn->executeUpdate("RECREATE TABLE isolation_test (id INT NOT NULL PRIMARY KEY, val VARCHAR(50))");
+            setupConn->executeUpdate("INSERT INTO isolation_test VALUES (1, 'initial')");
+            setupConn->commit(); // Explicitly commit before closing (required for Firebird)
+            setupConn->close();
+
+            // Create two connections
+            auto conn1 = driver.connectRelational(connStr, username, password);
+            auto conn2 = driver.connectRelational(connStr, username, password);
+
+            // Set READ_UNCOMMITTED isolation level
+            conn1->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED);
+            conn2->setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED);
+
+            // Firebird maps READ_UNCOMMITTED to READ_COMMITTED via MVCC: record the effective level
+            auto effectiveIsolation = conn2->getTransactionIsolation();
+            INFO("Firebird effective isolation after setting READ_UNCOMMITTED: "
+                 << static_cast<int>(effectiveIsolation));
+
+            // Start transactions
+            conn1->setAutoCommit(false);
+            conn2->setAutoCommit(false);
+            conn1->beginTransaction();
+            conn2->beginTransaction();
+
+            // Conn1 reads initial value
+            auto rs1 = conn1->executeQuery("SELECT val FROM isolation_test WHERE id = 1");
+            REQUIRE(rs1->next());
+            std::string val1 = rs1->getString("VAL"); // Firebird returns uppercase column names
+            rs1->close();                             // Close ResultSet before next operation (required for Firebird)
+            REQUIRE(val1 == "initial");
+
+            // Conn1 updates the value but does NOT commit
+            conn1->executeUpdate("UPDATE isolation_test SET val = 'uncommitted' WHERE id = 1");
+
+            // Firebird uses MVCC: even with READ_UNCOMMITTED requested, dirty reads are prevented.
+            // Conn2 should NOT see the uncommitted change (unlike a true READ_UNCOMMITTED engine).
+            auto rs2 = conn2->executeQuery("SELECT val FROM isolation_test WHERE id = 1");
+            REQUIRE(rs2->next());
+            std::string val2 = rs2->getString("VAL");
+            rs2->close();
+            INFO("Firebird READ_UNCOMMITTED: MVCC prevents dirty reads, conn2 sees: '" << val2 << "'");
+            REQUIRE(val2 == "initial"); // MVCC guarantees no dirty reads
+
+            // Conn1 commits the change
+            conn1->commit();
+
+            // After commit, Conn2 should see the committed change (READ_COMMITTED semantics)
+            auto rs3 = conn2->executeQuery("SELECT val FROM isolation_test WHERE id = 1");
+            REQUIRE(rs3->next());
+            std::string val3 = rs3->getString("VAL");
+            rs3->close();
+            REQUIRE(val3 == "uncommitted");
+
+            // Cleanup
+            conn2->rollback();
+            conn1->close();
+            conn2->close();
+
+            // Drop the test table
+            auto cleanupConn = driver.connectRelational(connStr, username, password);
+            cleanupConn->executeUpdate("DROP TABLE isolation_test");
+            cleanupConn->close();
+        }
+        catch (const cpp_dbc::DBException &e)
+        {
+            SKIP("Could not run Firebird READ_UNCOMMITTED test: " + std::string(e.what_s()));
         }
     }
 
@@ -285,6 +369,7 @@ TEST_CASE("Firebird transaction isolation tests", "[23_121_01_firebird_real_tran
             INFO("Firebird's SERIALIZABLE isolation level provides snapshot isolation");
             INFO("It prevents dirty reads, non-repeatable reads, and phantom reads");
             INFO("Firebird uses Multi-Version Concurrency Control (MVCC) for isolation");
+            INFO("Unlike MySQL (locking-based), Firebird detects conflicts at commit time");
 
             // Cleanup
             conn1->close();

@@ -24,6 +24,8 @@
 #include <vector>
 #include <thread>
 #include <atomic>
+#include <algorithm>
+#include <chrono>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
@@ -413,6 +415,181 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
 
         // Close the pool
         pool.close();
+    }
+
+    SECTION("SQLite metadata retrieval")
+    {
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+            cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
+
+        conn->executeUpdate("DROP TABLE IF EXISTS test_types");
+        conn->executeUpdate(
+            "CREATE TABLE test_types ("
+            "id INTEGER PRIMARY KEY, "
+            "int_col INTEGER, "
+            "double_col REAL, "
+            "varchar_col TEXT, "
+            "date_col TEXT, "
+            "bool_col INTEGER"
+            ")");
+
+        auto pstmt = conn->prepareStatement(
+            "INSERT INTO test_types (id, int_col, double_col, varchar_col, date_col, bool_col) "
+            "VALUES (?, ?, ?, ?, ?, ?)");
+        pstmt->setInt(1, 1);
+        pstmt->setInt(2, 42);
+        pstmt->setDouble(3, 3.14159);
+        pstmt->setString(4, "Hello SQLite");
+        pstmt->setDate(5, "2023-01-15");
+        pstmt->setBoolean(6, true);
+        auto result = pstmt->executeUpdate();
+        REQUIRE(result == 1);
+        pstmt->close();
+
+        auto rs = conn->executeQuery("SELECT * FROM test_types");
+        REQUIRE(rs->next());
+
+        // Verify column count and names
+        REQUIRE(rs->getColumnCount() == 6);
+        auto columnNames = rs->getColumnNames();
+        REQUIRE(std::find(columnNames.begin(), columnNames.end(), "id") != columnNames.end());
+        REQUIRE(std::find(columnNames.begin(), columnNames.end(), "int_col") != columnNames.end());
+        REQUIRE(std::find(columnNames.begin(), columnNames.end(), "double_col") != columnNames.end());
+        REQUIRE(std::find(columnNames.begin(), columnNames.end(), "varchar_col") != columnNames.end());
+        REQUIRE(std::find(columnNames.begin(), columnNames.end(), "date_col") != columnNames.end());
+        REQUIRE(std::find(columnNames.begin(), columnNames.end(), "bool_col") != columnNames.end());
+
+        // Verify values
+        REQUIRE(rs->getInt("id") == 1);
+        REQUIRE(rs->getInt("int_col") == 42);
+        REQUIRE(rs->getDouble("double_col") == Catch::Approx(3.14159));
+        REQUIRE(rs->getString("varchar_col") == "Hello SQLite");
+        REQUIRE(rs->getDate("date_col") == "2023-01-15");
+        REQUIRE(rs->getBoolean("bool_col") == true);
+        rs->close();
+
+        // Test NULL values
+        conn->executeUpdate("UPDATE test_types SET int_col = NULL, varchar_col = NULL WHERE id = 1");
+        rs = conn->executeQuery("SELECT * FROM test_types WHERE id = 1");
+        REQUIRE(rs->next());
+        REQUIRE(rs->isNull("int_col"));
+        REQUIRE(rs->isNull("varchar_col"));
+        rs->close();
+
+        // Clean up
+        conn->executeUpdate("DROP TABLE IF EXISTS test_types");
+        conn->close();
+    }
+
+    SECTION("SQLite stress test")
+    {
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
+        poolConfig.setUrl(connStr);
+        poolConfig.setUsername("");
+        poolConfig.setPassword("");
+        poolConfig.setInitialSize(3);
+        poolConfig.setMaxSize(10);
+        poolConfig.setMinIdle(1);
+        poolConfig.setConnectionTimeout(10000);
+        poolConfig.setValidationInterval(500);
+        poolConfig.setTestOnBorrow(true);
+        poolConfig.setValidationQuery("SELECT 1");
+        poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
+
+        auto poolPtr = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
+        auto &pool = *poolPtr;
+
+        auto conn = pool.getRelationalDBConnection();
+        conn->executeUpdate("DROP TABLE IF EXISTS test_table");
+        conn->executeUpdate("CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
+        conn->returnToPool();
+
+        const int numThreads = 20;
+        const int opsPerThread = 50;
+        std::atomic<int> successCount(0);
+        std::vector<std::thread> threads;
+
+        const std::string insertQuery = "INSERT INTO test_table (id, name, value) VALUES (?, ?, ?)";
+        const std::string selectQuery = "SELECT * FROM test_table WHERE id = ?";
+
+        auto startTime = std::chrono::steady_clock::now();
+
+        for (int i = 0; i < numThreads; i++)
+        {
+            threads.push_back(std::thread([&pool, i, opsPerThread, insertQuery, selectQuery, &successCount]()
+            {
+                for (int j = 0; j < opsPerThread; j++)
+                {
+                    try
+                    {
+                        auto conn_thread = pool.getRelationalDBConnection();
+                        int id = i * 100 + j;
+
+                        // Insert with retry for SQLITE_BUSY
+                        bool inserted = false;
+                        for (int retry = 0; retry < 5 && !inserted; retry++)
+                        {
+                            try
+                            {
+                                auto pstmt = conn_thread->prepareStatement(insertQuery);
+                                pstmt->setInt(1, id);
+                                pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
+                                pstmt->setDouble(3, id * 1.5);
+                                pstmt->executeUpdate();
+                                pstmt->close();
+                                inserted = true;
+                            }
+                            catch (const std::exception &)
+                            {
+                                std::this_thread::sleep_for(std::chrono::milliseconds(10 * (retry + 1)));
+                            }
+                        }
+
+                        if (inserted)
+                        {
+                            auto selectStmt = conn_thread->prepareStatement(selectQuery);
+                            selectStmt->setInt(1, id);
+                            auto rs = selectStmt->executeQuery();
+                            if (rs->next())
+                            {
+                                successCount++;
+                            }
+                            rs->close();
+                            selectStmt->close();
+                        }
+
+                        conn_thread->returnToPool();
+                    }
+                    catch (const std::exception &e)
+                    {
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
+                    }
+                }
+            }));
+        }
+
+        for (auto &t : threads)
+        {
+            t.join();
+        }
+
+        auto endTime = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite stress test completed in " + std::to_string(duration) + " ms, " + std::to_string(successCount.load()) + " successful ops");
+
+        // Verify count
+        conn = pool.getRelationalDBConnection();
+        auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
+        REQUIRE(rs->next());
+        int totalRows = rs->getInt("count");
+        rs->close();
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Total rows inserted: " + std::to_string(totalRows));
+        conn->executeUpdate("DROP TABLE IF EXISTS test_table");
+        conn->returnToPool();
+
+        pool.close();
+
+        REQUIRE(successCount > numThreads * opsPerThread * 0.95); // At least 95% success rate
     }
 #else
     // Skip this test if SQLite support is not enabled

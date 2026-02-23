@@ -47,7 +47,8 @@ set -e  # Exit on error
 #   --debug-scylladb       Enable debug output for ScyllaDB driver
 #   --debug-redis          Enable debug output for Redis driver
 #   --debug-all            Enable all debug output
-#   --dw-off               Disable libdw support for stack traces
+#   --dw-on                Enable libdw support for stack traces (default for tests: OFF)
+#   --dw-off               Disable libdw support for stack traces (default for tests)
 #   --db-driver-thread-safe-off  Disable thread-safe database driver operations
 #   --help                 Show this help message
 
@@ -87,7 +88,7 @@ DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
 RUN_COUNT=1
-BACKWARD_HAS_DW=ON
+BACKWARD_HAS_DW=OFF
 DB_DRIVER_THREAD_SAFE=ON
 SHOW_PROGRESS=false
 SKIP_BUILD=false
@@ -300,6 +301,10 @@ while [[ $# -gt 0 ]]; do
             DEBUG_REDIS=ON
             shift
             ;;
+        --dw-on)
+            BACKWARD_HAS_DW=ON
+            shift
+            ;;
         --dw-off)
             BACKWARD_HAS_DW=OFF
             shift
@@ -363,7 +368,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
-            echo "  --dw-off               Disable libdw support for stack traces"
+            echo "  --dw-on                Enable libdw support for stack traces (default for tests: OFF)"
+            echo "  --dw-off               Disable libdw support for stack traces (default for tests)"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
             echo "  --progress             Show visual progress bar during test execution"
             echo "  --help                 Show this help message"
@@ -702,9 +708,9 @@ if [ "$SKIP_BUILD" = false ] && { [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = 
         BUILD_CMD="$BUILD_CMD --debug-redis"
     fi
     
-    # Add dw-off option if specified
-    if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
-        BUILD_CMD="$BUILD_CMD --dw-off"
+    # Add dw-on option if explicitly enabled (default for tests is OFF)
+    if [ "$BACKWARD_HAS_DW" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --dw-on"
     fi
 
     # Add db-driver-thread-safe-off option if specified

@@ -76,7 +76,8 @@ show_usage() {
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
   echo "                           Available options: clean,release,gcc-analyzer,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,valgrind,helgrind,helgrind-gs,helgrind-s,drd,drd-gs,drd-s,"
   echo "                                              yaml,auto,asan,tsan,ctest,check,progress,run=N,parallel=N,test=FILTER,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-on,db-driver-thread-safe-off"
+  echo "                           Note: dw (libdw stack traces) is DISABLED by default for tests. Use dw-on to enable it."
   echo "                           Test filter formats (test=FILTER):"
   echo "                             - Prefix: test=20_* runs all tests starting with '20_'"
   echo "                             - Contains: test=*mysql* matches test names containing 'mysql'"
@@ -527,9 +528,12 @@ cmd_run_test() {
           run_test_cmd="$run_test_cmd --debug-all"
           echo "Enabling all debug output"
           ;;
+        dw-on)
+          run_test_cmd="$run_test_cmd --dw-on"
+          echo "Enabling libdw support for stack traces"
+          ;;
         dw-off)
-          run_test_cmd="$run_test_cmd --dw-off"
-          echo "Disabling libdw support for stack traces"
+          echo "Note: libdw is disabled by default for tests. dw-off is a no-op."
           ;;
         db-driver-thread-safe-off)
           run_test_cmd="$run_test_cmd --db-driver-thread-safe-off"
@@ -581,8 +585,17 @@ cmd_run_test() {
     parallel_cmd="$parallel_cmd $test_args"
 
     echo "Running: $parallel_cmd"
-    $parallel_cmd
-    return $?
+    # Use || to prevent set -e from exiting when tests fail (non-zero exit is expected)
+    local _parallel_exit=0
+    $parallel_cmd || _parallel_exit=$?
+
+    # Send notification after parallel run completes (always runs, even when tests fail)
+    local _latest_report
+    _latest_report=$(find "$current_dir/logs/test" -maxdepth 2 -name "final_report.log" \
+        -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+    send_test_notification "$current_dir" "${_latest_report:-}" "$_parallel_exit"
+
+    return $_parallel_exit
   fi
 
   # Normal (non-parallel) test execution continues below
@@ -676,6 +689,9 @@ cmd_run_test() {
   # Usar bash -c para ejecutar el comando en un nuevo shell
   bash -c "./helper.sh --check-test-log=\"$log_file\""
   echo "========== End of Test Log Check =========="
+
+  # Send notification for non-parallel run (no final_report.log available)
+  send_test_notification "$current_dir" "" "0"
 }
 
 # Helper function to extract available test cases from log file

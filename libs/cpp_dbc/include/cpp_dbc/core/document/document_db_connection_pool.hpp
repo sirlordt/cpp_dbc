@@ -25,6 +25,7 @@
 #include "cpp_dbc/core/document/document_db_connection.hpp"
 
 #include <queue>
+#include <deque>
 #include <vector>
 #include <mutex>
 #include <condition_variable>
@@ -93,15 +94,21 @@ namespace cpp_dbc
         TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
         std::vector<std::shared_ptr<DocumentPooledDBConnection>> m_allConnections;
         std::queue<std::shared_ptr<DocumentPooledDBConnection>> m_idleConnections;
-        mutable std::mutex m_mutexGetConnection;
-        mutable std::mutex m_mutexReturnConnection;
-        mutable std::mutex m_mutexAllConnections;
-        mutable std::mutex m_mutexIdleConnections;
-        mutable std::mutex m_mutexMaintenance;
-        std::condition_variable m_maintenanceCondition;
+        mutable std::mutex m_mutexPool;              // Protects m_allConnections + m_idleConnections + CVs + m_waitQueue
+        std::condition_variable m_maintenanceCondition;   // Wakes maintenance thread on close()
+        std::condition_variable m_connectionAvailable;    // Wakes borrowers (direct handoff or state change)
         std::atomic<bool> m_running{true};
         std::atomic<int> m_activeConnections{0};
+        size_t m_pendingCreations{0};               // Connections being created outside lock (guarded by m_mutexPool)
         std::jthread m_maintenanceThread;
+
+        // Direct handoff mechanism: eliminates "stolen wakeup" race condition.
+        struct ConnectionRequest
+        {
+            std::shared_ptr<DocumentPooledDBConnection> conn;
+            bool fulfilled{false};
+        };
+        std::deque<ConnectionRequest *> m_waitQueue;
 
         // Creates a new physical connection
         std::shared_ptr<DocumentDBConnection> createDBConnection();
@@ -117,8 +124,6 @@ namespace cpp_dbc
 
         // Maintenance thread function
         void maintenanceTask();
-
-        std::shared_ptr<DocumentPooledDBConnection> getIdleDBConnection();
 
     protected:
         // Sets the transaction isolation level for the pool
@@ -207,8 +212,11 @@ namespace cpp_dbc
         std::weak_ptr<DocumentDBConnectionPool> m_pool;
         std::shared_ptr<std::atomic<bool>> m_poolAlive; // Shared flag to check if pool is still alive
         std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
-        mutable std::mutex m_lastUsedTimeMutex; // CRITICAL FIX: Protect m_lastUsedTime from data race
-        std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
+        // std::chrono::time_point is trivially copyable (wraps int64_t nanoseconds),
+        // so std::atomic<time_point> is lock-free on x86-64. Eliminates m_lastUsedTimeMutex.
+        static_assert(std::atomic<std::chrono::steady_clock::time_point>::is_always_lock_free,
+                      "time_point atomic must be lock-free on this platform");
+        std::atomic<std::chrono::steady_clock::time_point> m_lastUsedTime;
         std::atomic<bool> m_active{false};
         std::atomic<bool> m_closed{false};
 
@@ -217,11 +225,10 @@ namespace cpp_dbc
         // Helper method to check if pool is still valid
         bool isPoolValid() const override;
 
-        // Helper method to safely update last used time (protects against data race with maintenance thread)
-        inline void updateLastUsedTime()
+        // Helper method to safely update last used time
+        inline void updateLastUsedTime() noexcept
         {
-            std::scoped_lock<std::mutex> lock(m_lastUsedTimeMutex);
-            m_lastUsedTime = std::chrono::steady_clock::now();
+            m_lastUsedTime.store(std::chrono::steady_clock::now(), std::memory_order_relaxed);
         }
 
     public:

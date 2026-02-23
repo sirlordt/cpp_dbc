@@ -96,78 +96,7 @@ namespace cpp_dbc
         CP_DEBUG("KVDBConnectionPool::~KVDBConnectionPool - Starting destructor at %lld",
                  (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
 
-        // Directly inline close() logic to avoid virtual call in destructor (S1699)
-        if (!m_running.exchange(false))
-        {
-            // Already closed
-            return;
-        }
-
-        // Mark pool as no longer alive
-        if (m_poolAlive)
-        {
-            m_poolAlive->store(false);
-        }
-
-        // Wait for all active operations to complete (with timeout)
-        {
-            auto waitStart = std::chrono::steady_clock::now();
-
-            while (m_activeConnections.load() > 0)
-            {
-                auto elapsed = std::chrono::steady_clock::now() - waitStart;
-
-                if (elapsed > std::chrono::seconds(10))
-                {
-                    m_activeConnections.store(0);
-                    break;
-                }
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-        }
-
-        // Notify all waiting threads
-        {
-            std::scoped_lock lock(m_mutexMaintenance);
-            m_maintenanceCondition.notify_all();
-        }
-
-        // std::jthread auto-joins, but we request stop for clean shutdown
-        if (m_maintenanceThread.joinable())
-        {
-            m_maintenanceThread.request_stop();
-        }
-
-        // Close all connections
-        // CRITICAL: Collect connections under pool locks, then close OUTSIDE pool locks.
-        // See KVDBConnectionPool::close() for rationale (same lock-order fix).
-        std::vector<std::shared_ptr<KVPooledDBConnection>> connectionsToClose;
-        {
-            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
-            connectionsToClose = m_allConnections;
-            while (!m_idleConnections.empty())
-            {
-                m_idleConnections.pop();
-            }
-            m_allConnections.clear();
-        }
-
-        for (const auto &conn : connectionsToClose)
-        {
-            try
-            {
-                if (conn && conn->getUnderlyingConnection())
-                {
-                    conn->setActive(false);
-                    conn->getUnderlyingConnection()->close();
-                }
-            }
-            catch ([[maybe_unused]] const std::exception &ex)
-            {
-                CP_DEBUG("KVDBConnectionPool::~KVDBConnectionPool - Exception closing connection: %s", ex.what());
-            }
-        }
+        KVDBConnectionPool::close();
 
         CP_DEBUG("KVDBConnectionPool::~KVDBConnectionPool - Destructor completed at %lld",
                  (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
@@ -218,10 +147,9 @@ namespace cpp_dbc
             {
                 auto pooledConn = createPooledDBConnection();
 
-                // Add to idle connections and all connections lists under proper locks
-                // Use scoped_lock for consistent lock ordering to prevent deadlock
+                // Add to idle connections and all connections lists under pool lock
                 {
-                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                    std::scoped_lock lock(m_mutexPool);
                     m_idleConnections.push(pooledConn);
                     m_allConnections.push_back(pooledConn);
                 }
@@ -295,71 +223,8 @@ namespace cpp_dbc
         }
     }
 
-    std::shared_ptr<KVPooledDBConnection> KVDBConnectionPool::getIdleDBConnection()
-    {
-        // Lock both mutexes in consistent order to prevent deadlock
-        std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
-
-        if (!m_idleConnections.empty())
-        {
-            auto conn = m_idleConnections.front();
-            m_idleConnections.pop();
-
-            // Test connection before use if configured (S1066: merged nested if)
-            if (m_testOnBorrow && !validateConnection(conn->getUnderlyingKVConnection()))
-            {
-                // Close the invalid underlying connection to prevent resource leak
-                try
-                {
-                    conn->getUnderlyingKVConnection()->close();
-                }
-                catch ([[maybe_unused]] const std::exception &ex)
-                {
-                    CP_DEBUG("KVDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: %s", ex.what());
-                }
-
-                // Remove invalid connection from allConnections
-                // Let the caller (getKVDBConnection) create replacement outside locks
-                auto it = std::ranges::find(m_allConnections, conn);
-                if (it != m_allConnections.end())
-                {
-                    m_allConnections.erase(it);
-                }
-
-                // NOSONAR - Original code that created connection inside locks (kept for reference):
-                // if (m_running.load())
-                // {
-                //     try
-                //     {
-                //         auto newConn = createPooledDBConnection();
-                //         m_allConnections.push_back(newConn);
-                //         return newConn;
-                //     }
-                //     catch ([[maybe_unused]] const std::exception &ex)
-                //     {
-                //         CP_DEBUG("KVDBConnectionPool::getIdleDBConnection - Exception creating new connection: %s", ex.what());
-                //         return nullptr;
-                //     }
-                // }
-
-                return nullptr;
-            }
-
-            return conn;
-        }
-        else if (m_allConnections.size() < m_maxSize)
-        {
-            // Signal that we need to create a new connection
-            return nullptr;
-        }
-
-        return nullptr;
-    }
-
     void KVDBConnectionPool::returnConnection(std::shared_ptr<KVPooledDBConnection> conn)
     {
-        std::scoped_lock lock(m_mutexReturnConnection);
-
         if (!conn)
         {
             return;
@@ -367,13 +232,16 @@ namespace cpp_dbc
 
         if (!m_running.load())
         {
+            // Pool is closing — decrement counter so close() doesn't wait forever
+            conn->setActive(false);
+            m_activeConnections--;
             try
             {
                 conn->getUnderlyingKVConnection()->close();
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("KVDBConnectionPool::returnConnection - Exception closing connection: %s", ex.what());
+                CP_DEBUG("KVDBConnectionPool::returnConnection - Exception during close: %s", ex.what());
             }
             return;
         }
@@ -381,19 +249,28 @@ namespace cpp_dbc
         // Check if connection is already inactive (already returned to pool)
         if (!conn->isActive())
         {
+            CP_DEBUG("returnConnection - SKIPPED: connection already inactive");
             return;
         }
 
         // Additional safety check: verify connection is in allConnections
         {
-            std::scoped_lock lockAll(m_mutexAllConnections);
+            std::scoped_lock lockPool(m_mutexPool);
             auto it = std::ranges::find(m_allConnections, conn);
             if (it == m_allConnections.end())
             {
+                conn->setActive(false);
+                m_activeConnections--;
+                CP_DEBUG("returnConnection - ORPHAN: connection not in allConnections, active=%d", m_activeConnections.load());
+                m_connectionAvailable.notify_one(); // Inside lock — freed slot
                 return;
             }
         }
 
+        // ========================================
+        // Phase 1: I/O OUTSIDE any lock
+        // Connection is marked active=true → maintenance skips it, borrowers can't see it.
+        // ========================================
         bool valid = true;
 
         if (m_testOnReturn)
@@ -403,10 +280,17 @@ namespace cpp_dbc
 
         if (valid)
         {
-            // Clean up the connection before returning to pool
             try
             {
-                conn->getUnderlyingKVConnection()->prepareForPoolReturn();
+                if (!conn->m_closed)
+                {
+                    auto resetResult = conn->getUnderlyingKVConnection()->prepareForPoolReturn(std::nothrow);
+                    if (!resetResult)
+                    {
+                        CP_DEBUG("KVDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", resetResult.error().what_s().c_str());
+                        valid = false;
+                    }
+                }
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
@@ -415,31 +299,58 @@ namespace cpp_dbc
             }
         }
 
+        // ========================================
+        // Phase 2: Pool state under m_mutexPool only (NO I/O)
+        // ========================================
         if (valid)
         {
-            // Mark as inactive and update last used time
+            conn->updateLastUsedTime(); // Mark return time for validation skip
+            std::scoped_lock lockPool(m_mutexPool);
             conn->setActive(false);
+            m_activeConnections--;
 
-            // Add to idle connections queue
+            // Direct handoff: if threads are waiting, give the connection directly
+            // to the first waiter instead of pushing to idle.
+            if (!m_waitQueue.empty())
             {
-                std::scoped_lock lockIdle(m_mutexIdleConnections);
+                auto *request = m_waitQueue.front();
+                m_waitQueue.pop_front();
+                request->conn = conn;
+                request->fulfilled = true;
+                conn->setActive(true);
+                m_activeConnections++;
+                CP_DEBUG("returnConnection - HANDOFF: direct to waiter, active=%d, waiters=%zu, total=%zu",
+                         m_activeConnections.load(), m_waitQueue.size(), m_allConnections.size());
+                m_connectionAvailable.notify_all(); // Wake all so fulfilled waiter checks its flag
+            }
+            else
+            {
                 m_idleConnections.push(conn);
-                m_activeConnections--;
+                CP_DEBUG("returnConnection - VALID: pushed to idle, active=%d, idle=%zu, total=%zu",
+                         m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size());
+                m_connectionAvailable.notify_one();
             }
         }
         else
         {
-            m_activeConnections--;
+            // Invalid connection — remove from pool, create replacement.
+            // All notifications INSIDE lock to avoid Helgrind false positives.
 
-            // Step 1: Remove invalid connection from both collections under locks
+            // Step 1: Remove invalid from pool (under lock) + notify freed slot
             {
-                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                std::scoped_lock lockPool(m_mutexPool);
+
+                // CRITICAL: Mark inactive + closed BEFORE decrementing counter.
+                conn->setActive(false);
+                conn->m_closed.store(true);
+                m_activeConnections--;
+                CP_DEBUG("returnConnection - INVALID: active=%d", m_activeConnections.load());
+
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
                     m_allConnections.erase(it);
                 }
-                // Clean idle queue of this connection
                 std::queue<std::shared_ptr<KVPooledDBConnection>> tempQueue;
                 while (!m_idleConnections.empty())
                 {
@@ -451,9 +362,12 @@ namespace cpp_dbc
                     }
                 }
                 m_idleConnections = tempQueue;
+
+                // Notify inside lock: freed slot allows waiting borrower to create
+                m_connectionAvailable.notify_one();
             }
 
-            // Step 2: Close the old invalid connection OUTSIDE locks
+            // Step 2: Close invalid connection OUTSIDE locks (I/O)
             try
             {
                 conn->getUnderlyingKVConnection()->close();
@@ -463,7 +377,12 @@ namespace cpp_dbc
                 CP_DEBUG("KVDBConnectionPool::returnConnection - Exception closing invalid connection: %s", ex.what());
             }
 
-            // Step 3: Create replacement OUTSIDE locks (driver connection creation may acquire its own locks)
+            // Step 3: Create replacement OUTSIDE locks (I/O)
+            if (!m_running.load())
+            {
+                return; // Pool closing, skip replacement
+            }
+
             std::shared_ptr<KVPooledDBConnection> replacement;
             try
             {
@@ -471,22 +390,54 @@ namespace cpp_dbc
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("KVDBConnectionPool::returnConnection - Exception creating replacement connection: %s", ex.what());
+                CP_DEBUG("KVDBConnectionPool::returnConnection - Exception creating replacement: %s", ex.what());
             }
 
-            // Step 4: Insert replacement under locks
+            // Step 4: Insert replacement under lock with direct handoff
             if (replacement)
             {
-                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
-                m_allConnections.push_back(replacement);
-                m_idleConnections.push(replacement);
-            }
-        }
+                std::shared_ptr<KVPooledDBConnection> discardReplacement;
+                {
+                    std::scoped_lock lockPool(m_mutexPool);
+                    if (m_running.load() && m_allConnections.size() < m_maxSize)
+                    {
+                        m_allConnections.push_back(replacement);
 
-        // Notify maintenance thread that a connection was returned
-        {
-            std::scoped_lock maintLock(m_mutexMaintenance);
-            m_maintenanceCondition.notify_one();
+                        // Direct handoff for replacement if waiters exist
+                        if (!m_waitQueue.empty())
+                        {
+                            auto *request = m_waitQueue.front();
+                            m_waitQueue.pop_front();
+                            request->conn = replacement;
+                            request->fulfilled = true;
+                            replacement->setActive(true);
+                            m_activeConnections++;
+                            CP_DEBUG("returnConnection - REPLACEMENT HANDOFF: active=%d, waiters=%zu, total=%zu",
+                                     m_activeConnections.load(), m_waitQueue.size(), m_allConnections.size());
+                            m_connectionAvailable.notify_all();
+                        }
+                        else
+                        {
+                            m_idleConnections.push(replacement);
+                            CP_DEBUG("returnConnection - REPLACEMENT: pushed to idle, active=%d, idle=%zu, total=%zu",
+                                     m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size());
+                            m_connectionAvailable.notify_one();
+                        }
+                    }
+                    else
+                    {
+                        // Pool full or closing — discard replacement
+                        replacement->m_closed.store(true);
+                        discardReplacement = replacement;
+                    }
+                }
+
+                // Close discarded replacement outside lock
+                if (discardReplacement)
+                {
+                    try { discardReplacement->getUnderlyingKVConnection()->close(); } catch (...) {}
+                }
+            }
         }
     }
 
@@ -494,12 +445,14 @@ namespace cpp_dbc
     {
         do
         {
-            {   // sub-scope: m_mutexMaintenance released at end of this block
-                // Wait for 30 seconds or until notified (e.g., when close() is called)
-                std::unique_lock lock(m_mutexMaintenance);
+            // Wait for 30 seconds or until notified (e.g., when close() is called).
+            // Uses m_mutexPool so both CVs share the same mutex. The lock is released during wait_for().
+            {
+                std::unique_lock lock(m_mutexPool);
                 m_maintenanceCondition.wait_for(lock, std::chrono::seconds(30), [this]
                                                 { return !m_running; });
             }
+            // m_mutexPool is now released. Maintenance runs without holding it.
 
             if (!m_running)
             {
@@ -508,10 +461,9 @@ namespace cpp_dbc
 
             auto now = std::chrono::steady_clock::now();
 
-            {   // sub-scope: release lockBoth before replenishment to prevent lock-order inversion
-                // Ensure no body touch the allConnections and idleConnections variables when used by this thread
-                // Use scoped_lock for consistent lock ordering to prevent deadlock
-                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+            // Expire old connections under lock (no new connection creation here)
+            {
+                std::scoped_lock lock(m_mutexPool);
 
                 // Check all connections for expired ones
                 for (auto it = m_allConnections.begin(); it != m_allConnections.end();)
@@ -564,12 +516,13 @@ namespace cpp_dbc
                     }
                 }
             }
+            // Locks released here — replenishment happens outside locks
 
-            // Replenish minIdle connections OUTSIDE locks to prevent lock-order inversion
-            // (createPooledDBConnection may acquire driver-internal locks)
+            // CRITICAL: createPooledDBConnection() must NOT be called while holding pool locks.
+            // Replenish minIdle connections OUTSIDE locks to avoid potential lock ordering cycles.
             size_t currentTotal;
             {
-                std::scoped_lock lockCheck(m_mutexAllConnections);
+                std::scoped_lock lock(m_mutexPool);
                 currentTotal = m_allConnections.size();
             }
             while (m_running && currentTotal < m_minIdle)
@@ -577,12 +530,11 @@ namespace cpp_dbc
                 try
                 {
                     auto pooledConn = createPooledDBConnection();
-                    {
-                        std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
-                        m_idleConnections.push(pooledConn);
-                        m_allConnections.push_back(pooledConn);
-                        currentTotal = m_allConnections.size();
-                    }
+                    std::scoped_lock lock(m_mutexPool);
+                    m_idleConnections.push(pooledConn);
+                    m_allConnections.push_back(pooledConn);
+                    m_connectionAvailable.notify_one(); // Wake waiting borrower if any
+                    currentTotal = m_allConnections.size();
                 }
                 catch ([[maybe_unused]] const std::exception &ex)
                 {
@@ -600,75 +552,199 @@ namespace cpp_dbc
 
     std::shared_ptr<KVDBConnection> KVDBConnectionPool::getKVDBConnection()
     {
-        std::unique_lock lock(m_mutexGetConnection);
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(m_maxWaitMillis);
 
-        if (!m_running.load())
+        while (true) // Retry loop for testOnBorrow validation failures
         {
-            throw DBException("BAB0896A213B", "Connection pool is closed", system_utils::captureCallStack());
-        }
+            std::shared_ptr<KVPooledDBConnection> result;
+            bool handedOff = false;
 
-        std::shared_ptr<KVPooledDBConnection> result = this->getIdleDBConnection();
-
-        // If no connection available, check if we can create a new one
-        size_t currentSize;
-        {
-            std::scoped_lock lock_all(m_mutexAllConnections);
-            currentSize = m_allConnections.size();
-        }
-        if (result == nullptr && currentSize < m_maxSize)
-        {
-            auto candidate = createPooledDBConnection();
-
+            // ========================================
+            // Phase 1: Acquire candidate under m_mutexPool (NO I/O)
+            // ========================================
             {
-                std::scoped_lock lock_all(m_mutexAllConnections);
-                // Recheck size under lock to prevent exceeding m_maxSize under concurrent creation
-                if (m_allConnections.size() < m_maxSize)
-                {
-                    m_allConnections.push_back(candidate);
-                    result = candidate;
-                }
-            }
-
-            // If we couldn't register the connection (pool became full), close it
-            if (result == nullptr && candidate && candidate->getUnderlyingKVConnection())
-            {
-                candidate->getUnderlyingKVConnection()->close();
-            }
-        }
-        // If no connection available, wait until one becomes available
-        if (result == nullptr)
-        {
-            auto waitStart = std::chrono::steady_clock::now();
-
-            // Wait until a connection is returned to the pool or timeout
-            do
-            {
-                auto now = std::chrono::steady_clock::now();
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-                auto waitedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - waitStart).count();
-
-                if (waitedMs >= m_maxWaitMillis)
-                {
-                    throw DBException("8B0E04F03A6D", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
-                }
+                std::unique_lock lockPool(m_mutexPool);
 
                 if (!m_running.load())
                 {
-                    throw DBException("9C4A03BF221C", "Connection pool is closed", system_utils::captureCallStack());
+                    throw DBException("BAB0896A213B", "Connection pool is closed", system_utils::captureCallStack());
                 }
 
-                result = this->getIdleDBConnection();
+                // Unified acquire loop: idle check → create → wait (with direct handoff)
+                while (!result)
+                {
+                    // Step 1: Check idle (catches connections from lost notifications)
+                    if (!m_idleConnections.empty())
+                    {
+                        result = m_idleConnections.front();
+                        m_idleConnections.pop();
+                        CP_DEBUG("borrow - GOT IDLE: active=%d, idle=%zu, total=%zu",
+                                 m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size());
+                        break;
+                    }
 
-            } while (result == nullptr);
+                    // Step 2: Try creating if pool has room
+                    if (m_allConnections.size() + m_pendingCreations < m_maxSize)
+                    {
+                        CP_DEBUG("borrow - CREATING: total=%zu, pending=%zu, max=%zu",
+                                 m_allConnections.size(), m_pendingCreations, m_maxSize);
+                        m_pendingCreations++;
+                        lockPool.unlock();
+                        try
+                        {
+                            auto candidate = createPooledDBConnection();
+                            lockPool.lock();
+                            m_pendingCreations--;
+
+                            // Recheck size under lock (another thread may have filled the pool)
+                            if (m_allConnections.size() < m_maxSize)
+                            {
+                                m_allConnections.push_back(candidate);
+                                result = candidate;
+                            }
+                            else if (candidate)
+                            {
+                                // Pool became full — discard candidate
+                                CP_DEBUG("borrow - DISCARD candidate: total=%zu >= max=%zu", m_allConnections.size(), m_maxSize);
+                                candidate->m_closed.store(true); // Prevent destructor returnToPool()
+                                lockPool.unlock();
+                                try { candidate->getUnderlyingKVConnection()->close(); } catch (...) {}
+                                lockPool.lock();
+                            }
+                        }
+                        catch (...)
+                        {
+                            lockPool.lock();
+                            m_pendingCreations--;
+                        }
+                        continue; // ALWAYS re-check idle after any unlock/lock cycle
+                    }
+
+                    // Step 3: Nothing available — wait on CV with direct handoff request.
+                    ConnectionRequest request;
+                    m_waitQueue.push_back(&request);
+                    CP_DEBUG("borrow - WAITING on CV: active=%d, idle=%zu, total=%zu, pending=%zu, waiters=%zu",
+                             m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size(),
+                             m_pendingCreations, m_waitQueue.size());
+
+                    while (true) // Inner wait loop — request stays in queue at FIFO position
+                    {
+                        std::cv_status status;
+                        try
+                        {
+                            status = m_connectionAvailable.wait_until(lockPool, deadline);
+                        }
+                        catch (...)
+                        {
+                            std::erase(m_waitQueue, &request);
+                            throw;
+                        }
+
+                        // Check if we received a direct handoff
+                        if (request.fulfilled)
+                        {
+                            result = request.conn;
+                            handedOff = true;
+                            CP_DEBUG("borrow - HANDOFF received: active=%d, idle=%zu, total=%zu",
+                                     m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size());
+                            break; // Exit inner loop; outer loop also exits (result is set)
+                        }
+
+                        // Not fulfilled — check termination conditions (stay in queue)
+                        if (!m_running.load())
+                        {
+                            std::erase(m_waitQueue, &request);
+                            throw DBException("9C4A03BF221C", "Connection pool is closed", system_utils::captureCallStack());
+                        }
+
+                        if (status == std::cv_status::timeout)
+                        {
+                            std::erase(m_waitQueue, &request);
+                            // One last idle check before throwing
+                            if (!m_idleConnections.empty())
+                            {
+                                result = m_idleConnections.front();
+                                m_idleConnections.pop();
+                                CP_DEBUG("borrow - GOT IDLE after timeout: active=%d, idle=%zu",
+                                         m_activeConnections.load(), m_idleConnections.size());
+                                break;
+                            }
+                            CP_DEBUG("borrow - TIMEOUT: active=%d, idle=%zu, total=%zu, pending=%zu",
+                                     m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size(), m_pendingCreations);
+                            throw DBException("8B0E04F03A6D", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
+                        }
+
+                        // Spurious/non-fulfilled wakeup — check if idle connection appeared
+                        if (!m_idleConnections.empty())
+                        {
+                            std::erase(m_waitQueue, &request);
+                            result = m_idleConnections.front();
+                            m_idleConnections.pop();
+                            CP_DEBUG("borrow - GOT IDLE after wakeup: active=%d, idle=%zu",
+                                     m_activeConnections.load(), m_idleConnections.size());
+                            break;
+                        }
+
+                        // Nothing available — stay in queue at same FIFO position, re-wait.
+                        CP_DEBUG("borrow - CV WAKEUP (re-waiting): idle=%zu, total=%zu",
+                                 m_idleConnections.size(), m_allConnections.size());
+                    } // End inner wait loop
+                }
+
+                // Mark active UNDER lock (prevents maintenance from stealing)
+                // Skip for handoff — returner already set active + incremented counter
+                if (!handedOff)
+                {
+                    result->setActive(true);
+                    m_activeConnections++;
+                }
+                result->m_closed.store(false); // Defensive: always ensure not-closed
+            } // lockPool released
+
+            // ========================================
+            // Phase 2: Validate OUTSIDE lock (I/O)
+            // HikariCP pattern: skip validation for recently-used connections.
+            // ========================================
+            if (m_testOnBorrow)
+            {
+                auto timeSinceLastUse = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - result->getLastUsedTime()).count();
+
+                if (timeSinceLastUse > m_validationTimeoutMillis &&
+                    !validateConnection(result->getUnderlyingKVConnection()))
+                {
+                    CP_DEBUG("borrow - VALIDATION FAILED: removing connection, active=%d", m_activeConnections.load());
+                    // Validation failed — undo active marking, remove from pool
+                    {
+                        std::scoped_lock lockPool(m_mutexPool);
+                        result->setActive(false);
+                        result->m_closed.store(true);
+                        m_activeConnections--;
+
+                        auto it = std::ranges::find(m_allConnections, result);
+                        if (it != m_allConnections.end())
+                        {
+                            m_allConnections.erase(it);
+                        }
+                        // Notify inside lock — freed slot allows waiting threads to create
+                        m_connectionAvailable.notify_one();
+                    }
+
+                    // Close invalid connection outside lock
+                    try { result->getUnderlyingKVConnection()->close(); } catch (...) {}
+
+                    // Check if we still have time to retry
+                    if (std::chrono::steady_clock::now() >= deadline)
+                    {
+                        throw DBException("8B0E04F03A6D", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
+                    }
+
+                    continue; // Retry with new candidate
+                }
+            }
+
+            return result;
         }
-
-        // Mark as active
-        result->setActive(true);
-        m_activeConnections++;
-
-        return result;
     }
 
     size_t KVDBConnectionPool::getActiveDBConnectionCount() const
@@ -678,13 +754,13 @@ namespace cpp_dbc
 
     size_t KVDBConnectionPool::getIdleDBConnectionCount() const
     {
-        std::scoped_lock lock(m_mutexIdleConnections);
+        std::scoped_lock lock(m_mutexPool);
         return m_idleConnections.size();
     }
 
     size_t KVDBConnectionPool::getTotalDBConnectionCount() const
     {
-        std::scoped_lock lock(m_mutexAllConnections);
+        std::scoped_lock lock(m_mutexPool);
         return m_allConnections.size();
     }
 
@@ -739,10 +815,12 @@ namespace cpp_dbc
             }
         }
 
-        // Notify all waiting threads
+        // Notify all waiting threads to wake up and exit.
+        // Both CVs use m_mutexPool.
         {
-            std::scoped_lock lock(m_mutexMaintenance);
+            std::scoped_lock lock(m_mutexPool);
             m_maintenanceCondition.notify_all();
+            m_connectionAvailable.notify_all();
         }
 
         // Join maintenance thread (only if it was started)
@@ -758,7 +836,7 @@ namespace cpp_dbc
         // Closing inside pool locks would invert that order → Helgrind LockOrder violation.
         std::vector<std::shared_ptr<KVPooledDBConnection>> connectionsToClose;
         {
-            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+            std::scoped_lock lock(m_mutexPool);
             connectionsToClose = m_allConnections;
             while (!m_idleConnections.empty())
             {
@@ -1298,8 +1376,7 @@ namespace cpp_dbc
 
     std::chrono::time_point<std::chrono::steady_clock> KVPooledDBConnection::getLastUsedTime() const
     {
-        std::scoped_lock<std::mutex> lock(m_lastUsedTimeMutex);
-        return m_lastUsedTime;
+        return m_lastUsedTime.load(std::memory_order_relaxed);
     }
 
     void KVPooledDBConnection::setActive(bool active)

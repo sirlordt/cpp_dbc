@@ -154,8 +154,6 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         REQUIRE(std::find(keys.begin(), keys.end(), "age") != keys.end());
         REQUIRE(std::find(keys.begin(), keys.end(), "city") != keys.end());
 
-        // Clean up
-        conn->executeUpdate("DROP TABLE test_json_types");
         conn->close();
     }
 
@@ -224,8 +222,6 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("id") == 3);
 
-        // Clean up
-        conn->executeUpdate("DROP TABLE test_jsonb_operators");
         conn->close();
     }
 
@@ -295,8 +291,6 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         REQUIRE(rs->next());
         REQUIRE(rs->getBoolean("has_city") == false);
 
-        // Clean up
-        conn->executeUpdate("DROP TABLE test_jsonb_modification");
         conn->close();
     }
 
@@ -367,8 +361,6 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         }
         REQUIRE(count == 3);
 
-        // Clean up
-        conn->executeUpdate("DROP TABLE test_jsonb_indexing");
         conn->close();
     }
 
@@ -489,8 +481,6 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         REQUIRE(std::find(features.begin(), features.end(), "\"shockproof\"") != features.end());
         REQUIRE(std::find(features.begin(), features.end(), "\"dustproof\"") != features.end());
 
-        // Clean up
-        conn->executeUpdate("DROP TABLE test_jsonb_aggregation");
         conn->close();
     }
 
@@ -555,8 +545,6 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         REQUIRE(rs->next());
         REQUIRE(rs->isNull("nonexistent"));
 
-        // Clean up
-        conn->executeUpdate("DROP TABLE test_json_validation");
         conn->close();
     }
 }

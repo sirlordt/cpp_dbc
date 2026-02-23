@@ -37,7 +37,24 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Pool Lifecycle API Hardening, C++ Code Analysis Toolset, Docker Container Auto-Restart, and Valgrind Suppression Report** (2026-02-21 14:25 PST):
+1. **Unified Pool Mutex, Atomic Time-Point, Direct Handoff for All Pools, Notifications, and Test Quality Improvements** (2026-02-22 19:18 PST):
+   - **Columnar/Document/KV Pools — Unified Mutex + Direct Handoff:**
+     - 5 separate mutexes → single `m_mutexPool`; `getIdleDBConnection()` private method removed
+     - `getXDBConnection()`: replaced 10ms-polling loop with `condition_variable::wait_until()` + FIFO wait loop
+     - Added `ConnectionRequest` struct + `m_waitQueue` for direct handoff (no "stolen wakeup" race)
+     - Added `m_connectionAvailable` CV (borrowers) and `m_pendingCreations` counter (overshoot prevention)
+     - `returnConnection()` fixes: pool-closing exit, orphan handling, reset-failure → invalid, `updateLastUsedTime()`, all notifies inside lock
+     - Destructors call `XDBConnectionPool::close()` (qualified) to avoid S1699 virtual dispatch in destructor
+   - **`std::atomic<time_point>` for Last-Used Time:**
+     - `m_lastUsedTimeMutex` removed; `m_lastUsedTime` → `std::atomic<steady_clock::time_point>` with `memory_order_relaxed`
+     - `static_assert(::is_always_lock_free)` verifies no hidden mutex at compile time
+   - **`libdw` Disabled by Default:** All test scripts default `BACKWARD_HAS_DW=OFF`; `--dw-on` opt-in
+   - **Test Notification System:** `send_test_notification()` in `scripts/common/functions.sh`; reads `NOTIFY_COMMAND` from `.env.secrets` (gitignored); sends Gotify push after parallel and non-parallel runs
+   - **`run_test_parallel.sh` — Compact Summary Refactor:** `display_compact_summary()` + `extract_catch2_warnings()` + `reconstruct_helgrind_warnings()` + `print_entry()`/`print_reason()`; `save_report_to_file()` includes compact summary + elapsed time
+   - **Firebird `role` Option:** `isc_dpb_sql_role_name` in DPB; YAML updated; new `prod_firebird` example; `READ_UNCOMMITTED` MVCC behavior test
+   - **Test Quality:** All success thresholds → 95%; timeout 2000 ms → 3500 ms; pool tests use `WARN()` instead of hard `REQUIRE(failureCount == 0)`; PostgreSQL tests fixed (`returnToPool()`, removed inline `DROP TABLE`, added `rs->close()`); SQLite new test sections
+
+2. **Pool Lifecycle API Hardening, C++ Code Analysis Toolset, Docker Container Auto-Restart, and Valgrind Suppression Report** (2026-02-21 14:25 PST):
    - **Pool Lifecycle Methods — Protected API:**
      - `prepareForPoolReturn()`, `prepareForBorrow()` (and nothrow versions) moved from `public` to `protected` in `RelationalDBConnection`
      - Forward declarations + `friend class RelationalDBConnectionPool` / `friend class RelationalPooledDBConnection` added — only pool infrastructure can call lifecycle methods

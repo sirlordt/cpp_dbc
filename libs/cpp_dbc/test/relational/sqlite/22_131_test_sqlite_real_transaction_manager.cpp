@@ -118,9 +118,9 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
         poolConfig.setUrl(connStr);
         poolConfig.setUsername("");
         poolConfig.setPassword("");
-        poolConfig.setInitialSize(5);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(2);
+        poolConfig.setInitialSize(10);
+        poolConfig.setMaxSize(20);
+        poolConfig.setMinIdle(5);
         poolConfig.setConnectionTimeout(10000);
         poolConfig.setValidationInterval(1000);
         poolConfig.setIdleTimeout(30000);
@@ -137,8 +137,8 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
         cpp_dbc::TransactionManager manager(pool);
 
         // Number of threads and transactions per thread
-        const int numThreads = 3;
-        const int txPerThread = 5;
+        const int numThreads = 5;
+        const int txPerThread = 10;
 
         // Atomic counter for successful transactions
         std::atomic<int> successCount(0);
@@ -232,9 +232,9 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
         poolConfig.setUrl(connStr);
         poolConfig.setUsername("");
         poolConfig.setPassword("");
-        poolConfig.setInitialSize(3);
-        poolConfig.setMaxSize(5);
-        poolConfig.setMinIdle(2);
+        poolConfig.setInitialSize(5);
+        poolConfig.setMaxSize(10);
+        poolConfig.setMinIdle(3);
         poolConfig.setConnectionTimeout(5000);
         poolConfig.setValidationInterval(1000);
         poolConfig.setIdleTimeout(30000);

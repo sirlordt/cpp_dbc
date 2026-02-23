@@ -1611,11 +1611,7 @@ namespace cpp_dbc
 
     std::chrono::time_point<std::chrono::steady_clock> RelationalPooledDBConnection::getLastUsedTime() const
     {
-        // CRITICAL FIX for Bug #2: Protect read access with mutex to prevent data race
-        // Maintenance thread reads this while worker threads write
-        // See: libs/cpp_dbc/docs/bugs/firebird_helgrind_analysis.md (Context 1)
-        std::scoped_lock<std::mutex> lock(m_lastUsedTimeMutex);
-        return m_lastUsedTime;
+        return m_lastUsedTime.load(std::memory_order_relaxed);
     }
 
     void RelationalPooledDBConnection::setActive(bool isActive)

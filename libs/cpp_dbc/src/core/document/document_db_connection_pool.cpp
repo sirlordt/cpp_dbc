@@ -100,7 +100,7 @@ namespace cpp_dbc
                 // Add to idle connections and all connections lists under proper locks
                 // Use scoped_lock for consistent lock ordering to prevent deadlock
                 {
-                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                    std::scoped_lock lock(m_mutexPool);
                     m_idleConnections.push(pooledConn);
                     m_allConnections.push_back(pooledConn);
                 }
@@ -112,7 +112,7 @@ namespace cpp_dbc
         catch (const std::exception &ex)
         {
             close();
-            throw DBException("DOC54157A1F4D8", "Failed to initialize connection pool: " + std::string(ex.what()), system_utils::captureCallStack());
+            throw DBException("E5B7034FDB2F", "Failed to initialize connection pool: " + std::string(ex.what()), system_utils::captureCallStack());
         }
     }
 
@@ -214,9 +214,6 @@ namespace cpp_dbc
 
     void DocumentDBConnectionPool::returnConnection(std::shared_ptr<DocumentPooledDBConnection> conn)
     {
-        std::scoped_lock lock(m_mutexReturnConnection);
-
-        // Null check to prevent crash
         if (!conn)
         {
             return;
@@ -224,14 +221,15 @@ namespace cpp_dbc
 
         if (!m_running.load())
         {
-            // If pool is shutting down, close the connection to free resources
+            conn->setActive(false);
+            m_activeConnections--;
             try
             {
                 conn->getUnderlyingDocumentConnection()->close();
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception during close (pool shutting down): %s", ex.what());
+                CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception closing connection during shutdown: %s", ex.what());
             }
             return;
         }
@@ -239,21 +237,27 @@ namespace cpp_dbc
         // Check if connection is already inactive (already returned to pool)
         if (!conn->isActive())
         {
+            CP_DEBUG("DocumentDBConnectionPool::returnConnection - Connection is not active, SKIPPED");
             return;
         }
 
-        // Additional safety check: verify connection is in allConnections
+        // Additional safety check: verify connection is in allConnections (detect orphan)
         {
-            std::scoped_lock lockAll(m_mutexAllConnections);
+            std::scoped_lock lockPool(m_mutexPool);
             auto it = std::ranges::find(m_allConnections, conn);
             if (it == m_allConnections.end())
             {
+                conn->setActive(false);
+                m_activeConnections--;
+                CP_DEBUG("DocumentDBConnectionPool::returnConnection - Connection not found in pool, SKIPPED");
+                m_connectionAvailable.notify_one();
                 return;
             }
         }
 
         bool valid = true;
 
+        // Phase 1: I/O outside lock (validation and pool-return prep)
         if (m_testOnReturn)
         {
             valid = validateConnection(conn->getUnderlyingDocumentConnection());
@@ -261,53 +265,59 @@ namespace cpp_dbc
 
         if (valid)
         {
-            // Clean up the connection before returning to pool
-            // This closes all cursors, aborts transactions, etc.
-            try
+            auto result = conn->getUnderlyingDocumentConnection()->prepareForPoolReturn(std::nothrow);
+            if (!result)
             {
-                conn->getUnderlyingDocumentConnection()->prepareForPoolReturn();
-            }
-            catch ([[maybe_unused]] const std::exception &ex)
-            {
-                CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception in prepareForPoolReturn: %s", ex.what());
+                CP_DEBUG("DocumentDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", result.error().what_s().c_str());
                 valid = false;
             }
         }
 
+        // Phase 2: State changes under m_mutexPool
         if (valid)
         {
-            // Mark as inactive and update last used time
+            conn->updateLastUsedTime();
+            std::scoped_lock lockPool(m_mutexPool);
             conn->setActive(false);
+            m_activeConnections--;
 
-            // Add to idle connections queue
+            if (!m_waitQueue.empty())
             {
-                std::scoped_lock lockIdle(m_mutexIdleConnections);
+                // Direct handoff to first waiter.
+                // Restore active state: we decremented above unconditionally,
+                // but the borrower skips setActive(true)/m_activeConnections++
+                // when handedOff=true, so we must restore here.
+                ConnectionRequest *req = m_waitQueue.front();
+                m_waitQueue.pop_front();
+                conn->setActive(true);
+                m_activeConnections++;
+                req->conn = conn;
+                req->fulfilled = true;
+                m_connectionAvailable.notify_all();
+            }
+            else
+            {
                 m_idleConnections.push(conn);
-                m_activeConnections--;
+                m_connectionAvailable.notify_one();
             }
         }
         else
         {
-            // CRITICAL FIX: createPooledDBConnection() must NOT be called while holding pool locks,
-            // because it invokes the driver (e.g. MongoDBDriver), which acquires its own internal
-            // mutex and libmongoc topology locks. Calling it under lockBoth creates a lock ordering
-            // cycle (pool locks → driver locks) that conflicts with the order established in
-            // getDocumentDBConnection() (driver locks acquired before pool locks in other paths),
-            // generating Helgrind:LockOrder violations.
-            //
-            // Fix: Remove invalid connection under locks, then create replacement OUTSIDE locks,
-            // and re-acquire locks only to insert the replacement into the pool.
-            m_activeConnections--;
-
-            // Step 1: Under locks — remove the invalid connection from both collections
+            // Invalid connection: remove from pool, close outside lock, then replenish
             {
-                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                std::scoped_lock lockPool(m_mutexPool);
+                conn->setActive(false);
+                conn->m_closed.store(true); // prevent destructor double-decrement
+                m_activeConnections--;
+
+                // Remove from allConnections
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
                     m_allConnections.erase(it);
                 }
-                // Also clean it from the idle queue if it somehow ended up there
+
+                // Remove from idle queue if present (defensive)
                 std::queue<std::shared_ptr<DocumentPooledDBConnection>> tempQueue;
                 while (!m_idleConnections.empty())
                 {
@@ -318,11 +328,13 @@ namespace cpp_dbc
                         tempQueue.push(c);
                     }
                 }
-                m_idleConnections = tempQueue;
-            }
-            // Locks released here
+                m_idleConnections = std::move(tempQueue);
 
-            // Step 2: Close the old invalid connection OUTSIDE locks
+                // Notify inside lock: freed slot allows waiting threads to create
+                m_connectionAvailable.notify_one();
+            }
+
+            // Close outside lock
             try
             {
                 conn->getUnderlyingDocumentConnection()->close();
@@ -332,95 +344,62 @@ namespace cpp_dbc
                 CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception closing invalid connection: %s", ex.what());
             }
 
-            // Step 3: Create replacement connection OUTSIDE locks (avoids lock ordering cycle)
-            std::shared_ptr<DocumentPooledDBConnection> replacement;
-            try
+            // Replenish: create outside lock
+            if (m_running.load())
             {
-                replacement = createPooledDBConnection();
-            }
-            catch ([[maybe_unused]] const std::exception &ex)
-            {
-                CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception creating replacement connection: %s", ex.what());
-            }
-
-            // Step 4: Under locks — insert replacement into pool collections
-            if (replacement)
-            {
-                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
-                m_allConnections.push_back(replacement);
-                m_idleConnections.push(replacement);
-            }
-        }
-
-        // Notify maintenance thread that a connection was returned.
-        // m_mutexMaintenance is held only for the duration of notify_one() — maintenance
-        // work now runs outside this lock, so this cannot cause a deadlock or stall.
-        {
-            std::scoped_lock maintLock(m_mutexMaintenance);
-            m_maintenanceCondition.notify_one();
-        }
-    }
-
-    std::shared_ptr<DocumentPooledDBConnection> DocumentDBConnectionPool::getIdleDBConnection()
-    {
-        // Lock both mutexes in consistent order to prevent deadlock
-        // Always lock m_mutexAllConnections first, then m_mutexIdleConnections
-        std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
-
-        if (!m_idleConnections.empty())
-        {
-            auto conn = m_idleConnections.front();
-            m_idleConnections.pop();
-
-            // Test connection before use if configured
-            if (m_testOnBorrow && !validateConnection(conn->getUnderlyingDocumentConnection()))
-            {
-                // Close the invalid underlying connection to prevent resource leak
+                std::shared_ptr<DocumentPooledDBConnection> replacement;
                 try
                 {
-                    conn->getUnderlyingDocumentConnection()->close();
+                    replacement = createPooledDBConnection();
                 }
                 catch ([[maybe_unused]] const std::exception &ex)
                 {
-                    CP_DEBUG("DocumentDBConnectionPool::getIdleDBConnection - Exception closing invalid connection: %s", ex.what());
+                    CP_DEBUG("DocumentDBConnectionPool::returnConnection - Exception creating replacement: %s", ex.what());
                 }
 
-                // Remove invalid connection from allConnections
-                // Let the caller (getDocumentDBConnection) create replacement outside locks
-                auto it = std::ranges::find(m_allConnections, conn);
-                if (it != m_allConnections.end())
+                if (replacement)
                 {
-                    m_allConnections.erase(it);
+                    std::shared_ptr<DocumentPooledDBConnection> discardReplacement;
+                    {
+                        std::scoped_lock lockPool(m_mutexPool);
+                        if (m_running.load() && m_allConnections.size() < static_cast<size_t>(m_maxSize))
+                        {
+                            m_allConnections.push_back(replacement);
+
+                            if (!m_waitQueue.empty())
+                            {
+                                // Direct handoff to first waiter
+                                ConnectionRequest *req = m_waitQueue.front();
+                                m_waitQueue.pop_front();
+                                replacement->setActive(true);
+                                m_activeConnections++;
+                                replacement->m_closed.store(false);
+                                req->conn = replacement;
+                                req->fulfilled = true;
+                                m_connectionAvailable.notify_all();
+                            }
+                            else
+                            {
+                                m_idleConnections.push(replacement);
+                                m_connectionAvailable.notify_one();
+                            }
+                        }
+                        else
+                        {
+                            // Pool full or closing — discard replacement
+                            replacement->m_closed.store(true);
+                            discardReplacement = replacement;
+                        }
+                    }
+
+                    // Close discarded replacement outside lock
+                    if (discardReplacement)
+                    {
+                        try { discardReplacement->getUnderlyingDocumentConnection()->close(); } catch (...) {}
+                    }
                 }
-
-                // NOSONAR - Original code that created connection inside locks (kept for reference):
-                // if (m_running.load())
-                // {
-                //     try
-                //     {
-                //         auto newConn = createPooledDBConnection();
-                //         m_allConnections.push_back(newConn);
-                //         return newConn;
-                //     }
-                //     catch ([[maybe_unused]] const std::exception &ex)
-                //     {
-                //         CP_DEBUG("DocumentDBConnectionPool::getIdleDBConnection - Exception creating replacement connection: " << ex.what());
-                //         return nullptr;
-                //     }
-                // }
-
-                return nullptr;
             }
-
-            return conn;
         }
-        else if (m_allConnections.size() < m_maxSize)
-        {
-            // Signal that we need to create a new connection
-            return nullptr;
-        }
-
-        return nullptr;
     }
 
     std::shared_ptr<DBConnection> DocumentDBConnectionPool::getDBConnection()
@@ -430,91 +409,210 @@ namespace cpp_dbc
 
     std::shared_ptr<DocumentDBConnection> DocumentDBConnectionPool::getDocumentDBConnection()
     {
-        std::unique_lock lock(m_mutexGetConnection);
+        using namespace std::chrono;
+        auto deadline = steady_clock::now() + milliseconds(m_maxWaitMillis);
 
-        if (!m_running.load())
+        while (true)
         {
-            throw DBException("DOC5Q6R7S8T9U0V", "Connection pool is closed", system_utils::captureCallStack());
-        }
-
-        std::shared_ptr<DocumentPooledDBConnection> result = this->getIdleDBConnection();
-
-        // If no connection available, check if we can create a new one
-        size_t currentSize;
-        {
-            std::scoped_lock lock_all(m_mutexAllConnections);
-            currentSize = m_allConnections.size();
-        }
-        if (result == nullptr && currentSize < m_maxSize)
-        {
-            auto candidate = createPooledDBConnection();
+            std::shared_ptr<DocumentPooledDBConnection> result;
+            bool handedOff = false;
 
             {
-                std::scoped_lock lock_all(m_mutexAllConnections);
-                // Recheck size under lock to prevent exceeding m_maxSize under concurrent creation
-                if (m_allConnections.size() < m_maxSize)
-                {
-                    m_allConnections.push_back(candidate);
-                    result = candidate;
-                }
-            }
-
-            // If we couldn't register the connection (pool became full), close it
-            if (result == nullptr && candidate && candidate->getUnderlyingDocumentConnection())
-            {
-                candidate->getUnderlyingDocumentConnection()->close();
-            }
-        }
-        // If no connection available, wait until one becomes available
-        if (result == nullptr)
-        {
-            auto waitStart = std::chrono::steady_clock::now();
-
-            // Wait until a connection is returned to the pool or timeout
-            do
-            {
-                auto now = std::chrono::steady_clock::now();
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-                auto waitedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - waitStart).count();
-
-                if (waitedMs >= m_maxWaitMillis)
-                {
-                    throw DBException("DOC88D90026A76A", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
-                }
+                std::unique_lock lockPool(m_mutexPool);
 
                 if (!m_running.load())
                 {
-                    throw DBException("DOC58566A84D1A1", "Connection pool is closed", system_utils::captureCallStack());
+                    throw DBException("26405F5CF154", "Connection pool is closed", system_utils::captureCallStack());
                 }
 
-                result = this->getIdleDBConnection();
+                // Acquire loop: idle → create → wait
+                while (!result)
+                {
+                    // Step 1: Check idle connections
+                    if (!m_idleConnections.empty())
+                    {
+                        result = m_idleConnections.front();
+                        m_idleConnections.pop();
+                        break;
+                    }
 
-            } while (result == nullptr);
+                    // Step 2: Create new connection if pool not full
+                    size_t totalPlusCreating = m_allConnections.size() + m_pendingCreations;
+                    if (totalPlusCreating < m_maxSize)
+                    {
+                        m_pendingCreations++;
+                        lockPool.unlock();
+
+                        std::shared_ptr<DocumentPooledDBConnection> newConn;
+                        try
+                        {
+                            newConn = createPooledDBConnection();
+                        }
+                        catch ([[maybe_unused]] const std::exception &ex)
+                        {
+                            CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - Exception creating connection: %s", ex.what());
+                        }
+
+                        lockPool.lock();
+                        m_pendingCreations--;
+
+                        if (newConn)
+                        {
+                            // Recheck size under lock (another thread may have filled the pool
+                            // while we were creating outside the lock)
+                            if (m_allConnections.size() < static_cast<size_t>(m_maxSize))
+                            {
+                                m_allConnections.push_back(newConn);
+                                result = newConn;
+                            }
+                            else
+                            {
+                                // Pool became full — discard candidate
+                                newConn->m_closed.store(true); // Prevent destructor returnToPool()
+                                lockPool.unlock();
+                                try { newConn->getUnderlyingDocumentConnection()->close(); } catch (...) {}
+                                lockPool.lock();
+                            }
+                        }
+                        // Always restart outer loop: if result is set it exits,
+                        // otherwise idle is re-checked before waiting (matches KV).
+                        // This prevents missing connections returned during the unlock.
+                        continue;
+                    }
+
+                    // Step 3: Wait for a connection to become available.
+                    // CRITICAL: Inner loop keeps the request at its FIFO position.
+                    // Non-fulfilled wakeups must NOT dequeue and re-enqueue — that
+                    // would push the thread to the back, causing deadline starvation.
+                    ConnectionRequest req;
+                    m_waitQueue.push_back(&req);
+
+                    while (true) // Inner wait loop — request stays in queue at FIFO position
+                    {
+                        std::cv_status status;
+                        try
+                        {
+                            status = m_connectionAvailable.wait_until(lockPool, deadline);
+                        }
+                        catch (...)
+                        {
+                            // Safety: remove from queue if wait_until throws (extremely rare)
+                            std::erase(m_waitQueue, &req);
+                            throw;
+                        }
+
+                        // FIRST: check fulfilled (takes priority over timeout)
+                        if (req.fulfilled)
+                        {
+                            result = req.conn;
+                            handedOff = true;
+                            break;
+                        }
+
+                        if (!m_running.load())
+                        {
+                            std::erase(m_waitQueue, &req);
+                            throw DBException("04E13757D18B", "Connection pool is closed", system_utils::captureCallStack());
+                        }
+
+                        if (status == std::cv_status::timeout)
+                        {
+                            // Timed out: remove our request from the queue if still there
+                            std::erase(m_waitQueue, &req);
+
+                            // One last idle check: a connection may have arrived just as
+                            // the deadline fired (matches KV pattern).
+                            if (!m_idleConnections.empty())
+                            {
+                                result = m_idleConnections.front();
+                                m_idleConnections.pop();
+                                break;
+                            }
+
+                            throw DBException("D2472D7067A8", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
+                        }
+
+                        // Spurious wakeup: check idle again
+                        if (!m_idleConnections.empty())
+                        {
+                            std::erase(m_waitQueue, &req);
+                            result = m_idleConnections.front();
+                            m_idleConnections.pop();
+                            break;
+                        }
+
+                        // Nothing available — stay in queue at same FIFO position, re-wait.
+                    }
+
+                    if (result)
+                        break;
+                }
+
+                if (!handedOff)
+                {
+                    result->setActive(true);
+                    m_activeConnections++;
+                }
+                result->m_closed.store(false);
+            }
+
+            // Phase 2: HikariCP validation skip (outside lock)
+            if (m_testOnBorrow)
+            {
+                auto lastUsed = result->getLastUsedTime();
+                auto now = steady_clock::now();
+                auto timeSinceLastUse = duration_cast<milliseconds>(now - lastUsed).count();
+
+                if (timeSinceLastUse > m_validationTimeoutMillis)
+                {
+                    if (!validateConnection(result->getUnderlyingDocumentConnection()))
+                    {
+                        CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - Validation failed, removing connection");
+
+                        {
+                            std::scoped_lock lockPool(m_mutexPool);
+                            result->setActive(false);
+                            m_activeConnections--;
+                            auto it = std::ranges::find(m_allConnections, result);
+                            if (it != m_allConnections.end())
+                            {
+                                m_allConnections.erase(it);
+                            }
+                        }
+
+                        try
+                        {
+                            result->getUnderlyingDocumentConnection()->close();
+                        }
+                        catch (...)
+                        {
+                        }
+
+                        // Check deadline before retrying
+                        if (steady_clock::now() >= deadline)
+                        {
+                            throw DBException("FFA42D3264B6", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
+                        }
+
+                        continue; // Retry
+                    }
+                }
+            }
+
+            return result;
         }
-
-        // Mark as active
-        result->setActive(true);
-        m_activeConnections++;
-
-        return result;
     }
 
     void DocumentDBConnectionPool::maintenanceTask()
     {
         do
         {
-            // Wait for 30 seconds or until notified (e.g., when close() is called).
-            // IMPORTANT: m_mutexMaintenance is released at the end of this block so that
-            // returnConnection() and close() can acquire it briefly for notify_one/all
-            // without blocking during the entire maintenance body.
             {
-                std::unique_lock lock(m_mutexMaintenance);
+                // Wait 30 seconds or until notified by close()
+                std::unique_lock lock(m_mutexPool);
                 m_maintenanceCondition.wait_for(lock, std::chrono::seconds(30), [this]
                                                 { return !m_running; });
             }
-            // m_mutexMaintenance is now released. Maintenance runs without holding it.
 
             if (!m_running)
             {
@@ -523,10 +621,8 @@ namespace cpp_dbc
 
             auto now = std::chrono::steady_clock::now();
 
-            // Expire old connections under locks (no new connection creation here)
-            // Use scoped_lock for consistent lock ordering to prevent deadlock
             {
-                std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+                std::scoped_lock lock(m_mutexPool);
 
                 // Check all connections for expired ones
                 for (auto it = m_allConnections.begin(); it != m_allConnections.end();)
@@ -540,12 +636,10 @@ namespace cpp_dbc
                         continue;
                     }
 
-                    // Check if the connection has been idle for too long
                     auto idleTime = std::chrono::duration_cast<std::chrono::milliseconds>(
                                         now - pooledConn->getLastUsedTime())
                                         .count();
 
-                    // Check if the connection has lived for too long
                     auto lifeTime = std::chrono::duration_cast<std::chrono::milliseconds>(
                                         now - pooledConn->getCreationTime())
                                         .count();
@@ -553,7 +647,6 @@ namespace cpp_dbc
                     bool expired = (idleTime > m_idleTimeoutMillis) ||
                                    (lifeTime > m_maxLifetimeMillis);
 
-                    // Close and remove expired connections if we have more than minIdle
                     if (expired && m_allConnections.size() > m_minIdle)
                     {
                         // Remove from idle queue if present
@@ -562,15 +655,13 @@ namespace cpp_dbc
                         {
                             auto conn = m_idleConnections.front();
                             m_idleConnections.pop();
-
                             if (conn != pooledConn)
                             {
                                 tempQueue.push(conn);
                             }
                         }
-                        m_idleConnections = tempQueue;
+                        m_idleConnections = std::move(tempQueue);
 
-                        // Remove from allConnections
                         it = m_allConnections.erase(it);
                     }
                     else
@@ -579,30 +670,33 @@ namespace cpp_dbc
                     }
                 }
             }
-            // Locks released here — replenishment happens outside locks
 
-            // CRITICAL FIX: createPooledDBConnection() must NOT be called while holding pool locks.
-            // Replenish minIdle connections OUTSIDE locks to avoid lock ordering cycles with
-            // driver-internal mutexes (e.g. MongoDBDriver's recursive_mutex and libmongoc topology locks).
+            // Replenish minIdle connections OUTSIDE lock
+            // (createPooledDBConnection may acquire driver-internal locks)
             size_t currentTotal;
             {
-                std::scoped_lock lockCheck(m_mutexAllConnections);
-                currentTotal = m_allConnections.size();
+                std::scoped_lock lock(m_mutexPool);
+                currentTotal = m_allConnections.size() + m_pendingCreations;
             }
             while (m_running && currentTotal < m_minIdle)
             {
+                std::shared_ptr<DocumentPooledDBConnection> pooledConn;
                 try
                 {
-                    auto pooledConn = createPooledDBConnection();
-                    std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
-                    m_idleConnections.push(pooledConn);
-                    m_allConnections.push_back(pooledConn);
-                    currentTotal = m_allConnections.size();
+                    pooledConn = createPooledDBConnection();
                 }
                 catch ([[maybe_unused]] const std::exception &ex)
                 {
                     CP_DEBUG("DocumentDBConnectionPool::maintenanceTask - Exception creating minIdle connection: %s", ex.what());
                     break;
+                }
+
+                {
+                    std::scoped_lock lock(m_mutexPool);
+                    m_idleConnections.push(pooledConn);
+                    m_allConnections.push_back(pooledConn);
+                    currentTotal = m_allConnections.size() + m_pendingCreations;
+                    m_connectionAvailable.notify_one();
                 }
             }
         } while (m_running);
@@ -615,13 +709,13 @@ namespace cpp_dbc
 
     size_t DocumentDBConnectionPool::getIdleDBConnectionCount() const
     {
-        std::scoped_lock lock(m_mutexIdleConnections);
+        std::scoped_lock lock(m_mutexPool);
         return m_idleConnections.size();
     }
 
     size_t DocumentDBConnectionPool::getTotalDBConnectionCount() const
     {
-        std::scoped_lock lock(m_mutexAllConnections);
+        std::scoped_lock lock(m_mutexPool);
         return m_allConnections.size();
     }
 
@@ -671,27 +765,26 @@ namespace cpp_dbc
             }
         }
 
-        // Notify all waiting threads (maintenance thread) to wake up and exit.
-        // m_mutexMaintenance is held only for the duration of notify_all().
+        // Notify maintenance thread and all waiting borrowers
         {
-            std::scoped_lock lock(m_mutexMaintenance);
+            std::scoped_lock lock(m_mutexPool);
             m_maintenanceCondition.notify_all();
+            m_connectionAvailable.notify_all();
         }
 
-        // Join maintenance thread (only if it was started)
+        // Join maintenance thread
         if (m_maintenanceThread.joinable())
         {
             m_maintenanceThread.join();
         }
 
         // Close all connections
-        // CRITICAL: Collect connections under pool locks, then close OUTSIDE pool locks.
+        // CRITICAL: Collect connections under pool lock, then close OUTSIDE pool lock.
         // Closing a connection acquires per-connection mutex (m_connMutex).
-        // initializePool() establishes order: m_connMutex FIRST, then pool locks.
-        // Closing inside pool locks would invert that order → Helgrind LockOrder violation.
+        // Closing inside pool lock would invert that order → Helgrind LockOrder violation.
         std::vector<std::shared_ptr<DocumentPooledDBConnection>> connectionsToClose;
         {
-            std::scoped_lock lockBoth(m_mutexAllConnections, m_mutexIdleConnections);
+            std::scoped_lock lock(m_mutexPool);
             connectionsToClose = m_allConnections;
             while (!m_idleConnections.empty())
             {
@@ -870,10 +963,7 @@ namespace cpp_dbc
 
     std::chrono::time_point<std::chrono::steady_clock> DocumentPooledDBConnection::getLastUsedTime() const
     {
-        // CRITICAL FIX: Protect read access with mutex to prevent data race.
-        // Maintenance thread reads this while worker threads write.
-        std::scoped_lock<std::mutex> lock(m_lastUsedTimeMutex);
-        return m_lastUsedTime;
+        return m_lastUsedTime.load(std::memory_order_relaxed);
     }
 
     void DocumentPooledDBConnection::setActive(bool isActive)

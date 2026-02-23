@@ -149,7 +149,8 @@ The project uses:
   - `--examples`: Build example applications
   - `--test`: Build unit tests
   - `--release`: Build in Release mode instead of Debug mode
-  - `--dw-off`: Disable libdw support for stack traces
+  - `--dw-on`: Enable libdw support for stack traces (opt-in; default for tests is OFF since 2026-02-22)
+  - `--dw-off`: Disable libdw support for stack traces (no-op; already disabled by default)
   - `--debug-pool`: Enable debug output for ConnectionPool
   - `--debug-txmgr`: Enable debug output for TransactionManager
   - `--debug-sqlite`: Enable debug output for SQLite driver
@@ -375,7 +376,7 @@ The project now includes an automatic synchronization system for IntelliSense:
   - Used for enhanced error reporting and debugging
   - Automatically detects and uses available unwinding methods
   - Support for libdw (part of elfutils) for enhanced stack trace information
-  - Configurable with `BACKWARD_HAS_DW` option and `--dw-off` build flag
+  - Configurable with `BACKWARD_HAS_DW` option; `--dw-on` opt-in (default for tests is OFF)
   - Header: `cpp_dbc/backward.hpp`
   - Special handling to silence -Wundef warnings
 
@@ -383,8 +384,8 @@ The project now includes an automatic synchronization system for IntelliSense:
   - Optional dependency for enhanced stack trace information
   - Provides detailed function names, file paths, and line numbers in stack traces
   - Automatically detected and installed by build scripts when needed
-  - Can be disabled with `--dw-off` option in build scripts
-  - Only required when building with stack trace support enabled
+  - Disabled by default in test builds (increases link time; use `--dw-on` to enable)
+  - Only required when building with enhanced stack trace support
 
 ### Standard Library Dependencies
 - `<string>`: For string handling
@@ -498,7 +499,7 @@ The project now includes an automatic synchronization system for IntelliSense:
 - Stack traces provide detailed information about the call chain leading to the error
 - Consider logging both the error message and stack trace for production debugging
 - Use the `what_s()` method instead of `what()` to avoid issues with unsafe `const char*` pointers
-- Stack traces are enhanced when libdw support is enabled (default)
+- Stack traces are enhanced when libdw support is enabled (`--dw-on`; disabled by default in test builds)
 - For manual stack trace capture and printing, use:
   ```cpp
   auto frames = cpp_dbc::system_utils::captureCallStack(true);  // true to skip irrelevant frames

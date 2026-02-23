@@ -358,7 +358,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
         cleanupConn->close();
 
         // Most reads should succeed
-        REQUIRE(readCount > numThreads * readsPerThread * 0.9);
+        REQUIRE(readCount > numThreads * readsPerThread * 0.95); // At least 95% success rate
     }
 
     SECTION("High concurrency stress test")
@@ -496,7 +496,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
 
         // Most operations should succeed
         int totalOps = insertCount + selectCount + updateCount;
-        REQUIRE(totalOps > numThreads * opsPerThread * 0.8); // At least 80% success rate
+        REQUIRE(totalOps > numThreads * opsPerThread * 0.95); // At least 95% success rate
     }
 
     SECTION("Rapid connection open/close stress test")
@@ -542,7 +542,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
 
         cpp_dbc::system_utils::logWithTimesMillis("TEST", "Rapid connection test: " + std::to_string(successCount.load()) + " successes, " + std::to_string(errorCount.load()) + " errors");
 
-        REQUIRE(successCount > numThreads * connectionsPerThread * 0.9); // At least 90% success rate
+        REQUIRE(successCount > numThreads * connectionsPerThread * 0.95); // At least 95% success rate
     }
 }
 

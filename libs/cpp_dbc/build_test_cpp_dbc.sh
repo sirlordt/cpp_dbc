@@ -26,6 +26,8 @@ set -e  # Exit on error
 #   --debug-scylladb       Enable debug output for ScyllaDB driver
 #   --debug-redis          Enable debug output for Redis driver
 #   --debug-all            Enable all debug output
+#   --dw-on                Enable libdw support for stack traces (default for tests: OFF)
+#   --dw-off               Disable libdw support for stack traces (default for tests)
 #   --help                 Show this help message
 
 # Default values
@@ -52,7 +54,7 @@ DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
-BACKWARD_HAS_DW=ON
+BACKWARD_HAS_DW=OFF
 DB_DRIVER_THREAD_SAFE=ON
 
 # Parse command line arguments
@@ -191,6 +193,10 @@ while [[ $# -gt 0 ]]; do
             DEBUG_ALL=ON
             shift
             ;;
+        --dw-on)
+            BACKWARD_HAS_DW=ON
+            shift
+            ;;
         --dw-off)
             BACKWARD_HAS_DW=OFF
             shift
@@ -236,7 +242,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
-            echo "  --dw-off               Disable libdw support for stack traces"
+            echo "  --dw-on                Enable libdw support for stack traces (default for tests: OFF)"
+            echo "  --dw-off               Disable libdw support for stack traces (default for tests)"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
             echo "  --help                 Show this help message"
             exit 0
@@ -244,7 +251,7 @@ while [[ $# -gt 0 ]]; do
         *)
             # Unknown option
             echo "Unknown option: $1"
-            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--sqlite|--sqlite-on|--sqlite-off] [--firebird|--firebird-on|--firebird-off] [--mongodb|--mongodb-on|--mongodb-off] [--scylladb|--scylladb-on|--scylladb-off] [--release] [--asan] [--dw-off] [--help]"
+            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--sqlite|--sqlite-on|--sqlite-off] [--firebird|--firebird-on|--firebird-off] [--mongodb|--mongodb-on|--mongodb-off] [--scylladb|--scylladb-on|--scylladb-off] [--release] [--asan] [--dw-on] [--dw-off] [--help]"
             exit 1
             ;;
     esac

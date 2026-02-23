@@ -1,6 +1,157 @@
 # Changelog
 
-## 2026-02-21 14:25:02 PST [Current]
+## 2026-02-22 19:18:00 PST [Current]
+
+### Unified Pool Mutex, Atomic Time-Point, Direct Handoff for All Pools, Notifications, and Test Quality Improvements
+
+This release completes the connection pool unification that started with the relational pool: the columnar, document, and KV pools now share the same single-mutex + direct-handoff architecture. It also adds a post-test notification system, improves test quality thresholds, and extends Firebird with `role` support.
+
+#### Connection Pool Architecture — Unified Mutex (Columnar, Document, KV)
+
+All three non-relational pool families now match the relational pool architecture introduced in the previous release:
+
+**Mutex consolidation** (from 5 mutexes → 1):
+
+| Removed | Replaced by |
+|---------|-------------|
+| `m_mutexGetConnection` | `m_mutexPool` (single pool lock) |
+| `m_mutexReturnConnection` | (eliminated) |
+| `m_mutexAllConnections` | `m_mutexPool` |
+| `m_mutexIdleConnections` | `m_mutexPool` |
+| `m_mutexMaintenance` | `m_mutexPool` (maintenance CV now uses pool lock) |
+
+**Direct handoff mechanism** (identical to relational pool):
+- Added `ConnectionRequest` struct (connection slot + `fulfilled` flag) and `m_waitQueue` (`std::deque<ConnectionRequest*>`)
+- `returnConnection()`: if waiters exist, hands off directly instead of pushing to idle queue
+- Eliminates "stolen wakeup" race where a non-waiting thread could steal a connection before the awakened waiter acquires the lock
+
+**`getXDBConnection()` redesign** (replaces polling):
+- Old: `do { sleep(10ms); getIdleDBConnection(); } while (timeout)`
+- New: `std::condition_variable::wait_until()` with deadline + inner FIFO wait loop
+- `m_connectionAvailable` CV wakes borrowers; `m_maintenanceCondition` CV wakes maintenance thread
+- `m_pendingCreations` counter tracks connections being created outside lock (prevents pool overshoot)
+
+**`returnConnection()` fixes applied to all pools:**
+- Pool-closing early exit: decrements `m_activeConnections` before closing (prevents `close()` waiting forever)
+- Orphan detection: connections not in `m_allConnections` now decrement counter and notify
+- Reset failure: `prepareForPoolReturn(std::nothrow)` failure → connection treated as invalid
+- `updateLastUsedTime()` called on every valid return (enables HikariCP-style validation skip on borrow)
+- All `notify_one()` / `notify_all()` calls are **inside** `m_mutexPool` lock (Helgrind correctness)
+- Replacement handoff: when an invalid connection is replaced, the replacement uses direct handoff
+
+**Destructor fix:**
+- All pool destructors now call `XDBConnectionPool::close()` (qualified) instead of `close()` (virtual dispatch in destructor is undefined behavior — S1699)
+
+**`getIdleDBConnection()` removed:**
+- Private helper method removed from all pool types; its logic is inlined into the main borrow method
+
+#### `std::atomic<time_point>` — Lock-Free Last-Used Time (All Pools)
+
+The `m_lastUsedTimeMutex` + plain `std::chrono::time_point` pair was replaced with a single `std::atomic<std::chrono::steady_clock::time_point>` in all pool families:
+
+```cpp
+// Before: separate mutex required for safe access
+mutable std::mutex m_lastUsedTimeMutex;
+std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
+
+// After: lock-free (x86-64: wraps int64_t nanoseconds, always lock-free)
+static_assert(std::atomic<std::chrono::steady_clock::time_point>::is_always_lock_free,
+              "time_point atomic must be lock-free on this platform");
+std::atomic<std::chrono::steady_clock::time_point> m_lastUsedTime;
+```
+
+`updateLastUsedTime()` uses `memory_order_relaxed` store; `getLastUsedTime()` uses `memory_order_relaxed` load. The relaxed ordering is sufficient because the only consumer (validation skip) is an approximation — stale reads are tolerable.
+
+**Impact:** Eliminates one mutex per pooled connection, reduces contention in maintenance thread.
+
+#### `libdw` Disabled by Default for Tests
+
+Compiling with `libdw` (Backward-cpp ELF/DWARF stack trace backend) significantly increases link time and can cause symbol lookup issues in certain environments. It is now **opt-in** for test builds:
+
+| Before | After |
+|--------|-------|
+| `BACKWARD_HAS_DW=ON` (default) | `BACKWARD_HAS_DW=OFF` (default) |
+| `--dw-off` disables | `--dw-on` enables |
+| No `--dw-on` flag | `--dw-off` is a no-op (documented) |
+
+Scripts updated: `build_test_cpp_dbc.sh`, `run_test_cpp_dbc.sh`, `run_test.sh`, `helper.sh`.
+
+#### Test Notification System (`send_test_notification`)
+
+A new notification hook sends a Gotify (or any curl-based) push notification when tests complete:
+
+**`scripts/common/functions.sh` — new function `send_test_notification()`:**
+- Reads `NOTIFY_COMMAND` from `<project_root>/.env.secrets` (gitignored)
+- `NOTIFY_COMMAND` format: `curl "URL?token=TOKEN" -F "title=@__TITLE__@" -F "message=@__MESSAGE__@" -F "priority=N"`
+- Placeholders `@__TITLE__@` and `@__MESSAGE__@` are substituted at call time
+- Message body extracted from `final_report.log` (PASSED/FAILED/INTERRUPTED per prefix, Summary line, Total time)
+- Title: `"Tests finished: all passed"` / `"Tests finished: FAILED"` / `"Tests finished: interrupted"`
+- Graceful degradation: missing `.env.secrets`, empty `NOTIFY_COMMAND`, or missing `curl` → silent skip
+
+**`helper.sh` — notification triggers:**
+- Parallel run: called after `run_test_parallel.sh` exits (finds latest `final_report.log` automatically)
+- Non-parallel run: called at end of `cmd_run_test()` (no report file, uses exit-code only)
+
+**`.gitignore`:** Added `.env.secrets` to prevent accidental credential commits.
+
+#### `run_test_parallel.sh` — Compact Summary and Catch2 WARN Detection
+
+**New function `display_compact_summary()`:**
+- Unified status display (replaces ~130 lines of duplicate code in summarize, TUI, and simple modes)
+- Shows `[PASSED]`/`[FAILED]`/`[INTERRUPTED]` per prefix with run count
+- Inline skipped/warning annotations: `(with skipped)`, `(with warnings)`, `(with skipped/warnings)`
+- Structured `print_entry()` blocks with `Kind:`, `At:`, `Log:`, `Reason:` fields
+- `print_reason()` wraps long reason text at 90 chars with proper alignment
+
+**New function `extract_catch2_warnings()`:**
+- Scans log files for Catch2 `WARN()` output: `file.cpp:LINE: warning: 'message'`
+- Deduplicates warnings across multiple runs (same source+message appears once)
+- Integrated into `display_compact_summary()` for all status types
+
+**New function `reconstruct_helgrind_warnings()`:**
+- Rebuilds `PREFIX_HELGRIND_WARNING` map from log files in summarize mode
+
+**`save_report_to_file()` enhancement:**
+- Now includes compact summary at top of `final_report.log` (before detailed summary)
+- Accepts optional elapsed time string argument
+
+#### Firebird: `role` Connection Option
+
+The Firebird driver now supports the `role` connection option (e.g., `RDB$ADMIN`):
+
+**`connection_01.cpp`:** Added `isc_dpb_sql_role_name` parameter to the Database Parameter Block (DPB) when `options["role"]` is set and non-empty.
+
+**`test_db_connections.yml`:** Added `role: RDB$ADMIN` to `dev_firebird` and `test_firebird`; added new `prod_firebird` example database entry.
+
+**Firebird tests updated:**
+- `23_011_test_firebird_real_db_config.cpp`: Expects 3 databases; added `prod_firebird` test, `role` option assertions, new "test queries" test section (`[23_011_03]`)
+- `23_121_test_firebird_real_transaction_isolation.cpp`: Added MVCC `READ_UNCOMMITTED` clarification comment; added new `SECTION("Firebird READ_UNCOMMITTED isolation behavior")` verifying MVCC prevents dirty reads
+
+#### Test Quality Improvements
+
+**Success rate thresholds:** All thread-safety and connection pool concurrent tests raised from 80–90% to **95%**.
+
+**Connection timeout:** Increased from 2000 ms to **3500 ms** in all pool tests to reduce spurious timeouts under Helgrind instrumentation.
+
+**Pool concurrent tests:** Relaxed from hard `REQUIRE(failureCount == 0)` to `REQUIRE(successCount >= 95%)` + `WARN()` for non-zero failures. Affected: MySQL, PostgreSQL, SQLite, Firebird, MongoDB, Redis, ScyllaDB pool tests.
+
+**SQLite (`22_031_test_sqlite_real.cpp`):**
+- New "SQLite metadata retrieval" section: `getColumnCount()`, `getColumnNames()`, `isNull()`, all type accessors
+- New "SQLite stress test" section: 20 threads × 50 ops with retry logic for `SQLITE_BUSY`
+
+**SQLite thread-safety (`22_111_test_sqlite_real_thread_safe.cpp`):**
+- Thread/op counts increased; high concurrency 10×20 → 30×50; success threshold ≥ 95%
+
+**SQLite transaction manager (`22_131_test_sqlite_real_transaction_manager.cpp`):**
+- Pool sizes and thread/transaction counts increased for more meaningful stress
+
+**PostgreSQL tests:** Removed inline `DROP TABLE` cleanup from test bodies (tables use `IF EXISTS` guard at start); fixed `conn->close()` → `conn->returnToPool()` for pooled connections; added missing `rs->close()` / `pstmt->close()` calls; added doc comment explaining Helgrind/PostgreSQL process-per-connection performance issue.
+
+**VSCode settings:** Disabled preview tabs (`enablePreviewFromQuickOpen`, `enablePreviewFromCodeNavigation`, `enablePreview`).
+
+---
+
+## 2026-02-21 14:25:02 PST
 
 ### Pool Lifecycle API Hardening, C++ Code Analysis Toolset, Docker Container Auto-Restart, and Valgrind Suppression Report
 

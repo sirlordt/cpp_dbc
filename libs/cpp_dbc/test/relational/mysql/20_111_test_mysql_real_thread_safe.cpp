@@ -335,7 +335,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         cleanupConn->returnToPool();
 
         // Most reads should succeed
-        REQUIRE(readCount > numThreads * readsPerThread * 0.9);
+        REQUIRE(readCount > numThreads * readsPerThread * 0.95); // At least 95% success rate
     }
 
     SECTION("High concurrency stress test")
@@ -451,7 +451,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
 
         // Most operations should succeed
         int totalOps = insertCount + selectCount + updateCount;
-        REQUIRE(totalOps > numThreads * opsPerThread * 0.8); // At least 80% success rate
+        REQUIRE(totalOps > numThreads * opsPerThread * 0.95); // At least 95% success rate
     }
 
     SECTION("Rapid connection open/close stress test")
@@ -497,7 +497,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
 
         cpp_dbc::system_utils::logWithTimesMillis("TEST", "Rapid connection test: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
-        REQUIRE(successCount > numThreads * connectionsPerThread * 0.9); // At least 90% success rate
+        REQUIRE(successCount > numThreads * connectionsPerThread * 0.95); // At least 95% success rate
     }
 }
 

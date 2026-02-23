@@ -139,7 +139,8 @@ databases:
     password: dsystems
     options:
       charset: UTF8
-      
+      role: RDB$ADMIN
+
   # Firebird testing database
   - name: test_firebird
     type: firebird
@@ -150,6 +151,19 @@ databases:
     password: dsystems
     options:
       charset: UTF8
+      role: RDB$ADMIN
+
+  # Firebird production database (example)
+  - name: prod_firebird
+    type: firebird
+    host: db.example.com
+    port: 3050
+    database: /firebird/data/prod_firebird.fdb
+    username: SYSDBA
+    password: dsystems
+    options:
+      charset: UTF8
+      role: RDB$ADMIN
 
   # MongoDB development database
   - name: dev_mongodb

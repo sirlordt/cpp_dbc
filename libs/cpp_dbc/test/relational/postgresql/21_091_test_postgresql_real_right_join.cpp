@@ -435,11 +435,6 @@ TEST_CASE("PostgreSQL RIGHT JOIN operations", "[21_091_01_postgresql_real_right_
         REQUIRE(totalRows == 10); // Actual number of rows returned by the query
     }
 
-    // Clean up
-    conn->executeUpdate("DROP TABLE IF EXISTS test_orders");
-    conn->executeUpdate("DROP TABLE IF EXISTS test_products");
-    conn->executeUpdate("DROP TABLE IF EXISTS test_customers");
-
     // Close the connection
     conn->close();
 }

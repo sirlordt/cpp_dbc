@@ -12,6 +12,24 @@
 
 ## Completed Tasks
 
+- Unified Pool Mutex, Atomic Time-Point, Direct Handoff for All Pools, Notifications, and Test Quality Improvements (2026-02-22):
+  - Columnar, Document, and KV pools: consolidated 5 mutexes into single `m_mutexPool`
+  - Added `ConnectionRequest` + `m_waitQueue` direct handoff to all three pool families
+  - Replaced `getIdleDBConnection()` polling loop with `condition_variable::wait_until()` + FIFO wait loop
+  - Replaced `m_lastUsedTimeMutex` + plain `time_point` with `std::atomic<time_point>` (lock-free, `memory_order_relaxed`)
+  - Added `m_connectionAvailable` CV (borrowers) + `m_pendingCreations` counter (prevents pool overshoot)
+  - Fixed all pool destructors to call qualified `XDBConnectionPool::close()` (avoids virtual dispatch in destructor)
+  - Added `send_test_notification()` in `scripts/common/functions.sh` (Gotify/curl push via `.env.secrets`)
+  - Added `.env.secrets` to `.gitignore`; notification triggered from `helper.sh` after parallel and non-parallel runs
+  - Changed `libdw` default from ON→OFF for test builds; added `--dw-on` opt-in flag
+  - `run_test_parallel.sh`: added `display_compact_summary()`, `extract_catch2_warnings()`, `reconstruct_helgrind_warnings()`, `print_entry()`, `print_reason()`; refactored summarize/TUI/simple modes to use shared functions
+  - Firebird `connection_01.cpp`: added `isc_dpb_sql_role_name` support; `test_db_connections.yml`: added `role: RDB$ADMIN`, added `prod_firebird` example entry
+  - Firebird tests: added `READ_UNCOMMITTED` MVCC behavior test, `role` option assertions, `prod_firebird` config test
+  - All connection pool tests: timeout 2000 ms → 3500 ms; success thresholds 80–90% → 95%
+  - PostgreSQL tests: removed inline `DROP TABLE`, fixed `close()` → `returnToPool()` for pooled connections
+  - SQLite: new "metadata retrieval" and "stress test" sections; thread counts and operation counts increased
+  - VSCode: disabled preview tabs
+
 - Pool Lifecycle API Hardening, C++ Code Analysis Toolset, Docker Container Auto-Restart, and Valgrind Suppression Report (2026-02-21):
   - Moved `prepareForPoolReturn()` / `prepareForBorrow()` (and nothrow) to `protected` in `RelationalDBConnection` with `friend` declarations
   - Added 4 C++ code analysis scripts: `list_class.sh`, `list_public_methods.sh`, `list_class_usage.sh`, `test_coverage.sh`

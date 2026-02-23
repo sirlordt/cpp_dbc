@@ -98,6 +98,16 @@ namespace cpp_dbc::Firebird
         dpb.push_back(static_cast<char>(charset.length()));
         dpb.insert(dpb.end(), charset.begin(), charset.end());
 
+        // Add role (optional, e.g. RDB$ADMIN)
+        auto roleIt = options.find("role");
+        if (roleIt != options.end() && !roleIt->second.empty())
+        {
+            const std::string &role = roleIt->second;
+            dpb.push_back(isc_dpb_sql_role_name);
+            dpb.push_back(static_cast<char>(role.length()));
+            dpb.insert(dpb.end(), role.begin(), role.end());
+        }
+
         // Allocate database handle
         isc_db_handle *dbHandle = new isc_db_handle(0);
         FIREBIRD_DEBUG("  Attaching to database...");

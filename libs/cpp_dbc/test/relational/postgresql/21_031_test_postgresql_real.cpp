@@ -110,7 +110,8 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("id") == 5);
         REQUIRE(rs->getString("name") == "Test Name 5");
-        REQUIRE_FALSE(rs->next()); // Should only be one row
+        REQUIRE_FALSE(rs->next());
+        rs->close(); // Should only be one row
 
         // Select all rows using direct query
         rs = conn->executeQuery("SELECT * FROM test_table ORDER BY id");
@@ -134,6 +135,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 3");
         REQUIRE(rs->next());
         REQUIRE(rs->getString("name") == "Updated Name");
+        rs->close();
 
         // Delete data
         auto deleteResult = conn->executeUpdate("DELETE FROM test_table WHERE id > 5");
@@ -143,6 +145,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == 5); // Should be 5 rows left
+        rs->close();
 
         // Drop the test table
         result = conn->executeUpdate(dropTableQuery);
@@ -226,7 +229,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         rs->close();
 
         // Clean up
-        conn->executeUpdate(dropTableQuery);
+        // conn->executeUpdate(dropTableQuery);
         conn->returnToPool();
 
         // Close the pool
@@ -262,7 +265,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
-        conn->close();
+        conn->returnToPool();
 
         SECTION("Commit transaction")
         {
@@ -281,6 +284,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
             pstmt->setDouble(3, 1.5);
             auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
+            pstmt->close();
 
             // Commit the transaction
             manager.commitTransaction(txId);
@@ -290,7 +294,8 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
-            conn->close();
+            rs->close();
+            conn->returnToPool();
         }
 
         SECTION("Rollback transaction")
@@ -316,13 +321,14 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
             conn = pool.getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
-            conn->close();
+            rs->close();
+            conn->returnToPool();
         }
 
         // Clean up
-        conn = pool.getRelationalDBConnection();
-        conn->executeUpdate(dropTableQuery);
-        conn->close();
+        // conn = pool.getRelationalDBConnection();
+        // conn->executeUpdate(dropTableQuery);
+        // conn->close();
 
         // Close the pool
         pool.close();
@@ -397,9 +403,10 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         REQUIRE(rs->next());
         REQUIRE(rs->isNull("int_col"));
         REQUIRE(rs->isNull("varchar_col"));
+        rs->close();
 
         // Clean up
-        conn->executeUpdate("DROP TABLE test_types");
+        // conn->executeUpdate("DROP TABLE test_types");
 
         // Close the connection
         conn->close();
@@ -431,7 +438,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         auto conn = pool.getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
-        conn->close();
+        conn->returnToPool();
 
         // Test with many concurrent threads
         const int numThreads = 20;
@@ -470,7 +477,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
                         }
 
                         // Return the connection to the pool
-                        conn_thread->close();
+                        conn_thread->returnToPool();
                     }
                     catch (const std::exception& e) {
                         cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
@@ -500,8 +507,8 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
 
         // Clean up
-        conn->executeUpdate(dropTableQuery);
-        conn->close();
+        // conn->executeUpdate(dropTableQuery);
+        conn->returnToPool();
 
         // Close the pool
         pool.close();
@@ -527,6 +534,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         REQUIRE(rs->next());
         REQUIRE(rs->getString("name") == "John");
         REQUIRE(rs->getInt("age") == 30);
+        rs->close();
 
         // Test array data type
         conn->executeUpdate("DROP TABLE IF EXISTS test_array");
@@ -540,10 +548,11 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("first_int") == 1);
         REQUIRE(rs->getString("second_text") == "two");
+        rs->close();
 
         // Clean up
-        conn->executeUpdate("DROP TABLE test_json");
-        conn->executeUpdate("DROP TABLE test_array");
+        // conn->executeUpdate("DROP TABLE test_json");
+        // conn->executeUpdate("DROP TABLE test_array");
 
         // Close the connection
         conn->close();
