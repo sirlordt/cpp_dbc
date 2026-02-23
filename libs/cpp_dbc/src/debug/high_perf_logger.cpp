@@ -36,10 +36,12 @@ HighPerfLogger::HighPerfLogger()
     {
         std::filesystem::create_directories(m_logPath);
     }
-    catch (const std::exception& e)
+    catch (const std::exception &ex)
     {
-        std::fprintf(stderr, "HighPerfLogger: Failed to create log directory: %s - %s\n",
-                     m_logPath.c_str(), e.what());
+        // NOSONAR(cpp:S6494) — std::print unavailable in GCC 11; fprintf to stderr is the only
+        // safe option here since the logger itself is not yet operational.
+        std::fprintf(stderr, "HighPerfLogger: Failed to create log directory: %s - %s\n", // NOSONAR(cpp:S6494)
+                     m_logPath.c_str(), ex.what());
         return;
     }
 
@@ -49,7 +51,7 @@ HighPerfLogger::HighPerfLogger()
 
     if (!m_logFile.is_open())
     {
-        std::fprintf(stderr, "HighPerfLogger: Failed to open log file: %s\n",
+        std::fprintf(stderr, "HighPerfLogger: Failed to open log file: %s\n", // NOSONAR(cpp:S6494) — same reason as above
                      m_logFilePath.c_str());
         return;
     }
@@ -71,7 +73,7 @@ HighPerfLogger::HighPerfLogger()
         writerThreadFunc(stopToken);
     });
 
-    std::fprintf(stderr, "HighPerfLogger: Initialized, log file: %s\n",
+    std::fprintf(stderr, "HighPerfLogger: Initialized, log file: %s\n", // NOSONAR(cpp:S6494) — std::print unavailable in GCC 11; emergency stderr output before logger is ready
                  m_logFilePath.c_str());
 }
 
@@ -81,7 +83,7 @@ HighPerfLogger::~HighPerfLogger()
 }
 
 void HighPerfLogger::log(const char* context, const char* file, int line,
-                         const char* fmt, ...)
+                         std::string_view message)
 {
     // Atomic fetch_add: lock-free, ultra fast (~10ns)
     size_t writeIdx = m_writeIndex.fetch_add(1, std::memory_order_relaxed);
@@ -111,6 +113,8 @@ void HighPerfLogger::log(const char* context, const char* file, int line,
     filename = filename ? filename + 1 : file;
 
     // Format header: [Context] [HH:mm:ss.mmm] [tid:XXXXX] [file:line]
+    // NOSONAR(cpp:S6494) — snprintf writes into a fixed pre-allocated ring buffer entry;
+    // std::format is unavailable in GCC 11 and would require a heap allocation anyway.
     int offset = std::snprintf(entry.message, MSG_SIZE,
         "[%s] [%02d:%02d:%02d.%03ld] [tid:%zu] [%s:%d] ",
         context,
@@ -124,20 +128,13 @@ void HighPerfLogger::log(const char* context, const char* file, int line,
         return;
     }
 
-    // Append user message
-    va_list args;
-    va_start(args, fmt);
-    int written = std::vsnprintf(entry.message + offset, MSG_SIZE - offset - 1, fmt, args);
-    va_end(args);
-
-    if (written < 0)
-    {
-        entry.ready.store(false, std::memory_order_release);
-        return;
-    }
+    // Copy user message directly into the ring buffer entry — zero allocation
+    size_t remaining = MSG_SIZE - static_cast<size_t>(offset) - 2; // reserve 2: '\n' + '\0'
+    size_t copyLen = std::min(message.size(), remaining);
+    std::memcpy(entry.message + offset, message.data(), copyLen);
 
     // Calculate final length and add newline
-    entry.length = std::min(static_cast<size_t>(offset + written), MSG_SIZE - 2);
+    entry.length = static_cast<size_t>(offset) + copyLen;
     entry.message[entry.length] = '\n';
     entry.length++;
     entry.message[entry.length] = '\0';
@@ -168,6 +165,9 @@ void HighPerfLogger::writerThreadFunc(std::stop_token stopToken)
             m_readIndex.store(readIdx, std::memory_order_release);
 
             // Log the overrun event
+            // NOSONAR(cpp:S5945,cpp:S6494) — stack buffer used intentionally: this runs inside
+            // the writer thread under memory pressure (overrun condition); heap allocation via
+            // std::string could fail exactly when we need it. std::format unavailable in GCC 11.
             char overrunMsg[512];
             auto now = std::chrono::system_clock::now();
             auto time_t_now = std::chrono::system_clock::to_time_t(now);
@@ -212,8 +212,11 @@ void HighPerfLogger::writerThreadFunc(std::stop_token stopToken)
         }
 
         // Flush only occasionally (every 10 iterations) to reduce I/O blocking
+        // Increment unconditionally so the counter advances regardless of wroteAny,
+        // then flush only when something was written on a flush-due iteration.
         static size_t flushCounter = 0;
-        if (wroteAny && (++flushCounter % 10 == 0))
+        ++flushCounter;
+        if (wroteAny && (flushCounter % 10 == 0))
         {
             m_logFile.flush();
         }
@@ -236,8 +239,7 @@ void HighPerfLogger::writerThreadFunc(std::stop_token stopToken)
     while (readIdx < writeIdx)
     {
         size_t index = readIdx % BUFFER_SIZE;
-        LogEntry& entry = m_buffer[index];
-
+        const LogEntry& entry = m_buffer[index]; // const: entry is only read here, never modified
         if (entry.ready.load(std::memory_order_acquire))
         {
             m_logFile.write(entry.message, static_cast<std::streamsize>(entry.length));

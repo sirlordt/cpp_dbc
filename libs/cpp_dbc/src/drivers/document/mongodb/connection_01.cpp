@@ -313,7 +313,7 @@ namespace cpp_dbc::MongoDB
     std::string MongoDBConnection::getDatabaseName() const
     {
         auto result = getDatabaseName(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -323,7 +323,7 @@ namespace cpp_dbc::MongoDB
     std::vector<std::string> MongoDBConnection::listDatabases()
     {
         auto result = listDatabases(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -333,7 +333,7 @@ namespace cpp_dbc::MongoDB
     bool MongoDBConnection::databaseExists(const std::string &databaseName)
     {
         auto result = databaseExists(std::nothrow, databaseName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -343,7 +343,7 @@ namespace cpp_dbc::MongoDB
     void MongoDBConnection::useDatabase(const std::string &databaseName)
     {
         auto result = useDatabase(std::nothrow, databaseName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -352,7 +352,7 @@ namespace cpp_dbc::MongoDB
     void MongoDBConnection::dropDatabase(const std::string &databaseName)
     {
         auto result = dropDatabase(std::nothrow, databaseName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }

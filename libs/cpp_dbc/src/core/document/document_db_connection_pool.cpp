@@ -266,7 +266,7 @@ namespace cpp_dbc
         if (valid)
         {
             auto result = conn->getUnderlyingDocumentConnection()->prepareForPoolReturn(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 CP_DEBUG("DocumentDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", result.error().what_s().c_str());
                 valid = false;
@@ -362,7 +362,7 @@ namespace cpp_dbc
                     std::shared_ptr<DocumentPooledDBConnection> discardReplacement;
                     {
                         std::scoped_lock lockPool(m_mutexPool);
-                        if (m_running.load() && m_allConnections.size() < static_cast<size_t>(m_maxSize))
+                        if (m_running.load() && m_allConnections.size() < m_maxSize)
                         {
                             m_allConnections.push_back(replacement);
 
@@ -395,7 +395,11 @@ namespace cpp_dbc
                     // Close discarded replacement outside lock
                     if (discardReplacement)
                     {
-                        try { discardReplacement->getUnderlyingDocumentConnection()->close(); } catch (...) {}
+                        auto closeResult = discardReplacement->getUnderlyingDocumentConnection()->close(std::nothrow);
+                        if (!closeResult.has_value())
+                        {
+                            CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() on discarded replacement failed: %s", closeResult.error().what_s().c_str());
+                        }
                     }
                 }
             }
@@ -425,6 +429,8 @@ namespace cpp_dbc
                     throw DBException("26405F5CF154", "Connection pool is closed", system_utils::captureCallStack());
                 }
 
+                // NOSONAR(cpp:S924) — multiple break statements required to express mutually exclusive
+                // exit conditions (idle found, result created). Refactoring would add artificial state.
                 // Acquire loop: idle → create → wait
                 while (!result)
                 {
@@ -460,7 +466,7 @@ namespace cpp_dbc
                         {
                             // Recheck size under lock (another thread may have filled the pool
                             // while we were creating outside the lock)
-                            if (m_allConnections.size() < static_cast<size_t>(m_maxSize))
+                            if (m_allConnections.size() < m_maxSize)
                             {
                                 m_allConnections.push_back(newConn);
                                 result = newConn;
@@ -470,7 +476,11 @@ namespace cpp_dbc
                                 // Pool became full — discard candidate
                                 newConn->m_closed.store(true); // Prevent destructor returnToPool()
                                 lockPool.unlock();
-                                try { newConn->getUnderlyingDocumentConnection()->close(); } catch (...) {}
+                                auto closeResult = newConn->getUnderlyingDocumentConnection()->close(std::nothrow);
+                                if (!closeResult.has_value())
+                                {
+                                    CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - close() on discarded candidate failed: %s", closeResult.error().what_s().c_str());
+                                }
                                 lockPool.lock();
                             }
                         }
@@ -487,6 +497,9 @@ namespace cpp_dbc
                     ConnectionRequest req;
                     m_waitQueue.push_back(&req);
 
+                    // NOSONAR(cpp:S924) — multiple break statements required for mutually exclusive CV exit
+                    // conditions (handoff, idle-after-timeout, idle-after-wakeup). Refactoring would break
+                    // FIFO queue correctness under sanitizer-serialized execution.
                     while (true) // Inner wait loop — request stays in queue at FIFO position
                     {
                         std::cv_status status;
@@ -563,39 +576,35 @@ namespace cpp_dbc
                 auto now = steady_clock::now();
                 auto timeSinceLastUse = duration_cast<milliseconds>(now - lastUsed).count();
 
-                if (timeSinceLastUse > m_validationTimeoutMillis)
+                if (timeSinceLastUse > m_validationTimeoutMillis &&
+                    !validateConnection(result->getUnderlyingDocumentConnection()))
                 {
-                    if (!validateConnection(result->getUnderlyingDocumentConnection()))
+                    CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - Validation failed, removing connection");
+
                     {
-                        CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - Validation failed, removing connection");
-
+                        std::scoped_lock lockPool(m_mutexPool);
+                        result->setActive(false);
+                        m_activeConnections--;
+                        auto it = std::ranges::find(m_allConnections, result);
+                        if (it != m_allConnections.end())
                         {
-                            std::scoped_lock lockPool(m_mutexPool);
-                            result->setActive(false);
-                            m_activeConnections--;
-                            auto it = std::ranges::find(m_allConnections, result);
-                            if (it != m_allConnections.end())
-                            {
-                                m_allConnections.erase(it);
-                            }
+                            m_allConnections.erase(it);
                         }
-
-                        try
-                        {
-                            result->getUnderlyingDocumentConnection()->close();
-                        }
-                        catch (...)
-                        {
-                        }
-
-                        // Check deadline before retrying
-                        if (steady_clock::now() >= deadline)
-                        {
-                            throw DBException("FFA42D3264B6", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
-                        }
-
-                        continue; // Retry
                     }
+
+                    auto closeResult = result->getUnderlyingDocumentConnection()->close(std::nothrow);
+                    if (!closeResult.has_value())
+                    {
+                        CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - close() on invalid connection failed: %s", closeResult.error().what_s().c_str());
+                    }
+
+                    // Check deadline before retrying
+                    if (steady_clock::now() >= deadline)
+                    {
+                        throw DBException("FFA42D3264B6", "Timeout waiting for connection from the pool", system_utils::captureCallStack());
+                    }
+
+                    continue; // Retry
                 }
             }
 
@@ -847,8 +856,7 @@ namespace cpp_dbc
                 }
                 else
                 {
-                    // NOSONAR - Return to pool - using qualified call to avoid virtual dispatch in destructor
-                    DocumentPooledDBConnection::returnToPool();
+                    DocumentPooledDBConnection::returnToPool(); // NOSONAR(cpp:S1699) — qualified call in destructor intentional to avoid virtual dispatch
                 }
             }
             catch ([[maybe_unused]] const std::exception &ex)
@@ -941,8 +949,10 @@ namespace cpp_dbc
     void DocumentPooledDBConnection::close()
     {
         auto result = close(std::nothrow);
-        if (!result)
+        if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
     bool DocumentPooledDBConnection::isClosed() const
@@ -984,8 +994,10 @@ namespace cpp_dbc
     void DocumentPooledDBConnection::returnToPool()
     {
         auto result = returnToPool(std::nothrow);
-        if (!result)
+        if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
     bool DocumentPooledDBConnection::isPooled() const
@@ -1020,8 +1032,10 @@ namespace cpp_dbc
     void DocumentPooledDBConnection::reset()
     {
         auto result = reset(std::nothrow);
-        if (!result)
+        if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
     expected<void, DBException> DocumentPooledDBConnection::reset(std::nothrow_t) noexcept
@@ -1032,8 +1046,10 @@ namespace cpp_dbc
     void DocumentPooledDBConnection::prepareForPoolReturn()
     {
         auto result = prepareForPoolReturn(std::nothrow);
-        if (!result)
+        if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
     expected<void, DBException> DocumentPooledDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept

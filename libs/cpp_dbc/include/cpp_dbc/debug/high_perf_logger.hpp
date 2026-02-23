@@ -11,10 +11,10 @@
 #include <array>
 #include <cstring>
 #include <cstdio>
-#include <cstdarg>
 #include <fstream>
 #include <chrono>
 #include <filesystem>
+#include <string_view>
 
 namespace cpp_dbc::debug
 {
@@ -49,7 +49,7 @@ public:
      */
     struct LogEntry
     {
-        char message[MSG_SIZE];          ///< Pre-allocated message buffer
+        char message[MSG_SIZE];          ///< Pre-allocated message buffer // NOSONAR(cpp:S5945) — fixed-size char array is intentional: zero-allocation ring buffer; std::string would allocate on every log call
         size_t length{0};                ///< Actual message length
         std::atomic<bool> ready{false};  ///< True when entry is ready to write to disk
     };
@@ -59,7 +59,7 @@ public:
      */
     static HighPerfLogger& getInstance()
     {
-        static HighPerfLogger instance;
+        static HighPerfLogger instance; // NOSONAR(cpp:S6018) — Meyers singleton (local static); S6018 applies to namespace-scope globals, not local statics
         return instance;
     }
 
@@ -69,11 +69,10 @@ public:
      * @param context Context name (e.g., "ConnectionPool")
      * @param file Source file name (__FILE__)
      * @param line Source line number (__LINE__)
-     * @param fmt Printf-style format string
-     * @param ... Variable arguments
+     * @param message Message string to log
      */
     void log(const char* context, const char* file, int line,
-             const char* fmt, ...) __attribute__((format(printf, 5, 6)));
+             std::string_view message);
 
     /**
      * @brief Shutdown logger and flush remaining logs
@@ -124,32 +123,31 @@ private:
  * @brief Generic high-performance log macro
  *
  * @param context Context name (e.g., "ConnectionPool", "MySQLDriver")
- * @param fmt Printf-style format string
- * @param ... Variable arguments
+ * @param msg Message string (std::string, std::string_view, or const char*)
  */
-#define HP_LOG(context, fmt, ...) \
+#define HP_LOG(context, msg) \
     cpp_dbc::debug::HighPerfLogger::getInstance().log( \
-        context, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+        context, __FILE__, __LINE__, msg) // NOSONAR(cpp:S6190) — __FILE__/__LINE__ cannot be replaced with std::source_location while keeping macro call-site capture semantics
 
 /**
  * @brief Connection pool debug macro
  */
-#define CP_DEBUG(fmt, ...) HP_LOG("ConnectionPool", fmt, ##__VA_ARGS__)
+#define CP_DEBUG(msg) HP_LOG("ConnectionPool", msg)
 
 /**
  * @brief MySQL driver debug macro
  */
-#define MYSQL_DEBUG(fmt, ...) HP_LOG("MySQL", fmt, ##__VA_ARGS__)
+#define MYSQL_DEBUG(msg) HP_LOG("MySQL", msg)
 
 /**
  * @brief PostgreSQL driver debug macro
  */
-#define PGSQL_DEBUG(fmt, ...) HP_LOG("PostgreSQL", fmt, ##__VA_ARGS__)
+#define PGSQL_DEBUG(msg) HP_LOG("PostgreSQL", msg)
 
 /**
  * @brief SQLite driver debug macro
  */
-#define SQLITE_DEBUG(fmt, ...) HP_LOG("SQLite", fmt, ##__VA_ARGS__)
+#define SQLITE_DEBUG(msg) HP_LOG("SQLite", msg)
 
 } // namespace cpp_dbc::debug
 

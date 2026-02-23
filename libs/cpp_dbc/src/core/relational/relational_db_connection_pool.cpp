@@ -277,7 +277,7 @@ namespace cpp_dbc
                 if (!conn->m_closed)
                 {
                     auto resetResult = conn->getUnderlyingRelationalConnection()->reset(std::nothrow);
-                    if (!resetResult)
+                    if (!resetResult.has_value())
                     {
                         CP_DEBUG("RelationalDBConnectionPool::returnConnection - reset failed: %s", resetResult.error().what_s().c_str());
                         valid = false;
@@ -451,7 +451,11 @@ namespace cpp_dbc
                 // Close discarded replacement outside lock
                 if (discardReplacement)
                 {
-                    try { discardReplacement->getUnderlyingRelationalConnection()->close(); } catch (...) {}
+                    auto closeResult = discardReplacement->getUnderlyingRelationalConnection()->close(std::nothrow);
+                    if (!closeResult.has_value())
+                    {
+                        CP_DEBUG("RelationalDBConnectionPool::returnConnection - close() on discarded replacement failed: %s", closeResult.error().what_s().c_str());
+                    }
                 }
             }
         }
@@ -526,14 +530,25 @@ namespace cpp_dbc
                                 CP_DEBUG("borrow - DISCARD candidate: total=%zu >= max=%zu", m_allConnections.size(), m_maxSize);
                                 candidate->m_closed.store(true); // Prevent destructor returnToPool()
                                 lockPool.unlock();
-                                try { candidate->getUnderlyingRelationalConnection()->close(); } catch (...) {}
+                                auto closeResult = candidate->getUnderlyingRelationalConnection()->close(std::nothrow);
+                                if (!closeResult.has_value())
+                                {
+                                    CP_DEBUG("borrow - close() on discarded candidate failed: %s", closeResult.error().what_s().c_str());
+                                }
                                 lockPool.lock();
                             }
                         }
-                        catch (...)
+                        catch (const std::exception &ex)
                         {
                             lockPool.lock();
                             m_pendingCreations--;
+                            CP_DEBUG("borrow - Exception during connection creation: %s", ex.what());
+                        }
+                        catch (...) // NOSONAR — non-std exceptions caught to restore pool invariants (pendingCreations, lock)
+                        {
+                            lockPool.lock();
+                            m_pendingCreations--;
+                            CP_DEBUG("borrow - Unknown exception during connection creation");
                         }
                         continue; // ALWAYS re-check idle after any unlock/lock cycle
                     }
@@ -556,6 +571,10 @@ namespace cpp_dbc
                              m_activeConnections.load(), m_idleConnections.size(), m_allConnections.size(),
                              m_pendingCreations, m_waitQueue.size());
 
+                    // NOSONAR(cpp:S924) — multiple break statements are required to express mutually exclusive
+                    // condition variable exit conditions (handoff, idle-after-timeout, idle-after-wakeup).
+                    // Refactoring to reduce breaks would require artificial state variables and would
+                    // compromise FIFO queue correctness under sanitizer-serialized execution.
                     while (true) // Inner wait loop — request stays in queue at FIFO position
                     {
                         std::cv_status status;
@@ -643,7 +662,8 @@ namespace cpp_dbc
             if (m_testOnBorrow)
             {
                 auto timeSinceLastUse = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::steady_clock::now() - result->getLastUsedTime()).count();
+                                            std::chrono::steady_clock::now() - result->getLastUsedTime())
+                                            .count();
 
                 if (timeSinceLastUse > m_validationTimeoutMillis)
                 {
@@ -671,7 +691,11 @@ namespace cpp_dbc
                     }
 
                     // Close invalid connection outside lock
-                    try { result->getUnderlyingRelationalConnection()->close(); } catch (...) {}
+                    auto closeResult = result->getUnderlyingRelationalConnection()->close(std::nothrow);
+                    if (!closeResult.has_value())
+                    {
+                        CP_DEBUG("borrow - close() on invalid connection failed: %s", closeResult.error().what_s().c_str());
+                    }
 
                     // Check if we still have time to retry
                     if (std::chrono::steady_clock::now() >= deadline)
@@ -1029,7 +1053,7 @@ namespace cpp_dbc
                 {
                     // If pool is invalid, actually close the connection
                     auto result = m_conn->close(std::nothrow);
-                    if (!result)
+                    if (!result.has_value())
                     {
                         CP_DEBUG("RelationalPooledDBConnection::close - Failed to close underlying connection: %s", result.error().what_s().c_str());
                         return result;
@@ -1045,7 +1069,7 @@ namespace cpp_dbc
                 if (m_conn)
                 {
                     auto result = m_conn->close(std::nothrow);
-                    if (!result)
+                    if (!result.has_value())
                     {
                         return result;
                     }
@@ -1096,7 +1120,7 @@ namespace cpp_dbc
     void RelationalPooledDBConnection::close()
     {
         auto result = close(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -1402,7 +1426,7 @@ namespace cpp_dbc
 
             // Delegate to underlying connection's reset
             auto result = m_conn->reset(std::nothrow);
-            if (!result)
+            if (!result.has_value())
             {
                 CP_DEBUG("RelationalPooledDBConnection::reset - Underlying connection reset failed: %s", result.error().what_s().c_str());
                 return result; // Propagate the error from underlying connection
@@ -1434,8 +1458,10 @@ namespace cpp_dbc
     void RelationalPooledDBConnection::reset()
     {
         auto result = reset(std::nothrow);
-        if (!result)
+        if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
     bool RelationalPooledDBConnection::beginTransaction()
@@ -1683,8 +1709,10 @@ namespace cpp_dbc
     void RelationalPooledDBConnection::returnToPool()
     {
         auto result = returnToPool(std::nothrow);
-        if (!result)
+        if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
     bool RelationalPooledDBConnection::isPooled() const
@@ -1754,8 +1782,10 @@ namespace cpp_dbc
     void RelationalPooledDBConnection::prepareForPoolReturn()
     {
         auto result = prepareForPoolReturn(std::nothrow);
-        if (!result)
+        if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
     cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
@@ -1791,8 +1821,10 @@ namespace cpp_dbc
     void RelationalPooledDBConnection::prepareForBorrow()
     {
         auto result = prepareForBorrow(std::nothrow);
-        if (!result)
+        if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
     cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::prepareForBorrow(std::nothrow_t) noexcept

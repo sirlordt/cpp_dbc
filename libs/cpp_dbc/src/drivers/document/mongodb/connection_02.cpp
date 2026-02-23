@@ -36,7 +36,7 @@ namespace cpp_dbc::MongoDB
     std::shared_ptr<DocumentDBCollection> MongoDBConnection::getCollection(const std::string &collectionName)
     {
         auto result = getCollection(std::nothrow, collectionName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -46,7 +46,7 @@ namespace cpp_dbc::MongoDB
     std::vector<std::string> MongoDBConnection::listCollections()
     {
         auto result = listCollections(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -56,7 +56,7 @@ namespace cpp_dbc::MongoDB
     bool MongoDBConnection::collectionExists(const std::string &collectionName)
     {
         auto result = collectionExists(std::nothrow, collectionName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -68,7 +68,7 @@ namespace cpp_dbc::MongoDB
         const std::string &options)
     {
         auto result = createCollection(std::nothrow, collectionName, options);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -78,7 +78,7 @@ namespace cpp_dbc::MongoDB
     void MongoDBConnection::dropCollection(const std::string &collectionName)
     {
         auto result = dropCollection(std::nothrow, collectionName);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -87,7 +87,7 @@ namespace cpp_dbc::MongoDB
     std::shared_ptr<DocumentDBData> MongoDBConnection::createDocument()
     {
         auto result = createDocument(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -97,7 +97,7 @@ namespace cpp_dbc::MongoDB
     std::shared_ptr<DocumentDBData> MongoDBConnection::createDocument(const std::string &json)
     {
         auto result = createDocument(std::nothrow, json);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -107,7 +107,7 @@ namespace cpp_dbc::MongoDB
     std::shared_ptr<DocumentDBData> MongoDBConnection::runCommand(const std::string &command)
     {
         auto result = runCommand(std::nothrow, command);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -117,7 +117,7 @@ namespace cpp_dbc::MongoDB
     std::shared_ptr<DocumentDBData> MongoDBConnection::getServerInfo()
     {
         auto result = getServerInfo(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -127,7 +127,7 @@ namespace cpp_dbc::MongoDB
     std::shared_ptr<DocumentDBData> MongoDBConnection::getServerStatus()
     {
         auto result = getServerStatus(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -137,7 +137,7 @@ namespace cpp_dbc::MongoDB
     bool MongoDBConnection::ping()
     {
         auto result = ping(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -147,7 +147,7 @@ namespace cpp_dbc::MongoDB
     std::string MongoDBConnection::startSession()
     {
         auto result = startSession(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -157,7 +157,7 @@ namespace cpp_dbc::MongoDB
     void MongoDBConnection::endSession(const std::string &sessionId)
     {
         auto result = endSession(std::nothrow, sessionId);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -166,7 +166,7 @@ namespace cpp_dbc::MongoDB
     void MongoDBConnection::startTransaction(const std::string &sessionId)
     {
         auto result = startTransaction(std::nothrow, sessionId);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -175,7 +175,7 @@ namespace cpp_dbc::MongoDB
     void MongoDBConnection::commitTransaction(const std::string &sessionId)
     {
         auto result = commitTransaction(std::nothrow, sessionId);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -184,7 +184,7 @@ namespace cpp_dbc::MongoDB
     void MongoDBConnection::abortTransaction(const std::string &sessionId)
     {
         auto result = abortTransaction(std::nothrow, sessionId);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -193,7 +193,7 @@ namespace cpp_dbc::MongoDB
     bool MongoDBConnection::supportsTransactions()
     {
         auto result = supportsTransactions(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -203,7 +203,7 @@ namespace cpp_dbc::MongoDB
     void MongoDBConnection::prepareForPoolReturn()
     {
         auto result = prepareForPoolReturn(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }

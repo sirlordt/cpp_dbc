@@ -92,7 +92,7 @@ namespace cpp_dbc::MySQL
     void MySQLDBResultSet::close()
     {
         auto result = close(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -101,7 +101,7 @@ namespace cpp_dbc::MySQL
     bool MySQLDBResultSet::isEmpty()
     {
         auto result = isEmpty(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }

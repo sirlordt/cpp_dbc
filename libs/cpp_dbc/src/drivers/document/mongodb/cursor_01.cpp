@@ -153,15 +153,19 @@ namespace cpp_dbc::MongoDB
     void MongoDBCursor::close()
     {
         auto result = close(std::nothrow);
-        if (!result)
+        if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
     bool MongoDBCursor::isEmpty()
     {
         auto result = isEmpty(std::nothrow);
-        if (!result)
+        if (!result.has_value())
+        {
             throw result.error();
+        }
         return *result;
     }
 

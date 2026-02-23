@@ -69,7 +69,7 @@ namespace cpp_dbc::PostgreSQL
     void PostgreSQLDBResultSet::close()
     {
         auto result = close(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -78,7 +78,7 @@ namespace cpp_dbc::PostgreSQL
     bool PostgreSQLDBResultSet::isEmpty()
     {
         auto result = isEmpty(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }

@@ -226,6 +226,9 @@ namespace cpp_dbc::system_utils
 #endif
 
         // Stack buffer: "HH:MM:SS.mmm" = 12 chars + null
+        // NOSONAR(cpp:S5945,cpp:S6229,cpp:S6494) — std::format / std::chrono::format require
+        // GCC 13+; this project targets GCC 11. The stack buffer + strftime + snprintf pattern
+        // is correct, zero-allocation, and thread-safe via localtime_r/localtime_s.
         char buf[16];
         std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm);
         std::snprintf(buf + n, sizeof(buf) - n, "%03d", static_cast<int>(ms.count()));
@@ -250,9 +253,12 @@ namespace cpp_dbc::system_utils
 #endif
 
         // Stack buffer: "HH:MM:SS.uuuuuu" = 15 chars + null
+        // NOSONAR(cpp:S5945,cpp:S6229,cpp:S6494) — std::format / std::chrono::format require
+        // GCC 13+; this project targets GCC 11. The stack buffer + strftime + snprintf pattern
+        // is correct, zero-allocation, and thread-safe via localtime_r/localtime_s.
         char buf[20];
         std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm);
-        std::snprintf(buf + n, sizeof(buf) - n, "%06lld", static_cast<long long>(usecs));
+        std::snprintf(buf + n, sizeof(buf) - n, "%06lld", usecs); // NOSONAR(cpp:S1905) — cast removed: usecs is already long long
         return buf;
     }
 
@@ -273,6 +279,9 @@ namespace cpp_dbc::system_utils
 #endif
 
         // Stack buffer: "YYYY-MM-DD HH:MM:SS.mmm" = 23 chars + null
+        // NOSONAR(cpp:S5945,cpp:S6229,cpp:S6494) — std::format / std::chrono::format require
+        // GCC 13+; this project targets GCC 11. The stack buffer + strftime + snprintf pattern
+        // is correct, zero-allocation, and thread-safe via localtime_r/localtime_s.
         char buf[28];
         std::size_t n = std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S.", &tm);
         std::snprintf(buf + n, sizeof(buf) - n, "%03d", static_cast<int>(ms.count()));
@@ -282,6 +291,8 @@ namespace cpp_dbc::system_utils
     /** @brief Convert a thread ID to a short string (last 6 digits of hash, for non-current threads) */
     inline std::string threadIdToString(std::thread::id threadId) noexcept
     {
+        // NOSONAR(cpp:S5945) — char array required by std::to_chars API; this function is noexcept
+        // so std::string construction must be deferred until after to_chars writes into the buffer.
         char buf[12];
         // Truncate to last 6 digits: avoids the huge pthread_t value while staying useful for logs
         auto hash = std::hash<std::thread::id>{}(threadId) % 1000000UL;
@@ -292,6 +303,8 @@ namespace cpp_dbc::system_utils
     /** @brief Get the current thread OS-native TID as a string (matches htop/ps output) */
     inline std::string getThreadId() noexcept
     {
+        // NOSONAR(cpp:S5945) — char array required by std::to_chars API; this function is noexcept
+        // so std::string construction must be deferred until after to_chars writes into the buffer.
         char buf[12];
 #if defined(__linux__)
         // gettid() returns the kernel TID: short integer, same as shown in htop/ps
@@ -307,7 +320,7 @@ namespace cpp_dbc::system_utils
     }
 
     /** @brief Log a message with timestamp prefix (thread-safe) */
-    inline void logWithTimestamp(const std::string &prefix, const std::string &message)
+    inline void logWithTimestamp(std::string_view prefix, std::string_view message)
     {
         std::scoped_lock lock(global_cout_mutex);
 
@@ -335,7 +348,7 @@ namespace cpp_dbc::system_utils
     }
 
     /** @brief Log a message with timestamp prefix (thread-safe) */
-    inline void logWithTimesMillis(const std::string &prefix, const std::string &message)
+    inline void logWithTimesMillis(std::string_view prefix, std::string_view message)
     {
         std::scoped_lock lock(global_cout_mutex);
 
