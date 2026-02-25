@@ -23,13 +23,13 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <fstream>
 #include <cmath>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/core/document/document_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
 #include <cpp_dbc/common/system_utils.hpp>
 
@@ -344,7 +344,7 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
         catch (const cpp_dbc::DBException &e)
         {
             duplicateInsertFailed = true;
-            std::cout << "Expected duplicate key error: " << e.what_s() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Expected duplicate key error: " + std::string(e.what_s()));
         }
         REQUIRE(duplicateInsertFailed);
 
@@ -423,7 +423,7 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
                         }
                         catch (const std::exception &e)
                         {
-                            std::cerr << "Thread " << i << " operation " << j << " failed: " << e.what() << std::endl;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " operation " + std::to_string(j) + " failed: " + std::string(e.what()));
                             errorCount++;
                         }
                     }
@@ -432,7 +432,7 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
                 }
                 catch (const std::exception &e)
                 {
-                    std::cerr << "Thread " << i << " connection failed: " << e.what() << std::endl;
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection failed: " + std::string(e.what()));
                     errorCount += opsPerThread;
                 } }));
         }
@@ -443,8 +443,7 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
             t.join();
         }
 
-        std::cout << "MongoDB concurrent test: " << successCount.load() << " successes, "
-                  << errorCount.load() << " errors" << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB concurrent test: " + std::to_string(successCount.load()) + " successes, " + std::to_string(errorCount.load()) + " errors");
 
         // Verify results
         REQUIRE(successCount.load() == numThreads * opsPerThread);
@@ -699,6 +698,98 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
             WARN("MongoDB transaction test skipped: " + error);
             SKIP("MongoDB transactions not supported: " + error);
         }
+    }
+    SECTION("MongoDB connection pool")
+    {
+        // Get a MongoDB driver and register it with the DriverManager
+        auto driver = mongodb_test_helpers::getMongoDBDriver();
+        cpp_dbc::DriverManager::registerDriver(driver);
+
+        // Create a connection pool configuration with shorter timeouts for tests
+        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
+        poolConfig.setUrl(connStr);
+        poolConfig.setUsername(username);
+        poolConfig.setPassword(password);
+        poolConfig.setInitialSize(3);
+        poolConfig.setMaxSize(5);
+        poolConfig.setMinIdle(1);
+        poolConfig.setConnectionTimeout(10000);
+        poolConfig.setValidationInterval(500);
+        poolConfig.setIdleTimeout(5000);
+        poolConfig.setMaxLifetimeMillis(10000);
+        poolConfig.setTestOnBorrow(true);
+        poolConfig.setTestOnReturn(true);
+        poolConfig.setValidationQuery("{\"ping\": 1}");
+
+        // Create a connection pool using factory method
+        auto poolResult = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
+
+        // Create a collection for pool tests
+        const std::string poolCollectionName = testCollectionName + "_pool_031";
+        auto setupConn = pool->getDocumentDBConnection();
+        if (setupConn->collectionExists(poolCollectionName))
+        {
+            setupConn->dropCollection(poolCollectionName);
+        }
+        setupConn->createCollection(poolCollectionName);
+        setupConn->returnToPool();
+
+        // Test multiple connections in parallel
+        const int numThreads = 10;
+        const int opsPerThread = 5;
+
+        std::atomic<int> successCount(0);
+        std::vector<std::thread> threads;
+
+        for (int i = 0; i < numThreads; i++)
+        {
+            threads.push_back(std::thread([&pool, i, opsPerThread, poolCollectionName, &successCount]()
+                                          {
+                for (int j = 0; j < opsPerThread; j++) {
+                    try {
+                        auto conn_thread = pool->getDocumentDBConnection();
+
+                        int id = i * 100 + j;
+                        std::string docJson = mongodb_test_helpers::generateTestDocument(
+                            id,
+                            "Thread " + std::to_string(i) + " Op " + std::to_string(j),
+                            id * 1.5);
+                        auto collection = conn_thread->getCollection(poolCollectionName);
+                        collection->insertOne(docJson);
+
+                        conn_thread->returnToPool();
+                        successCount++;
+                    }
+                    catch (const std::exception& e) {
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
+                    }
+                } }));
+        }
+
+        for (auto &t : threads)
+        {
+            t.join();
+        }
+
+        REQUIRE(successCount == numThreads * opsPerThread);
+
+        // Verify the document count
+        auto verifyConn = pool->getDocumentDBConnection();
+        auto verifyCollection = verifyConn->getCollection(poolCollectionName);
+        auto count = verifyCollection->countDocuments("{}");
+        REQUIRE(count == static_cast<uint64_t>(numThreads * opsPerThread));
+
+        // Clean up
+        verifyConn->dropCollection(poolCollectionName);
+        verifyConn->returnToPool();
+
+        // Close the pool
+        pool->close();
     }
 }
 #else

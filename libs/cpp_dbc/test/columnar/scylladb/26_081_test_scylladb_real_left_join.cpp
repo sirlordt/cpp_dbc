@@ -360,6 +360,8 @@ TEST_CASE("ScyllaDB LEFT JOIN emulation", "[26_081_01_scylladb_real_left_join]")
                       return std::get<3>(a).value() < std::get<3>(b).value();
                   });
 
+        std::this_thread::sleep_for(std::chrono::microseconds(500));
+
         // Verify results
         // Expected: Only departments with budget > 700000, with their employees (if any)
         REQUIRE(joinResults.size() == 6); // Engineering (3 employees), Marketing (0 employees), Sales (2 employees)

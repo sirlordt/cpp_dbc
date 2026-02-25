@@ -26,10 +26,16 @@ CPP_DBC follows a layered architecture with clear separation of concerns:
    - **Implementation Split Architecture**: Each driver .cpp is split into multiple focused files:
      - `*_internal.hpp`: Internal declarations and shared definitions
      - `driver_*.cpp`: Driver class implementation
-     - `connection_*.cpp`: Connection class implementation
-     - `prepared_statement_*.cpp`: PreparedStatement class implementation
-     - `result_set_*.cpp`: ResultSet class implementation
+     - `connection_*.cpp`: Connection class implementation (up to 4 files for Firebird)
+     - `prepared_statement_*.cpp`: PreparedStatement class implementation (up to 4 files for Firebird)
+     - `result_set_*.cpp`: ResultSet class implementation (up to 5 files for SQLite/Firebird)
      - MongoDB-specific: `collection_*.cpp`, `cursor_*.cpp`, `document_*.cpp`
+   - **Canonical Method Ordering (Result Sets)**: All result set nothrow methods follow a consistent ordering across all drivers:
+     1. `close` → `isEmpty` → `next` → `isBeforeFirst` → `isAfterLast` → `getRow`
+     2. Type accessors interleaved: `getInt(index)`, `getInt(name)`, `getLong(index)`, `getLong(name)`, etc.
+     3. `getDate`, `getTimestamp`, `getTime` (index/name pairs)
+     4. `getColumnNames`, `getColumnCount`
+     5. Blob/binary methods in a separate dedicated file
 3. **Connection Management Layer**: Connection pooling and transaction management in the `src/` directory
 4. **BLOB Layer**: Binary Large Object handling in the `include/cpp_dbc/blob.hpp` (base classes) and database-specific implementations in the driver subfolders (e.g., `drivers/relational/mysql/blob.hpp`)
 5. **Key-Value Layer**: Key-Value operations support in `drivers/kv/` directory
@@ -124,6 +130,29 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Static class members track initialization state for thread safety
   - Prevents race conditions during SQLite library initialization
 - Connection objects are not thread-safe and should not be shared between threads
+- **Single Connection Mutex Model (Firebird):** All statement/result-set registry access uses a single shared `m_connMutex` — eliminates ABBA deadlock between separate registry mutexes and the connection mutex
+- **AtomicGuard<T> RAII:** `system_utils::AtomicGuard<T>` provides exception-safe management of `std::atomic<T>` flags (set on construction, restored on destruction, non-copyable)
+- **Pool Lock Order Rule:** Connection close operations must happen OUTSIDE pool locks. Pool lock (`m_mutexPool`) is always acquired BEFORE per-connection mutex. Closing inside pool lock inverts this order → Helgrind LockOrder violation
+- **Printf-Style Debug Output / `logWithTimesMillis`:** All debug macros (`FIREBIRD_DEBUG`, `SQLITE_DEBUG`, `CP_DEBUG`) use `system_utils::logWithTimesMillis(prefix, msg)` which formats `[HH:MM:SS.mmm] [TID] [prefix] message` and writes atomically via `write()` — `operator<<` is not atomic and causes interleaved output + Helgrind false positives under concurrency
+- **`m_resetting` Anti-Deadlock Flag:** `FirebirdDBConnection::m_resetting` (`atomic<bool>`) signals `ResultSet::close()` to skip unregister during `closeAllActiveResultSets()` — prevents re-entrant lock acquisition through the close→unregister→lock cycle
+- **Nothrow API — Pure Virtual Base Class Pattern (2026-02-18):**
+  - All nothrow methods in `DBConnection`, `DBResultSet`, and `RelationalDBConnection` are `= 0` pure virtual — no default implementations
+  - Every driver MUST implement the complete nothrow API surface: `close`, `reset`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `prepareForPoolReturn`, `prepareForBorrow`
+  - Throwing method wrappers delegate to their nothrow counterpart — single code path, no duplication:
+    ```cpp
+    void MySQLDBConnection::close() {
+        auto result = close(std::nothrow);
+        if (!result.has_value()) throw result.error();
+    }
+    ```
+  - Connection pool wrappers (`*PooledDBConnection`) also override all nothrow pure virtuals
+  - **Rule:** Base class nothrow methods returning "not implemented" errors are a smell — they allow silently broken drivers. Promote to `= 0` immediately.
+- **Pool Lifecycle Methods — Protected + Friend Pattern (2026-02-21):**
+  - `prepareForPoolReturn()`, `prepareForBorrow()` (and nothrow versions) are pool-internal lifecycle hooks — they must not be part of the public API
+  - Moved to `protected` in `RelationalDBConnection` with forward declarations + `friend class RelationalDBConnectionPool` / `friend class RelationalPooledDBConnection`
+  - All driver concrete classes (`MySQL`, `PostgreSQL`, `SQLite`, `Firebird`) override them in their `protected` section
+  - Pool concrete classes marked `final` — communicates intentional non-inheritance and removes virtual dispatch overhead
+  - **Rule:** Methods that are implementation details of a specific usage context (pool lifecycle) should be `protected` + accessed only through `friend` declarations, not exposed in the public API.
 
 ### Resource Management
 - Smart pointers are used for automatic resource management:
@@ -154,10 +183,35 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Pool sets `m_poolAlive` to `false` in `close()` before cleanup
   - Prevents use-after-free when pool is destroyed while connections are in use
   - Graceful handling of connection return when pool is already closed
-- Deadlock prevention with `std::scoped_lock`:
-  - All connection pool implementations use `std::scoped_lock` for consistent lock ordering
-  - Prevents deadlock when acquiring multiple mutexes (`m_mutexAllConnections` and `m_mutexIdleConnections`)
-  - Applied to all database types: relational, document, columnar, and key-value pools
+- **Direct Handoff — ALL Pool Families (relational 2026-02-21, all others 2026-02-22):**
+  - `ConnectionRequest` struct + `m_waitQueue` (`std::deque<ConnectionRequest*>`) for zero-race connection handoff
+  - On `returnConnection()`: if `m_waitQueue` is non-empty, connection is assigned directly to the first waiter's `ConnectionRequest::conn` field and `fulfilled = true` — no idle queue push, no race
+  - On `getXDBConnection()`: if pool is full, push a stack-local `ConnectionRequest` into `m_waitQueue` and wait on `m_connectionAvailable` CV, then check `request.fulfilled`
+  - Single `m_mutexPool` for all pool state (replaces 5 separate mutexes: `m_mutexGetConnection`, `m_mutexReturnConnection`, `m_mutexAllConnections`, `m_mutexIdleConnections`, `m_mutexMaintenance`)
+  - Eliminates "stolen wakeup": returning thread cannot re-borrow the connection it just assigned to a waiter
+  - All `notify_one()` / `notify_all()` calls inside `m_mutexPool` lock for Helgrind correctness
+  - `m_pendingCreations` (size_t, guarded by `m_mutexPool`) prevents pool overshoot when multiple threads create connections simultaneously outside the lock
+- **Atomic int64_t for Last-Used Time (all pools, 2026-02-24):**
+  - `m_lastUsedTimeMutex` eliminated; `m_lastUsedTimeNs` is `std::atomic<int64_t>` (nanoseconds since epoch)
+  - Replaced `std::atomic<time_point>` (not portable to ARM32/MIPS) with `std::atomic<int64_t>` (always lock-free on every supported platform)
+  - `static_assert(std::atomic<int64_t>::is_always_lock_free, ...)` enforced at compile time
+  - `memory_order_relaxed` for both store and load — sufficient for HikariCP-style validation skip (approximation, stale reads tolerable)
+  - `m_creationTime` uses in-class initializer `{std::chrono::steady_clock::now()}`; `m_lastUsedTimeNs` is initialized from `m_creationTime` (safe: declared after in class body)
+- **Nothrow Pool Factory Pattern (all pools, 2026-02-24):**
+  - `create()` factory returns `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` first parameter
+  - All internal pool methods (createDBConnection, createPooledDBConnection, validateConnection, returnConnection, initializePool) return `expected<T, DBException>` noexcept
+  - `DBConnectionPool` base class declares nothrow pure virtuals for all 6 pool operations
+  - `DBConnectionPooled` base class: all 6 interface methods have nothrow signatures
+  - Usage pattern:
+    ```cpp
+    auto result = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, config);
+    if (!result.has_value()) { throw result.error(); }
+    auto pool = result.value();
+    ```
+- **Qualified Destructor Close Pattern:**
+  - Pool destructors call `XDBConnectionPool::close()` (qualified name) rather than `close()` (virtual dispatch)
+  - Avoids S1699: calling virtual method in destructor bypasses derived class overrides and may access destroyed state
+  - Rule: `close()` logic that must run in destructor should either be inlined or called with the fully qualified class name
 
 ### Connection Pooling (continued)
 - Connection pool implementations for different database types:
@@ -168,7 +222,7 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - Each connection pool implementation follows the same architecture:
   - Abstract base class defining the pool interface
   - Concrete implementations for specific database types (PostgreSQLConnectionPool, MongoDBConnectionPool, ScyllaConnectionPool, RedisConnectionPool, etc.)
-  - Factory methods (`create`) for creating pool instances with shared_ptr ownership
+  - Factory methods (`create`) return `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` — exception-free pool creation
   - ConstructorTag pattern (PassKey idiom) to enable `std::make_shared` while enforcing factory pattern:
     - `DBConnectionPool::ConstructorTag` is a protected struct that acts as an access token
     - Constructors are public but require the tag, which can only be created within the class hierarchy

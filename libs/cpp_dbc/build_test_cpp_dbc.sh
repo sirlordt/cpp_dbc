@@ -15,11 +15,19 @@ set -e  # Exit on error
 #   --firebird-off         Disable Firebird support
 #   --release              Build in Release mode (default: Debug)
 #   --asan                 Enable Address Sanitizer
+#   --tsan                 Enable Thread Sanitizer
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
 #   --debug-sqlite         Enable debug output for SQLite driver
+#   --debug-mysql          Enable debug output for MySQL driver
+#   --debug-postgresql     Enable debug output for PostgreSQL driver
 #   --debug-firebird       Enable debug output for Firebird driver
+#   --debug-mongodb        Enable debug output for MongoDB driver
+#   --debug-scylladb       Enable debug output for ScyllaDB driver
+#   --debug-redis          Enable debug output for Redis driver
 #   --debug-all            Enable all debug output
+#   --dw-on                Enable libdw support for stack traces (default for tests: OFF)
+#   --dw-off               Disable libdw support for stack traces (default for tests)
 #   --help                 Show this help message
 
 # Default values
@@ -33,17 +41,19 @@ USE_REDIS=OFF
 USE_CPP_YAML=ON
 BUILD_TYPE=Debug
 ENABLE_ASAN=OFF
+ENABLE_TSAN=OFF
 ENABLE_GCC_ANALYZER=OFF
-NO_REBUILD_DEPS=false
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_MYSQL=OFF
+DEBUG_POSTGRES=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
-BACKWARD_HAS_DW=ON
+BACKWARD_HAS_DW=OFF
 DB_DRIVER_THREAD_SAFE=ON
 
 # Parse command line arguments
@@ -125,6 +135,10 @@ while [[ $# -gt 0 ]]; do
             ENABLE_ASAN=ON
             shift
             ;;
+        --tsan)
+            ENABLE_TSAN=ON
+            shift
+            ;;
         --gcc-analyzer)
             ENABLE_GCC_ANALYZER=ON
             shift
@@ -139,6 +153,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --debug-sqlite)
             DEBUG_SQLITE=ON
+            shift
+            ;;
+        --debug-mysql)
+            DEBUG_MYSQL=ON
+            shift
+            ;;
+        --debug-postgresql)
+            DEBUG_POSTGRES=ON
             shift
             ;;
         --debug-firebird)
@@ -161,11 +183,17 @@ while [[ $# -gt 0 ]]; do
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
+            DEBUG_MYSQL=ON
+            DEBUG_POSTGRES=ON
             DEBUG_FIREBIRD=ON
             DEBUG_MONGODB=ON
             DEBUG_SCYLLADB=ON
             DEBUG_REDIS=ON
             DEBUG_ALL=ON
+            shift
+            ;;
+        --dw-on)
+            BACKWARD_HAS_DW=ON
             shift
             ;;
         --dw-off)
@@ -206,12 +234,15 @@ while [[ $# -gt 0 ]]; do
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
+            echo "  --debug-mysql          Enable debug output for MySQL driver"
+            echo "  --debug-postgresql     Enable debug output for PostgreSQL driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
             echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
-            echo "  --dw-off               Disable libdw support for stack traces"
+            echo "  --dw-on                Enable libdw support for stack traces (default for tests: OFF)"
+            echo "  --dw-off               Disable libdw support for stack traces (default for tests)"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
             echo "  --help                 Show this help message"
             exit 0
@@ -219,7 +250,7 @@ while [[ $# -gt 0 ]]; do
         *)
             # Unknown option
             echo "Unknown option: $1"
-            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--sqlite|--sqlite-on|--sqlite-off] [--firebird|--firebird-on|--firebird-off] [--mongodb|--mongodb-on|--mongodb-off] [--scylladb|--scylladb-on|--scylladb-off] [--release] [--asan] [--dw-off] [--help]"
+            echo "Usage: $0 [--mysql|--mysql-on|--mysql-off] [--yaml|--yaml-on|--yaml-off] [--postgres|--postgres-on|--postgres-off] [--sqlite|--sqlite-on|--sqlite-off] [--firebird|--firebird-on|--firebird-off] [--mongodb|--mongodb-on|--mongodb-off] [--scylladb|--scylladb-on|--scylladb-off] [--release] [--asan] [--dw-on] [--dw-off] [--help]"
             exit 1
             ;;
     esac
@@ -296,9 +327,12 @@ echo "  ScyllaDB support: $USE_SCYLLADB"
 echo "  Redis support: $USE_REDIS"
 echo "  Build type: $BUILD_TYPE"
 echo "  Address Sanitizer: $ENABLE_ASAN"
+echo "  Thread Sanitizer: $ENABLE_TSAN"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  Debug MySQL: $DEBUG_MYSQL"
+echo "  Debug PostgreSQL: $DEBUG_POSTGRES"
 echo "  Debug Firebird: $DEBUG_FIREBIRD"
 echo "  Debug MongoDB: $DEBUG_MONGODB"
 echo "  Debug ScyllaDB: $DEBUG_SCYLLADB"
@@ -374,6 +408,17 @@ else
     echo "GCC Static Analyzer is disabled (use --gcc-analyzer to enable)"
 fi
 
+# Build sanitizer flags if enabled
+SANITIZER_FLAGS=""
+SANITIZER_LINKER_FLAGS=""
+if [ "${ENABLE_ASAN}" = "ON" ]; then
+    SANITIZER_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+    SANITIZER_LINKER_FLAGS="-fsanitize=address,undefined"
+elif [ "${ENABLE_TSAN}" = "ON" ]; then
+    SANITIZER_FLAGS="-fsanitize=thread -fno-omit-frame-pointer"
+    SANITIZER_LINKER_FLAGS="-fsanitize=thread"
+fi
+
 # Configure with CMake
 echo "Configuring with CMake..."
 cmake "${CPP_DBC_DIR}" \
@@ -389,16 +434,20 @@ cmake "${CPP_DBC_DIR}" \
       -DUSE_REDIS=$USE_REDIS \
       -DCPP_DBC_BUILD_TESTS=ON \
       -DENABLE_ASAN=$ENABLE_ASAN \
+      -DENABLE_TSAN=$ENABLE_TSAN \
       -DDEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL \
       -DDEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER \
       -DDEBUG_SQLITE=$DEBUG_SQLITE \
+      -DDEBUG_MYSQL=$DEBUG_MYSQL \
+      -DDEBUG_POSTGRES=$DEBUG_POSTGRES \
       -DDEBUG_FIREBIRD=$DEBUG_FIREBIRD \
       -DDEBUG_MONGODB=$DEBUG_MONGODB \
       -DDEBUG_SCYLLADB=$DEBUG_SCYLLADB \
       -DDEBUG_REDIS=$DEBUG_REDIS \
       -DBACKWARD_HAS_DW=$BACKWARD_HAS_DW \
       -DDB_DRIVER_THREAD_SAFE=$DB_DRIVER_THREAD_SAFE \
-      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align ${ANALYZER_FLAG}" \
+      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wformat=2 -Wunused -Werror=return-type -Werror=switch -Wdouble-promotion -Wfloat-equal -Wundef -Wpointer-arith -Wcast-align ${SANITIZER_FLAGS} ${ANALYZER_FLAG}" \
+      -DCMAKE_EXE_LINKER_FLAGS="${SANITIZER_LINKER_FLAGS}" \
       -Wno-dev
 
 # Print status message about ASAN
@@ -406,6 +455,13 @@ if [ "${ENABLE_ASAN}" = "OFF" ]; then
     echo "Address Sanitizer is disabled"
 else
     echo "Address Sanitizer is enabled"
+fi
+
+# Print status message about TSAN
+if [ "${ENABLE_TSAN}" = "OFF" ]; then
+    echo "Thread Sanitizer is disabled"
+else
+    echo "Thread Sanitizer is enabled"
 fi
 
 # Build the library and tests
@@ -433,6 +489,8 @@ echo -e "\nTests built successfully!"
     --debug-pool=$DEBUG_CONNECTION_POOL \
     --debug-txmgr=$DEBUG_TRANSACTION_MANAGER \
     --debug-sqlite=$DEBUG_SQLITE \
+    --debug-mysql=$DEBUG_MYSQL \
+    --debug-postgresql=$DEBUG_POSTGRES \
     --debug-firebird=$DEBUG_FIREBIRD \
     --debug-mongodb=$DEBUG_MONGODB \
     --debug-scylladb=$DEBUG_SCYLLADB \

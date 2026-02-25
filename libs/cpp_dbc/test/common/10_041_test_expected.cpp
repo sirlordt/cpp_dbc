@@ -466,7 +466,7 @@ TEST_CASE("expected<void, E> - Transaction simulation", "[10_041_15_expected]")
     {
         if (should_fail)
         {
-            return unexpected<DBException>(DBException("COMMIT_FAILED", "Commit failed"));
+            return unexpected<DBException>(DBException("C167A9B2DE38", "Commit failed"));
         }
         return {};
     };
@@ -481,7 +481,7 @@ TEST_CASE("expected<void, E> - Transaction simulation", "[10_041_15_expected]")
     {
         auto result = commit(true);
         REQUIRE_FALSE(result.has_value());
-        REQUIRE(result.error().getMark() == "COMMIT_FAILED");
+        REQUIRE(result.error().getMark() == "C167A9B2DE38");
     }
 }
 

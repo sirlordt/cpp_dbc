@@ -39,7 +39,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("OJ9DMC2WW02G", "Connection lost");
 
             if (columnIndex >= m_fieldCount)
             {

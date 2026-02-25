@@ -132,16 +132,8 @@ namespace cpp_dbc
          * It should:
          * - Close all active prepared statements
          * - Rollback any active transaction
-         *
-         * The default implementation only rolls back any active transaction.
-         * Subclasses should override to close statements.
          */
-        virtual void prepareForPoolReturn()
-        {
-            // Default implementation: rollback any active transaction
-            // Explicitly discard the [[nodiscard]] result - errors during pool return are intentionally ignored
-            (void)rollback(std::nothrow);
-        }
+        virtual void prepareForPoolReturn() = 0;
 
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
@@ -164,6 +156,9 @@ namespace cpp_dbc
 
         [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
             rollback(std::nothrow_t) noexcept = 0;
+
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
+            prepareForPoolReturn(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

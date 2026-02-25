@@ -36,7 +36,7 @@ namespace cpp_dbc::MySQL
         {
         private:
             MySQLHandle m_mysql; // shared_ptr allows PreparedStatements to use weak_ptr
-            bool m_closed{true};
+            std::atomic<bool> m_closed{false};
             bool m_autoCommit{true};
             bool m_transactionActive{false};
             TransactionIsolationLevel m_isolationLevel{TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ}; // MySQL default
@@ -145,6 +145,13 @@ namespace cpp_dbc::MySQL
              */
             void closeAllStatements();
 
+        protected:
+            // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
+            void prepareForPoolReturn() override;
+            void prepareForBorrow() override;
+            cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
+
         public:
             MySQLDBConnection(const std::string &host,
                               int port,
@@ -162,9 +169,10 @@ namespace cpp_dbc::MySQL
 
             // DBConnection interface
             void close() override;
+            void reset() override;
             bool isClosed() const override;
             void returnToPool() override;
-            bool isPooled() override;
+            bool isPooled() const override;
             std::string getURL() const override;
 
             // RelationalDBConnection interface
@@ -180,7 +188,6 @@ namespace cpp_dbc::MySQL
 
             void commit() override;
             void rollback() override;
-            void prepareForPoolReturn() override;
 
             // Transaction isolation level methods
             void setTransactionIsolation(TransactionIsolationLevel level) override;
@@ -198,6 +205,13 @@ namespace cpp_dbc::MySQL
             cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
             cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
             cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
+
+            cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
+            cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+            cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
         };
 
 } // namespace cpp_dbc::MySQL

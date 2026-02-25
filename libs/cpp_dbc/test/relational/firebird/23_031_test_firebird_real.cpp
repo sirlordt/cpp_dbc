@@ -166,24 +166,28 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
-        poolConfig.setInitialSize(2);           // Reduced for tests
-        poolConfig.setMaxSize(5);               // Reduced for tests
-        poolConfig.setMinIdle(1);               // Reduced for tests
-        poolConfig.setConnectionTimeout(10000); // Shorter timeout
-        poolConfig.setValidationInterval(500);  // Shorter interval
-        poolConfig.setIdleTimeout(5000);        // Shorter idle timeout
-        poolConfig.setMaxLifetimeMillis(10000); // Shorter lifetime
+        poolConfig.setInitialSize(3);
+        poolConfig.setMaxSize(5);
+        poolConfig.setMinIdle(1);
+        poolConfig.setConnectionTimeout(10000);
+        poolConfig.setValidationInterval(500);
+        poolConfig.setIdleTimeout(5000);
+        poolConfig.setMaxLifetimeMillis(10000);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a test table using RECREATE TABLE
-        auto conn = poolPtr->getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(createTableQuery);
-
         conn->returnToPool();
 
         // Test multiple connections in parallel
@@ -195,14 +199,12 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
 
         for (int i = 0; i < numThreads; i++)
         {
-            threads.push_back(std::thread([poolPtr, i, opsPerThread, insertDataQuery, &successCount]()
+            threads.push_back(std::thread([&pool, i, opsPerThread, insertDataQuery, &successCount]()
                                           {
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
-                        // Get a connection from the pool
-                        auto conn_thread = poolPtr->getRelationalDBConnection();
+                        auto conn_thread = pool->getRelationalDBConnection();
 
-                        // Insert a row
                         int id = i * 100 + j;
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
                         pstmt->setInt(1, id);
@@ -211,37 +213,36 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
                         pstmt->executeUpdate();
 
                         conn_thread->returnToPool();
-
-                        // Increment success counter
                         successCount++;
                     }
                     catch (const std::exception& e) {
-                        std::cout << "Thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
 
-        // Wait for all threads to complete
-        for (std::thread &t : threads)
+        for (auto &t : threads)
         {
             t.join();
         }
 
-        // Verify that all operations were successful
-        REQUIRE((successCount.load() == numThreads * opsPerThread || successCount.load() == (numThreads * opsPerThread - 1)));
+        REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the data
-        conn = poolPtr->getRelationalDBConnection();
-
-        auto rs = conn->executeQuery("SELECT COUNT(*) as cnt FROM test_table");
+        conn = pool->getRelationalDBConnection();
+        // NOTE: 'count' is a reserved keyword in Firebird SQL (built-in aggregate function),
+        // so it cannot be used as a column alias. Use 'count_' instead.
+        auto rs = conn->executeQuery("SELECT COUNT(*) as count_ FROM test_table");
         REQUIRE(rs->next());
-        int count = rs->getInt(0); // Use column index for Firebird
-        rs->close();               // Close ResultSet before dropping table (required for Firebird)
-        conn->executeUpdate(dropTableQuery);
-        REQUIRE(count == numThreads * opsPerThread);
+        REQUIRE(rs->getInt("COUNT_") == numThreads * opsPerThread); // Firebird returns uppercase column names
+        rs->close(); // Close ResultSet before dropping table (required for Firebird)
 
         // Clean up
+        conn->executeUpdate(dropTableQuery);
         conn->returnToPool();
+
+        // Close the pool
+        pool->close();
     }
 
     SECTION("Firebird transaction management")
@@ -263,14 +264,18 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult2 = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult2.has_value())
+        {
+            throw poolResult2.error();
+        }
+        auto pool = poolResult2.value();
 
         // Create a transaction manager
-        cpp_dbc::TransactionManager manager(pool);
+        cpp_dbc::TransactionManager manager(*pool);
 
         // Create a test table using RECREATE TABLE
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
 
@@ -296,7 +301,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
             manager.commitTransaction(txId);
 
             // Verify the data was committed
-            conn = pool.getRelationalDBConnection();
+            conn = pool->getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("NAME") == "Transaction Test");
@@ -324,7 +329,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
             manager.rollbackTransaction(txId);
 
             // Verify the data was not committed
-            conn = pool.getRelationalDBConnection();
+            conn = pool->getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             rs->close();               // Close ResultSet before closing connection (required for Firebird)
@@ -332,7 +337,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         }
 
         // Close the pool before dropping the table to avoid blocking
-        pool.close();
+        pool->close();
 
         // Clean up - use a direct connection to drop the table
         auto directConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -372,7 +377,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         pstmt->setString(4, "Hello, World!");
         pstmt->setDate(5, "2023-01-15");
         pstmt->setTimestamp(6, "2023-01-15 14:30:00");
-        pstmt->setInt(7, 1);                        // Boolean as smallint
+        pstmt->setInt(7, 1); // Boolean as smallint
 
         pstmt->executeUpdate();
         pstmt->close(); // Close prepared statement after use (required for Firebird)
@@ -434,7 +439,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
             "INSERT INTO test_time_types (id, time_col, description) VALUES (?, ?, ?)");
 
         pstmt->setInt(1, 1);
-        pstmt->setTime(2, "14:30:00");           // TIME using setTime method
+        pstmt->setTime(2, "14:30:00"); // TIME using setTime method
         pstmt->setString(3, "Afternoon meeting");
         pstmt->executeUpdate();
         pstmt->close(); // Close after each use (required for Firebird)
@@ -442,7 +447,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         pstmt = conn->prepareStatement(
             "INSERT INTO test_time_types (id, time_col, description) VALUES (?, ?, ?)");
         pstmt->setInt(1, 2);
-        pstmt->setTime(2, "08:15:30");           // TIME with seconds
+        pstmt->setTime(2, "08:15:30"); // TIME with seconds
         pstmt->setString(3, "Morning routine");
         pstmt->executeUpdate();
         pstmt->close();
@@ -450,7 +455,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         pstmt = conn->prepareStatement(
             "INSERT INTO test_time_types (id, time_col, description) VALUES (?, ?, ?)");
         pstmt->setInt(1, 3);
-        pstmt->setTime(2, "23:59:59");           // Late night
+        pstmt->setTime(2, "23:59:59"); // Late night
         pstmt->setString(3, "End of day");
         pstmt->executeUpdate();
         pstmt->close();
@@ -501,11 +506,15 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult3 = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult3.has_value())
+        {
+            throw poolResult3.error();
+        }
+        auto pool = poolResult3.value();
 
         // Create a test table using RECREATE TABLE
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
 
@@ -525,7 +534,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn_thread = pool.getRelationalDBConnection();
+                        auto conn_thread = pool->getRelationalDBConnection();
 
                         // Insert a row
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -556,7 +565,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
                         conn_thread->returnToPool();
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "Thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
@@ -570,14 +579,14 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-        std::cout << "Firebird stress test completed in " << duration << " ms" << std::endl;
-        std::cout << "Operations per second: " << (numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)) << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Firebird stress test completed in " + std::to_string(duration) + " ms");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Operations per second: " + std::to_string(numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)));
 
         // Verify that all operations were successful
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the total number of rowsopsPerThread
-        conn = pool.getRelationalDBConnection();
+        conn = pool->getRelationalDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as cnt FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt(0) == numThreads * opsPerThread); // Use column index for Firebird
@@ -586,7 +595,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
 
         // Close the pool before dropping the table to avoid blocking
         // This ensures all connections are closed and transactions are committed
-        poolPtr->close();
+        pool->close();
 
         // Create a new direct connection to drop the table
         auto directConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));

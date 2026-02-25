@@ -21,21 +21,29 @@
 #ifndef SYSTEM_UTILS_HPP
 #define SYSTEM_UTILS_HPP
 
+#include <charconv>
 #include <mutex>
+#include <thread>
 #include <iostream>
-#include <iomanip>
 #include <chrono>
 #include <ctime>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
+
+// Platform-specific includes for write() syscall (eliminates Helgrind false positives)
+#ifdef _WIN32
+#include <Windows.h> // GetCurrentThreadId() used in getThreadId()
+#include <io.h>      // _write(), _fileno()
+#else
+#include <unistd.h> // write(), STDOUT_FILENO
+#endif
 
 namespace cpp_dbc::system_utils
 {
 
     // Declare the mutex as external
-    extern std::mutex global_cout_mutex; // NOSONAR - Mutex cannot be const as it needs to be locked/unlocked
+    extern std::recursive_mutex global_cout_mutex; // NOSONAR - Mutex cannot be const as it needs to be locked/unlocked
 
     /**
      * @brief Represents a single frame in a captured call stack
@@ -63,6 +71,79 @@ namespace cpp_dbc::system_utils
         int port;             ///< Port number
         std::string database; ///< Database name or path
         bool isLocal;         ///< True if this is a local connection (no host specified)
+    };
+
+    /**
+     * @brief RAII guard for atomic flags
+     *
+     * Sets an atomic<T> to a specified value on construction and restores it to
+     * another value on destruction. Useful for preventing re-entrancy or signaling
+     * operation state across threads. Exception-safe through RAII guarantees.
+     *
+     * Example usage:
+     * ```cpp
+     * // Boolean flag
+     * std::atomic<bool> m_processing{false};
+     * {
+     *     cpp_dbc::system_utils::AtomicGuard<bool> guard(m_processing, true, false);
+     *     // m_processing is now true
+     *     // ... do work ...
+     * } // m_processing automatically reset to false
+     *
+     * // Integer counter
+     * std::atomic<int> m_refCount{0};
+     * {
+     *     cpp_dbc::system_utils::AtomicGuard<int> guard(m_refCount, 1, 0);
+     *     // m_refCount is now 1
+     *     // ... do work ...
+     * } // m_refCount reset to 0
+     *
+     * // Enum state
+     * enum class State { Idle, Processing };
+     * std::atomic<State> m_state{State::Idle};
+     * {
+     *     cpp_dbc::system_utils::AtomicGuard<State> guard(m_state, State::Processing, State::Idle);
+     *     // m_state is now Processing
+     *     // ... do work ...
+     * } // m_state reset to Idle
+     * ```
+     *
+     * @tparam T Type of the atomic value (bool, int, enum, etc.)
+     * @note Non-copyable and non-movable to prevent accidental double-reset
+     */
+    template <typename T>
+    class AtomicGuard
+    {
+    private:
+        std::atomic<T> &m_flag;
+        T m_resetValue;
+
+    public:
+        /**
+         * @brief Constructs the guard and sets the flag to setValue
+         * @param flag Reference to the atomic<T> to guard
+         * @param setValue Value to set on construction
+         * @param resetValue Value to restore on destruction
+         */
+        explicit AtomicGuard(std::atomic<T> &flag, T setValue, T resetValue) noexcept
+            : m_flag(flag), m_resetValue(resetValue)
+        {
+            m_flag.store(setValue, std::memory_order_release);
+        }
+
+        /**
+         * @brief Destroys the guard and resets the flag to resetValue
+         */
+        ~AtomicGuard() noexcept
+        {
+            m_flag.store(m_resetValue, std::memory_order_release);
+        }
+
+        // Prevent copying and moving to avoid double-reset bugs
+        AtomicGuard(const AtomicGuard &) = delete;
+        AtomicGuard &operator=(const AtomicGuard &) = delete;
+        AtomicGuard(AtomicGuard &&) = delete;
+        AtomicGuard &operator=(AtomicGuard &&) = delete;
     };
 
     /**
@@ -113,7 +194,20 @@ namespace cpp_dbc::system_utils
     inline void safePrint(const std::string &mark, const std::string &message)
     {
         std::scoped_lock lock(global_cout_mutex);
-        std::cout << mark << ": " << message << std::endl;
+
+        // CRITICAL: Build output string BEFORE writing to avoid Helgrind false positives
+        // Using write() syscall instead of std::cout eliminates data races on FILE* buffer
+        // because write() is atomic and doesn't use buffered I/O that Helgrind can't track
+        std::string output = mark + ": " + message + "\n";
+
+#ifdef _WIN32
+        // Windows: use _write() syscall
+        _write(_fileno(stdout), output.c_str(), static_cast<unsigned int>(output.size()));
+#else
+        // POSIX: use write() syscall
+        // Ignore return value - this is debug output, not critical
+        [[maybe_unused]] auto result = write(STDOUT_FILENO, output.c_str(), output.size());
+#endif
     }
 
     /** @brief Get current time as "HH:MM:SS.mmm" string */
@@ -121,11 +215,10 @@ namespace cpp_dbc::system_utils
     {
         using namespace std::chrono;
 
-        // Get current system time
         auto now = system_clock::now();
-
-        // Convert to time_t for formatting hours/minutes/seconds
         std::time_t now_c = system_clock::to_time_t(now);
+        auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
+
         std::tm tm{};
 #if defined(_WIN32)
         localtime_s(&tm, &now_c);
@@ -133,47 +226,154 @@ namespace cpp_dbc::system_utils
         localtime_r(&now_c, &tm);
 #endif
 
-        // Extract milliseconds
-        auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
-
-        // Format to string
-        std::ostringstream oss;
-        oss << std::put_time(&tm, "%H:%M:%S")
-            << '.' << std::setw(3) << std::setfill('0') << ms.count();
-
-        return oss.str();
+        // Stack buffer: "HH:MM:SS.mmm" = 12 chars + null
+        // std::format / std::chrono::format require GCC 13+; this project targets GCC 11.
+        // The stack buffer + strftime + snprintf pattern is correct, zero-allocation, and
+        // thread-safe via localtime_r/localtime_s.
+        char buf[16]; // NOSONAR(cpp:S5945) — see comment above
+        std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm); // NOSONAR(cpp:S6229) — see comment above
+        std::snprintf(buf + n, sizeof(buf) - n, "%03d", static_cast<int>(ms.count())); // NOSONAR(cpp:S6494) — see comment above
+        return buf;
     }
 
-    /** @brief Get current timestamp as "[YYYY-MM-DD HH:MM:SS.mmm]" string */
+    /** @brief Get current time as "HH:MM:SS.microseconds" string (high precision) */
+    inline std::string currentTimeMicros()
+    {
+        using namespace std::chrono;
+
+        auto now = system_clock::now();
+        auto micros = duration_cast<microseconds>(now.time_since_epoch()).count();
+        std::time_t now_c = micros / 1000000;
+        auto usecs = micros % 1000000;
+
+        std::tm tm{};
+#if defined(_WIN32)
+        localtime_s(&tm, &now_c);
+#else
+        localtime_r(&now_c, &tm);
+#endif
+
+        // Stack buffer: "HH:MM:SS.uuuuuu" = 15 chars + null
+        // std::format / std::chrono::format require GCC 13+; this project targets GCC 11.
+        // The stack buffer + strftime + snprintf pattern is correct, zero-allocation, and
+        // thread-safe via localtime_r/localtime_s.
+        char buf[20]; // NOSONAR(cpp:S5945) — see comment above
+        std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm); // NOSONAR(cpp:S6229) — see comment above
+        std::snprintf(buf + n, sizeof(buf) - n, "%06ld", usecs); // NOSONAR(cpp:S6494) — see comment above; %06ld matches the actual type (long int)
+        return buf;
+    }
+
+    /** @brief Get current timestamp as "YYYY-MM-DD HH:MM:SS.mmm" string */
     inline std::string getCurrentTimestamp()
     {
         auto now = std::chrono::system_clock::now();
-        auto time_t_now = std::chrono::system_clock::to_time_t(now);
-
-        // Get milliseconds
+        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                       now.time_since_epoch()) %
                   1000;
 
         std::tm tm{};
 #if defined(_WIN32)
-        localtime_s(&tm, &time_t_now);
+        localtime_s(&tm, &now_c);
 #else
-        localtime_r(&time_t_now, &tm);
+        localtime_r(&now_c, &tm);
 #endif
 
-        std::stringstream ss;
-        ss << std::put_time(&tm, "[%Y-%m-%d %H:%M:%S");
-        ss << "." << std::setfill('0') << std::setw(3) << ms.count() << "]";
+        // Stack buffer: "YYYY-MM-DD HH:MM:SS.mmm" = 23 chars + null
+        // std::format / std::chrono::format require GCC 13+; this project targets GCC 11.
+        // The stack buffer + strftime + snprintf pattern is correct, zero-allocation, and
+        // thread-safe via localtime_r/localtime_s.
+        char buf[28]; // NOSONAR(cpp:S5945) — see comment above
+        std::size_t n = std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S.", &tm); // NOSONAR(cpp:S6229) — see comment above
+        std::snprintf(buf + n, sizeof(buf) - n, "%03d", static_cast<int>(ms.count())); // NOSONAR(cpp:S6494) — see comment above
+        return buf;
+    }
 
-        return ss.str();
+    /** @brief Convert a thread ID to a short string (last 6 digits of hash, for non-current threads) */
+    inline std::string threadIdToString(std::thread::id threadId) noexcept
+    {
+        // char array required by std::to_chars API; this function is noexcept so std::string
+        // construction must be deferred until after to_chars writes into the buffer.
+        char buf[12]; // NOSONAR(cpp:S5945) — see comment above
+        // Truncate to last 6 digits: avoids the huge pthread_t value while staying useful for logs
+        auto hash = std::hash<std::thread::id>{}(threadId) % 1000000UL;
+        auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), hash);
+        return std::string(buf, ptr);
+    }
+
+    /** @brief Get the current thread OS-native TID as a string (matches htop/ps output) */
+    inline std::string getThreadId() noexcept
+    {
+        // char array required by std::to_chars API; this function is noexcept so std::string
+        // construction must be deferred until after to_chars writes into the buffer.
+        char buf[12]; // NOSONAR(cpp:S5945) — see comment above
+#if defined(__linux__)
+        // gettid() returns the kernel TID: short integer, same as shown in htop/ps
+        auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), static_cast<unsigned long>(::gettid()));
+#elif defined(_WIN32)
+        auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), static_cast<unsigned long>(GetCurrentThreadId()));
+#else
+        // Fallback: truncated hash
+        auto hash = std::hash<std::thread::id>{}(std::this_thread::get_id()) % 1000000UL;
+        auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), hash);
+#endif
+        return std::string(buf, ptr);
     }
 
     /** @brief Log a message with timestamp prefix (thread-safe) */
-    inline void logWithTimestamp(const std::string &prefix, const std::string &message)
+    inline void logWithTimestamp(std::string_view prefix, std::string_view message)
     {
         std::scoped_lock lock(global_cout_mutex);
-        std::cout << getCurrentTimestamp() << " " << prefix << " " << message << std::endl;
+
+        // Build output string before writing (same as safePrint)
+        // reserve() + append() avoids intermediate allocations from operator+
+        auto ts = getCurrentTimestamp();
+        auto tid = getThreadId();
+        std::string output;
+        output.reserve(ts.size() + tid.size() + prefix.size() + message.size() + 12);
+        output += '[';
+        output.append(ts);
+        output += "] [";
+        output.append(tid);
+        output += "] [";
+        output.append(prefix);
+        output += "] ";
+        output.append(message);
+        output += '\n';
+
+#ifdef _WIN32
+        _write(_fileno(stdout), output.c_str(), static_cast<unsigned int>(output.size()));
+#else
+        [[maybe_unused]] auto result = write(STDOUT_FILENO, output.c_str(), output.size());
+#endif
+    }
+
+    /** @brief Log a message with timestamp prefix (thread-safe) */
+    inline void logWithTimesMillis(std::string_view prefix, std::string_view message)
+    {
+        std::scoped_lock lock(global_cout_mutex);
+
+        // Build output string before writing (same as safePrint)
+        // reserve() + append() avoids intermediate allocations from operator+
+        auto ts = currentTimeMillis();
+        auto tid = getThreadId();
+        std::string output;
+        output.reserve(ts.size() + tid.size() + prefix.size() + message.size() + 12);
+        output += '[';
+        output.append(ts);
+        output += "] [";
+        output.append(tid);
+        output += "] [";
+        output.append(prefix);
+        output += "] ";
+        output.append(message);
+        output += '\n';
+
+#ifdef _WIN32
+        _write(_fileno(stdout), output.c_str(), static_cast<unsigned int>(output.size()));
+#else
+        [[maybe_unused]] auto result = write(STDOUT_FILENO, output.c_str(), output.size());
+#endif
     }
 
     /** @brief Log an INFO message with timestamp */

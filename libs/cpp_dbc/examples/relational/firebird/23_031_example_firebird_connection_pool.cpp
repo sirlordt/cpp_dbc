@@ -202,13 +202,12 @@ int main(int argc, char *argv[])
         logMsg("--- Pool Creation ---");
 
         logStep("Creating Firebird connection pool...");
-        auto pool = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
-
-        if (!pool)
+        auto poolResult = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
         {
-            logError("Failed to create Firebird connection pool");
-            return EXIT_ERROR_;
+            throw poolResult.error();
         }
+        auto pool = poolResult.value();
 
         logOk("Connection pool created");
         logData("Initial idle connections: " + std::to_string(pool->getIdleDBConnectionCount()));

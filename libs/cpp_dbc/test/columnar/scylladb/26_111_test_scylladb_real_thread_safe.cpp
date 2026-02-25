@@ -25,7 +25,6 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <random>
 #include <mutex>
 #include <condition_variable>
@@ -130,7 +129,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
                         catch (const std::exception& e)
                         {
                             errorCount++;
-                            std::cerr << "Thread " << i << " op " << j << " error: " << e.what() << std::endl;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(e.what()));
                         }
                     }
                     
@@ -139,7 +138,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
                 catch (const std::exception& e)
                 {
                     errorCount += opsPerThread;
-                    std::cerr << "Thread " << i << " connection error: " << e.what() << std::endl;
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection error: " + std::string(e.what()));
                 } });
         }
 
@@ -156,7 +155,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
             t.join();
         }
 
-        std::cout << "Multiple threads with individual connections: " << successCount << " successes, " << errorCount << " errors" << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Multiple threads with individual connections: " + std::to_string(successCount.load()) + " successes, " + std::to_string(errorCount.load()) + " errors");
 
         // Clean up
         auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
@@ -200,7 +199,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
                     catch (const std::exception& e)
                     {
                         errorCount++;
-                        std::cerr << "Connection error: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection error: " + std::string(e.what()));
                     }
                 } });
         }
@@ -210,9 +209,9 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
             t.join();
         }
 
-        std::cout << "Rapid connection test: " << successCount << " successes, " << errorCount << " errors" << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Rapid connection test: " + std::to_string(successCount.load()) + " successes, " + std::to_string(errorCount.load()) + " errors");
 
-        REQUIRE(successCount > numThreads * connectionsPerThread * 0.9); // At least 90% success rate
+        REQUIRE(successCount > numThreads * connectionsPerThread * 0.95); // At least 95% success rate
     }
 
     SECTION("Concurrent read/write operations")
@@ -222,7 +221,10 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
             cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         REQUIRE(setupConn != nullptr);
 
-        setupConn->executeUpdate("DROP TABLE IF EXISTS " + keyspace + ".concurrent_test");
+        // Drop tables if they exist from previous runs
+        setupConn->executeUpdate("DROP TABLE IF EXISTS " + keyspace + ".concurrent_test_counter");
+        setupConn->executeUpdate("DROP TABLE IF EXISTS " + keyspace + ".concurrent_test_info");
+
         // En Cassandra/ScyllaDB, una tabla con columnas counter no puede tener otras columnas
         // excepto la clave primaria, así que creamos dos tablas separadas
         setupConn->executeUpdate(
@@ -305,7 +307,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
                         }
                         catch (const std::exception& e) {
                             errorCount++;
-                            std::cerr << "Reader " << i << " error: " << e.what() << std::endl;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Reader " + std::to_string(i) + " error: " + std::string(e.what()));
                         }
                         
                         // Small delay to increase chance of concurrent access
@@ -316,7 +318,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
                 }
                 catch (const std::exception& e) {
                     errorCount += readsPerThread;
-                    std::cerr << "Reader connection error: " << e.what() << std::endl;
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Reader connection error: " + std::string(e.what()));
                 } });
         }
 
@@ -352,7 +354,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
                         }
                         catch (const std::exception& e) {
                             errorCount++;
-                            std::cerr << "Writer " << i << " error: " << e.what() << std::endl;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Writer " + std::to_string(i) + " error: " + std::string(e.what()));
                         }
                         
                         // Small delay to increase chance of concurrent access
@@ -363,7 +365,7 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
                 }
                 catch (const std::exception& e) {
                     errorCount += writesPerThread;
-                    std::cerr << "Writer connection error: " << e.what() << std::endl;
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Writer connection error: " + std::string(e.what()));
                 } });
         }
 
@@ -373,12 +375,11 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
             t.join();
         }
 
-        std::cout << "Concurrent read/write test: " << readSuccessCount << " reads, "
-                  << writeSuccessCount << " writes, " << errorCount << " errors" << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Concurrent read/write test: " + std::to_string(readSuccessCount.load()) + " reads, " + std::to_string(writeSuccessCount.load()) + " writes, " + std::to_string(errorCount.load()) + " errors");
 
         // Verify that most operations succeeded
-        REQUIRE(readSuccessCount > numReaders * readsPerThread * 0.9);
-        REQUIRE(writeSuccessCount > numWriters * writesPerThread * 0.9);
+        REQUIRE(readSuccessCount > numReaders * readsPerThread * 0.95);   // At least 95% success rate
+        REQUIRE(writeSuccessCount > numWriters * writesPerThread * 0.95); // At least 95% success rate
 
         // Verify that counters were incremented
         auto verifyConn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
@@ -399,14 +400,14 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
 
         // With counter columns, increments are atomic, so the total should match successful writes
         // But due to how the counter is read after the fact, allow some tolerance
-        std::cout << "Total counter value: " << totalCounters << ", Write success count: " << writeSuccessCount.load() << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Total counter value: " + std::to_string(totalCounters) + ", Write success count: " + std::to_string(writeSuccessCount.load()));
 
         // Cast explicitly to avoid conversion warnings
         double counterValue = static_cast<double>(totalCounters);
         double writeSuccess = static_cast<double>(writeSuccessCount.load());
 
-        REQUIRE(counterValue >= writeSuccess * 0.9);
-        REQUIRE(counterValue <= writeSuccess * 1.1);
+        REQUIRE(counterValue >= writeSuccess * 0.95); // At least 95% of writes reflected in counter
+        REQUIRE(counterValue <= writeSuccess * 1.1);  // Counter must not exceed 110% of writes (eventual consistency tolerance)
     }
 }
 

@@ -136,11 +136,15 @@ TEST_CASE("Firebird TransactionManager multi-threaded tests", "[23_131_02_firebi
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
         // Create a connection pool
-        auto poolPtr = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a transaction manager
-        cpp_dbc::TransactionManager manager(pool);
+        cpp_dbc::TransactionManager manager(*pool);
 
         // Number of threads and transactions per thread
         const int numThreads = 5;
@@ -181,7 +185,7 @@ TEST_CASE("Firebird TransactionManager multi-threaded tests", "[23_131_02_firebi
                         successCount++;
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "Firebird thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Firebird thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
@@ -197,7 +201,7 @@ TEST_CASE("Firebird TransactionManager multi-threaded tests", "[23_131_02_firebi
         REQUIRE(manager.getActiveTransactionCount() == 0);
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 }
 
@@ -247,14 +251,18 @@ TEST_CASE("Real Firebird transaction manager tests", "[23_131_03_firebird_real_t
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult2 = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult2.has_value())
+        {
+            throw poolResult2.error();
+        }
+        auto pool = poolResult2.value();
 
         // Create a transaction manager
-        cpp_dbc::TransactionManager manager(pool);
+        cpp_dbc::TransactionManager manager(*pool);
 
         // Create a test table
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         try
         {
             conn->executeUpdate(dropTableQuery); // Drop table if it exists
@@ -290,7 +298,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[23_131_03_firebird_real_t
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was committed
-            auto verifyConn = pool.getRelationalDBConnection();
+            auto verifyConn = pool->getRelationalDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("NAME") == "Transaction Test"); // Firebird returns uppercase column names
@@ -321,7 +329,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[23_131_03_firebird_real_t
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was not committed
-            auto verifyConn = pool.getRelationalDBConnection();
+            auto verifyConn = pool->getRelationalDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             verifyConn->close();
@@ -378,7 +386,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[23_131_03_firebird_real_t
             REQUIRE_FALSE(manager.isTransactionActive(txId3));
 
             // Verify the data from committed transactions
-            auto verifyConn = pool.getRelationalDBConnection();
+            auto verifyConn = pool->getRelationalDBConnection();
 
             // Transaction 1 (committed)
             auto rs1 = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 10");
@@ -410,7 +418,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[23_131_03_firebird_real_t
             pstmt->executeUpdate();
 
             // Get a separate connection (not in the transaction)
-            auto regularConn = pool.getRelationalDBConnection();
+            auto regularConn = pool->getRelationalDBConnection();
 
             // Verify the data is not visible outside the transaction
             auto rs = regularConn->executeQuery("SELECT * FROM test_table WHERE id = 100");
@@ -453,7 +461,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[23_131_03_firebird_real_t
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was not committed
-            auto verifyConn = pool.getRelationalDBConnection();
+            auto verifyConn = pool->getRelationalDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 200");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             verifyConn->close();
@@ -464,7 +472,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[23_131_03_firebird_real_t
 
         // Close the pool first to release all connections and their transactions
         // This is necessary because Firebird DDL operations require exclusive access
-        pool.close();
+        pool->close();
 
         // Clean up using a direct connection (not from pool)
         cpp_dbc::Firebird::FirebirdDBDriver driver;

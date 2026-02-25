@@ -152,27 +152,21 @@ namespace cpp_dbc::MongoDB
 
     void MongoDBCursor::close()
     {
-        MONGODB_DEBUG("MongoDBCursor::close - Closing cursor");
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        m_cursor.reset();
-        m_currentDoc.reset();
-        m_exhausted = true;
-        MONGODB_DEBUG("MongoDBCursor::close - Done");
+        auto result = close(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
     }
 
     bool MongoDBCursor::isEmpty()
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        validateCursor();
-        if (!m_iterationStarted)
+        auto result = isEmpty(std::nothrow);
+        if (!result.has_value())
         {
-            // Inline hasNext() logic to avoid self-deadlock (mutex is non-recursive)
-            validateConnection();
-            if (m_exhausted)
-                return true;
-            return !mongoc_cursor_more(m_cursor.get());
+            throw result.error();
         }
-        return m_exhausted && !m_currentDoc;
+        return *result;
     }
 
     bool MongoDBCursor::next()

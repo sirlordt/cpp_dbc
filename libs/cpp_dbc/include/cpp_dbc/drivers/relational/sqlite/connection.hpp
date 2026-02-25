@@ -13,6 +13,7 @@
 #include <string>
 #include <mutex>
 #include <memory>
+#include <cpp_dbc/common/file_mutex_registry.hpp>
 
 namespace cpp_dbc::SQLite
 {
@@ -55,32 +56,58 @@ namespace cpp_dbc::SQLite
         SQLiteDbHandle m_db;
 
         bool m_closed{true};
-        bool m_autoCommit{true};
-        bool m_transactionActive{false};
+        std::atomic<bool> m_autoCommit{true};
+        std::atomic<bool> m_transactionActive{false};
         TransactionIsolationLevel m_isolationLevel;
 
         // Cached URL
         std::string m_url;
 
-        // Registry of active prepared statements (weak pointers to avoid preventing destruction)
-        std::set<std::weak_ptr<SQLiteDBPreparedStatement>, std::owner_less<std::weak_ptr<SQLiteDBPreparedStatement>>> m_activeStatements;
-        std::mutex m_statementsMutex;
+        // Normalized database file path
+        std::string m_dbPath;
 
-#if DB_DRIVER_THREAD_SAFE
         /**
-         * @brief Shared mutex for connection and all its prepared statements
+         * @brief Global file-level mutex shared by all connections to the same database file
          *
-         * This mutex is shared with all PreparedStatements created from this connection.
-         * Ensures that statement close operations (sqlite3_finalize) don't race
-         * with other operations on the sqlite3* handle.
+         * This mutex is obtained from FileMutexRegistry and is shared among ALL connections
+         * to the SAME database file. This ensures:
+         * 1. Thread-safe access to sqlite3* handle across all operations
+         * 2. Eliminates ThreadSanitizer false positives (SQLite's internal POSIX locks are invisible)
+         * 3. Prevents "database is locked" errors under high concurrency
+         *
+         * The mutex is also shared with all PreparedStatements and ResultSets created from
+         * any connection to this file, ensuring complete synchronization at the file level.
          */
-        mutable SharedConnMutex m_connMutex;
-#endif
+        std::shared_ptr<std::recursive_mutex> m_globalFileMutex;
+
+        // Registry of active prepared statements (weak pointers to avoid preventing destruction)
+        // NOTE (2026-02-15): m_activeStatements is now protected by m_globalFileMutex in all methods
+        // (registerStatement, unregisterStatement, closeAllStatements) to avoid lock order violations.
+        std::set<std::weak_ptr<SQLiteDBPreparedStatement>, std::owner_less<std::weak_ptr<SQLiteDBPreparedStatement>>> m_activeStatements;
+        // std::recursive_mutex m_statementsMutex;  // REMOVED (2026-02-15). Replaced by m_globalFileMutex to eliminate lock order violations.
+
+        // Registry of active result sets (weak pointers to avoid preventing destruction)
+        // NOTE (2026-02-15): m_activeResultSets is now protected by m_globalFileMutex in all methods
+        // (registerResultSet, unregisterResultSet, closeAllResultSets) to avoid lock order violations.
+        std::set<std::weak_ptr<SQLiteDBResultSet>, std::owner_less<std::weak_ptr<SQLiteDBResultSet>>> m_activeResultSets;
+        // std::recursive_mutex m_resultSetsMutex;  // REMOVED (2026-02-15). Replaced by m_globalFileMutex to eliminate lock order violations.
 
         // Internal methods for statement registry
         void registerStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
         void unregisterStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
         void closeAllStatements();
+
+        // Internal methods for result set registry
+        void registerResultSet(std::weak_ptr<SQLiteDBResultSet> rs);
+        void unregisterResultSet(std::weak_ptr<SQLiteDBResultSet> rs);
+        void closeAllResultSets();
+
+    protected:
+        // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
+        void prepareForPoolReturn() override;
+        void prepareForBorrow() override;
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
     public:
         SQLiteDBConnection(const std::string &database,
@@ -88,9 +115,10 @@ namespace cpp_dbc::SQLite
         ~SQLiteDBConnection() override;
 
         void close() override;
+        void reset() override;
         bool isClosed() const override;
         void returnToPool() override;
-        bool isPooled() override;
+        bool isPooled() const override;
 
         std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
         std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
@@ -104,7 +132,6 @@ namespace cpp_dbc::SQLite
 
         void commit() override;
         void rollback() override;
-        void prepareForPoolReturn() override;
 
         // Transaction isolation level methods
         void setTransactionIsolation(TransactionIsolationLevel level) override;
@@ -125,6 +152,13 @@ namespace cpp_dbc::SQLite
         cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
+
+        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
     };
 
 } // namespace cpp_dbc::SQLite

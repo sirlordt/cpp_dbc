@@ -18,7 +18,6 @@
 
 #include <string>
 #include <fstream>
-#include <iostream>
 #include <vector>
 #include <algorithm>
 #include <map>
@@ -27,6 +26,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "24_001_test_redis_real_common.hpp"
 
@@ -53,7 +53,7 @@ TEST_CASE("Redis connection test", "[24_041_01_redis_real_connection]")
         try
         {
             // Attempt to connect to Redis
-            std::cout << "Attempting to connect to Redis with connection string: " << connStr << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to Redis with connection string: " + connStr);
 
             auto conn = driver->connectKV(connStr, username, password);
             REQUIRE(conn != nullptr);
@@ -67,8 +67,8 @@ TEST_CASE("Redis connection test", "[24_041_01_redis_real_connection]")
             CHECK_FALSE(conn->isClosed());
 
             // Debug the URL values
-            std::cout << "Original URL: " << connStr << std::endl;
-            std::cout << "Connection URL: " << conn->getURL() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Original URL: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
 
             // In the RedisDriver::connectKV method, the URL gets the "cpp_dbc:" prefix stripped
             // before being passed to the RedisConnection constructor

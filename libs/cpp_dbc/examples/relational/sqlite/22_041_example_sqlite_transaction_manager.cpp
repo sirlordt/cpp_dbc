@@ -216,7 +216,12 @@ int main(int argc, char *argv[])
         logOk("Pool configuration created");
 
         logStep("Creating connection pool...");
-        auto pool = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
         logOk("Connection pool created");
 
         // Enable WAL mode for better concurrent access

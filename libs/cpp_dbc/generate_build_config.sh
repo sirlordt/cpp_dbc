@@ -36,6 +36,8 @@ BACKWARD_HAS_DW=ON
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_MYSQL=OFF
+DEBUG_POSTGRES=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
@@ -92,6 +94,12 @@ do
         --debug-sqlite=*)
             DEBUG_SQLITE="${arg#*=}"
             ;;
+        --debug-mysql=*)
+            DEBUG_MYSQL="${arg#*=}"
+            ;;
+        --debug-postgresql=*)
+            DEBUG_POSTGRES="${arg#*=}"
+            ;;
         --debug-firebird=*)
             DEBUG_FIREBIRD="${arg#*=}"
             ;;
@@ -124,6 +132,8 @@ do
             echo "  --debug-pool=ON|OFF            Enable/disable ConnectionPool debug"
             echo "  --debug-txmgr=ON|OFF           Enable/disable TransactionManager debug"
             echo "  --debug-sqlite=ON|OFF          Enable/disable SQLite debug"
+            echo "  --debug-mysql=ON|OFF           Enable/disable MySQL debug"
+            echo "  --debug-postgresql=ON|OFF      Enable/disable PostgreSQL debug"
             echo "  --debug-firebird=ON|OFF        Enable/disable Firebird debug"
             echo "  --debug-mongodb=ON|OFF         Enable/disable MongoDB debug"
             echo "  --debug-scylladb=ON|OFF        Enable/disable ScyllaDB debug"
@@ -204,6 +214,8 @@ if [ "$RECEIVED_PARAMS" = false ]; then
         DEBUG_CONNECTION_POOL=$(extract_cmake_var "DEBUG_CONNECTION_POOL" "$DEBUG_CONNECTION_POOL")
         DEBUG_TRANSACTION_MANAGER=$(extract_cmake_var "DEBUG_TRANSACTION_MANAGER" "$DEBUG_TRANSACTION_MANAGER")
         DEBUG_SQLITE=$(extract_cmake_var "DEBUG_SQLITE" "$DEBUG_SQLITE")
+        DEBUG_MYSQL=$(extract_cmake_var "DEBUG_MYSQL" "$DEBUG_MYSQL")
+        DEBUG_POSTGRES=$(extract_cmake_var "DEBUG_POSTGRES" "$DEBUG_POSTGRES")
         DEBUG_FIREBIRD=$(extract_cmake_var "DEBUG_FIREBIRD" "$DEBUG_FIREBIRD")
         DEBUG_MONGODB=$(extract_cmake_var "DEBUG_MONGODB" "$DEBUG_MONGODB")
         DEBUG_SCYLLADB=$(extract_cmake_var "DEBUG_SCYLLADB" "$DEBUG_SCYLLADB")
@@ -257,6 +269,8 @@ BACKWARD_HAS_DW=$BACKWARD_HAS_DW
 DEBUG_CONNECTION_POOL=$DEBUG_CONNECTION_POOL
 DEBUG_TRANSACTION_MANAGER=$DEBUG_TRANSACTION_MANAGER
 DEBUG_SQLITE=$DEBUG_SQLITE
+DEBUG_MYSQL=$DEBUG_MYSQL
+DEBUG_POSTGRES=$DEBUG_POSTGRES
 DEBUG_FIREBIRD=$DEBUG_FIREBIRD
 DEBUG_MONGODB=$DEBUG_MONGODB
 DEBUG_SCYLLADB=$DEBUG_SCYLLADB

@@ -132,6 +132,52 @@ namespace cpp_dbc
          * @return true if the pool is running
          */
         virtual bool isRunning() const = 0;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        /**
+         * @brief Borrow a connection from the pool (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing a shared_ptr to a connection, or DBException on failure
+         */
+        virtual cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Get the number of connections currently in use (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing the active connection count, or DBException on failure
+         */
+        virtual cpp_dbc::expected<size_t, DBException> getActiveDBConnectionCount(std::nothrow_t) const noexcept = 0;
+
+        /**
+         * @brief Get the number of idle connections available in the pool (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing the idle connection count, or DBException on failure
+         */
+        virtual cpp_dbc::expected<size_t, DBException> getIdleDBConnectionCount(std::nothrow_t) const noexcept = 0;
+
+        /**
+         * @brief Get the total number of connections managed by the pool (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing the total connection count, or DBException on failure
+         */
+        virtual cpp_dbc::expected<size_t, DBException> getTotalDBConnectionCount(std::nothrow_t) const noexcept = 0;
+
+        /**
+         * @brief Close the pool and all its connections (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Check if the pool is running and can provide connections (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing true if running, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException> isRunning(std::nothrow_t) const noexcept = 0;
     };
 
 } // namespace cpp_dbc

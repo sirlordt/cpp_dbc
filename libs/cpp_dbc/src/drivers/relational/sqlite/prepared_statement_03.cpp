@@ -42,7 +42,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {
@@ -114,7 +114,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {
@@ -192,7 +192,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {
@@ -246,7 +246,7 @@ namespace cpp_dbc::SQLite
                                            SQLITE_STATIC);
             if (result != SQLITE_OK)
             {
-                return cpp_dbc::unexpected(DBException("D3E4F5G6H7I8", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(dbPtr)),
+                return cpp_dbc::unexpected(DBException("0W5BO5PAE56Z", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(dbPtr)),
                                                        system_utils::captureCallStack()));
             }
             return {};
@@ -278,7 +278,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {

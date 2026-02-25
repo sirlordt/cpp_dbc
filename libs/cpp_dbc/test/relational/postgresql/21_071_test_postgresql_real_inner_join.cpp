@@ -335,11 +335,6 @@ TEST_CASE("PostgreSQL INNER JOIN operations", "[21_071_01_postgresql_real_inner_
         REQUIRE_FALSE(rs->next());
     }
 
-    // Clean up
-    conn->executeUpdate("DROP TABLE IF EXISTS test_orders");
-    conn->executeUpdate("DROP TABLE IF EXISTS test_products");
-    conn->executeUpdate("DROP TABLE IF EXISTS test_customers");
-
     // Close the connection
     conn->close();
 }

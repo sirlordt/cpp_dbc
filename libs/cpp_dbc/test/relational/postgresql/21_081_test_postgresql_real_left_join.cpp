@@ -420,11 +420,6 @@ TEST_CASE("PostgreSQL LEFT JOIN operations", "[21_081_01_postgresql_real_left_jo
         REQUIRE(rowCount == customers.size());
     }
 
-    // Clean up
-    conn->executeUpdate("DROP TABLE IF EXISTS test_orders");
-    conn->executeUpdate("DROP TABLE IF EXISTS test_products");
-    conn->executeUpdate("DROP TABLE IF EXISTS test_customers");
-
     // Close the connection
     conn->close();
 }

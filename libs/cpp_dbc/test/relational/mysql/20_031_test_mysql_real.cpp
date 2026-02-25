@@ -24,7 +24,6 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <fstream>
 
 #include <catch2/catch_test_macros.hpp>
@@ -154,40 +153,35 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
 
     SECTION("MySQL connection pool")
     {
-        // SafePoolManager poolManager;
-
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
-        poolConfig.setInitialSize(2);           // Reduced for tests
-        poolConfig.setMaxSize(5);               // Reduced for tests
-        poolConfig.setMinIdle(1);               // Reduced for tests
-        poolConfig.setConnectionTimeout(10000); // Shorter timeout
-        poolConfig.setValidationInterval(500);  // Shorter interval
-        poolConfig.setIdleTimeout(5000);        // Shorter idle timeout
-        poolConfig.setMaxLifetimeMillis(10000); // Shorter lifetime
+        poolConfig.setInitialSize(3);
+        poolConfig.setMaxSize(5);
+        poolConfig.setMinIdle(1);
+        poolConfig.setConnectionTimeout(10000);
+        poolConfig.setValidationInterval(500);
+        poolConfig.setIdleTimeout(5000);
+        poolConfig.setMaxLifetimeMillis(10000);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis(), "Creating the pool");
-
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a test table
-        auto conn = poolPtr->getRelationalDBConnection();
-
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
-
-        // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis(), "Returning to the pool");
-
         conn->returnToPool();
-
-        // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis(), "Returned to the pool");
 
         // Test multiple connections in parallel
         const int numThreads = 10;
@@ -198,93 +192,48 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
 
         for (int i = 0; i < numThreads; i++)
         {
-            threads.push_back(std::thread([poolPtr, i, opsPerThread, insertDataQuery, &successCount]()
+            threads.push_back(std::thread([&pool, i, opsPerThread, insertDataQuery, &successCount]()
                                           {
                 for (int j = 0; j < opsPerThread; j++) {
-
-                    //std::ostringstream oss;
-                    //oss << std::this_thread::get_id();
-
                     try {
-                        //cpp_dbc::system_utils::safePrint( cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(), "(1) Try to getting connection" );
-                        // Get a connection from the pool
-                        auto conn_thread = poolPtr->getRelationalDBConnection();
-                        //cpp_dbc::system_utils::safePrint( cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(), "(2) Getted connection" );
+                        auto conn_thread = pool->getRelationalDBConnection();
 
-                        // Insert a row
                         int id = i * 100 + j;
-                        //{
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
                         pstmt->setInt(1, id);
                         pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
                         pstmt->setDouble(3, id * 1.5);
                         pstmt->executeUpdate();
 
-                        // // PreparedStatement is automatically closed after executeUpdate() (single-use)
-                        // // Attempting to use it again should fail
-                        // try {
-                        //     pstmt->executeUpdate(); // This should fail
-                        //     FAIL("Expected DBException for reusing closed PreparedStatement");
-                        // } catch (const cpp_dbc::DBException& e) {
-                        //     // Expected behavior - statement is closed after first use
-                        //     cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(),
-                        //         "Expected exception caught: " + std::string(e.what()));
-                        // }
-
-                        // // Test ResultSet close() method
-                        // auto rs = conn->executeQuery("SELECT 1 as test_value");
-                        // REQUIRE(rs != nullptr);
-                        // REQUIRE(rs->next());
-                        // REQUIRE(rs->getString("test_value") == "1");
-
-                        // // Explicitly close the ResultSet
-                        // rs->close();
-
-                        // // Attempting to use it after close should be safe (no crash)
-                        // // but may return invalid data - this is expected behavior
-                        // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(),
-                        //     "ResultSet closed successfully");
-
-                        //cpp_dbc::system_utils::safePrint( cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(), "(3) Returning connection to ppol" );
                         conn_thread->returnToPool();
-                        //cpp_dbc::system_utils::safePrint( cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(), "(4) Connection returned to pool" );
-
-                        // Increment success counter
                         successCount++;
-                        //cpp_dbc::system_utils::safePrint( cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(), "(5) Incremented " + std::to_string( successCount.load() ) );
                     }
                     catch (const std::exception& e) {
-                        std::cout << "Thread operation failed: " << e.what() << std::endl;
-                        //cpp_dbc::system_utils::safePrint( cpp_dbc::system_utils::currentTimeMillis() + ": " + oss.str(), "(6) Thread operation failed: " + std::string(e.what()) );
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
 
-        // Wait for all threads to complete
-        for (std::thread &t : threads)
+        for (auto &t : threads)
         {
             t.join();
-            // cpp_dbc::system_utils::safePrint(cpp_dbc::system_utils::currentTimeMillis() + ": BCFF7880A05E", "Thread finished");
         }
 
-        // // Verify that all operations were successful
-        REQUIRE((successCount.load() == numThreads * opsPerThread || successCount.load() == (numThreads * opsPerThread - 1)));
+        REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the data
-        conn = poolPtr->getRelationalDBConnection();
-
+        conn = pool->getRelationalDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
-        conn->executeUpdate(dropTableQuery);
-        REQUIRE((rs->getInt("count") == numThreads * opsPerThread || rs->getInt("count") == numThreads * opsPerThread - 1));
-        // REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
+        REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
+        rs->close();
 
         // Clean up
+        conn->executeUpdate(dropTableQuery);
         conn->returnToPool();
 
-        // delete poolPtr;
-
-        // Pool will be closed automatically by SafePoolManager
+        // Close the pool
+        pool->close();
     }
 
     SECTION("MySQL transaction management")
@@ -308,14 +257,18 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a transaction manager
-        cpp_dbc::TransactionManager manager(pool);
+        cpp_dbc::TransactionManager manager(*pool);
 
         // Create a test table
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
@@ -342,7 +295,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
             manager.commitTransaction(txId);
 
             // Verify the data was committed
-            conn = pool.getRelationalDBConnection();
+            conn = pool->getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
@@ -369,14 +322,14 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
             manager.rollbackTransaction(txId);
 
             // Verify the data was not committed
-            conn = pool.getRelationalDBConnection();
+            conn = pool->getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             conn->close();
         }
 
         // Clean up
-        conn = pool.getRelationalDBConnection();
+        conn = pool->getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery);
         conn->close();
 
@@ -482,17 +435,17 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
             "INSERT INTO test_time_types VALUES (?, ?, ?)");
 
         pstmt->setInt(1, 1);
-        pstmt->setTime(2, "14:30:00");           // TIME using setTime method
+        pstmt->setTime(2, "14:30:00"); // TIME using setTime method
         pstmt->setString(3, "Afternoon meeting");
         pstmt->executeUpdate();
 
         pstmt->setInt(1, 2);
-        pstmt->setTime(2, "08:15:30");           // TIME with seconds
+        pstmt->setTime(2, "08:15:30"); // TIME with seconds
         pstmt->setString(3, "Morning routine");
         pstmt->executeUpdate();
 
         pstmt->setInt(1, 3);
-        pstmt->setTime(2, "23:59:59");           // Late night
+        pstmt->setTime(2, "23:59:59"); // Late night
         pstmt->setString(3, "End of day");
         pstmt->executeUpdate();
 
@@ -522,7 +475,6 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         conn->close();
     }
 
-    // TEMPORARILY COMMENTED OUT TO ISOLATE HANGING ISSUE
     SECTION("MySQL stress test")
     {
         // SafePoolManager poolManager;
@@ -544,11 +496,15 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a test table
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
@@ -569,7 +525,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn_thread = pool.getRelationalDBConnection();
+                        auto conn_thread = pool->getRelationalDBConnection();
 
                         // Insert a row
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -593,7 +549,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
                         conn_thread->returnToPool();
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "Thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
@@ -607,14 +563,14 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-        std::cout << "MySQL stress test completed in " << duration << " ms" << std::endl;
-        std::cout << "Operations per second: " << (numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)) << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "MySQL stress test completed in " + std::to_string(duration) + " ms");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Operations per second: " + std::to_string(numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)));
 
         // Verify that all operations were successful
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the total number of rows
-        conn = pool.getRelationalDBConnection();
+        conn = pool->getRelationalDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);

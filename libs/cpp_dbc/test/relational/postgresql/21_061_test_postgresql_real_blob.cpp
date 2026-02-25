@@ -263,9 +263,6 @@ TEST_CASE("PostgreSQL BLOB operations", "[21_061_01_postgresql_real_blob]")
         std::remove(tempImagePath.c_str());
     }
 
-    // Clean up
-    conn->executeUpdate("DROP TABLE IF EXISTS test_blobs");
-
     // Close the connection
     conn->close();
 }

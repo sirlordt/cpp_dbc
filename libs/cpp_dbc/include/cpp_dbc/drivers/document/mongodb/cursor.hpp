@@ -197,7 +197,11 @@ namespace cpp_dbc::MongoDB
              */
             std::string getError() const;
 
-            // Nothrow versions
+            // Nothrow versions - DBResultSet interface
+            expected<void, DBException> close(std::nothrow_t) noexcept override;
+            expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
+
+            // Nothrow versions - DocumentDBCursor interface
             expected<std::shared_ptr<DocumentDBData>, DBException> current(std::nothrow_t) noexcept override;
             expected<std::shared_ptr<DocumentDBData>, DBException> nextDocument(std::nothrow_t) noexcept override;
             expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> toVector(std::nothrow_t) noexcept override;

@@ -42,7 +42,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {
@@ -61,14 +61,11 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-#if DB_DRIVER_THREAD_SAFE
-            // Pass shared mutex to ResultSet - required because SQLite uses cursor-based iteration
+            // Pass global file mutex to ResultSet - required because SQLite uses cursor-based iteration
             // where sqlite3_step() and sqlite3_column_*() access the connection handle on every call.
             // Unlike MySQL/PostgreSQL where results are fully loaded into client memory.
-            auto resultSet = std::make_shared<SQLiteDBResultSet>(m_stmt.get(), false, nullptr, m_connMutex);
-#else
-            auto resultSet = std::make_shared<SQLiteDBResultSet>(m_stmt.get(), false, nullptr);
-#endif
+            auto resultSet = std::make_shared<SQLiteDBResultSet>(m_stmt.get(), false, m_connection.lock(), shared_from_this(), m_globalFileMutex);
+            resultSet->initialize();  // CRITICAL: Must be called after shared_ptr exists
             return std::shared_ptr<RelationalDBResultSet>(resultSet);
         }
         catch (const DBException &ex)
@@ -93,7 +90,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {
@@ -155,7 +152,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_stmt)
             {
@@ -214,7 +211,7 @@ namespace cpp_dbc::SQLite
             // CRITICAL: Must hold the shared connection mutex to prevent race conditions.
             // sqlite3_finalize() uses the sqlite3* connection handle, so concurrent access from
             // another thread (e.g., connection pool validation) causes undefined behavior.
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (!m_closed && m_stmt)
             {
@@ -224,15 +221,15 @@ namespace cpp_dbc::SQLite
                     int resetResult = sqlite3_reset(m_stmt.get());
                     if (resetResult != SQLITE_OK)
                     {
-                        SQLITE_DEBUG("7K8L9M0N1O2P: Error resetting SQLite statement: "
-                                     << sqlite3_errstr(resetResult));
+                        SQLITE_DEBUG("7K8L9M0N1O2P: Error resetting SQLite statement: %s",
+                                     sqlite3_errstr(resetResult));
                     }
 
                     int clearResult = sqlite3_clear_bindings(m_stmt.get());
                     if (clearResult != SQLITE_OK)
                     {
-                        SQLITE_DEBUG("3Q4R5S6T7U8V: Error clearing SQLite statement bindings: "
-                                     << sqlite3_errstr(clearResult));
+                        SQLITE_DEBUG("3Q4R5S6T7U8V: Error clearing SQLite statement bindings: %s",
+                                     sqlite3_errstr(clearResult));
                     }
 
                     m_stmt.reset();

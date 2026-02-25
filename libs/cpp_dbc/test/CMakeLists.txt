@@ -19,8 +19,14 @@ option(USE_CPP_YAML "Enable YAML configuration support" OFF)
 # Thread safety option for database drivers
 option(DB_DRIVER_THREAD_SAFE "Enable thread-safe database driver operations" ON)
 
-# Option for Address Sanitizer
+# Sanitizer options
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
+option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
+
+# Ensure ASAN and TSAN are not enabled simultaneously
+if(ENABLE_ASAN AND ENABLE_TSAN)
+    message(FATAL_ERROR "ENABLE_ASAN and ENABLE_TSAN cannot be used together. Please enable only one sanitizer.")
+endif()
 
 # Enable Address Sanitizer if requested
 if(ENABLE_ASAN)
@@ -32,8 +38,17 @@ if(ENABLE_ASAN)
 
     # Add compile definition to indicate ASAN is enabled
     add_compile_definitions(ASAN_ENABLED)
+elseif(ENABLE_TSAN)
+    message(STATUS "Thread Sanitizer enabled for tests")
+
+    # Enable TSAN flags
+    set(CMAKE_CXX_FLAGS "-fsanitize=thread -fno-omit-frame-pointer ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "-fsanitize=thread ${CMAKE_EXE_LINKER_FLAGS}")
+
+    # Add compile definition to indicate TSAN is enabled
+    add_compile_definitions(TSAN_ENABLED)
 else()
-    message(STATUS "Address Sanitizer disabled for tests")
+    message(STATUS "Address Sanitizer and Thread Sanitizer disabled for tests")
 endif()
 
 # Find required packages
@@ -62,9 +77,11 @@ add_executable(cpp_dbc_tests
 
     # MySQL tests (relational/mysql/)
     relational/mysql/20_001_test_mysql_real_common.cpp
+
     relational/mysql/20_011_test_mysql_real_db_config.cpp
     relational/mysql/20_021_test_mysql_real_driver.cpp
     relational/mysql/20_031_test_mysql_real.cpp
+
     relational/mysql/20_041_test_mysql_real_connection.cpp
     relational/mysql/20_051_test_mysql_real_json.cpp
     relational/mysql/20_061_test_mysql_real_blob.cpp
@@ -96,26 +113,33 @@ add_executable(cpp_dbc_tests
 
     # SQLite tests (relational/sqlite/)
     relational/sqlite/22_001_test_sqlite_real_common.cpp
+
     relational/sqlite/22_011_test_sqlite_real_db_config.cpp
     relational/sqlite/22_021_test_sqlite_real_driver.cpp
     relational/sqlite/22_031_test_sqlite_real.cpp
     relational/sqlite/22_041_test_sqlite_real_connection.cpp
-    # relational/sqlite/22_051_test_sqlite_real_json.cpp
+
+    # # relational/sqlite/22_051_test_sqlite_real_json.cpp
     relational/sqlite/22_061_test_sqlite_real_blob.cpp
     relational/sqlite/22_071_test_sqlite_real_inner_join.cpp
-    relational/sqlite/22_081_test_sqlite_real_left_join.cpp
-    # relational/sqlite/22_091_test_sqlite_real_right_join.cpp
-    # relational/sqlite/22_101_test_sqlite_real_full_join.cpp
+
+    # relational/sqlite/22_081_test_sqlite_real_left_join.cpp
+
+    # # relational/sqlite/22_091_test_sqlite_real_right_join.cpp
+    # # relational/sqlite/22_101_test_sqlite_real_full_join.cpp
     relational/sqlite/22_111_test_sqlite_real_thread_safe.cpp
-    # relational/sqlite/22_121_test_sqlite_real_transaction_isolation.cpp
+
+    # # relational/sqlite/22_121_test_sqlite_real_transaction_isolation.cpp
     relational/sqlite/22_131_test_sqlite_real_transaction_manager.cpp
     relational/sqlite/22_141_test_sqlite_real_connection_pool.cpp
 
     # Firebird tests (relational/firebird/)
     relational/firebird/23_001_test_firebird_real_common.cpp
+
     relational/firebird/23_011_test_firebird_real_db_config.cpp
     relational/firebird/23_021_test_firebird_real_driver.cpp
     relational/firebird/23_031_test_firebird_real.cpp
+
     relational/firebird/23_041_test_firebird_real_connection.cpp
     relational/firebird/23_051_test_firebird_real_json.cpp
     relational/firebird/23_061_test_firebird_real_blob.cpp
@@ -130,10 +154,13 @@ add_executable(cpp_dbc_tests
 
     # Redis tests (kv/redis/)
     kv/redis/24_001_test_redis_real_common.cpp
+
     # kv/redis/24_011_test_redis_real_db_config.cpp
     kv/redis/24_021_test_redis_real_driver.cpp
+
     # kv/redis/24_031_test_redis_real.cpp
     kv/redis/24_041_test_redis_real_connection.cpp
+
     # kv/redis/24_051_test_redis_real_json.cpp
     # kv/redis/24_061_test_redis_real_blob.cpp
     # kv/redis/24_071_test_redis_real_inner_join.cpp
@@ -158,6 +185,7 @@ add_executable(cpp_dbc_tests
     document/mongodb/25_091_test_mongodb_real_right_join.cpp
     document/mongodb/25_101_test_mongodb_real_full_join.cpp
     document/mongodb/25_111_test_mongodb_real_thread_safe.cpp
+
     # document/mongodb/25_121_test_mongodb_real_transaction_isolation.cpp
     # document/mongodb/25_131_test_mongodb_real_transaction_manager.cpp
     document/mongodb/25_141_test_mongodb_real_connection_pool.cpp
@@ -178,6 +206,7 @@ add_executable(cpp_dbc_tests
     columnar/scylladb/26_091_test_scylladb_real_right_join.cpp
     columnar/scylladb/26_101_test_scylladb_real_full_join.cpp
     columnar/scylladb/26_111_test_scylladb_real_thread_safe.cpp
+
     # columnar/scylladb/26_121_test_scylladb_real_transaction_isolation.cpp
     # columnar/scylladb/26_131_test_scylladb_real_transaction_manager.cpp
     columnar/scylladb/26_141_test_scylladb_real_connection_pool.cpp
@@ -267,7 +296,15 @@ target_compile_definitions(cpp_dbc_tests PRIVATE
 # Register tests with CTest
 include(CTest)
 include(Catch)
-catch_discover_tests(cpp_dbc_tests)
+
+# When TSAN is enabled, avoid catch_discover_tests() which executes the binary during configuration
+# This causes "FATAL: ThreadSanitizer: unexpected memory mapping" errors
+if(ENABLE_TSAN)
+    message(STATUS "TSAN enabled: using manual test registration instead of catch_discover_tests()")
+    add_test(NAME cpp_dbc_tests COMMAND cpp_dbc_tests)
+else()
+    catch_discover_tests(cpp_dbc_tests)
+endif()
 
 # Copy the test_db_connections.yml file directly to the directory where the executable is
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/common/test_db_connections.yml

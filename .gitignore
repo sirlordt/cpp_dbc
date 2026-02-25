@@ -51,6 +51,11 @@ Makefile
 .DS_Store
 Thumbs.db
 
+# Local secrets (API tokens, notification URLs — never commit)
+.env.secrets
+
 *.log
 logs/
-logs/**
+
+# Research directory
+research/

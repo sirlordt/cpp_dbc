@@ -41,7 +41,7 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed || !m_mysql)
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
             {
                 return cpp_dbc::unexpected(DBException("47FCEE77D4F3", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -116,7 +116,7 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed || !m_mysql)
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
             {
                 return cpp_dbc::unexpected(DBException("N8Z9A0B1C2D3", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -194,6 +194,149 @@ namespace cpp_dbc::MySQL
                                                    std::string("getTransactionIsolation failed: ") + ex.what(),
                                                    system_utils::captureCallStack()));
         }
+    }
+
+    cpp_dbc::expected<void, DBException> MySQLDBConnection::close(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+            if (!m_closed.load(std::memory_order_acquire) && m_mysql)
+            {
+                // Close all active statements before closing the connection
+                // This ensures mysql_stmt_close() is called while we have exclusive access
+                closeAllStatements();
+
+                // Sleep for 25ms to avoid problems with concurrency
+                std::this_thread::sleep_for(std::chrono::milliseconds(25));
+
+                m_mysql.reset();
+                m_closed.store(true, std::memory_order_release);
+            }
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("EVNAW6RQL7XJ",
+                                                   std::string("close failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("RUYEVHUFNAKU",
+                                                   "close failed with unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<void, DBException> MySQLDBConnection::reset(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
+            {
+                return {}; // Nothing to reset if already closed
+            }
+
+            // Close all active statements
+            closeAllStatements();
+
+            // Rollback any active transaction
+            auto txActive = transactionActive(std::nothrow);
+            if (txActive.has_value() && txActive.value())
+            {
+                rollback(std::nothrow);
+            }
+
+            // Reset auto-commit to true
+            setAutoCommit(std::nothrow, true);
+
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("UEZ6WHV72DW6",
+                                                   std::string("reset failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("TBZM1ZVPE3LF",
+                                                   "reset failed with unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> MySQLDBConnection::isClosed(std::nothrow_t) const noexcept
+    {
+        return m_closed.load(std::memory_order_acquire);
+    }
+
+    cpp_dbc::expected<void, DBException> MySQLDBConnection::returnToPool(std::nothrow_t) noexcept
+    {
+        try
+        {
+            // CRITICAL: Close all active statements BEFORE making connection available
+            // closeAllStatements() acquires m_connMutex internally
+            closeAllStatements();
+
+            // Restore autocommit for the next user of this connection
+            if (!m_autoCommit)
+            {
+                setAutoCommit(std::nothrow, true);
+            }
+
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("XP5VQOWILZHR",
+                                                   std::string("returnToPool failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("0YNOET2LQT76",
+                                                   "returnToPool failed with unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> MySQLDBConnection::isPooled(std::nothrow_t) const noexcept
+    {
+        return false;
+    }
+
+    cpp_dbc::expected<std::string, DBException> MySQLDBConnection::getURL(std::nothrow_t) const noexcept
+    {
+        return m_url;
+    }
+
+    cpp_dbc::expected<void, DBException> MySQLDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    {
+        // Delegate to reset() which closes statements, rolls back, and resets autocommit
+        return reset(std::nothrow);
+    }
+
+    cpp_dbc::expected<void, DBException> MySQLDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        // No-op for MySQL: no MVCC snapshot refresh needed
+        return {};
     }
 
 } // namespace cpp_dbc::MySQL

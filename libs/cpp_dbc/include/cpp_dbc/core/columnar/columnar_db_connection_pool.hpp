@@ -27,6 +27,7 @@
 #include "cpp_dbc/core/columnar/columnar_db_result_set.hpp"
 
 #include <queue>
+#include <deque>
 #include <vector>
 #include <mutex>
 #include <condition_variable>
@@ -81,32 +82,36 @@ namespace cpp_dbc
         TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level (if supported)
         std::vector<std::shared_ptr<ColumnarPooledDBConnection>> m_allConnections;
         std::queue<std::shared_ptr<ColumnarPooledDBConnection>> m_idleConnections;
-        mutable std::mutex m_mutexGetConnection;
-        mutable std::mutex m_mutexReturnConnection;
-        mutable std::mutex m_mutexAllConnections;
-        mutable std::mutex m_mutexIdleConnections;
-        mutable std::mutex m_mutexMaintenance;
-        std::condition_variable m_maintenanceCondition;
+        mutable std::mutex m_mutexPool;                 // Protects m_allConnections + m_idleConnections + CVs + m_waitQueue
+        std::condition_variable m_maintenanceCondition; // Wakes maintenance thread on close()
+        std::condition_variable m_connectionAvailable;  // Wakes borrowers (direct handoff or state change)
         std::atomic<bool> m_running{true};
         std::atomic<int> m_activeConnections{0};
+        size_t m_pendingCreations{0}; // Connections being created outside lock (guarded by m_mutexPool)
         std::jthread m_maintenanceThread;
 
+        // Direct handoff mechanism: eliminates "stolen wakeup" race condition.
+        struct ConnectionRequest
+        {
+            std::shared_ptr<ColumnarPooledDBConnection> conn;
+            bool fulfilled{false};
+        };
+        std::deque<ConnectionRequest *> m_waitQueue;
+
         // Creates a new physical connection
-        std::shared_ptr<ColumnarDBConnection> createDBConnection();
+        cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> createDBConnection(std::nothrow_t) noexcept;
 
         // Creates a new pooled connection wrapper
-        std::shared_ptr<ColumnarPooledDBConnection> createPooledDBConnection();
+        cpp_dbc::expected<std::shared_ptr<ColumnarPooledDBConnection>, DBException> createPooledDBConnection(std::nothrow_t) noexcept;
 
         // Validates a connection
-        bool validateConnection(std::shared_ptr<ColumnarDBConnection> conn) const;
+        cpp_dbc::expected<bool, DBException> validateConnection(std::nothrow_t, std::shared_ptr<ColumnarDBConnection> conn) const noexcept;
 
         // Returns a connection to the pool
-        void returnConnection(std::shared_ptr<ColumnarPooledDBConnection> conn);
+        cpp_dbc::expected<void, DBException> returnConnection(std::nothrow_t, std::shared_ptr<ColumnarPooledDBConnection> conn) noexcept;
 
         // Maintenance thread function
         void maintenanceTask();
-
-        std::shared_ptr<ColumnarPooledDBConnection> getIdleDBConnection();
 
     protected:
         // Sets the transaction isolation level for the pool
@@ -117,7 +122,7 @@ namespace cpp_dbc
 
         // Initialize the pool after construction (creates initial connections and starts maintenance thread)
         // This must be called after the pool is managed by a shared_ptr
-        void initializePool();
+        cpp_dbc::expected<void, DBException> initializePool(std::nothrow_t) noexcept;
 
     public:
         // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
@@ -141,23 +146,24 @@ namespace cpp_dbc
         explicit ColumnarDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
         // Static factory methods - use these to create pools
-        static std::shared_ptr<ColumnarDBConnectionPool> create(const std::string &url,
-                                                                const std::string &username,
-                                                                const std::string &password,
-                                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
-                                                                int initialSize = 5,
-                                                                int maxSize = 20,
-                                                                int minIdle = 3,
-                                                                long maxWaitMillis = 5000,
-                                                                long validationTimeoutMillis = 5000,
-                                                                long idleTimeoutMillis = 300000,
-                                                                long maxLifetimeMillis = 1800000,
-                                                                bool testOnBorrow = true,
-                                                                bool testOnReturn = false,
-                                                                const std::string &validationQuery = "SELECT now() FROM system.local",
-                                                                TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
+        static cpp_dbc::expected<std::shared_ptr<ColumnarDBConnectionPool>, DBException> create(std::nothrow_t,
+                                                                                                const std::string &url,
+                                                                                                const std::string &username,
+                                                                                                const std::string &password,
+                                                                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>(),
+                                                                                                int initialSize = 5,
+                                                                                                int maxSize = 20,
+                                                                                                int minIdle = 3,
+                                                                                                long maxWaitMillis = 5000,
+                                                                                                long validationTimeoutMillis = 5000,
+                                                                                                long idleTimeoutMillis = 300000,
+                                                                                                long maxLifetimeMillis = 1800000,
+                                                                                                bool testOnBorrow = true,
+                                                                                                bool testOnReturn = false,
+                                                                                                const std::string &validationQuery = "SELECT now() FROM system.local",
+                                                                                                TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) noexcept;
 
-        static std::shared_ptr<ColumnarDBConnectionPool> create(const config::DBConnectionPoolConfig &config);
+        static cpp_dbc::expected<std::shared_ptr<ColumnarDBConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
 
         ~ColumnarDBConnectionPool() override;
 
@@ -177,6 +183,18 @@ namespace cpp_dbc
 
         // Check if pool is running
         bool isRunning() const override;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> getColumnarDBConnection(std::nothrow_t) noexcept;
+        cpp_dbc::expected<size_t, DBException> getActiveDBConnectionCount(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<size_t, DBException> getIdleDBConnectionCount(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<size_t, DBException> getTotalDBConnectionCount(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isRunning(std::nothrow_t) const noexcept override;
     };
 
     /**
@@ -191,15 +209,26 @@ namespace cpp_dbc
         std::shared_ptr<ColumnarDBConnection> m_conn;
         std::weak_ptr<ColumnarDBConnectionPool> m_pool;
         std::shared_ptr<std::atomic<bool>> m_poolAlive; // Shared flag to check if pool is still alive
-        std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
-        std::chrono::time_point<std::chrono::steady_clock> m_lastUsedTime;
+        std::chrono::time_point<std::chrono::steady_clock> m_creationTime{std::chrono::steady_clock::now()};
+        // Store last-used time as nanoseconds since epoch in an atomic int64_t.
+        // std::atomic<int64_t> is lock-free on every supported 64-bit platform,
+        // unlike std::atomic<time_point> which is not portable to ARM32/MIPS.
+        static_assert(std::atomic<int64_t>::is_always_lock_free,
+                      "int64_t atomic must be lock-free on this platform");
+        std::atomic<int64_t> m_lastUsedTimeNs{m_creationTime.time_since_epoch().count()};
         std::atomic<bool> m_active{false};
         std::atomic<bool> m_closed{false};
 
         friend class ColumnarDBConnectionPool;
 
         // Helper method to check if pool is still valid
-        bool isPoolValid() const final;
+        bool isPoolValid(std::nothrow_t) const noexcept override;
+
+        // Helper method to safely update last used time
+        inline void updateLastUsedTime(std::nothrow_t) noexcept
+        {
+            m_lastUsedTimeNs.store(std::chrono::steady_clock::now().time_since_epoch().count(), std::memory_order_relaxed);
+        }
 
     public:
         ColumnarPooledDBConnection(std::shared_ptr<ColumnarDBConnection> conn,
@@ -211,8 +240,9 @@ namespace cpp_dbc
         void close() final;
         bool isClosed() const override;
         void returnToPool() final;
-        bool isPooled() override;
+        bool isPooled() const override;
         std::string getURL() const override;
+        void reset() override;
 
         // Overridden ColumnarDBConnection interface methods
         std::shared_ptr<ColumnarDBPreparedStatement> prepareStatement(const std::string &query) override;
@@ -222,23 +252,33 @@ namespace cpp_dbc
         bool beginTransaction() override;
         void commit() override;
         void rollback() override;
+        void prepareForPoolReturn() override;
 
-        // Nothrow API
+        // Nothrow API - ColumnarDBConnection
         cpp_dbc::expected<std::shared_ptr<ColumnarDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &query) noexcept override;
         cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &query) noexcept override;
         cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &query) noexcept override;
         cpp_dbc::expected<bool, DBException> beginTransaction(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+
+        // DBConnection nothrow interface
+        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
 
         // DBConnectionPooled interface methods
-        std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const override;
-        std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime() const override;
-        void setActive(bool active) override;
-        bool isActive() const override;
+        std::chrono::time_point<std::chrono::steady_clock> getCreationTime(std::nothrow_t) const noexcept override;
+        std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<void, DBException> setActive(std::nothrow_t, bool active) noexcept override;
+        bool isActive(std::nothrow_t) const noexcept override;
 
         // Implementation of DBConnectionPooled interface
-        std::shared_ptr<DBConnection> getUnderlyingConnection() override;
+        std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
 
         // ColumnarPooledDBConnection specific method
         std::shared_ptr<ColumnarDBConnection> getUnderlyingColumnarConnection();
@@ -261,11 +301,12 @@ namespace cpp_dbc
 
             explicit ScyllaConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-            static std::shared_ptr<ScyllaConnectionPool> create(const std::string &url,
+            static cpp_dbc::expected<std::shared_ptr<ScyllaConnectionPool>, DBException> create(std::nothrow_t,
+                                                                const std::string &url,
                                                                 const std::string &username,
-                                                                const std::string &password);
+                                                                const std::string &password) noexcept;
 
-            static std::shared_ptr<ScyllaConnectionPool> create(const config::DBConnectionPoolConfig &config);
+            static cpp_dbc::expected<std::shared_ptr<ScyllaConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
         };
     }
 

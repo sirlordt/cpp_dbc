@@ -106,18 +106,21 @@ namespace cpp_dbc::ScyllaDB
 
     void ScyllaDBResultSet::close()
     {
-        SCYLLADB_DEBUG("ScyllaDBResultSet::close - Closing result set");
-        DB_DRIVER_LOCK_GUARD(m_mutex);
-        m_iterator.reset();
-        m_result.reset();
-        m_currentRow = nullptr;
+        auto result = close(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
     }
 
     bool ScyllaDBResultSet::isEmpty()
     {
-        DB_DRIVER_LOCK_GUARD(m_mutex);
-        SCYLLADB_DEBUG("ScyllaDBResultSet::isEmpty - Result is " << (m_rowCount == 0 ? "empty" : "not empty"));
-        return m_rowCount == 0;
+        auto result = isEmpty(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
     }
 
     bool ScyllaDBResultSet::next()

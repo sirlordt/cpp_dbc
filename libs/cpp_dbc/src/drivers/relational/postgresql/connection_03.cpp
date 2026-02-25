@@ -298,6 +298,150 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::close(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+            if (!m_closed && m_conn)
+            {
+                // Close all active statements before closing the connection
+                // This ensures statement deallocation while we have exclusive access
+                closeAllStatements();
+
+                // Sleep for 25ms to avoid problems with concurrency
+                std::this_thread::sleep_for(std::chrono::milliseconds(25));
+
+                // shared_ptr will automatically call PQfinish via PGconnDeleter
+                m_conn.reset();
+                m_closed = true;
+            }
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("IT035Z2NF0PP",
+                                                   std::string("close failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("TCL2VGCUPB11",
+                                                   "close failed with unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::reset(std::nothrow_t) noexcept
+    {
+        try
+        {
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+            if (m_closed || !m_conn)
+            {
+                return {}; // Nothing to reset if already closed
+            }
+
+            // Close all active statements
+            closeAllStatements();
+
+            // Rollback any active transaction
+            auto txActive = transactionActive(std::nothrow);
+            if (txActive.has_value() && txActive.value())
+            {
+                rollback(std::nothrow);
+            }
+
+            // Reset auto-commit to true
+            setAutoCommit(std::nothrow, true);
+
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("Z0V8CQDUCOSY",
+                                                   std::string("reset failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("R0EWEV8IUFL0",
+                                                   "reset failed with unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::isClosed(std::nothrow_t) const noexcept
+    {
+        return m_closed;
+    }
+
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::returnToPool(std::nothrow_t) noexcept
+    {
+        try
+        {
+            // CRITICAL: Close all active statements BEFORE making connection available
+            // closeAllStatements() acquires m_connMutex internally
+            closeAllStatements();
+
+            // Restore autocommit for the next user of this connection
+            if (!m_autoCommit)
+            {
+                setAutoCommit(std::nothrow, true);
+            }
+
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("1LMUYDKRLMIT",
+                                                   std::string("returnToPool failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("RLOO527LNW3S",
+                                                   "returnToPool failed with unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::isPooled(std::nothrow_t) const noexcept
+    {
+        return false;
+    }
+
+    cpp_dbc::expected<std::string, DBException> PostgreSQLDBConnection::getURL(std::nothrow_t) const noexcept
+    {
+        return m_url;
+    }
+
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    {
+        // Delegate to reset() which closes statements, rolls back, and resets autocommit
+        return reset(std::nothrow);
+    }
+
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        // No-op for PostgreSQL: no MVCC snapshot refresh needed
+        return {};
+    }
+
 } // namespace cpp_dbc::PostgreSQL
 
 #endif // USE_POSTGRESQL

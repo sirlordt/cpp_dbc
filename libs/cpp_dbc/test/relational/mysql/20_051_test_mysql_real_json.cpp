@@ -21,7 +21,6 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include <iostream>
 #include <fstream>
 #include <random>
 #include <sstream>
@@ -31,6 +30,7 @@
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "20_001_test_mysql_real_common.hpp"
 
@@ -195,7 +195,7 @@ TEST_CASE("MySQL JSON data type", "[20_051_01_mysql_real_json]")
         catch (const cpp_dbc::DBException &e)
         {
             // JSON_MERGE_PATCH might not be available in older MySQL versions
-            std::cout << "JSON_MERGE_PATCH test skipped: " << e.what_s() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "JSON_MERGE_PATCH test skipped: " + e.what_s());
         }
 
         // Test JSON_REMOVE function
@@ -379,7 +379,7 @@ TEST_CASE("MySQL JSON data type", "[20_051_01_mysql_real_json]")
         catch (const cpp_dbc::DBException &e)
         {
             // JSON_ARRAYAGG might not be available in older MySQL versions
-            std::cout << "JSON_ARRAYAGG test skipped: " << e.what_s() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "JSON_ARRAYAGG test skipped: " + e.what_s());
         }
 
         // Test JSON_OBJECT function
@@ -414,7 +414,7 @@ TEST_CASE("MySQL JSON data type", "[20_051_01_mysql_real_json]")
         catch (const cpp_dbc::DBException &e)
         {
             // JSON_TABLE might not be available in older MySQL versions
-            std::cout << "JSON_TABLE test skipped: " << e.what_s() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "JSON_TABLE test skipped: " + e.what_s());
         }
 
         // Clean up
@@ -526,7 +526,7 @@ TEST_CASE("MySQL JSON data type", "[20_051_01_mysql_real_json]")
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-        std::cout << "JSON query execution time: " << duration << " ms" << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "JSON query execution time: " + std::to_string(duration) + " ms");
 
         std::vector<int> highPriceIds;
         while (rs->next())

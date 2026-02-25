@@ -26,8 +26,23 @@ option(DEBUG_SCYLLADB "Enable debug output for ScyllaDB driver" OFF)
 option(DEBUG_REDIS "Enable debug output for Redis driver" OFF)
 option(DEBUG_ALL "Enable debug output for all drivers and components" OFF)
 
-# Sanitizer option
+# Sanitizer options
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
+option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
+
+if(ENABLE_ASAN)
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address)
+endif()
+
+if(ENABLE_TSAN)
+    add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=thread)
+endif()
+
+# FileMutexRegistry option (mandatory for SQLite - ensures file-level synchronization)
+# This eliminates ThreadSanitizer false positives and prevents "database is locked" errors
+option(ENABLE_FILE_MUTEX_REGISTRY "Enable global file-level mutex registry for SQLite (mandatory, ~33% overhead)" ON)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 23)
@@ -93,6 +108,8 @@ target_compile_definitions(cpp_dbc PUBLIC
     $<$<BOOL:${DEBUG_ALL}>:DEBUG_ALL=1>
     $<$<BOOL:${BACKWARD_HAS_DW}>:BACKWARD_HAS_DW=1>
     $<$<NOT:$<BOOL:${BACKWARD_HAS_DW}>>:BACKWARD_HAS_DW=0>
+    $<$<BOOL:${ENABLE_FILE_MUTEX_REGISTRY}>:ENABLE_FILE_MUTEX_REGISTRY=1>
+    $<$<NOT:$<BOOL:${ENABLE_FILE_MUTEX_REGISTRY}>>:ENABLE_FILE_MUTEX_REGISTRY=0>
 )
 
 # Include directories
@@ -133,6 +150,7 @@ if(USE_MYSQL)
         src/drivers/relational/mysql/result_set_01.cpp
         src/drivers/relational/mysql/result_set_02.cpp
         src/drivers/relational/mysql/result_set_03.cpp
+        src/drivers/relational/mysql/result_set_04.cpp
 
         # MySQLDBPreparedStatement
         src/drivers/relational/mysql/prepared_statement_01.cpp
@@ -163,6 +181,7 @@ if(USE_POSTGRESQL)
         src/drivers/relational/postgresql/result_set_01.cpp
         src/drivers/relational/postgresql/result_set_02.cpp
         src/drivers/relational/postgresql/result_set_03.cpp
+        src/drivers/relational/postgresql/result_set_04.cpp
 
         # PostgreSQLDBPreparedStatement
         src/drivers/relational/postgresql/prepared_statement_01.cpp
@@ -194,6 +213,8 @@ if(USE_SQLITE)
         src/drivers/relational/sqlite/result_set_01.cpp
         src/drivers/relational/sqlite/result_set_02.cpp
         src/drivers/relational/sqlite/result_set_03.cpp
+        src/drivers/relational/sqlite/result_set_04.cpp
+        src/drivers/relational/sqlite/result_set_05.cpp
 
         # SQLiteDBPreparedStatement
         src/drivers/relational/sqlite/prepared_statement_01.cpp
@@ -225,16 +246,19 @@ if(USE_FIREBIRD)
         src/drivers/relational/firebird/result_set_02.cpp
         src/drivers/relational/firebird/result_set_03.cpp
         src/drivers/relational/firebird/result_set_04.cpp
+        src/drivers/relational/firebird/result_set_05.cpp
 
         # FirebirdDBPreparedStatement
         src/drivers/relational/firebird/prepared_statement_01.cpp
         src/drivers/relational/firebird/prepared_statement_02.cpp
         src/drivers/relational/firebird/prepared_statement_03.cpp
+        src/drivers/relational/firebird/prepared_statement_04.cpp
 
         # FirebirdDBConnection
         src/drivers/relational/firebird/connection_01.cpp
         src/drivers/relational/firebird/connection_02.cpp
         src/drivers/relational/firebird/connection_03.cpp
+        src/drivers/relational/firebird/connection_04.cpp
 
         # FirebirdDBDriver
         src/drivers/relational/firebird/driver_01.cpp
@@ -270,6 +294,7 @@ if(USE_MONGODB)
         src/drivers/document/mongodb/connection_02.cpp
         src/drivers/document/mongodb/connection_03.cpp
         src/drivers/document/mongodb/connection_04.cpp
+        src/drivers/document/mongodb/connection_05.cpp
 
         # MongoDBDriver
         src/drivers/document/mongodb/driver_01.cpp
@@ -309,6 +334,7 @@ if(USE_SCYLLADB)
 
         # ScyllaDBConnection
         src/drivers/columnar/scylladb/connection_01.cpp
+        src/drivers/columnar/scylladb/connection_02.cpp
 
         # ScyllaDBDriver
         src/drivers/columnar/scylladb/driver_01.cpp

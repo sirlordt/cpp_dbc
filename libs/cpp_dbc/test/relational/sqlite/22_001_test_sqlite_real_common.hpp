@@ -23,6 +23,7 @@
 #include <string>
 #include <memory>
 #include <iostream>
+#include <optional>
 #include <tuple>
 
 #include <cpp_dbc/cpp_dbc.hpp>
@@ -57,6 +58,43 @@ namespace sqlite_test_helpers
      * @brief Helper function to check if we can connect to SQLite
      */
     bool canConnectToSQLite();
+
+    /**
+     * @brief Cleanup SQLite database files before test execution
+     *
+     * Removes all SQLite database files associated with the given path:
+     * - Main database file (.db)
+     * - Write-Ahead Log file (.db-wal)
+     * - Shared memory file (.db-shm)
+     * - Journal file (.db-journal)
+     *
+     * After deletion, waits for the specified number of seconds to ensure:
+     * - Filesystem buffers are flushed to disk
+     * - WAL (Write-Ahead Log) background processes complete
+     * - Shared memory segments are properly released
+     * - File locks are released by the kernel
+     *
+     * This is CRITICAL when running multiple test iterations under Helgrind/Valgrind
+     * because WAL mode can leave database files in inconsistent state, causing
+     * "attempt to write a readonly database" errors on subsequent runs.
+     *
+     * Call this function at the START of each SQLite test case before creating connections.
+     *
+     * @param dbPath Full path to the SQLite database file (e.g., "/tmp/test.db")
+     * @param waitSeconds Number of seconds to wait after cleanup (default: 10)
+     *
+     * @note Uses std::filesystem::remove with error_code to avoid exceptions if files don't exist
+     *
+     * @example
+     * ```cpp
+     * // Cleanup with default 10 second wait
+     * cleanupSQLiteTestFiles("/tmp/test_sqlite.db");
+     *
+     * // Cleanup with custom 5 second wait
+     * cleanupSQLiteTestFiles("/tmp/my_test.db", 5);
+     * ```
+     */
+    void cleanupSQLiteTestFiles(const std::string &dbPath, int waitSeconds = 3);
 
 #endif
 

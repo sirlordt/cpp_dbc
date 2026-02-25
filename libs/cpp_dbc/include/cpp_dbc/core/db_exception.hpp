@@ -76,7 +76,7 @@ namespace cpp_dbc
          * @brief Get the error message as a C-string
          * @deprecated Use what_s() instead. It avoids the unsafe const char* pointer.
          */
-        [[deprecated("Use what_s() instead. It avoids the unsafe const char* pointer.")]]
+        //[[deprecated("Use what_s() instead. It avoids the unsafe const char* pointer.")]]
         const char *what() const noexcept override // NOSONAR(cpp:S1133) - Required for std::exception compatibility
         {
             if (m_mark.empty())

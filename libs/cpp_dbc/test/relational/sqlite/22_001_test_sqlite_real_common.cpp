@@ -20,6 +20,12 @@
 
 #include "22_001_test_sqlite_real_common.hpp"
 
+#include <filesystem>
+#include <chrono>
+#include <thread>
+#include <mutex>
+#include <set>
+
 namespace sqlite_test_helpers
 {
 
@@ -70,10 +76,10 @@ namespace sqlite_test_helpers
         }
         else
         {
-            // Fallback to default values if configuration not found
+            // Fallback: derive path from name so each config gets its own file
             dbConfig.setName(databaseName);
             dbConfig.setType("sqlite");
-            dbConfig.setDatabase(useInMemory ? ":memory:" : "sqlite_test.db");
+            dbConfig.setDatabase(useInMemory ? ":memory:" : "/tmp/" + databaseName + ".db");
 
             // Add default queries as options
             dbConfig.setOption("query__create_table",
@@ -86,10 +92,10 @@ namespace sqlite_test_helpers
                                "DROP TABLE IF EXISTS test_table");
         }
 #else
-        // Hardcoded values when YAML is not available
+        // Derive path from name so each config gets its own file
         dbConfig.setName(databaseName);
         dbConfig.setType("sqlite");
-        dbConfig.setDatabase(useInMemory ? ":memory:" : "sqlite_test.db");
+        dbConfig.setDatabase(useInMemory ? ":memory:" : "/tmp/" + databaseName + ".db");
 
         // Add default queries as options
         dbConfig.setOption("query__create_table",
@@ -119,12 +125,12 @@ namespace sqlite_test_helpers
             cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
             // Attempt to connect to SQLite
-            std::cout << "Attempting to connect to SQLite with connection string: " << connStr << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to SQLite with connection string: " + connStr);
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
 
             // If we get here, the connection was successful
-            std::cout << "SQLite connection successful!" << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite connection successful!");
 
             // Execute a simple query to verify the connection
             auto resultSet = conn->executeQuery("SELECT 1 as test_value");
@@ -137,9 +143,69 @@ namespace sqlite_test_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "SQLite connection error: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", std::string("SQLite connection error: ") + e.what());
             return false;
         }
+    }
+
+    void cleanupSQLiteTestFiles(const std::string &dbPath, int waitSeconds)
+    {
+        // Guard: only run cleanup once per file per test process
+        static std::mutex s_cleanupMutex;
+        static std::set<std::string> s_cleanedPaths;
+
+        {
+            std::scoped_lock lock(s_cleanupMutex);
+            if (s_cleanedPaths.count(dbPath) > 0)
+            {
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "=== SQLite cleanup skipped (already done for: " + dbPath + ") ===");
+                return;
+            }
+            s_cleanedPaths.insert(dbPath);
+        }
+
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "=== Cleaning up SQLite database files ===");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database path: " + dbPath);
+
+        // Use error_code to avoid exceptions if files don't exist
+        std::error_code ec;
+
+        // Remove main database file
+        std::filesystem::remove(dbPath, ec);
+        if (!ec)
+        {
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  [OK] Removed: " + dbPath);
+        }
+
+        // Remove WAL (Write-Ahead Log) file
+        std::string walPath = dbPath + "-wal";
+        std::filesystem::remove(walPath, ec);
+        if (!ec)
+        {
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  [OK] Removed: " + walPath);
+        }
+
+        // Remove shared memory file
+        std::string shmPath = dbPath + "-shm";
+        std::filesystem::remove(shmPath, ec);
+        if (!ec)
+        {
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  [OK] Removed: " + shmPath);
+        }
+
+        // Remove journal file (used in non-WAL mode)
+        std::string journalPath = dbPath + "-journal";
+        std::filesystem::remove(journalPath, ec);
+        if (!ec)
+        {
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  [OK] Removed: " + journalPath);
+        }
+
+        // Wait for filesystem buffers to flush and locks to release
+        // This is CRITICAL under Helgrind/Valgrind where everything is slower
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Waiting " + std::to_string(waitSeconds) + " seconds for filesystem buffers to flush and locks to release...");
+        std::this_thread::sleep_for(std::chrono::seconds(waitSeconds));
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "=== SQLite cleanup completed ===");
     }
 
 #endif

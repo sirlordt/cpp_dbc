@@ -19,6 +19,10 @@
 #ifndef CPP_DBC_CORE_DB_RESULT_SET_HPP
 #define CPP_DBC_CORE_DB_RESULT_SET_HPP
 
+#include <new> // For std::nothrow_t
+#include "db_expected.hpp"
+#include "db_exception.hpp"
+
 namespace cpp_dbc
 {
 
@@ -60,6 +64,24 @@ namespace cpp_dbc
          * @return false if the result set contains at least one row/document/value
          */
         virtual bool isEmpty() = 0;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        /**
+         * @brief Close the result set and release resources (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Check if the result set is empty (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing true if empty, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

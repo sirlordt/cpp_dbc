@@ -59,16 +59,16 @@ namespace cpp_dbc::SQLite
                 int configResult = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
                 if (configResult != SQLITE_OK)
                 {
-                    SQLITE_DEBUG("9E0F1G2H3I4J: Error configuring SQLite for thread safety: "
-                                 << sqlite3_errstr(configResult));
+                    SQLITE_DEBUG("9E0F1G2H3I4J: Error configuring SQLite for thread safety: %s",
+                                 sqlite3_errstr(configResult));
                 }
 
                 // Initialize SQLite
                 int initResult = sqlite3_initialize();
                 if (initResult != SQLITE_OK)
                 {
-                    SQLITE_DEBUG("5K6L7M8N9O0P: Error initializing SQLite: "
-                                 << sqlite3_errstr(initResult));
+                    SQLITE_DEBUG("5K6L7M8N9O0P: Error initializing SQLite: %s",
+                                 sqlite3_errstr(initResult));
                 }
 
                 // Mark as initialized
@@ -87,14 +87,14 @@ namespace cpp_dbc::SQLite
             // Release as much memory as possible
             [[maybe_unused]]
             int releasedMemory = sqlite3_release_memory(INT_MAX);
-            SQLITE_DEBUG("Released " << releasedMemory << " bytes of SQLite memory during driver shutdown");
+            SQLITE_DEBUG("Released %d bytes of SQLite memory during driver shutdown", releasedMemory);
 
             // Call sqlite3_shutdown to release all resources
             int shutdownResult = sqlite3_shutdown();
             if (shutdownResult != SQLITE_OK)
             {
-                SQLITE_DEBUG("1Q2R3S4T5U6V: Error shutting down SQLite: "
-                             << sqlite3_errstr(shutdownResult));
+                SQLITE_DEBUG("1Q2R3S4T5U6V: Error shutting down SQLite: %s",
+                             sqlite3_errstr(shutdownResult));
             }
 
             // Sleep a bit to ensure all resources are properly released
@@ -102,7 +102,7 @@ namespace cpp_dbc::SQLite
         }
         catch (const std::exception &e)
         {
-            SQLITE_DEBUG("7W8X9Y0Z1A2B: Exception during SQLite driver shutdown: " << e.what());
+            SQLITE_DEBUG("7W8X9Y0Z1A2B: Exception during SQLite driver shutdown: %s", e.what());
         }
     }
 

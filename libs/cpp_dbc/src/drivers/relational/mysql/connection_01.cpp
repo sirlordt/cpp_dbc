@@ -154,29 +154,12 @@ namespace cpp_dbc::MySQL
         m_activeStatements.clear();
     }
 
-    void MySQLDBConnection::prepareForPoolReturn()
-    {
-        // Close all active statements first
-        closeAllStatements();
-
-        // Rollback any active transaction
-        auto txActive = transactionActive(std::nothrow);
-        if (txActive.has_value() && txActive.value())
-        {
-            rollback(std::nothrow);
-        }
-
-        // Reset auto-commit to true
-        setAutoCommit(std::nothrow, true);
-    }
-
     MySQLDBConnection::MySQLDBConnection(const std::string &host,
                                          int port,
                                          const std::string &database,
                                          const std::string &user,
                                          const std::string &password,
                                          const std::map<std::string, std::string> &options)
-        : m_closed(false)
     {
         // Create shared_ptr with custom deleter for MYSQL*
         m_mysql = makeMySQLHandle(mysql_init(nullptr));
@@ -252,100 +235,65 @@ namespace cpp_dbc::MySQL
 
     MySQLDBConnection::~MySQLDBConnection()
     {
-        MySQLDBConnection::close();
+        // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
+        [[maybe_unused]] auto closeResult = close(std::nothrow);
     }
 
     void MySQLDBConnection::close()
     {
-        if (!m_closed && m_mysql)
+        auto result = close(std::nothrow);
+        if (!result.has_value())
         {
-            // Close all active statements before closing the connection
-            // This ensures mysql_stmt_close() is called while we have exclusive access
-            closeAllStatements();
+            throw result.error();
+        }
+    }
 
-            // Sleep for 25ms to avoid problems with concurrency
-            std::this_thread::sleep_for(std::chrono::milliseconds(25));
-
-            m_mysql.reset();
-            m_closed = true;
+    void MySQLDBConnection::reset()
+    {
+        auto result = reset(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
         }
     }
 
     bool MySQLDBConnection::isClosed() const
     {
-        return m_closed;
+        auto result = isClosed(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
-    /**
-     * @brief Return this connection to the connection pool for reuse
-     *
-     * @details
-     * **CRITICAL: Statement Cleanup Before Pool Return**
-     *
-     * This method prepares the connection for reuse by another thread. The most
-     * important step is closing all active prepared statements BEFORE the connection
-     * becomes available to other threads.
-     *
-     * **Why closeAllStatements() is Essential Here:**
-     *
-     * Consider this scenario WITHOUT closeAllStatements():
-     * 1. Thread A creates connection, creates PreparedStatement, uses it
-     * 2. Thread A calls conn->returnToPool() - connection goes back to pool
-     * 3. Thread B gets the same connection from pool, starts using it
-     * 4. Thread A's PreparedStatement goes out of scope, destructor runs
-     * 5. Destructor calls mysql_stmt_close() on Thread A's statement
-     * 6. mysql_stmt_close() uses the MYSQL* connection that Thread B is using
-     * 7. RACE CONDITION: Two threads accessing same MYSQL* simultaneously
-     * 8. Result: Memory corruption, crashes, undefined behavior
-     *
-     * **With closeAllStatements():**
-     * 1. Thread A creates connection, creates PreparedStatement, uses it
-     * 2. Thread A calls conn->returnToPool()
-     * 3. returnToPool() calls closeAllStatements() - ALL statements closed NOW
-     * 4. mysql_stmt_close() runs while Thread A still has exclusive access
-     * 5. Connection goes back to pool (clean, no active statements)
-     * 6. Thread B gets the connection - it's completely clean
-     * 7. Thread A's PreparedStatement destructor finds statement already closed
-     * 8. No mysql_stmt_close() call needed - safe!
-     *
-     * @note We don't set m_closed = true because the connection remains open
-     * for reuse. Only the statements are closed.
-     *
-     * @see closeAllStatements() for the statement cleanup implementation
-     * @see m_activeStatements for the design rationale of using weak_ptr
-     */
     void MySQLDBConnection::returnToPool()
     {
-        try
+        auto result = returnToPool(std::nothrow);
+        if (!result.has_value())
         {
-            // CRITICAL: Close all active statements BEFORE making connection available
-            // This prevents race conditions when another thread gets this connection
-            closeAllStatements();
-
-            // Restore autocommit for the next user of this connection
-            if (!m_autoCommit)
-            {
-                setAutoCommit(true);
-            }
-
-            // Note: We don't set m_closed = true because the connection remains open
-            // for reuse by the pool. Only the statements are closed.
-        }
-        catch ([[maybe_unused]] const std::exception &ex)
-        {
-            // Ignore errors during cleanup - connection may still be usable
-            MYSQL_DEBUG("MySQLDBConnection::returnToPool - Exception ignored during cleanup: " << ex.what());
+            throw result.error();
         }
     }
 
-    bool MySQLDBConnection::isPooled()
+    bool MySQLDBConnection::isPooled() const
     {
-        return false;
+        auto result = isPooled(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::string MySQLDBConnection::getURL() const
     {
-        return m_url;
+        auto result = getURL(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::shared_ptr<RelationalDBPreparedStatement> MySQLDBConnection::prepareStatement(const std::string &sql)
@@ -429,6 +377,24 @@ namespace cpp_dbc::MySQL
     void MySQLDBConnection::rollback()
     {
         auto result = rollback(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    void MySQLDBConnection::prepareForPoolReturn()
+    {
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    void MySQLDBConnection::prepareForBorrow()
+    {
+        auto result = prepareForBorrow(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();

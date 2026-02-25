@@ -311,8 +311,7 @@ namespace cpp_dbc::Redis
         : m_context(std::move(other.m_context)),
           m_url(std::move(other.m_url)),
           m_dbIndex(other.m_dbIndex),
-          m_closed(other.m_closed.load()),
-          m_pooled(other.m_pooled)
+          m_closed(other.m_closed.load())
     {
         other.m_closed = true;
     }
@@ -341,7 +340,6 @@ namespace cpp_dbc::Redis
             m_url = std::move(other.m_url);
             m_dbIndex = other.m_dbIndex;
             m_closed = other.m_closed.load();
-            m_pooled = other.m_pooled;
 
             other.m_closed = true;
         }
@@ -352,18 +350,11 @@ namespace cpp_dbc::Redis
 
     void RedisConnection::close()
     {
-        REDIS_LOCK_GUARD(m_mutex);
-
-        if (m_closed)
-            return;
-
-        REDIS_DEBUG("RedisConnection::close - Closing connection");
-
-        // Clear the context
-        m_context.reset();
-        m_closed = true;
-
-        REDIS_DEBUG("RedisConnection::close - Connection closed");
+        auto result = close(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
     }
 
     bool RedisConnection::isClosed() const
@@ -373,22 +364,39 @@ namespace cpp_dbc::Redis
 
     void RedisConnection::returnToPool()
     {
-        // If pooled, just mark as available (pool handles this)
-        // If not pooled, close the connection
-        if (!m_pooled)
+        auto result = returnToPool(std::nothrow);
+        if (!result.has_value())
         {
-            close();
+            throw result.error();
         }
     }
 
-    bool RedisConnection::isPooled()
+    bool RedisConnection::isPooled() const
     {
-        return m_pooled;
+        return false;
     }
 
     std::string RedisConnection::getURL() const
     {
         return m_url;
+    }
+
+    void RedisConnection::reset()
+    {
+        auto result = reset(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    void RedisConnection::prepareForPoolReturn()
+    {
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
     }
 
     // KVDBConnection interface implementation - Basic key-value operations

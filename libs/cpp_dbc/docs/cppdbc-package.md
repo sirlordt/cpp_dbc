@@ -53,28 +53,28 @@ Each database driver implementation is split into multiple focused files within 
 - `driver_01.cpp` - SQLiteDBDriver implementation
 - `connection_01.cpp`, `connection_02.cpp` - SQLiteConnection implementation
 - `prepared_statement_01.cpp` to `prepared_statement_04.cpp` - SQLitePreparedStatement implementation
-- `result_set_01.cpp` to `result_set_03.cpp` - SQLiteResultSet implementation
+- `result_set_01.cpp` to `result_set_05.cpp` - SQLiteResultSet implementation
 
 **MySQL Driver** (`src/drivers/relational/mysql/`):
 - `mysql_internal.hpp` - Internal declarations and shared definitions
 - `driver_01.cpp` - MySQLDBDriver implementation
 - `connection_01.cpp` to `connection_03.cpp` - MySQLConnection implementation
 - `prepared_statement_01.cpp` to `prepared_statement_03.cpp` - MySQLPreparedStatement implementation
-- `result_set_01.cpp` to `result_set_03.cpp` - MySQLResultSet implementation
+- `result_set_01.cpp` to `result_set_04.cpp` - MySQLResultSet implementation
 
 **PostgreSQL Driver** (`src/drivers/relational/postgresql/`):
 - `postgresql_internal.hpp` - Internal declarations and shared definitions
 - `driver_01.cpp` - PostgreSQLDBDriver implementation
 - `connection_01.cpp` to `connection_03.cpp` - PostgreSQLConnection implementation
 - `prepared_statement_01.cpp` to `prepared_statement_04.cpp` - PostgreSQLPreparedStatement implementation
-- `result_set_01.cpp` to `result_set_03.cpp` - PostgreSQLResultSet implementation
+- `result_set_01.cpp` to `result_set_04.cpp` - PostgreSQLResultSet implementation
 
 **Firebird Driver** (`src/drivers/relational/firebird/`):
 - `firebird_internal.hpp` - Internal declarations and shared definitions
 - `driver_01.cpp` - FirebirdDBDriver implementation
-- `connection_01.cpp` to `connection_03.cpp` - FirebirdConnection implementation
-- `prepared_statement_01.cpp` to `prepared_statement_03.cpp` - FirebirdPreparedStatement implementation
-- `result_set_01.cpp` to `result_set_04.cpp` - FirebirdResultSet implementation
+- `connection_01.cpp` to `connection_04.cpp` - FirebirdConnection implementation
+- `prepared_statement_01.cpp` to `prepared_statement_04.cpp` - FirebirdPreparedStatement implementation
+- `result_set_01.cpp` to `result_set_05.cpp` - FirebirdResultSet implementation
 
 **MongoDB Driver** (`src/drivers/document/mongodb/`):
 - `mongodb_internal.hpp` - Internal declarations and shared definitions

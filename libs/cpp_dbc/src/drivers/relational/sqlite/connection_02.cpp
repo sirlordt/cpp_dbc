@@ -42,7 +42,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_db)
             {
@@ -50,11 +50,7 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-#if DB_DRIVER_THREAD_SAFE
-            auto stmt = std::make_shared<SQLiteDBPreparedStatement>(std::weak_ptr<sqlite3>(m_db), m_connMutex, sql);
-#else
-            auto stmt = std::make_shared<SQLiteDBPreparedStatement>(std::weak_ptr<sqlite3>(m_db), sql);
-#endif
+            auto stmt = std::make_shared<SQLiteDBPreparedStatement>(std::weak_ptr<sqlite3>(m_db), weak_from_this(), m_globalFileMutex, sql);
             registerStatement(std::weak_ptr<SQLiteDBPreparedStatement>(stmt));
             return std::shared_ptr<RelationalDBPreparedStatement>(stmt);
         }
@@ -80,7 +76,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_db)
             {
@@ -95,6 +91,7 @@ namespace cpp_dbc::SQLite
                 std::string errorMsg = sqlite3_errmsg(m_db.get());
                 return cpp_dbc::unexpected(DBException("R2Z3A4B5C6D7", "Failed to prepare query: " + errorMsg,
                                                        system_utils::captureCallStack()));
+                // std::vector<cpp_dbc::system_utils::StackFrame>()));
             }
 
             if (!stmt)
@@ -104,14 +101,11 @@ namespace cpp_dbc::SQLite
             }
 
             auto self = std::dynamic_pointer_cast<SQLiteDBConnection>(shared_from_this());
-#if DB_DRIVER_THREAD_SAFE
-            // Pass shared mutex to ResultSet - required because SQLite uses cursor-based iteration
+            // Pass global file mutex to ResultSet - required because SQLite uses cursor-based iteration
             // where sqlite3_step() and sqlite3_column_*() access the connection handle on every call.
             // Unlike MySQL/PostgreSQL where results are fully loaded into client memory.
-            auto resultSet = std::make_shared<SQLiteDBResultSet>(stmt, true, self, m_connMutex);
-#else
-            auto resultSet = std::make_shared<SQLiteDBResultSet>(stmt, true, self);
-#endif
+            auto resultSet = std::make_shared<SQLiteDBResultSet>(stmt, true, self, nullptr, m_globalFileMutex);
+            resultSet->initialize(); // CRITICAL: Must be called after shared_ptr exists
             return std::shared_ptr<RelationalDBResultSet>(resultSet);
         }
         catch (const DBException &ex)
@@ -136,7 +130,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_db)
             {
@@ -179,7 +173,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_db)
             {
@@ -188,12 +182,12 @@ namespace cpp_dbc::SQLite
             }
 
             // Only change the state if we're actually changing the mode
-            if (this->m_autoCommit != autoCommit)
+            if (this->m_autoCommit.load(std::memory_order_acquire) != autoCommit)
             {
                 if (autoCommit)
                 {
                     // Enabling autocommit - commit any active transaction first
-                    if (m_transactionActive)
+                    if (m_transactionActive.load(std::memory_order_acquire))
                     {
                         auto commitResult = commit(std::nothrow);
                         if (!commitResult)
@@ -202,8 +196,8 @@ namespace cpp_dbc::SQLite
                         }
                     }
 
-                    this->m_autoCommit = true;
-                    this->m_transactionActive = false;
+                    this->m_autoCommit.store(true, std::memory_order_release);
+                    this->m_transactionActive.store(false, std::memory_order_release);
                 }
                 else
                 {
@@ -239,7 +233,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            return m_autoCommit;
+            return m_autoCommit.load(std::memory_order_acquire);
         }
         catch (const DBException &ex)
         {
@@ -263,7 +257,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_db)
             {
@@ -271,14 +265,14 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            if (m_transactionActive)
+            if (m_transactionActive.load(std::memory_order_acquire))
             {
                 return false;
             }
 
-            if (m_autoCommit)
+            if (m_autoCommit.load(std::memory_order_acquire))
             {
-                m_autoCommit = false;
+                m_autoCommit.store(false, std::memory_order_release);
             }
 
             auto updateResult = executeUpdate(std::nothrow, "BEGIN TRANSACTION");
@@ -287,7 +281,7 @@ namespace cpp_dbc::SQLite
                 return cpp_dbc::unexpected(updateResult.error());
             }
 
-            m_transactionActive = true;
+            m_transactionActive.store(true, std::memory_order_release);
             return true;
         }
         catch (const DBException &ex)
@@ -312,7 +306,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            return m_transactionActive;
+            return m_transactionActive.load(std::memory_order_acquire);
         }
         catch (const DBException &ex)
         {
@@ -336,7 +330,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_db)
             {
@@ -350,8 +344,8 @@ namespace cpp_dbc::SQLite
                 return cpp_dbc::unexpected(updateResult.error());
             }
 
-            m_transactionActive = false;
-            m_autoCommit = true;
+            m_transactionActive.store(false, std::memory_order_release);
+            m_autoCommit.store(true, std::memory_order_release);
             return {};
         }
         catch (const DBException &ex)
@@ -376,7 +370,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_db)
             {
@@ -390,8 +384,8 @@ namespace cpp_dbc::SQLite
                 return cpp_dbc::unexpected(updateResult.error());
             }
 
-            m_transactionActive = false;
-            m_autoCommit = true;
+            m_transactionActive.store(false, std::memory_order_release);
+            m_autoCommit.store(true, std::memory_order_release);
             return {};
         }
         catch (const DBException &ex)
@@ -416,7 +410,7 @@ namespace cpp_dbc::SQLite
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            std::lock_guard<std::recursive_mutex> globalLock(*m_globalFileMutex);
 
             if (m_closed || !m_db)
             {
@@ -474,6 +468,121 @@ namespace cpp_dbc::SQLite
                                                    "getTransactionIsolation failed: unknown error",
                                                    system_utils::captureCallStack()));
         }
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::close(std::nothrow_t) noexcept
+    {
+        try
+        {
+            if (!m_closed && m_db)
+            {
+                // Close all result sets FIRST (before statements)
+                // closeAllResultSets() acquires m_globalFileMutex internally
+                closeAllResultSets();
+
+                // Close all prepared statements properly
+                // closeAllStatements() includes safety net for leaked statements
+                closeAllStatements();
+
+                // Call sqlite3_release_memory to free up caches and unused memory
+                [[maybe_unused]]
+                int releasedMemory = sqlite3_release_memory(1000000);
+                SQLITE_DEBUG("Released %d bytes of SQLite memory", releasedMemory);
+
+                // Smart pointer will automatically call sqlite3_close_v2 via SQLiteDbDeleter
+                m_db.reset();
+                m_closed = true;
+
+                // Sleep for 10ms to avoid problems with concurrency and memory stability
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            // Ensure cleanup even on error
+            m_db.reset();
+            m_closed = true;
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            SQLITE_DEBUG("Exception during SQLite close: %s", ex.what());
+            m_db.reset();
+            m_closed = true;
+            return cpp_dbc::unexpected(DBException("GRFPVO09UYNU",
+                                                   std::string("close failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            m_db.reset();
+            m_closed = true;
+            return cpp_dbc::unexpected(DBException("FHR9J06XNVWS",
+                                                   "close failed with unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::isClosed(std::nothrow_t) const noexcept
+    {
+        return m_closed;
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::returnToPool(std::nothrow_t) noexcept
+    {
+        try
+        {
+            // Reset the connection state for the next borrower
+            // reset() closes result sets, statements, rolls back and resets autocommit
+            auto resetResult = reset(std::nothrow);
+            if (!resetResult)
+            {
+                SQLITE_DEBUG("returnToPool(nothrow): reset failed: %s",
+                             resetResult.error().what_s().c_str());
+                // Continue - try to at least restore autocommit
+            }
+
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("EYX8UAKL1E9B",
+                                                   std::string("returnToPool failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("2XFKGOI6JLT8",
+                                                   "returnToPool failed with unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::isPooled(std::nothrow_t) const noexcept
+    {
+        return false;
+    }
+
+    cpp_dbc::expected<std::string, DBException> SQLiteDBConnection::getURL(std::nothrow_t) const noexcept
+    {
+        return m_url;
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    {
+        // Delegate to reset() which closes result sets, statements, rolls back, and resets autocommit
+        return reset(std::nothrow);
+    }
+
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        // No-op for SQLite: no MVCC snapshot refresh needed
+        return {};
     }
 
 } // namespace cpp_dbc::SQLite

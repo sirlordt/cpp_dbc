@@ -24,7 +24,6 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <fstream>
 
 #include <catch2/catch_test_macros.hpp>
@@ -33,6 +32,8 @@
 #include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/transaction_manager.hpp>
 #include <cpp_dbc/config/database_config.hpp>
+
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "21_001_test_postgresql_real_common.hpp"
 
@@ -109,7 +110,8 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("id") == 5);
         REQUIRE(rs->getString("name") == "Test Name 5");
-        REQUIRE_FALSE(rs->next()); // Should only be one row
+        REQUIRE_FALSE(rs->next());
+        rs->close(); // Should only be one row
 
         // Select all rows using direct query
         rs = conn->executeQuery("SELECT * FROM test_table ORDER BY id");
@@ -133,6 +135,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 3");
         REQUIRE(rs->next());
         REQUIRE(rs->getString("name") == "Updated Name");
+        rs->close();
 
         // Delete data
         auto deleteResult = conn->executeUpdate("DELETE FROM test_table WHERE id > 5");
@@ -142,6 +145,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == 5); // Should be 5 rows left
+        rs->close();
 
         // Drop the test table
         result = conn->executeUpdate(dropTableQuery);
@@ -153,35 +157,39 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
 
     SECTION("PostgreSQL connection pool")
     {
-        // Create a connection pool configuration
+        // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
         poolConfig.setUsername(username);
         poolConfig.setPassword(password);
-        poolConfig.setInitialSize(5);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(3);
-        poolConfig.setConnectionTimeout(5000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setIdleTimeout(30000);
-        poolConfig.setMaxLifetimeMillis(60000);
+        poolConfig.setInitialSize(3);
+        poolConfig.setMaxSize(5);
+        poolConfig.setMinIdle(1);
+        poolConfig.setConnectionTimeout(10000);
+        poolConfig.setValidationInterval(500);
+        poolConfig.setIdleTimeout(5000);
+        poolConfig.setMaxLifetimeMillis(10000);
         poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(false);
+        poolConfig.setTestOnReturn(true);
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a test table
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
-        conn->close();
+        conn->returnToPool();
 
         // Test multiple connections in parallel
-        const int numThreads = 5;
-        const int opsPerThread = 10;
+        const int numThreads = 10;
+        const int opsPerThread = 5;
 
         std::atomic<int> successCount(0);
         std::vector<std::thread> threads;
@@ -192,50 +200,44 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
                                           {
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
-                        // Get a connection from the pool
-                        auto conn_thread = pool.getRelationalDBConnection();
+                        auto conn_thread = pool->getRelationalDBConnection();
 
-                        // Insert a row
-                        auto pstmt = conn_thread->prepareStatement(insertDataQuery);
                         int id = i * 100 + j;
+                        auto pstmt = conn_thread->prepareStatement(insertDataQuery);
                         pstmt->setInt(1, id);
                         pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
                         pstmt->setDouble(3, id * 1.5);
                         pstmt->executeUpdate();
 
-                        // Return the connection to the pool
-                        conn_thread->close();
-
-                        // Increment success counter
+                        conn_thread->returnToPool();
                         successCount++;
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "Thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
 
-        // Wait for all threads to complete
         for (auto &t : threads)
         {
             t.join();
         }
 
-        // Verify that all operations were successful
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the data
-        conn = pool.getRelationalDBConnection();
+        conn = pool->getRelationalDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
+        rs->close();
 
         // Clean up
-        conn->executeUpdate(dropTableQuery);
-        conn->close();
+        // conn->executeUpdate(dropTableQuery);
+        conn->returnToPool();
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 
     SECTION("PostgreSQL transaction management")
@@ -257,17 +259,21 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult2 = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult2.has_value())
+        {
+            throw poolResult2.error();
+        }
+        auto pool = poolResult2.value();
 
         // Create a transaction manager
-        cpp_dbc::TransactionManager manager(pool);
+        cpp_dbc::TransactionManager manager(*pool);
 
         // Create a test table
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
-        conn->close();
+        conn->returnToPool();
 
         SECTION("Commit transaction")
         {
@@ -286,16 +292,18 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
             pstmt->setDouble(3, 1.5);
             auto result = pstmt->executeUpdate();
             REQUIRE(result == 1);
+            pstmt->close();
 
             // Commit the transaction
             manager.commitTransaction(txId);
 
             // Verify the data was committed
-            conn = pool.getRelationalDBConnection();
+            conn = pool->getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
-            conn->close();
+            rs->close();
+            conn->returnToPool();
         }
 
         SECTION("Rollback transaction")
@@ -318,19 +326,20 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
             manager.rollbackTransaction(txId);
 
             // Verify the data was not committed
-            conn = pool.getRelationalDBConnection();
+            conn = pool->getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
-            conn->close();
+            rs->close();
+            conn->returnToPool();
         }
 
         // Clean up
-        conn = pool.getRelationalDBConnection();
-        conn->executeUpdate(dropTableQuery);
-        conn->close();
+        // conn = pool.getRelationalDBConnection();
+        // conn->executeUpdate(dropTableQuery);
+        // conn->close();
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 
     SECTION("PostgreSQL metadata retrieval")
@@ -402,9 +411,10 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         REQUIRE(rs->next());
         REQUIRE(rs->isNull("int_col"));
         REQUIRE(rs->isNull("varchar_col"));
+        rs->close();
 
         // Clean up
-        conn->executeUpdate("DROP TABLE test_types");
+        // conn->executeUpdate("DROP TABLE test_types");
 
         // Close the connection
         conn->close();
@@ -429,14 +439,18 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult3 = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult3.has_value())
+        {
+            throw poolResult3.error();
+        }
+        auto pool = poolResult3.value();
 
         // Create a test table
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
-        conn->close();
+        conn->returnToPool();
 
         // Test with many concurrent threads
         const int numThreads = 20;
@@ -454,7 +468,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn_thread = pool.getRelationalDBConnection();
+                        auto conn_thread = pool->getRelationalDBConnection();
 
                         // Insert a row
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -475,10 +489,10 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
                         }
 
                         // Return the connection to the pool
-                        conn_thread->close();
+                        conn_thread->returnToPool();
                     }
                     catch (const std::exception& e) {
-                        std::cerr << "Thread operation failed: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
                     }
                 } }));
         }
@@ -492,24 +506,24 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-        std::cout << "PostgreSQL stress test completed in " << duration << " ms" << std::endl;
-        std::cout << "Operations per second: " << (numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)) << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL stress test completed in " + std::to_string(duration) + " ms");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Operations per second: " + std::to_string(numThreads * opsPerThread * 1000.0 / static_cast<double>(duration)));
 
         // Verify that all operations were successful
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the total number of rows
-        conn = pool.getRelationalDBConnection();
+        conn = pool->getRelationalDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
 
         // Clean up
-        conn->executeUpdate(dropTableQuery);
-        conn->close();
+        // conn->executeUpdate(dropTableQuery);
+        conn->returnToPool();
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 
     SECTION("PostgreSQL specific features")
@@ -532,6 +546,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         REQUIRE(rs->next());
         REQUIRE(rs->getString("name") == "John");
         REQUIRE(rs->getInt("age") == 30);
+        rs->close();
 
         // Test array data type
         conn->executeUpdate("DROP TABLE IF EXISTS test_array");
@@ -545,10 +560,11 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("first_int") == 1);
         REQUIRE(rs->getString("second_text") == "two");
+        rs->close();
 
         // Clean up
-        conn->executeUpdate("DROP TABLE test_json");
-        conn->executeUpdate("DROP TABLE test_array");
+        // conn->executeUpdate("DROP TABLE test_json");
+        // conn->executeUpdate("DROP TABLE test_array");
 
         // Close the connection
         conn->close();

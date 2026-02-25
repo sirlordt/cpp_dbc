@@ -18,23 +18,37 @@ set -e  # Exit on error
 #   --release              Run in Release mode (default: Debug)
 #   --gcc-analyzer         Enable GCC Static Analyzer (GCC 10+)
 #   --asan                 Enable Address Sanitizer
-#   --valgrind             Run tests with Valgrind
+#   --tsan                 Enable Thread Sanitizer
+#   --valgrind             Run tests with Valgrind (memcheck - memory error detector)
+#   --helgrind             Run tests with Valgrind Helgrind (thread error detector)
+#   --helgrind-gs          Run tests with Helgrind in suppression generation mode
+#   --helgrind-s           Run tests with Helgrind using custom suppressions from libs/cpp_dbc/valgrind/helgrind/suppression.conf
+#   --drd                  Run tests with Valgrind DRD (thread error detector - alternative to helgrind)
+#   --drd-gs               Run tests with DRD in suppression generation mode
+#   --drd-s                Run tests with DRD using custom suppressions from libs/cpp_dbc/valgrind/drd/suppression.conf
 #   --auto                 Automatically continue to next test set if tests pass
 #   --gssapi-leak-ok       Ignore GSSAPI leaks in PostgreSQL (only with --valgrind)
 #   --ctest                Run tests using CTest
 #   --check                Check shared library dependencies of test executable
 #   --rebuild              Rebuild the test targets before running
 #   --list                 List available tests only (does not run tests)
-#   --run-test="filter"    Run only tests matching the filter. Two formats supported:
-#                          - Wildcard pattern: "*mysql*" matches test names containing "mysql"
-#                          - Tags: "tag1+tag2+tag3" runs tests with those specific tags
+#   --run-test="pattern"   Run only tests matching the pattern. Supports:
+#                          - Wildcards: "*mysql*" (contains), "20_*" (prefix), "*firebird" (suffix)
+#                          - Complex: "20_*Mysql*_10" (multiple wildcards)
+#                          - Tags: "tag1+tag2" (multiple tags separated by +)
 #   --run=N                Run all test sets N times (default: 1)
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
 #   --debug-sqlite         Enable debug output for SQLite driver
+#   --debug-mysql          Enable debug output for MySQL driver
+#   --debug-postgresql     Enable debug output for PostgreSQL driver
 #   --debug-firebird       Enable debug output for Firebird driver
+#   --debug-mongodb        Enable debug output for MongoDB driver
+#   --debug-scylladb       Enable debug output for ScyllaDB driver
+#   --debug-redis          Enable debug output for Redis driver
 #   --debug-all            Enable all debug output
-#   --dw-off               Disable libdw support for stack traces
+#   --dw-on                Enable libdw support for stack traces (default for tests: OFF)
+#   --dw-off               Disable libdw support for stack traces (default for tests)
 #   --db-driver-thread-safe-off  Disable thread-safe database driver operations
 #   --help                 Show this help message
 
@@ -51,8 +65,13 @@ BUILD_TYPE=Debug
 ENABLE_GCC_ANALYZER=OFF
 ASAN_OPTIONS=""
 ENABLE_ASAN=false
+TSAN_OPTIONS=""
+ENABLE_TSAN=false
 RUN_CTEST=false
 USE_VALGRIND=false
+VALGRIND_TOOL=""          # Valgrind tool: empty (memcheck), helgrind, helgrind-gs, helgrind-s, drd, drd-gs, drd-s
+VALGRIND_GEN_SUPPRESSIONS=false  # Generate suppressions mode
+VALGRIND_USE_SUPPRESSIONS=false  # Use custom suppressions
 AUTO_CONTINUE=false
 GSSAPI_LEAK_OK=false
 CHECK_DEPENDENCIES=false
@@ -62,12 +81,14 @@ RUN_SPECIFIC_TEST=""
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_MYSQL=OFF
+DEBUG_POSTGRES=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
 RUN_COUNT=1
-BACKWARD_HAS_DW=ON
+BACKWARD_HAS_DW=OFF
 DB_DRIVER_THREAD_SAFE=ON
 SHOW_PROGRESS=false
 SKIP_BUILD=false
@@ -152,8 +173,47 @@ while [[ $# -gt 0 ]]; do
             ENABLE_ASAN=true
             shift
             ;;
+        --tsan)
+            TSAN_OPTIONS="halt_on_error=0:history_size=7"
+            ENABLE_TSAN=true
+            shift
+            ;;
         --valgrind)
             USE_VALGRIND=true
+            shift
+            ;;
+        --helgrind)
+            USE_VALGRIND=true
+            VALGRIND_TOOL="helgrind"
+            shift
+            ;;
+        --helgrind-gs)
+            USE_VALGRIND=true
+            VALGRIND_TOOL="helgrind"
+            VALGRIND_GEN_SUPPRESSIONS=true
+            shift
+            ;;
+        --helgrind-s)
+            USE_VALGRIND=true
+            VALGRIND_TOOL="helgrind"
+            VALGRIND_USE_SUPPRESSIONS=true
+            shift
+            ;;
+        --drd)
+            USE_VALGRIND=true
+            VALGRIND_TOOL="drd"
+            shift
+            ;;
+        --drd-gs)
+            USE_VALGRIND=true
+            VALGRIND_TOOL="drd"
+            VALGRIND_GEN_SUPPRESSIONS=true
+            shift
+            ;;
+        --drd-s)
+            USE_VALGRIND=true
+            VALGRIND_TOOL="drd"
+            VALGRIND_USE_SUPPRESSIONS=true
             shift
             ;;
         --auto)
@@ -205,6 +265,14 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             shift
             ;;
+        --debug-mysql)
+            DEBUG_MYSQL=ON
+            shift
+            ;;
+        --debug-postgresql)
+            DEBUG_POSTGRES=ON
+            shift
+            ;;
         --debug-firebird)
             DEBUG_FIREBIRD=ON
             shift
@@ -225,10 +293,16 @@ while [[ $# -gt 0 ]]; do
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
+            DEBUG_MYSQL=ON
+            DEBUG_POSTGRES=ON
             DEBUG_FIREBIRD=ON
             DEBUG_MONGODB=ON
             DEBUG_SCYLLADB=ON
             DEBUG_REDIS=ON
+            shift
+            ;;
+        --dw-on)
+            BACKWARD_HAS_DW=ON
             shift
             ;;
         --dw-off)
@@ -266,26 +340,36 @@ while [[ $# -gt 0 ]]; do
             echo "  --redis-off            Disable Redis support"
             echo "  --release              Run in Release mode (default: Debug)"
             echo "  --asan                 Enable Address Sanitizer"
-            echo "  --valgrind             Run tests with Valgrind"
+            echo "  --valgrind             Run tests with Valgrind (memcheck)"
+            echo "  --helgrind             Run tests with Valgrind Helgrind (thread error detector)"
+            echo "  --helgrind-gs          Run tests with Helgrind in suppression generation mode"
+            echo "  --helgrind-s           Run tests with Helgrind using custom suppressions"
+            echo "  --drd                  Run tests with Valgrind DRD (thread error detector)"
+            echo "  --drd-gs               Run tests with DRD in suppression generation mode"
+            echo "  --drd-s                Run tests with DRD using custom suppressions"
             echo "  --auto                 Automatically continue to next test set if tests pass"
             echo "  --gssapi-leak-ok       Ignore GSSAPI leaks in PostgreSQL (only with --valgrind)"
             echo "  --ctest                Run tests using CTest"
             echo "  --check                Check shared library dependencies of test executable"
             echo "  --rebuild              Rebuild the test targets before running"
             echo "  --list                 List available tests only (does not run tests)"
-            echo "  --run-test=\"filter\"    Run only tests matching the filter. Two formats supported:"
-            echo "                           - Wildcard: \"*mysql*\" matches test names containing 'mysql'"
-            echo "                           - Tags: \"tag1+tag2\" runs tests with those specific tags"
+            echo "  --run-test=\"pattern\"   Run only tests matching the pattern. Supports:"
+            echo "                           - Wildcards: \"*mysql*\" (contains), \"20_*\" (prefix), \"*firebird\" (suffix)"
+            echo "                           - Complex: \"20_*Mysql*_10\" (multiple wildcards)"
+            echo "                           - Tags: \"tag1+tag2\" (multiple tags separated by +)"
             echo "  --run=N                Run all test sets N times (default: 1)"
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
+            echo "  --debug-mysql          Enable debug output for MySQL driver"
+            echo "  --debug-postgresql     Enable debug output for PostgreSQL driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
             echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
-            echo "  --dw-off               Disable libdw support for stack traces"
+            echo "  --dw-on                Enable libdw support for stack traces (default for tests: OFF)"
+            echo "  --dw-off               Disable libdw support for stack traces (default for tests)"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
             echo "  --progress             Show visual progress bar during test execution"
             echo "  --help                 Show this help message"
@@ -525,6 +609,10 @@ if [ "$SKIP_BUILD" = false ] && { [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = 
         BUILD_CMD="$BUILD_CMD --asan"
     fi
 
+    if [ "$ENABLE_TSAN" = true ]; then
+        BUILD_CMD="$BUILD_CMD --tsan"
+    fi
+
     if [ "$USE_CPP_YAML" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --yaml"
     else
@@ -596,10 +684,18 @@ if [ "$SKIP_BUILD" = false ] && { [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = 
         BUILD_CMD="$BUILD_CMD --debug-sqlite"
     fi
 
+    if [ "$DEBUG_MYSQL" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --debug-mysql"
+    fi
+
+    if [ "$DEBUG_POSTGRES" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --debug-postgresql"
+    fi
+
     if [ "$DEBUG_FIREBIRD" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --debug-firebird"
     fi
-    
+
     if [ "$DEBUG_MONGODB" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --debug-mongodb"
     fi
@@ -607,14 +703,14 @@ if [ "$SKIP_BUILD" = false ] && { [ ! -f "$TEST_EXECUTABLE" ] || [ "$REBUILD" = 
     if [ "$DEBUG_SCYLLADB" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --debug-scylladb"
     fi
-    
+
     if [ "$DEBUG_REDIS" = "ON" ]; then
         BUILD_CMD="$BUILD_CMD --debug-redis"
     fi
     
-    # Add dw-off option if specified
-    if [ "$BACKWARD_HAS_DW" = "OFF" ]; then
-        BUILD_CMD="$BUILD_CMD --dw-off"
+    # Add dw-on option if explicitly enabled (default for tests is OFF)
+    if [ "$BACKWARD_HAS_DW" = "ON" ]; then
+        BUILD_CMD="$BUILD_CMD --dw-on"
     fi
 
     # Add db-driver-thread-safe-off option if specified
@@ -631,6 +727,17 @@ fi
 
 # Turn off command echoing if it was enabled by build_test_cpp_dbc.sh
 { set +x; } 2>/dev/null
+
+# CRITICAL FIX (2026-02-15): If --list was requested, list tests now
+# (after build if --rebuild was also specified) and exit
+if [ "$LIST_ONLY" = true ]; then
+    cd "$TEST_BUILD_DIR"
+    echo -e "Listing available tests:\n"
+    "$TEST_EXECUTABLE" --colour-mode=ansi --list-tests
+    echo -e "\nListing available tags:\n"
+    "$TEST_EXECUTABLE" --colour-mode=ansi --list-tags
+    exit 0
+fi
 
 echo -e "\nRunning tests..."
 
@@ -667,38 +774,104 @@ run_test() {
     
     if [ "$USE_VALGRIND" = true ]; then
         # Using Valgrind
-        # Check if suppression file exists
-        #SUPPRESSION_FILE="${SCRIPT_DIR}/valgrind-suppressions.txt"
-        #VALGRIND_OPTS="--leak-check=full --show-leak-kinds=all --track-origins=yes --verbose"
-        VALGRIND_OPTS="--leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --verbose"
-        
-        #if [ -f "$SUPPRESSION_FILE" ]; then
-        #    echo "Using Valgrind suppression file: $SUPPRESSION_FILE"
-        #    VALGRIND_OPTS="$VALGRIND_OPTS --suppressions=$SUPPRESSION_FILE"
-        #fi
-        
-        if [ -n "$ASAN_OPTIONS" ]; then
-            env ASAN_OPTIONS="$ASAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS $@
+        # Set tool-specific options
+        if [ "$VALGRIND_TOOL" = "helgrind" ]; then
+            # Helgrind: Thread error detector
+            VALGRIND_OPTS="--tool=helgrind --verbose"
+
+            # Check if suppression generation mode is enabled
+            if [ "$VALGRIND_GEN_SUPPRESSIONS" = true ]; then
+                VALGRIND_OPTS="$VALGRIND_OPTS --gen-suppressions=all"
+                # Auto-detect and load existing suppressions if available
+                local SUPPRESSION_FILE="${SCRIPT_DIR}/valgrind/helgrind/suppression.conf"
+                if [ -f "$SUPPRESSION_FILE" ]; then
+                    VALGRIND_OPTS="$VALGRIND_OPTS --suppressions=$SUPPRESSION_FILE"
+                    echo "Running with Valgrind Helgrind (suppression generation mode + loading existing suppressions from $SUPPRESSION_FILE)"
+                else
+                    echo "Running with Valgrind Helgrind (suppression generation mode)"
+                fi
+            # Check if custom suppressions should be used
+            elif [ "$VALGRIND_USE_SUPPRESSIONS" = true ]; then
+                local SUPPRESSION_FILE="${SCRIPT_DIR}/valgrind/helgrind/suppression.conf"
+                if [ ! -f "$SUPPRESSION_FILE" ]; then
+                    echo "❌ ERROR: Suppression file not found: $SUPPRESSION_FILE"
+                    echo "   Please create the file before using --helgrind-s option."
+                    exit 1
+                fi
+                VALGRIND_OPTS="$VALGRIND_OPTS --suppressions=$SUPPRESSION_FILE"
+                echo "Running with Valgrind Helgrind (using custom suppressions from $SUPPRESSION_FILE)"
+            else
+                echo "Running with Valgrind Helgrind (thread error detector)"
+            fi
+        elif [ "$VALGRIND_TOOL" = "drd" ]; then
+            # DRD: Thread error detector (alternative to Helgrind)
+            VALGRIND_OPTS="--tool=drd --verbose"
+
+            # Check if suppression generation mode is enabled
+            if [ "$VALGRIND_GEN_SUPPRESSIONS" = true ]; then
+                VALGRIND_OPTS="$VALGRIND_OPTS --gen-suppressions=all"
+                # Auto-detect and load existing suppressions if available
+                local SUPPRESSION_FILE="${SCRIPT_DIR}/valgrind/drd/suppression.conf"
+                if [ -f "$SUPPRESSION_FILE" ]; then
+                    VALGRIND_OPTS="$VALGRIND_OPTS --suppressions=$SUPPRESSION_FILE"
+                    echo "Running with Valgrind DRD (suppression generation mode + loading existing suppressions from $SUPPRESSION_FILE)"
+                else
+                    echo "Running with Valgrind DRD (suppression generation mode)"
+                fi
+            # Check if custom suppressions should be used
+            elif [ "$VALGRIND_USE_SUPPRESSIONS" = true ]; then
+                local SUPPRESSION_FILE="${SCRIPT_DIR}/valgrind/drd/suppression.conf"
+                if [ ! -f "$SUPPRESSION_FILE" ]; then
+                    echo "❌ ERROR: Suppression file not found: $SUPPRESSION_FILE"
+                    echo "   Please create the file before using --drd-s option."
+                    exit 1
+                fi
+                VALGRIND_OPTS="$VALGRIND_OPTS --suppressions=$SUPPRESSION_FILE"
+                echo "Running with Valgrind DRD (using custom suppressions from $SUPPRESSION_FILE)"
+            else
+                echo "Running with Valgrind DRD (thread error detector)"
+            fi
         else
-            valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS $@
+            # Memcheck (default): Memory error detector
+            VALGRIND_OPTS="--leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --verbose"
+            echo "Running with Valgrind Memcheck (memory error detector)"
+        fi
+
+        if [ -n "$ASAN_OPTIONS" ]; then
+            env ASAN_OPTIONS="$ASAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS "$@"
+        elif [ -n "$TSAN_OPTIONS" ]; then
+            env TSAN_OPTIONS="$TSAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS "$@"
+        else
+            valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS "$@"
         fi
     else
         # Not using Valgrind
         if [ -n "$ASAN_OPTIONS" ]; then
-            env ASAN_OPTIONS="$ASAN_OPTIONS" "$TEST_EXECUTABLE" $COLOR_ARGS $@
+            env ASAN_OPTIONS="$ASAN_OPTIONS" "$TEST_EXECUTABLE" $COLOR_ARGS "$@"
+        elif [ -n "$TSAN_OPTIONS" ]; then
+            env TSAN_OPTIONS="$TSAN_OPTIONS" "$TEST_EXECUTABLE" $COLOR_ARGS "$@"
         else
-            "$TEST_EXECUTABLE" $COLOR_ARGS $@
+            "$TEST_EXECUTABLE" $COLOR_ARGS "$@"
         fi
     fi
 }
 
 # Handle the --list option
+# CRITICAL FIX (2026-02-15): When both --list and --rebuild are specified,
+# we must build BEFORE listing to ensure the binary is up-to-date.
+# Without this fix, "helper.sh --run-test=rebuild,..." with parallel mode
+# never recompiles modified files because it exits here before reaching
+# the build check at line 599.
 if [ "$LIST_ONLY" = true ]; then
-    echo -e "Listing available tests:\n"
-    run_test --list-tests
-    echo -e "\nListing available tags:\n"
-    run_test --list-tags
-    exit 0
+    # If --rebuild was NOT requested, list immediately without building
+    if [ "$REBUILD" = false ]; then
+        echo -e "Listing available tests:\n"
+        run_test --list-tests
+        echo -e "\nListing available tags:\n"
+        run_test --list-tags
+        exit 0
+    fi
+    # Otherwise (REBUILD=true), continue to build check below, then list and exit later
 fi
 
 # Initialize progress tracking variables
@@ -805,6 +978,8 @@ for ((run=1; run<=RUN_COUNT; run++)); do
         
         if [ -n "$ASAN_OPTIONS" ]; then
             env ASAN_OPTIONS="$ASAN_OPTIONS" ctest -C "$BUILD_TYPE" --output-on-failure
+        elif [ -n "$TSAN_OPTIONS" ]; then
+            env TSAN_OPTIONS="$TSAN_OPTIONS" ctest -C "$BUILD_TYPE" --output-on-failure
         else
             ctest -C "$BUILD_TYPE" --output-on-failure
         fi

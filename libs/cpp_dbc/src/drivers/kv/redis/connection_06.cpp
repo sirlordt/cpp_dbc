@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file connection_06.cpp
- * @brief Redis connection implementation - private helper methods
+ * @brief Redis connection implementation - private helper methods and DBConnection nothrow interface
  */
 
 #include "cpp_dbc/drivers/kv/driver_redis.hpp"
@@ -152,6 +152,126 @@ namespace cpp_dbc::Redis
         {
             REDIS_DEBUG("RedisConnection::tryParseDouble - Failed to parse: " << str << " unknown error");
             return std::nullopt;
+        }
+    }
+
+    // ============================================================================
+    // RedisConnection - DBConnection nothrow interface implementations
+    // ============================================================================
+
+    cpp_dbc::expected<void, DBException> RedisConnection::close(std::nothrow_t) noexcept
+    {
+        try
+        {
+            std::scoped_lock lock_(m_mutex);
+            if (m_closed)
+                return {};
+            REDIS_DEBUG("RedisConnection::close(nothrow) - Closing connection");
+            m_context.reset();
+            m_closed = true;
+            REDIS_DEBUG("RedisConnection::close(nothrow) - Connection closed");
+            return {};
+        }
+        catch (const DBException &e)
+        {
+            return cpp_dbc::unexpected(e);
+        }
+        catch (const std::exception &e)
+        {
+            return cpp_dbc::unexpected(DBException("JS1AQU3IVXMG",
+                std::string("Exception in close: ") + e.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("2G3CVDMF77RN",
+                "Unknown exception in close",
+                system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<void, DBException> RedisConnection::reset(std::nothrow_t) noexcept
+    {
+        try
+        {
+            // Redis has no transaction state to reset; this is a no-op
+            return {};
+        }
+        catch (const DBException &e)
+        {
+            return cpp_dbc::unexpected(e);
+        }
+        catch (const std::exception &e)
+        {
+            return cpp_dbc::unexpected(DBException("BN1EIHAOCZZB",
+                std::string("Exception in reset: ") + e.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("WBSY09JYSLVA",
+                "Unknown exception in reset",
+                system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> RedisConnection::isClosed(std::nothrow_t) const noexcept
+    {
+        return m_closed.load();
+    }
+
+    cpp_dbc::expected<void, DBException> RedisConnection::returnToPool(std::nothrow_t) noexcept
+    {
+        return reset(std::nothrow);
+    }
+
+    cpp_dbc::expected<bool, DBException> RedisConnection::isPooled(std::nothrow_t) const noexcept
+    {
+        return false;
+    }
+
+    cpp_dbc::expected<std::string, DBException> RedisConnection::getURL(std::nothrow_t) const noexcept
+    {
+        try
+        {
+            return m_url;
+        }
+        catch (const std::exception &e)
+        {
+            return cpp_dbc::unexpected(DBException("LE7RHOIPQSA5",
+                std::string("Exception in getURL: ") + e.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("JKHJGVFHTG27",
+                "Unknown exception in getURL",
+                system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<void, DBException> RedisConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    {
+        try
+        {
+            // Redis has no transaction state or open cursors to clean up; this is a no-op
+            return {};
+        }
+        catch (const DBException &e)
+        {
+            return cpp_dbc::unexpected(e);
+        }
+        catch (const std::exception &e)
+        {
+            return cpp_dbc::unexpected(DBException("8TV446WG7S01",
+                std::string("Exception in prepareForPoolReturn: ") + e.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("84KIJ3GX10KN",
+                "Unknown exception in prepareForPoolReturn",
+                system_utils::captureCallStack()));
         }
     }
 

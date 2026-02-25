@@ -155,6 +155,11 @@ BUILD_EXAMPLES=OFF
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_MYSQL=OFF
+DEBUG_POSTGRES=OFF
+DEBUG_FIREBIRD=OFF
+DEBUG_MONGODB=OFF
+DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
 BACKWARD_HAS_DW=ON
 DB_DRIVER_THREAD_SAFE=ON
@@ -219,6 +224,21 @@ do
         --debug-sqlite)
         DEBUG_SQLITE=ON
         ;;
+        --debug-mysql)
+        DEBUG_MYSQL=ON
+        ;;
+        --debug-postgresql)
+        DEBUG_POSTGRES=ON
+        ;;
+        --debug-firebird)
+        DEBUG_FIREBIRD=ON
+        ;;
+        --debug-mongodb)
+        DEBUG_MONGODB=ON
+        ;;
+        --debug-scylladb)
+        DEBUG_SCYLLADB=ON
+        ;;
         --debug-redis)
         DEBUG_REDIS=ON
         ;;
@@ -226,6 +246,11 @@ do
         DEBUG_CONNECTION_POOL=ON
         DEBUG_TRANSACTION_MANAGER=ON
         DEBUG_SQLITE=ON
+        DEBUG_MYSQL=ON
+        DEBUG_POSTGRES=ON
+        DEBUG_FIREBIRD=ON
+        DEBUG_MONGODB=ON
+        DEBUG_SCYLLADB=ON
         DEBUG_REDIS=ON
         ;;
         --dw-off)
@@ -255,6 +280,12 @@ do
         echo "  --debug-pool           Enable debug output for ConnectionPool"
         echo "  --debug-txmgr          Enable debug output for TransactionManager"
         echo "  --debug-sqlite         Enable debug output for SQLite driver"
+        echo "  --debug-mysql          Enable debug output for MySQL driver"
+        echo "  --debug-postgresql     Enable debug output for PostgreSQL driver"
+        echo "  --debug-firebird       Enable debug output for Firebird driver"
+        echo "  --debug-mongodb        Enable debug output for MongoDB driver"
+        echo "  --debug-scylladb       Enable debug output for ScyllaDB driver"
+        echo "  --debug-redis          Enable debug output for Redis driver"
         echo "  --debug-all            Enable all debug output"
         echo "  --dw-off               Disable libdw support for stack traces"
         echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
@@ -316,6 +347,26 @@ fi
 
 if [ "$DEBUG_SQLITE" = "ON" ]; then
     BUILD_CMD="$BUILD_CMD --debug-sqlite"
+fi
+
+if [ "$DEBUG_MYSQL" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --debug-mysql"
+fi
+
+if [ "$DEBUG_POSTGRES" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --debug-postgresql"
+fi
+
+if [ "$DEBUG_FIREBIRD" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --debug-firebird"
+fi
+
+if [ "$DEBUG_MONGODB" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --debug-mongodb"
+fi
+
+if [ "$DEBUG_SCYLLADB" = "ON" ]; then
+    BUILD_CMD="$BUILD_CMD --debug-scylladb"
 fi
 
 if [ "$DEBUG_REDIS" = "ON" ]; then
@@ -563,6 +614,12 @@ echo "  Build examples: $BUILD_EXAMPLES"
 echo "  Debug ConnectionPool: $DEBUG_CONNECTION_POOL"
 echo "  Debug TransactionManager: $DEBUG_TRANSACTION_MANAGER"
 echo "  Debug SQLite: $DEBUG_SQLITE"
+echo "  Debug MySQL: $DEBUG_MYSQL"
+echo "  Debug PostgreSQL: $DEBUG_POSTGRES"
+echo "  Debug Firebird: $DEBUG_FIREBIRD"
+echo "  Debug MongoDB: $DEBUG_MONGODB"
+echo "  Debug ScyllaDB: $DEBUG_SCYLLADB"
+echo "  Debug Redis: $DEBUG_REDIS"
 echo "  libdw support: $BACKWARD_HAS_DW"
 echo "  DB driver thread-safe: $DB_DRIVER_THREAD_SAFE"
 

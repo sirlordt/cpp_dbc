@@ -27,7 +27,6 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <iostream>
 #include <random>
 #include <mutex>
 #include <condition_variable>
@@ -135,16 +134,16 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
                         catch (const std::exception& e)
                         {
                             errorCount++;
-                            std::cerr << "Thread " << i << " op " << j << " error: " << e.what() << std::endl;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(e.what()));
                         }
                     }
-                    
+
                     conn->close();
                 }
                 catch (const std::exception& e)
                 {
                     errorCount += opsPerThread;
-                    std::cerr << "Thread " << i << " connection error: " << e.what() << std::endl;
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection error: " + std::string(e.what()));
                 } });
         }
 
@@ -161,12 +160,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
             t.join();
         }
 
-        std::cout << "Multiple threads with individual connections: " << successCount << " successes, " << errorCount << " errors" << std::endl;
-
-        // Clean up
-        auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
-        cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        cleanupConn->close();
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Multiple threads with individual connections: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
         // We expect most operations to succeed
         REQUIRE(successCount > 0);
@@ -187,7 +181,12 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Setup: create test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -226,7 +225,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
                     catch (const std::exception& e)
                     {
                         errorCount++;
-                        std::cerr << "Thread " << i << " error: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " error: " + std::string(e.what()));
                     }
                 } });
         }
@@ -236,12 +235,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
             t.join();
         }
 
-        std::cout << "Connection pool concurrent access: " << successCount << " successes, " << errorCount << " errors" << std::endl;
-
-        // Clean up
-        auto cleanupConn = pool->getRelationalDBConnection();
-        cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        cleanupConn->returnToPool();
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection pool concurrent access: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
         REQUIRE(successCount > 0);
     }
@@ -261,7 +255,12 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Setup: create and populate test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -328,15 +327,10 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
             t.join();
         }
 
-        std::cout << "Concurrent read operations: " << readCount << " reads, " << errorCount << " errors" << std::endl;
-
-        // Clean up
-        auto cleanupConn = pool->getRelationalDBConnection();
-        cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        cleanupConn->returnToPool();
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Concurrent read operations: " + std::to_string(readCount) + " reads, " + std::to_string(errorCount) + " errors");
 
         // Most reads should succeed
-        REQUIRE(readCount > numThreads * readsPerThread * 0.9);
+        REQUIRE(readCount > numThreads * readsPerThread * 0.95); // At least 95% success rate
     }
 
     SECTION("High concurrency stress test")
@@ -354,7 +348,12 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -412,7 +411,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
                             }
                             case 2: // Update
                             {
-                                conn->executeUpdate("UPDATE thread_stress_test SET data = 'updated' WHERE thread_id = " + std::to_string(i) + " AND id IN (SELECT id FROM thread_stress_test WHERE thread_id = " + std::to_string(i) + " LIMIT 1)");
+                                conn->executeUpdate("UPDATE thread_stress_test SET data = 'updated' WHERE ctid = (SELECT ctid FROM thread_stress_test WHERE thread_id = " + std::to_string(i) + " LIMIT 1)");
                                 updateCount++;
                                 break;
                             }
@@ -422,6 +421,7 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
                     }
                     catch (const std::exception& e)
                     {
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string( e.what() ) );
                         errorCount++;
                     }
                 } });
@@ -435,26 +435,44 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
         auto endTime = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 
-        std::cout << "High concurrency stress test completed in " << duration << " ms" << std::endl;
-        std::cout << "  Inserts: " << insertCount << std::endl;
-        std::cout << "  Selects: " << selectCount << std::endl;
-        std::cout << "  Updates: " << updateCount << std::endl;
-        std::cout << "  Errors: " << errorCount << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "High concurrency stress test completed in " + std::to_string(duration) + " ms");
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Inserts: " + std::to_string(insertCount.load()));
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Selects: " + std::to_string(selectCount.load()));
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Updates: " + std::to_string(updateCount.load()));
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Errors: " + std::to_string(errorCount.load()));
         if (duration > 0)
         {
-            std::cout << "  Operations per second: " << ((insertCount + selectCount + updateCount) * 1000.0 / static_cast<double>(duration)) << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Operations per second: " + std::to_string((insertCount + selectCount + updateCount) * 1000.0 / static_cast<double>(duration)));
         }
-
-        // Clean up
-        auto cleanupConn = pool->getRelationalDBConnection();
-        cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_stress_test");
-        cleanupConn->returnToPool();
 
         // Most operations should succeed
         int totalOps = insertCount + selectCount + updateCount;
-        REQUIRE(totalOps > numThreads * opsPerThread * 0.8); // At least 80% success rate
+        REQUIRE(totalOps > numThreads * opsPerThread * 0.95); // At least 95% success rate
     }
 
+    /**
+     * @warning HELGRIND / VALGRIND PERFORMANCE NOTE
+     *
+     * This section is the PRIMARY cause of extreme slowness when running under
+     * Helgrind or Valgrind. Root cause:
+     *
+     *   PostgreSQL uses a process-per-connection model (not threads). Each call to
+     *   DriverManager::getDBConnection() forces the PostgreSQL server to fork() a
+     *   new backend process. Under Helgrind/Valgrind, EVERY fork triggers a full
+     *   re-instrumentation of the child process memory, which costs ~1-5 seconds
+     *   per connection.
+     *
+     *   This section creates 10 threads x 10 raw connections = 100 raw connections,
+     *   all without a pool (no connection reuse). That means 100 PostgreSQL forks,
+     *   each instrumented by Helgrind individually.
+     *
+     *   Measured impact:
+     *   - Without this section: ~50s total for the full TEST_CASE (all sections)
+     *   - With this section:    ~3:14 - 4:09 per run (~18:33 total for 5 runs)
+     *
+     * This test is valid for correctness testing; disable it during
+     * Helgrind/Valgrind runs to avoid prohibitive overhead.
+     */
     SECTION("Rapid connection open/close stress test")
     {
         const int numThreads = 10;
@@ -472,21 +490,21 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
                     try
                     {
                         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
-                        
+
                         // Do a simple operation
                         auto rs = conn->executeQuery("SELECT 1 as test");
                         if (rs->next())
                         {
                             rs->getInt("test");
                         }
-                        
+
                         conn->close();
                         successCount++;
                     }
                     catch (const std::exception& e)
                     {
                         errorCount++;
-                        std::cerr << "Connection error: " << e.what() << std::endl;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection error: " + std::string(e.what()));
                     }
                 } });
         }
@@ -496,9 +514,9 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
             t.join();
         }
 
-        std::cout << "Rapid connection test: " << successCount << " successes, " << errorCount << " errors" << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Rapid connection test: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
-        REQUIRE(successCount > numThreads * connectionsPerThread * 0.9); // At least 90% success rate
+        REQUIRE(successCount > numThreads * connectionsPerThread * 0.95); // At least 95% success rate
     }
 }
 

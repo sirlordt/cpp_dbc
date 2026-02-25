@@ -23,6 +23,8 @@
 
 #include <mutex>
 #include <iostream>
+#include <cstdio>
+#include "cpp_dbc/common/system_utils.hpp"
 
 // Thread-safety macros for conditional mutex locking
 // Using recursive_mutex to allow the same thread to acquire the lock multiple times
@@ -39,9 +41,21 @@
 
 // Debug output is controlled by -DDEBUG_SQLITE=1 or -DDEBUG_ALL=1 CMake option
 #if (defined(DEBUG_SQLITE) && DEBUG_SQLITE) || (defined(DEBUG_ALL) && DEBUG_ALL)
-#define SQLITE_DEBUG(x) std::cout << "[SQLite] " << x << std::endl
+#define SQLITE_DEBUG(format, ...)                                                     \
+    do                                                                                \
+    {                                                                                 \
+        char debug_buffer[1024];                                                      \
+        int sqlite_debug_n = std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__); \
+        if (sqlite_debug_n >= static_cast<int>(sizeof(debug_buffer)))                \
+        {                                                                             \
+            static constexpr const char sq_trunc[] = "...[TRUNCATED]";              \
+            std::memcpy(debug_buffer + sizeof(debug_buffer) - sizeof(sq_trunc),      \
+                        sq_trunc, sizeof(sq_trunc));                                  \
+        }                                                                             \
+        cpp_dbc::system_utils::logWithTimesMillis("SQLite", debug_buffer);            \
+    } while (0)
 #else
-#define SQLITE_DEBUG(x)
+#define SQLITE_DEBUG(...) ((void)0)
 #endif
 
 #endif // USE_SQLITE

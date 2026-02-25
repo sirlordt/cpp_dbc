@@ -97,7 +97,9 @@
   - `std::thread` for background maintenance tasks
   - `std::mutex` and `std::lock_guard` for thread synchronization
   - `std::condition_variable` for thread signaling
-  - `std::atomic` for thread-safe counters
+  - `std::atomic<int64_t>` for lock-free last-used time in pooled connections (`m_lastUsedTimeNs`, nanoseconds since epoch) — portable to ARM32/MIPS, unlike `std::atomic<time_point>`
+  - `std::atomic<bool>` for driver closed-state flags (e.g., MySQL `m_closed`) — allows lock-free reads outside connection mutex
+  - `std::atomic<int>` for pool-level counters (`m_activeConnections`)
 
 ## Development Setup
 
@@ -136,7 +138,9 @@ The project uses:
   - Internal headers (`*_internal.hpp`) contain shared declarations and definitions
   - Split files: `driver_*.cpp`, `connection_*.cpp`, `prepared_statement_*.cpp`, `result_set_*.cpp`
   - MongoDB-specific: `collection_*.cpp`, `cursor_*.cpp`, `document_*.cpp`
-  - Benefits: faster incremental compilation, better code organization, easier navigation
+  - File counts per relational driver: MySQL (4 result_set, 3 prepared_statement, 3 connection), PostgreSQL (4 result_set), SQLite (5 result_set), Firebird (5 result_set, 4 prepared_statement, 4 connection)
+  - Canonical method ordering across all result sets: `close` → `isEmpty` → `next` → navigation → type accessors (by-index/by-name interleaved) → metadata → blob/binary (separate file)
+  - Benefits: faster incremental compilation, better code organization, easier navigation, consistent structure across drivers
 - **Developer Documentation:**
   - `libs/cpp_dbc/docs/how_add_new_db_drivers.md`: Comprehensive guide for adding new database drivers (5 phases)
   - `libs/cpp_dbc/docs/error_handling_patterns.md`: Complete guide to DBException, error codes, and nothrow API
@@ -147,7 +151,8 @@ The project uses:
   - `--examples`: Build example applications
   - `--test`: Build unit tests
   - `--release`: Build in Release mode instead of Debug mode
-  - `--dw-off`: Disable libdw support for stack traces
+  - `--dw-on`: Enable libdw support for stack traces (opt-in; default for tests is OFF since 2026-02-22)
+  - `--dw-off`: Disable libdw support for stack traces (no-op; already disabled by default)
   - `--debug-pool`: Enable debug output for ConnectionPool
   - `--debug-txmgr`: Enable debug output for TransactionManager
   - `--debug-sqlite`: Enable debug output for SQLite driver
@@ -156,7 +161,8 @@ The project uses:
   - `--debug-redis`: Enable debug output for Redis driver
   - `--debug-all`: Enable all debug output at once (simplifies debugging across multiple components)
   - `--db-driver-thread-safe-off`: Disable thread-safe database driver operations (for single-threaded performance)
-  - `--asan`: Enable AddressSanitizer (with known issues, see asan_issues.md)
+  - `--asan`: Enable AddressSanitizer via `ENABLE_ASAN=ON` CMake option (compile/link flags added directly in CMakeLists.txt; see asan_issues.md for known issues)
+  - `--tsan`: Enable ThreadSanitizer via `ENABLE_TSAN=ON` CMake option (compile/link flags added directly in CMakeLists.txt)
 - Parallel test execution options (via `helper.sh --run-test=...`):
   - `parallel=N`: Run N test prefixes (10_, 20_, 21_, etc.) in parallel
   - `parallel-order=P1_,P2_,...`: Prioritize specific prefixes to run first
@@ -373,7 +379,7 @@ The project now includes an automatic synchronization system for IntelliSense:
   - Used for enhanced error reporting and debugging
   - Automatically detects and uses available unwinding methods
   - Support for libdw (part of elfutils) for enhanced stack trace information
-  - Configurable with `BACKWARD_HAS_DW` option and `--dw-off` build flag
+  - Configurable with `BACKWARD_HAS_DW` option; `--dw-on` opt-in (default for tests is OFF)
   - Header: `cpp_dbc/backward.hpp`
   - Special handling to silence -Wundef warnings
 
@@ -381,8 +387,8 @@ The project now includes an automatic synchronization system for IntelliSense:
   - Optional dependency for enhanced stack trace information
   - Provides detailed function names, file paths, and line numbers in stack traces
   - Automatically detected and installed by build scripts when needed
-  - Can be disabled with `--dw-off` option in build scripts
-  - Only required when building with stack trace support enabled
+  - Disabled by default in test builds (increases link time; use `--dw-on` to enable)
+  - Only required when building with enhanced stack trace support
 
 ### Standard Library Dependencies
 - `<string>`: For string handling
@@ -496,7 +502,7 @@ The project now includes an automatic synchronization system for IntelliSense:
 - Stack traces provide detailed information about the call chain leading to the error
 - Consider logging both the error message and stack trace for production debugging
 - Use the `what_s()` method instead of `what()` to avoid issues with unsafe `const char*` pointers
-- Stack traces are enhanced when libdw support is enabled (default)
+- Stack traces are enhanced when libdw support is enabled (`--dw-on`; disabled by default in test builds)
 - For manual stack trace capture and printing, use:
   ```cpp
   auto frames = cpp_dbc::system_utils::captureCallStack(true);  // true to skip irrelevant frames

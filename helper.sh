@@ -58,12 +58,12 @@ show_usage() {
   echo "  --run-build              Build via ./build.sh, logs to build/run-build-<timestamp>.log"
   echo "  --run-build=OPTIONS      Build with comma-separated options"
   echo "                           Available options: clean,release,gcc-analyzer,postgres,mysql,mysql-off,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
   echo "                           Example: --run-build=clean,sqlite,yaml,test,debug-pool"
   echo "  --run-build-dist         Build via ./build.dist.sh, logs to build/run-build-dist-<timestamp>.log"
   echo "  --run-build-dist=OPTIONS Build dist with comma-separated options"
   echo "                           Available options: clean,release,postgres,mysql,mysql-off,sqlite,firebird,mongodb,scylladb,redis,yaml,test,examples,"
-  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
+  echo "                           debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off,benchmarks"
   echo "                           Example: --run-build-dist=clean,sqlite,yaml,test,debug-sqlite"
   echo "  --check-test-log         Check the most recent test log file in logs/test/ for failures and memory issues"
   echo "  --check-test-log=PATH    Check the specified test log file for failures and memory issues"
@@ -74,11 +74,15 @@ show_usage() {
   echo "  --clean-conan-cache      Clear Conan local cache"
   echo "  --run-test               Build (if needed) and run the tests"
   echo "  --run-test=OPTIONS       Run tests with comma-separated options"
-  echo "                           Available options: clean,release,gcc-analyzer,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,valgrind,"
-  echo "                                              yaml,auto,asan,ctest,check,progress,run=N,parallel=N,test=FILTER,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
+  echo "                           Available options: clean,release,gcc-analyzer,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,valgrind,helgrind,helgrind-gs,helgrind-s,drd,drd-gs,drd-s,"
+  echo "                                              yaml,auto,asan,tsan,ctest,check,progress,run=N,parallel=N,test=FILTER,"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-on,db-driver-thread-safe-off"
+  echo "                           Note: dw (libdw stack traces) is DISABLED by default for tests. Use dw-on to enable it."
   echo "                           Test filter formats (test=FILTER):"
-  echo "                             - Wildcard: test=*mysql* matches test names containing 'mysql'"
+  echo "                             - Prefix: test=20_* runs all tests starting with '20_'"
+  echo "                             - Contains: test=*mysql* matches test names containing 'mysql'"
+  echo "                             - Suffix: test=*firebird matches test names ending with 'firebird'"
+  echo "                             - Complex: test=20_*Mysql*_10 matches complex patterns"
   echo "                             - Tags: test=tag1+tag2 runs tests with those specific tags"
   echo "                           Parallel execution (parallel=N):"
   echo "                             - Runs N test prefixes (10_, 20_, 21_, etc.) in parallel"
@@ -93,10 +97,17 @@ show_usage() {
   echo "                               with 23_ and 24_ starting first"
   echo "                           Example: --run-test=rebuild,mysql,valgrind,run=1,test=*mysql*"
   echo "                           Example: --run-test=rebuild,sqlite,valgrind,run=3,test=integration+mysql_real_right_join"
+  echo "                           Example: --run-test=rebuild,mysql,auto,test=20_*"
+  echo "                           Example: --run-test=rebuild,sqlite,auto,test=*firebird"
+  echo "                           Example: --run-test=rebuild,postgres,auto,test=21_*Prepared*"
   echo "                           Example: --run-test=clean,rebuild,sqlite,mysql,postgres,yaml,valgrind,auto,run=1"
   echo "                           Example: --run-test=rebuild,sqlite,mysql,postgres,yaml,auto,progress,run=1"
   echo "                           Example: --run-test=rebuild,sqlite,postgres,mysql,valgrind,auto,parallel=3,run=2"
   echo "                           Example: --run-test=rebuild,sqlite,mysql,valgrind,auto,parallel=5,parallel-order=23_,24_,run=2"
+  echo "                           Example: --run-test=rebuild,sqlite,postgres,mysql,helgrind-gs,auto,run=1  (generate Helgrind suppressions)"
+  echo "                           Example: --run-test=rebuild,sqlite,postgres,mysql,helgrind-s,auto,run=1   (use Helgrind custom suppressions)"
+  echo "                           Example: --run-test=rebuild,sqlite,postgres,mysql,drd-gs,auto,run=1       (generate DRD suppressions)"
+  echo "                           Example: --run-test=rebuild,sqlite,postgres,mysql,drd-s,auto,run=1        (use DRD custom suppressions)"
   echo "                           Note: progress option shows visual progress bar on 2 lines:"
   echo "                                 Line 1: [Run: 1/5] [Test: 3/10] name ██████████░░░░░░░░░░ 30% [Elapsed: 00:05:23]"
   echo "                                 Line 2: [Last: previous_test_name 00:01:45]"
@@ -108,7 +119,7 @@ show_usage() {
   echo "  --run-benchmarks=OPTIONS Run benchmarks with comma-separated options"
   echo "                           Available options: clean,release,rebuild,sqlite,firebird,mongodb,scylladb,redis,mysql,mysql-off,postgres,"
   echo "                                              yaml,benchmark=Tag1+Tag2+Tag3,memory-usage,base-line,repetitions=3,iterations=1000,"
-  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
+  echo "                                              debug-pool,debug-txmgr,debug-sqlite,debug-mysql,debug-postgresql,debug-firebird,debug-mongodb,debug-scylladb,debug-redis,debug-all,dw-off,db-driver-thread-safe-off"
   echo "                           Example: --run-benchmarks=mysql,postgresql"
   echo "                           Example: --run-benchmarks=benchmark=update+postgresql"
   echo "                           Example: --run-benchmarks=rebuild,mongodb,yaml,benchmark=mongodb+delete"
@@ -256,6 +267,14 @@ cmd_run_build() {
         build_cmd="$build_cmd --debug-sqlite"
         echo "Enabling debug output for SQLite driver"
         ;;
+      debug-mysql)
+        build_cmd="$build_cmd --debug-mysql"
+        echo "Enabling debug output for MySQL driver"
+        ;;
+      debug-postgresql)
+        build_cmd="$build_cmd --debug-postgresql"
+        echo "Enabling debug output for PostgreSQL driver"
+        ;;
       debug-firebird)
         build_cmd="$build_cmd --debug-firebird"
         echo "Enabling debug output for Firebird driver"
@@ -315,6 +334,8 @@ cmd_run_test() {
   local ts=$(date '+%Y-%m-%d-%H-%M-%S_%z')
   # Get current directory
   local current_dir=$(pwd)
+  # Track DB drivers explicitly enabled by the user (used for container restart)
+  local -a enabled_db_drivers=()
 
   # Check if parallel mode is requested
   local parallel_count=0
@@ -392,30 +413,55 @@ cmd_run_test() {
           ;;
         sqlite)
           run_test_cmd="$run_test_cmd --sqlite"
+          enabled_db_drivers+=("sqlite")
           ;;
         firebird)
           run_test_cmd="$run_test_cmd --firebird"
+          enabled_db_drivers+=("firebird")
           ;;
         mongodb)
           run_test_cmd="$run_test_cmd --mongodb"
+          enabled_db_drivers+=("mongodb")
           ;;
         scylladb)
           run_test_cmd="$run_test_cmd --scylladb"
+          enabled_db_drivers+=("scylladb")
           ;;
         redis)
           run_test_cmd="$run_test_cmd --redis"
+          enabled_db_drivers+=("redis")
           ;;
         mysql)
           run_test_cmd="$run_test_cmd --mysql"
+          enabled_db_drivers+=("mysql")
           ;;
         mysql-off)
           run_test_cmd="$run_test_cmd --mysql-off"
           ;;
         postgres)
           run_test_cmd="$run_test_cmd --postgres"
+          enabled_db_drivers+=("postgres")
           ;;
         valgrind)
           run_test_cmd="$run_test_cmd --valgrind"
+          ;;
+        helgrind)
+          run_test_cmd="$run_test_cmd --helgrind"
+          ;;
+        helgrind-gs)
+          run_test_cmd="$run_test_cmd --helgrind-gs"
+          ;;
+        helgrind-s)
+          run_test_cmd="$run_test_cmd --helgrind-s"
+          ;;
+        drd)
+          run_test_cmd="$run_test_cmd --drd"
+          ;;
+        drd-gs)
+          run_test_cmd="$run_test_cmd --drd-gs"
+          ;;
+        drd-s)
+          run_test_cmd="$run_test_cmd --drd-s"
           ;;
         yaml)
           run_test_cmd="$run_test_cmd --yaml"
@@ -428,6 +474,9 @@ cmd_run_test() {
           ;;
         asan)
           run_test_cmd="$run_test_cmd --asan"
+          ;;
+        tsan)
+          run_test_cmd="$run_test_cmd --tsan"
           ;;
         ctest)
           run_test_cmd="$run_test_cmd --ctest"
@@ -451,6 +500,14 @@ cmd_run_test() {
           run_test_cmd="$run_test_cmd --debug-sqlite"
           echo "Enabling debug output for SQLite driver"
           ;;
+        debug-mysql)
+          run_test_cmd="$run_test_cmd --debug-mysql"
+          echo "Enabling debug output for MySQL driver"
+          ;;
+        debug-postgresql)
+          run_test_cmd="$run_test_cmd --debug-postgresql"
+          echo "Enabling debug output for PostgreSQL driver"
+          ;;
         debug-firebird)
           run_test_cmd="$run_test_cmd --debug-firebird"
           echo "Enabling debug output for Firebird driver"
@@ -471,9 +528,12 @@ cmd_run_test() {
           run_test_cmd="$run_test_cmd --debug-all"
           echo "Enabling all debug output"
           ;;
+        dw-on)
+          run_test_cmd="$run_test_cmd --dw-on"
+          echo "Enabling libdw support for stack traces"
+          ;;
         dw-off)
-          run_test_cmd="$run_test_cmd --dw-off"
-          echo "Disabling libdw support for stack traces"
+          echo "Note: libdw is disabled by default for tests. dw-off is a no-op."
           ;;
         db-driver-thread-safe-off)
           run_test_cmd="$run_test_cmd --db-driver-thread-safe-off"
@@ -501,6 +561,12 @@ cmd_run_test() {
     echo "Setting test tags to: $test_tags"
   fi
 
+  # Restart DB containers for enabled drivers before any test execution.
+  # This runs outside the TUI so output is clear and sequential.
+  if [ ${#enabled_db_drivers[@]} -gt 0 ]; then
+    restart_db_containers_for_test "${enabled_db_drivers[@]}"
+  fi
+
   # If parallel mode is enabled, use the parallel runner
   if [ "$parallel_count" -gt 0 ]; then
     echo "Using parallel test runner with $parallel_count concurrent test prefixes"
@@ -519,8 +585,17 @@ cmd_run_test() {
     parallel_cmd="$parallel_cmd $test_args"
 
     echo "Running: $parallel_cmd"
-    $parallel_cmd
-    return $?
+    # Use || to prevent set -e from exiting when tests fail (non-zero exit is expected)
+    local _parallel_exit=0
+    $parallel_cmd || _parallel_exit=$?
+
+    # Send notification after parallel run completes (always runs, even when tests fail)
+    local _latest_report
+    _latest_report=$(find "$current_dir/logs/test" -maxdepth 2 -name "final_report.log" \
+        -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+    send_test_notification "$current_dir" "${_latest_report:-}" "$_parallel_exit"
+
+    return $_parallel_exit
   fi
 
   # Normal (non-parallel) test execution continues below
@@ -614,6 +689,9 @@ cmd_run_test() {
   # Usar bash -c para ejecutar el comando en un nuevo shell
   bash -c "./helper.sh --check-test-log=\"$log_file\""
   echo "========== End of Test Log Check =========="
+
+  # Send notification for non-parallel run (no final_report.log available)
+  send_test_notification "$current_dir" "" "0"
 }
 
 # Helper function to extract available test cases from log file
@@ -1256,6 +1334,14 @@ cmd_run_benchmarks() {
           run_benchmark_cmd="$run_benchmark_cmd --debug-sqlite"
           echo "Enabling debug output for SQLite driver"
           ;;
+        debug-mysql)
+          run_benchmark_cmd="$run_benchmark_cmd --debug-mysql"
+          echo "Enabling debug output for MySQL driver"
+          ;;
+        debug-postgresql)
+          run_benchmark_cmd="$run_benchmark_cmd --debug-postgresql"
+          echo "Enabling debug output for PostgreSQL driver"
+          ;;
         debug-firebird)
           run_benchmark_cmd="$run_benchmark_cmd --debug-firebird"
           echo "Enabling debug output for Firebird driver"
@@ -1636,6 +1722,14 @@ cmd_run_build_dist() {
       debug-sqlite)
         build_cmd="$build_cmd --debug-sqlite"
         echo "Enabling debug output for SQLite driver"
+        ;;
+      debug-mysql)
+        build_cmd="$build_cmd --debug-mysql"
+        echo "Enabling debug output for MySQL driver"
+        ;;
+      debug-postgresql)
+        build_cmd="$build_cmd --debug-postgresql"
+        echo "Enabling debug output for PostgreSQL driver"
         ;;
       debug-firebird)
         build_cmd="$build_cmd --debug-firebird"

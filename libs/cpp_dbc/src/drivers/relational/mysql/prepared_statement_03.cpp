@@ -34,6 +34,67 @@
 namespace cpp_dbc::MySQL
 {
 
+    cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept
+    {
+        try
+        {
+
+            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+
+            if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_binds.size()))
+            {
+                return cpp_dbc::unexpected(DBException("D1E2F3G4H5I6", "Invalid parameter index for setBlob", system_utils::captureCallStack()));
+            }
+
+            int idx = parameterIndex - 1;
+
+            // Store the blob object to keep it alive
+            m_blobObjects[idx] = x;
+
+            if (!x)
+            {
+                auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
+                if (!nullResult.has_value())
+                {
+                    return cpp_dbc::unexpected(nullResult.error());
+                }
+                return {};
+            }
+
+            // Get the blob data
+            std::vector<uint8_t> data = x->getBytes(0, x->length());
+
+            // Store the data in our vector to keep it alive
+            m_blobValues[idx] = std::move(data);
+
+            m_binds[idx].buffer_type = MYSQL_TYPE_BLOB;
+            m_binds[idx].buffer = m_blobValues[idx].data();
+            m_binds[idx].buffer_length = m_blobValues[idx].size();
+            m_binds[idx].is_null = nullptr;
+            m_binds[idx].length = nullptr;
+
+            // Store parameter value for query reconstruction (with proper escaping)
+            m_parameterValues[idx] = "BINARY DATA";
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("C8D4E0F6A3B9",
+                                                   std::string("setBlob failed: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("C8D4E0F6A3BA",
+                                                   "setBlob failed: unknown error",
+                                                   system_utils::captureCallStack()));
+        }
+    }
+
     cpp_dbc::expected<void, DBException> MySQLDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept
     {
         try

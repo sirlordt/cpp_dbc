@@ -40,6 +40,14 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
     // Get SQLite configuration using the helper function
     auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite");
 
+    // CRITICAL: Cleanup SQLite database files before test to prevent "readonly database" errors
+    // under Helgrind/Valgrind when running multiple iterations (WAL mode issue)
+    // Only cleanup if using file-based database (not :memory:)
+    if (dbConfig.getDatabase() != ":memory:")
+    {
+        // sqlite_test_helpers::cleanupSQLiteTestFiles(dbConfig.getDatabase());
+    }
+
     // Get connection string directly from the database config
     std::string connStr = dbConfig.createConnectionString();
 
@@ -49,9 +57,11 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
     try
     {
         // Attempt to connect to SQLite
-        std::cout << "Attempting to connect to SQLite with connection string: " << connStr << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to SQLite with connection string: " + connStr);
 
         auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
+
+        // std::this_thread::sleep_for(std::chrono::seconds(3));
 
         // Create test tables
         conn->executeUpdate("DROP TABLE IF EXISTS test_orders");
@@ -117,6 +127,10 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
             customerStmt->executeUpdate();
         }
 
+        // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+        // to prevent resource leaks and file locks
+        customerStmt->close();
+
         // Insert data into test_products
         auto productStmt = conn->prepareStatement(
             "INSERT INTO test_products (product_id, name, description, price, stock_quantity, is_active) "
@@ -144,6 +158,10 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
             productStmt->setBoolean(6, id % 2 == 1); // Odd IDs are active
             productStmt->executeUpdate();
         }
+
+        // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+        // to prevent resource leaks and file locks
+        productStmt->close();
 
         // Insert data into test_orders
         auto orderStmt = conn->prepareStatement(
@@ -190,6 +208,10 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
             orderStmt->executeUpdate();
         }
 
+        // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
+        // to prevent resource leaks and file locks
+        orderStmt->close();
+
         SECTION("Basic INNER JOIN")
         {
             // Test INNER JOIN between customers and orders
@@ -226,6 +248,10 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
             }
 
             REQUIRE(rowCount == expectedResults.size());
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
         }
 
         SECTION("Three-table INNER JOIN")
@@ -265,6 +291,10 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
             }
 
             REQUIRE(rowCount == expectedResults.size());
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
         }
 
         SECTION("INNER JOIN with WHERE clause")
@@ -301,6 +331,10 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
             }
 
             REQUIRE(rowCount == expectedResults.size());
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
         }
 
         SECTION("INNER JOIN with invalid column")
@@ -312,7 +346,8 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
                 "INNER JOIN test_orders o ON c.customer_id = o.customer_id";
 
             // This should throw an exception
-            REQUIRE_THROWS_AS(conn->executeQuery(query), cpp_dbc::DBException);
+            // REQUIRE_THROWS_AS(conn->executeQuery(query), cpp_dbc::DBException);
+            REQUIRE_FALSE(conn->executeQuery(std::nothrow, query).has_value());
         }
 
         SECTION("INNER JOIN with type mismatch")
@@ -326,12 +361,16 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
             // This should execute but return no results due to type mismatch
             auto rs = conn->executeQuery(query);
             REQUIRE_FALSE(rs->next());
+
+            // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
+            // to prevent resource leaks and file locks
+            rs->close();
         }
 
         // Clean up
-        conn->executeUpdate("DROP TABLE IF EXISTS test_orders");
-        conn->executeUpdate("DROP TABLE IF EXISTS test_products");
-        conn->executeUpdate("DROP TABLE IF EXISTS test_customers");
+        // conn->executeUpdate("DROP TABLE IF EXISTS test_orders");
+        // conn->executeUpdate("DROP TABLE IF EXISTS test_products");
+        // conn->executeUpdate("DROP TABLE IF EXISTS test_customers");
 
         // Close the connection
         conn->close();
@@ -339,7 +378,7 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
     catch (const cpp_dbc::DBException &e)
     {
         std::string errorMsg = e.what_s();
-        std::cout << "SQLite real database error: " << errorMsg << std::endl;
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite real database error: " + errorMsg);
         FAIL("SQLite real database test failed: " + std::string(e.what_s()));
     }
 }

@@ -23,6 +23,7 @@ TUI_ACTIVE=false  # Track if TUI has been initialized (for cleanup)
 GLOBAL_START_TIME=0
 SUMMARIZE_MODE=false
 SUMMARIZE_FOLDER=""
+USER_TEST_FILTER=""  # User-specified test filter (wildcard pattern)
 
 # Arguments to pass to run_test.sh (everything except --parallel)
 # Using array to avoid word-splitting and glob expansion issues
@@ -35,17 +36,25 @@ LOG_DIR="$SCRIPT_DIR/logs/test/$TIMESTAMP"
 TEST_TIMEOUT_SECONDS=300  # 5 minutes
 
 # Associative arrays for tracking
-declare -A PREFIX_PIDS          # PID for each running prefix
-declare -A PREFIX_CURRENT_RUN   # Current run number for each prefix
-declare -A PREFIX_STATUS        # Status: pending, running, completed, failed
-declare -A PREFIX_LOG_FILE      # Log file path for current run
-declare -A PREFIX_LOG_FILE_ANSI # ANSI log file path (in /tmp) for current run
-declare -A PREFIX_START_TIME    # Start time (epoch seconds) for current run
-declare -A PREFIX_FAIL_REASON   # Failure reason (Valgrind error message, etc.)
-declare -A PREFIX_TOTAL_TESTS   # Total test count per prefix (known after Run 1)
-declare -A PREFIX_LAST_LOG_SIZE # Last known log file size (for timeout detection)
-declare -A PREFIX_LAST_ACTIVITY # Last time (epoch) log file changed
-declare -a ALL_PREFIXES         # Array of all test prefixes
+declare -A PREFIX_PIDS            # PID for each running prefix
+declare -A PREFIX_CURRENT_RUN     # Current run number for each prefix
+declare -A PREFIX_STATUS          # Status: pending, running, completed, failed
+declare -A PREFIX_LOG_FILE        # Log file path for current run
+declare -A PREFIX_LOG_FILE_ANSI   # ANSI log file path (in /tmp) for current run
+declare -A PREFIX_START_TIME      # Start time (epoch seconds) for current run
+declare -A PREFIX_FAIL_REASON     # Failure reason (Valgrind error message, etc.)
+declare -A PREFIX_TOTAL_TESTS     # Total test count per prefix (known after Run 1)
+declare -A PREFIX_LAST_LOG_SIZE   # Last known log file size (for timeout detection)
+declare -A PREFIX_LAST_ACTIVITY   # Last time (epoch) log file changed
+declare -A PREFIX_HELGRIND_WARNING # Helgrind internal crash warnings (non-fatal)
+declare -a ALL_PREFIXES           # Array of all test prefixes
+
+# Cooldown tracking between runs
+LAST_COOLDOWN_RUN=0               # Track last run where cooldown was performed
+COOLDOWN_SECONDS=10               # Seconds to wait between completed runs
+
+# Clock jump detection (protects against NTP corrections and VM suspend/resume)
+LAST_LOOP_TIME=0                  # Timestamp of previous main loop iteration
 
 # TUI variables
 SELECTED_INDEX=0
@@ -87,6 +96,12 @@ parse_arguments() {
                 PASS_THROUGH_ARGS+=("$1")
                 shift
                 ;;
+            --run-test=*)
+                # Extract user test filter (wildcard pattern)
+                USER_TEST_FILTER="${1#*=}"
+                # Don't pass this to PASS_THROUGH_ARGS, we'll handle it specially
+                shift
+                ;;
             --help)
                 echo "Usage: $0 --parallel=N [run_test.sh options]"
                 echo ""
@@ -100,12 +115,32 @@ parse_arguments() {
                 echo "  --summarize=FOLDER  Show summary of a specific test run folder"
                 echo "                      (e.g., --summarize=2026-01-28-14-35-42)"
                 echo ""
+                echo "Test filter options:"
+                echo "  --run-test=PATTERN  Run only tests matching the wildcard pattern"
+                echo "                      Examples:"
+                echo "                        --run-test=*mysql*     (tests containing 'mysql')"
+                echo "                        --run-test=20_*        (tests starting with '20_')"
+                echo "                        --run-test=*firebird   (tests ending with 'firebird')"
+                echo "                        --run-test=20_*Mysql*_10  (complex pattern)"
+                echo ""
                 echo "All other options are passed directly to run_test.sh"
+                echo ""
+                echo "Valgrind options:"
+                echo "  --valgrind      Memcheck (memory error detector)"
+                echo "  --helgrind      Helgrind (thread error detector)"
+                echo "  --helgrind-gs   Helgrind with suppression generation mode"
+                echo "  --helgrind-s    Helgrind with custom suppressions (libs/cpp_dbc/valgrind/helgrind/suppression.conf)"
+                echo "  --drd           DRD (thread error detector - alternative to helgrind)"
+                echo "  --drd-gs        DRD with suppression generation mode"
+                echo "  --drd-s         DRD with custom suppressions (libs/cpp_dbc/valgrind/drd/suppression.conf)"
                 echo ""
                 echo "Example:"
                 echo "  $0 --parallel=3 --sqlite --postgres --mysql --valgrind --auto --run=2"
-                echo "  $0 --parallel=3 --progress --sqlite --mysql --auto"
+                echo "  $0 --parallel=3 --sqlite --postgres --mysql --helgrind --auto --run=2"
+                echo "  $0 --parallel=3 --progress --sqlite --mysql --drd --auto"
                 echo "  $0 --parallel=5 --parallel-order=23_,24_ --sqlite --mysql --auto"
+                echo "  $0 --parallel=3 --run-test=*mysql* --sqlite --auto"
+                echo "  $0 --parallel=2 --run-test=20_* --sqlite --postgres --auto"
                 echo "  $0 --summarize"
                 echo "  $0 --summarize=2026-01-28-14-35-42"
                 exit 0
@@ -173,8 +208,53 @@ discover_prefixes() {
     IFS=$'\n' sorted=($(sort -n <<<"${prefixes[*]}")); unset IFS
     ALL_PREFIXES=("${sorted[@]}")
 
+    # Filter prefixes based on user test filter if provided
+    if [ -n "$USER_TEST_FILTER" ]; then
+        filter_prefixes_by_pattern
+    fi
+
     if [ "$SHOW_TUI" = false ]; then
-        echo "Discovered ${#ALL_PREFIXES[@]} test prefixes: ${ALL_PREFIXES[*]}"
+        if [ -n "$USER_TEST_FILTER" ]; then
+            echo "Discovered ${#ALL_PREFIXES[@]} test prefixes matching filter '$USER_TEST_FILTER': ${ALL_PREFIXES[*]}"
+        else
+            echo "Discovered ${#ALL_PREFIXES[@]} test prefixes: ${ALL_PREFIXES[*]}"
+        fi
+    fi
+}
+
+# Filter prefixes based on user test filter pattern
+# Modifies ALL_PREFIXES array to only include matching prefixes
+filter_prefixes_by_pattern() {
+    local filtered_prefixes=()
+
+    # If user filter contains + (tag-based), don't filter by prefix
+    # Tags can match tests across multiple prefixes
+    if [[ "$USER_TEST_FILTER" == *"+"* ]]; then
+        # Tag-based filter, keep all prefixes (each prefix will filter by tags)
+        return
+    fi
+
+    # Check if user filter starts with a specific prefix (e.g., "20_*")
+    local starts_with_prefix=false
+    for prefix in "${ALL_PREFIXES[@]}"; do
+        if [[ "$USER_TEST_FILTER" == "${prefix}_"* ]]; then
+            # User specified a specific prefix, only include that one
+            filtered_prefixes+=("$prefix")
+            starts_with_prefix=true
+            break  # Only one prefix can match, stop searching
+        fi
+    done
+
+    # If no specific prefix was found, and pattern contains wildcards,
+    # include all prefixes (each will filter its tests by the pattern)
+    if [ "$starts_with_prefix" = false ] && [[ "$USER_TEST_FILTER" == *"*"* ]]; then
+        # Pure wildcard pattern like "*mysql*", keep all prefixes
+        return
+    fi
+
+    # If filter resulted in specific prefixes, use them; otherwise keep all
+    if [ ${#filtered_prefixes[@]} -gt 0 ]; then
+        ALL_PREFIXES=("${filtered_prefixes[@]}")
     fi
 }
 
@@ -425,7 +505,37 @@ start_test() {
     PREFIX_LAST_LOG_SIZE[$prefix]=0
     PREFIX_LAST_ACTIVITY[$prefix]=$(date +%s)
 
-    local filter="${prefix}_*"
+    # Determine the filter to use:
+    # If user provided a filter (e.g., --run-test=*mysql*), combine it with the prefix filter
+    # Otherwise, just use the prefix filter (e.g., 20_*)
+    local filter
+    if [ -n "$USER_TEST_FILTER" ]; then
+        # Check if user filter already includes the prefix
+        # This allows users to specify exact patterns like "20_*mysql*" or just "*mysql*"
+        if [[ "$USER_TEST_FILTER" == "${prefix}_"* ]]; then
+            # User already specified the prefix, use their filter as-is
+            filter="$USER_TEST_FILTER"
+        elif [[ "$USER_TEST_FILTER" == *"*"* ]] || [[ "$USER_TEST_FILTER" == *"+"* ]]; then
+            # User specified a wildcard pattern or tag list
+            # For wildcards: combine prefix with user pattern (e.g., 20_ + *mysql* = 20_*mysql*)
+            # For tags: pass through as-is (tags don't need prefix filtering)
+            if [[ "$USER_TEST_FILTER" == *"+"* ]]; then
+                # Tag-based filter (e.g., "tag1+tag2"), pass through as-is
+                filter="$USER_TEST_FILTER"
+            else
+                # Wildcard pattern: combine with prefix
+                # Remove leading * from user filter if present to avoid double wildcards
+                local user_pattern="${USER_TEST_FILTER#\*}"
+                filter="${prefix}_*${user_pattern}"
+            fi
+        else
+            # User specified a simple string, treat as contains pattern for this prefix
+            filter="${prefix}_*${USER_TEST_FILTER}*"
+        fi
+    else
+        # No user filter, use default prefix filter
+        filter="${prefix}_*"
+    fi
 
     # Filter out --clean and --rebuild from pass-through args for individual tests
     # These flags are only used during the initial build, not per-test execution
@@ -449,7 +559,7 @@ start_test() {
         --skip-build              # Skip build (already done)
         --auto                    # Non-interactive mode
         --run=1                   # Single run (we manage runs)
-        "--run-test=$filter"      # Filter for this prefix
+        "--run-test=$filter"      # Filter for this prefix (combined with user filter if provided)
     )
 
     # For logging purposes, create a display string
@@ -526,6 +636,32 @@ check_test_completion() {
     return 0  # Completed
 }
 
+# Detect wall-clock jumps (NTP correction, VM suspend/resume) and reset activity
+# timers to prevent false timeouts. Must be called once per main loop iteration.
+# A jump is detected when the delta between two consecutive iterations is much
+# larger than the expected sleep interval (0.5s). Threshold: 30s.
+detect_and_handle_clock_jump() {
+    local current_time
+    current_time=$(date +%s)
+
+    if [ "$LAST_LOOP_TIME" -gt 0 ]; then
+        local delta=$((current_time - LAST_LOOP_TIME))
+        if [ "$delta" -gt 30 ]; then
+            # Clock jumped forward (NTP fix after VM restore with stale RTC clock).
+            # Reset all running tests' activity timestamps so the timeout checker
+            # uses the corrected clock baseline and does not fire spuriously.
+            for prefix in "${ALL_PREFIXES[@]}"; do
+                if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
+                    PREFIX_LAST_ACTIVITY[$prefix]=$current_time
+                    PREFIX_LAST_LOG_SIZE[$prefix]=0  # Force size recheck next iteration
+                fi
+            done
+        fi
+    fi
+
+    LAST_LOOP_TIME=$current_time
+}
+
 # Check if a running test has timed out (no log activity for TEST_TIMEOUT_SECONDS)
 # Returns 0 if timed out, 1 if still active
 check_test_timeout() {
@@ -568,7 +704,9 @@ check_test_timeout() {
     return 1  # Not timed out yet
 }
 
-# Kill a test process due to timeout
+# Kill a test process due to timeout.
+# Kills the entire process group (PGID) to reach deep descendants like Helgrind
+# that pkill -P misses (it only kills direct children of the tracked subshell PID).
 kill_test_timeout() {
     local prefix=$1
     local pid="${PREFIX_PIDS[$prefix]}"
@@ -578,19 +716,31 @@ kill_test_timeout() {
         return
     fi
 
-    # Try graceful termination first
-    kill -TERM "$pid" 2>/dev/null || true
+    # Resolve the process group ID so we can kill all descendants at once.
+    # Guard against PGID 0/1 (kernel/init) which would be catastrophic to kill.
+    local pgid
+    pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
 
-    # Also kill child processes
-    pkill -TERM -P "$pid" 2>/dev/null || true
+    if [ -n "$pgid" ] && [ "$pgid" -gt 1 ]; then
+        # Graceful termination of the whole process group
+        kill -TERM -"$pgid" 2>/dev/null || true
+    else
+        # Fallback: kill tracked PID + direct children only
+        kill -TERM "$pid" 2>/dev/null || true
+        pkill -TERM -P "$pid" 2>/dev/null || true
+    fi
 
     # Wait a bit for graceful shutdown
     sleep 2
 
     # Force kill if still running
     if kill -0 "$pid" 2>/dev/null; then
-        kill -KILL "$pid" 2>/dev/null || true
-        pkill -KILL -P "$pid" 2>/dev/null || true
+        if [ -n "$pgid" ] && [ "$pgid" -gt 1 ]; then
+            kill -KILL -"$pgid" 2>/dev/null || true
+        else
+            kill -KILL "$pid" 2>/dev/null || true
+            pkill -KILL -P "$pid" 2>/dev/null || true
+        fi
     fi
 
     # Append timeout message to log file
@@ -658,6 +808,84 @@ all_tests_done() {
     return 0
 }
 
+# Check if all ACTIVE prefixes have completed a specific run number
+# Active = prefixes that have started at least one run (current_run > 0)
+# Returns 0 (success) if ALL active prefixes completed the run and are NOT running
+# Returns 1 (failure) if any active prefix hasn't completed or is still running
+check_run_completed() {
+    local check_run=$1
+
+    # Count active prefixes (those that have run at least once)
+    local active_count=0
+    local completed_count=0
+
+    for prefix in "${ALL_PREFIXES[@]}"; do
+        local current_run=${PREFIX_CURRENT_RUN[$prefix]:-0}
+        local status=${PREFIX_STATUS[$prefix]}
+
+        # Skip prefixes that have never started (current_run=0)
+        if [ $current_run -eq 0 ]; then
+            continue
+        fi
+
+        # This prefix is active
+        ((active_count++))
+
+        # Check if it completed the run we're checking
+        # Prefix completed this run if:
+        # - current_run >= check_run (completed this run or beyond)
+        # - status != "running" (not currently executing)
+        if [ $current_run -ge $check_run ] && [ "$status" != "running" ]; then
+            ((completed_count++))
+        fi
+    done
+
+    # If no active prefixes yet, return false
+    if [ $active_count -eq 0 ]; then
+        return 1
+    fi
+
+    # All active prefixes completed this run
+    [ $completed_count -eq $active_count ]
+}
+
+# Cooldown period between completed runs
+# Waits COOLDOWN_SECONDS before starting the next run
+cooldown_between_runs() {
+    local current_run=$1
+    local next_run=$((current_run + 1))
+
+    # Only perform cooldown if:
+    # 1. There are more runs pending (next_run <= RUN_COUNT)
+    # 2. We haven't already done cooldown for this run
+    # 3. All prefixes have completed the current run
+    if [ $next_run -le $RUN_COUNT ] && \
+       [ $current_run -gt $LAST_COOLDOWN_RUN ] && \
+       check_run_completed "$current_run"; then
+
+        # Mark that we've done cooldown for this run
+        LAST_COOLDOWN_RUN=$current_run
+
+        if [ "$SHOW_TUI" = true ]; then
+            # In TUI mode, just sleep (status will be visible in TUI)
+            sleep $COOLDOWN_SECONDS
+        else
+            # In simple mode, show countdown
+            echo ""
+            echo "========================================"
+            echo -e "${YELLOW}✓ Run $current_run completed for all tests${NC}"
+            echo -e "${YELLOW}⏳ Cooldown period before starting Run $next_run...${NC}"
+            echo "========================================"
+
+            for ((i=COOLDOWN_SECONDS; i>=1; i--)); do
+                echo -ne "\r${CYAN}Starting Run $next_run in $i seconds...${NC} "
+                sleep 1
+            done
+            echo -e "\n"
+        fi
+    fi
+}
+
 # Rename log file to indicate failure
 # Changes PREFIX_RUNXX.log to PREFIX_RUNXX_fail.log
 # Note: .ansi file stays in /tmp with original name (will be cleaned up later)
@@ -713,6 +941,37 @@ extract_skipped_tests() {
     done
 }
 
+# Extract Catch2 WARN() lines from a log file.
+# Returns lines in format: log_line|source_location|warning_message|log_file
+# Duplicates across runs are suppressed by the caller via sort -u on source+message.
+extract_catch2_warnings() {
+    local log_file=$1
+
+    if [ ! -f "$log_file" ]; then
+        return
+    fi
+
+    # Catch2 WARN() format: /path/file.cpp:LINE: warning: 'message'
+    # Strip ANSI codes before matching to avoid false positives.
+    sed 's/\x1b\[[0-9;]*m//g' "$log_file" 2>/dev/null \
+        | grep -n "\.cpp:[0-9]*: warning:" \
+        | while IFS= read -r full_line; do
+            local log_line_num
+            log_line_num=$(echo "$full_line" | cut -d: -f1)
+            local rest
+            rest=$(echo "$full_line" | cut -d: -f2-)
+            # Extract source location (/path/file.cpp:LINE before ": warning:")
+            local source_loc
+            source_loc=$(echo "$rest" | grep -oE '[^ ]+\.cpp:[0-9]+' | head -1)
+            # Extract warning message (everything after "warning: ")
+            local warn_msg
+            warn_msg=$(echo "$rest" | sed "s/.*warning: //" | sed "s/^'//; s/'$//")
+            if [ -n "$source_loc" ] && [ -n "$warn_msg" ]; then
+                echo "${log_line_num}|${source_loc}|${warn_msg}|${log_file}"
+            fi
+        done
+}
+
 # Check for fatal signals (crashes) in log file
 # Returns 0 if no crash found, 1 if crash found
 # Sets CRASH_ERROR_MSG with the error description if found
@@ -762,6 +1021,37 @@ check_crash_signals() {
         local crash_line
         crash_line=$(grep -E "fatal error condition" "$log_file" 2>/dev/null | head -1)
         CRASH_ERROR_MSG="CRASH: $crash_line"
+        return 1
+    fi
+
+    return 0
+}
+
+# Check for Helgrind internal crash (known Helgrind 3.18.1 bug with OpenSSL 3.x)
+# Returns 0 if no Helgrind internal crash found, 1 if found
+# Sets HELGRIND_INTERNAL_CRASH_MSG with the error description and line number if found
+HELGRIND_INTERNAL_CRASH_MSG=""
+HELGRIND_INTERNAL_CRASH_LINE=""
+check_helgrind_internal_crash() {
+    local log_file=$1
+    HELGRIND_INTERNAL_CRASH_MSG=""
+    HELGRIND_INTERNAL_CRASH_LINE=""
+
+    if [ ! -f "$log_file" ]; then
+        return 0
+    fi
+
+    # Check for Helgrind internal crash: hg_main.c:308 (lockN_acquire_reader): Assertion 'lk->kind == LK_rdwr' failed
+    # This is a known Helgrind 3.18.1 bug when analyzing OpenSSL 3.x custom locking mechanisms
+    local crash_match
+    crash_match=$(grep -n "Helgrind:.*hg_main.c:[0-9]*.*Assertion.*failed" "$log_file" 2>/dev/null | head -1)
+
+    if [ -n "$crash_match" ]; then
+        # Extract line number and content
+        HELGRIND_INTERNAL_CRASH_LINE=$(echo "$crash_match" | cut -d: -f1)
+        local crash_content
+        crash_content=$(echo "$crash_match" | cut -d: -f2-)
+        HELGRIND_INTERNAL_CRASH_MSG="Helgrind internal crash (known bug with OpenSSL 3.x): $crash_content"
         return 1
     fi
 
@@ -828,6 +1118,11 @@ find_failure_lines() {
     # Check for mismatched free/delete
     grep -an "Mismatched free() / delete" "$log_file" 2>/dev/null | while IFS=: read -r line_num content; do
         echo "${line_num}|Valgrind|${content}"
+    done
+
+    # Check for Helgrind internal crash (known bug with OpenSSL 3.x - treat as WARNING)
+    grep -an "Helgrind:.*hg_main.c:[0-9]*.*Assertion.*failed" "$log_file" 2>/dev/null | head -1 | while IFS=: read -r line_num content; do
+        echo "${line_num}|WARNING|Helgrind internal crash (known bug): ${content}"
     done
 
     # Check for crashes (SIGSEGV, SIGABRT, etc.)
@@ -1079,6 +1374,315 @@ display_detailed_summary() {
     echo ""
 }
 
+# Display Valgrind/Helgrind ERROR SUMMARY lines that have suppressed > 0.
+# Shows one entry per log file (the last occurrence, which belongs to the last
+# Helgrind process that ran in that file).  Only prints the section when at
+# least one file has suppressions.
+display_valgrind_suppression_summary() {
+    local has_any=false
+    local -a entries=()
+
+    while IFS= read -r log_file; do
+        local rel_path="${log_file#$SCRIPT_DIR/}"
+        local last_line_num=""
+        local last_content=""
+
+        # Keep only the last ERROR SUMMARY line with suppressed > 0
+        while IFS=: read -r line_num content; do
+            last_line_num="$line_num"
+            last_content=$(echo "$content" | sed 's/^==[0-9]*== //')
+        done < <(grep -n "ERROR SUMMARY:.*suppressed: [1-9]" "$log_file" 2>/dev/null)
+
+        if [ -n "$last_line_num" ]; then
+            has_any=true
+            entries+=("  ${last_content} => ${rel_path}:${last_line_num}")
+        fi
+    done < <(find "$LOG_DIR" -maxdepth 1 -name "*_RUN*.log" -type f | sort)
+
+    [ "$has_any" = false ] && return
+
+    echo ""
+    echo -e "${YELLOW}========================================"
+    echo -e "  Valgrind Suppression Summary"
+    echo -e "========================================${NC}"
+    for entry in "${entries[@]}"; do
+        echo "$entry"
+    done
+    echo ""
+}
+
+# Print a structured entry block with fields in canonical order: Kind, At, Log, Reason.
+# At and Log are optional (omitted when empty). Reason is omitted when empty.
+# Args: kind, at (optional), log_ref (optional), reason (optional)
+print_entry() {
+    local kind="$1"
+    local at="$2"
+    local log_ref="$3"
+    local reason="$4"
+    echo "   Kind: ${kind}"
+    [ -n "${at}" ]      && echo "   At: ${at}"
+    [ -n "${log_ref}" ] && echo "   Log: ${log_ref}"
+    [ -n "${reason}" ]  && print_reason "${reason}"
+    echo ""
+}
+
+# Display compact status summary: [PASSED]/[FAILED]/[INTERRUPTED] per prefix.
+# Print a "   Reason: TEXT" line, wrapping to a second line at 90 chars.
+# Continuation lines are indented to align with the start of TEXT.
+print_reason() {
+    local text="$1"
+    local prefix="   Reason: "
+    local prefix_len=11   # length of "   Reason: "
+    local max_width=90
+    if [ $((prefix_len + ${#text})) -le $max_width ]; then
+        echo "${prefix}${text}"
+    else
+        local avail=$((max_width - prefix_len))
+        local cont_indent="           "  # 11 spaces
+        printf '%s' "$text" \
+            | fold -s -w "$avail" \
+            | awk -v p="$prefix" -v c="$cont_indent" \
+                'NR==1{print p $0; next} {print c $0}'
+    fi
+}
+
+# Used both for terminal output (via callers) and written to final_report.log.
+# Sets global _COMPACT_FAILED_COUNT after running (callers may use it for exit codes).
+display_compact_summary() {
+    local completed=0
+    local failed=0
+    local interrupted=0
+    local has_warnings=false
+    _COMPACT_FAILED_COUNT=0
+
+    for prefix in "${ALL_PREFIXES[@]}"; do
+        local status="${PREFIX_STATUS[$prefix]:-unknown}"
+        local total_runs=$((10#${PREFIX_CURRENT_RUN[$prefix]:-0}))
+
+        # Collect skipped tests and Catch2 WARN() messages across all runs for this prefix
+        local skipped_info=""
+        local catch2_warns=""
+        for ((run=1; run<=total_runs; run++)); do
+            local log_file
+            log_file=$(get_log_file_path "$prefix" "$run")
+            if [ ! -f "$log_file" ]; then
+                local fail_log="${log_file%.log}_fail.log"
+                [ -f "$fail_log" ] && log_file="$fail_log"
+            fi
+            if [ -f "$log_file" ]; then
+                local skips
+                skips=$(extract_skipped_tests "$log_file")
+                if [ -n "$skips" ]; then
+                    skipped_info+="${skipped_info:+$'\n'}$skips"
+                    has_warnings=true
+                fi
+                local warns
+                warns=$(extract_catch2_warnings "$log_file")
+                if [ -n "$warns" ]; then
+                    catch2_warns+="${catch2_warns:+$'\n'}$warns"
+                    has_warnings=true
+                fi
+            fi
+        done
+        # Deduplicate Catch2 warnings by source+message (same warning across multiple runs)
+        [ -n "$catch2_warns" ] && catch2_warns=$(echo "$catch2_warns" | awk -F'|' '!seen[$2$3]++')
+
+        local has_helgrind_warning=false
+        [ -n "${PREFIX_HELGRIND_WARNING[$prefix]:-}" ] && has_helgrind_warning=true
+
+        if [ "$status" = "completed" ]; then
+            ((completed++)) || true
+            if [ -n "$skipped_info" ] || [ -n "$catch2_warns" ] || [ "$has_helgrind_warning" = true ]; then
+                # Dynamic label based on what's present
+                local has_skips=false
+                local has_warns_flag=false
+                [ -n "$skipped_info" ] && has_skips=true
+                { [ -n "$catch2_warns" ] || [ "$has_helgrind_warning" = true ]; } && has_warns_flag=true
+                local warn_label
+                if [ "$has_skips" = true ] && [ "$has_warns_flag" = true ]; then
+                    warn_label="(with skipped/warnings)"
+                elif [ "$has_skips" = true ]; then
+                    warn_label="(with skipped)"
+                else
+                    warn_label="(with warnings)"
+                fi
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $total_runs run(s) ${YELLOW}${warn_label}${NC}"
+                echo ""
+                if [ -n "$skipped_info" ]; then
+                    echo "$skipped_info" | while IFS='|' read -r tag file_line reason s_log s_log_line; do
+                        [ -z "$tag" ] && continue
+                        print_entry "skipped" "${file_line}" "${s_log}:${s_log_line}" "${reason}"
+                    done
+                fi
+                if [ -n "$catch2_warns" ]; then
+                    echo "$catch2_warns" | while IFS='|' read -r w_line w_source w_msg w_log; do
+                        [ -z "$w_line" ] && continue
+                        print_entry "warning" "${w_source}" "${w_log}:${w_line}" "${w_msg}"
+                    done
+                fi
+                if [ "$has_helgrind_warning" = true ]; then
+                    local helgrind_msg="${PREFIX_HELGRIND_WARNING[$prefix]}"
+                    local hg_log_line
+                    hg_log_line=$(echo "$helgrind_msg" | grep -oE '\(Log line: [0-9]+\)' | grep -oE '[0-9]+')
+                    local hg_at
+                    hg_at=$(echo "$helgrind_msg" | grep -oE 'hg_[a-z_]+\.c:[0-9]+' | head -1)
+                    [ -z "$hg_at" ] && hg_at="(Helgrind internal)"
+                    local hg_reason
+                    hg_reason=$(echo "$helgrind_msg" | sed 's/: Helgrind:.*//')
+                    local hg_log_file
+                    hg_log_file=$(get_log_file_path "$prefix" "$total_runs")
+                    local hg_log_ref=""
+                    if [ -n "$hg_log_file" ] && [ -n "$hg_log_line" ]; then
+                        hg_log_ref="${hg_log_file}:${hg_log_line}"
+                    elif [ -n "$hg_log_file" ]; then
+                        hg_log_ref="${hg_log_file}"
+                    fi
+                    print_entry "warning" "${hg_at}" "${hg_log_ref}" "${hg_reason}"
+                fi
+            else
+                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $total_runs run(s)"
+            fi
+        elif [ "$status" = "failed" ]; then
+            ((failed++)) || true
+            ((_COMPACT_FAILED_COUNT++)) || true
+            # Use PREFIX_FAILED_RUN if set (summarize mode), fall back to PREFIX_CURRENT_RUN
+            local failed_run=$((10#${PREFIX_FAILED_RUN[$prefix]:-$total_runs}))
+            # Dynamic label for FAILED header when skipped/warnings also exist
+            local fail_label=""
+            if [ -n "$skipped_info" ] || [ -n "$catch2_warns" ]; then
+                local has_skips_f=false
+                local has_warns_f=false
+                [ -n "$skipped_info" ] && has_skips_f=true
+                [ -n "$catch2_warns" ] && has_warns_f=true
+                if [ "$has_skips_f" = true ] && [ "$has_warns_f" = true ]; then
+                    fail_label=" ${YELLOW}(with skipped/warnings)${NC}"
+                elif [ "$has_skips_f" = true ]; then
+                    fail_label=" ${YELLOW}(with skipped)${NC}"
+                else
+                    fail_label=" ${YELLOW}(with warnings)${NC}"
+                fi
+            fi
+            echo -e "${RED}[FAILED]${NC} ${prefix}_ - Failed at run $failed_run${fail_label}"
+            echo ""
+            # Find fail log: try PREFIX_LOG_FILE first (run mode), then glob (summarize mode)
+            local fail_log="${PREFIX_LOG_FILE[$prefix]:-}"
+            if [ -z "$fail_log" ] || [ ! -f "$fail_log" ]; then
+                fail_log=$(find "$LOG_DIR" -name "${prefix}_RUN*_fail.log" -type f 2>/dev/null | head -1)
+            fi
+            if [ -n "$fail_log" ] && [ -f "$fail_log" ]; then
+                local failure_lines
+                failure_lines=$(find_failure_lines "$fail_log")
+                if [ -n "$failure_lines" ]; then
+                    echo "$failure_lines" | while IFS='|' read -r line_num error_type error_content; do
+                        [ -z "$line_num" ] && continue
+                        error_content=$(echo "$error_content" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+                        local kind
+                        case "$error_type" in
+                            "Test FAILED") kind="failed" ;;
+                            "Memory leak") kind="memory leak" ;;
+                            "CRASH")       kind="crash" ;;
+                            "TIMEOUT")     kind="timeout" ;;
+                            *)             kind=$(echo "$error_type" | tr '[:upper:]' '[:lower:]') ;;
+                        esac
+                        local at_info=""
+                        local reason_msg="$error_content"
+                        if [ "$error_type" = "Test FAILED" ]; then
+                            at_info=$(echo "$error_content" | grep -oE '^[^ ]+\.cpp:[0-9]+')
+                            [ -n "$at_info" ] && reason_msg=$(echo "$error_content" | sed 's|^[^ ]*\.cpp:[0-9]*:[[:space:]]*||')
+                        fi
+                        print_entry "$kind" "${at_info}" "${fail_log}:${line_num}" "${reason_msg}"
+                    done
+                else
+                    echo "   Log: $fail_log"
+                    echo ""
+                fi
+            fi
+            if [ -n "$skipped_info" ]; then
+                echo "$skipped_info" | while IFS='|' read -r tag file_line reason s_log s_log_line; do
+                    [ -z "$tag" ] && continue
+                    print_entry "skipped" "${file_line}" "${s_log}:${s_log_line}" "${reason}"
+                done
+            fi
+            if [ -n "$catch2_warns" ]; then
+                echo "$catch2_warns" | while IFS='|' read -r w_line w_source w_msg w_log; do
+                    [ -z "$w_line" ] && continue
+                    print_entry "warning" "${w_source}" "${w_log}:${w_line}" "${w_msg}"
+                done
+            fi
+        elif [ "$status" = "interrupted" ]; then
+            ((interrupted++)) || true
+            local run_num=$((10#${PREFIX_CURRENT_RUN[$prefix]:-0}))
+            echo -e "${YELLOW}[INTERRUPTED]${NC} ${prefix}_ - Stopped at run $run_num"
+            echo ""
+            local int_log="${PREFIX_LOG_FILE[$prefix]:-}"
+            if [ -n "$int_log" ] && [ -f "$int_log" ]; then
+                echo "   Log: $int_log"
+                echo ""
+            fi
+            if [ -n "$skipped_info" ]; then
+                echo "$skipped_info" | while IFS='|' read -r tag file_line reason s_log s_log_line; do
+                    [ -z "$tag" ] && continue
+                    print_entry "skipped" "${file_line}" "${s_log}:${s_log_line}" "${reason}"
+                done
+            fi
+            if [ -n "$catch2_warns" ]; then
+                echo "$catch2_warns" | while IFS='|' read -r w_line w_source w_msg w_log; do
+                    [ -z "$w_line" ] && continue
+                    print_entry "warning" "${w_source}" "${w_log}:${w_line}" "${w_msg}"
+                done
+            fi
+        fi
+    done
+
+    # Track helgrind warnings for summary line (displayed inline above per prefix)
+    local has_helgrind_warnings=false
+    for prefix in "${ALL_PREFIXES[@]}"; do
+        if [ -n "${PREFIX_HELGRIND_WARNING[$prefix]:-}" ]; then
+            has_helgrind_warnings=true
+            break
+        fi
+    done
+
+    # Print summary line
+    echo ""
+    local _summary
+    if [ $interrupted -gt 0 ]; then
+        _summary="Summary: $completed passed, $failed failed, $interrupted interrupted"
+    else
+        _summary="Summary: $completed passed, $failed failed"
+    fi
+    if [ "$has_warnings" = true ] || [ "$has_helgrind_warnings" = true ]; then
+        local warning_msg="with warnings"
+        [ "$has_warnings" = true ] && warning_msg="$warning_msg - some tests were skipped"
+        [ "$has_helgrind_warnings" = true ] && warning_msg="$warning_msg - Helgrind internal crashes detected"
+        echo "$_summary ($warning_msg)"
+    else
+        echo "$_summary"
+    fi
+}
+
+# Save the timing + suppression report to $LOG_DIR/final_report.log (no ANSI).
+# Optional $1: total elapsed time string (e.g. "00:44:45") from run modes.
+save_report_to_file() {
+    local elapsed_str="${1:-}"
+    local report_file="$LOG_DIR/final_report.log"
+    {
+        echo "Test Run Report - $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "Log directory: $LOG_DIR/"
+        echo ""
+        echo "========================================"
+        echo "  Status Summary"
+        echo "========================================"
+        echo ""
+        display_compact_summary
+        [ -n "$elapsed_str" ] && echo "Total time: $elapsed_str"
+        echo ""
+        display_detailed_summary
+        display_valgrind_suppression_summary
+    } 2>&1 | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g; s/\x1B\[[@-~]//g; s/\x1B[()][0-9A-Za-z]//g; s/\r//g" > "$report_file"
+    echo "Final report saved to: ${report_file#$SCRIPT_DIR/}"
+}
+
 # ============================================================================
 # Summarize Mode Functions
 # ============================================================================
@@ -1160,6 +1764,24 @@ discover_prefixes_from_logs() {
     ALL_PREFIXES=("${sorted[@]}")
 }
 
+# Scan all log files for Helgrind internal crashes and populate PREFIX_HELGRIND_WARNING.
+# Used in summarize mode where warnings are not captured during live execution.
+reconstruct_helgrind_warnings() {
+    for prefix in "${ALL_PREFIXES[@]}"; do
+        [ -n "${PREFIX_HELGRIND_WARNING[$prefix]:-}" ] && continue
+        local runs=${PREFIX_CURRENT_RUN[$prefix]:-0}
+        for ((run=1; run<=runs; run++)); do
+            local log_file
+            log_file=$(get_log_file_path "$prefix" "$run")
+            [ ! -f "$log_file" ] && log_file="${log_file%.log}_fail.log"
+            if [ -f "$log_file" ] && ! check_helgrind_internal_crash "$log_file"; then
+                PREFIX_HELGRIND_WARNING[$prefix]="$HELGRIND_INTERNAL_CRASH_MSG (Log line: $HELGRIND_INTERNAL_CRASH_LINE)"
+                break
+            fi
+        done
+    done
+}
+
 # Run summarize mode - display summary from existing log folder
 run_summarize_mode() {
     local log_folder_name=""
@@ -1213,6 +1835,8 @@ run_summarize_mode() {
     done
     RUN_COUNT=$max_run
 
+    reconstruct_helgrind_warnings
+
     # Display the detailed summary
     display_detailed_summary
 
@@ -1223,98 +1847,11 @@ run_summarize_mode() {
     echo "========================================"
     echo ""
 
-    local completed=0
-    local failed=0
-
-    local has_warnings=false
-    declare -A prefix_warnings
-
-    for prefix in "${ALL_PREFIXES[@]}"; do
-        local status="${PREFIX_STATUS[$prefix]}"
-        local runs=$((10#${PREFIX_CURRENT_RUN[$prefix]:-0}))
-
-        # Check for skipped tests in all log files for this prefix
-        local skipped_info=""
-        for ((run=1; run<=runs; run++)); do
-            local log_file=$(get_log_file_path "$prefix" "$run")
-            if [ ! -f "$log_file" ]; then
-                local fail_log="${log_file%.log}_fail.log"
-                if [ -f "$fail_log" ]; then
-                    log_file="$fail_log"
-                fi
-            fi
-            if [ -f "$log_file" ]; then
-                local skips=$(extract_skipped_tests "$log_file")
-                if [ -n "$skips" ]; then
-                    skipped_info="$skips"
-                    has_warnings=true
-                fi
-            fi
-        done
-
-        if [ "$status" = "completed" ]; then
-            ((completed++)) || true
-            if [ -n "$skipped_info" ]; then
-                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $runs run(s) ${YELLOW}(with warnings)${NC}"
-                prefix_warnings[$prefix]="$skipped_info"
-            else
-                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $runs run(s)"
-            fi
-        else
-            ((failed++)) || true
-            local failed_run=$((10#${PREFIX_FAILED_RUN[$prefix]:-$runs}))
-
-            # Find the fail log
-            local fail_log=$(find "$LOG_DIR" -name "${prefix}_RUN*_fail.log" -type f | head -1)
-
-            echo -e "${RED}[FAILED]${NC} ${prefix}_ - Failed at run $failed_run"
-
-            if [ -n "$fail_log" ]; then
-                # Find all failure lines with line numbers
-                local failure_lines
-                failure_lines=$(find_failure_lines "$fail_log")
-
-                if [ -n "$failure_lines" ]; then
-                    # Display each failure with its line number
-                    echo "$failure_lines" | while IFS='|' read -r line_num error_type error_content; do
-                        [ -z "$line_num" ] && continue
-                        # Trim whitespace from error_content
-                        error_content=$(echo "$error_content" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-                        echo "         Log: ${fail_log}:${line_num}"
-                        echo "         Reason: [${error_type}] ${error_content}"
-                    done
-                else
-                    # No specific errors found, just show the log file
-                    echo "         Log: $fail_log"
-                fi
-            fi
-        fi
-    done
-
-    # Show warnings section if there were any skipped tests
-    if [ "$has_warnings" = true ]; then
-        echo ""
-        echo -e "${YELLOW}========================================"
-        echo -e "  Warnings: Skipped Tests"
-        echo -e "========================================${NC}"
-        for prefix in "${!prefix_warnings[@]}"; do
-            echo -e "\n  ${YELLOW}[${prefix}_]${NC}"
-            echo "${prefix_warnings[$prefix]}" | while IFS='|' read -r tag file_line reason log_file log_line; do
-                [ -z "$tag" ] && continue
-                echo -e "    - Test [$tag] skipped at $file_line"
-                echo -e "      Reason: $reason"
-                echo -e "      Log: $log_file:$log_line"
-            done
-        done
-    fi
-
+    display_compact_summary
     echo ""
-    if [ "$has_warnings" = true ]; then
-        echo "Summary: $completed passed, $failed failed (with warnings - some tests were skipped)"
-    else
-        echo "Summary: $completed passed, $failed failed"
-    fi
-    echo ""
+
+    display_valgrind_suppression_summary
+    save_report_to_file
 }
 
 # ============================================================================
@@ -1572,7 +2109,7 @@ tui_draw_right_panel() {
 
         local row=1
         for line in "${lines[@]}"; do
-            if [ $row -ge $content_height ]; then
+            if [ $row -gt $content_height ]; then
                 break
             fi
 
@@ -1846,6 +2383,9 @@ run_parallel_tests_tui() {
 
     # Main loop
     while ! all_tests_done; do
+        # Detect NTP corrections / VM resume clock jumps before checking timeouts
+        detect_and_handle_clock_jump
+
         # Check for timeouts and completed tests
         for prefix in "${ALL_PREFIXES[@]}"; do
             if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
@@ -1871,7 +2411,25 @@ run_parallel_tests_tui() {
                     local current_run=${PREFIX_CURRENT_RUN[$prefix]}
                     local log_file="${PREFIX_LOG_FILE[$prefix]}"
 
-                    # First check for crashes (SIGSEGV, SIGABRT, etc.) in the log
+                    # Small delay to allow pipe buffers to flush (tee | sed) before reading log
+                    # This ensures the final "All tests passed" line is written to the log file
+                    sleep 0.2
+
+                    # First check for Helgrind internal crash (known bug, treat as warning)
+                    local helgrind_internal_crash=false
+                    if ! check_helgrind_internal_crash "$log_file"; then
+                        # Helgrind internal crash detected - report as WARNING but continue
+                        # This is a known Helgrind 3.18.1 bug with OpenSSL 3.x
+                        # Store warning for later display
+                        if [ -z "${PREFIX_HELGRIND_WARNING[$prefix]}" ]; then
+                            PREFIX_HELGRIND_WARNING[$prefix]="$HELGRIND_INTERNAL_CRASH_MSG (Log line: $HELGRIND_INTERNAL_CRASH_LINE)"
+                        fi
+                        helgrind_internal_crash=true
+                        # Override exit code to 0 (treat as success since it's a Helgrind bug, not a test failure)
+                        exit_code=0
+                    fi
+
+                    # Check for crashes (SIGSEGV, SIGABRT, etc.) in the log
                     # This takes priority over exit code because crashes can leave
                     # inconsistent exit codes
                     if ! check_crash_signals "$log_file"; then
@@ -1915,6 +2473,12 @@ run_parallel_tests_tui() {
                     unset "PREFIX_PIDS[$prefix]"
                 fi
             fi
+        done
+
+        # Check if any complete run cycles finished, apply cooldown if needed
+        # Check all runs from the last cooldown to the current maximum run
+        for ((run=LAST_COOLDOWN_RUN+1; run<=RUN_COUNT; run++)); do
+            cooldown_between_runs "$run"
         done
 
         # Start new tests if we have capacity
@@ -1987,114 +2551,15 @@ run_parallel_tests_tui() {
     echo "========================================"
     echo ""
 
-    local completed=0
-    local failed=0
-    local interrupted=0
-    local has_warnings=false
-    declare -A prefix_warnings
-
-    for prefix in "${ALL_PREFIXES[@]}"; do
-        # Check for skipped tests in log files
-        local skipped_info=""
-        local total_runs=${PREFIX_CURRENT_RUN[$prefix]}
-        for ((run=1; run<=total_runs; run++)); do
-            local log_file=$(get_log_file_path "$prefix" "$run")
-            if [ ! -f "$log_file" ]; then
-                local fail_log="${log_file%.log}_fail.log"
-                if [ -f "$fail_log" ]; then
-                    log_file="$fail_log"
-                fi
-            fi
-            if [ -f "$log_file" ]; then
-                local skips=$(extract_skipped_tests "$log_file")
-                if [ -n "$skips" ]; then
-                    skipped_info="$skips"
-                    has_warnings=true
-                fi
-            fi
-        done
-
-        if [ "${PREFIX_STATUS[$prefix]}" = "completed" ]; then
-            ((completed++)) || true
-            if [ -n "$skipped_info" ]; then
-                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs ${YELLOW}(with warnings)${NC}"
-                prefix_warnings[$prefix]="$skipped_info"
-            else
-                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs"
-            fi
-        elif [ "${PREFIX_STATUS[$prefix]}" = "failed" ]; then
-            ((failed++)) || true
-            local run_num=${PREFIX_CURRENT_RUN[$prefix]}
-            echo -e "${RED}[FAILED]${NC} ${prefix}_ - Failed at run $run_num"
-
-            # Find the fail log
-            local fail_log="${PREFIX_LOG_FILE[$prefix]}"
-            if [ -n "$fail_log" ] && [ -f "$fail_log" ]; then
-                # Find all failure lines with line numbers
-                local failure_lines
-                failure_lines=$(find_failure_lines "$fail_log")
-
-                if [ -n "$failure_lines" ]; then
-                    # Display each failure with its line number
-                    echo "$failure_lines" | while IFS='|' read -r line_num error_type error_content; do
-                        [ -z "$line_num" ] && continue
-                        # Trim whitespace from error_content
-                        error_content=$(echo "$error_content" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-                        echo "         Log: ${fail_log}:${line_num}"
-                        echo "         Reason: [${error_type}] ${error_content}"
-                    done
-                else
-                    # No specific errors found, just show the log file
-                    echo "         Log: $fail_log"
-                fi
-            fi
-        elif [ "${PREFIX_STATUS[$prefix]}" = "interrupted" ]; then
-            ((interrupted++)) || true
-            local run_num=${PREFIX_CURRENT_RUN[$prefix]}
-            echo -e "${YELLOW}[INTERRUPTED]${NC} ${prefix}_ - Stopped at run $run_num"
-            local log_file="${PREFIX_LOG_FILE[$prefix]}"
-            if [ -n "$log_file" ] && [ -f "$log_file" ]; then
-                echo "         Log: $log_file"
-            fi
-        fi
-    done
-
-    # Show warnings section if there were any skipped tests
-    if [ "$has_warnings" = true ]; then
-        echo ""
-        echo -e "${YELLOW}========================================"
-        echo -e "  Warnings: Skipped Tests"
-        echo -e "========================================${NC}"
-        for prefix in "${!prefix_warnings[@]}"; do
-            echo -e "\n  ${YELLOW}[${prefix}_]${NC}"
-            echo "${prefix_warnings[$prefix]}" | while IFS='|' read -r tag file_line reason log_file log_line; do
-                [ -z "$tag" ] && continue
-                echo -e "    - Test [$tag] skipped at $file_line"
-                echo -e "      Reason: $reason"
-                echo -e "      Log: $log_file:$log_line"
-            done
-        done
-    fi
-
-    echo ""
-    if [ $interrupted -gt 0 ]; then
-        if [ "$has_warnings" = true ]; then
-            echo "Summary: $completed passed, $failed failed, $interrupted interrupted (with warnings - some tests were skipped)"
-        else
-            echo "Summary: $completed passed, $failed failed, $interrupted interrupted"
-        fi
-    else
-        if [ "$has_warnings" = true ]; then
-            echo "Summary: $completed passed, $failed failed (with warnings - some tests were skipped)"
-        else
-            echo "Summary: $completed passed, $failed failed"
-        fi
-    fi
+    display_compact_summary
     echo "Total time: $total_elapsed_str"
     echo "Logs saved in: $LOG_DIR/"
     echo ""
 
-    if [ $failed -gt 0 ]; then
+    display_valgrind_suppression_summary
+    save_report_to_file "$total_elapsed_str"
+
+    if [ ${_COMPACT_FAILED_COUNT:-0} -gt 0 ]; then
         exit 1
     fi
 }
@@ -2137,6 +2602,14 @@ get_test_progress_info() {
     completed_tests=$(echo "$completed_tests" | tr -d '\n\r')
     completed_tests="${completed_tests:-0}"
 
+    # Calculate current progress: if a test is actively running, it counts as current test
+    # So progress = completed_tests + 1 (the test that is running now)
+    local current_progress=$completed_tests
+    if [ -n "$test_name" ] && [ "$test_name" != "waiting..." ] && [ "$test_name" != "building..." ] && [ "$test_name" != "starting..." ]; then
+        # A real test is running, count it as the current test
+        current_progress=$((completed_tests + 1))
+    fi
+
     # If no test name found, check if still building or waiting
     if [ -z "$test_name" ]; then
         if grep -q "Building" "$log_file" 2>/dev/null; then
@@ -2153,7 +2626,7 @@ get_test_progress_info() {
         test_name="${test_name:0:32}..."
     fi
 
-    printf "%s|%s" "$test_name" "$completed_tests"
+    printf "%s|%s" "$test_name" "$current_progress"
 }
 
 # Display current status (simple mode)
@@ -2259,6 +2732,9 @@ run_parallel_tests_simple() {
     display_status
 
     while ! all_tests_done; do
+        # Detect NTP corrections / VM resume clock jumps before checking timeouts
+        detect_and_handle_clock_jump
+
         # Check for timeouts and completed tests
         for prefix in "${ALL_PREFIXES[@]}"; do
             if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
@@ -2288,7 +2764,25 @@ run_parallel_tests_simple() {
                     local current_run=${PREFIX_CURRENT_RUN[$prefix]}
                     local log_file="${PREFIX_LOG_FILE[$prefix]}"
 
-                    # First check for crashes (SIGSEGV, SIGABRT, etc.) in the log
+                    # Small delay to allow pipe buffers to flush (tee | sed) before reading log
+                    # This ensures the final "All tests passed" line is written to the log file
+                    sleep 0.2
+
+                    # First check for Helgrind internal crash (known bug, treat as warning)
+                    local helgrind_internal_crash=false
+                    if ! check_helgrind_internal_crash "$log_file"; then
+                        # Helgrind internal crash detected - report as WARNING but continue
+                        # This is a known Helgrind 3.18.1 bug with OpenSSL 3.x
+                        # Store warning for later display
+                        if [ -z "${PREFIX_HELGRIND_WARNING[$prefix]}" ]; then
+                            PREFIX_HELGRIND_WARNING[$prefix]="$HELGRIND_INTERNAL_CRASH_MSG (Log line: $HELGRIND_INTERNAL_CRASH_LINE)"
+                        fi
+                        helgrind_internal_crash=true
+                        # Override exit code to 0 (treat as success since it's a Helgrind bug, not a test failure)
+                        exit_code=0
+                    fi
+
+                    # Check for crashes (SIGSEGV, SIGABRT, etc.) in the log
                     # This takes priority over exit code because crashes can leave
                     # inconsistent exit codes
                     if ! check_crash_signals "$log_file"; then
@@ -2315,14 +2809,19 @@ run_parallel_tests_simple() {
                                 PREFIX_TOTAL_TESTS[$prefix]=$(count_total_tests_in_log "$log_file")
                             fi
 
+                            # Show final progress before changing status
+                            local final_count=$(grep -cE "All tests passed|[0-9]+ test case(s)? failed" "$log_file" 2>/dev/null || echo "0")
+                            local total_tests="${PREFIX_TOTAL_TESTS[$prefix]}"
+                            if [ -n "$total_tests" ] && [ "$total_tests" -gt 0 ]; then
+                                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ Run $current_run completed - ${final_count}/${total_tests} tests"
+                            fi
+
                             if [ $current_run -lt $RUN_COUNT ]; then
                                 # More runs needed, set back to pending
                                 PREFIX_STATUS[$prefix]="pending"
-                                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ Run $current_run - continuing to next run"
                             else
                                 # All runs completed successfully
                                 PREFIX_STATUS[$prefix]="completed"
-                                echo -e "${GREEN}[COMPLETED]${NC} ${prefix}_ - All $RUN_COUNT runs passed"
                             fi
                         fi
                     elif [ $exit_code -gt 128 ]; then
@@ -2348,6 +2847,12 @@ run_parallel_tests_simple() {
                     unset "PREFIX_PIDS[$prefix]"
                 fi
             fi
+        done
+
+        # Check if any complete run cycles finished, apply cooldown if needed
+        # Check all runs from the last cooldown to the current maximum run
+        for ((run=LAST_COOLDOWN_RUN+1; run<=RUN_COUNT; run++)); do
+            cooldown_between_runs "$run"
         done
 
         # Start new tests if we have capacity
@@ -2383,98 +2888,15 @@ run_parallel_tests_simple() {
     echo "========================================"
     echo ""
 
-    # Summary
-    local completed=0
-    local failed=0
-    local has_warnings=false
-    declare -A prefix_warnings
-
-    for prefix in "${ALL_PREFIXES[@]}"; do
-        # Check for skipped tests in log files
-        local skipped_info=""
-        local total_runs=${PREFIX_CURRENT_RUN[$prefix]}
-        for ((run=1; run<=total_runs; run++)); do
-            local log_file=$(get_log_file_path "$prefix" "$run")
-            if [ ! -f "$log_file" ]; then
-                local fail_log="${log_file%.log}_fail.log"
-                if [ -f "$fail_log" ]; then
-                    log_file="$fail_log"
-                fi
-            fi
-            if [ -f "$log_file" ]; then
-                local skips=$(extract_skipped_tests "$log_file")
-                if [ -n "$skips" ]; then
-                    skipped_info="$skips"
-                    has_warnings=true
-                fi
-            fi
-        done
-
-        if [ "${PREFIX_STATUS[$prefix]}" = "completed" ]; then
-            ((completed++)) || true
-            if [ -n "$skipped_info" ]; then
-                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs ${YELLOW}(with warnings)${NC}"
-                prefix_warnings[$prefix]="$skipped_info"
-            else
-                echo -e "${GREEN}[PASSED]${NC} ${prefix}_ - $RUN_COUNT runs"
-            fi
-        elif [ "${PREFIX_STATUS[$prefix]}" = "failed" ]; then
-            ((failed++)) || true
-            local run_num=${PREFIX_CURRENT_RUN[$prefix]}
-            echo -e "${RED}[FAILED]${NC} ${prefix}_ - Failed at run $run_num"
-
-            # Find the fail log
-            local fail_log="${PREFIX_LOG_FILE[$prefix]}"
-            if [ -n "$fail_log" ] && [ -f "$fail_log" ]; then
-                # Find all failure lines with line numbers
-                local failure_lines
-                failure_lines=$(find_failure_lines "$fail_log")
-
-                if [ -n "$failure_lines" ]; then
-                    # Display each failure with its line number
-                    echo "$failure_lines" | while IFS='|' read -r line_num error_type error_content; do
-                        [ -z "$line_num" ] && continue
-                        # Trim whitespace from error_content
-                        error_content=$(echo "$error_content" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-                        echo "         Log: ${fail_log}:${line_num}"
-                        echo "         Reason: [${error_type}] ${error_content}"
-                    done
-                else
-                    # No specific errors found, just show the log file
-                    echo "         Log: $fail_log"
-                fi
-            fi
-        fi
-    done
-
-    # Show warnings section if there were any skipped tests
-    if [ "$has_warnings" = true ]; then
-        echo ""
-        echo -e "${YELLOW}========================================"
-        echo -e "  Warnings: Skipped Tests"
-        echo -e "========================================${NC}"
-        for prefix in "${!prefix_warnings[@]}"; do
-            echo -e "\n  ${YELLOW}[${prefix}_]${NC}"
-            echo "${prefix_warnings[$prefix]}" | while IFS='|' read -r tag file_line reason log_file log_line; do
-                [ -z "$tag" ] && continue
-                echo -e "    - Test [$tag] skipped at $file_line"
-                echo -e "      Reason: $reason"
-                echo -e "      Log: $log_file:$log_line"
-            done
-        done
-    fi
-
-    echo ""
-    if [ "$has_warnings" = true ]; then
-        echo "Summary: $completed passed, $failed failed (with warnings - some tests were skipped)"
-    else
-        echo "Summary: $completed passed, $failed failed"
-    fi
+    display_compact_summary
     echo "Total time: $total_elapsed_str"
     echo "Logs saved in: $LOG_DIR/"
     echo ""
 
-    if [ $failed -gt 0 ]; then
+    display_valgrind_suppression_summary
+    save_report_to_file "$total_elapsed_str"
+
+    if [ ${_COMPACT_FAILED_COUNT:-0} -gt 0 ]; then
         exit 1
     fi
 }
@@ -2497,9 +2919,14 @@ cleanup() {
         if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
             local pid=${PREFIX_PIDS[$prefix]}
             if [ -n "$pid" ]; then
-                kill -TERM "$pid" 2>/dev/null || true
-                # Also kill child processes
-                pkill -P "$pid" 2>/dev/null || true
+                local pgid
+                pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
+                if [ -n "$pgid" ] && [ "$pgid" -gt 1 ]; then
+                    kill -TERM -"$pgid" 2>/dev/null || true
+                else
+                    kill -TERM "$pid" 2>/dev/null || true
+                    pkill -P "$pid" 2>/dev/null || true
+                fi
             fi
             # Clean up .ansi file for interrupted tests (commented: handled by cleanup_old_tmp_ansi_folders)
             # strip_ansi_from_log "$prefix"

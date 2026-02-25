@@ -273,14 +273,18 @@ Each family has different required components. **For exact `#include` dependenci
 libs/cpp_dbc/src/drivers/relational/sqlserver/
 ├── driver_01.cpp                 # Driver factory implementation
 ├── connection_01.cpp             # Connection: constructor, destructor, basic ops
-├── connection_02.cpp             # Connection: query execution
-├── connection_03.cpp             # Connection: transaction handling
+├── connection_02.cpp             # Connection: throwing wrappers
+├── connection_03.cpp             # Connection: nothrow methods (part 1)
+├── connection_04.cpp             # Connection: nothrow methods (part 2)
 ├── prepared_statement_01.cpp     # PreparedStatement: setup and binding
-├── prepared_statement_02.cpp     # PreparedStatement: execution
-├── prepared_statement_03.cpp     # PreparedStatement: result handling
-├── result_set_01.cpp             # ResultSet: navigation
-├── result_set_02.cpp             # ResultSet: data retrieval (basic types)
-└── result_set_03.cpp             # ResultSet: data retrieval (complex types)
+├── prepared_statement_02.cpp     # PreparedStatement: nothrow setters (part 1)
+├── prepared_statement_03.cpp     # PreparedStatement: nothrow setters (part 2)
+├── prepared_statement_04.cpp     # PreparedStatement: nothrow execute/close
+├── result_set_01.cpp             # ResultSet: throwing wrappers
+├── result_set_02.cpp             # ResultSet: nothrow methods (close, nav, basic types)
+├── result_set_03.cpp             # ResultSet: nothrow methods (string, bool, date/time, metadata)
+├── result_set_04.cpp             # ResultSet: nothrow methods (blob/binary)
+└── result_set_05.cpp             # ResultSet: nothrow methods (additional, if needed)
 ```
 
 #### File Splitting Convention
@@ -295,9 +299,19 @@ Source files are split by functionality to:
 | Component          | Files                                     |
 |--------------------|-------------------------------------------|
 | Driver             | `driver_01.cpp`                           |
-| Connection         | `connection_01.cpp` to `connection_0N.cpp`|
-| PreparedStatement  | `prepared_statement_01.cpp` to `..._0N.cpp`|
-| ResultSet          | `result_set_01.cpp` to `result_set_0N.cpp`|
+| Connection         | `connection_01.cpp` to `connection_04.cpp`|
+| PreparedStatement  | `prepared_statement_01.cpp` to `..._04.cpp`|
+| ResultSet          | `result_set_01.cpp` to `result_set_05.cpp`|
+
+#### Canonical Method Ordering (Result Sets)
+
+All nothrow result set methods must follow this canonical ordering:
+
+1. `close` → `isEmpty` → `next` → `isBeforeFirst` → `isAfterLast` → `getRow`
+2. Type accessors interleaved by-index/by-name: `getInt(index)`, `getInt(name)`, `getLong(index)`, `getLong(name)`, etc.
+3. Date/time: `getDate`, `getTimestamp`, `getTime` (index/name pairs)
+4. Metadata: `getColumnNames`, `getColumnCount`
+5. Blob/binary methods in a separate file (e.g., `result_set_04.cpp`)
 
 ### Update Main Header (cpp_dbc.hpp)
 
@@ -363,16 +377,19 @@ if(USE_SQLSERVER)
         src/drivers/relational/sqlserver/result_set_01.cpp
         src/drivers/relational/sqlserver/result_set_02.cpp
         src/drivers/relational/sqlserver/result_set_03.cpp
+        src/drivers/relational/sqlserver/result_set_04.cpp
 
         # SQLServerDBPreparedStatement
         src/drivers/relational/sqlserver/prepared_statement_01.cpp
         src/drivers/relational/sqlserver/prepared_statement_02.cpp
         src/drivers/relational/sqlserver/prepared_statement_03.cpp
+        src/drivers/relational/sqlserver/prepared_statement_04.cpp
 
         # SQLServerDBConnection
         src/drivers/relational/sqlserver/connection_01.cpp
         src/drivers/relational/sqlserver/connection_02.cpp
         src/drivers/relational/sqlserver/connection_03.cpp
+        src/drivers/relational/sqlserver/connection_04.cpp
 
         # SQLServerDBDriver
         src/drivers/relational/sqlserver/driver_01.cpp

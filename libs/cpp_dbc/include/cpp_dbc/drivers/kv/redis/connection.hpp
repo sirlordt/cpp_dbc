@@ -68,8 +68,9 @@ namespace cpp_dbc::Redis
             void close() override;
             bool isClosed() const override;
             void returnToPool() override;
-            bool isPooled() override;
+            bool isPooled() const override;
             std::string getURL() const override;
+            void reset() override;
 
             // KVDBConnection interface implementation - Basic key-value operations
             bool setString(const std::string &key, const std::string &value,
@@ -124,6 +125,7 @@ namespace cpp_dbc::Redis
             bool flushDB(bool async = false) override;
             std::string ping() override;
             std::map<std::string, std::string> getServerInfo() override;
+            void prepareForPoolReturn() override;
 
             /**
              * @brief Execute a Redis command and return the raw reply
@@ -152,16 +154,17 @@ namespace cpp_dbc::Redis
              */
             void selectDatabase(int index);
 
-            /**
-             * @brief Set whether the connection is pooled
-             *
-             * @param pooled Whether the connection is managed by a connection pool
-             */
-            void setPooled(bool pooled);
-
             // ====================================================================
             // NOTHROW VERSIONS - Exception-free API
             // ====================================================================
+
+            cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
+            cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+            cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+            cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
 
             cpp_dbc::expected<bool, DBException> setString(
                 std::nothrow_t,
@@ -322,7 +325,6 @@ namespace cpp_dbc::Redis
             std::string m_url;
             int m_dbIndex{0};
             std::atomic<bool> m_closed{false};
-            bool m_pooled{false};
             mutable std::mutex m_mutex;
         };
 

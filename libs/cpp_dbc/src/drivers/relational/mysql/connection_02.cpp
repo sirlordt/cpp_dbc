@@ -43,7 +43,7 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed || !m_mysql)
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
             {
                 return cpp_dbc::unexpected(DBException("M1Y2S3Q4L5C6", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -87,7 +87,7 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed || !m_mysql)
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
             {
                 return cpp_dbc::unexpected(DBException("7I8J9K0L1M2N", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -130,7 +130,7 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed || !m_mysql)
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
             {
                 return cpp_dbc::unexpected(DBException("M4Y5S6Q7L8C9", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -167,7 +167,7 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed || !m_mysql)
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
             {
                 return cpp_dbc::unexpected(DBException("M6Y7S8Q9L0C1", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -251,7 +251,7 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed || !m_mysql)
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
             {
                 return cpp_dbc::unexpected(DBException("U7V8W9X0Y1Z2", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -325,7 +325,7 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed || !m_mysql)
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
             {
                 return cpp_dbc::unexpected(DBException("M9Y0S1Q2L3C4", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -375,7 +375,7 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed || !m_mysql)
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
             {
                 return cpp_dbc::unexpected(DBException("N1Y2S3Q4L5C6", "Connection is closed", system_utils::captureCallStack()));
             }

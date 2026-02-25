@@ -20,6 +20,8 @@
 
 #include "25_001_test_mongodb_real_common.hpp"
 
+#include <cpp_dbc/common/system_utils.hpp>
+
 #include <random>
 #include <sstream>
 #include <iomanip>
@@ -174,19 +176,19 @@ namespace mongodb_test_helpers
             std::string connStr = buildMongoDBConnectionString(dbConfig);
 
             // Attempt to connect to MongoDB
-            std::cout << "Attempting to connect to MongoDB with connection string: " << connStr << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to MongoDB with connection string: " + connStr);
 
             auto driver = getMongoDBDriver();
             auto conn = driver->connectDocument(connStr, username, password);
 
             if (!conn)
             {
-                std::cerr << "MongoDB connection returned null" << std::endl;
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB connection returned null");
                 return false;
             }
 
             // If we get here, the connection was successful
-            std::cout << "MongoDB connection successful!" << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB connection successful!");
 
             // Try to ping the database
             auto mongoConn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(conn);
@@ -194,7 +196,7 @@ namespace mongodb_test_helpers
             {
                 // Try to list collections as a simple connectivity test
                 auto collections = mongoConn->listCollections();
-                std::cout << "MongoDB has " << collections.size() << " collections" << std::endl;
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB has " + std::to_string(collections.size()) + " collections");
             }
 
             // Close the connection
@@ -204,7 +206,7 @@ namespace mongodb_test_helpers
         }
         catch (const std::exception &e)
         {
-            std::cerr << "MongoDB connection error: " << e.what() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB connection error: " + std::string(e.what()));
             return false;
         }
     }

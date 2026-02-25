@@ -364,7 +364,7 @@ namespace cpp_dbc::PostgreSQL
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected<DBException>(DBException("X8Y9Z0A1B2C3", ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected<DBException>(DBException("HO94AX780YW8", ex.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {

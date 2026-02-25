@@ -47,14 +47,15 @@ namespace cpp_dbc::Firebird
                                                const std::map<std::string, std::string> &options)
         : m_tr(0), m_isolationLevel(TransactionIsolationLevel::TRANSACTION_READ_COMMITTED)
 #if DB_DRIVER_THREAD_SAFE
-        , m_connMutex(std::make_shared<std::recursive_mutex>())
+          ,
+          m_connMutex(std::make_shared<std::recursive_mutex>())
 #endif
     {
         FIREBIRD_DEBUG("FirebirdConnection::constructor - Starting");
-        FIREBIRD_DEBUG("  host: " << host);
-        FIREBIRD_DEBUG("  port: " << port);
-        FIREBIRD_DEBUG("  database: " << database);
-        FIREBIRD_DEBUG("  user: " << user);
+        FIREBIRD_DEBUG("  host: %s", host.c_str());
+        FIREBIRD_DEBUG("  port: %d", port);
+        FIREBIRD_DEBUG("  database: %s", database.c_str());
+        FIREBIRD_DEBUG("  user: %s", user.c_str());
 
         ISC_STATUS_ARRAY status;
 
@@ -70,7 +71,7 @@ namespace cpp_dbc::Firebird
             connStr += ":";
         }
         connStr += database;
-        FIREBIRD_DEBUG("  Connection string: " << connStr);
+        FIREBIRD_DEBUG("  Connection string: %s", connStr.c_str());
 
         // Build DPB (Database Parameter Block)
         std::vector<char> dpb;
@@ -97,6 +98,16 @@ namespace cpp_dbc::Firebird
         dpb.push_back(static_cast<char>(charset.length()));
         dpb.insert(dpb.end(), charset.begin(), charset.end());
 
+        // Add role (optional, e.g. RDB$ADMIN)
+        auto roleIt = options.find("role");
+        if (roleIt != options.end() && !roleIt->second.empty())
+        {
+            const std::string &role = roleIt->second;
+            dpb.push_back(isc_dpb_sql_role_name);
+            dpb.push_back(static_cast<char>(role.length()));
+            dpb.insert(dpb.end(), role.begin(), role.end());
+        }
+
         // Allocate database handle
         isc_db_handle *dbHandle = new isc_db_handle(0);
         FIREBIRD_DEBUG("  Attaching to database...");
@@ -106,12 +117,12 @@ namespace cpp_dbc::Firebird
                                 static_cast<short>(dpb.size()), dpb.data()))
         {
             std::string errorMsg = interpretStatusVector(status);
-            FIREBIRD_DEBUG("  Failed to attach: " << errorMsg);
+            FIREBIRD_DEBUG("  Failed to attach: %s", errorMsg.c_str());
             delete dbHandle;
             throw DBException("FB7A8B9C0D1E", "Failed to connect to database: " + errorMsg,
                               system_utils::captureCallStack());
         }
-        FIREBIRD_DEBUG("  Attached successfully, dbHandle=" << dbHandle << ", *dbHandle=" << *dbHandle);
+        FIREBIRD_DEBUG("  Attached successfully, dbHandle=%p, *dbHandle=%p", (void *)dbHandle, (void *)(uintptr_t)*dbHandle);
 
         // Create shared_ptr with custom deleter
         m_db = std::shared_ptr<isc_db_handle>(dbHandle, FirebirdDbDeleter{});
@@ -119,10 +130,10 @@ namespace cpp_dbc::Firebird
         // Cache URL
         m_url = "cpp_dbc:firebird://" + host + ":" + std::to_string(port) + "/" + database;
 
-        m_closed = false;
+        m_closed.store(false, std::memory_order_release);
 
         // Start initial transaction if autocommit is enabled
-        FIREBIRD_DEBUG("  m_autoCommit: " << (m_autoCommit ? "true" : "false"));
+        FIREBIRD_DEBUG("  m_autoCommit: %s", (m_autoCommit ? "true" : "false"));
         if (m_autoCommit)
         {
             FIREBIRD_DEBUG("  Starting initial transaction...");
@@ -133,45 +144,48 @@ namespace cpp_dbc::Firebird
 
     FirebirdDBConnection::~FirebirdDBConnection()
     {
-        close();
+        // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
+        [[maybe_unused]] auto closeResult = close(std::nothrow);
     }
 
     void FirebirdDBConnection::registerStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt)
     {
-        std::lock_guard<std::mutex> lock(m_statementsMutex);
+        FIREBIRD_CONNECTION_LOCK_OR_THROW("8M8M7HGIZ54V", "Connection closed");
         if (m_activeStatements.size() > 50)
         {
-            std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
+            std::erase_if(m_activeStatements, [](const auto &w)
+                          { return w.expired(); });
         }
         m_activeStatements.insert(stmt);
     }
 
     void FirebirdDBConnection::unregisterStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt)
     {
-        std::lock_guard<std::mutex> lock(m_statementsMutex);
+        FIREBIRD_CONNECTION_LOCK_OR_THROW("VHFDYJ7QU5JF", "Connection closed");
         m_activeStatements.erase(stmt);
     }
 
     void FirebirdDBConnection::registerResultSet(std::weak_ptr<FirebirdDBResultSet> rs)
     {
-        std::lock_guard<std::mutex> lock(m_resultSetsMutex);
+        FIREBIRD_CONNECTION_LOCK_OR_THROW("Y5XZR2IJY743", "Connection closed");
         if (m_activeResultSets.size() > 50)
         {
-            std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
+            std::erase_if(m_activeResultSets, [](const auto &w)
+                          { return w.expired(); });
         }
         m_activeResultSets.insert(rs);
     }
 
     void FirebirdDBConnection::unregisterResultSet(std::weak_ptr<FirebirdDBResultSet> rs)
     {
-        std::lock_guard<std::mutex> lock(m_resultSetsMutex);
+        FIREBIRD_CONNECTION_LOCK_OR_THROW("N10W81OLXB29", "Connection closed");
         m_activeResultSets.erase(rs);
     }
 
     void FirebirdDBConnection::startTransaction()
     {
         FIREBIRD_DEBUG("FirebirdConnection::startTransaction - Starting");
-        FIREBIRD_DEBUG("  m_tr: " << m_tr);
+        FIREBIRD_DEBUG("  m_tr: %ld", (long)m_tr);
 
         if (m_tr)
         {
@@ -211,23 +225,23 @@ namespace cpp_dbc::Firebird
         tpb.push_back(isc_tpb_wait);
 
         FIREBIRD_DEBUG("  Calling isc_start_transaction...");
-        FIREBIRD_DEBUG("    m_db.get()=" << m_db.get() << ", *m_db.get()=" << (m_db.get() ? *m_db.get() : 0));
+        FIREBIRD_DEBUG("    m_db.get()=%p, *m_db.get()=%p", (void *)m_db.get(), (void *)(uintptr_t)(m_db.get() ? *m_db.get() : 0));
         if (isc_start_transaction(status, &m_tr, 1, m_db.get(),
                                   static_cast<unsigned short>(tpb.size()), tpb.data()))
         {
             std::string errorMsg = interpretStatusVector(status);
-            FIREBIRD_DEBUG("  Failed to start transaction: " << errorMsg);
+            FIREBIRD_DEBUG("  Failed to start transaction: %s", errorMsg.c_str());
             throw DBException("FB8B9C0D1E2F", "Failed to start transaction: " + errorMsg,
                               system_utils::captureCallStack());
         }
 
         m_transactionActive = true;
-        FIREBIRD_DEBUG("FirebirdConnection::startTransaction - Done, m_tr=" << m_tr);
+        FIREBIRD_DEBUG("FirebirdConnection::startTransaction - Done, m_tr=%ld", (long)m_tr);
     }
 
     void FirebirdDBConnection::endTransaction(bool commit)
     {
-        FIREBIRD_DEBUG("FirebirdConnection::endTransaction - Starting, commit=" << (commit ? "true" : "false"));
+        FIREBIRD_DEBUG("FirebirdConnection::endTransaction - Starting, commit=%s", (commit ? "true" : "false"));
         if (!m_tr)
         {
             FIREBIRD_DEBUG("  No active transaction (m_tr=0), returning");
@@ -244,10 +258,10 @@ namespace cpp_dbc::Firebird
 
         if (commit)
         {
-            FIREBIRD_DEBUG("  Calling isc_commit_transaction, m_tr=" << m_tr);
+            FIREBIRD_DEBUG("  Calling isc_commit_transaction, m_tr=%ld", (long)m_tr);
             if (isc_commit_transaction(status, &m_tr))
             {
-                FIREBIRD_DEBUG("  isc_commit_transaction failed: " << interpretStatusVector(status));
+                FIREBIRD_DEBUG("  isc_commit_transaction failed: %s", interpretStatusVector(status).c_str());
                 throw DBException("FB9C0D1E2F3A", "Failed to commit transaction: " + interpretStatusVector(status),
                                   system_utils::captureCallStack());
             }
@@ -255,10 +269,10 @@ namespace cpp_dbc::Firebird
         }
         else
         {
-            FIREBIRD_DEBUG("  Calling isc_rollback_transaction, m_tr=" << m_tr);
+            FIREBIRD_DEBUG("  Calling isc_rollback_transaction, m_tr=%ld", (long)m_tr);
             if (isc_rollback_transaction(status, &m_tr))
             {
-                FIREBIRD_DEBUG("  isc_rollback_transaction failed: " << interpretStatusVector(status));
+                FIREBIRD_DEBUG("  isc_rollback_transaction failed: %s", interpretStatusVector(status).c_str());
                 throw DBException("FB0D1E2F3A4B", "Failed to rollback transaction: " + interpretStatusVector(status),
                                   system_utils::captureCallStack());
             }
@@ -273,26 +287,41 @@ namespace cpp_dbc::Firebird
     void FirebirdDBConnection::closeAllActiveResultSets()
     {
         FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets - Starting");
-        std::lock_guard<std::mutex> lock(m_resultSetsMutex);
 
-        int closedCount = 0;
-        for (auto &weakRs : m_activeResultSets)
+        // Collect result sets into a temporary vector while holding the lock,
+        // then release the lock before calling close() to prevent:
+        // 1. Iterator invalidation: close() -> unregisterResultSet() -> erase() on the iterated set
+        // 2. Mutex hold during sleep_for(25ms) inside close()
+        std::vector<std::shared_ptr<FirebirdDBResultSet>> resultSetsToClose;
+
         {
-            if (auto rs = weakRs.lock())
+            FIREBIRD_CONNECTION_LOCK_OR_THROW("2QTZY8G48KDG", "Connection closed");
+            for (auto &weakRs : m_activeResultSets)
             {
-                try
+                if (auto rs = weakRs.lock())
                 {
-                    rs->close();
-                    closedCount++;
-                }
-                catch (...)
-                {
-                    FIREBIRD_DEBUG("  Exception while closing ResultSet, ignoring");
+                    resultSetsToClose.push_back(rs);
                 }
             }
+            m_activeResultSets.clear(); // Clear BEFORE releasing lock
         }
-        m_activeResultSets.clear();
-        FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets - Closed " << closedCount << " result sets");
+
+        // Now close result sets outside the lock
+        // close() will call unregisterResultSet() which is now a no-op (set is already cleared)
+        int closedCount = 0;
+        for (auto &rs : resultSetsToClose)
+        {
+            try
+            {
+                rs->close();
+                closedCount++;
+            }
+            catch (...)
+            {
+                FIREBIRD_DEBUG("  Exception while closing ResultSet, ignoring");
+            }
+        }
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets - Closed %d result sets", closedCount);
     }
 
     void FirebirdDBConnection::closeAllActivePreparedStatements()
@@ -306,7 +335,7 @@ namespace cpp_dbc::Firebird
         std::vector<std::shared_ptr<FirebirdDBPreparedStatement>> statementsToInvalidate;
 
         {
-            std::lock_guard<std::mutex> lock(m_statementsMutex);
+            FIREBIRD_CONNECTION_LOCK_OR_THROW("1KDSKXL120UP", "Connection closed");
             for (auto &weakStmt : m_activeStatements)
             {
                 if (auto stmt = weakStmt.lock())
@@ -332,282 +361,37 @@ namespace cpp_dbc::Firebird
             }
         }
 
-        FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements - Invalidated " << invalidatedCount << " prepared statements");
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements - Invalidated %d prepared statements", invalidatedCount);
     }
 
-    void FirebirdDBConnection::prepareForPoolReturn()
+    uint64_t FirebirdDBConnection::executeCreateDatabase(const std::string &sql)
     {
-        // Close all active result sets first - these hold server-side cursor resources
-        // that MUST be released before ending the transaction.
-        closeAllActiveResultSets();
+        FIREBIRD_DEBUG("FirebirdConnection::executeCreateDatabase - Starting");
+        FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
 
-        // Close all active prepared statements.
-        // Note: This is standard cleanup and is NOT related to the MVCC issue fixed in
-        // prepareForBorrow(). Statement closing ensures proper resource cleanup when
-        // returning to pool. The MVCC fix handles a completely separate issue.
-        closeAllActivePreparedStatements();
+        ISC_STATUS_ARRAY status;
+        isc_db_handle db = 0;
+        isc_tr_handle tr = 0;
 
-        // Rollback any active transaction to clean up server-side state.
-        auto txActive = transactionActive(std::nothrow);
-        if (txActive.has_value() && txActive.value())
+        // Execute CREATE DATABASE using isc_dsql_execute_immediate
+        // Note: For CREATE DATABASE, we pass null handles and the SQL creates the database
+        if (isc_dsql_execute_immediate(status, &db, &tr, 0, sql.c_str(), SQL_DIALECT_V6, nullptr))
         {
-            rollback(std::nothrow);
+            std::string errorMsg = interpretStatusVector(status);
+            FIREBIRD_DEBUG("  Failed to create database or schema: %s", errorMsg.c_str());
+            throw DBException("G8H4I0J6K2L8", "Failed to create database/schema: " + errorMsg,
+                              system_utils::captureCallStack());
         }
 
-        // Reset auto-commit to true (default state for pooled connections).
-        setAutoCommit(std::nothrow, true);
-    }
+        FIREBIRD_DEBUG("  Database created successfully!");
 
-    // ============================================================================
-    // MVCC (Multi-Version Concurrency Control) Fix for Connection Pooling
-    // ============================================================================
-    //
-    // PROBLEM:
-    // Firebird uses MVCC, where each transaction sees a "snapshot" of the database
-    // taken at the moment the transaction starts. This snapshot is immutable for
-    // the lifetime of the transaction.
-    //
-    // In a connection pool scenario:
-    // 1. Pool creates N connections at initialization time (e.g., T=0)
-    // 2. Each connection starts a transaction immediately (auto-commit mode)
-    // 3. These transactions capture a snapshot of the database at T=0
-    // 4. Later (e.g., T=10), a test runs RECREATE TABLE or other DDL
-    // 5. When a pooled connection is borrowed, its transaction still has the T=0 snapshot
-    // 6. The T=0 snapshot doesn't "see" the table created at T=10
-    // 7. Result: "SQLCODE -219: table id not defined" errors
-    //
-    // SYMPTOMS:
-    // - Intermittent "table id not defined" errors in pool tests
-    // - First connection works (gets fresh transaction), subsequent ones fail
-    // - Errors appear after DDL operations (CREATE, DROP, ALTER, RECREATE TABLE)
-    // - Pool timeout errors may also appear as a secondary effect
-    //
-    // SOLUTION:
-    // When borrowing a connection from the pool, we rollback the current transaction
-    // and start a new one. This forces Firebird to take a fresh MVCC snapshot that
-    // includes all committed DDL changes up to that moment.
-    //
-    // ============================================================================
-    // WARNING: COMMON MISDIAGNOSIS - READ THIS BEFORE MODIFYING
-    // ============================================================================
-    //
-    // When debugging pool issues with symptoms like "timeout" + "table id not defined",
-    // it may seem logical to blame closeAllActivePreparedStatements() in
-    // prepareForPoolReturn(), thinking:
-    //
-    //   "Statement closing is slow under Valgrind → causes timeouts → connections
-    //    with stale transactions get borrowed → table errors"
-    //
-    // THIS IS A FALSE DIAGNOSIS. The actual cause is the MVCC snapshot issue described
-    // above. The statement closing and MVCC are COMPLETELY UNRELATED concerns:
-    //
-    // +---------------------------+----------------------------------------+
-    // | Statement Closing         | MVCC Refresh                           |
-    // +---------------------------+----------------------------------------+
-    // | Resource management       | Database visibility                    |
-    // | Releases handles/memory   | Determines what tables/data are seen   |
-    // | Done in prepareForReturn  | Done in prepareForBorrow               |
-    // | Can be slow under Valgrind| Always fast (just rollback+start tx)   |
-    // | Does NOT cause MVCC issues| FIXES the MVCC visibility problem      |
-    // +---------------------------+----------------------------------------+
-    //
-    // If you see "table id not defined" errors in pool tests, the fix is HERE in
-    // prepareForBorrow(), NOT in removing statement closing from prepareForPoolReturn().
-    //
-    // This was verified experimentally: with prepareForBorrow() active, both
-    // active statement closing AND passive clearing work correctly. The MVCC
-    // refresh is the essential fix.
-    //
-    // ============================================================================
-    void FirebirdDBConnection::prepareForBorrow()
-    {
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed)
+        // Detach from the newly created database
+        if (db)
         {
-            return;
+            isc_detach_database(status, &db);
         }
 
-        // Refresh the MVCC snapshot by rolling back and starting a new transaction.
-        // This ensures the borrowed connection can see all DDL changes committed
-        // after the previous transaction started.
-        if (m_tr && m_autoCommit)
-        {
-            FIREBIRD_DEBUG("FirebirdConnection::prepareForBorrow - Refreshing transaction for fresh MVCC snapshot");
-            // rollback() will start a new transaction if autoCommit is true,
-            // giving us a fresh snapshot of the current database state.
-            rollback(std::nothrow);
-        }
-    }
-
-    void FirebirdDBConnection::close()
-    {
-
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        if (m_closed)
-            return;
-
-        // Notify all active statements
-        {
-            std::lock_guard<std::mutex> stmtLock(m_statementsMutex);
-            for (auto &weakStmt : m_activeStatements)
-            {
-                if (auto stmt = weakStmt.lock())
-                {
-                    stmt->notifyConnClosing();
-                }
-            }
-            m_activeStatements.clear();
-        }
-
-        // End any active transaction
-        if (m_tr)
-        {
-            ISC_STATUS_ARRAY status;
-            isc_rollback_transaction(status, &m_tr);
-            m_tr = 0;
-        }
-
-        // The database handle will be closed by the shared_ptr deleter
-        m_db.reset();
-
-        m_closed = true;
-
-        // Small delay to ensure cleanup
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
-
-    bool FirebirdDBConnection::isClosed() const
-    {
-
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        return m_closed;
-    }
-
-    void FirebirdDBConnection::returnToPool()
-    {
-        FIREBIRD_DEBUG("FirebirdConnection::returnToPool - Starting");
-        FIREBIRD_DEBUG("  m_transactionActive: " << (m_transactionActive ? "true" : "false"));
-        FIREBIRD_DEBUG("  m_autoCommit: " << (m_autoCommit ? "true" : "false"));
-        FIREBIRD_DEBUG("  m_tr: " << m_tr);
-
-        // NOTE: We don't call closeAllActiveResultSets() here because it's already
-        // called in endTransaction() which will be invoked by commit()/rollback()
-        // Calling it twice causes "invalid statement handle" errors
-
-        // Reset connection state for pool reuse
-        // Always ensure we have a clean transaction state
-        if (m_tr)
-        {
-            FIREBIRD_DEBUG("  Transaction handle exists, committing/rolling back");
-            try
-            {
-                if (m_autoCommit)
-                {
-                    // In autocommit mode, commit any pending changes
-                    // This will call endTransaction() which closes ResultSets
-                    commit();
-                }
-                else if (m_transactionActive)
-                {
-                    // In manual mode with active transaction, rollback
-                    // This will call endTransaction() which closes ResultSets
-                    rollback();
-                }
-            }
-            catch (...)
-            {
-                FIREBIRD_DEBUG("  Commit/rollback failed, forcing rollback");
-                // If commit/rollback fails, force a rollback to clean up
-                try
-                {
-                    ISC_STATUS_ARRAY status;
-                    if (m_tr)
-                    {
-                        isc_rollback_transaction(status, &m_tr);
-                        m_tr = 0;
-                    }
-                }
-                catch (...)
-                {
-                    FIREBIRD_DEBUG("  Force rollback also failed");
-                }
-            }
-        }
-
-        // Ensure autocommit is enabled for pool reuse (default state)
-        m_autoCommit = true;
-        m_transactionActive = false;
-
-        // Start a fresh transaction for the next use
-        if (!m_tr && !m_closed)
-        {
-            FIREBIRD_DEBUG("  Starting fresh transaction for pool reuse");
-            try
-            {
-                startTransaction();
-            }
-            catch (...)
-            {
-                FIREBIRD_DEBUG("  Failed to start fresh transaction");
-            }
-        }
-
-        FIREBIRD_DEBUG("FirebirdConnection::returnToPool - Done, m_tr=" << m_tr);
-    }
-
-    bool FirebirdDBConnection::isPooled()
-    {
-        return false; // Not pooled by default
-    }
-
-    std::shared_ptr<RelationalDBPreparedStatement> FirebirdDBConnection::prepareStatement(const std::string &sql)
-    {
-        auto result = prepareStatement(std::nothrow, sql);
-        if (!result)
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    std::shared_ptr<RelationalDBResultSet> FirebirdDBConnection::executeQuery(const std::string &sql)
-    {
-        auto result = executeQuery(std::nothrow, sql);
-        if (!result)
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    uint64_t FirebirdDBConnection::executeUpdate(const std::string &sql)
-    {
-        auto result = executeUpdate(std::nothrow, sql);
-        if (!result)
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    void FirebirdDBConnection::setAutoCommit(bool autoCommit)
-    {
-        auto result = setAutoCommit(std::nothrow, autoCommit);
-        if (!result)
-        {
-            throw result.error();
-        }
-    }
-
-    bool FirebirdDBConnection::getAutoCommit()
-    {
-
-        DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-        return m_autoCommit;
+        return 0; // CREATE DATABASE doesn't return affected rows
     }
 
 } // namespace cpp_dbc::Firebird

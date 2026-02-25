@@ -188,13 +188,12 @@ int main(int argc, char *argv[])
         logMsg("--- Pool Creation ---");
 
         logStep("Creating SQLite connection pool...");
-        auto pool = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
-
-        if (!pool)
+        auto poolResult = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
         {
-            logError("Failed to create SQLite connection pool");
-            return EXIT_ERROR_;
+            throw poolResult.error();
         }
+        auto pool = poolResult.value();
 
         logOk("Connection pool created");
         logData("Initial idle connections: " + std::to_string(pool->getIdleDBConnectionCount()));

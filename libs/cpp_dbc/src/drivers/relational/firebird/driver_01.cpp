@@ -106,7 +106,7 @@ namespace cpp_dbc::Firebird
                               system_utils::captureCallStack());
         }
 
-        FIREBIRD_DEBUG("  Command: " << cmd);
+        FIREBIRD_DEBUG("  Command: %s", cmd.c_str());
 
         if (cmd == "create_database")
         {
@@ -248,7 +248,7 @@ namespace cpp_dbc::Firebird
                                              "DEFAULT CHARACTER SET " +
                                   charset;
 
-        FIREBIRD_DEBUG("FirebirdDriver::createDatabase - Executing: " << createDbSql);
+        FIREBIRD_DEBUG("FirebirdDriver::createDatabase - Executing: %s", createDbSql.c_str());
 
         ISC_STATUS_ARRAY status;
         isc_db_handle db = 0;
@@ -258,7 +258,7 @@ namespace cpp_dbc::Firebird
         if (isc_dsql_execute_immediate(status, &db, &tr, 0, createDbSql.c_str(), SQL_DIALECT_V6, nullptr))
         {
             std::string errorMsg = interpretStatusVector(status);
-            FIREBIRD_DEBUG("  Failed to create database: " << errorMsg);
+            FIREBIRD_DEBUG("  Failed to create database: %s", errorMsg.c_str());
             throw DBException("I0J6K2L8M4N0", "Failed to create database: " + errorMsg,
                               system_utils::captureCallStack());
         }

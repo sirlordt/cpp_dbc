@@ -18,12 +18,12 @@
 
 #include <string>
 #include <fstream>
-#include <iostream>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/core/columnar/columnar_db_connection.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "26_001_test_scylladb_real_common.hpp"
 
@@ -54,8 +54,8 @@ TEST_CASE("ScyllaDB connection test", "[26_041_01_scylladb_real_connection]")
         try
         {
             // Attempt to connect to ScyllaDB
-            std::cout << "Attempting to connect to ScyllaDB with connection string: " << connStr << std::endl;
-            std::cout << "Username: " << username << ", Password: " << password << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to ScyllaDB with connection string: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
                 cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -74,7 +74,7 @@ TEST_CASE("ScyllaDB connection test", "[26_041_01_scylladb_real_connection]")
         catch (const cpp_dbc::DBException &e)
         {
             std::string errorMsg = e.what_s();
-            std::cout << "ScyllaDB connection error: " << errorMsg << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "ScyllaDB connection error: " + errorMsg);
 
             // If connection fails, fail the test
             FAIL("Failed to connect to ScyllaDB: " + errorMsg);
@@ -150,7 +150,7 @@ TEST_CASE("ScyllaDB connection test", "[26_041_01_scylladb_real_connection]")
         catch (const cpp_dbc::DBException &e)
         {
             std::string errorMsg = e.what_s();
-            std::cout << "ScyllaDB connection with keyspace error: " << errorMsg << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "ScyllaDB connection with keyspace error: " + errorMsg);
             FAIL("Failed to connect to ScyllaDB with keyspace: " + errorMsg);
         }
     }
@@ -195,7 +195,7 @@ TEST_CASE("ScyllaDB connection test", "[26_041_01_scylladb_real_connection]")
         catch (const cpp_dbc::DBException &e)
         {
             std::string errorMsg = e.what_s();
-            std::cout << "ScyllaDB connection properties error: " << errorMsg << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "ScyllaDB connection properties error: " + errorMsg);
             FAIL("Failed to test ScyllaDB connection properties: " + errorMsg);
         }
     }

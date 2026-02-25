@@ -7,10 +7,10 @@
 #endif
 
 #if USE_FIREBIRD
-#include <vector>
-#include <string>
-#include <memory>
 #include <atomic>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace cpp_dbc::Firebird
 {
@@ -33,19 +33,47 @@ namespace cpp_dbc::Firebird
      *
      * @see FirebirdDBConnection, FirebirdDBResultSet
      */
-    class FirebirdDBPreparedStatement final : public RelationalDBPreparedStatement
+    class FirebirdDBPreparedStatement final : public RelationalDBPreparedStatement,
+                                               public std::enable_shared_from_this<FirebirdDBPreparedStatement>
     {
         friend class FirebirdDBConnection;
+        friend class FirebirdConnectionLock;
 
     private:
         std::weak_ptr<isc_db_handle> m_dbHandle;
-        std::weak_ptr<FirebirdDBConnection> m_connection; // Reference to connection for autocommit
-        isc_tr_handle *m_trPtr{nullptr};                  // Non-owning pointer to transaction handle (owned by Connection)
+
+        // ============================================================================
+        // FIX #1: Eliminate m_trPtr Dangling Pointer (USE-AFTER-FREE Bug)
+        // ============================================================================
+        // PROBLEM (BEFORE):
+        //   isc_tr_handle *m_trPtr{nullptr};  // Raw pointer to connection's m_tr
+        //
+        // This raw pointer caused USE-AFTER-FREE bugs:
+        //   - If the connection was destroyed while PreparedStatement existed,
+        //     m_trPtr pointed to FREED MEMORY (m_tr is a stack member of Connection)
+        //   - When executeUpdate() dereferenced it: isc_dsql_execute(..., m_trPtr, ...)
+        //     → SEGMENTATION FAULT or memory corruption
+        //
+        // SOLUTION (NOW):
+        //   std::weak_ptr<FirebirdDBConnection> m_connection;
+        //
+        // Benefits:
+        //   1. Lifecycle-safe: weak_ptr detects when connection is destroyed
+        //   2. Access pattern: lock() → check → use conn->m_tr → safe
+        //   3. Prevents dangling pointer bugs entirely
+        //   4. Matches SQLite's pattern with FileMutexRegistry
+        //
+        // Usage in methods (executeUpdate, executeQuery, etc.):
+        //   auto conn = m_connection.lock();
+        //   if (!conn) return unexpected("Connection destroyed");
+        //   isc_dsql_execute(status, &(conn->m_tr), ...);  // Safe access
+        // ============================================================================
+        std::weak_ptr<FirebirdDBConnection> m_connection;
         isc_stmt_handle m_stmt{};
         std::string m_sql;
         XSQLDAHandle m_inputSqlda;
         XSQLDAHandle m_outputSqlda;
-        bool m_closed{true};
+        std::atomic<bool> m_closed{true};
         bool m_prepared{false};
         std::atomic<bool> m_invalidated{false}; // Set to true when connection invalidates this statement due to DDL
 
@@ -55,17 +83,6 @@ namespace cpp_dbc::Firebird
         std::vector<std::vector<uint8_t>> m_blobValues;
         std::vector<std::shared_ptr<Blob>> m_blobObjects;
         std::vector<std::shared_ptr<InputStream>> m_streamObjects;
-
-#if DB_DRIVER_THREAD_SAFE
-        /**
-         * @brief Shared mutex with the parent Connection
-         *
-         * This mutex is shared between the Connection and all PreparedStatements created from it.
-         * This ensures that when close() calls isc_dsql_free_statement(), no other thread can
-         * simultaneously use the same database handle.
-         */
-        SharedConnMutex m_connMutex;
-#endif
 
         void notifyConnClosing();
         isc_db_handle *getFirebirdConnection() const;
@@ -80,14 +97,11 @@ namespace cpp_dbc::Firebird
         void invalidate();
 
     public:
-#if DB_DRIVER_THREAD_SAFE
-        FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db, isc_tr_handle *trPtr, const std::string &sql,
-                                    SharedConnMutex connMutex,
-                                    std::weak_ptr<FirebirdDBConnection> conn = std::weak_ptr<FirebirdDBConnection>());
-#else
-        FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db, isc_tr_handle *trPtr, const std::string &sql,
-                                    std::weak_ptr<FirebirdDBConnection> conn = std::weak_ptr<FirebirdDBConnection>());
-#endif
+        // Constructor no longer takes SharedConnMutex parameter
+        // The mutex is accessed through m_connection weak_ptr when needed
+        FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db,
+                                    const std::string &sql,
+                                    std::weak_ptr<FirebirdDBConnection> conn);
         ~FirebirdDBPreparedStatement() override;
 
         void setInt(int parameterIndex, int value) override;

@@ -36,14 +36,74 @@ namespace cpp_dbc::Firebird
 {
 
     // ============================================================================
-    // FirebirdDBPreparedStatement - NOTHROW METHODS (part 2)
+    // FirebirdDBPreparedStatement - NOTHROW METHODS (part 1)
     // ============================================================================
+
+    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setInt(std::nothrow_t, int parameterIndex, int value) noexcept
+    {
+        try
+        {
+            FIREBIRD_LOCK_OR_RETURN("7OAQLW6S1NV5", "Connection lost in setInt");
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FB4NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
+
+            ISC_LONG val = static_cast<ISC_LONG>(value);
+            setParameter(parameterIndex, &val, sizeof(ISC_LONG), SQL_LONG);
+            return {};
+        }
+        catch (const DBException &e)
+        {
+            return cpp_dbc::unexpected(e);
+        }
+        catch (const std::exception &e)
+        {
+            return cpp_dbc::unexpected(DBException("FP1A2B3C4D5E", std::string("Exception in setInt: ") + e.what(), system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("FP2B3C4D5E6F", "Unknown exception in setInt", system_utils::captureCallStack()));
+        }
+    }
+
+    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept
+    {
+        try
+        {
+            FIREBIRD_LOCK_OR_RETURN("4Q9KI4JP2XTB", "Connection lost in setLong");
+
+            // Check if statement was invalidated by connection due to DDL operation
+            if (m_invalidated.load(std::memory_order_acquire))
+            {
+                return cpp_dbc::unexpected(DBException("FB5NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+            }
+
+            ISC_INT64 val = static_cast<ISC_INT64>(value);
+            setParameter(parameterIndex, &val, sizeof(ISC_INT64), SQL_INT64);
+            return {};
+        }
+        catch (const DBException &e)
+        {
+            return cpp_dbc::unexpected(e);
+        }
+        catch (const std::exception &e)
+        {
+            return cpp_dbc::unexpected(DBException("FBAV2W3X4Y5Z", std::string("Exception in setLong: ") + e.what(), system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("FBBW3X4Y5Z6A", "Unknown exception in setLong", system_utils::captureCallStack()));
+        }
+    }
 
     cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setDouble(std::nothrow_t, int parameterIndex, double value) noexcept
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("ZRWB1E4M2L52", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -61,19 +121,19 @@ namespace cpp_dbc::Firebird
             XSQLVAR *var = &m_inputSqlda->sqlvar[idx];
             short sqlType = var->sqltype & ~1;
 
-            FIREBIRD_DEBUG("setDouble: parameterIndex=" << parameterIndex << ", value=" << value);
-            FIREBIRD_DEBUG("  sqlType=" << sqlType << ", sqlscale=" << var->sqlscale << ", sqllen=" << var->sqllen);
+            FIREBIRD_DEBUG("setDouble: parameterIndex=%d, value=%f", parameterIndex, value);
+            FIREBIRD_DEBUG("  sqlType=%d, sqlscale=%d, sqllen=%d", (int)sqlType, (int)var->sqlscale, (int)var->sqllen);
 
             // Handle DECIMAL/NUMERIC types which are stored as scaled integers
             if (var->sqlscale < 0)
             {
                 double scaleFactor = std::pow(10.0, -var->sqlscale);
-                FIREBIRD_DEBUG("  DECIMAL type detected, scaleFactor=" << scaleFactor);
+                FIREBIRD_DEBUG("  DECIMAL type detected, scaleFactor=%f", scaleFactor);
 
                 if (sqlType == SQL_SHORT)
                 {
                     short scaledValue = static_cast<short>(std::round(value * scaleFactor));
-                    FIREBIRD_DEBUG("  SQL_SHORT: scaledValue=" << scaledValue);
+                    FIREBIRD_DEBUG("  SQL_SHORT: scaledValue=%d", (int)scaledValue);
                     if (m_paramBuffers[idx].size() < sizeof(short))
                     {
                         m_paramBuffers[idx].resize(sizeof(short), 0);
@@ -85,7 +145,7 @@ namespace cpp_dbc::Firebird
                 else if (sqlType == SQL_LONG)
                 {
                     ISC_LONG scaledValue = static_cast<ISC_LONG>(std::round(value * scaleFactor));
-                    FIREBIRD_DEBUG("  SQL_LONG: scaledValue=" << scaledValue);
+                    FIREBIRD_DEBUG("  SQL_LONG: scaledValue=%ld", (long)scaledValue);
                     if (m_paramBuffers[idx].size() < sizeof(ISC_LONG))
                     {
                         m_paramBuffers[idx].resize(sizeof(ISC_LONG), 0);
@@ -97,7 +157,7 @@ namespace cpp_dbc::Firebird
                 else if (sqlType == SQL_INT64)
                 {
                     ISC_INT64 scaledValue = static_cast<ISC_INT64>(std::round(value * scaleFactor));
-                    FIREBIRD_DEBUG("  SQL_INT64: scaledValue=" << scaledValue);
+                    FIREBIRD_DEBUG("  SQL_INT64: scaledValue=%lld", (long long)scaledValue);
                     if (m_paramBuffers[idx].size() < sizeof(ISC_INT64))
                     {
                         m_paramBuffers[idx].resize(sizeof(ISC_INT64), 0);
@@ -115,12 +175,12 @@ namespace cpp_dbc::Firebird
             else if (sqlType == SQL_FLOAT)
             {
                 float floatValue = static_cast<float>(value);
-                FIREBIRD_DEBUG("  SQL_FLOAT: floatValue=" << floatValue);
+                FIREBIRD_DEBUG("  SQL_FLOAT: floatValue=%f", (double)floatValue);
                 setParameter(parameterIndex, &floatValue, sizeof(float), SQL_FLOAT);
             }
             else
             {
-                FIREBIRD_DEBUG("  SQL_DOUBLE: value=" << value);
+                FIREBIRD_DEBUG("  SQL_DOUBLE: value=%f", value);
                 setParameter(parameterIndex, &value, sizeof(double), SQL_DOUBLE);
             }
             return {};
@@ -143,7 +203,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("FXE1E4KBWNL8", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -164,7 +224,7 @@ namespace cpp_dbc::Firebird
             // Handle BLOB type - convert string to BLOB
             if (sqlType == SQL_BLOB)
             {
-                FIREBIRD_DEBUG("setString: parameterIndex=" << parameterIndex << " is BLOB type, converting to BLOB");
+                FIREBIRD_DEBUG("setString: parameterIndex=%d is BLOB type, converting to BLOB", parameterIndex);
                 // Convert string to bytes and use setBytes
                 std::vector<uint8_t> data(value.begin(), value.end());
 
@@ -230,7 +290,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("HJ4C76QCZV7E", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -260,7 +320,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("OJ9DMC2WW02G", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -296,7 +356,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("JVSOO8279IPP", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -336,7 +396,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("98XYZF12NSDR", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -378,7 +438,7 @@ namespace cpp_dbc::Firebird
     {
         try
         {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
+            FIREBIRD_LOCK_OR_RETURN("Z21IV6744VHW", "Connection lost");
 
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
@@ -391,7 +451,7 @@ namespace cpp_dbc::Firebird
             if (sscanf(value.c_str(), "%d:%d:%d",
                        &time.tm_hour, &time.tm_min, &time.tm_sec) != 3)
             {
-                return cpp_dbc::unexpected(DBException("P4Q5R6S7T8U9", "Invalid time format: " + value, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("68TNRM1CR27K", "Invalid time format: " + value, system_utils::captureCallStack()));
             }
 
             ISC_TIME t;
@@ -409,189 +469,7 @@ namespace cpp_dbc::Firebird
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("B5C6D7E8F9G0", "Unknown exception in setTime", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept
-    {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            // Check if statement was invalidated by connection due to DDL operation
-            if (m_invalidated.load(std::memory_order_acquire))
-            {
-                return cpp_dbc::unexpected(DBException("FBN1V4SBLB04", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
-            }
-
-            if (!x)
-            {
-                auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                if (!nullResult)
-                {
-                    return cpp_dbc::unexpected(nullResult.error());
-                }
-                return {};
-            }
-
-            m_blobObjects.push_back(x);
-            std::vector<uint8_t> data = x->getBytes(0, x->length());
-            auto bytesResult = setBytes(std::nothrow, parameterIndex, data);
-            if (!bytesResult)
-            {
-                return cpp_dbc::unexpected(bytesResult.error());
-            }
-            return {};
-        }
-        catch (const DBException &e)
-        {
-            return cpp_dbc::unexpected(e);
-        }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("C6D7E8F9A0B1", std::string("Exception in setBlob: ") + e.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("D7E8F9A0B1C2", "Unknown exception in setBlob", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept
-    {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            // Check if statement was invalidated by connection due to DDL operation
-            if (m_invalidated.load(std::memory_order_acquire))
-            {
-                return cpp_dbc::unexpected(DBException("FBN1V4SBNS05", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
-            }
-
-            if (!x)
-            {
-                auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                if (!nullResult)
-                {
-                    return cpp_dbc::unexpected(nullResult.error());
-                }
-                return {};
-            }
-
-            m_streamObjects.push_back(x);
-
-            // Read all data from stream
-            std::vector<uint8_t> data;
-            uint8_t buffer[4096];
-            int bytesRead;
-            while ((bytesRead = x->read(buffer, sizeof(buffer))) > 0)
-            {
-                data.insert(data.end(), buffer, buffer + bytesRead);
-            }
-
-            auto bytesResult = setBytes(std::nothrow, parameterIndex, data);
-            if (!bytesResult)
-            {
-                return cpp_dbc::unexpected(bytesResult.error());
-            }
-            return {};
-        }
-        catch (const DBException &e)
-        {
-            return cpp_dbc::unexpected(e);
-        }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("E8F9A0B1C2D3", std::string("Exception in setBinaryStream: ") + e.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("F9A0B1C2D3E4", "Unknown exception in setBinaryStream", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept
-    {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(*m_connMutex);
-
-            // Check if statement was invalidated by connection due to DDL operation
-            if (m_invalidated.load(std::memory_order_acquire))
-            {
-                return cpp_dbc::unexpected(DBException("FBN1V4SBNL06", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
-            }
-
-            if (!x)
-            {
-                auto nullResult = setNull(std::nothrow, parameterIndex, Types::BLOB);
-                if (!nullResult)
-                {
-                    return cpp_dbc::unexpected(nullResult.error());
-                }
-                return {};
-            }
-
-            m_streamObjects.push_back(x);
-
-            // Read specified length from stream
-            std::vector<uint8_t> data(length);
-            size_t totalRead = 0;
-            while (totalRead < length)
-            {
-                int bytesRead = x->read(data.data() + totalRead, length - totalRead);
-                if (bytesRead <= 0)
-                    break;
-                totalRead += static_cast<size_t>(bytesRead);
-            }
-            data.resize(totalRead);
-
-            auto bytesResult = setBytes(std::nothrow, parameterIndex, data);
-            if (!bytesResult)
-            {
-                return cpp_dbc::unexpected(bytesResult.error());
-            }
-            return {};
-        }
-        catch (const DBException &e)
-        {
-            return cpp_dbc::unexpected(e);
-        }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("A0B1C2D3E4F5", std::string("Exception in setBinaryStream(length): ") + e.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("B1C2D3E4F5A6", "Unknown exception in setBinaryStream(length)", system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept
-    {
-        try
-        {
-            // Check if statement was invalidated by connection due to DDL operation
-            if (m_invalidated.load(std::memory_order_acquire))
-            {
-                return cpp_dbc::unexpected(DBException("FBN1V4SBYT07", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
-            }
-
-            return setBytes(std::nothrow, parameterIndex, x.data(), x.size());
-        }
-        catch (const DBException &e)
-        {
-            return cpp_dbc::unexpected(e);
-        }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("C2D3E4F5A6B7", std::string("Exception in setBytes(vector): ") + e.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("D3E4F5A6B7C8", "Unknown exception in setBytes(vector)", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("ZCA2M34XS47M", "Unknown exception in setTime", system_utils::captureCallStack()));
         }
     }
 

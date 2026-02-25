@@ -19,9 +19,11 @@
 */
 
 #include "cpp_dbc/common/system_utils.hpp"
+#include "cpp_dbc/backward.hpp"
+
 #include <vector>
 #include <filesystem>
-#include "cpp_dbc/backward.hpp"
+#include <thread>
 
 #ifdef __linux__
 #include <unistd.h>
@@ -39,7 +41,7 @@ namespace cpp_dbc::system_utils
 {
 
     // Define the global mutex
-    std::mutex global_cout_mutex; // NOSONAR - Mutex cannot be const as it needs to be locked/unlocked
+    std::recursive_mutex global_cout_mutex{}; // NOSONAR - Mutex cannot be const as it needs to be locked/unlocked
 
     bool shouldSkipFrame(std::string_view filename, std::string_view function)
     {
@@ -82,10 +84,22 @@ namespace cpp_dbc::system_utils
         return false;
     }
 
-    std::vector<StackFrame> captureCallStack(bool captureAll, int skip) noexcept
+    std::vector<StackFrame> captureCallStack([[maybe_unused]] bool captureAll, [[maybe_unused]] int skip) noexcept
     {
+#if BACKWARD_HAS_DW == 0
+        // When libdw support is disabled (--dw-off flag), skip stack trace capture
+        // to eliminate overhead in production builds. Return empty vector immediately.
+        return {};
+#else
         try
         {
+            // CRITICAL: backward-cpp (TraceResolver, StackTrace) has internal shared state
+            // that is NOT thread-safe. Without this mutex, concurrent calls from multiple
+            // threads cause data races detected by Helgrind/ThreadSanitizer.
+            // This recursive_mutex serializes all stack trace capture operations globally.
+            static std::recursive_mutex stackTraceMutex;
+            std::scoped_lock lock(stackTraceMutex);
+
             backward::StackTrace st;
             st.load_here(32);
             backward::TraceResolver tr;
@@ -120,6 +134,7 @@ namespace cpp_dbc::system_utils
             // Return empty vector if stack capture fails - noexcept guarantee
             return {};
         }
+#endif
     }
 
     void printCallStack(const std::vector<StackFrame> &frames)

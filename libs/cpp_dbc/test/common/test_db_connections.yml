@@ -97,18 +97,29 @@ databases:
   - name: dev_sqlite
     type: sqlite
     database: ":memory:"
-    options:
-      foreign_keys: true
-      journal_mode: WAL
+    #options:
+    #  foreign_keys: true
+    #  journal_mode: WAL
       
   # SQLite testing database
   - name: test_sqlite
     type: sqlite
-    database: "/tmp/cpp_dbc_test_sqlite.db"
-    options:
-      foreign_keys: true
-      journal_mode: WAL
+    #WARNING: if not specify a path the default path is inside of build folder. The build folder is cleared when a test finish a run. Deleting the .db files. And later a I/O error in sqlite or db is read only errors in running test.
+    database: "/tmp/test_sqlite.db" 
+    #options:
+    #  foreign_keys: true
+    #  journal_mode: WAL
       
+  # SQLite transaction testing database
+  - name: test_sqlite_transaction
+    type: sqlite
+    database: "/tmp/test_sqlite_transaction.db"
+
+  # SQLite transaction multithread testing database
+  - name: test_sqlite_transaction_multithread
+    type: sqlite
+    database: "/tmp/test_sqlite_transaction_multithread.db"
+
   # SQLite production database (example)
   - name: prod_sqlite
     type: sqlite
@@ -128,7 +139,8 @@ databases:
     password: dsystems
     options:
       charset: UTF8
-      
+      role: RDB$ADMIN
+
   # Firebird testing database
   - name: test_firebird
     type: firebird
@@ -139,6 +151,19 @@ databases:
     password: dsystems
     options:
       charset: UTF8
+      role: RDB$ADMIN
+
+  # Firebird production database (example)
+  - name: prod_firebird
+    type: firebird
+    host: db.example.com
+    port: 3050
+    database: /firebird/data/prod_firebird.fdb
+    username: SYSDBA
+    password: dsystems
+    options:
+      charset: UTF8
+      role: RDB$ADMIN
 
   # MongoDB development database
   - name: dev_mongodb

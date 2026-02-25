@@ -21,7 +21,6 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include <iostream>
 #include <fstream>
 #include <random>
 #include <sstream>
@@ -31,6 +30,7 @@
 #include <cpp_dbc/cpp_dbc.hpp>
 #include <cpp_dbc/core/relational/relational_db_connection_pool.hpp>
 #include <cpp_dbc/config/database_config.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "21_001_test_postgresql_real_common.hpp"
 
@@ -154,8 +154,6 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         REQUIRE(std::find(keys.begin(), keys.end(), "age") != keys.end());
         REQUIRE(std::find(keys.begin(), keys.end(), "city") != keys.end());
 
-        // Clean up
-        conn->executeUpdate("DROP TABLE test_json_types");
         conn->close();
     }
 
@@ -224,8 +222,6 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("id") == 3);
 
-        // Clean up
-        conn->executeUpdate("DROP TABLE test_jsonb_operators");
         conn->close();
     }
 
@@ -295,8 +291,6 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         REQUIRE(rs->next());
         REQUIRE(rs->getBoolean("has_city") == false);
 
-        // Clean up
-        conn->executeUpdate("DROP TABLE test_jsonb_modification");
         conn->close();
     }
 
@@ -367,8 +361,6 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         }
         REQUIRE(count == 3);
 
-        // Clean up
-        conn->executeUpdate("DROP TABLE test_jsonb_indexing");
         conn->close();
     }
 
@@ -489,8 +481,6 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         REQUIRE(std::find(features.begin(), features.end(), "\"shockproof\"") != features.end());
         REQUIRE(std::find(features.begin(), features.end(), "\"dustproof\"") != features.end());
 
-        // Clean up
-        conn->executeUpdate("DROP TABLE test_jsonb_aggregation");
         conn->close();
     }
 
@@ -547,7 +537,7 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         catch (const cpp_dbc::DBException &e)
         {
             // JSON schema validation might not be available in older PostgreSQL versions
-            std::cout << "JSON schema validation test skipped: " << e.what_s() << std::endl;
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "JSON schema validation test skipped: " + e.what_s());
         }
 
         // Test error handling with JSON path expressions
@@ -555,8 +545,6 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         REQUIRE(rs->next());
         REQUIRE(rs->isNull("nonexistent"));
 
-        // Clean up
-        conn->executeUpdate("DROP TABLE test_json_validation");
         conn->close();
     }
 }

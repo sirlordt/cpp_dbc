@@ -37,7 +37,114 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Test Directory Reorganization and Parallel Test Runner Enhancements** (2026-02-06 21:44:02 PST):
+1. **Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection** (2026-02-24 18:25 PST):
+   - **Pool Factory — Nothrow `create()` (All Families):**
+     - All `create()` factories return `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` (breaking change)
+     - All internal pool methods (createDBConnection, createPooledDBConnection, validateConnection, returnConnection, initializePool) return `expected<...>` noexcept
+     - All examples, tests, and `database_config.cpp` updated to use `create(std::nothrow, ...)` + expected pattern
+   - **Nothrow Base Interfaces:**
+     - `DBConnectionPool` base: added nothrow pure virtuals for 6 pool methods
+     - `DBConnectionPooled` base: all 6 interface methods get nothrow signatures; `<new>` header added
+   - **`m_lastUsedTimeNs` (atomic<int64_t>):** `atomic<time_point>` → `atomic<int64_t>` (nanoseconds since epoch) — truly portable (ARM32/MIPS); `static_assert` updated; `m_creationTime` uses in-class init; `m_lastUsedTimeNs` initialized from it
+   - **MySQL `m_closed` → `std::atomic<bool>{false}`:** All 8+ access sites use `.load(std::memory_order_acquire)` / `.store(..., std::memory_order_release)`; constructor init removed
+   - **Destructor Nothrow Close:** MySQL/PostgreSQL/SQLite/Firebird result set destructors all use `close(std::nothrow)` + error log; SQLite try/catch removed
+   - **Debug Macro Truncation:** `CP_DEBUG`, `FIREBIRD_DEBUG`, `SQLITE_DEBUG` detect `snprintf` overflow → append `...[TRUNCATED]`
+   - **`HighPerfLogger::m_flushCounter`:** Static local → class member
+   - **CMake:** `ENABLE_ASAN`/`ENABLE_TSAN` add compile/link flags directly; `[[deprecated]]` on `what()` commented out
+   - **Conventions:** 4 new sections — in-class member init, `atomic.load(memory_order_acquire)`, nothrow calls nothrow, no redundant try/catch
+   - **Minor fixes:** Shell `"$@"` quoting, `NO_REBUILD_DEPS` removed, Firebird null-check removed, "5ms" → "25ms" log, ScyllaDB captureCallStack + error code dedup
+
+2. **Unified Pool Mutex, Atomic Time-Point, Direct Handoff for All Pools, Notifications, and Test Quality Improvements** (2026-02-22 19:18 PST):
+   - **Columnar/Document/KV Pools — Unified Mutex + Direct Handoff:**
+     - 5 separate mutexes → single `m_mutexPool`; `getIdleDBConnection()` private method removed
+     - `getXDBConnection()`: replaced 10ms-polling loop with `condition_variable::wait_until()` + FIFO wait loop
+     - Added `ConnectionRequest` struct + `m_waitQueue` for direct handoff (no "stolen wakeup" race)
+     - Added `m_connectionAvailable` CV (borrowers) and `m_pendingCreations` counter (overshoot prevention)
+     - `returnConnection()` fixes: pool-closing exit, orphan handling, reset-failure → invalid, `updateLastUsedTime()`, all notifies inside lock
+     - Destructors call `XDBConnectionPool::close()` (qualified) to avoid S1699 virtual dispatch in destructor
+   - **`std::atomic<time_point>` for Last-Used Time:**
+     - `m_lastUsedTimeMutex` removed; `m_lastUsedTime` → `std::atomic<steady_clock::time_point>` with `memory_order_relaxed`
+     - `static_assert(::is_always_lock_free)` verifies no hidden mutex at compile time
+   - **`libdw` Disabled by Default:** All test scripts default `BACKWARD_HAS_DW=OFF`; `--dw-on` opt-in
+   - **Test Notification System:** `send_test_notification()` in `scripts/common/functions.sh`; reads `NOTIFY_COMMAND` from `.env.secrets` (gitignored); sends Gotify push after parallel and non-parallel runs
+   - **`run_test_parallel.sh` — Compact Summary Refactor:** `display_compact_summary()` + `extract_catch2_warnings()` + `reconstruct_helgrind_warnings()` + `print_entry()`/`print_reason()`; `save_report_to_file()` includes compact summary + elapsed time
+   - **Firebird `role` Option:** `isc_dpb_sql_role_name` in DPB; YAML updated; new `prod_firebird` example; `READ_UNCOMMITTED` MVCC behavior test
+   - **Test Quality:** All success thresholds → 95%; timeout 2000 ms → 3500 ms; pool tests use `WARN()` instead of hard `REQUIRE(failureCount == 0)`; PostgreSQL tests fixed (`returnToPool()`, removed inline `DROP TABLE`, added `rs->close()`); SQLite new test sections
+
+2. **Pool Lifecycle API Hardening, C++ Code Analysis Toolset, Docker Container Auto-Restart, and Valgrind Suppression Report** (2026-02-21 14:25 PST):
+   - **Pool Lifecycle Methods — Protected API:**
+     - `prepareForPoolReturn()`, `prepareForBorrow()` (and nothrow versions) moved from `public` to `protected` in `RelationalDBConnection`
+     - Forward declarations + `friend class RelationalDBConnectionPool` / `friend class RelationalPooledDBConnection` added — only pool infrastructure can call lifecycle methods
+     - All four driver headers (MySQL, PostgreSQL, SQLite, Firebird) updated: lifecycle overrides moved to protected section
+     - `RelationalPooledDBConnection`, `MySQLConnectionPool`, `PostgreSQLConnectionPool`, `SQLiteConnectionPool`, `FirebirdConnectionPool` marked `final`
+   - **C++ Code Analysis Toolset (4 new standalone scripts):**
+     - `list_class.sh`: Lists unique C++ class names in files (Python3 + bash, no deps)
+     - `list_public_methods.sh`: Inspects a class's public interface (structured or lineal output)
+     - `list_class_usage.sh`: Finds all call sites of a class's public methods in target files
+     - `test_coverage.sh`: Analyzes test coverage per class; parallel workers; presets `--check=db-driver` / `--check=db-pool`
+   - **Docker DB Container Auto-Restart:**
+     - `helper.sh`: Tracks `enabled_db_drivers` array; calls `restart_db_containers_for_test()` before TUI/test execution
+     - `scripts/common/functions.sh`: 4 new functions (`get_driver_docker_info`, `find_db_container`, `wait_for_container`, `restart_db_containers_for_test`)
+     - SQLite always skipped; graceful degradation on missing Docker / missing container / timeout
+   - **Valgrind Suppression Summary:**
+     - `display_valgrind_suppression_summary()` + `save_report_to_file()` added to `run_test_parallel.sh`
+     - Called at end of TUI, simple, and summarize modes; report saved to `$LOG_DIR/final_report.log`
+   - **Documentation:** `shell_script_dependencies.md` updated with C++ analysis tools and Docker management sections
+
+2. **Direct Handoff Connection Pool, system_utils Performance Refactoring, and Debug Macro Unification** (2026-02-21 02:48 PST):
+   - **RelationalDBConnectionPool — Direct Handoff:**
+     - Removed `m_mutexGetConnection` (2 mutexes → 1 unified `m_mutexPool`)
+     - Added `ConnectionRequest` struct + `m_waitQueue` (`std::deque`) for direct handoff: returned connections are assigned directly to waiting borrowers → eliminates "stolen wakeup" race
+     - Removed `getIdleDBConnection()` (merged into `getRelationalDBConnection()` with deadline-based wait)
+     - `returnConnection()` fixes: pool-closing early exit, orphan detection, reset-failure marks connection invalid, `updateLastUsedTime()` on return, all notifies inside lock
+   - **system_utils.hpp — Performance + New Thread Utilities:**
+     - `currentTimeMillis()`, `currentTimeMicros()`, `getCurrentTimestamp()`: replaced `ostringstream`/`put_time`/`setfill` with stack buffers + `strftime` + `snprintf` (zero heap allocation)
+     - Removed `<iomanip>`, `<sstream>`; added `<charconv>`
+     - New `getThreadId()`: OS-native TID via `gettid()` (Linux) / `GetCurrentThreadId()` (Windows), using `std::to_chars`
+     - New `threadIdToString(id)`: last 6 digits of thread ID hash via `std::to_chars`
+     - New `logWithTimesMillis(prefix, msg)`: structured `[HH:MM:SS.mmm] [TID] [prefix] message` log line
+     - `getCurrentTimestamp()` format changed: brackets removed (was `[YYYY-MM-DD ...]`, now `YYYY-MM-DD ...`)
+   - **system_utils.cpp:** Re-enabled `stackTraceMutex` in `captureCallStack()` — serializes `backward::StackTrace::load_here()` calls (thread-safe)
+   - **Debug Macro Unification:** `CP_DEBUG`, `FIREBIRD_DEBUG`, `SQLITE_DEBUG` all simplified to use `logWithTimesMillis()` instead of manual prefix construction
+   - **Printf fixes:** `%zu` → `%d` for `atomic<int>::load()`, `%lld` → `%ld` for elapsed, `ex.what()` → `ex.what_s().c_str()`
+   - **Helgrind suppression broadened:** `glibc_clockwait_internal_signal_broadcast` now covers both `signal` and `broadcast` variants via wildcard
+   - **Test updates:** all pool tests use `logWithTimesMillis("TEST", ...)` instead of `std::cerr`
+
+2. **Source File Reorganization: Canonical Method Ordering and File Splitting** (2026-02-19 PST):
+   - **File Splitting:** 7 new `.cpp` files added across all 4 relational drivers to reduce file sizes and improve compilation parallelism:
+     - MySQL: `result_set_04.cpp` (blob/binary nothrow methods)
+     - PostgreSQL: `result_set_04.cpp` (blob/binary nothrow methods)
+     - SQLite: `result_set_04.cpp`, `result_set_05.cpp`
+     - Firebird: `result_set_05.cpp`, `prepared_statement_04.cpp`, `connection_04.cpp`
+   - **Canonical Method Ordering:** All result set nothrow methods reordered consistently across all drivers: `close` → `isEmpty` → `next` → navigation → type-by-index/by-name interleaved → metadata → blob/binary (separate file)
+   - **Header Declaration Reordering:** MySQL, PostgreSQL, SQLite result_set.hpp declarations reordered to interleave by-index/by-name variants
+   - **Firebird Connection Redistribution:** connection_01 (constructor/destructor/executeCreateDatabase), connection_02 (all throwing wrappers), connection_03 (nothrow part 1), connection_04 NEW (nothrow part 2)
+   - **Firebird PreparedStatement Redistribution:** Rebalanced across 4 files with new `prepared_statement_04.cpp`
+   - **Error Code Fix:** `firebird/blob.hpp` — `"FB_BLOB_CONN_CLOSED"` → `"LMHROWFG5PNN"` (12-char alphanumeric format)
+   - **No functional logic changes** — all method implementations preserved exactly as they were
+   - **CMakeLists.txt:** Added 7 new source files to build
+
+2. **Complete Nothrow API Implementation Across All Drivers** (2026-02-18 PST):
+   - Base class nothrow methods promoted to pure virtual `= 0` in `DBConnection`, `DBResultSet`, `RelationalDBConnection`
+   - All 7 drivers implement full nothrow API surface
+   - Throwing wrappers delegate to nothrow implementations (single code path)
+   - Connection pool wrappers updated for new pure virtuals
+
+3. **Helgrind Thread-Safety Hardening — Firebird Driver Refactor + Connection Pool Lock Order Fixes** (2026-02-17 PST):
+   - **Firebird USE-AFTER-FREE Fix:** Eliminated raw `m_trPtr` from `FirebirdDBPreparedStatement`. All methods now access `m_connection.lock()->m_tr` via weak_ptr — lifecycle-safe
+   - **Firebird Mutex Model:** Removed `m_statementsMutex` / `m_resultSetsMutex`. All registry access uses single `m_connMutex` — eliminates ABBA deadlock
+   - **Firebird `m_closed`/`m_resetting` as atomics:** Prevents data races on connection state flags
+   - **Printf-style debug output:** Firebird/pool debug output converted from `operator<<` to `printf`-style for non-interleaved Helgrind-safe output
+   - **Connection Pool Close Outside Locks:** All pool types now collect connections under locks, then close OUTSIDE locks — fixes Helgrind LockOrder violations
+   - **Connection Pool MinIdle Replenishment Outside Locks:** `maintenanceTask()` calls `createPooledDBConnection()` outside pool locks
+   - **`AtomicGuard<T>` RAII template:** New `system_utils::AtomicGuard<T>` for exception-safe atomic flag management
+   - **DBConnection/DBResultSet nothrow API:** `reset(nothrow)` and `close(nothrow)` now return `expected<void,DBException>` with explicit errors (no more silent no-ops)
+   - **Valgrind suppressions:** 2 new false-positive suppressions (ScyllaDB heap-address reuse, glibc GLIBC_2.34 clockwait)
+   - **`run_test_parallel.sh`:** Clock jump detection (NTP/VM resume), PGID-based process group kill
+   - **`connection_pool_internal.hpp`:** New shared internal header for all pool implementations
+   - **Bug docs deleted:** `docs/bugs/README.md` and `docs/bugs/firebird_helgrind_analysis.md` — all tracked bugs resolved
+
+2. **Test Directory Reorganization and Parallel Test Runner Enhancements** (2026-02-06 21:44:02 PST):
    - **Test Directory Complete Restructuring:**
      - Migrated all test files to hierarchical, database-family-based organization
      - Test structure mirrors example organization for consistency

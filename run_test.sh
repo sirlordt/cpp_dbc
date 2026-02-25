@@ -22,21 +22,31 @@ set -e  # Exit on error
 #   --auto                 Automatically run tests without user interaction
 #   --release              Run in Release mode (default: Debug)
 #   --asan                 Enable Address Sanitizer
-#   --valgrind             Run tests with Valgrind
+#   --tsan                 Enable Thread Sanitizer
+#   --valgrind             Run tests with Valgrind (memcheck - memory error detector)
+#   --helgrind             Run tests with Valgrind Helgrind (thread error detector)
+#   --helgrind-gs          Run tests with Helgrind in suppression generation mode
+#   --helgrind-s           Run tests with Helgrind using custom suppressions from libs/cpp_dbc/valgrind/helgrind/suppression.conf
+#   --drd                  Run tests with Valgrind DRD (thread error detector - alternative to helgrind)
+#   --drd-gs               Run tests with DRD in suppression generation mode
+#   --drd-s                Run tests with DRD using custom suppressions from libs/cpp_dbc/valgrind/drd/suppression.conf
 #   --ctest                Run tests using CTest
 #   --check                Check shared library dependencies of test executable
 #   --clean                Clean build directories before building
 #   --rebuild              Rebuild the test targets before running
 #   --skip-build           Skip the build step
 #   --list                 List tests only (do not run)
-#   --run-test="tag"       Run only tests with the specified tag (use + to separate multiple tags, e.g. "tag1+tag2+tag3")
+#   --run-test="pattern"   Run only tests matching the pattern. Supports:
+#                          - Wildcards: "*mysql*" (contains), "20_*" (prefix), "*firebird" (suffix)
+#                          - Tags: "tag1+tag2" (multiple tags separated by +)
 #   --debug-pool           Enable debug output for ConnectionPool
 #   --debug-txmgr          Enable debug output for TransactionManager
 #   --debug-sqlite         Enable debug output for SQLite driver
 #   --debug-mongodb        Enable debug output for MongoDB driver
 #   --debug-redis          Enable debug output for Redis driver
 #   --debug-all            Enable all debug output
-#   --dw-off               Disable libdw support for stack traces
+#   --dw-on                Enable libdw support for stack traces (default for tests: OFF)
+#   --dw-off               Disable libdw support for stack traces (default for tests)
 #   --db-driver-thread-safe-off  Disable thread-safe database driver operations
 #   --help                 Show this help message
 
@@ -53,8 +63,16 @@ BUILD_TYPE=Debug
 ENABLE_GCC_ANALYZER=OFF
 ASAN_OPTIONS=""
 ENABLE_ASAN=false
+TSAN_OPTIONS=""
+ENABLE_TSAN=false
 RUN_CTEST=false
 USE_VALGRIND=false
+USE_HELGRIND=false
+USE_HELGRIND_GS=false
+USE_HELGRIND_S=false
+USE_DRD=false
+USE_DRD_GS=false
+USE_DRD_S=false
 CHECK_DEPENDENCIES=false
 REBUILD=false
 AUTO_MODE=false
@@ -63,12 +81,14 @@ RUN_SPECIFIC_TEST=""
 DEBUG_CONNECTION_POOL=OFF
 DEBUG_TRANSACTION_MANAGER=OFF
 DEBUG_SQLITE=OFF
+DEBUG_MYSQL=OFF
+DEBUG_POSTGRES=OFF
 DEBUG_FIREBIRD=OFF
 DEBUG_MONGODB=OFF
 DEBUG_SCYLLADB=OFF
 DEBUG_REDIS=OFF
 DEBUG_ALL=OFF
-DW_OFF=false
+DW_OFF=true
 DB_DRIVER_THREAD_SAFE_OFF=false
 SHOW_PROGRESS=false
 SKIP_BUILD=false
@@ -158,8 +178,37 @@ while [[ $# -gt 0 ]]; do
             ENABLE_ASAN=true
             shift
             ;;
+        --tsan)
+            TSAN_OPTIONS="halt_on_error=0:history_size=7:suppressions=${SCRIPT_DIR}/libs/cpp_dbc/valgrind/tsan/suppression.conf"
+            ENABLE_TSAN=true
+            shift
+            ;;
         --valgrind)
             USE_VALGRIND=true
+            shift
+            ;;
+        --helgrind)
+            USE_HELGRIND=true
+            shift
+            ;;
+        --helgrind-gs)
+            USE_HELGRIND_GS=true
+            shift
+            ;;
+        --helgrind-s)
+            USE_HELGRIND_S=true
+            shift
+            ;;
+        --drd)
+            USE_DRD=true
+            shift
+            ;;
+        --drd-gs)
+            USE_DRD_GS=true
+            shift
+            ;;
+        --drd-s)
+            USE_DRD_S=true
             shift
             ;;
         --ctest)
@@ -215,6 +264,14 @@ while [[ $# -gt 0 ]]; do
             DEBUG_SQLITE=ON
             shift
             ;;
+        --debug-mysql)
+            DEBUG_MYSQL=ON
+            shift
+            ;;
+        --debug-postgresql)
+            DEBUG_POSTGRES=ON
+            shift
+            ;;
         --debug-firebird)
             DEBUG_FIREBIRD=ON
             shift
@@ -235,10 +292,17 @@ while [[ $# -gt 0 ]]; do
             DEBUG_CONNECTION_POOL=ON
             DEBUG_TRANSACTION_MANAGER=ON
             DEBUG_SQLITE=ON
+            DEBUG_MYSQL=ON
+            DEBUG_POSTGRES=ON
             DEBUG_FIREBIRD=ON
             DEBUG_MONGODB=ON
+            DEBUG_SCYLLADB=ON
             DEBUG_REDIS=ON
             DEBUG_ALL=ON
+            shift
+            ;;
+        --dw-on)
+            DW_OFF=false
             shift
             ;;
         --dw-off)
@@ -276,7 +340,9 @@ while [[ $# -gt 0 ]]; do
             echo "  --release              Run in Release mode (default: Debug)"
             echo "  --gcc-analyzer         Enable GCC Static Analyzer (GCC 10+)"
             echo "  --asan                 Enable Address Sanitizer"
-            echo "  --valgrind             Run tests with Valgrind"
+            echo "  --valgrind             Run tests with Valgrind (memcheck - memory error detector)"
+            echo "  --helgrind             Run tests with Valgrind Helgrind (thread error detector)"
+            echo "  --drd                  Run tests with Valgrind DRD (thread error detector - alternative to helgrind)"
             echo "  --ctest                Run tests using CTest"
             echo "  --check                Check shared library dependencies of test executable"
             echo "  --clean                Clean build directories before building (Always activate the --rebuild flag)"
@@ -284,16 +350,21 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-build           Skip the build step"
             echo "  --list                 List tests only (do not run)"
             echo "  --run=N                Run all test sets N times (default: 1)"
-            echo "  --run-test=\"tag\"       Run only tests with the specified tag (use + to separate multiple tags, e.g. \"tag1+tag2+tag3\")"
+            echo "  --run-test=\"pattern\"   Run only tests matching the pattern. Supports:"
+            echo "                           - Wildcards: \"*mysql*\" (contains), \"20_*\" (prefix), \"*firebird\" (suffix)"
+            echo "                           - Tags: \"tag1+tag2\" (multiple tags separated by +)"
             echo "  --debug-pool           Enable debug output for ConnectionPool"
             echo "  --debug-txmgr          Enable debug output for TransactionManager"
             echo "  --debug-sqlite         Enable debug output for SQLite driver"
+            echo "  --debug-mysql          Enable debug output for MySQL driver"
+            echo "  --debug-postgresql     Enable debug output for PostgreSQL driver"
             echo "  --debug-firebird       Enable debug output for Firebird driver"
             echo "  --debug-mongodb        Enable debug output for MongoDB driver"
             echo "  --debug-scylladb         Enable debug output for ScyllaDB driver"
             echo "  --debug-redis          Enable debug output for Redis driver"
             echo "  --debug-all            Enable all debug output"
-            echo "  --dw-off               Disable libdw support for stack traces"
+            echo "  --dw-on                Enable libdw support for stack traces (default for tests: OFF)"
+            echo "  --dw-off               Disable libdw support for stack traces (default for tests)"
             echo "  --db-driver-thread-safe-off  Disable thread-safe database driver operations"
             echo "  --progress             Show visual progress bar during test execution"
             echo "  --help                 Show this help message"
@@ -318,6 +389,33 @@ if [ "$USE_VALGRIND" = true ] && [ "$ENABLE_ASAN" = true ]; then
     echo -e "You should use either Valgrind or AddressSanitizer, but not both."
     echo -e "Consider not using --asan with --valgrind.\n"
     
+    # Ask for confirmation if not in auto mode
+    if [ "$AUTO_MODE" = false ]; then
+        read -p "Do you want to continue anyway? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Exiting as requested."
+            exit 1
+        fi
+        echo -e "Continuing as requested. Expect potential issues.\n"
+    else
+        echo -e "Auto mode enabled. Continuing with both options. Expect potential issues.\n"
+    fi
+fi
+
+# Check for incompatible sanitizers (ASAN and TSAN cannot be used together)
+if [ "$ENABLE_ASAN" = true ] && [ "$ENABLE_TSAN" = true ]; then
+    echo -e "\nERROR: AddressSanitizer and ThreadSanitizer cannot be used together."
+    echo -e "Please use either --asan or --tsan, but not both.\n"
+    exit 1
+fi
+
+# Check for incompatible options (Valgrind and TSAN)
+if [ "$USE_VALGRIND" = true ] && [ "$ENABLE_TSAN" = true ]; then
+    echo -e "\nWARNING: Valgrind and ThreadSanitizer are not fully compatible."
+    echo -e "You should use either Valgrind or ThreadSanitizer, but not both."
+    echo -e "Consider not using --tsan with --valgrind.\n"
+
     # Ask for confirmation if not in auto mode
     if [ "$AUTO_MODE" = false ]; then
         read -p "Do you want to continue anyway? (y/n) " -n 1 -r
@@ -386,8 +484,36 @@ if [ "$ENABLE_ASAN" = true ]; then
     CMD="$CMD --asan"
 fi
 
+if [ "$ENABLE_TSAN" = true ]; then
+    CMD="$CMD --tsan"
+fi
+
 if [ "$USE_VALGRIND" = true ]; then
     CMD="$CMD --valgrind"
+fi
+
+if [ "$USE_HELGRIND" = true ]; then
+    CMD="$CMD --helgrind"
+fi
+
+if [ "$USE_HELGRIND_GS" = true ]; then
+    CMD="$CMD --helgrind-gs"
+fi
+
+if [ "$USE_HELGRIND_S" = true ]; then
+    CMD="$CMD --helgrind-s"
+fi
+
+if [ "$USE_DRD" = true ]; then
+    CMD="$CMD --drd"
+fi
+
+if [ "$USE_DRD_GS" = true ]; then
+    CMD="$CMD --drd-gs"
+fi
+
+if [ "$USE_DRD_S" = true ]; then
+    CMD="$CMD --drd-s"
 fi
 
 if [ "$RUN_CTEST" = true ]; then
@@ -435,6 +561,14 @@ if [ "$DEBUG_SQLITE" = "ON" ]; then
     CMD="$CMD --debug-sqlite"
 fi
 
+if [ "$DEBUG_MYSQL" = "ON" ]; then
+    CMD="$CMD --debug-mysql"
+fi
+
+if [ "$DEBUG_POSTGRES" = "ON" ]; then
+    CMD="$CMD --debug-postgresql"
+fi
+
 if [ "$DEBUG_FIREBIRD" = "ON" ]; then
     CMD="$CMD --debug-firebird"
 fi
@@ -455,9 +589,9 @@ if [ "$DEBUG_ALL" = "ON" ]; then
     CMD="$CMD --debug-all"
 fi
 
-# Add dw-off option if specified
-if [ "$DW_OFF" = true ]; then
-    CMD="$CMD --dw-off"
+# Add dw-on option if explicitly enabled (default for tests is OFF)
+if [ "$DW_OFF" = false ]; then
+    CMD="$CMD --dw-on"
 fi
 
 # Add db-driver-thread-safe-off option if specified
