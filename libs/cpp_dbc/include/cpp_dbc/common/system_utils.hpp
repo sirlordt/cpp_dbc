@@ -33,7 +33,7 @@
 
 // Platform-specific includes for write() syscall (eliminates Helgrind false positives)
 #ifdef _WIN32
-#include <windows.h> // GetCurrentThreadId() used in getThreadId()
+#include <Windows.h> // GetCurrentThreadId() used in getThreadId()
 #include <io.h>      // _write(), _fileno()
 #else
 #include <unistd.h> // write(), STDOUT_FILENO

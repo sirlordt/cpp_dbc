@@ -347,37 +347,31 @@ namespace cpp_dbc
             valid = validResult.value_or(false);
         }
 
-        if (valid)
+        if (valid && !conn->m_closed.load(std::memory_order_acquire))
         {
-            if (!conn->m_closed.load(std::memory_order_acquire))
+            auto resetResult = conn->getUnderlyingRelationalConnection()->reset(std::nothrow);
+            if (!resetResult.has_value())
             {
-                auto resetResult = conn->getUnderlyingRelationalConnection()->reset(std::nothrow);
-                if (!resetResult.has_value())
-                {
-                    CP_DEBUG("RelationalDBConnectionPool::returnConnection - reset failed: %s", resetResult.error().what_s().c_str());
-                    valid = false;
-                }
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - reset failed: %s", resetResult.error().what_s().c_str());
+                valid = false;
             }
         }
 
-        if (valid)
+        if (valid && !conn->m_closed.load(std::memory_order_acquire))
         {
-            if (!conn->m_closed.load(std::memory_order_acquire))
+            auto isoResult = conn->getTransactionIsolation(std::nothrow);
+            if (!isoResult.has_value())
             {
-                auto isoResult = conn->getTransactionIsolation(std::nothrow);
-                if (!isoResult.has_value())
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - getTransactionIsolation failed: %s", isoResult.error().what_s().c_str());
+                valid = false;
+            }
+            else if (isoResult.value() != m_transactionIsolation)
+            {
+                auto setIsoResult = conn->setTransactionIsolation(std::nothrow, m_transactionIsolation);
+                if (!setIsoResult.has_value())
                 {
-                    CP_DEBUG("RelationalDBConnectionPool::returnConnection - getTransactionIsolation failed: %s", isoResult.error().what_s().c_str());
+                    CP_DEBUG("RelationalDBConnectionPool::returnConnection - setTransactionIsolation failed: %s", setIsoResult.error().what_s().c_str());
                     valid = false;
-                }
-                else if (isoResult.value() != m_transactionIsolation)
-                {
-                    auto setIsoResult = conn->setTransactionIsolation(std::nothrow, m_transactionIsolation);
-                    if (!setIsoResult.has_value())
-                    {
-                        CP_DEBUG("RelationalDBConnectionPool::returnConnection - setTransactionIsolation failed: %s", setIsoResult.error().what_s().c_str());
-                        valid = false;
-                    }
                 }
             }
         }
@@ -673,11 +667,13 @@ namespace cpp_dbc
                             catch (const std::exception &ex)
                             {
                                 // Safety: remove from queue if wait_until throws (extremely rare), then propagate
+                                CP_DEBUG("RelationalDBConnectionPool::getConnection - wait_until threw: %s", ex.what());
                                 std::erase(m_waitQueue, &request);
                                 throw;
                             }
                             catch (...) // NOSONAR — non-std exceptions: remove from queue then propagate
                             {
+                                CP_DEBUG("RelationalDBConnectionPool::getConnection - wait_until threw unknown exception");
                                 std::erase(m_waitQueue, &request);
                                 throw;
                             }

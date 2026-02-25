@@ -574,11 +574,13 @@ namespace cpp_dbc
                             catch (const std::exception &ex)
                             {
                                 // Safety: remove from queue if wait_until throws (extremely rare), then propagate
+                                CP_DEBUG("ColumnarDBConnectionPool::getConnection - wait_until threw: %s", ex.what());
                                 std::erase(m_waitQueue, &req);
                                 throw;
                             }
                             catch (...) // NOSONAR — non-std exceptions: remove from queue then propagate
                             {
+                                CP_DEBUG("ColumnarDBConnectionPool::getConnection - wait_until threw unknown exception");
                                 std::erase(m_waitQueue, &req);
                                 throw;
                             }
@@ -1005,8 +1007,10 @@ namespace cpp_dbc
         {
             try
             {
-                // If the pool is no longer alive, close the physical connection
-                if (!isPoolValid(std::nothrow))
+                // If the pool is no longer alive, close the physical connection.
+                // Use qualified call to avoid virtual dispatch in destructor.
+                // NOSONAR(cpp:S1699) - intentional qualified call in destructor to avoid virtual dispatch
+                if (!ColumnarPooledDBConnection::isPoolValid(std::nothrow))
                 {
                     auto closeResult = m_conn->close(std::nothrow);
                     if (!closeResult.has_value())

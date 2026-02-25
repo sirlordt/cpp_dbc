@@ -599,11 +599,13 @@ namespace cpp_dbc
                             catch (const std::exception &ex)
                             {
                                 // Safety: remove from queue if wait_until throws (extremely rare), then propagate
+                                CP_DEBUG("DocumentDBConnectionPool::getConnection - wait_until threw: %s", ex.what());
                                 std::erase(m_waitQueue, &req);
                                 throw;
                             }
                             catch (...) // NOSONAR — non-std exceptions: remove from queue then propagate
                             {
+                                CP_DEBUG("DocumentDBConnectionPool::getConnection - wait_until threw unknown exception");
                                 std::erase(m_waitQueue, &req);
                                 throw;
                             }

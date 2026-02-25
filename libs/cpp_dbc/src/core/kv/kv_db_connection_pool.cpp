@@ -362,16 +362,13 @@ namespace cpp_dbc
             valid = validResult.value_or(false);
         }
 
-        if (valid)
+        if (valid && !conn->m_closed.load(std::memory_order_acquire))
         {
-            if (!conn->m_closed.load(std::memory_order_acquire))
+            auto resetResult = conn->getUnderlyingKVConnection()->prepareForPoolReturn(std::nothrow);
+            if (!resetResult.has_value())
             {
-                auto resetResult = conn->getUnderlyingKVConnection()->prepareForPoolReturn(std::nothrow);
-                if (!resetResult.has_value())
-                {
-                    CP_DEBUG("KVDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", resetResult.error().what_s().c_str());
-                    valid = false;
-                }
+                CP_DEBUG("KVDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", resetResult.error().what_s().c_str());
+                valid = false;
             }
         }
 
@@ -727,11 +724,13 @@ namespace cpp_dbc
                             catch (const std::exception &ex)
                             {
                                 // Safety: remove from queue if wait_until throws (extremely rare), then propagate
+                                CP_DEBUG("KVDBConnectionPool::getConnection - wait_until threw: %s", ex.what());
                                 std::erase(m_waitQueue, &request);
                                 throw;
                             }
                             catch (...) // NOSONAR — non-std exceptions: remove from queue then propagate
                             {
+                                CP_DEBUG("KVDBConnectionPool::getConnection - wait_until threw unknown exception");
                                 std::erase(m_waitQueue, &request);
                                 throw;
                             }
