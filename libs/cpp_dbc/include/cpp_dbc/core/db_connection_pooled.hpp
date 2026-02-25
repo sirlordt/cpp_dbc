@@ -21,6 +21,7 @@
 
 #include <memory>
 #include <chrono>
+#include <new>
 #include "cpp_dbc/core/db_connection.hpp"
 
 namespace cpp_dbc
@@ -50,7 +51,7 @@ namespace cpp_dbc
          * @brief Check if the owning connection pool is still alive
          * @return true if the pool is still alive and valid
          */
-        virtual bool isPoolValid() const = 0;
+        virtual bool isPoolValid(std::nothrow_t) const noexcept = 0;
 
     public:
         ~DBConnectionPooled() override = default;
@@ -59,31 +60,31 @@ namespace cpp_dbc
          * @brief Get the time when this pooled connection was created
          * @return The creation time point
          */
-        virtual std::chrono::time_point<std::chrono::steady_clock> getCreationTime() const = 0;
+        virtual std::chrono::time_point<std::chrono::steady_clock> getCreationTime(std::nothrow_t) const noexcept = 0;
 
         /**
          * @brief Get the last time this connection was borrowed from the pool
          * @return The last used time point
          */
-        virtual std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime() const = 0;
+        virtual std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime(std::nothrow_t) const noexcept = 0;
 
         /**
          * @brief Set the active state of the connection
          * @param active Whether the connection is currently in use
          */
-        virtual void setActive(bool active) = 0;
+        virtual cpp_dbc::expected<void, DBException> setActive(std::nothrow_t, bool active) noexcept = 0;
 
         /**
          * @brief Check if the connection is currently in use
          * @return true if the connection is active (borrowed)
          */
-        virtual bool isActive() const = 0;
+        virtual bool isActive(std::nothrow_t) const noexcept = 0;
 
         /**
          * @brief Get the underlying physical database connection
          * @return A shared pointer to the unwrapped connection
          */
-        virtual std::shared_ptr<DBConnection> getUnderlyingConnection() = 0;
+        virtual std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

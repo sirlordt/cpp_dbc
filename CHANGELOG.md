@@ -1,6 +1,183 @@
 # Changelog
 
-## 2026-02-22 19:18:00 PST [Current]
+## 2026-02-24 18:25:00 PST [Current]
+
+### Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection
+
+This release hardens the pool and driver layer with a complete exception-free API: the `create()` factory and all internal pool methods now return `expected<T, DBException>`, `m_lastUsedTimeNs` switches from `atomic<time_point>` to `atomic<int64_t>` for true cross-platform portability, MySQL's `m_closed` becomes `std::atomic<bool>`, all result set destructors use nothrow close, and debug macros detect buffer truncation.
+
+#### Pool Factory API — Nothrow `create()` (All Families)
+
+All four pool families (`RelationalDBConnectionPool`, `DocumentDBConnectionPool`, `ColumnarDBConnectionPool`, `KVDBConnectionPool`) and all concrete subclasses now expose a nothrow factory:
+
+```cpp
+// Before
+static std::shared_ptr<MySQLConnectionPool> create(const config::DBConnectionPoolConfig &config);
+
+// After
+static cpp_dbc::expected<std::shared_ptr<MySQLConnectionPool>, DBException>
+    create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
+```
+
+Usage:
+```cpp
+auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
+if (!poolResult.has_value())
+{
+    throw poolResult.error();
+}
+auto pool = poolResult.value();
+```
+
+All examples (`20_031`, `20_041`, `21_031`, `21_041`, `22_031`, `22_041`, `23_031`, `23_041`, `24_031`, `25_031`, `26_031`) and all connection pool tests updated accordingly. `database_config.cpp` also updated.
+
+#### Pool Internal Methods — Full Nothrow Conversion
+
+All private/protected pool methods now return `expected<T, DBException>` with `std::nothrow_t` first parameter:
+
+| Method | Before | After |
+|--------|--------|-------|
+| `createDBConnection()` | `shared_ptr<XDBConnection>` (throws) | `expected<shared_ptr<XDBConnection>, DBException>` noexcept |
+| `createPooledDBConnection()` | `shared_ptr<XPooledDBConnection>` (throws) | `expected<...>` noexcept |
+| `validateConnection()` | `bool` (throws) | `expected<bool, DBException>` noexcept |
+| `returnConnection()` | `void` (throws) | `expected<void, DBException>` noexcept |
+| `initializePool()` | `void` (throws) | `expected<void, DBException>` noexcept |
+
+#### DBConnectionPool / DBConnectionPooled — Nothrow Pure Virtuals
+
+`DBConnectionPool` base class now declares nothrow pure virtuals:
+```cpp
+virtual cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> getDBConnection(std::nothrow_t) noexcept = 0;
+virtual cpp_dbc::expected<size_t, DBException> getActiveDBConnectionCount(std::nothrow_t) const noexcept = 0;
+virtual cpp_dbc::expected<size_t, DBException> getIdleDBConnectionCount(std::nothrow_t) const noexcept = 0;
+virtual cpp_dbc::expected<size_t, DBException> getTotalDBConnectionCount(std::nothrow_t) const noexcept = 0;
+virtual cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept = 0;
+virtual cpp_dbc::expected<bool, DBException> isRunning(std::nothrow_t) const noexcept = 0;
+```
+
+`DBConnectionPooled` base class also updated: `getCreationTime`, `getLastUsedTime`, `setActive`, `isActive`, `getUnderlyingConnection`, `isPoolValid` all gain nothrow signatures. `<new>` header added for `std::nothrow_t`.
+
+#### `m_lastUsedTimeNs` — Portable Atomic int64_t (All Pool Families)
+
+The previous `std::atomic<std::chrono::steady_clock::time_point>` is not guaranteed to be lock-free on ARM32/MIPS. Replaced with `std::atomic<int64_t>` storing nanoseconds since epoch:
+
+```cpp
+// Before (not portable — may not be lock-free on ARM32/MIPS)
+static_assert(std::atomic<std::chrono::steady_clock::time_point>::is_always_lock_free, ...);
+std::atomic<std::chrono::steady_clock::time_point> m_lastUsedTime;
+
+// After (always lock-free on every supported 64-bit platform)
+static_assert(std::atomic<int64_t>::is_always_lock_free, "int64_t atomic must be lock-free on this platform");
+std::atomic<int64_t> m_lastUsedTimeNs{m_creationTime.time_since_epoch().count()};
+```
+
+`updateLastUsedTime(std::nothrow)` updated to store `steady_clock::now().time_since_epoch().count()`. `getLastUsedTime(std::nothrow)` reconstructs `time_point` from `m_lastUsedTimeNs`.
+
+#### `m_creationTime` — In-Class Initialization Pattern
+
+All pooled connection classes now use in-class member initialization for `m_creationTime`, with `m_lastUsedTimeNs` depending on it (safe because declared after):
+
+```cpp
+std::chrono::time_point<std::chrono::steady_clock> m_creationTime{std::chrono::steady_clock::now()};
+static_assert(std::atomic<int64_t>::is_always_lock_free, ...);
+std::atomic<int64_t> m_lastUsedTimeNs{m_creationTime.time_since_epoch().count()};
+```
+
+No constructor body initialization needed. This follows the new "Prefer In-Class Initializers" convention.
+
+#### MySQL `m_closed` — `std::atomic<bool>` (Thread-Safe Access)
+
+`MySQLDBConnection::m_closed` upgraded from `bool` to `std::atomic<bool>`:
+
+```cpp
+// Before
+bool m_closed{true};  // requires mutex for safe cross-thread reads
+
+// After
+std::atomic<bool> m_closed{false};  // lock-free reads outside mutex
+```
+
+- All 8+ access sites in `connection_02.cpp`, `connection_03.cpp` updated to `.load(std::memory_order_acquire)` / `.store(true, std::memory_order_release)`
+- `m_closed(false)` removed from constructor initializer list (in-class init handles it)
+- Initial value corrected: `true` → `false` (connection starts OPEN, not closed)
+
+#### `[[deprecated]]` on `what()` — Commented Out
+
+The `[[deprecated]]` attribute on `DBException::what()` was generating noise for code that legitimately needs `what()` for `std::exception` compatibility. Attribute commented out; `what_s()` is still the recommended API.
+
+#### Destructor Safety — Nothrow `close()` in All Result Sets
+
+All result set destructors now use the nothrow `close()` overload:
+
+| File | Before | After |
+|------|--------|-------|
+| `mysql/result_set_01.cpp` | `MySQLDBResultSet::close()` (throws) | `close(std::nothrow)` + error log |
+| `postgresql/result_set_01.cpp` | `PostgreSQLDBResultSet::close()` (throws) | `close(std::nothrow)` + error log |
+| `sqlite/result_set_01.cpp` | `close()` wrapped in try/catch | `close(std::nothrow)` + error log, try/catch removed |
+| `firebird/result_set_01.cpp` | `[[maybe_unused]] close(std::nothrow)` | result checked, failure logged |
+
+This eliminates potential `std::terminate()` from exceptions escaping destructors.
+
+#### Debug Macro Truncation Detection
+
+`CP_DEBUG`, `FIREBIRD_DEBUG`, `SQLITE_DEBUG` macros now detect `snprintf` buffer overflow and mark truncated messages:
+
+```c
+int n = std::snprintf(buf, sizeof(buf), format, ...);
+if (n >= static_cast<int>(sizeof(buf)))
+{
+    static constexpr const char trunc[] = "...[TRUNCATED]";
+    std::memcpy(buf + sizeof(buf) - sizeof(trunc), trunc, sizeof(trunc));
+}
+```
+
+Previously, truncated messages were silently cut off with no indication.
+
+#### `HighPerfLogger::m_flushCounter` — Static Local → Member Variable
+
+`flushCounter` was a function-local `static size_t` inside `writerThreadFunc()`. Moved to `m_flushCounter` class member (`size_t`, only accessed from `m_writerThread`):
+
+- **Before:** Static local; theoretically unique per process but adds hidden static storage and complicates testing
+- **After:** Class member; clearly owned by logger instance, correct lifetime, better encapsulation
+
+#### CMake — ASAN/TSAN Compile/Link Flags Directly in CMakeLists.txt
+
+`ENABLE_ASAN` and `ENABLE_TSAN` CMake options now add compile/link flags directly:
+
+```cmake
+if(ENABLE_ASAN)
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address)
+endif()
+if(ENABLE_TSAN)
+    add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=thread)
+endif()
+```
+
+Previously required passing flags via `-DCMAKE_CXX_FLAGS`.
+
+#### Coding Conventions — New Sections
+
+Four new sections added to `.claude/rules/cpp_dbc_conventions.md`:
+
+1. **"Member Initialization — Prefer In-Class Initializers Over Constructor Body"** — Documents the pattern of using `= value` or `{value}` in class body instead of constructor assignments; covers safe inter-member dependencies
+2. **"`std::atomic` — Always Use `.load(std::memory_order_acquire)`"** — Mandates explicit memory ordering on every atomic read; forbids implicit bool conversion
+3. **"Nothrow Methods Must Call Nothrow Overloads"** — Nothrow methods must call the `std::nothrow` overload of inner methods (not the throwing variant)
+4. **"No Redundant try/catch in Nothrow Methods"** — When all inner calls are nothrow, wrapping in try/catch is dead code and must be removed
+
+#### Other Fixes
+
+- **Firebird `prepared_statement_04.cpp`**: Removed unnecessary null-check on `conn` before autocommit (connection is always valid at that point after the existing guards)
+- **Firebird `result_set_03.cpp`**: Fixed log message "Statement freed with 5ms delay" → "25ms delay" (actual sleep duration is 25ms)
+- **ScyllaDB `result_set_02.cpp`**: Added `system_utils::captureCallStack()` to `DBException` constructors; fixed duplicate error code `"MLVT1AF9ZP3W"` → `"2GCPOH7KPUL4"` and `"F512VQ5M0HV8"` → `"U7F4FFY4KXMP"` in `catch(...)` handlers
+- **`run_test_cpp_dbc.sh`**: Fixed `$@` → `"$@"` (proper quoting for arguments with spaces)
+- **`build_test_cpp_dbc.sh`**: Removed unused `NO_REBUILD_DEPS` variable
+- **`.gitignore`**: Removed redundant `logs/**` (kept `logs/`); simplified `research/**` → `research/`
+
+---
+
+## 2026-02-22 19:18:00 PST
 
 ### Unified Pool Mutex, Atomic Time-Point, Direct Handoff for All Pools, Notifications, and Test Quality Improvements
 

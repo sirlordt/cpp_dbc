@@ -55,13 +55,15 @@ namespace cpp_dbc::ScyllaDB
         {
             return cpp_dbc::unexpected(DBException(
                 "MLVT1AF9ZP3W",
-                std::string("Error closing result set: ") + ex.what()));
+                std::string("Error closing result set: ") + ex.what(),
+                system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException(
-                "MLVT1AF9ZP3W",
-                "Unknown error closing result set"));
+                "2GCPOH7KPUL4",
+                "Unknown error closing result set",
+                system_utils::captureCallStack()));
         }
     }
 
@@ -81,13 +83,15 @@ namespace cpp_dbc::ScyllaDB
         {
             return cpp_dbc::unexpected(DBException(
                 "F512VQ5M0HV8",
-                std::string("Error checking if result set is empty: ") + ex.what()));
+                std::string("Error checking if result set is empty: ") + ex.what(),
+                system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException(
-                "F512VQ5M0HV8",
-                "Unknown error checking if result set is empty"));
+                "U7F4FFY4KXMP",
+                "Unknown error checking if result set is empty",
+                system_utils::captureCallStack()));
         }
     }
 

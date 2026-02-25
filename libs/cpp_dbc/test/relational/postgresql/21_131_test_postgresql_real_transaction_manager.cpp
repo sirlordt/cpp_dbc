@@ -136,11 +136,15 @@ TEST_CASE("PostgreSQL TransactionManager multi-threaded tests", "[21_131_02_post
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool
-        auto poolPtr = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a transaction manager
-        cpp_dbc::TransactionManager manager(pool);
+        cpp_dbc::TransactionManager manager(*pool);
 
         // Number of threads and transactions per thread
         const int numThreads = 5;
@@ -197,7 +201,7 @@ TEST_CASE("PostgreSQL TransactionManager multi-threaded tests", "[21_131_02_post
         REQUIRE(manager.getActiveTransactionCount() == 0);
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 }
 
@@ -247,14 +251,18 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a transaction manager
-        cpp_dbc::TransactionManager manager(pool);
+        cpp_dbc::TransactionManager manager(*pool);
 
         // Create a test table
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->close();
@@ -284,7 +292,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was committed
-            auto verifyConn = pool.getRelationalDBConnection();
+            auto verifyConn = pool->getRelationalDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
@@ -316,7 +324,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was not committed
-            auto verifyConn = pool.getRelationalDBConnection();
+            auto verifyConn = pool->getRelationalDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             verifyConn->close();
@@ -376,7 +384,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
             REQUIRE_FALSE(manager.isTransactionActive(txId3));
 
             // Verify the data from committed transactions
-            auto verifyConn = pool.getRelationalDBConnection();
+            auto verifyConn = pool->getRelationalDBConnection();
 
             // Transaction 1 (committed)
             auto rs1 = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 10");
@@ -410,7 +418,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
             pstmt->executeUpdate();
 
             // Get a separate connection (not in the transaction)
-            auto regularConn = pool.getRelationalDBConnection();
+            auto regularConn = pool->getRelationalDBConnection();
 
             // Verify the data is not visible outside the transaction
             auto rs = regularConn->executeQuery("SELECT * FROM test_table WHERE id = 100");
@@ -451,7 +459,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was not committed
-            auto verifyConn = pool.getRelationalDBConnection();
+            auto verifyConn = pool->getRelationalDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 200");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             verifyConn->close();
@@ -461,7 +469,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
         }
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 }
 

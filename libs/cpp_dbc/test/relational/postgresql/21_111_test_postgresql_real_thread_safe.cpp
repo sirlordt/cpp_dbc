@@ -181,7 +181,12 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Setup: create test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -250,7 +255,12 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Setup: create and populate test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -338,8 +348,12 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto poolCreateStart = std::chrono::steady_clock::now();
-        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create test table
         auto setupConn = pool->getRelationalDBConnection();

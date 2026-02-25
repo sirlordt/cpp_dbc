@@ -191,10 +191,23 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Eliminates "stolen wakeup": returning thread cannot re-borrow the connection it just assigned to a waiter
   - All `notify_one()` / `notify_all()` calls inside `m_mutexPool` lock for Helgrind correctness
   - `m_pendingCreations` (size_t, guarded by `m_mutexPool`) prevents pool overshoot when multiple threads create connections simultaneously outside the lock
-- **Atomic Time-Point for Last-Used Time (all pools, 2026-02-22):**
-  - `m_lastUsedTimeMutex` eliminated; `m_lastUsedTime` is `std::atomic<std::chrono::steady_clock::time_point>`
-  - `static_assert(::is_always_lock_free)` enforced at compile time (x86-64: `time_point` wraps `int64_t`, always lock-free)
+- **Atomic int64_t for Last-Used Time (all pools, 2026-02-24):**
+  - `m_lastUsedTimeMutex` eliminated; `m_lastUsedTimeNs` is `std::atomic<int64_t>` (nanoseconds since epoch)
+  - Replaced `std::atomic<time_point>` (not portable to ARM32/MIPS) with `std::atomic<int64_t>` (always lock-free on every supported platform)
+  - `static_assert(std::atomic<int64_t>::is_always_lock_free, ...)` enforced at compile time
   - `memory_order_relaxed` for both store and load — sufficient for HikariCP-style validation skip (approximation, stale reads tolerable)
+  - `m_creationTime` uses in-class initializer `{std::chrono::steady_clock::now()}`; `m_lastUsedTimeNs` is initialized from `m_creationTime` (safe: declared after in class body)
+- **Nothrow Pool Factory Pattern (all pools, 2026-02-24):**
+  - `create()` factory returns `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` first parameter
+  - All internal pool methods (createDBConnection, createPooledDBConnection, validateConnection, returnConnection, initializePool) return `expected<T, DBException>` noexcept
+  - `DBConnectionPool` base class declares nothrow pure virtuals for all 6 pool operations
+  - `DBConnectionPooled` base class: all 6 interface methods have nothrow signatures
+  - Usage pattern:
+    ```cpp
+    auto result = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, config);
+    if (!result.has_value()) { throw result.error(); }
+    auto pool = result.value();
+    ```
 - **Qualified Destructor Close Pattern:**
   - Pool destructors call `XDBConnectionPool::close()` (qualified name) rather than `close()` (virtual dispatch)
   - Avoids S1699: calling virtual method in destructor bypasses derived class overrides and may access destroyed state
@@ -209,7 +222,7 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - Each connection pool implementation follows the same architecture:
   - Abstract base class defining the pool interface
   - Concrete implementations for specific database types (PostgreSQLConnectionPool, MongoDBConnectionPool, ScyllaConnectionPool, RedisConnectionPool, etc.)
-  - Factory methods (`create`) for creating pool instances with shared_ptr ownership
+  - Factory methods (`create`) return `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` — exception-free pool creation
   - ConstructorTag pattern (PassKey idiom) to enable `std::make_shared` while enforcing factory pattern:
     - `DBConnectionPool::ConstructorTag` is a protected struct that acts as an access token
     - Constructors are public but require the tag, which can only be created within the class hierarchy

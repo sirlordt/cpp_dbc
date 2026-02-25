@@ -85,7 +85,12 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         poolConfig.setValidationQuery("{\"ping\": 1}"); // MongoDB ping command
 
         // Create a connection pool
-        auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a test collection
         auto conn = pool->getDocumentDBConnection();
@@ -296,7 +301,12 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         poolConfig.setValidationQuery("{\"ping\": 1}"); // MongoDB ping command
 
         // Create a connection pool
-        auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(poolConfig);
+        auto poolResult2 = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult2.has_value())
+        {
+            throw poolResult2.error();
+        }
+        auto pool = poolResult2.value();
 
         // Test connection validation
         SECTION("Connection validation")

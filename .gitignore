@@ -56,8 +56,6 @@ Thumbs.db
 
 *.log
 logs/
-logs/**
 
 # Research directory
 research/
-research/**

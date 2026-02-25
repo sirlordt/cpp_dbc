@@ -76,7 +76,7 @@ namespace cpp_dbc::Firebird
                         // the statement freeing internally, causing crashes
                         std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
-                        FIREBIRD_DEBUG("ResultSet::close - Statement freed with 5ms delay");
+                        FIREBIRD_DEBUG("ResultSet::close - Statement freed with 25ms delay");
                     }
                 }
             }

@@ -30,6 +30,16 @@ option(DEBUG_ALL "Enable debug output for all drivers and components" OFF)
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
 option(ENABLE_TSAN "Enable Thread Sanitizer" OFF)
 
+if(ENABLE_ASAN)
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address)
+endif()
+
+if(ENABLE_TSAN)
+    add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=thread)
+endif()
+
 # FileMutexRegistry option (mandatory for SQLite - ensures file-level synchronization)
 # This eliminates ThreadSanitizer false positives and prevents "database is locked" errors
 option(ENABLE_FILE_MUTEX_REGISTRY "Enable global file-level mutex registry for SQLite (mandatory, ~33% overhead)" ON)

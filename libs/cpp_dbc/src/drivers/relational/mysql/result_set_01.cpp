@@ -86,7 +86,11 @@ namespace cpp_dbc::MySQL
 
     MySQLDBResultSet::~MySQLDBResultSet()
     {
-        MySQLDBResultSet::close();
+        auto closeResult = MySQLDBResultSet::close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            MYSQL_DEBUG("MySQLDBResultSet::destructor - close() failed: " << closeResult.error().what_s());
+        }
     }
 
     void MySQLDBResultSet::close()

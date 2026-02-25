@@ -254,7 +254,12 @@ int main(int argc, char *argv[])
         poolConfig.setMaxSize(10);
         poolConfig.setValidationQuery("SELECT now() FROM system.local");
 
-        auto pool = cpp_dbc::ColumnarDBConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::ColumnarDBConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         logOk("Connection pool created");
         logData("Active connections: " + std::to_string(pool->getActiveDBConnectionCount()));

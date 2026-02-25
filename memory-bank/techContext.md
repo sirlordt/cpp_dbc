@@ -97,7 +97,9 @@
   - `std::thread` for background maintenance tasks
   - `std::mutex` and `std::lock_guard` for thread synchronization
   - `std::condition_variable` for thread signaling
-  - `std::atomic` for thread-safe counters
+  - `std::atomic<int64_t>` for lock-free last-used time in pooled connections (`m_lastUsedTimeNs`, nanoseconds since epoch) — portable to ARM32/MIPS, unlike `std::atomic<time_point>`
+  - `std::atomic<bool>` for driver closed-state flags (e.g., MySQL `m_closed`) — allows lock-free reads outside connection mutex
+  - `std::atomic<int>` for pool-level counters (`m_activeConnections`)
 
 ## Development Setup
 
@@ -159,7 +161,8 @@ The project uses:
   - `--debug-redis`: Enable debug output for Redis driver
   - `--debug-all`: Enable all debug output at once (simplifies debugging across multiple components)
   - `--db-driver-thread-safe-off`: Disable thread-safe database driver operations (for single-threaded performance)
-  - `--asan`: Enable AddressSanitizer (with known issues, see asan_issues.md)
+  - `--asan`: Enable AddressSanitizer via `ENABLE_ASAN=ON` CMake option (compile/link flags added directly in CMakeLists.txt; see asan_issues.md for known issues)
+  - `--tsan`: Enable ThreadSanitizer via `ENABLE_TSAN=ON` CMake option (compile/link flags added directly in CMakeLists.txt)
 - Parallel test execution options (via `helper.sh --run-test=...`):
   - `parallel=N`: Run N test prefixes (10_, 20_, 21_, etc.) in parallel
   - `parallel-order=P1_,P2_,...`: Prioritize specific prefixes to run first

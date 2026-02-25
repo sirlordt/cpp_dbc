@@ -91,7 +91,12 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
         poolConfig.setValidationQuery("PING"); // Redis ping command
 
         // Create a connection pool
-        auto pool = cpp_dbc::Redis::RedisConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::Redis::RedisConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Test getting and returning connections
         SECTION("Get and return connections")
@@ -276,7 +281,12 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
         poolConfig.setValidationQuery("PING"); // Redis ping command
 
         // Create a connection pool
-        auto pool = cpp_dbc::Redis::RedisConnectionPool::create(poolConfig);
+        auto poolResult2 = cpp_dbc::Redis::RedisConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult2.has_value())
+        {
+            throw poolResult2.error();
+        }
+        auto pool = poolResult2.value();
 
         // Test connection validation
         SECTION("Connection validation")

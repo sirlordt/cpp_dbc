@@ -838,20 +838,20 @@ run_test() {
         fi
 
         if [ -n "$ASAN_OPTIONS" ]; then
-            env ASAN_OPTIONS="$ASAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS $@
+            env ASAN_OPTIONS="$ASAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS "$@"
         elif [ -n "$TSAN_OPTIONS" ]; then
-            env TSAN_OPTIONS="$TSAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS $@
+            env TSAN_OPTIONS="$TSAN_OPTIONS" valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS "$@"
         else
-            valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS $@
+            valgrind $VALGRIND_OPTS "$TEST_EXECUTABLE" $COLOR_ARGS "$@"
         fi
     else
         # Not using Valgrind
         if [ -n "$ASAN_OPTIONS" ]; then
-            env ASAN_OPTIONS="$ASAN_OPTIONS" "$TEST_EXECUTABLE" $COLOR_ARGS $@
+            env ASAN_OPTIONS="$ASAN_OPTIONS" "$TEST_EXECUTABLE" $COLOR_ARGS "$@"
         elif [ -n "$TSAN_OPTIONS" ]; then
-            env TSAN_OPTIONS="$TSAN_OPTIONS" "$TEST_EXECUTABLE" $COLOR_ARGS $@
+            env TSAN_OPTIONS="$TSAN_OPTIONS" "$TEST_EXECUTABLE" $COLOR_ARGS "$@"
         else
-            "$TEST_EXECUTABLE" $COLOR_ARGS $@
+            "$TEST_EXECUTABLE" $COLOR_ARGS "$@"
         fi
     fi
 }

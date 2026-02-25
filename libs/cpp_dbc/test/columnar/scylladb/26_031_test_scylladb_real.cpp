@@ -403,11 +403,15 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
         poolConfig.setValidationQuery("SELECT now() FROM system.local");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create keyspace and test table
-        auto conn = pool.getColumnarDBConnection();
+        auto conn = pool->getColumnarDBConnection();
         conn->executeUpdate(createKeyspaceQuery);
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
@@ -426,7 +430,7 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
                                           {
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
-                        auto conn_thread = pool.getColumnarDBConnection();
+                        auto conn_thread = pool->getColumnarDBConnection();
 
                         int id = i * 100 + j;
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -452,7 +456,7 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the data (ScyllaDB COUNT(*) returns bigint → getLong)
-        conn = pool.getColumnarDBConnection();
+        conn = pool->getColumnarDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_keyspace.test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getLong("count") == static_cast<long>(numThreads * opsPerThread));
@@ -463,7 +467,7 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
         conn->returnToPool();
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 }
 #else

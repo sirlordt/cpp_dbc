@@ -130,11 +130,15 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool
-        auto poolPtr = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a transaction manager
-        cpp_dbc::TransactionManager manager(pool);
+        cpp_dbc::TransactionManager manager(*pool);
 
         // Number of threads and transactions per thread
         const int numThreads = 5;
@@ -197,7 +201,7 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
         REQUIRE(manager.getActiveTransactionCount() == 0);
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 
     // Clean up ALL database files after test (no wait needed at end)
@@ -244,14 +248,18 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult2 = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult2.has_value())
+        {
+            throw poolResult2.error();
+        }
+        auto pool = poolResult2.value();
 
         // Create a transaction manager
-        cpp_dbc::TransactionManager manager(pool);
+        cpp_dbc::TransactionManager manager(*pool);
 
         // Create a test table and enable WAL mode for better concurrency
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         // conn->executeUpdate("PRAGMA journal_mode=WAL");
         // conn->executeUpdate("PRAGMA busy_timeout=30000"); // Increased for Helgrind (100x slower execution)
         conn->executeUpdate("DROP TABLE IF EXISTS test_table");
@@ -286,7 +294,7 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was committed
-            auto verifyConn = pool.getRelationalDBConnection();
+            auto verifyConn = pool->getRelationalDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
@@ -325,7 +333,7 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was not committed
-            auto verifyConn = pool.getRelationalDBConnection();
+            auto verifyConn = pool->getRelationalDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
 
@@ -403,7 +411,7 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             REQUIRE_FALSE(manager.isTransactionActive(txId3));
 
             // Verify the data from committed transactions
-            auto verifyConn = pool.getRelationalDBConnection();
+            auto verifyConn = pool->getRelationalDBConnection();
 
             // Transaction 1 (committed)
             auto rs1 = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 10");
@@ -451,7 +459,7 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             pstmt->close();
 
             // Get a separate connection (not in the transaction)
-            auto regularConn = pool.getRelationalDBConnection();
+            auto regularConn = pool->getRelationalDBConnection();
 
             // Verify the data is not visible outside the transaction
             auto rs = regularConn->executeQuery("SELECT * FROM test_table WHERE id = 100");
@@ -506,7 +514,7 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
             REQUIRE_FALSE(manager.isTransactionActive(txId));
 
             // Verify the data was not committed
-            auto verifyConn = pool.getRelationalDBConnection();
+            auto verifyConn = pool->getRelationalDBConnection();
             auto rs = verifyConn->executeQuery("SELECT * FROM test_table WHERE id = 200");
             REQUIRE_FALSE(rs->next()); // Should be no rows
 
@@ -520,7 +528,7 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
         }
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 
     // Clean up ALL database files after test (no wait needed at end)

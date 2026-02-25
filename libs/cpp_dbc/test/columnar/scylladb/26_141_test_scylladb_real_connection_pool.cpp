@@ -98,7 +98,12 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
         poolConfig.setValidationQuery("SELECT now() FROM system.local");
 
         // Create a connection pool
-        auto pool = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Initialize schema
         auto conn = pool->getColumnarDBConnection();
@@ -393,7 +398,12 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
         poolConfigLocal.setTestOnReturn(true);
         poolConfigLocal.setValidationQuery("SELECT now() FROM system.local");
 
-        auto pool = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(poolConfigLocal);
+        auto poolResult2 = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(std::nothrow, poolConfigLocal);
+        if (!poolResult2.has_value())
+        {
+            throw poolResult2.error();
+        }
+        auto pool = poolResult2.value();
 
         // Test connection validation
         SECTION("Connection validation")

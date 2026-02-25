@@ -280,8 +280,14 @@ namespace cpp_dbc::Firebird
 
             FIREBIRD_DEBUG("FirebirdConnection::returnToPool(nothrow) - Starting");
 
-            // Prepare for pool return: close all statements/resultsets, rollback, reset autocommit
-            prepareForPoolReturn(std::nothrow);
+            // Prepare for pool return: close all statements/resultsets, rollback, reset autocommit.
+            // prepareForPoolReturn always returns success internally (failures are non-fatal and logged
+            // inside), but check the result to satisfy [[nodiscard]] and make intent explicit.
+            auto prepResult = prepareForPoolReturn(std::nothrow);
+            if (!prepResult.has_value())
+            {
+                FIREBIRD_DEBUG("  prepareForPoolReturn failed: %s", prepResult.error().what_s().c_str());
+            }
 
             // Start a fresh transaction for the next use
             if (!m_tr && !m_closed.load(std::memory_order_acquire))

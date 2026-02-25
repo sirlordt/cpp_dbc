@@ -83,12 +83,12 @@ SQLITE_DEBUG("Statement prepared: %s", stmt.c_str());
 
 ### Output Format
 
-```
+```text
 [Context] [HH:mm:ss.mmm] [tid:XXXXX] [file:line] message
 ```
 
 Example:
-```
+```text
 [ConnectionPool] [14:23:45.123] [tid:12345] [connection_pool.cpp:123] Acquiring connection...
 [ConnectionPool] [14:23:45.125] [tid:12345] [connection_pool.cpp:145] Connection acquired: 0x7f8b4c001a80
 [MySQL] [14:23:45.126] [tid:12345] [connection.cpp:89] Executing query: SELECT * FROM users
@@ -97,12 +97,12 @@ Example:
 ### Log File Location
 
 Logs are written to:
-```
+```text
 logs/debug/YYYY-MM-DD-HH-mm-SS/ConnectionPool.log
 ```
 
 Example:
-```
+```text
 logs/debug/2026-02-14-14-23-45/ConnectionPool.log
 ```
 
@@ -110,7 +110,7 @@ logs/debug/2026-02-14-14-23-45/ConnectionPool.log
 
 ### Ring Buffer Design
 
-```
+```text
 ┌───────────────────────────────────────────┐
 │  Ring Buffer (2048 entries)               │
 │                                           │
@@ -177,7 +177,7 @@ When writers produce logs faster than the disk writer can consume:
 
 ### Example Overrun Log
 
-```
+```text
 [HighPerfLogger] [14:23:47.456] *** OVERRUN: 523 logs lost, jumping from idx=2048 to idx=2176 ***
 ```
 
@@ -264,7 +264,7 @@ cmake --build build --target test_high_perf_logger
 
 ### Test output
 
-```
+```text
 ========================================
 High-Performance Logger Test Suite
 ========================================

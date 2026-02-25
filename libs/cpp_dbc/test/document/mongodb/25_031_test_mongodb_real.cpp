@@ -722,12 +722,16 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
         poolConfig.setValidationQuery("{\"ping\": 1}");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::MongoDB::MongoDBConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a collection for pool tests
         const std::string poolCollectionName = testCollectionName + "_pool_031";
-        auto setupConn = pool.getDocumentDBConnection();
+        auto setupConn = pool->getDocumentDBConnection();
         if (setupConn->collectionExists(poolCollectionName))
         {
             setupConn->dropCollection(poolCollectionName);
@@ -748,7 +752,7 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
                                           {
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
-                        auto conn_thread = pool.getDocumentDBConnection();
+                        auto conn_thread = pool->getDocumentDBConnection();
 
                         int id = i * 100 + j;
                         std::string docJson = mongodb_test_helpers::generateTestDocument(
@@ -775,7 +779,7 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the document count
-        auto verifyConn = pool.getDocumentDBConnection();
+        auto verifyConn = pool->getDocumentDBConnection();
         auto verifyCollection = verifyConn->getCollection(poolCollectionName);
         auto count = verifyCollection->countDocuments("{}");
         REQUIRE(count == static_cast<uint64_t>(numThreads * opsPerThread));
@@ -785,7 +789,7 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
         verifyConn->returnToPool();
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 }
 #else

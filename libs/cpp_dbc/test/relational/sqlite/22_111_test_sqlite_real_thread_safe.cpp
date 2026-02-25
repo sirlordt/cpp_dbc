@@ -223,7 +223,12 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         // SQLite only supports SERIALIZABLE isolation level
         poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
 
-        auto pool = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Setup: create test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -325,7 +330,12 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         // SQLite only supports SERIALIZABLE isolation level
         poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
 
-        auto pool = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
+        auto poolResult2 = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult2.has_value())
+        {
+            throw poolResult2.error();
+        }
+        auto pool = poolResult2.value();
 
         // Setup: create and populate test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -430,7 +440,12 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         // SQLite only supports SERIALIZABLE isolation level
         poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
 
-        auto pool = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
+        auto poolResult3 = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult3.has_value())
+        {
+            throw poolResult3.error();
+        }
+        auto pool = poolResult3.value();
 
         // Create test table
         auto setupConn = pool->getRelationalDBConnection();

@@ -45,7 +45,13 @@
     do                                                                                \
     {                                                                                 \
         char debug_buffer[1024];                                                      \
-        std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__);     \
+        int sqlite_debug_n = std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__); \
+        if (sqlite_debug_n >= static_cast<int>(sizeof(debug_buffer)))                \
+        {                                                                             \
+            static constexpr const char sq_trunc[] = "...[TRUNCATED]";              \
+            std::memcpy(debug_buffer + sizeof(debug_buffer) - sizeof(sq_trunc),      \
+                        sq_trunc, sizeof(sq_trunc));                                  \
+        }                                                                             \
         cpp_dbc::system_utils::logWithTimesMillis("SQLite", debug_buffer);            \
     } while (0)
 #else

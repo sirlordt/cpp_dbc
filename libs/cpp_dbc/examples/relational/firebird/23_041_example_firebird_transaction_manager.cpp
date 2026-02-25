@@ -217,7 +217,12 @@ int main(int argc, char *argv[])
         logOk("Pool configuration created");
 
         logStep("Creating connection pool...");
-        auto pool = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
         logOk("Connection pool created");
 
         // Create transaction manager

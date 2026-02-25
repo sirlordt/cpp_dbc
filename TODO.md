@@ -12,6 +12,25 @@
 
 ## Completed Tasks
 
+- Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection (2026-02-24):
+  - Pool `create()` factory now returns `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` param (all families + all concrete subclasses)
+  - All internal pool methods (createDBConnection, createPooledDBConnection, validateConnection, returnConnection, initializePool) now return `expected<T, DBException>` noexcept
+  - `DBConnectionPool` and `DBConnectionPooled` base classes: added nothrow pure virtuals for all pool methods
+  - `m_lastUsedTimeNs` (`atomic<int64_t>`, nanoseconds) replaces `m_lastUsedTime` (`atomic<time_point>`) — portable to ARM32/MIPS
+  - `static_assert(std::atomic<int64_t>::is_always_lock_free)` replaces time_point assert
+  - `m_creationTime` now uses in-class initializer `{std::chrono::steady_clock::now()}`; `m_lastUsedTimeNs` initialized from `m_creationTime`
+  - MySQL `m_closed` upgraded from `bool` to `std::atomic<bool>{false}`; all accesses use `.load(std::memory_order_acquire)` / `.store(true, std::memory_order_release)`
+  - `[[deprecated]]` on `DBException::what()` commented out (was generating noise; `what_s()` still recommended)
+  - All result set destructors (MySQL, PostgreSQL, SQLite, Firebird) use nothrow `close()` + error logging; SQLite try/catch removed
+  - `CP_DEBUG`, `FIREBIRD_DEBUG`, `SQLITE_DEBUG` macros detect `snprintf` truncation and mark with `...[TRUNCATED]`
+  - `HighPerfLogger::m_flushCounter`: static local → class member variable
+  - `ENABLE_ASAN` / `ENABLE_TSAN` CMake options now add compile/link flags directly in `CMakeLists.txt`
+  - New coding convention sections: "Member Initialization — Prefer In-Class Initializers", "`std::atomic` — Always Use `.load(std::memory_order_acquire)`", "Nothrow Methods Must Call Nothrow Overloads", "No Redundant try/catch in Nothrow Methods"
+  - All examples and tests updated to use `create(std::nothrow, ...)` + expected pattern
+  - Firebird `prepared_statement_04.cpp`: removed redundant null-check on `conn`; `result_set_03.cpp`: log fix "5ms" → "25ms"
+  - ScyllaDB `result_set_02.cpp`: added `captureCallStack()`, fixed duplicate error codes
+  - Shell: `$@` → `"$@"` quoting fix in `run_test_cpp_dbc.sh`; removed `NO_REBUILD_DEPS` from `build_test_cpp_dbc.sh`
+
 - Unified Pool Mutex, Atomic Time-Point, Direct Handoff for All Pools, Notifications, and Test Quality Improvements (2026-02-22):
   - Columnar, Document, and KV pools: consolidated 5 mutexes into single `m_mutexPool`
   - Added `ConnectionRequest` + `m_waitQueue` direct handoff to all three pool families
@@ -57,7 +76,6 @@
   - Fixed non-compliant error code in `firebird/blob.hpp` (`"FB_BLOB_CONN_CLOSED"` → `"LMHROWFG5PNN"`)
   - No functional logic changes — purely organizational
 
-- Improvement: Add to helper the param helgrind to detect data races and deadlocks. When specified, run Valgrind with --tool=helgrind. Update all test result parsing to detect problems from helgrind and not only the memcheck tool.
 - Complete Nothrow API Implementation Across All Drivers (2026-02-18):
   - Promoted all nothrow methods in `DBConnection`, `DBResultSet`, `RelationalDBConnection` to pure virtual `= 0`
   - Added `void reset()`, `isEmpty(nothrow)`, `prepareForPoolReturn(nothrow)`, `prepareForBorrow(nothrow)` pure virtuals
@@ -282,7 +300,7 @@
   - Added support for multiple iterations and benchmark repetitions
   - Added new configuration parameters (--min-time and --repetitions)
   - Added mysql-off option to disable MySQL benchmarks
-- Added mtehots begiTransaction() to replace setAutoCommit funcionality
+- Added methods beginTransaction() to replace setAutoCommit functionality
 - Reseearch Why sqlite driver is showing warning messages
 - Add the feature to messages warning folling the DEBUG_SQLITE flag
 - NEW FEATURE: Add benchmarks to 10 100 1000 10000 rows in Insert/Delete/Update/Select Operations

@@ -81,7 +81,11 @@ namespace cpp_dbc::Firebird
         // closeAllActiveResultSets() checks if weak_ptrs can be locked before using them.
 
         // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
-        [[maybe_unused]] auto closeResult = close(std::nothrow);
+        auto closeResult = close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            FIREBIRD_DEBUG("FirebirdResultSet::destructor - close() failed: %s", closeResult.error().what_s().c_str());
+        }
         FIREBIRD_DEBUG("FirebirdResultSet::destructor - Done");
     }
 

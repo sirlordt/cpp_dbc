@@ -193,7 +193,12 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
-        auto pool = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Setup: create test table using RECREATE TABLE
         auto setupConn = pool->getRelationalDBConnection();
@@ -275,7 +280,12 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
-        auto pool = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
+        auto poolResult2 = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult2.has_value())
+        {
+            throw poolResult2.error();
+        }
+        auto pool = poolResult2.value();
 
         // Setup: create and populate test table using RECREATE TABLE
         auto setupConn = pool->getRelationalDBConnection();
@@ -376,7 +386,12 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1 FROM RDB$DATABASE");
 
-        auto pool = cpp_dbc::Firebird::FirebirdConnectionPool::create(poolConfig);
+        auto poolResult3 = cpp_dbc::Firebird::FirebirdConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult3.has_value())
+        {
+            throw poolResult3.error();
+        }
+        auto pool = poolResult3.value();
 
         // Create test table using RECREATE TABLE
         // Note: Firebird doesn't have AUTO_INCREMENT, we use manual ID management

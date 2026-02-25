@@ -160,7 +160,6 @@ namespace cpp_dbc::MySQL
                                          const std::string &user,
                                          const std::string &password,
                                          const std::map<std::string, std::string> &options)
-        : m_closed(false)
     {
         // Create shared_ptr with custom deleter for MYSQL*
         m_mysql = makeMySQLHandle(mysql_init(nullptr));

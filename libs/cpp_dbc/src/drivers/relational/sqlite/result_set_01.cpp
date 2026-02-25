@@ -87,17 +87,14 @@ namespace cpp_dbc::SQLite
 
     SQLiteDBResultSet::~SQLiteDBResultSet()
     {
-        try
+        // Solo llamar a close() si no está ya cerrado
+        if (!m_closed)
         {
-            // Solo llamar a close() si no está ya cerrado
-            if (!m_closed)
+            auto closeResult = close(std::nothrow);
+            if (!closeResult.has_value())
             {
-                close();
+                SQLITE_DEBUG("SQLiteDBResultSet::destructor - close() failed: %s", closeResult.error().what_s().c_str());
             }
-        }
-        catch (...)
-        {
-            // Ignore exceptions during destruction
         }
 
         // Sleep briefly to ensure resources are released

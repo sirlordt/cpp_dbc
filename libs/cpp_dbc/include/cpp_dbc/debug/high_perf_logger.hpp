@@ -108,6 +108,7 @@ private:
 
     std::atomic<size_t> m_overrunCount{0};  ///< Count of logs lost to overruns
     std::atomic<bool> m_running{true};      ///< Running flag
+    size_t m_flushCounter{0};              ///< Iteration counter for periodic flush (only accessed from m_writerThread)
 
     std::jthread m_writerThread;           ///< Async writer thread (C++20)
     std::ofstream m_logFile;               ///< Log file stream
@@ -125,9 +126,9 @@ private:
  * @param context Context name (e.g., "ConnectionPool", "MySQLDriver")
  * @param msg Message string (std::string, std::string_view, or const char*)
  */
-#define HP_LOG(context, msg) \
+#define HP_LOG(context, msg) /* NOSONAR(cpp:S6190) — __FILE__/__LINE__ cannot be replaced with std::source_location while keeping macro call-site capture semantics */ \
     cpp_dbc::debug::HighPerfLogger::getInstance().log( \
-        context, __FILE__, __LINE__, msg) // NOSONAR(cpp:S6190) — __FILE__/__LINE__ cannot be replaced with std::source_location while keeping macro call-site capture semantics
+        context, __FILE__, __LINE__, msg)
 
 /**
  * @brief Connection pool debug macro

@@ -87,7 +87,12 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[21_141_01_postgresql_real_c
         poolConfigLocal.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfigLocal);
+        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfigLocal);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a test table
         auto conn = pool->getRelationalDBConnection();
@@ -153,7 +158,12 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[21_141_01_postgresql_real_c
         poolConfigLocal.setValidationQuery("SELECT 1");
 
         // Create a connection pool
-        auto pool = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(poolConfigLocal);
+        auto poolResult2 = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfigLocal);
+        if (!poolResult2.has_value())
+        {
+            throw poolResult2.error();
+        }
+        auto pool = poolResult2.value();
 
         // Test connection validation
         SECTION("Connection validation")

@@ -198,7 +198,13 @@ namespace cpp_dbc::Firebird
     do                                                                                 \
     {                                                                                  \
         char debug_buffer[1024];                                                       \
-        std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__);      \
+        int firebird_debug_n = std::snprintf(debug_buffer, sizeof(debug_buffer), format, ##__VA_ARGS__); \
+        if (firebird_debug_n >= static_cast<int>(sizeof(debug_buffer)))               \
+        {                                                                              \
+            static constexpr const char fb_trunc[] = "...[TRUNCATED]";               \
+            std::memcpy(debug_buffer + sizeof(debug_buffer) - sizeof(fb_trunc),       \
+                        fb_trunc, sizeof(fb_trunc));                                   \
+        }                                                                              \
         cpp_dbc::system_utils::logWithTimesMillis("Firebird", debug_buffer);           \
     } while (0)
 #else

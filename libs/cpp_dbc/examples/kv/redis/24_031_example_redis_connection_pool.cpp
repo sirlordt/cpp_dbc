@@ -179,10 +179,16 @@ int main(int argc, char *argv[])
 
         logStep("Creating Redis connection pool...");
         std::string url = "cpp_dbc:redis://" + dbConfig.getHost() + ":" + std::to_string(dbConfig.getPort()) + "/" + dbConfig.getDatabase();
-        auto pool = cpp_dbc::Redis::RedisConnectionPool::create(
+        auto poolResult = cpp_dbc::Redis::RedisConnectionPool::create(
+            std::nothrow,
             url,
             dbConfig.getUsername(),
             dbConfig.getPassword());
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         logOk("Connection pool created");
         logData("Active connections: " + std::to_string(pool->getActiveDBConnectionCount()));

@@ -41,7 +41,7 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed || !m_mysql)
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
             {
                 return cpp_dbc::unexpected(DBException("47FCEE77D4F3", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -116,7 +116,7 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed || !m_mysql)
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
             {
                 return cpp_dbc::unexpected(DBException("N8Z9A0B1C2D3", "Connection is closed", system_utils::captureCallStack()));
             }
@@ -202,7 +202,7 @@ namespace cpp_dbc::MySQL
         {
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (!m_closed && m_mysql)
+            if (!m_closed.load(std::memory_order_acquire) && m_mysql)
             {
                 // Close all active statements before closing the connection
                 // This ensures mysql_stmt_close() is called while we have exclusive access
@@ -212,7 +212,7 @@ namespace cpp_dbc::MySQL
                 std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
                 m_mysql.reset();
-                m_closed = true;
+                m_closed.store(true, std::memory_order_release);
             }
             return {};
         }
@@ -240,7 +240,7 @@ namespace cpp_dbc::MySQL
         {
             DB_DRIVER_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed || !m_mysql)
+            if (m_closed.load(std::memory_order_acquire) || !m_mysql)
             {
                 return {}; // Nothing to reset if already closed
             }
@@ -280,7 +280,7 @@ namespace cpp_dbc::MySQL
 
     cpp_dbc::expected<bool, DBException> MySQLDBConnection::isClosed(std::nothrow_t) const noexcept
     {
-        return m_closed;
+        return m_closed.load(std::memory_order_acquire);
     }
 
     cpp_dbc::expected<void, DBException> MySQLDBConnection::returnToPool(std::nothrow_t) noexcept

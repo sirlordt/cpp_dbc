@@ -36,7 +36,7 @@ namespace cpp_dbc::MySQL
         {
         private:
             MySQLHandle m_mysql; // shared_ptr allows PreparedStatements to use weak_ptr
-            bool m_closed{true};
+            std::atomic<bool> m_closed{false};
             bool m_autoCommit{true};
             bool m_transactionActive{false};
             TransactionIsolationLevel m_isolationLevel{TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ}; // MySQL default

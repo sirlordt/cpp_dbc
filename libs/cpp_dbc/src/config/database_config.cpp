@@ -72,6 +72,11 @@ namespace cpp_dbc::config
             config.setPassword(dbConfig.getPassword());
 
             // Create the connection pool
-            return cpp_dbc::RelationalDBConnectionPool::create(config);
+            auto poolResult = cpp_dbc::RelationalDBConnectionPool::create(std::nothrow, config);
+            if (!poolResult.has_value())
+            {
+                throw poolResult.error();
+            }
+            return poolResult.value();
         }
 } // namespace cpp_dbc::config

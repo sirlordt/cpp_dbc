@@ -45,7 +45,14 @@
     do                                                                                           \
     {                                                                                            \
         char cp_debug_buf[1024];                                                                 \
-        std::snprintf(cp_debug_buf, sizeof(cp_debug_buf), format, ##__VA_ARGS__);                \
+        int cp_debug_n = std::snprintf(cp_debug_buf, sizeof(cp_debug_buf), format, ##__VA_ARGS__); \
+        if (cp_debug_n >= static_cast<int>(sizeof(cp_debug_buf)))                               \
+        {                                                                                        \
+            /* Message was truncated — mark the end of the buffer to make it visible */          \
+            static constexpr const char cp_trunc[] = "...[TRUNCATED]";                          \
+            std::memcpy(cp_debug_buf + sizeof(cp_debug_buf) - sizeof(cp_trunc),                 \
+                        cp_trunc, sizeof(cp_trunc));                                             \
+        }                                                                                        \
         cpp_dbc::system_utils::logWithTimesMillis("ConnectionPool", cp_debug_buf);               \
     } while (0)
 #else

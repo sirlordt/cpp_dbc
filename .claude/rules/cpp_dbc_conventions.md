@@ -130,6 +130,66 @@ namespace cpp_dbc
 - Always try to use C++17-style constructs and functions for more secure code.
 - Use ranges and avoid index loops where possible.
 
+### Member Initialization — Prefer In-Class Initializers Over Constructor Body
+
+When possible, initialize member variables with in-class default member initializers (`= value` or `{value}`) rather than assigning them in the constructor body. This eliminates redundant constructor code, ensures consistent initialization across all constructors, and makes the class definition self-documenting.
+
+If a member depends on another member declared earlier in the same class, in-class initialization is still valid — members are initialized in declaration order, so the dependency is safe as long as the order is respected:
+
+```cpp
+// Correct — in-class initializers, order-safe
+class PooledConnection
+{
+    std::chrono::time_point<std::chrono::steady_clock> m_creationTime{std::chrono::steady_clock::now()};
+    std::atomic<int64_t> m_lastUsedTimeNs{m_creationTime.time_since_epoch().count()}; // safe: m_creationTime declared first
+    std::atomic<bool> m_active{false};
+
+public:
+    PooledConnection() { /* nothing to initialize */ }
+};
+
+// Incorrect — assignment in constructor body when in-class init is possible
+class PooledConnection
+{
+    std::chrono::time_point<std::chrono::steady_clock> m_creationTime;
+    std::atomic<int64_t> m_lastUsedTimeNs{0}; // wrong initial value; fixed in constructor
+    std::atomic<bool> m_active{false};
+
+public:
+    PooledConnection()
+    {
+        m_creationTime = std::chrono::steady_clock::now(); // redundant if in-class init is possible
+        m_lastUsedTimeNs.store(m_creationTime.time_since_epoch().count(), std::memory_order_relaxed);
+    }
+};
+```
+
+Constructor body assignment is only appropriate when the initial value depends on a constructor parameter or cannot be expressed as a constant or simple expression.
+
+### `std::atomic` — Always Use `.load(std::memory_order_acquire)`
+
+Every read of a `std::atomic` variable **must** call `.load(std::memory_order_acquire)` explicitly. No exceptions. Implicit boolean conversion, bare `.load()` without memory order, and comparison operators that bypass `.load()` are all forbidden:
+
+```cpp
+// Correct
+if (m_running.load(std::memory_order_acquire))
+{
+    // ...
+}
+
+if (m_closed.load(std::memory_order_acquire))
+{
+    return cpp_dbc::unexpected(...);
+}
+
+// Incorrect — implicit conversion, no memory ordering
+if (m_running)         { }  // implicit bool conversion
+if (!m_closed)         { }  // implicit bool conversion
+if (m_running.load())  { }  // missing memory_order argument
+```
+
+The only exception is `std::atomic::store()`, `exchange()`, and `compare_exchange_*()`, which use `std::memory_order_release` or `std::memory_order_acq_rel` as appropriate for write operations.
+
 ## Thread Safety
 
 - Use `DB_DRIVER_LOCK_GUARD(m_mutex)` macro for conditional locking
@@ -238,6 +298,82 @@ catch (...)
     // Intentionally empty
 }
 ```
+
+### Nothrow Methods Must Call Nothrow Overloads
+
+A method declared `noexcept` or accepting `std::nothrow_t` **must** call the `std::nothrow` overload of any inner method that has one. Calling the throwing overload from within a nothrow method is a violation, even if surrounded by a try/catch — it defeats the purpose of the nothrow contract and introduces hidden control flow:
+
+```cpp
+// Correct — nothrow method calls nothrow overload, propagates expected
+cpp_dbc::expected<bool, DBException> MyPooledConnection::isClosed(std::nothrow_t) const noexcept
+{
+    if (m_closed.load(std::memory_order_acquire))
+    {
+        return true;
+    }
+    auto result = m_conn->isClosed(std::nothrow);
+    if (!result.has_value())
+    {
+        return result;
+    }
+    return result.value();
+}
+
+// Incorrect — nothrow method calls throwing overload
+cpp_dbc::expected<bool, DBException> MyPooledConnection::isClosed(std::nothrow_t) const noexcept
+{
+    return m_closed.load(std::memory_order_acquire) || m_conn->isClosed();  // isClosed() can throw!
+}
+```
+
+The only exception is when **no nothrow overload exists** for the inner method. In that case, the nothrow method must wrap the call in try/catch and convert any exception to `std::unexpected`.
+
+### No Redundant try/catch in Nothrow Methods
+
+A `noexcept` / `std::nothrow_t` method that calls **only** nothrow overloads (functions that return `expected` and never throw) must **not** wrap the body in try/catch. Since none of the inner calls can throw, the catch blocks are dead code and create false noise — they suggest that exceptions are possible when they are not:
+
+```cpp
+// Correct — no try/catch needed; all inner calls are nothrow
+cpp_dbc::expected<std::shared_ptr<PreparedStatement>, DBException>
+MyConnection::prepareStatement(std::nothrow_t, const std::string &query) noexcept
+{
+    if (m_closed.load(std::memory_order_acquire))
+    {
+        return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX", "Connection is closed", system_utils::captureCallStack()));
+    }
+    updateLastUsedTime(std::nothrow);
+    return m_conn->prepareStatement(std::nothrow, query);
+}
+
+// Incorrect — try/catch is dead code; all inner calls are nothrow and cannot throw
+cpp_dbc::expected<std::shared_ptr<PreparedStatement>, DBException>
+MyConnection::prepareStatement(std::nothrow_t, const std::string &query) noexcept
+{
+    try
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->prepareStatement(std::nothrow, query);
+    }
+    catch (const DBException &ex)                  // unreachable
+    {
+        return cpp_dbc::unexpected(ex);
+    }
+    catch (const std::exception &ex)               // unreachable
+    {
+        return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX", ex.what(), system_utils::captureCallStack()));
+    }
+    catch (...)                                    // unreachable
+    {
+        return cpp_dbc::unexpected(DBException("XXXXXXXXXXXX", "unknown error", system_utils::captureCallStack()));
+    }
+}
+```
+
+The try/catch is **only** required when at least one inner call has no nothrow overload and can actually throw.
 
 ### `catch(...)` Requires a Preceding `catch(const std::exception &ex)`
 

@@ -33,7 +33,8 @@
 
 // Platform-specific includes for write() syscall (eliminates Helgrind false positives)
 #ifdef _WIN32
-#include <io.h> // _write(), _fileno()
+#include <windows.h> // GetCurrentThreadId() used in getThreadId()
+#include <io.h>      // _write(), _fileno()
 #else
 #include <unistd.h> // write(), STDOUT_FILENO
 #endif
@@ -226,12 +227,12 @@ namespace cpp_dbc::system_utils
 #endif
 
         // Stack buffer: "HH:MM:SS.mmm" = 12 chars + null
-        // NOSONAR(cpp:S5945,cpp:S6229,cpp:S6494) — std::format / std::chrono::format require
-        // GCC 13+; this project targets GCC 11. The stack buffer + strftime + snprintf pattern
-        // is correct, zero-allocation, and thread-safe via localtime_r/localtime_s.
-        char buf[16];
-        std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm);
-        std::snprintf(buf + n, sizeof(buf) - n, "%03d", static_cast<int>(ms.count()));
+        // std::format / std::chrono::format require GCC 13+; this project targets GCC 11.
+        // The stack buffer + strftime + snprintf pattern is correct, zero-allocation, and
+        // thread-safe via localtime_r/localtime_s.
+        char buf[16]; // NOSONAR(cpp:S5945) — see comment above
+        std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm); // NOSONAR(cpp:S6229) — see comment above
+        std::snprintf(buf + n, sizeof(buf) - n, "%03d", static_cast<int>(ms.count())); // NOSONAR(cpp:S6494) — see comment above
         return buf;
     }
 
@@ -253,12 +254,12 @@ namespace cpp_dbc::system_utils
 #endif
 
         // Stack buffer: "HH:MM:SS.uuuuuu" = 15 chars + null
-        // NOSONAR(cpp:S5945,cpp:S6229,cpp:S6494) — std::format / std::chrono::format require
-        // GCC 13+; this project targets GCC 11. The stack buffer + strftime + snprintf pattern
-        // is correct, zero-allocation, and thread-safe via localtime_r/localtime_s.
-        char buf[20];
-        std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm);
-        std::snprintf(buf + n, sizeof(buf) - n, "%06lld", usecs); // NOSONAR(cpp:S1905) — cast removed: usecs is already long long
+        // std::format / std::chrono::format require GCC 13+; this project targets GCC 11.
+        // The stack buffer + strftime + snprintf pattern is correct, zero-allocation, and
+        // thread-safe via localtime_r/localtime_s.
+        char buf[20]; // NOSONAR(cpp:S5945) — see comment above
+        std::size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S.", &tm); // NOSONAR(cpp:S6229) — see comment above
+        std::snprintf(buf + n, sizeof(buf) - n, "%06ld", usecs); // NOSONAR(cpp:S6494) — see comment above; %06ld matches the actual type (long int)
         return buf;
     }
 
@@ -279,21 +280,21 @@ namespace cpp_dbc::system_utils
 #endif
 
         // Stack buffer: "YYYY-MM-DD HH:MM:SS.mmm" = 23 chars + null
-        // NOSONAR(cpp:S5945,cpp:S6229,cpp:S6494) — std::format / std::chrono::format require
-        // GCC 13+; this project targets GCC 11. The stack buffer + strftime + snprintf pattern
-        // is correct, zero-allocation, and thread-safe via localtime_r/localtime_s.
-        char buf[28];
-        std::size_t n = std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S.", &tm);
-        std::snprintf(buf + n, sizeof(buf) - n, "%03d", static_cast<int>(ms.count()));
+        // std::format / std::chrono::format require GCC 13+; this project targets GCC 11.
+        // The stack buffer + strftime + snprintf pattern is correct, zero-allocation, and
+        // thread-safe via localtime_r/localtime_s.
+        char buf[28]; // NOSONAR(cpp:S5945) — see comment above
+        std::size_t n = std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S.", &tm); // NOSONAR(cpp:S6229) — see comment above
+        std::snprintf(buf + n, sizeof(buf) - n, "%03d", static_cast<int>(ms.count())); // NOSONAR(cpp:S6494) — see comment above
         return buf;
     }
 
     /** @brief Convert a thread ID to a short string (last 6 digits of hash, for non-current threads) */
     inline std::string threadIdToString(std::thread::id threadId) noexcept
     {
-        // NOSONAR(cpp:S5945) — char array required by std::to_chars API; this function is noexcept
-        // so std::string construction must be deferred until after to_chars writes into the buffer.
-        char buf[12];
+        // char array required by std::to_chars API; this function is noexcept so std::string
+        // construction must be deferred until after to_chars writes into the buffer.
+        char buf[12]; // NOSONAR(cpp:S5945) — see comment above
         // Truncate to last 6 digits: avoids the huge pthread_t value while staying useful for logs
         auto hash = std::hash<std::thread::id>{}(threadId) % 1000000UL;
         auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), hash);
@@ -303,9 +304,9 @@ namespace cpp_dbc::system_utils
     /** @brief Get the current thread OS-native TID as a string (matches htop/ps output) */
     inline std::string getThreadId() noexcept
     {
-        // NOSONAR(cpp:S5945) — char array required by std::to_chars API; this function is noexcept
-        // so std::string construction must be deferred until after to_chars writes into the buffer.
-        char buf[12];
+        // char array required by std::to_chars API; this function is noexcept so std::string
+        // construction must be deferred until after to_chars writes into the buffer.
+        char buf[12]; // NOSONAR(cpp:S5945) — see comment above
 #if defined(__linux__)
         // gettid() returns the kernel TID: short integer, same as shown in htop/ps
         auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), static_cast<unsigned long>(::gettid()));

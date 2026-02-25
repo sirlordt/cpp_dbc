@@ -2,7 +2,45 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All four connection pool families (relational, columnar, document, KV) now share a unified single-mutex + direct-handoff architecture. `m_lastUsedTime` is lock-free via `std::atomic<time_point>`. A post-test notification system and improved test quality thresholds are in place.
+The CPP_DBC library is in active development. All four connection pool families share a unified single-mutex + direct-handoff architecture with a complete nothrow API. `m_lastUsedTimeNs` is lock-free via `std::atomic<int64_t>` (portable to all platforms). MySQL `m_closed` is `std::atomic<bool>`. All result set destructors use nothrow close.
+
+### Recent Improvements (2026-02-24 18:25 PST)
+
+**Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection:**
+
+1. **Pool Factory — Nothrow `create()` (All Families):**
+   - All `create()` factories now return `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` first parameter (breaking API change)
+   - All examples, tests, and `database_config.cpp` updated to use `create(std::nothrow, ...)` + expected pattern
+   - All internal pool methods (createDBConnection, createPooledDBConnection, validateConnection, returnConnection, initializePool) also return `expected<...>` noexcept
+
+2. **Nothrow Base Interfaces:**
+   - `DBConnectionPool`: added nothrow pure virtuals for `getDBConnection`, `getActiveDBConnectionCount`, `getIdleDBConnectionCount`, `getTotalDBConnectionCount`, `close`, `isRunning`
+   - `DBConnectionPooled`: all methods get nothrow signatures (`getCreationTime`, `getLastUsedTime`, `setActive`, `isActive`, `getUnderlyingConnection`, `isPoolValid`)
+
+3. **`m_lastUsedTimeNs` (atomic<int64_t>) — Cross-Platform Portability:**
+   - Replaced `atomic<time_point>` with `atomic<int64_t>` (nanoseconds since epoch) — lock-free on ARM32/MIPS too
+   - `static_assert(std::atomic<int64_t>::is_always_lock_free)` replaces time_point assert
+   - `m_creationTime` now uses in-class initializer; `m_lastUsedTimeNs` initialized from `m_creationTime` (safe, declared after)
+
+4. **MySQL `m_closed` → `std::atomic<bool>`:**
+   - Converted from plain `bool` to `std::atomic<bool>{false}` (initial value corrected from `true` to `false`)
+   - All 8+ access sites use `.load(std::memory_order_acquire)` / `.store(true, std::memory_order_release)`
+
+5. **Destructor Safety — Nothrow `close()` in All Result Sets:**
+   - MySQL, PostgreSQL, SQLite, Firebird result set destructors all use nothrow `close()` + error logging
+   - SQLite try/catch in destructor removed (replaced by nothrow call + conditional log)
+
+6. **Debug Macro Truncation Detection:**
+   - `CP_DEBUG`, `FIREBIRD_DEBUG`, `SQLITE_DEBUG` detect `snprintf` overflow and append `...[TRUNCATED]`
+
+7. **Other Improvements:**
+   - `HighPerfLogger::m_flushCounter`: static local → class member (better encapsulation)
+   - `ENABLE_ASAN`/`ENABLE_TSAN` CMake options now add compile/link flags directly
+   - `[[deprecated]]` on `DBException::what()` commented out
+   - 4 new coding convention sections in `cpp_dbc_conventions.md`
+   - Shell quoting fix (`$@` → `"$@"`), `NO_REBUILD_DEPS` removed
+   - Firebird: null-check on `conn` removed in `prepared_statement_04.cpp`, "5ms" → "25ms" log fix
+   - ScyllaDB: `captureCallStack()` added, duplicate error codes fixed
 
 ### Recent Improvements (2026-02-22 19:18 PST)
 

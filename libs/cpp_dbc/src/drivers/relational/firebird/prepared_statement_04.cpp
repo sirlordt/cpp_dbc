@@ -105,7 +105,7 @@ namespace cpp_dbc::Firebird
             if (isc_dsql_sql_info(status, &m_stmt, sizeof(infoBuffer), infoBuffer, sizeof(resultBuffer), resultBuffer))
             {
                 FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate(nothrow) - Failed to get sql_info, checking autocommit");
-                if (conn && conn->getAutoCommit())
+                if (conn->getAutoCommit())
                 {
                     // Use isc_commit_retaining() instead of conn->commit() for autocommit mode.
                     //
@@ -163,38 +163,30 @@ namespace cpp_dbc::Firebird
             }
 
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate(nothrow) - Checking autocommit");
-            if (conn)
+            if (conn->getAutoCommit())
             {
-                FIREBIRD_DEBUG("  Connection is valid");
-                if (conn->getAutoCommit())
-                {
-                    // Use isc_commit_retaining() instead of conn->commit() for autocommit mode.
-                    //
-                    // isc_commit_retaining() persists the data immediately (like a checkpoint)
-                    // BUT keeps the transaction handle (m_tr) alive and active. This means:
-                    //   - No need to close active ResultSets/cursors before committing
-                    //   - No need to call startTransaction() afterwards
-                    //   - No heavy endTransaction() cycle (closeAllActiveResultSets + sleep_for)
-                    //
-                    // This mirrors how SQLite handles autocommit: sqlite3_exec() persists data
-                    // atomically without a separate commit step or cursor lifecycle management.
-                    //
-                    // Contrast with autoCommit=false: when the user calls conn->commit()
-                    // explicitly, it goes through endTransaction(true) → isc_commit_transaction()
-                    // which properly terminates the transaction and starts a new one.
-                    FIREBIRD_DEBUG("  AutoCommit is enabled, calling isc_commit_retaining()");
-                    ISC_STATUS_ARRAY commitStatus;
-                    isc_commit_retaining(commitStatus, &conn->m_tr);
-                    FIREBIRD_DEBUG("  isc_commit_retaining completed");
-                }
-                else
-                {
-                    FIREBIRD_DEBUG("  AutoCommit is disabled, data stays in active transaction until explicit commit()");
-                }
+                // Use isc_commit_retaining() instead of conn->commit() for autocommit mode.
+                //
+                // isc_commit_retaining() persists the data immediately (like a checkpoint)
+                // BUT keeps the transaction handle (m_tr) alive and active. This means:
+                //   - No need to close active ResultSets/cursors before committing
+                //   - No need to call startTransaction() afterwards
+                //   - No heavy endTransaction() cycle (closeAllActiveResultSets + sleep_for)
+                //
+                // This mirrors how SQLite handles autocommit: sqlite3_exec() persists data
+                // atomically without a separate commit step or cursor lifecycle management.
+                //
+                // Contrast with autoCommit=false: when the user calls conn->commit()
+                // explicitly, it goes through endTransaction(true) → isc_commit_transaction()
+                // which properly terminates the transaction and starts a new one.
+                FIREBIRD_DEBUG("  AutoCommit is enabled, calling isc_commit_retaining()");
+                ISC_STATUS_ARRAY commitStatus;
+                isc_commit_retaining(commitStatus, &conn->m_tr);
+                FIREBIRD_DEBUG("  isc_commit_retaining completed");
             }
             else
             {
-                FIREBIRD_DEBUG("  Connection is null (weak_ptr expired)");
+                FIREBIRD_DEBUG("  AutoCommit is disabled, data stays in active transaction until explicit commit()");
             }
 
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeUpdate(nothrow) - Done, returning count=%llu", (unsigned long long)count);

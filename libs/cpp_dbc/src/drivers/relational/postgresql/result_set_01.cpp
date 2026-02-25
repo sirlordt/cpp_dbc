@@ -63,7 +63,11 @@ namespace cpp_dbc::PostgreSQL
 
     PostgreSQLDBResultSet::~PostgreSQLDBResultSet()
     {
-        PostgreSQLDBResultSet::close();
+        auto closeResult = PostgreSQLDBResultSet::close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            PG_DEBUG("PostgreSQLDBResultSet::destructor - close() failed: " << closeResult.error().what_s());
+        }
     }
 
     void PostgreSQLDBResultSet::close()

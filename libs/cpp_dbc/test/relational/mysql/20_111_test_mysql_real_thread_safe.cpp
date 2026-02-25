@@ -186,7 +186,12 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Setup: create test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -260,7 +265,12 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Setup: create and populate test table
         auto setupConn = pool->getRelationalDBConnection();
@@ -353,7 +363,12 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         poolConfig.setTestOnBorrow(true);
         poolConfig.setValidationQuery("SELECT 1");
 
-        auto pool = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create test table
         auto setupConn = pool->getRelationalDBConnection();

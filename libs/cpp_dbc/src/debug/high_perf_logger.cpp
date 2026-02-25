@@ -113,9 +113,8 @@ void HighPerfLogger::log(const char* context, const char* file, int line,
     filename = filename ? filename + 1 : file;
 
     // Format header: [Context] [HH:mm:ss.mmm] [tid:XXXXX] [file:line]
-    // NOSONAR(cpp:S6494) — snprintf writes into a fixed pre-allocated ring buffer entry;
-    // std::format is unavailable in GCC 11 and would require a heap allocation anyway.
-    int offset = std::snprintf(entry.message, MSG_SIZE,
+    // snprintf writes into a fixed pre-allocated ring buffer entry; std::format is unavailable in GCC 11.
+    int offset = std::snprintf(entry.message, MSG_SIZE, // NOSONAR(cpp:S6494)
         "[%s] [%02d:%02d:%02d.%03ld] [tid:%zu] [%s:%d] ",
         context,
         tm.tm_hour, tm.tm_min, tm.tm_sec, static_cast<long>(ms.count()),
@@ -164,17 +163,16 @@ void HighPerfLogger::writerThreadFunc(std::stop_token stopToken)
             readIdx = writeIdx - BUFFER_SIZE + SAFETY_MARGIN;
             m_readIndex.store(readIdx, std::memory_order_release);
 
-            // Log the overrun event
-            // NOSONAR(cpp:S5945,cpp:S6494) — stack buffer used intentionally: this runs inside
-            // the writer thread under memory pressure (overrun condition); heap allocation via
-            // std::string could fail exactly when we need it. std::format unavailable in GCC 11.
-            char overrunMsg[512];
+            // Log the overrun event.
+            // Stack buffer used intentionally: runs under memory pressure (overrun condition);
+            // heap allocation via std::string could fail exactly when needed. std::format unavailable in GCC 11.
+            char overrunMsg[512]; // NOSONAR(cpp:S5945)
             auto now = std::chrono::system_clock::now();
             auto time_t_now = std::chrono::system_clock::to_time_t(now);
             std::tm tm;
             localtime_r(&time_t_now, &tm);
 
-            std::snprintf(overrunMsg, sizeof(overrunMsg),
+            std::snprintf(overrunMsg, sizeof(overrunMsg), // NOSONAR(cpp:S6494)
                          "[HighPerfLogger] [%02d:%02d:%02d] *** OVERRUN: %zu logs lost, "
                          "jumping from idx=%zu to idx=%zu ***\n",
                          tm.tm_hour, tm.tm_min, tm.tm_sec,
@@ -214,9 +212,8 @@ void HighPerfLogger::writerThreadFunc(std::stop_token stopToken)
         // Flush only occasionally (every 10 iterations) to reduce I/O blocking
         // Increment unconditionally so the counter advances regardless of wroteAny,
         // then flush only when something was written on a flush-due iteration.
-        static size_t flushCounter = 0;
-        ++flushCounter;
-        if (wroteAny && (flushCounter % 10 == 0))
+        ++m_flushCounter;
+        if (wroteAny && (m_flushCounter % 10 == 0))
         {
             m_logFile.flush();
         }

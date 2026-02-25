@@ -37,7 +37,24 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Unified Pool Mutex, Atomic Time-Point, Direct Handoff for All Pools, Notifications, and Test Quality Improvements** (2026-02-22 19:18 PST):
+1. **Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection** (2026-02-24 18:25 PST):
+   - **Pool Factory — Nothrow `create()` (All Families):**
+     - All `create()` factories return `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` (breaking change)
+     - All internal pool methods (createDBConnection, createPooledDBConnection, validateConnection, returnConnection, initializePool) return `expected<...>` noexcept
+     - All examples, tests, and `database_config.cpp` updated to use `create(std::nothrow, ...)` + expected pattern
+   - **Nothrow Base Interfaces:**
+     - `DBConnectionPool` base: added nothrow pure virtuals for 6 pool methods
+     - `DBConnectionPooled` base: all 6 interface methods get nothrow signatures; `<new>` header added
+   - **`m_lastUsedTimeNs` (atomic<int64_t>):** `atomic<time_point>` → `atomic<int64_t>` (nanoseconds since epoch) — truly portable (ARM32/MIPS); `static_assert` updated; `m_creationTime` uses in-class init; `m_lastUsedTimeNs` initialized from it
+   - **MySQL `m_closed` → `std::atomic<bool>{false}`:** All 8+ access sites use `.load(std::memory_order_acquire)` / `.store(..., std::memory_order_release)`; constructor init removed
+   - **Destructor Nothrow Close:** MySQL/PostgreSQL/SQLite/Firebird result set destructors all use `close(std::nothrow)` + error log; SQLite try/catch removed
+   - **Debug Macro Truncation:** `CP_DEBUG`, `FIREBIRD_DEBUG`, `SQLITE_DEBUG` detect `snprintf` overflow → append `...[TRUNCATED]`
+   - **`HighPerfLogger::m_flushCounter`:** Static local → class member
+   - **CMake:** `ENABLE_ASAN`/`ENABLE_TSAN` add compile/link flags directly; `[[deprecated]]` on `what()` commented out
+   - **Conventions:** 4 new sections — in-class member init, `atomic.load(memory_order_acquire)`, nothrow calls nothrow, no redundant try/catch
+   - **Minor fixes:** Shell `"$@"` quoting, `NO_REBUILD_DEPS` removed, Firebird null-check removed, "5ms" → "25ms" log, ScyllaDB captureCallStack + error code dedup
+
+2. **Unified Pool Mutex, Atomic Time-Point, Direct Handoff for All Pools, Notifications, and Test Quality Improvements** (2026-02-22 19:18 PST):
    - **Columnar/Document/KV Pools — Unified Mutex + Direct Handoff:**
      - 5 separate mutexes → single `m_mutexPool`; `getIdleDBConnection()` private method removed
      - `getXDBConnection()`: replaced 10ms-polling loop with `condition_variable::wait_until()` + FIFO wait loop

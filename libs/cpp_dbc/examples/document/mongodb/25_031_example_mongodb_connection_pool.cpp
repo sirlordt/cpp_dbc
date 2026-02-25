@@ -201,7 +201,12 @@ int main(int argc, char *argv[])
         poolConfig.setMaxSize(10);
         poolConfig.setValidationQuery("{\"ping\": 1}");
 
-        auto pool = cpp_dbc::MongoDB::MongoDBConnectionPool::create(poolConfig);
+        auto poolResult = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         logOk("Connection pool created");
         logData("Active connections: " + std::to_string(pool->getActiveDBConnectionCount()));

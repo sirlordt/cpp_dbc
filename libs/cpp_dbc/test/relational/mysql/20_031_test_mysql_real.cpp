@@ -170,11 +170,15 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a test table
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
@@ -192,7 +196,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
                                           {
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
-                        auto conn_thread = pool.getRelationalDBConnection();
+                        auto conn_thread = pool->getRelationalDBConnection();
 
                         int id = i * 100 + j;
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -218,7 +222,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the data
-        conn = pool.getRelationalDBConnection();
+        conn = pool->getRelationalDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
@@ -229,7 +233,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         conn->returnToPool();
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 
     SECTION("MySQL transaction management")
@@ -253,14 +257,18 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a transaction manager
-        cpp_dbc::TransactionManager manager(pool);
+        cpp_dbc::TransactionManager manager(*pool);
 
         // Create a test table
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
@@ -287,7 +295,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
             manager.commitTransaction(txId);
 
             // Verify the data was committed
-            conn = pool.getRelationalDBConnection();
+            conn = pool->getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 1");
             REQUIRE(rs->next());
             REQUIRE(rs->getString("name") == "Transaction Test");
@@ -314,14 +322,14 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
             manager.rollbackTransaction(txId);
 
             // Verify the data was not committed
-            conn = pool.getRelationalDBConnection();
+            conn = pool->getRelationalDBConnection();
             auto rs = conn->executeQuery("SELECT * FROM test_table WHERE id = 2");
             REQUIRE_FALSE(rs->next()); // Should be no rows
             conn->close();
         }
 
         // Clean up
-        conn = pool.getRelationalDBConnection();
+        conn = pool->getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery);
         conn->close();
 
@@ -488,11 +496,15 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::MySQL::MySQLConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a test table
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate(dropTableQuery); // Drop table if it exists
         conn->executeUpdate(createTableQuery);
         conn->returnToPool();
@@ -513,7 +525,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
                         // Get a connection from the pool
-                        auto conn_thread = pool.getRelationalDBConnection();
+                        auto conn_thread = pool->getRelationalDBConnection();
 
                         // Insert a row
                         auto pstmt = conn_thread->prepareStatement(insertDataQuery);
@@ -558,7 +570,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the total number of rows
-        conn = pool.getRelationalDBConnection();
+        conn = pool->getRelationalDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);

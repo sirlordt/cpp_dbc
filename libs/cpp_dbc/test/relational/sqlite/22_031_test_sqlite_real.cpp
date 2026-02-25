@@ -353,11 +353,15 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
-        auto poolPtr = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult.has_value())
+        {
+            throw poolResult.error();
+        }
+        auto pool = poolResult.value();
 
         // Create a test table
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate("DROP TABLE IF EXISTS test_table");
         conn->executeUpdate("CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
         conn->returnToPool();
@@ -377,7 +381,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
                                           {
                 for (int j = 0; j < opsPerThread; j++) {
                     try {
-                        auto conn_thread = pool.getRelationalDBConnection();
+                        auto conn_thread = pool->getRelationalDBConnection();
 
                         int id = i * 100 + j;
                         auto pstmt = conn_thread->prepareStatement(insertQuery);
@@ -403,7 +407,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         REQUIRE(successCount == numThreads * opsPerThread);
 
         // Verify the data
-        conn = pool.getRelationalDBConnection();
+        conn = pool->getRelationalDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         REQUIRE(rs->getInt("count") == numThreads * opsPerThread);
@@ -414,7 +418,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         conn->returnToPool();
 
         // Close the pool
-        pool.close();
+        pool->close();
     }
 
     SECTION("SQLite metadata retrieval")
@@ -496,10 +500,14 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         poolConfig.setValidationQuery("SELECT 1");
         poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
 
-        auto poolPtr = cpp_dbc::SQLite::SQLiteConnectionPool::create(poolConfig);
-        auto &pool = *poolPtr;
+        auto poolResult2 = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
+        if (!poolResult2.has_value())
+        {
+            throw poolResult2.error();
+        }
+        auto pool = poolResult2.value();
 
-        auto conn = pool.getRelationalDBConnection();
+        auto conn = pool->getRelationalDBConnection();
         conn->executeUpdate("DROP TABLE IF EXISTS test_table");
         conn->executeUpdate("CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
         conn->returnToPool();
@@ -522,7 +530,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
                 {
                     try
                     {
-                        auto conn_thread = pool.getRelationalDBConnection();
+                        auto conn_thread = pool->getRelationalDBConnection();
                         int id = i * 100 + j;
 
                         // Insert with retry for SQLITE_BUSY
@@ -578,7 +586,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite stress test completed in " + std::to_string(duration) + " ms, " + std::to_string(successCount.load()) + " successful ops");
 
         // Verify count
-        conn = pool.getRelationalDBConnection();
+        conn = pool->getRelationalDBConnection();
         auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
         REQUIRE(rs->next());
         int totalRows = rs->getInt("count");
@@ -587,7 +595,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         conn->executeUpdate("DROP TABLE IF EXISTS test_table");
         conn->returnToPool();
 
-        pool.close();
+        pool->close();
 
         REQUIRE(successCount > numThreads * opsPerThread * 0.95); // At least 95% success rate
     }
