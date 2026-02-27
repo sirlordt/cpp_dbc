@@ -651,8 +651,10 @@ The library includes a robust exception handling system with stack trace capture
    - Separated error marks from error messages
    - Call stack capture for better debugging
    - Methods to retrieve and print stack traces
-   - Método `what_s()` que devuelve un `std::string&` para evitar problemas de seguridad con punteros `const char*`
-   - Destructor virtual para una correcta jerarquía de herencia
+   - Fixed-size, stack-allocatable layout (~560 bytes): `m_mark[13]`, `m_message[257]`, `m_full_message[271]` — `noexcept` constructor
+   - `what_s()` returns `std::string_view` (zero-copy); `getMark()` same; `getCallStack()` returns `std::span<const StackFrame>`
+   - Pre-computed `what()` result — zero-cost on hot path; long values truncated with `...[TRUNCATED]`
+   - Virtual destructor for correct inheritance hierarchy
 
 2. **Stack Trace Capture with libdw Support**:
    - Integration with backward-cpp library for stack trace capture

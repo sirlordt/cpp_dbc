@@ -68,7 +68,7 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error in " + operationName + ": " + e.what_s());
+        logError("Database error in " + operationName + ": " + std::string(e.what_s()));
         e.printCallStack();
     }
     catch (const AppException &e)
@@ -257,7 +257,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     }
     else
     {
-        logError("executeUpdate failed: " + insertResult.error().what_s());
+        logError("executeUpdate failed: " + std::string(insertResult.error().what_s()));
     }
 
     // Query using nothrow API
@@ -273,7 +273,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     }
     else
     {
-        logError("executeQuery failed: " + queryResult.error().what_s());
+        logError("executeQuery failed: " + std::string(queryResult.error().what_s()));
     }
 
     // Invalid operation using nothrow API
@@ -287,7 +287,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::ColumnarDBConnection> conn)
     }
     else
     {
-        logInfo("Operation failed safely (expected): " + badResult.error().what_s());
+        logInfo("Operation failed safely (expected): " + std::string(badResult.error().what_s()));
     }
 
     logOk("Nothrow API demonstration completed");
@@ -344,7 +344,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::ColumnarDBConnection> con
         }
         catch (const cpp_dbc::DBException &e)
         {
-            logError("Attempt " + std::to_string(attempt) + " failed: " + e.what_s());
+            logError("Attempt " + std::to_string(attempt) + " failed: " + std::string(e.what_s()));
             if (attempt < maxRetries)
             {
                 logInfo("Retrying...");
@@ -364,7 +364,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::ColumnarDBConnection> con
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logInfo("LWT operation result: " + e.what_s());
+        logInfo("LWT operation result: " + std::string(e.what_s()));
     }
 
     // Cleanup
@@ -418,7 +418,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -437,7 +437,7 @@ int main(int argc, char *argv[])
 
     if (!dbResult)
     {
-        logError("Failed to get database config: " + dbResult.error().what_s());
+        logError("Failed to get database config: " + std::string(dbResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -490,7 +490,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         return EXIT_ERROR_;
     }
     catch (const std::exception &e)

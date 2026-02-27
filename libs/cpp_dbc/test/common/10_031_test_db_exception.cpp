@@ -18,8 +18,10 @@
 
 */
 
+#include <cstring>
+#include <memory>
 #include <string>
-#include <vector>
+#include <string_view>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -80,13 +82,18 @@ TEST_CASE("DBException tests", "[10_031_01_exception]")
 
     SECTION("Create and throw DBException with callstack")
     {
-        // Create a simple callstack manually for testing
-        std::vector<cpp_dbc::system_utils::StackFrame> test_callstack;
-        cpp_dbc::system_utils::StackFrame frame;
-        frame.file = "test_file.cpp";
+        // Build a CallStackCapture manually with one frame for testing.
+        // char[] members must be written via strncpy — they are not assignable with =.
+        // CallStackCapture is now heap-allocated and passed as shared_ptr to DBException.
+        auto test_callstack = std::make_shared<cpp_dbc::system_utils::CallStackCapture>();
+        auto &frame = test_callstack->frames[test_callstack->count++];
+        std::strncpy(frame.file, "test_file.cpp",
+                     cpp_dbc::system_utils::StackFrame::FILE_MAX - 1);
+        frame.file[cpp_dbc::system_utils::StackFrame::FILE_MAX - 1] = '\0';
         frame.line = 42;
-        frame.function = "test_function";
-        test_callstack.push_back(frame);
+        std::strncpy(frame.function, "test_function",
+                     cpp_dbc::system_utils::StackFrame::FUNCTION_MAX - 1);
+        frame.function[cpp_dbc::system_utils::StackFrame::FUNCTION_MAX - 1] = '\0';
 
         // Create exception with callstack
         cpp_dbc::DBException ex("CALLSTACK", "Test error with callstack", test_callstack);
@@ -97,11 +104,12 @@ TEST_CASE("DBException tests", "[10_031_01_exception]")
         // Check the mark is correctly stored
         REQUIRE(ex.getMark() == "CALLSTACK");
 
-        // Check that the callstack is stored and can be retrieved
+        // Check that the callstack is stored and can be retrieved.
+        // char[] members compare as string_view — == on char[] is a pointer comparison.
         REQUIRE(ex.getCallStack().size() == 1);
-        REQUIRE(ex.getCallStack()[0].file == "test_file.cpp");
+        REQUIRE(std::string_view(ex.getCallStack()[0].file) == "test_file.cpp");
         REQUIRE(ex.getCallStack()[0].line == 42);
-        REQUIRE(ex.getCallStack()[0].function == "test_function");
+        REQUIRE(std::string_view(ex.getCallStack()[0].function) == "test_function");
 
         // Test that we can print the callstack without crashing
         REQUIRE_NOTHROW(ex.printCallStack());

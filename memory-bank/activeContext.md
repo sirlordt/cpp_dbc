@@ -37,7 +37,35 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection** (2026-02-24 18:25 PST):
+1. **DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations** (2026-02-26 18:27 PST):
+   - **`DBException` — Fixed-Size Memory Layout:**
+     - Now inherits from `std::exception` (was `std::runtime_error`); constructor is `noexcept`
+     - `m_mark[13]`, `m_message[257]`, `m_full_message[271]` — fixed-size char arrays (no heap allocation)
+     - `m_callStack` stored as `std::shared_ptr<CallStackCapture>` — one allocation shared across copies
+     - `what_s()` returns `std::string_view` (was `const std::string&`); `getMark()` same
+     - `getCallStack()` returns `std::span<const StackFrame>` (was `const std::vector<StackFrame>&`)
+     - Pre-computed `m_full_message` in constructor — `what()` is zero-cost
+     - Long marks/messages left-truncated with `...[TRUNCATED]` marker
+   - **`system_utils::CallStackCapture` — Fixed-Size Stack Capture:**
+     - `StackFrame` now uses `char file[150]`, `char function[150]` (was `std::string`)
+     - New `CallStackCapture` struct: `StackFrame frames[10]`, `int count` — max 10 frames
+     - `captureCallStack()` returns `std::shared_ptr<CallStackCapture>` (was `std::vector<StackFrame>`)
+     - `printCallStack()` now also accepts `std::span<const StackFrame>`
+   - **Unified `ping()` in Base `DBConnection`:**
+     - `ping()` promoted to pure virtual in `DBConnection`: `virtual bool ping() = 0`
+     - Nothrow variant: `virtual cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept = 0`
+     - Removed Redis-specific `std::string ping()` from `KVDBConnection`; return type was `"PONG"` string
+     - Removed MongoDB-specific `bool ping()` from `DocumentDBConnection`
+     - Pool wrappers (relational, KV, columnar) updated with `bool ping()` override
+   - **All Examples/Benchmarks Updated for `std::string_view`:**
+     - 50+ example files: `+ ex.what_s()` → `+ std::string(ex.what_s())`
+     - `example_common.hpp`: all logging function params changed from `const std::string&` to `std::string_view`
+     - Redis examples: `std::string pong = conn->ping()` → `bool pong = conn->ping()` with `"PONG"/"FAILED"` output
+   - **Build System — Deferred libdw + Faster Test Builds:**
+     - `helper.sh`: `dw-on`/`dw-off` now deferred — later flags override earlier ones in same option list
+     - `build_test_cpp_dbc.sh`: adds `-DCPP_DBC_BUILD_EXAMPLES=OFF -DCPP_DBC_BUILD_BENCHMARKS=OFF` to skip non-test targets
+
+2. **Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection** (2026-02-24 18:25 PST):
    - **Pool Factory — Nothrow `create()` (All Families):**
      - All `create()` factories return `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` (breaking change)
      - All internal pool methods (createDBConnection, createPooledDBConnection, validateConnection, returnConnection, initializePool) return `expected<...>` noexcept

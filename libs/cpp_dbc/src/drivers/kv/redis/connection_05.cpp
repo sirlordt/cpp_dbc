@@ -348,12 +348,12 @@ namespace cpp_dbc::Redis
         }
     }
 
-    cpp_dbc::expected<std::string, DBException> RedisConnection::ping(std::nothrow_t) noexcept
+    cpp_dbc::expected<bool, DBException> RedisConnection::ping(std::nothrow_t) noexcept
     {
         try
         {
             auto reply = executeRaw("PING", {});
-            return extractString(reply);
+            return extractString(reply) == "PONG";
         }
         catch (const DBException &ex)
         {

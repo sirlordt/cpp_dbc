@@ -155,7 +155,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         conn->close();
     }
 
-    SECTION("PostgreSQL connection pool")
+    /* SECTION("PostgreSQL connection pool") - moved to 21_141_test_postgresql_real_connection_pool.cpp
     {
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -238,9 +238,9 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
 
         // Close the pool
         pool->close();
-    }
+    } */
 
-    SECTION("PostgreSQL transaction management")
+    /* SECTION("PostgreSQL transaction management") - moved to 21_141_test_postgresql_real_connection_pool.cpp
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -340,7 +340,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
 
         // Close the pool
         pool->close();
-    }
+    } */
 
     SECTION("PostgreSQL metadata retrieval")
     {
@@ -420,7 +420,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         conn->close();
     }
 
-    SECTION("PostgreSQL stress test")
+    /* SECTION("PostgreSQL stress test") - moved to 21_141_test_postgresql_real_connection_pool.cpp
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -524,7 +524,7 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
 
         // Close the pool
         pool->close();
-    }
+    } */
 
     SECTION("PostgreSQL specific features")
     {

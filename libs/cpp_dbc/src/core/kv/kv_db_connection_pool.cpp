@@ -100,7 +100,7 @@ namespace cpp_dbc
         if (!result.has_value())
         {
             CP_DEBUG("KVDBConnectionPool::~KVDBConnectionPool - close failed: %s",
-                     result.error().what_s().c_str());
+                     result.error().what_s().data());
         }
 
         CP_DEBUG("KVDBConnectionPool::~KVDBConnectionPool - Destructor completed at %lld",
@@ -291,7 +291,7 @@ namespace cpp_dbc
         auto closedResult = conn->isClosed(std::nothrow);
         if (!closedResult.has_value())
         {
-            CP_DEBUG("KVDBConnectionPool::validateConnection - isClosed failed: %s", closedResult.error().what_s().c_str());
+            CP_DEBUG("KVDBConnectionPool::validateConnection - isClosed failed: %s", closedResult.error().what_s().data());
             return false;
         }
         if (closedResult.value())
@@ -302,10 +302,10 @@ namespace cpp_dbc
         auto pingResult = conn->ping(std::nothrow);
         if (!pingResult.has_value())
         {
-            CP_DEBUG("KVDBConnectionPool::validateConnection - ping failed: %s", pingResult.error().what_s().c_str());
+            CP_DEBUG("KVDBConnectionPool::validateConnection - ping failed: %s", pingResult.error().what_s().data());
             return false;
         }
-        return !pingResult.value().empty();
+        return pingResult.value();
     }
 
     cpp_dbc::expected<void, DBException>
@@ -324,7 +324,7 @@ namespace cpp_dbc
             auto closeResult = conn->getUnderlyingKVConnection()->close(std::nothrow);
             if (!closeResult.has_value())
             {
-                CP_DEBUG("KVDBConnectionPool::returnConnection - close failed during shutdown: %s", closeResult.error().what_s().c_str());
+                CP_DEBUG("KVDBConnectionPool::returnConnection - close failed during shutdown: %s", closeResult.error().what_s().data());
             }
             return {};
         }
@@ -367,7 +367,7 @@ namespace cpp_dbc
             auto resetResult = conn->getUnderlyingKVConnection()->prepareForPoolReturn(std::nothrow);
             if (!resetResult.has_value())
             {
-                CP_DEBUG("KVDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", resetResult.error().what_s().c_str());
+                CP_DEBUG("KVDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", resetResult.error().what_s().data());
                 valid = false;
             }
         }
@@ -445,7 +445,7 @@ namespace cpp_dbc
                 auto closeResult = conn->getUnderlyingKVConnection()->close(std::nothrow);
                 if (!closeResult.has_value())
                 {
-                    CP_DEBUG("KVDBConnectionPool::returnConnection - close failed on invalid connection: %s", closeResult.error().what_s().c_str());
+                    CP_DEBUG("KVDBConnectionPool::returnConnection - close failed on invalid connection: %s", closeResult.error().what_s().data());
                 }
             }
 
@@ -464,7 +464,7 @@ namespace cpp_dbc
                 }
                 else
                 {
-                    CP_DEBUG("KVDBConnectionPool::returnConnection - failed creating replacement: %s", replacementResult.error().what_s().c_str());
+                    CP_DEBUG("KVDBConnectionPool::returnConnection - failed creating replacement: %s", replacementResult.error().what_s().data());
                 }
             }
 
@@ -513,7 +513,7 @@ namespace cpp_dbc
                     auto closeResult = discardReplacement->getUnderlyingKVConnection()->close(std::nothrow);
                     if (!closeResult.has_value())
                     {
-                        CP_DEBUG("KVDBConnectionPool::returnConnection - close() on discarded replacement failed: %s", closeResult.error().what_s().c_str());
+                        CP_DEBUG("KVDBConnectionPool::returnConnection - close() on discarded replacement failed: %s", closeResult.error().what_s().data());
                     }
                 }
             }
@@ -611,7 +611,7 @@ namespace cpp_dbc
                 auto pooledResult = createPooledDBConnection(std::nothrow);
                 if (!pooledResult.has_value())
                 {
-                    CP_DEBUG("KVDBConnectionPool::maintenanceTask - Failed to create minIdle connection: %s", pooledResult.error().what_s().c_str());
+                    CP_DEBUG("KVDBConnectionPool::maintenanceTask - Failed to create minIdle connection: %s", pooledResult.error().what_s().data());
                     break;
                 }
                 std::scoped_lock lock(m_mutexPool);
@@ -675,7 +675,7 @@ namespace cpp_dbc
 
                                 if (!candidateResult.has_value())
                                 {
-                                    CP_DEBUG("borrow - Failed to create connection: %s", candidateResult.error().what_s().c_str());
+                                    CP_DEBUG("borrow - Failed to create connection: %s", candidateResult.error().what_s().data());
                                 }
                                 else
                                 {
@@ -695,7 +695,7 @@ namespace cpp_dbc
                                         auto closeResult = candidate->getUnderlyingKVConnection()->close(std::nothrow);
                                         if (!closeResult.has_value())
                                         {
-                                            CP_DEBUG("borrow - close() on discarded candidate failed: %s", closeResult.error().what_s().c_str());
+                                            CP_DEBUG("borrow - close() on discarded candidate failed: %s", closeResult.error().what_s().data());
                                         }
                                         lockPool.lock();
                                     }
@@ -830,7 +830,7 @@ namespace cpp_dbc
                         auto closeResult = result->getUnderlyingKVConnection()->close(std::nothrow);
                         if (!closeResult.has_value())
                         {
-                            CP_DEBUG("borrow - close() on invalid connection failed: %s", closeResult.error().what_s().c_str());
+                            CP_DEBUG("borrow - close() on invalid connection failed: %s", closeResult.error().what_s().data());
                         }
 
                         // Check if we still have time to retry
@@ -1024,7 +1024,7 @@ namespace cpp_dbc
                 auto r = conn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
                 if (!r.has_value())
                 {
-                    CP_DEBUG("KVDBConnectionPool::close - connection close failed: %s", r.error().what_s().c_str());
+                    CP_DEBUG("KVDBConnectionPool::close - connection close failed: %s", r.error().what_s().data());
                     lastError = r;
                 }
             }
@@ -1084,7 +1084,7 @@ namespace cpp_dbc
                     auto closeResult = m_conn->close(std::nothrow);
                     if (!closeResult.has_value())
                     {
-                        CP_DEBUG("KVPooledDBConnection::~KVPooledDBConnection - close failed: %s", closeResult.error().what_s().c_str());
+                        CP_DEBUG("KVPooledDBConnection::~KVPooledDBConnection - close failed: %s", closeResult.error().what_s().data());
                     }
                 }
                 else
@@ -1104,7 +1104,7 @@ namespace cpp_dbc
                             auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<KVPooledDBConnection>(shared_from_this()));
                             if (!returnResult.has_value())
                             {
-                                CP_DEBUG("KVPooledDBConnection::~KVPooledDBConnection - returnConnection failed: %s", returnResult.error().what_s().c_str());
+                                CP_DEBUG("KVPooledDBConnection::~KVPooledDBConnection - returnConnection failed: %s", returnResult.error().what_s().data());
                             }
                         }
                     }
@@ -1186,7 +1186,7 @@ namespace cpp_dbc
                         auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<KVPooledDBConnection>(shared_from_this()));
                         if (!returnResult.has_value())
                         {
-                            CP_DEBUG("KVPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().c_str());
+                            CP_DEBUG("KVPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().data());
                         }
                     }
                 }
@@ -1196,7 +1196,7 @@ namespace cpp_dbc
                     auto closeResult = m_conn->close(std::nothrow);
                     if (!closeResult.has_value())
                     {
-                        CP_DEBUG("KVPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().c_str());
+                        CP_DEBUG("KVPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().data());
                     }
                 }
             }
@@ -1210,7 +1210,7 @@ namespace cpp_dbc
                     auto closeResult = m_conn->close(std::nothrow);
                     if (!closeResult.has_value())
                     {
-                        CP_DEBUG("KVPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().c_str());
+                        CP_DEBUG("KVPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().data());
                     }
                 }
             }
@@ -1224,7 +1224,7 @@ namespace cpp_dbc
                     auto closeResult = m_conn->close(std::nothrow);
                     if (!closeResult.has_value())
                     {
-                        CP_DEBUG("KVPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().c_str());
+                        CP_DEBUG("KVPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().data());
                     }
                 }
             }
@@ -1238,7 +1238,7 @@ namespace cpp_dbc
                     auto closeResult = m_conn->close(std::nothrow);
                     if (!closeResult.has_value())
                     {
-                        CP_DEBUG("KVPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().c_str());
+                        CP_DEBUG("KVPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().data());
                     }
                 }
             }
@@ -1309,7 +1309,7 @@ namespace cpp_dbc
                     auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<KVPooledDBConnection>(this->shared_from_this()));
                     if (!returnResult.has_value())
                     {
-                        CP_DEBUG("KVPooledDBConnection::returnToPool - returnConnection failed: %s", returnResult.error().what_s().c_str());
+                        CP_DEBUG("KVPooledDBConnection::returnToPool - returnConnection failed: %s", returnResult.error().what_s().data());
                     }
                 }
             }
@@ -1604,7 +1604,7 @@ namespace cpp_dbc
         return m_conn->flushDB(async);
     }
 
-    std::string KVPooledDBConnection::ping()
+    bool KVPooledDBConnection::ping()
     {
         updateLastUsedTime(std::nothrow);
         return m_conn->ping();
@@ -1897,7 +1897,7 @@ namespace cpp_dbc
         return m_conn->flushDB(std::nothrow, async);
     }
 
-    cpp_dbc::expected<std::string, DBException> KVPooledDBConnection::ping(std::nothrow_t) noexcept
+    cpp_dbc::expected<bool, DBException> KVPooledDBConnection::ping(std::nothrow_t) noexcept
     {
         updateLastUsedTime(std::nothrow);
         return m_conn->ping(std::nothrow);

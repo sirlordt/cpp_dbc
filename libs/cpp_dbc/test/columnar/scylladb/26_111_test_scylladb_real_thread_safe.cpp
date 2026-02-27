@@ -16,9 +16,6 @@
  * @brief Thread-safety stress tests for ScyllaDB database driver
  */
 
-// Only compile these tests if DB_DRIVER_THREAD_SAFE is enabled
-#if DB_DRIVER_THREAD_SAFE
-
 #include <string>
 #include <memory>
 #include <thread>
@@ -38,7 +35,7 @@
 
 #include "26_001_test_scylladb_real_common.hpp"
 
-#if USE_SCYLLADB
+#if DB_DRIVER_THREAD_SAFE && USE_SCYLLADB
 
 /**
  * @brief Thread-safety stress tests for ScyllaDB driver
@@ -98,47 +95,71 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
                     startCv.wait(lock, [&]() { return startFlag; });
                 }
 
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " started");
+
                 try
                 {
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " opening connection...");
+
                     // Each thread gets its own connection
                     auto conn = std::dynamic_pointer_cast<cpp_dbc::ColumnarDBConnection>(
                         cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
-                    
+
+                    if (!conn)
+                    {
+                        errorCount += opsPerThread;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " FAILED: dynamic_pointer_cast returned nullptr");
+                        return;
+                    }
+
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection opened");
+
                     for (int j = 0; j < opsPerThread; j++)
                     {
+                        //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " inserting...");
                         try
                         {
                             int id = i * 1000 + j;
-                            
+
                             // Insert operation
                             auto pstmt = conn->prepareStatement("INSERT INTO " + keyspace + ".thread_test (id, value) VALUES (?, ?)");
                             pstmt->setInt(1, id);
                             pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
                             pstmt->executeUpdate();
 
+                            //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " selecting...");
+
                             // Select operation
                             auto selectStmt = conn->prepareStatement("SELECT * FROM " + keyspace + ".thread_test WHERE id = ?");
                             selectStmt->setInt(1, id);
                             auto rs = selectStmt->executeQuery();
-                            
+
                             if (rs->next())
                             {
                                 successCount++;
+                                //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " OK");
+                            }
+                            else
+                            {
+                                errorCount++;
+                                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " FAILED: row not found after insert");
                             }
                         }
-                        catch (const std::exception& e)
+                        catch (const std::exception &ex)
                         {
                             errorCount++;
-                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(e.what()));
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(ex.what()));
                         }
                     }
-                    
+
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " closing connection...");
                     conn->close();
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " finished");
                 }
-                catch (const std::exception& e)
+                catch (const std::exception &ex)
                 {
                     errorCount += opsPerThread;
-                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection error: " + std::string(e.what()));
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection error: " + std::string(ex.what()));
                 } });
         }
 
@@ -414,15 +435,6 @@ TEST_CASE("ScyllaDB Thread-Safety Tests", "[26_111_01_scylladb_real_thread_safe]
 #else
 TEST_CASE("ScyllaDB Thread-Safety Tests (skipped)", "[26_111_02_scylladb_real_thread_safe]")
 {
-    SKIP("ScyllaDB support is not enabled");
+    SKIP("ScyllaDB support is not enabled or thread-safety is disabled");
 }
-#endif // USE_SCYLLA
-
-#else // DB_DRIVER_THREAD_SAFE
-// Empty test case when thread safety is disabled
-#include <catch2/catch_test_macros.hpp>
-TEST_CASE("ScyllaDB Thread-Safety Tests (disabled)", "[26_111_03_scylladb_real_thread_safe]")
-{
-    SKIP("Thread-safety tests are disabled when DB_DRIVER_THREAD_SAFE=0");
-}
-#endif // DB_DRIVER_THREAD_SAFE
+#endif // DB_DRIVER_THREAD_SAFE && USE_SCYLLADB

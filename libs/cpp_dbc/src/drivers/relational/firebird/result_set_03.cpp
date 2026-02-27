@@ -89,7 +89,7 @@ namespace cpp_dbc::Firebird
         }
         catch (const cpp_dbc::DBException &e)
         {
-            FIREBIRD_DEBUG("ResultSet::close - DBException: %s", e.what_s().c_str());
+            FIREBIRD_DEBUG("ResultSet::close - DBException: %s", e.what_s().data());
             return cpp_dbc::unexpected(e);
         }
         catch (const std::exception &e)

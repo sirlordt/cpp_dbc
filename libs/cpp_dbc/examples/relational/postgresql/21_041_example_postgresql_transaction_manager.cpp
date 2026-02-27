@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
 
         if (!pgResult)
         {
-            logError("Failed to get PostgreSQL config: " + pgResult.error().what_s());
+            logError("Failed to get PostgreSQL config: " + std::string(pgResult.error().what_s()));
             return EXIT_ERROR_;
         }
 
@@ -376,7 +376,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         e.printCallStack();
         return EXIT_ERROR_;
     }

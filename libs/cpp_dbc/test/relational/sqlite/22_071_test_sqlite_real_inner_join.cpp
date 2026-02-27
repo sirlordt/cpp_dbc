@@ -377,7 +377,7 @@ TEST_CASE("SQLite INNER JOIN operations", "[22_071_01_sqlite_real_inner_join]")
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::string errorMsg = e.what_s();
+        std::string errorMsg = std::string(e.what_s());
         cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite real database error: " + errorMsg);
         FAIL("SQLite real database test failed: " + std::string(e.what_s()));
     }

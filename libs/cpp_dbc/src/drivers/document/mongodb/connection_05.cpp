@@ -336,11 +336,14 @@ namespace cpp_dbc::MongoDB
 
             return success;
         }
-        catch (const DBException &e) { return cpp_dbc::unexpected(e); }
-        catch (const std::exception &e)
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("DBYCQKE0VYE4",
-                std::string("Exception in ping: ") + e.what(),
+                std::string("Exception in ping: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)

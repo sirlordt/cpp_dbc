@@ -671,7 +671,7 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
             }
             catch (const cpp_dbc::DBException &e)
             {
-                std::string error = e.what_s();
+                std::string error = std::string(e.what_s());
                 if (!sessionId.empty())
                 {
                     try
@@ -694,12 +694,12 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::string error = e.what_s();
+            std::string error = std::string(e.what_s());
             WARN("MongoDB transaction test skipped: " + error);
             SKIP("MongoDB transactions not supported: " + error);
         }
     }
-    SECTION("MongoDB connection pool")
+    /* SECTION("MongoDB connection pool") - moved to 25_141_test_mongodb_real_connection_pool.cpp
     {
         // Get a MongoDB driver and register it with the DriverManager
         auto driver = mongodb_test_helpers::getMongoDBDriver();
@@ -790,7 +790,7 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
 
         // Close the pool
         pool->close();
-    }
+    } */
 }
 #else
 // Skip tests if MongoDB support is not enabled

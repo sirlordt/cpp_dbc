@@ -76,7 +76,10 @@ namespace cpp_dbc::ScyllaDB
     std::string ScyllaDBDriver::buildURI(const std::string &host, int port, const std::string &database, const std::map<std::string, std::string> &options)
     {
         (void)options;
-        return "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) + "/" + database;
+        // Append the database/keyspace only when non-empty to avoid a trailing slash
+        // on URLs without a keyspace (e.g. "cpp_dbc:scylladb://host:port").
+        return "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) +
+               (database.empty() ? "" : "/" + database);
     }
 
     bool ScyllaDBDriver::supportsClustering() const { return true; }

@@ -85,7 +85,7 @@
   - Sorted set operations with score handling
   - Counter operations: increment, decrement
   - Scan operations for pattern-based key discovery
-  - Server operations: ping, info, flushDB
+  - Server operations: `ping()` returns `bool` (true = server alive), `getServerInfo()`, `flushDB()`
 
 - **YAML-CPP Library**: For YAML configuration support (optional)
   - Used for parsing YAML configuration files
@@ -295,8 +295,12 @@ The project now includes an automatic synchronization system for IntelliSense:
        - Unique error marks for better error identification
        - Call stack capture for detailed debugging information
        - Methods to retrieve and print stack traces
-       - Método `what_s()` que devuelve un `std::string&` para evitar problemas de seguridad con punteros `const char*`
-       - Destructor virtual para una correcta jerarquía de herencia
+       - `what_s()` returns `std::string_view` (was `const std::string&`); `getMark()` same (since 2026-02-26)
+       - `getCallStack()` returns `std::span<const system_utils::StackFrame>` (was `const std::vector<StackFrame>&`)
+       - **Fixed-size layout (since 2026-02-26):** inherits `std::exception`, constructor is `noexcept`, fields are char arrays (`m_mark[13]`, `m_message[257]`, `m_full_message[271]`)
+       - Call stack stored as `std::shared_ptr<CallStackCapture>` — optional, heap-allocated once, shared on copy
+       - `captureCallStack()` returns `std::shared_ptr<CallStackCapture>` with fixed `StackFrame frames[10]`
+       - Virtual destructor for correct inheritance hierarchy
      - Client code should handle DBException appropriately
      - Stack traces provide detailed information about error origins
 

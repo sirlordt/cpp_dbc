@@ -1,6 +1,129 @@
 # Changelog
 
-## 2026-02-24 18:25:00 PST [Current]
+## 2026-02-26 18:27:31 PST [Current]
+
+### DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations
+
+This release replaces dynamic-allocation internals of `DBException` and `system_utils::StackFrame` with fixed-size stack buffers, unifies the `ping()` method across all database families under the base `DBConnection` interface with a `bool` return type, migrates `what_s()` and `getMark()` return types to `std::string_view` for zero-copy semantics, and improves the build system with deferred libdw flag processing and faster test builds.
+
+#### `DBException` — Fixed-Size Memory Layout
+
+`DBException` now inherits from `std::exception` instead of `std::runtime_error` and stores all fields in fixed-size char arrays:
+
+```cpp
+// Before
+class DBException : public std::runtime_error
+{
+    std::string m_mark;
+    std::string m_message;
+    std::vector<system_utils::StackFrame> m_callStack;
+};
+
+// After
+class DBException : public std::exception
+{
+    char m_mark[13]{};
+    char m_message[257]{};
+    char m_full_message[271]{};
+    std::shared_ptr<system_utils::CallStackCapture> m_callStack;
+};
+```
+
+- Constructor is now `noexcept` — no heap allocations that can fail
+- `what()` returns pre-computed `m_full_message` (zero-cost, no concatenation on hot path)
+- `what_s()` return type changed from `const std::string&` to `std::string_view`
+- `getMark()` return type changed from `const std::string&` to `std::string_view`
+- `getCallStack()` return type changed from `const std::vector<StackFrame>&` to `std::span<const system_utils::StackFrame>`
+- Long messages/marks are left-truncated with `...[TRUNCATED]` marker
+- Total object size: ~560 bytes (fixed, stack-allocatable)
+
+#### `system_utils::CallStackCapture` — Fixed-Size Call Stack
+
+`system_utils::StackFrame` now uses fixed-size char arrays instead of `std::string`:
+
+```cpp
+// Before
+struct StackFrame { std::string file; std::string function; int line; };
+// captureCallStack() → std::vector<StackFrame>
+
+// After
+struct StackFrame { char file[150]; char function[150]; int line; };
+struct CallStackCapture { StackFrame frames[10]; int count; };
+// captureCallStack() → std::shared_ptr<CallStackCapture>
+```
+
+- Heap allocation for the `CallStackCapture` struct happens only once (shared across copies)
+- Maximum 10 frames captured — sufficient for most error paths
+- `printCallStack()` now also accepts `std::span<const StackFrame>`
+
+#### Unified `ping()` — Base `DBConnection` Interface
+
+`ping()` is now a pure virtual method in the base `DBConnection` class, replacing family-specific overloads:
+
+```cpp
+// Before: Redis-specific in KVDBConnection
+std::string ping();
+expected<std::string, DBException> ping(std::nothrow_t) noexcept;
+
+// Before: MongoDB-specific in DocumentDBConnection
+bool ping();
+expected<bool, DBException> ping(std::nothrow_t) noexcept;
+
+// After: unified in DBConnection base
+virtual bool ping() = 0;
+virtual cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept = 0;
+```
+
+Return type is now uniformly `bool` across all families (Redis, MongoDB, ScyllaDB, Relational). All pool wrappers and pooled connection classes updated accordingly.
+
+#### All Examples and Benchmarks — `std::string_view` Adaptation
+
+All example files (50+ across all 7 database families) updated for `what_s()` returning `std::string_view`:
+
+```cpp
+// Before
+"Error: " + ex.what_s()
+
+// After
+"Error: " + std::string(ex.what_s())
+```
+
+`example_common.hpp` logging functions updated to accept `std::string_view` parameters:
+
+```cpp
+// Before
+void logMsg(const std::string &message);
+
+// After
+void logMsg(std::string_view message);
+```
+
+Redis examples updated for `bool` ping return:
+
+```cpp
+// Before
+std::string pong = conn->ping();
+logData("PING = '" + pong + "'");
+
+// After
+bool pong = conn->ping();
+logData(std::string("PING = '") + (pong ? "PONG" : "FAILED") + "'");
+```
+
+#### Build System — Deferred libdw Flag and Faster Test Builds
+
+`helper.sh` now defers libdw flag processing so `dw-off` can cancel a preceding `dw-on` in the same option list:
+
+```bash
+# Now works correctly (dw-off wins over dw-on)
+./helper.sh --run-test=dw-on,dw-off,sqlite
+```
+
+`build_test_cpp_dbc.sh` adds `-DCPP_DBC_BUILD_EXAMPLES=OFF -DCPP_DBC_BUILD_BENCHMARKS=OFF` to skip building examples and benchmarks during test-only builds, reducing compile time.
+
+---
+
+## 2026-02-24 18:25:00 PST
 
 ### Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection
 

@@ -249,6 +249,7 @@ namespace cpp_dbc
         bool isPooled() const override;
         std::string getURL() const override;
         void reset() override;
+        bool ping() override;
 
         // RelationalDBConnection interface methods
         std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
@@ -278,6 +279,7 @@ namespace cpp_dbc
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
 
         // RelationalDBConnection nothrow interface
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;

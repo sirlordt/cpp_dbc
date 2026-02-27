@@ -328,7 +328,7 @@ namespace cpp_dbc::Firebird
         auto closeResult = close(std::nothrow);
         if (!closeResult)
         {
-            FIREBIRD_DEBUG("  close() failed during invalidation: %s", closeResult.error().what_s().c_str());
+            FIREBIRD_DEBUG("  close() failed during invalidation: %s", closeResult.error().what_s().data());
         }
 
         FIREBIRD_DEBUG("FirebirdPreparedStatement::invalidate - Done");

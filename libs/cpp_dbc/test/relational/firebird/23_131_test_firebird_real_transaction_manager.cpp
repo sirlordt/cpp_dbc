@@ -117,7 +117,7 @@ TEST_CASE("Firebird TransactionManager multi-threaded tests", "[23_131_02_firebi
     std::string password = dbConfig.getPassword();
     std::string connStr = dbConfig.createConnectionString();
 
-    SECTION("Concurrent transactions with Firebird")
+    /* SECTION("Concurrent transactions with Firebird") - moved to 23_141_test_firebird_real_connection_pool.cpp
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -202,7 +202,7 @@ TEST_CASE("Firebird TransactionManager multi-threaded tests", "[23_131_02_firebi
 
         // Close the pool
         pool->close();
-    }
+    } */
 }
 
 // =============================================================================
@@ -232,7 +232,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[23_131_03_firebird_real_t
     std::string selectDataQuery = dbConfig.getOption("query__select_data");
     std::string dropTableQuery = dbConfig.getOption("query__drop_table");
 
-    SECTION("Basic transaction operations")
+    /* SECTION("Basic transaction operations") - moved to 23_141_test_firebird_real_connection_pool.cpp
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -490,7 +490,7 @@ TEST_CASE("Real Firebird transaction manager tests", "[23_131_03_firebird_real_t
             }
             cleanupConn->close();
         }
-    }
+    } */
 }
 
 #endif

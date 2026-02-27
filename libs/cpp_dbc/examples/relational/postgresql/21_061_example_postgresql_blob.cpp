@@ -202,7 +202,7 @@ void demonstrateBasicBlobOperations(std::shared_ptr<cpp_dbc::RelationalDBConnect
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
     }
 }
 
@@ -276,7 +276,7 @@ void demonstrateBlobStreaming(std::shared_ptr<cpp_dbc::RelationalDBConnection> c
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
     }
     catch (const std::exception &e)
     {
@@ -352,7 +352,7 @@ void demonstrateBlobObjects(std::shared_ptr<cpp_dbc::RelationalDBConnection> con
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
     }
 }
 
@@ -413,7 +413,7 @@ void demonstrateImageBlob(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn)
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
     }
     catch (const std::exception &e)
     {
@@ -467,7 +467,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -492,7 +492,7 @@ int main(int argc, char *argv[])
 
         if (!pgResult)
         {
-            logError("Failed to get PostgreSQL config: " + pgResult.error().what_s());
+            logError("Failed to get PostgreSQL config: " + std::string(pgResult.error().what_s()));
             return EXIT_ERROR_;
         }
 
@@ -518,7 +518,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         e.printCallStack();
         return EXIT_ERROR_;
     }

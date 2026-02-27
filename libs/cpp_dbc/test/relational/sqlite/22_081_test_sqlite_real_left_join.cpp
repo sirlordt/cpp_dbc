@@ -461,7 +461,7 @@ TEST_CASE("SQLite LEFT JOIN operations", "[22_081_01_sqlite_real_left_join]")
     }
     catch (const cpp_dbc::DBException &e)
     {
-        std::string errorMsg = e.what_s();
+        std::string errorMsg = std::string(e.what_s());
         cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite real database error: " + errorMsg);
         FAIL("SQLite real database test failed: " + std::string(e.what_s()));
     }

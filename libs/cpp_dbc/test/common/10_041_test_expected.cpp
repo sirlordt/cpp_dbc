@@ -367,14 +367,14 @@ TEST_CASE("expected<void, DBException> - Typical usage", "[10_041_12_expected]")
         {
             if (value < 0)
             {
-                return unexpected<DBException>(DBException("INVALID_VALUE", "Value must be non-negative"));
+                return unexpected<DBException>(DBException("8P2Q3R4S5T6U", "Value must be non-negative"));
             }
             return {};
         };
 
         auto result = validate(-1);
         REQUIRE_FALSE(result.has_value());
-        REQUIRE(result.error().getMark() == "INVALID_VALUE");
+        REQUIRE(result.error().getMark() == "8P2Q3R4S5T6U");
     }
 }
 

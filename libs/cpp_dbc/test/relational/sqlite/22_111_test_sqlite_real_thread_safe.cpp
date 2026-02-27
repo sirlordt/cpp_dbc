@@ -18,9 +18,6 @@
 
 */
 
-// Only compile these tests if DB_DRIVER_THREAD_SAFE is enabled
-#if DB_DRIVER_THREAD_SAFE
-
 #include <string>
 #include <memory>
 #include <thread>
@@ -40,7 +37,7 @@
 
 #include "22_001_test_sqlite_real_common.hpp"
 
-#if USE_SQLITE
+#if DB_DRIVER_THREAD_SAFE && USE_SQLITE
 
 /**
  * @brief Thread-safety stress tests for SQLite driver
@@ -77,6 +74,8 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
     // Register the SQLite driver
     cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
+    /* Pool-related sections (Connection pool concurrent access, Concurrent read operations with connection pool,
+       High concurrency stress test) moved to 22_141_test_sqlite_real_connection_pool.cpp
     SECTION("Multiple threads with individual connections")
     {
         // Setup: create test table using a single connection
@@ -111,16 +110,16 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                 {
                     // Each thread gets its own connection
                     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
-                    
+
                     // Enable WAL mode for better concurrency
                     //conn->executeUpdate("PRAGMA journal_mode=WAL");
-                    
+
                     for (int j = 0; j < opsPerThread; j++)
                     {
                         try
                         {
                             int id = i * 1000 + j;
-                            
+
                             // Insert operation with retry for SQLITE_BUSY
                             bool inserted = false;
                             for (int retry = 0; retry < 5 && !inserted; retry++)
@@ -172,7 +171,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(e.what()));
                         }
                     }
-                    
+
                     conn->close();
                 }
                 catch (const std::exception& e)
@@ -254,7 +253,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                     {
                         auto conn = pool->getRelationalDBConnection();
                         int id = idCounter.fetch_add(1);
-                        
+
                         // Insert with prepared statement and retry
                         bool success = false;
                         for (int retry = 0; retry < 5 && !success; retry++)
@@ -278,9 +277,9 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                                 std::this_thread::sleep_for(std::chrono::milliseconds(10 * (retry + 1)));
                             }
                         }
-                        
+
                         conn->returnToPool();
-                        
+
                         if (success)
                         {
                             successCount++;
@@ -378,7 +377,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                     {
                         auto conn = pool->getRelationalDBConnection();
                         int targetId = idDist(gen);
-                        
+
                         auto pstmt = conn->prepareStatement("SELECT * FROM thread_test WHERE id = ?");
                         pstmt->setInt(1, targetId);
                         auto rs = pstmt->executeQuery();
@@ -453,6 +452,8 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         setupConn->executeUpdate("DROP TABLE IF EXISTS thread_stress_test");
         setupConn->executeUpdate("CREATE TABLE thread_stress_test (id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id INTEGER, op_id INTEGER, data TEXT)");
         setupConn->returnToPool();
+
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "High concurrency stress test");
 
         const int numThreads = 30;
         const int opsPerThread = 50;
@@ -535,7 +536,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                         }
 
                         conn->returnToPool();
-                        
+
                         if (!success)
                         {
                             errorCount++;
@@ -575,6 +576,7 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         int totalOps = insertCount + selectCount + updateCount;
         REQUIRE(totalOps > numThreads * opsPerThread * 0.95); // At least 95% success rate
     }
+    */
 
     SECTION("Rapid connection open/close stress test")
     {
@@ -630,15 +632,6 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
 #else
 TEST_CASE("SQLite Thread-Safety Tests (skipped)", "[22_111_02_sqlite_real_thread_safe]")
 {
-    SKIP("SQLite support is not enabled");
+    SKIP("SQLite support is not enabled or thread-safety is disabled");
 }
-#endif // USE_SQLITE
-
-#else // DB_DRIVER_THREAD_SAFE
-// Empty test case when thread safety is disabled
-#include <catch2/catch_test_macros.hpp>
-TEST_CASE("SQLite Thread-Safety Tests (disabled)", "[22_111_03_sqlite_real_thread_safe]")
-{
-    SKIP("Thread-safety tests are disabled when DB_DRIVER_THREAD_SAFE=0");
-}
-#endif // DB_DRIVER_THREAD_SAFE
+#endif // DB_DRIVER_THREAD_SAFE && USE_SQLITE

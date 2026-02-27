@@ -100,7 +100,7 @@ void testPoolConnection(std::shared_ptr<cpp_dbc::DocumentDBConnectionPool> pool,
     catch (const cpp_dbc::DBException &e)
     {
         std::lock_guard<std::mutex> lock(consoleMutex);
-        logError("Thread " + std::to_string(threadId) + " error: " + e.what_s());
+        logError("Thread " + std::to_string(threadId) + " error: " + std::string(e.what_s()));
         // Ensure connection is returned to pool even on exception
         if (conn)
         {
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
     // Check for real error (DBException)
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return 1;
     }
 
@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
     // Check for real error
     if (!dbResult)
     {
-        logError("Failed to get database config: " + dbResult.error().what_s());
+        logError("Failed to get database config: " + std::string(dbResult.error().what_s()));
         return 1;
     }
 
@@ -333,7 +333,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         return 1;
     }
     catch (const std::exception &e)

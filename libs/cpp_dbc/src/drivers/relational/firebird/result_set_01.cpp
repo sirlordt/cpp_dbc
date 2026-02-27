@@ -84,7 +84,7 @@ namespace cpp_dbc::Firebird
         auto closeResult = close(std::nothrow);
         if (!closeResult.has_value())
         {
-            FIREBIRD_DEBUG("FirebirdResultSet::destructor - close() failed: %s", closeResult.error().what_s().c_str());
+            FIREBIRD_DEBUG("FirebirdResultSet::destructor - close() failed: %s", closeResult.error().what_s().data());
         }
         FIREBIRD_DEBUG("FirebirdResultSet::destructor - Done");
     }

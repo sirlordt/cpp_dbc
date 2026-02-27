@@ -388,6 +388,7 @@ cmd_run_test() {
   
   # Process remaining comma-separated options
   local run_test_cmd="./run_test.sh"
+  local use_dw=false
   IFS=',' read -ra OPTIONS <<< "$TEST_OPTIONS"
   
   for opt in "${OPTIONS[@]}"; do
@@ -529,11 +530,12 @@ cmd_run_test() {
           echo "Enabling all debug output"
           ;;
         dw-on)
-          run_test_cmd="$run_test_cmd --dw-on"
+          use_dw=true
           echo "Enabling libdw support for stack traces"
           ;;
         dw-off)
-          echo "Note: libdw is disabled by default for tests. dw-off is a no-op."
+          use_dw=false
+          echo "Disabling libdw support for stack traces"
           ;;
         db-driver-thread-safe-off)
           run_test_cmd="$run_test_cmd --db-driver-thread-safe-off"
@@ -554,6 +556,11 @@ cmd_run_test() {
     fi
   done
   
+  # Apply dw-on flag if enabled (deferred so dw-off can cancel a preceding dw-on)
+  if $use_dw; then
+    run_test_cmd="$run_test_cmd --dw-on"
+  fi
+
   # Add the test tags if they exist
   if [ -n "$test_tags" ]; then
     echo "Debug: Final test tags: '$test_tags'"

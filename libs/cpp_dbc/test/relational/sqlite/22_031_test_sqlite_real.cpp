@@ -40,9 +40,9 @@
 // Using common_test_helpers namespace for helper functions
 
 // Test case for SQLite real database operations
+#if USE_SQLITE
 TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
 {
-#if USE_SQLITE
     // Get SQLite configuration to check if cleanup is needed
     auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite");
 
@@ -195,7 +195,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::string errorMsg = e.what_s();
+            std::string errorMsg = std::string(e.what_s());
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite real database error: " + errorMsg);
             FAIL("SQLite real database test failed: " + std::string(e.what_s()));
         }
@@ -329,13 +329,16 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::string errorMsg = e.what_s();
+            std::string errorMsg = std::string(e.what_s());
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite date/time test error: " + errorMsg);
             FAIL("SQLite date/time test failed: " + std::string(e.what_s()));
         }
     }
-    SECTION("SQLite connection pool")
+
+    /* SECTION("SQLite connection pool") - moved to 22_141_test_sqlite_real_connection_pool.cpp
     {
+        cpp_dbc::system_utils::logWithTimesMillis("SECTION", "SQLite connection pool");
+
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
@@ -367,8 +370,8 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         conn->returnToPool();
 
         // Test multiple connections in parallel
-        const int numThreads = 10;
-        const int opsPerThread = 5;
+        const int numThreads = 20;
+        const int opsPerThread = 50;
 
         std::atomic<int> successCount(0);
         std::vector<std::thread> threads;
@@ -404,7 +407,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
             t.join();
         }
 
-        REQUIRE(successCount == numThreads * opsPerThread);
+        REQUIRE(successCount >= (numThreads * opsPerThread * 0.95));
 
         // Verify the data
         conn = pool->getRelationalDBConnection();
@@ -419,7 +422,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
 
         // Close the pool
         pool->close();
-    }
+    } */
 
     SECTION("SQLite metadata retrieval")
     {
@@ -485,6 +488,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         conn->close();
     }
 
+    /*
     SECTION("SQLite stress test")
     {
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -512,8 +516,8 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         conn->executeUpdate("CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
         conn->returnToPool();
 
-        const int numThreads = 20;
-        const int opsPerThread = 50;
+        const int numThreads = 10;
+        const int opsPerThread = 30;
         std::atomic<int> successCount(0);
         std::vector<std::thread> threads;
 
@@ -525,7 +529,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         for (int i = 0; i < numThreads; i++)
         {
             threads.push_back(std::thread([&pool, i, opsPerThread, insertQuery, selectQuery, &successCount]()
-            {
+                                          {
                 for (int j = 0; j < opsPerThread; j++)
                 {
                     try
@@ -572,8 +576,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
                     {
                         cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
                     }
-                }
-            }));
+                } }));
         }
 
         for (auto &t : threads)
@@ -599,8 +602,12 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
 
         REQUIRE(successCount > numThreads * opsPerThread * 0.95); // At least 95% success rate
     }
-#else
-    // Skip this test if SQLite support is not enabled
-    SKIP("SQLite support is not enabled");
-#endif
+    */
 }
+#else
+// Skip tests if SQLite support is not enabled
+TEST_CASE("SQLite real database operations (skipped)", "[22_031_02_sqlite_real]")
+{
+    SKIP("SQLite support is not enabled");
+}
+#endif

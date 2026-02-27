@@ -128,7 +128,7 @@ namespace cpp_dbc::Firebird
             auto resetResult = reset(std::nothrow);
             if (!resetResult)
             {
-                FIREBIRD_DEBUG("  Failed to reset connection state: %s", resetResult.error().what_s().c_str());
+                FIREBIRD_DEBUG("  Failed to reset connection state: %s", resetResult.error().what_s().data());
                 // Continue with close even if reset failed
             }
 
@@ -146,7 +146,7 @@ namespace cpp_dbc::Firebird
         }
         catch (const cpp_dbc::DBException &e)
         {
-            FIREBIRD_DEBUG("FirebirdConnection::close - DBException: %s", e.what_s().c_str());
+            FIREBIRD_DEBUG("FirebirdConnection::close - DBException: %s", e.what_s().data());
             return cpp_dbc::unexpected(e);
         }
         catch (const std::exception &e)
@@ -215,7 +215,7 @@ namespace cpp_dbc::Firebird
                 }
                 catch (const DBException &e)
                 {
-                    FIREBIRD_DEBUG("  Failed to restart transaction: %s", e.what_s().c_str());
+                    FIREBIRD_DEBUG("  Failed to restart transaction: %s", e.what_s().data());
                     return cpp_dbc::unexpected(e);
                 }
             }
@@ -286,7 +286,7 @@ namespace cpp_dbc::Firebird
             auto prepResult = prepareForPoolReturn(std::nothrow);
             if (!prepResult.has_value())
             {
-                FIREBIRD_DEBUG("  prepareForPoolReturn failed: %s", prepResult.error().what_s().c_str());
+                FIREBIRD_DEBUG("  prepareForPoolReturn failed: %s", prepResult.error().what_s().data());
             }
 
             // Start a fresh transaction for the next use
@@ -344,7 +344,7 @@ namespace cpp_dbc::Firebird
         if (!resetResult)
         {
             FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to reset: %s",
-                           resetResult.error().what_s().c_str());
+                           resetResult.error().what_s().data());
             // Continue anyway - try to at least reset autoCommit
         }
 

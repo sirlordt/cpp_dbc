@@ -74,8 +74,7 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
         REQUIRE(conn != nullptr);
 
         // Test ping
-        std::string pingResult = conn->ping();
-        REQUIRE(pingResult == "PONG");
+        REQUIRE(conn->ping());
 
         // Close the connection
         conn->close();

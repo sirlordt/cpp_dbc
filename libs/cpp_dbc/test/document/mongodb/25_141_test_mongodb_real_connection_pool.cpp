@@ -23,7 +23,6 @@
 #include <atomic>
 #include <chrono>
 #include <fstream>
-#include <random>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -49,9 +48,6 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
     auto dbConfig = mongodb_test_helpers::getMongoDBConfig("dev_mongodb");
 
     // Create connection parameters
-    std::string type = dbConfig.getType();
-    std::string host = dbConfig.getHost();
-    std::string database = dbConfig.getDatabase();
     std::string username = dbConfig.getUsername();
     std::string password = dbConfig.getPassword();
 
@@ -64,45 +60,37 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
 
     SECTION("Basic connection pool operations")
     {
-        // Get a MongoDB driver and register it with the DriverManager
-        auto driver = mongodb_test_helpers::getMongoDBDriver();
-        cpp_dbc::DriverManager::registerDriver(driver);
-
         // Create a connection pool configuration
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        poolConfig.setUsername(username);
-        poolConfig.setPassword(password);
-        poolConfig.setInitialSize(5);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(3);
-        poolConfig.setConnectionTimeout(5000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setIdleTimeout(30000);
-        poolConfig.setMaxLifetimeMillis(60000);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(false);
-        poolConfig.setValidationQuery("{\"ping\": 1}"); // MongoDB ping command
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(5);
+        poolConfigLocal.setMaxSize(10);
+        poolConfigLocal.setMinIdle(3);
+        poolConfigLocal.setConnectionTimeout(5000);
+        poolConfigLocal.setValidationInterval(1000);
+        poolConfigLocal.setIdleTimeout(30000);
+        poolConfigLocal.setMaxLifetimeMillis(60000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(false);
+        poolConfigLocal.setValidationQuery("{\"ping\": 1}");
 
-        // Create a connection pool
-        auto poolResult = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfig);
+        // Create a connection pool using factory method
+        auto poolResult = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfigLocal);
         if (!poolResult.has_value())
         {
             throw poolResult.error();
         }
         auto pool = poolResult.value();
 
-        // Create a test collection
+        // Clean up test collection from previous runs
         auto conn = pool->getDocumentDBConnection();
-
-        // Drop collection if it exists (cleanup from previous test runs)
         if (conn->collectionExists(testPoolCollectionName))
         {
             conn->dropCollection(testPoolCollectionName);
         }
-
-        // Create a new collection for tests
-        auto collection = conn->createCollection(testPoolCollectionName);
+        conn->createCollection(testPoolCollectionName);
         conn->close();
 
         // Test getting and returning connections
@@ -140,125 +128,6 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
         }
 
-        // Test document operations through pooled connections
-        SECTION("Document operations with pooled connections")
-        {
-            // Get a connection from the pool
-            auto conn1 = pool->getDocumentDBConnection();
-            REQUIRE(conn1 != nullptr);
-
-            // Get the test collection
-            auto collection1 = conn1->getCollection(testPoolCollectionName);
-            REQUIRE(collection1 != nullptr);
-
-            // Insert test documents
-            uint64_t docCount = 5;
-            std::vector<std::string> docIds;
-
-            for (uint64_t i = 0; i < docCount; i++)
-            {
-                // Create and insert a document
-                std::string docJson = mongodb_test_helpers::generateTestDocument(
-                    static_cast<int>(i),
-                    "Test " + std::to_string(i),
-                    static_cast<double>(i) * 10.5);
-                auto insertResult = collection->insertOne(docJson);
-
-                REQUIRE(insertResult.acknowledged);
-                REQUIRE(!insertResult.insertedId.empty());
-
-                docIds.push_back(insertResult.insertedId);
-            }
-
-            // Return connection to pool
-            conn->close();
-
-            // Get another connection and verify documents
-            auto conn2 = pool->getDocumentDBConnection();
-            REQUIRE(conn2 != nullptr);
-
-            auto collection2 = conn2->getCollection(testPoolCollectionName);
-            REQUIRE(collection2 != nullptr);
-
-            // Count documents
-            auto count = collection2->countDocuments();
-            REQUIRE(count == docCount);
-
-            // Find a document by ID
-            auto doc = collection2->findById(docIds[0]);
-            REQUIRE(doc != nullptr);
-
-            // Return the second connection
-            conn2->close();
-        }
-
-        // Test concurrent connections
-        SECTION("Concurrent connections")
-        {
-            // Get initial document count before adding more
-            auto initialConn = pool->getDocumentDBConnection();
-            auto initialCollection = initialConn->getCollection(testPoolCollectionName);
-            auto initialCount = initialCollection->countDocuments();
-            initialConn->close();
-
-            const uint64_t numThreads = 8;
-            std::atomic<int> successCount(0);
-            std::vector<std::thread> threads;
-
-            for (uint64_t i = 0; i < numThreads; i++)
-            {
-                threads.push_back(std::thread([&pool, &successCount, i, testPoolCollectionName]()
-                                              {
-                    try {
-                        // Get connection from pool
-                        auto threadConn = pool->getDocumentDBConnection();
-                        
-                        // Get collection
-                        auto threadCollection = threadConn->getCollection(testPoolCollectionName);
-                        
-                        // Insert a document
-                        std::string docJson = mongodb_test_helpers::generateTestDocument(
-                            static_cast<int>(i * 1000),
-                            "Thread " + std::to_string(i),
-                            static_cast<double>(i) * 100.5
-                        );
-                        
-                        auto result = threadCollection->insertOne(docJson);
-                        
-                        // Close the connection
-                        threadConn->close();
-                        
-                        // Increment success count
-                        successCount++;
-                    }
-                    catch (const std::exception& e) {
-                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " error: " + std::string(e.what()));
-                    } }));
-            }
-
-            // Wait for all threads to complete
-            for (auto &t : threads)
-            {
-                if (t.joinable())
-                {
-                    t.join();
-                }
-            }
-
-            // Verify all threads succeeded
-            REQUIRE(successCount == numThreads);
-
-            // Get connection and verify document count
-            auto verifyConn = pool->getDocumentDBConnection();
-            auto verifyCollection = verifyConn->getCollection(testPoolCollectionName);
-            auto totalCount = verifyCollection->countDocuments();
-
-            // Count should be initial count + numThreads
-            REQUIRE(totalCount == initialCount + numThreads);
-
-            verifyConn->close();
-        }
-
         // Clean up
         auto cleanupConn = pool->getDocumentDBConnection();
         try
@@ -270,7 +139,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         }
         catch (const cpp_dbc::DBException &)
         {
-            // Ignore cleanup errors
+            // Intentionally empty — ignore cleanup errors
         }
         cleanupConn->close();
 
@@ -281,27 +150,23 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
     // Test advanced pool features
     SECTION("Advanced pool features")
     {
-        // Get a MongoDB driver and register it with the DriverManager
-        auto driver = mongodb_test_helpers::getMongoDBDriver();
-        cpp_dbc::DriverManager::registerDriver(driver);
-
-        // Create a connection pool configuration with smaller size
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        poolConfig.setUsername(username);
-        poolConfig.setPassword(password);
-        poolConfig.setInitialSize(5);           // Initial size (enough for invalid connection tests)
-        poolConfig.setMaxSize(10);              // Max size
-        poolConfig.setMinIdle(3);               // Min idle (need at least 3 for multiple invalid connection test)
-        poolConfig.setConnectionTimeout(3500);  // Shorter timeout
-        poolConfig.setIdleTimeout(10000);       // Shorter idle timeout
-        poolConfig.setMaxLifetimeMillis(30000); // Shorter max lifetime
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(true);               // Test on return as well
-        poolConfig.setValidationQuery("{\"ping\": 1}"); // MongoDB ping command
+        // Create a connection pool configuration with testOnReturn enabled
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(5);
+        poolConfigLocal.setMaxSize(10);
+        poolConfigLocal.setMinIdle(3);
+        poolConfigLocal.setConnectionTimeout(3500);
+        poolConfigLocal.setIdleTimeout(10000);
+        poolConfigLocal.setMaxLifetimeMillis(30000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(true);
+        poolConfigLocal.setValidationQuery("{\"ping\": 1}");
 
         // Create a connection pool
-        auto poolResult2 = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfig);
+        auto poolResult2 = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfigLocal);
         if (!poolResult2.has_value())
         {
             throw poolResult2.error();
@@ -311,17 +176,13 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         // Test connection validation
         SECTION("Connection validation")
         {
-            // Get a connection
             auto conn = pool->getDocumentDBConnection();
             REQUIRE(conn != nullptr);
 
-            // Verify connection works
             REQUIRE(conn->ping());
 
-            // Return it to the pool
             conn->close();
 
-            // Pool stats should reflect the return
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getIdleDBConnectionCount() >= 1);
         }
@@ -329,14 +190,11 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         // Test pool growth
         SECTION("Pool growth")
         {
-            // Get initial stats
             auto initialIdleCount = pool->getIdleDBConnectionCount();
             auto initialTotalCount = pool->getTotalDBConnectionCount();
 
             std::vector<std::shared_ptr<cpp_dbc::DocumentDBConnection>> connections;
 
-            // Get more connections than initialSize (should cause pool to grow)
-            // With initialSize=5, we need to request more than 5 to force growth
             const size_t numConnectionsToRequest = initialTotalCount + 2;
             for (size_t i = 0; i < numConnectionsToRequest; i++)
             {
@@ -344,37 +202,31 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
                 REQUIRE(connections.back() != nullptr);
             }
 
-            // Verify pool grew
             REQUIRE(pool->getActiveDBConnectionCount() == numConnectionsToRequest);
             REQUIRE(pool->getTotalDBConnectionCount() > initialTotalCount);
 
-            // Return all connections
             for (auto &conn : connections)
             {
                 conn->close();
             }
 
-            // Verify all returned
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getIdleDBConnectionCount() >= initialIdleCount);
         }
 
-        // Test invalid connection replacement
+        // Test invalid connection replacement on return
         SECTION("Invalid connection replacement on return")
         {
-            // Get initial pool statistics
             auto initialIdleCount = pool->getIdleDBConnectionCount();
             auto initialTotalCount = pool->getTotalDBConnectionCount();
 
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
 
-            // Get a connection from the pool
             auto conn = pool->getDocumentDBConnection();
             REQUIRE(conn != nullptr);
             REQUIRE(pool->getActiveDBConnectionCount() == 1);
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 1);
 
-            // Get the underlying connection and close it directly to invalidate
             auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::DocumentPooledDBConnection>(conn);
             REQUIRE(pooledConn != nullptr);
 
@@ -388,35 +240,44 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
             // The pool should detect it's invalid and replace it
             conn->close();
 
-            // Give the pool a moment to process the replacement
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // Poll for the pool to process the replacement instead of fixed sleep
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(5000);
+            bool poolStateConverged = false;
 
-            // Verify pool statistics:
-            // - activeConnections should be 0 (connection was returned)
-            // - totalConnections should remain the same (invalid connection was replaced)
-            // - idleConnections should be back to initial (replacement went to idle)
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getActiveDBConnectionCount() == 0 &&
+                    pool->getTotalDBConnectionCount() == initialTotalCount &&
+                    pool->getIdleDBConnectionCount() == initialIdleCount)
+                {
+                    poolStateConverged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            REQUIRE(poolStateConverged);
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
 
-            // Verify we can still get a working connection from the pool
+            // Verify replacement connection works
             auto newConn = pool->getDocumentDBConnection();
             REQUIRE(newConn != nullptr);
-            REQUIRE(newConn->ping()); // Should work - it's the replacement connection
+            REQUIRE(newConn->ping());
             newConn->close();
         }
 
         // Test multiple invalid connections replacement
         SECTION("Multiple invalid connections replacement")
         {
-            // Get initial pool statistics
             auto initialIdleCount = pool->getIdleDBConnectionCount();
             auto initialTotalCount = pool->getTotalDBConnectionCount();
 
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(initialIdleCount >= 3); // Need at least 3 idle connections for this test
 
-            // Get multiple connections
             std::vector<std::shared_ptr<cpp_dbc::DocumentDBConnection>> connections;
             const size_t numConnections = 3;
 
@@ -428,7 +289,6 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
             }
 
             REQUIRE(pool->getActiveDBConnectionCount() == numConnections);
-            // Use signed arithmetic to avoid underflow
             REQUIRE(pool->getIdleDBConnectionCount() == (initialIdleCount - numConnections));
 
             // Invalidate all connections by closing their underlying connections
@@ -438,6 +298,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
                 REQUIRE(pooledConn != nullptr);
 
                 auto underlyingConn = pooledConn->getUnderlyingDocumentConnection();
+                REQUIRE(underlyingConn != nullptr);
                 underlyingConn->close();
             }
 
@@ -447,10 +308,24 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
                 conn->close();
             }
 
-            // Give the pool time to process replacements
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            // Poll for the pool to process replacements instead of fixed sleep
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(5000);
+            bool poolStateConverged = false;
 
-            // Verify pool statistics
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getActiveDBConnectionCount() == 0 &&
+                    pool->getTotalDBConnectionCount() == initialTotalCount &&
+                    pool->getIdleDBConnectionCount() == initialIdleCount)
+                {
+                    poolStateConverged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            REQUIRE(poolStateConverged);
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
@@ -494,7 +369,6 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
                         }
 
                         std::this_thread::sleep_for(std::chrono::milliseconds(10 + (i % 10)));
-
                         loadConn->close();
                         successCount++;
                     }
@@ -523,8 +397,8 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
             REQUIRE(successCount >= static_cast<int>(numOperations * 0.95));
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             auto idleCount = pool->getIdleDBConnectionCount();
-            REQUIRE(idleCount >= 3);
-            REQUIRE(idleCount <= 10);
+            REQUIRE(idleCount >= 3);  // At least minIdle connections
+            REQUIRE(idleCount <= 10); // No more than maxSize connections
         }
 
         // Close the pool

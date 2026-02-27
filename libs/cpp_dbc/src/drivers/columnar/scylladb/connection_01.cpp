@@ -96,7 +96,11 @@ namespace cpp_dbc::ScyllaDB
         }
 
         m_closed = false;
-        m_url = "scylladb://" + host + ":" + std::to_string(port) + "/" + keyspace;
+        // Cache the full URL including the cpp_dbc: prefix.
+        // Append the keyspace only when non-empty to avoid a trailing slash
+        // on connections that don't select a keyspace (e.g. "cpp_dbc:scylladb://host:port").
+        m_url = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) +
+                (keyspace.empty() ? "" : "/" + keyspace);
         SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connection established");
     }
 
@@ -199,6 +203,31 @@ namespace cpp_dbc::ScyllaDB
         auto result = rollback(std::nothrow);
         if (!result.has_value())
             throw result.error();
+    }
+
+    bool ScyllaDBConnection::ping()
+    {
+        auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    cpp_dbc::expected<bool, DBException> ScyllaDBConnection::ping(std::nothrow_t) noexcept
+    {
+        auto result = executeQuery(std::nothrow, "SELECT release_version FROM system.local");
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        auto closeResult = result.value()->close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            return cpp_dbc::unexpected(closeResult.error());
+        }
+        return true;
     }
 
 } // namespace cpp_dbc::ScyllaDB

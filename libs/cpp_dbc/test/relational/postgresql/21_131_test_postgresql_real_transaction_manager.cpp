@@ -117,7 +117,7 @@ TEST_CASE("PostgreSQL TransactionManager multi-threaded tests", "[21_131_02_post
     std::string password = dbConfig.getPassword();
     std::string connStr = dbConfig.createConnectionString();
 
-    SECTION("Concurrent transactions with PostgreSQL")
+    /* SECTION("Concurrent transactions with PostgreSQL") - moved to 21_141_test_postgresql_real_connection_pool.cpp
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -202,7 +202,7 @@ TEST_CASE("PostgreSQL TransactionManager multi-threaded tests", "[21_131_02_post
 
         // Close the pool
         pool->close();
-    }
+    } */
 }
 
 // =============================================================================
@@ -232,7 +232,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
     std::string selectDataQuery = dbConfig.getOption("query__select_data");
     std::string dropTableQuery = dbConfig.getOption("query__drop_table");
 
-    SECTION("Basic transaction operations")
+    /* SECTION("Basic transaction operations") - moved to 21_141_test_postgresql_real_connection_pool.cpp
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -470,7 +470,7 @@ TEST_CASE("Real PostgreSQL transaction manager tests", "[21_131_03_postgresql_re
 
         // Close the pool
         pool->close();
-    }
+    } */
 }
 
 #endif

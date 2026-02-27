@@ -22,6 +22,7 @@
 #include <thread>
 #include <vector>
 #include <atomic>
+#include <chrono>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -30,7 +31,7 @@
 
 #include "25_001_test_mongodb_real_common.hpp"
 
-#if USE_MONGODB
+#if DB_DRIVER_THREAD_SAFE && USE_MONGODB
 // Test case for MongoDB thread safety
 TEST_CASE("MongoDB thread safety tests", "[25_111_01_mongodb_real_thread_safe]")
 {
@@ -202,11 +203,78 @@ TEST_CASE("MongoDB thread safety tests", "[25_111_01_mongodb_real_thread_safe]")
         sharedConn->dropCollection(collectionName);
         sharedConn->close();
     }
+
+    SECTION("Rapid connection open/close stress test")
+    {
+        // Register the MongoDB driver so DriverManager::getDBConnection works
+        cpp_dbc::DriverManager::registerDriver(mongodb_test_helpers::getMongoDBDriver());
+
+        const int numThreads = 5; // Reduced due super slow test. Under valgrind and helgrind
+        const int connectionsPerThread = 5;
+        std::atomic<int> successCount(0);
+        std::atomic<int> errorCount(0);
+        std::vector<std::thread> threads;
+
+        for (int i = 0; i < numThreads; i++)
+        {
+            threads.emplace_back([&, i]()
+                                 {
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " started");
+                for (int j = 0; j < connectionsPerThread; j++)
+                {
+                    //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection " + std::to_string(j) + " opening...");
+                    try
+                    {
+                        auto conn = std::dynamic_pointer_cast<cpp_dbc::DocumentDBConnection>(
+                            cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+
+                        if (!conn)
+                        {
+                            errorCount++;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection " + std::to_string(j) + " FAILED: dynamic_pointer_cast returned nullptr");
+                            continue;
+                        }
+
+                        //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection " + std::to_string(j) + " opened, pinging...");
+
+                        auto pingResult = conn->ping(std::nothrow);
+                        if (pingResult.has_value() && pingResult.value())
+                        {
+                            successCount++;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection " + std::to_string(j) + " ping OK");
+                        }
+                        else if (!pingResult.has_value())
+                        {
+                            errorCount++;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection " + std::to_string(j) + " ping FAILED: " + std::string(pingResult.error().what()));
+                        }
+
+                        //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection " + std::to_string(j) + " closing...");
+                        conn->close();
+                        //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection " + std::to_string(j) + " closed");
+                    }
+                    catch (const std::exception &ex)
+                    {
+                        errorCount++;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection " + std::to_string(j) + " exception: " + ex.what());
+                    }
+                }
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " finished"); });
+        }
+
+        for (auto &t : threads)
+        {
+            t.join();
+        }
+
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Rapid connection test: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
+
+        REQUIRE(successCount > numThreads * connectionsPerThread * 0.95); // At least 95% success rate
+    }
 }
 #else
-// Skip tests if MongoDB support is not enabled
 TEST_CASE("MongoDB thread safety tests (skipped)", "[25_111_02_mongodb_real_thread_safe]")
 {
-    SKIP("MongoDB support is not enabled");
+    SKIP("MongoDB support is not enabled or thread-safety is disabled");
 }
-#endif
+#endif // DB_DRIVER_THREAD_SAFE && USE_MONGODB

@@ -203,7 +203,7 @@ namespace cpp_dbc
         auto result = DocumentDBConnectionPool::close(std::nothrow);
         if (!result.has_value())
         {
-            CP_DEBUG("DocumentDBConnectionPool::~DocumentDBConnectionPool - close failed: %s", result.error().what_s().c_str());
+            CP_DEBUG("DocumentDBConnectionPool::~DocumentDBConnectionPool - close failed: %s", result.error().what_s().data());
         }
 
         CP_DEBUG("DocumentDBConnectionPool::~DocumentDBConnectionPool - Destructor completed at %lld", (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
@@ -281,7 +281,7 @@ namespace cpp_dbc
         auto result = conn->ping(std::nothrow);
         if (!result.has_value())
         {
-            CP_DEBUG("DocumentDBConnectionPool::validateConnection - ping failed: %s", result.error().what_s().c_str());
+            CP_DEBUG("DocumentDBConnectionPool::validateConnection - ping failed: %s", result.error().what_s().data());
             return false;
         }
         return result.value();
@@ -302,7 +302,7 @@ namespace cpp_dbc
             auto closeResult = conn->getUnderlyingDocumentConnection()->close(std::nothrow);
             if (!closeResult.has_value())
             {
-                CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() during shutdown failed: %s", closeResult.error().what_s().c_str());
+                CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() during shutdown failed: %s", closeResult.error().what_s().data());
             }
             return {};
         }
@@ -341,7 +341,7 @@ namespace cpp_dbc
             auto result = conn->getUnderlyingDocumentConnection()->prepareForPoolReturn(std::nothrow);
             if (!result.has_value())
             {
-                CP_DEBUG("DocumentDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", result.error().what_s().c_str());
+                CP_DEBUG("DocumentDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", result.error().what_s().data());
                 valid = false;
             }
         }
@@ -414,7 +414,7 @@ namespace cpp_dbc
             auto closeResult = conn->getUnderlyingDocumentConnection()->close(std::nothrow);
             if (!closeResult.has_value())
             {
-                CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() on invalid connection failed: %s", closeResult.error().what_s().c_str());
+                CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() on invalid connection failed: %s", closeResult.error().what_s().data());
             }
 
             // Replenish: create outside lock
@@ -423,7 +423,7 @@ namespace cpp_dbc
                 auto replacementResult = createPooledDBConnection(std::nothrow);
                 if (!replacementResult.has_value())
                 {
-                    CP_DEBUG("DocumentDBConnectionPool::returnConnection - Failed to create replacement: %s", replacementResult.error().what_s().c_str());
+                    CP_DEBUG("DocumentDBConnectionPool::returnConnection - Failed to create replacement: %s", replacementResult.error().what_s().data());
                 }
 
                 if (replacementResult.has_value())
@@ -468,7 +468,7 @@ namespace cpp_dbc
                         auto discardCloseResult = discardReplacement->getUnderlyingDocumentConnection()->close(std::nothrow);
                         if (!discardCloseResult.has_value())
                         {
-                            CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() on discarded replacement failed: %s", discardCloseResult.error().what_s().c_str());
+                            CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() on discarded replacement failed: %s", discardCloseResult.error().what_s().data());
                         }
                     }
                 }
@@ -547,7 +547,7 @@ namespace cpp_dbc
 
                                 if (!newConnResult.has_value())
                                 {
-                                    CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - Failed to create connection: %s", newConnResult.error().what_s().c_str());
+                                    CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - Failed to create connection: %s", newConnResult.error().what_s().data());
                                 }
                                 else
                                 {
@@ -567,7 +567,7 @@ namespace cpp_dbc
                                         auto closeResult = newConn->getUnderlyingDocumentConnection()->close(std::nothrow);
                                         if (!closeResult.has_value())
                                         {
-                                            CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - close() on discarded candidate failed: %s", closeResult.error().what_s().c_str());
+                                            CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - close() on discarded candidate failed: %s", closeResult.error().what_s().data());
                                         }
                                         lockPool.lock();
                                     }
@@ -693,7 +693,7 @@ namespace cpp_dbc
                         auto closeResult = result->getUnderlyingDocumentConnection()->close(std::nothrow);
                         if (!closeResult.has_value())
                         {
-                            CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - close() on invalid connection failed: %s", closeResult.error().what_s().c_str());
+                            CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - close() on invalid connection failed: %s", closeResult.error().what_s().data());
                         }
 
                         // Check deadline before retrying
@@ -814,7 +814,7 @@ namespace cpp_dbc
                 auto pooledResult = createPooledDBConnection(std::nothrow);
                 if (!pooledResult.has_value())
                 {
-                    CP_DEBUG("DocumentDBConnectionPool::maintenanceTask - Failed to create minIdle connection: %s", pooledResult.error().what_s().c_str());
+                    CP_DEBUG("DocumentDBConnectionPool::maintenanceTask - Failed to create minIdle connection: %s", pooledResult.error().what_s().data());
                     break;
                 }
 
@@ -962,7 +962,7 @@ namespace cpp_dbc
                 auto r = conn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
                 if (!r.has_value())
                 {
-                    CP_DEBUG("DocumentDBConnectionPool::close - connection close failed: %s", r.error().what_s().c_str());
+                    CP_DEBUG("DocumentDBConnectionPool::close - connection close failed: %s", r.error().what_s().data());
                     lastError = r;
                 }
             }
@@ -1024,7 +1024,7 @@ namespace cpp_dbc
                     auto closeResult = m_conn->close(std::nothrow);
                     if (!closeResult.has_value())
                     {
-                        CP_DEBUG("DocumentPooledDBConnection::~DocumentPooledDBConnection - close failed: %s", closeResult.error().what_s().c_str());
+                        CP_DEBUG("DocumentPooledDBConnection::~DocumentPooledDBConnection - close failed: %s", closeResult.error().what_s().data());
                     }
                 }
                 else
@@ -1100,7 +1100,7 @@ namespace cpp_dbc
                     auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<DocumentPooledDBConnection>(this->shared_from_this()));
                     if (!returnResult.has_value())
                     {
-                        CP_DEBUG("DocumentPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().c_str());
+                        CP_DEBUG("DocumentPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().data());
                     }
                 }
             }

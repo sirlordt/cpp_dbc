@@ -79,6 +79,7 @@ namespace cpp_dbc::ScyllaDB
             bool isPooled() const override;
             std::string getURL() const override;
             void reset() override;
+            bool ping() override;
 
             // ColumnarDBConnection interface
             std::shared_ptr<ColumnarDBPreparedStatement> prepareStatement(const std::string &query) override;
@@ -110,6 +111,7 @@ namespace cpp_dbc::ScyllaDB
             cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
             cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
             cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+            cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
         };
 } // namespace cpp_dbc::ScyllaDB
 

@@ -1250,8 +1250,8 @@ namespace redis_benchmark_helpers
             cpp_dbc::system_utils::logWithTimestampInfo("Redis connection successful!");
 
             // Try to ping the server
-            std::string pingResult = conn->ping();
-            cpp_dbc::system_utils::logWithTimestampInfo("Redis ping result: " + pingResult);
+            bool pingResult = conn->ping();
+            cpp_dbc::system_utils::logWithTimestampInfo(std::string("Redis ping: ") + (pingResult ? "PONG" : "FAILED"));
 
             // Close the connection
             conn->close();

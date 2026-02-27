@@ -384,7 +384,7 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
         conn->executeUpdate(dropTableQuery);
         conn->close();
     }
-    SECTION("ScyllaDB connection pool")
+    /* SECTION("ScyllaDB connection pool") - moved to 26_141_test_scylladb_real_connection_pool.cpp
     {
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -468,7 +468,7 @@ TEST_CASE("Real ScyllaDB connection tests", "[26_031_01_scylladb_real]")
 
         // Close the pool
         pool->close();
-    }
+    } */
 }
 #else
 // Skip tests if ScyllaDB support is not enabled

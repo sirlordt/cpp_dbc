@@ -236,7 +236,7 @@ void demonstrateSQLiteJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> conn
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("SQLite JSON operation error: " + e.what_s());
+        logError("SQLite JSON operation error: " + std::string(e.what_s()));
         throw;
     }
 }
@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
 
     if (!sqliteResult)
     {
-        logError("Failed to get SQLite config: " + sqliteResult.error().what_s());
+        logError("Failed to get SQLite config: " + std::string(sqliteResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("SQLite error: " + e.what_s());
+        logError("SQLite error: " + std::string(e.what_s()));
         return EXIT_ERROR_;
     }
 

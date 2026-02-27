@@ -292,7 +292,7 @@ namespace cpp_dbc
         std::vector<std::string> scanKeys(const std::string &pattern, int64_t count = 10) override;
         std::string executeCommand(const std::string &command, const std::vector<std::string> &args = {}) override;
         bool flushDB(bool async = false) override;
-        std::string ping() override;
+        bool ping() override;
         std::map<std::string, std::string> getServerInfo() override;
         void prepareForPoolReturn() override;
 
@@ -422,7 +422,7 @@ namespace cpp_dbc
         cpp_dbc::expected<bool, DBException> flushDB(
             std::nothrow_t, bool async = false) noexcept override;
 
-        cpp_dbc::expected<std::string, DBException> ping(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
 
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(
             std::nothrow_t) noexcept override;

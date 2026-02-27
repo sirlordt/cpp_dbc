@@ -18,9 +18,6 @@
 
 */
 
-// Only compile these tests if DB_DRIVER_THREAD_SAFE is enabled
-#if DB_DRIVER_THREAD_SAFE
-
 #include <string>
 #include <memory>
 #include <thread>
@@ -41,7 +38,7 @@
 
 #include "23_001_test_firebird_real_common.hpp"
 
-#if USE_FIREBIRD
+#if DB_DRIVER_THREAD_SAFE && USE_FIREBIRD
 
 /**
  * @brief Thread-safety stress tests for Firebird driver
@@ -178,7 +175,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
         REQUIRE(successCount > 0);
     }
 
-    SECTION("Connection pool concurrent access")
+    /* SECTION("Connection pool concurrent access") - moved to 23_141_test_firebird_real_connection_pool.cpp
     {
         // Create connection pool
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -222,14 +219,14 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
                     {
                         auto conn = pool->getRelationalDBConnection();
                         int id = idCounter.fetch_add(1);
-                        
+
                         // Insert with prepared statement
                         auto pstmt = conn->prepareStatement("INSERT INTO thread_test (id, name, val_data) VALUES (?, ?, ?)");
                         pstmt->setInt(1, id);
                         pstmt->setString(2, "Name " + std::to_string(id));
                         pstmt->setDouble(3, id * 1.5);
                         pstmt->executeUpdate();
-                        
+
                         conn->returnToPool();
                         successCount++;
                     }
@@ -263,9 +260,9 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
         cleanupConn->close();
 
         REQUIRE(successCount > 0);
-    }
+    } */
 
-    SECTION("Concurrent read operations with connection pool")
+    /* SECTION("Concurrent read operations with connection pool") - moved to 23_141_test_firebird_real_connection_pool.cpp
     {
         // Create connection pool
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -322,11 +319,11 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
                     {
                         auto conn = pool->getRelationalDBConnection();
                         int targetId = idDist(gen);
-                        
+
                         auto pstmt = conn->prepareStatement("SELECT * FROM thread_test WHERE id = ?");
                         pstmt->setInt(1, targetId);
                         auto rs = pstmt->executeQuery();
-                        
+
                         if (rs->next())
                         {
                             // Read all columns (Firebird returns uppercase column names)
@@ -336,7 +333,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
                             (void)id; (void)name; (void)val_data;
                             readCount++;
                         }
-                        
+
                         conn->returnToPool();
                     }
                     catch (const std::exception& e)
@@ -369,9 +366,9 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
 
         // Most reads should succeed
         REQUIRE(readCount > numThreads * readsPerThread * 0.95); // At least 95% success rate
-    }
+    } */
 
-    SECTION("High concurrency stress test")
+    /* SECTION("High concurrency stress test") - moved to 23_141_test_firebird_real_connection_pool.cpp
     {
         // Create connection pool for stress test
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -512,7 +509,7 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
         // Most operations should succeed
         int totalOps = insertCount + selectCount + updateCount;
         REQUIRE(totalOps > numThreads * opsPerThread * 0.95); // At least 95% success rate
-    }
+    } */
 
     SECTION("Rapid connection open/close stress test")
     {
@@ -564,15 +561,6 @@ TEST_CASE("Firebird Thread-Safety Tests", "[23_111_01_firebird_real_thread_safe]
 #else
 TEST_CASE("Firebird Thread-Safety Tests (skipped)", "[23_111_02_firebird_real_thread_safe]")
 {
-    SKIP("Firebird support is not enabled");
+    SKIP("Firebird support is not enabled or thread-safety is disabled");
 }
-#endif // USE_FIREBIRD
-
-#else // DB_DRIVER_THREAD_SAFE
-// Empty test case when thread safety is disabled
-#include <catch2/catch_test_macros.hpp>
-TEST_CASE("Firebird Thread-Safety Tests (disabled)", "[23_111_03_firebird_real_thread_safe]")
-{
-    SKIP("Thread-safety tests are disabled when DB_DRIVER_THREAD_SAFE=0");
-}
-#endif // DB_DRIVER_THREAD_SAFE
+#endif // DB_DRIVER_THREAD_SAFE && USE_FIREBIRD

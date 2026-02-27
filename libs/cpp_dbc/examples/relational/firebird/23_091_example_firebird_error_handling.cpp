@@ -58,7 +58,7 @@ void executeWithErrorHandling(const std::string &operationName, const std::funct
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error in " + operationName + ": " + e.what_s());
+        logError("Database error in " + operationName + ": " + std::string(e.what_s()));
         e.printCallStack();
     }
     catch (const AppException &e)
@@ -310,7 +310,7 @@ void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::RelationalDBConnectio
                                  }
                                  catch (const cpp_dbc::DBException &e)
                                  {
-                                     logError("Error in transaction: " + e.what_s());
+                                     logError("Error in transaction: " + std::string(e.what_s()));
                                      logStep("Rolling back transaction...");
                                      conn->rollback();
 
@@ -412,7 +412,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::RelationalDBConnection> c
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logData("Expected error occurred: " + e.what_s());
+        logData("Expected error occurred: " + std::string(e.what_s()));
         logStep("Recovering by performing a valid operation...");
 
         try
@@ -425,7 +425,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::RelationalDBConnection> c
         }
         catch (const cpp_dbc::DBException &recoverError)
         {
-            logError("Recovery failed: " + recoverError.what_s());
+            logError("Recovery failed: " + std::string(recoverError.what_s()));
         }
     }
 }
@@ -519,7 +519,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return 1;
     }
 
@@ -544,7 +544,7 @@ int main(int argc, char *argv[])
 
         if (!firebirdResult)
         {
-            logError("Failed to get Firebird config: " + firebirdResult.error().what_s());
+            logError("Failed to get Firebird config: " + std::string(firebirdResult.error().what_s()));
             return 1;
         }
 

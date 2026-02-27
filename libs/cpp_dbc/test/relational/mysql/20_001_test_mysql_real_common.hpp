@@ -60,6 +60,16 @@ namespace mysql_test_helpers
                                                    bool useEmptyDatabase = false);
 
     /**
+     * @brief Helper function to get a MySQL driver instance (singleton)
+     */
+    std::shared_ptr<cpp_dbc::MySQL::MySQLDBDriver> getMySQLDriver();
+
+    /**
+     * @brief Helper function to get a MySQL connection
+     */
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> getMySQLConnection();
+
+    /**
      * @brief Helper function to try to create the database if it doesn't exist
      */
     bool tryCreateDatabase();

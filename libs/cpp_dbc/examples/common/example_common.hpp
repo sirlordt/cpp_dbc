@@ -109,43 +109,43 @@ namespace cpp_dbc::examples
      *   logStep("Connecting to database...");
      *   logOk("Connected successfully");
      *   logData("Row: id=1, name='John'");
-     *   logError("Connection failed: " + e.what_s());
+     *   logError("Connection failed: " + std::string(e.what_s()));
      *   logInfo("Using default config");
      *   logMsg("========================================");
      */
 
     /** @brief Log a message without marker (for headers, separators) */
-    inline void logMsg(const std::string &message)
+    inline void logMsg(std::string_view message)
     {
         cpp_dbc::system_utils::logWithTimestamp("", message);
     }
 
     /** @brief Log a STEP message - used for operation progress */
-    inline void logStep(const std::string &message)
+    inline void logStep(std::string_view message)
     {
         cpp_dbc::system_utils::logWithTimestamp("[STEP]", message);
     }
 
     /** @brief Log an OK message - used for successful operations */
-    inline void logOk(const std::string &message)
+    inline void logOk(std::string_view message)
     {
         cpp_dbc::system_utils::logWithTimestamp("[OK]", message);
     }
 
     /** @brief Log an ERROR message - used for failed operations */
-    inline void logError(const std::string &message)
+    inline void logError(std::string_view message)
     {
         cpp_dbc::system_utils::logWithTimestamp("[ERROR]", message);
     }
 
     /** @brief Log a DATA message - used for displaying query results */
-    inline void logData(const std::string &message)
+    inline void logData(std::string_view message)
     {
         cpp_dbc::system_utils::logWithTimestamp("[DATA]", message);
     }
 
     /** @brief Log an INFO message - used for informational messages */
-    inline void logInfo(const std::string &message)
+    inline void logInfo(std::string_view message)
     {
         cpp_dbc::system_utils::logWithTimestamp("[INFO]", message);
     }

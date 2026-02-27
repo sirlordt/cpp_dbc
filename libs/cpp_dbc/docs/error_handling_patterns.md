@@ -37,23 +37,24 @@ All cpp_dbc errors are wrapped in `DBException`:
 class DBException : public std::runtime_error
 {
 private:
-    std::string m_mark;                              // 12-char error code
-    mutable std::string m_full_message;              // Cached full message
-    std::vector<system_utils::StackFrame> m_callstack; // Call stack
+    char m_mark[13]{};           // 12-char error code + NUL (fixed-size)
+    char m_message[257]{};       // Human-readable message (fixed-size)
+    char m_full_message[271]{};  // Pre-computed "MARK: message" (fixed-size)
+    std::shared_ptr<system_utils::CallStackCapture> m_callStack; // optional
 
 public:
-    // Constructor
+    // Constructor — noexcept: no heap allocations that can throw
     explicit DBException(
         const std::string &mark,      // 12-char error code
         const std::string &message,   // Human-readable message
-        const std::vector<system_utils::StackFrame> &callstack = {}
-    );
+        std::shared_ptr<system_utils::CallStackCapture> callStack = nullptr
+    ) noexcept;
 
     // Methods
-    const std::string &what_s() const noexcept;  // Full message (safe)
-    const std::string &getMark() const;          // Error code
-    void printCallStack() const;                 // Print stack trace
-    const std::vector<system_utils::StackFrame> &getCallStack() const;
+    std::string_view what_s() const noexcept;   // Full message (zero-copy)
+    std::string_view getMark() const noexcept;  // Error code (zero-copy)
+    void printCallStack() const;                // Print stack trace
+    std::span<const system_utils::StackFrame> getCallStack() const; // Stack frames
 };
 ```
 
@@ -61,9 +62,12 @@ public:
 
 | Member | Type | Description |
 |--------|------|-------------|
-| `m_mark` | `std::string` | 12-character unique error code |
-| `m_full_message` | `std::string` | Combined "CODE: message" string |
-| `m_callstack` | `vector<StackFrame>` | Captured stack trace |
+| `m_mark[13]` | `char[]` | 12-character unique error code (fixed-size) |
+| `m_message[257]` | `char[]` | Human-readable message (fixed-size) |
+| `m_full_message[271]` | `char[]` | Pre-computed "CODE: message" string (fixed-size) |
+| `m_callStack` | `shared_ptr<CallStackCapture>` | Optional stack trace (heap, shared on copy) |
+
+> **Note:** Long marks or messages are left-truncated with a `...[TRUNCATED]` marker. Total object size is ~560 bytes.
 
 ---
 
@@ -167,11 +171,11 @@ catch (const cpp_dbc::DBException &e) {
 try {
     return executeInternalQuery(sql);
 }
-catch (const DBException &e) {
-    // Add context and re-throw
+catch (const DBException &ex) {
+    // Add context and re-throw; preserve original call stack via shared_ptr
     throw DBException("C9D5E1F7A4B0",
-        "Failed to execute query '" + sql + "': " + e.what_s(),
-        e.getCallStack());  // Preserve original stack
+        "Failed to execute query '" + sql + "': " + std::string(ex.what_s()),
+        ex.m_callStack);  // Preserve original stack (shared_ptr copy, no allocation)
 }
 ```
 
@@ -537,7 +541,7 @@ NewDBConnection::~NewDBConnection()
    catch (const std::exception &e) { ... }
    ```
 
-5. **Use `what_s()` instead of `what()`** (returns safe string reference)
+5. **Use `what_s()` instead of `what()`** (returns `std::string_view` — zero-copy, safe lifetime; convert to `std::string` before concatenation: `std::string(e.what_s())`)
 
 6. **Guard against double-close**:
    ```cpp
@@ -574,8 +578,8 @@ NewDBConnection::~NewDBConnection()
    }
 
    // GOOD
-   catch (const DBException &e) {
-       throw DBException("NEW_CODE", "Context: " + e.what_s(), e.getCallStack());
+   catch (const DBException &ex) {
+       throw DBException("NEW_CODE", "Context: " + std::string(ex.what_s()), ex.m_callStack);
    }
    ```
 

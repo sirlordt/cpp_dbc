@@ -63,7 +63,7 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error in " + operationName + ": " + e.what_s());
+        logError("Database error in " + operationName + ": " + std::string(e.what_s()));
         e.printCallStack();
     }
     catch (const AppException &e)
@@ -245,7 +245,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     }
     else
     {
-        logError("getString failed: " + getResult.error().what_s());
+        logError("getString failed: " + std::string(getResult.error().what_s()));
     }
 
     // Try list operation on string (should fail)
@@ -256,7 +256,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     }
     else
     {
-        logInfo("listPushLeft failed (expected): " + listResult.error().what_s());
+        logInfo("listPushLeft failed (expected): " + std::string(listResult.error().what_s()));
     }
 
     // Check if key exists using nothrow
@@ -267,7 +267,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     }
     else
     {
-        logError("exists check failed: " + existsResult.error().what_s());
+        logError("exists check failed: " + std::string(existsResult.error().what_s()));
     }
 
     logOk("Nothrow API demonstration completed");
@@ -397,7 +397,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -416,7 +416,7 @@ int main(int argc, char *argv[])
 
     if (!dbResult)
     {
-        logError("Failed to get database config: " + dbResult.error().what_s());
+        logError("Failed to get database config: " + std::string(dbResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -461,7 +461,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         return EXIT_ERROR_;
     }
     catch (const std::exception &e)

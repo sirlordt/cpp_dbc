@@ -242,7 +242,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::string RedisConnection::ping()
+    bool RedisConnection::ping()
     {
         auto result = ping(std::nothrow);
         if (!result.has_value())

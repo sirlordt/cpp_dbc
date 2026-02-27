@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
 
         if (!redisResult)
         {
-            logError("Failed to get Redis config: " + redisResult.error().what_s());
+            logError("Failed to get Redis config: " + std::string(redisResult.error().what_s()));
             return EXIT_ERROR_;
         }
 
@@ -121,19 +121,14 @@ int main(int argc, char *argv[])
 
         logData("Redis Connection URL: " + redisConn->getURL());
 
-        // Cast to KVDBConnection to access ping
-        auto kvConn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(redisConn);
-        if (kvConn)
-        {
-            logMsg("");
-            logMsg("--- Server Connectivity ---");
-            logStep("Pinging server...");
-            std::string pong = kvConn->ping();
-            logData("PING response: " + pong);
-            logOk("Server is responding");
+        logMsg("");
+        logMsg("--- Server Connectivity ---");
+        logStep("Pinging server...");
+        bool pong = redisConn->ping();
+        logData(std::string("PING response: ") + (pong ? "PONG" : "FAILED"));
+        logOk("Server is responding");
 
-            logData("Connected to: " + redisConfig.getHost() + ":" + std::to_string(redisConfig.getPort()));
-        }
+        logData("Connected to: " + redisConfig.getHost() + ":" + std::to_string(redisConfig.getPort()));
 
         logStep("Closing connection...");
         redisConn->close();
@@ -141,7 +136,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         e.printCallStack();
         return EXIT_ERROR_;
     }

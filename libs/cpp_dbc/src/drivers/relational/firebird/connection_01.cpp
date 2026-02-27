@@ -127,8 +127,10 @@ namespace cpp_dbc::Firebird
         // Create shared_ptr with custom deleter
         m_db = std::shared_ptr<isc_db_handle>(dbHandle, FirebirdDbDeleter{});
 
-        // Cache URL
-        m_url = "cpp_dbc:firebird://" + host + ":" + std::to_string(port) + "/" + database;
+        // Cache URL — database already starts with '/' (prepended by parseURL for remote connections),
+        // so no separator is added here to avoid a double slash (e.g. "localhost:3050//path").
+        const std::string sep = (!database.empty() && database[0] == '/') ? "" : "/";
+        m_url = "cpp_dbc:firebird://" + host + ":" + std::to_string(port) + sep + database;
 
         m_closed.store(false, std::memory_order_release);
 
@@ -392,6 +394,31 @@ namespace cpp_dbc::Firebird
         }
 
         return 0; // CREATE DATABASE doesn't return affected rows
+    }
+
+    bool FirebirdDBConnection::ping()
+    {
+        auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    cpp_dbc::expected<bool, DBException> FirebirdDBConnection::ping(std::nothrow_t) noexcept
+    {
+        auto result = executeQuery(std::nothrow, "SELECT 1 FROM RDB$DATABASE");
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        auto closeResult = result.value()->close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            return cpp_dbc::unexpected(closeResult.error());
+        }
+        return true;
     }
 
 } // namespace cpp_dbc::Firebird

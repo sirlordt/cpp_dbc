@@ -139,6 +139,7 @@ namespace cpp_dbc::SQLite
 
         // Get the connection URL
         std::string getURL() const override;
+        bool ping() override;
 
         // Nothrow API
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
@@ -159,6 +160,7 @@ namespace cpp_dbc::SQLite
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::SQLite

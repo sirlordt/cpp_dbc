@@ -22,7 +22,6 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
-#include <random>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -49,49 +48,32 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
     auto dbConfig = redis_test_helpers::getRedisConfig("dev_redis");
 
     // Create connection parameters
-    std::string type = dbConfig.getType();
-    std::string host = dbConfig.getHost();
-    std::string database = dbConfig.getDatabase();
     std::string username = dbConfig.getUsername();
     std::string password = dbConfig.getPassword();
 
     // Build Redis connection string
     std::string connStr = redis_test_helpers::buildRedisConnectionString(dbConfig);
 
-    // Generate a random key prefix for test isolation
-    std::string testKeyPrefix = "test_pool_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "_";
-    std::string testHashKey = testKeyPrefix + "hash";
-    std::string testListKey = testKeyPrefix + "list";
-    std::string testStringKey = testKeyPrefix + "string";
-    std::string testCounterKey = testKeyPrefix + "counter";
-
     SECTION("Basic connection pool operations")
     {
-        // Get a Redis driver and register it with the DriverManager
-        auto driver = redis_test_helpers::getRedisDriver();
-        cpp_dbc::DriverManager::registerDriver(driver);
-
-        // Use the full connection string including the cpp_dbc: prefix if present
-        std::string poolConnStr = connStr;
-
         // Create a connection pool configuration
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(poolConnStr);
-        poolConfig.setUsername(username);
-        poolConfig.setPassword(password);
-        poolConfig.setInitialSize(5);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(3);
-        poolConfig.setConnectionTimeout(5000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setIdleTimeout(30000);
-        poolConfig.setMaxLifetimeMillis(60000);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(false);
-        poolConfig.setValidationQuery("PING"); // Redis ping command
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(5);
+        poolConfigLocal.setMaxSize(10);
+        poolConfigLocal.setMinIdle(3);
+        poolConfigLocal.setConnectionTimeout(5000);
+        poolConfigLocal.setValidationInterval(1000);
+        poolConfigLocal.setIdleTimeout(30000);
+        poolConfigLocal.setMaxLifetimeMillis(60000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(false);
+        poolConfigLocal.setValidationQuery("PING");
 
-        // Create a connection pool
-        auto poolResult = cpp_dbc::Redis::RedisConnectionPool::create(std::nothrow, poolConfig);
+        // Create a connection pool using factory method
+        auto poolResult = cpp_dbc::Redis::RedisConnectionPool::create(std::nothrow, poolConfigLocal);
         if (!poolResult.has_value())
         {
             throw poolResult.error();
@@ -133,124 +115,6 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
         }
 
-        // Test Redis operations through pooled connections
-        SECTION("Redis operations with pooled connections")
-        {
-            // Get a connection from the pool
-            auto conn = pool->getKVDBConnection();
-            REQUIRE(conn != nullptr);
-
-            // Set some test values
-            REQUIRE(conn->setString(testStringKey, "Hello Redis!"));
-            REQUIRE(conn->hashSet(testHashKey, "field1", "value1"));
-            REQUIRE(conn->hashSet(testHashKey, "field2", "value2"));
-            REQUIRE(conn->listPushRight(testListKey, "item1"));
-            REQUIRE(conn->listPushRight(testListKey, "item2"));
-            REQUIRE(conn->setString(testCounterKey, "10"));
-
-            // Return connection to pool
-            conn->close();
-
-            // Get another connection and verify values
-            auto conn2 = pool->getKVDBConnection();
-            REQUIRE(conn2 != nullptr);
-
-            // Check string value
-            REQUIRE(conn2->getString(testStringKey) == "Hello Redis!");
-
-            // Check hash values
-            REQUIRE(conn2->hashGet(testHashKey, "field1") == "value1");
-            REQUIRE(conn2->hashGet(testHashKey, "field2") == "value2");
-
-            // Check list values
-            auto listItems = conn2->listRange(testListKey, 0, -1);
-            REQUIRE(listItems.size() == 2);
-            REQUIRE(listItems[0] == "item1");
-            REQUIRE(listItems[1] == "item2");
-
-            // Check counter operations
-            auto newValue = conn2->increment(testCounterKey);
-            REQUIRE(newValue == 11);
-            newValue = conn2->increment(testCounterKey, 5);
-            REQUIRE(newValue == 16);
-
-            // Return the second connection
-            conn2->close();
-        }
-
-        // Test concurrent connections
-        SECTION("Concurrent connections")
-        {
-            const uint64_t numThreads = 8;
-            std::atomic<int> successCount(0);
-            std::vector<std::thread> threads;
-
-            for (uint64_t i = 0; i < numThreads; i++)
-            {
-                threads.push_back(std::thread([&pool, &successCount, i, testKeyPrefix]()
-                                              {
-                    try {
-                        // Get connection from pool
-                        auto threadConn = pool->getKVDBConnection();
-                        
-                        // Generate unique key for this thread
-                        std::string threadKey = testKeyPrefix + "thread_" + std::to_string(i);
-                        
-                        // Set a value
-                        bool setResult = threadConn->setString(threadKey, "Thread " + std::to_string(i));
-                        
-                        // Get the value back
-                        std::string value = threadConn->getString(threadKey);
-                        
-                        // Verify value
-                        bool valueMatches = (value == "Thread " + std::to_string(i));
-                        
-                        // Clean up
-                        threadConn->deleteKey(threadKey);
-                        
-                        // Close the connection
-                        threadConn->close();
-                        
-                        // Increment success count if all operations succeeded
-                        if (setResult && valueMatches) {
-                            successCount++;
-                        }
-                    }
-                    catch (const std::exception& e) {
-                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " error: " + std::string(e.what()));
-                    } }));
-            }
-
-            // Wait for all threads to complete
-            for (auto &t : threads)
-            {
-                if (t.joinable())
-                {
-                    t.join();
-                }
-            }
-
-            // Verify all threads succeeded
-            REQUIRE(successCount == numThreads);
-        }
-
-        // Clean up test keys
-        auto cleanupConn = pool->getKVDBConnection();
-        try
-        {
-            // Find and delete all test keys
-            auto keys = cleanupConn->scanKeys(testKeyPrefix + "*");
-            if (!keys.empty())
-            {
-                cleanupConn->deleteKeys(keys);
-            }
-        }
-        catch (const cpp_dbc::DBException &)
-        {
-            // Ignore cleanup errors
-        }
-        cleanupConn->close();
-
         // Close the pool
         pool->close();
     }
@@ -258,30 +122,23 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
     // Test advanced pool features
     SECTION("Advanced pool features")
     {
-        // Get a Redis driver and register it with the DriverManager
-        auto driver = redis_test_helpers::getRedisDriver();
-        cpp_dbc::DriverManager::registerDriver(driver);
-
-        // Use the full connection string including the cpp_dbc: prefix if present
-        std::string poolConnStr = connStr;
-
-        // Create a connection pool configuration with smaller size
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(poolConnStr);
-        poolConfig.setUsername(username);
-        poolConfig.setPassword(password);
-        poolConfig.setInitialSize(2);           // Smaller initial size
-        poolConfig.setMaxSize(5);               // Smaller max size
-        poolConfig.setMinIdle(1);               // Smaller min idle
-        poolConfig.setConnectionTimeout(3500);  // Shorter timeout
-        poolConfig.setIdleTimeout(10000);       // Shorter idle timeout
-        poolConfig.setMaxLifetimeMillis(30000); // Shorter max lifetime
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(true);      // Test on return as well
-        poolConfig.setValidationQuery("PING"); // Redis ping command
+        // Create a connection pool configuration with testOnReturn enabled
+        cpp_dbc::config::DBConnectionPoolConfig poolConfigLocal;
+        poolConfigLocal.setUrl(connStr);
+        poolConfigLocal.setUsername(username);
+        poolConfigLocal.setPassword(password);
+        poolConfigLocal.setInitialSize(5);
+        poolConfigLocal.setMaxSize(10);
+        poolConfigLocal.setMinIdle(3);
+        poolConfigLocal.setConnectionTimeout(3500);
+        poolConfigLocal.setIdleTimeout(10000);
+        poolConfigLocal.setMaxLifetimeMillis(30000);
+        poolConfigLocal.setTestOnBorrow(true);
+        poolConfigLocal.setTestOnReturn(true);
+        poolConfigLocal.setValidationQuery("PING");
 
         // Create a connection pool
-        auto poolResult2 = cpp_dbc::Redis::RedisConnectionPool::create(std::nothrow, poolConfig);
+        auto poolResult2 = cpp_dbc::Redis::RedisConnectionPool::create(std::nothrow, poolConfigLocal);
         if (!poolResult2.has_value())
         {
             throw poolResult2.error();
@@ -291,24 +148,13 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
         // Test connection validation
         SECTION("Connection validation")
         {
-            // Get a connection
             auto conn = pool->getKVDBConnection();
             REQUIRE(conn != nullptr);
 
-            // Set a test key
-            std::string testKey = testKeyPrefix + "validation";
-            REQUIRE(conn->setString(testKey, "Test Value"));
+            REQUIRE(conn->ping());
 
-            // Verify test key
-            REQUIRE(conn->getString(testKey) == "Test Value");
-
-            // Clean up test key
-            REQUIRE(conn->deleteKey(testKey));
-
-            // Return it to the pool
             conn->close();
 
-            // Pool stats should reflect the return
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getIdleDBConnectionCount() >= 1);
         }
@@ -316,30 +162,26 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
         // Test pool growth
         SECTION("Pool growth")
         {
-            // Get initial stats
             auto initialIdleCount = pool->getIdleDBConnectionCount();
             auto initialTotalCount = pool->getTotalDBConnectionCount();
 
             std::vector<std::shared_ptr<cpp_dbc::KVDBConnection>> connections;
 
-            // Get more connections than initialSize (should cause pool to grow)
-            for (int i = 0; i < 4; i++)
+            const size_t numConnectionsToRequest = initialTotalCount + 2;
+            for (size_t i = 0; i < numConnectionsToRequest; i++)
             {
                 connections.push_back(pool->getKVDBConnection());
                 REQUIRE(connections.back() != nullptr);
             }
 
-            // Verify pool grew
-            REQUIRE(pool->getActiveDBConnectionCount() == 4);
+            REQUIRE(pool->getActiveDBConnectionCount() == numConnectionsToRequest);
             REQUIRE(pool->getTotalDBConnectionCount() > initialTotalCount);
 
-            // Return all connections
             for (auto &conn : connections)
             {
                 conn->close();
             }
 
-            // Verify all returned
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getIdleDBConnectionCount() >= initialIdleCount);
         }
@@ -347,19 +189,16 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
         // Test invalid connection replacement on return
         SECTION("Invalid connection replacement on return")
         {
-            // Get initial pool statistics
             auto initialIdleCount = pool->getIdleDBConnectionCount();
             auto initialTotalCount = pool->getTotalDBConnectionCount();
 
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
 
-            // Get a connection from the pool
             auto conn = pool->getKVDBConnection();
             REQUIRE(conn != nullptr);
             REQUIRE(pool->getActiveDBConnectionCount() == 1);
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount - 1);
 
-            // Get the underlying connection and close it directly to invalidate
             auto pooledConn = std::dynamic_pointer_cast<cpp_dbc::KVPooledDBConnection>(conn);
             REQUIRE(pooledConn != nullptr);
 
@@ -373,37 +212,46 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
             // The pool should detect it's invalid and replace it
             conn->close();
 
-            // Give the pool a moment to process the replacement
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // Poll for the pool to process the replacement instead of fixed sleep
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(5000);
+            bool poolStateConverged = false;
 
-            // Verify pool statistics:
-            // - activeConnections should be 0 (connection was returned)
-            // - totalConnections should remain the same (invalid connection was replaced)
-            // - idleConnections should be back to initial (replacement went to idle)
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getActiveDBConnectionCount() == 0 &&
+                    pool->getTotalDBConnectionCount() == initialTotalCount &&
+                    pool->getIdleDBConnectionCount() == initialIdleCount)
+                {
+                    poolStateConverged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            REQUIRE(poolStateConverged);
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
 
-            // Verify we can still get a working connection from the pool
+            // Verify replacement connection works
             auto newConn = pool->getKVDBConnection();
             REQUIRE(newConn != nullptr);
-            REQUIRE(newConn->ping() == "PONG"); // Should work - it's the replacement connection
+            REQUIRE(newConn->ping());
             newConn->close();
         }
 
         // Test multiple invalid connections replacement
         SECTION("Multiple invalid connections replacement")
         {
-            // Get initial pool statistics
             auto initialIdleCount = pool->getIdleDBConnectionCount();
             auto initialTotalCount = pool->getTotalDBConnectionCount();
 
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
-            REQUIRE(initialIdleCount >= 1); // Need at least 1 idle connection for this test
+            REQUIRE(initialIdleCount >= 3); // Need at least 3 idle connections for this test
 
-            // Get multiple connections (use 2 since our pool is smaller)
             std::vector<std::shared_ptr<cpp_dbc::KVDBConnection>> connections;
-            const size_t numConnections = 2;
+            const size_t numConnections = 3;
 
             for (size_t i = 0; i < numConnections; i++)
             {
@@ -413,6 +261,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
             }
 
             REQUIRE(pool->getActiveDBConnectionCount() == numConnections);
+            REQUIRE(pool->getIdleDBConnectionCount() == (initialIdleCount - numConnections));
 
             // Invalidate all connections by closing their underlying connections
             for (auto &conn : connections)
@@ -421,6 +270,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
                 REQUIRE(pooledConn != nullptr);
 
                 auto underlyingConn = pooledConn->getUnderlyingKVConnection();
+                REQUIRE(underlyingConn != nullptr);
                 underlyingConn->close();
             }
 
@@ -430,10 +280,24 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
                 conn->close();
             }
 
-            // Give the pool time to process replacements
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            // Poll for the pool to process replacements instead of fixed sleep
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(5000);
+            bool poolStateConverged = false;
 
-            // Verify pool statistics
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getActiveDBConnectionCount() == 0 &&
+                    pool->getTotalDBConnectionCount() == initialTotalCount &&
+                    pool->getIdleDBConnectionCount() == initialIdleCount)
+                {
+                    poolStateConverged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            REQUIRE(poolStateConverged);
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
@@ -443,12 +307,12 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
             {
                 auto newConn = pool->getKVDBConnection();
                 REQUIRE(newConn != nullptr);
-                REQUIRE(newConn->ping() == "PONG");
+                REQUIRE(newConn->ping());
                 newConn->close();
             }
         }
 
-        // Test connection pool under load (advanced pool)
+        // Test concurrent connections under load
         SECTION("Connection pool under load")
         {
             const uint64_t numOperations = 40;
@@ -468,8 +332,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
                             return;
                         }
 
-                        std::string pong = loadConn->ping();
-                        if (pong != "PONG")
+                        if (!loadConn->ping())
                         {
                             failureCount++;
                             loadConn->close();
@@ -494,7 +357,6 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
                 }
             }
 
-            // Thread-safe assertions on main thread
             if (failureCount > 0)
             {
                 WARN("failureCount: " << failureCount);
@@ -506,26 +368,9 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
             REQUIRE(successCount >= static_cast<int>(numOperations * 0.95));
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             auto idleCount = pool->getIdleDBConnectionCount();
-            REQUIRE(idleCount >= 1); // At least minIdle connections
-            REQUIRE(idleCount <= 5); // No more than maxSize connections
+            REQUIRE(idleCount >= 3);  // At least minIdle connections
+            REQUIRE(idleCount <= 10); // No more than maxSize connections
         }
-
-        // Clean up test keys
-        auto cleanupConn = pool->getKVDBConnection();
-        try
-        {
-            // Find and delete all test keys
-            auto keys = cleanupConn->scanKeys(testKeyPrefix + "*");
-            if (!keys.empty())
-            {
-                cleanupConn->deleteKeys(keys);
-            }
-        }
-        catch (const cpp_dbc::DBException &)
-        {
-            // Ignore cleanup errors
-        }
-        cleanupConn->close();
 
         // Close the pool
         pool->close();

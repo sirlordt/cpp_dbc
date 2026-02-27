@@ -2,7 +2,39 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All four connection pool families share a unified single-mutex + direct-handoff architecture with a complete nothrow API. `m_lastUsedTimeNs` is lock-free via `std::atomic<int64_t>` (portable to all platforms). MySQL `m_closed` is `std::atomic<bool>`. All result set destructors use nothrow close.
+The CPP_DBC library is in active development. `DBException` is now a fixed-size, `noexcept`-constructible value type (~560 bytes). `ping()` is unified under the base `DBConnection` interface with a `bool` return type. All `what_s()` and `getMark()` return `std::string_view`. All four connection pool families share a unified single-mutex + direct-handoff architecture with a complete nothrow API.
+
+### Recent Improvements (2026-02-26 18:27 PST)
+
+**DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations:**
+
+1. **`DBException` — Fixed-Size Memory Layout:**
+   - Inherits from `std::exception` (was `std::runtime_error`); constructor is `noexcept`
+   - Fixed char arrays: `m_mark[13]`, `m_message[257]`, `m_full_message[271]`
+   - Call stack: `std::shared_ptr<CallStackCapture>` — one allocation, shared across copies
+   - `what_s()` / `getMark()` return `std::string_view`; `getCallStack()` returns `std::span<const StackFrame>`
+   - `what()` returns pre-computed `m_full_message` (zero-cost); long values left-truncated with `...[TRUNCATED]`
+
+2. **`system_utils::CallStackCapture` — Fixed-Size Stack:**
+   - `StackFrame` uses `char file[150]`, `char function[150]` (was `std::string`)
+   - New `CallStackCapture`: `StackFrame frames[10]`, `int count`
+   - `captureCallStack()` returns `std::shared_ptr<CallStackCapture>` (was `std::vector<StackFrame>`)
+   - `printCallStack()` accepts `std::span<const StackFrame>`
+
+3. **Unified `ping()` in Base `DBConnection`:**
+   - `virtual bool ping() = 0` and `virtual expected<bool, DBException> ping(std::nothrow_t) noexcept = 0` in `DBConnection`
+   - Removed Redis-specific `std::string ping()` from `KVDBConnection`
+   - Removed MongoDB-specific `bool ping()` from `DocumentDBConnection`
+   - All pool wrappers updated
+
+4. **All 50+ Examples Updated for `std::string_view`:**
+   - `+ ex.what_s()` → `+ std::string(ex.what_s())` across all database families
+   - `example_common.hpp` log functions: `const std::string&` → `std::string_view`
+   - Redis ping: `std::string` → `bool` with `"PONG"/"FAILED"` display
+
+5. **Build System Improvements:**
+   - `helper.sh`: `dw-on`/`dw-off` deferred — later flags override earlier ones in same option list
+   - `build_test_cpp_dbc.sh`: `-DCPP_DBC_BUILD_EXAMPLES=OFF -DCPP_DBC_BUILD_BENCHMARKS=OFF` for faster test-only builds
 
 ### Recent Improvements (2026-02-24 18:25 PST)
 

@@ -113,23 +113,21 @@ add_executable(cpp_dbc_tests
 
     # SQLite tests (relational/sqlite/)
     relational/sqlite/22_001_test_sqlite_real_common.cpp
-
     relational/sqlite/22_011_test_sqlite_real_db_config.cpp
     relational/sqlite/22_021_test_sqlite_real_driver.cpp
     relational/sqlite/22_031_test_sqlite_real.cpp
     relational/sqlite/22_041_test_sqlite_real_connection.cpp
 
-    # # relational/sqlite/22_051_test_sqlite_real_json.cpp
+    # relational/sqlite/22_051_test_sqlite_real_json.cpp
     relational/sqlite/22_061_test_sqlite_real_blob.cpp
     relational/sqlite/22_071_test_sqlite_real_inner_join.cpp
+    relational/sqlite/22_081_test_sqlite_real_left_join.cpp
 
-    # relational/sqlite/22_081_test_sqlite_real_left_join.cpp
-
-    # # relational/sqlite/22_091_test_sqlite_real_right_join.cpp
-    # # relational/sqlite/22_101_test_sqlite_real_full_join.cpp
+    # relational/sqlite/22_091_test_sqlite_real_right_join.cpp
+    # relational/sqlite/22_101_test_sqlite_real_full_join.cpp
     relational/sqlite/22_111_test_sqlite_real_thread_safe.cpp
 
-    # # relational/sqlite/22_121_test_sqlite_real_transaction_isolation.cpp
+    # relational/sqlite/22_121_test_sqlite_real_transaction_isolation.cpp
     relational/sqlite/22_131_test_sqlite_real_transaction_manager.cpp
     relational/sqlite/22_141_test_sqlite_real_connection_pool.cpp
 
@@ -167,7 +165,7 @@ add_executable(cpp_dbc_tests
     # kv/redis/24_081_test_redis_real_left_join.cpp
     # kv/redis/24_091_test_redis_real_right_join.cpp
     # kv/redis/24_101_test_redis_real_full_join.cpp
-    # kv/redis/24_111_test_redis_real_thread_safe.cpp
+    kv/redis/24_111_test_redis_real_thread_safe.cpp
     # kv/redis/24_121_test_redis_real_transaction_isolation.cpp
     # kv/redis/24_131_test_redis_real_transaction_manager.cpp
     kv/redis/24_141_test_redis_real_connection_pool.cpp

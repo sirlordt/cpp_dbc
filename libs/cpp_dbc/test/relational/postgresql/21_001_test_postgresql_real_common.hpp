@@ -58,10 +58,24 @@ namespace postgresql_test_helpers
     cpp_dbc::config::DatabaseConfig getPostgreSQLConfig(const std::string &databaseName = "dev_postgresql",
                                                         bool useEmptyDatabase = false);
 
-    // Helper function to try to create the database if it doesn't exist
+    /**
+     * @brief Helper function to get a PostgreSQL driver instance (singleton)
+     */
+    std::shared_ptr<cpp_dbc::PostgreSQL::PostgreSQLDBDriver> getPostgreSQLDriver();
+
+    /**
+     * @brief Helper function to get a PostgreSQL connection
+     */
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> getPostgreSQLConnection();
+
+    /**
+     * @brief Helper function to try to create the database if it doesn't exist
+     */
     bool tryCreateDatabase();
 
-    // Helper function to check if we can connect to PostgreSQL
+    /**
+     * @brief Helper function to check if we can connect to PostgreSQL
+     */
     bool canConnectToPostgreSQL();
 
 #endif

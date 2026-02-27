@@ -167,9 +167,23 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - RAII (Resource Acquisition Is Initialization) principle is followed for resource cleanup even in case of exceptions
 
 ### Error Handling
-- Custom `SQLException` class for consistent error reporting
+- Custom `DBException` class for consistent error reporting; inherits `std::exception` (not `std::runtime_error` since 2026-02-26)
 - Exceptions are used for error propagation throughout the library
-- Enhanced `DBException` with stack trace capture and unique error marks
+- **`DBException` — Fixed-Size Value Type (2026-02-26):**
+  - `m_mark[13]`, `m_message[257]`, `m_full_message[271]` — fixed char arrays, stack-allocatable (~560 bytes)
+  - Constructor is `noexcept` — no heap allocations that can throw
+  - Call stack stored as `std::shared_ptr<CallStackCapture>` (optional, allocated once, shared across copies)
+  - `what()` returns pre-computed `m_full_message` (zero-cost, no concatenation)
+  - `what_s()` / `getMark()` return `std::string_view`; `getCallStack()` returns `std::span<const StackFrame>`
+  - Long strings left-truncated with `...[TRUNCATED]` marker
+- **`system_utils::CallStackCapture` (2026-02-26):**
+  - `StackFrame` uses fixed `char file[150]`, `char function[150]` (was `std::string`)
+  - `CallStackCapture` holds `StackFrame frames[10]` + `int count` — max 10 frames
+  - `captureCallStack()` returns `std::shared_ptr<CallStackCapture>` (was `std::vector<StackFrame>`)
+- **Unified `ping()` Interface (2026-02-26):**
+  - `virtual bool ping() = 0` and `virtual expected<bool, DBException> ping(std::nothrow_t) noexcept = 0` in `DBConnection` base
+  - All database families use the same signature; return type is uniformly `bool`
+  - Removed family-specific `ping()` from `KVDBConnection` (returned `std::string "PONG"`) and `DocumentDBConnection`
 - Member variables prefixed with `m_` to avoid shadowing issues in exception handling
 
 ### Connection Pooling

@@ -78,7 +78,7 @@ namespace cpp_dbc::Firebird
         }
         catch (const cpp_dbc::DBException &e)
         {
-            FIREBIRD_DEBUG("FirebirdConnection::reset - DBException caught: %s", e.what_s().c_str());
+            FIREBIRD_DEBUG("FirebirdConnection::reset - DBException caught: %s", e.what_s().data());
             return cpp_dbc::unexpected(e);
         }
         catch (const std::exception &e)
@@ -260,7 +260,7 @@ namespace cpp_dbc::Firebird
                     }
                     catch (const DBException &e)
                     {
-                        FIREBIRD_DEBUG("  Commit before DDL failed: %s", e.what_s().c_str());
+                        FIREBIRD_DEBUG("  Commit before DDL failed: %s", e.what_s().data());
                         return cpp_dbc::unexpected(e);
                     }
                 }
@@ -347,7 +347,7 @@ namespace cpp_dbc::Firebird
                 }
                 catch (const DBException &e)
                 {
-                    FIREBIRD_DEBUG("  startTransaction failed: %s", e.what_s().c_str());
+                    FIREBIRD_DEBUG("  startTransaction failed: %s", e.what_s().data());
                     return cpp_dbc::unexpected(e);
                 }
             }

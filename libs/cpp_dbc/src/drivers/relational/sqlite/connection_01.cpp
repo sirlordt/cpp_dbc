@@ -131,7 +131,7 @@ namespace cpp_dbc::SQLite
                 if (!result.has_value())
                 {
                     // Log the error but don't throw - connection is already closing
-                    SQLITE_DEBUG("Failed to close prepared statement: %s", result.error().what_s().c_str());
+                    SQLITE_DEBUG("Failed to close prepared statement: %s", result.error().what_s().data());
                 }
             }
         }
@@ -427,7 +427,7 @@ namespace cpp_dbc::SQLite
         }
         catch (const DBException &e)
         {
-            SQLITE_DEBUG("3U4V5W6X7Y8Z: DBException: %s", e.what_s().c_str());
+            SQLITE_DEBUG("3U4V5W6X7Y8Z: DBException: %s", e.what_s().data());
             throw;
         }
         catch (const std::exception &e)
@@ -629,6 +629,31 @@ namespace cpp_dbc::SQLite
             throw result.error();
         }
         return result.value();
+    }
+
+    bool SQLiteDBConnection::ping()
+    {
+        auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::ping(std::nothrow_t) noexcept
+    {
+        auto result = executeQuery(std::nothrow, "SELECT 1");
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        auto closeResult = result.value()->close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            return cpp_dbc::unexpected(closeResult.error());
+        }
+        return true;
     }
 
 } // namespace cpp_dbc::SQLite

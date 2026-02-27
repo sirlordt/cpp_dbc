@@ -180,6 +180,7 @@ namespace cpp_dbc::PostgreSQL
         void returnToPool() override;
         bool isPooled() const override;
         std::string getURL() const override;
+        bool ping() override;
 
         // RelationalDBConnection interface
         std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
@@ -221,6 +222,7 @@ namespace cpp_dbc::PostgreSQL
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::PostgreSQL

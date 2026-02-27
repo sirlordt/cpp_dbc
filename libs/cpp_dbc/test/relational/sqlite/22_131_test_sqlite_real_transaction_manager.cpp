@@ -111,7 +111,7 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
 
     std::string connStr = dbConfig.createConnectionString();
 
-    SECTION("Concurrent transactions with SQLite")
+    /* SECTION("Concurrent transactions with SQLite") - moved to 22_141_test_sqlite_real_connection_pool.cpp
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -202,7 +202,7 @@ TEST_CASE("SQLite TransactionManager multi-threaded tests", "[22_131_02_sqlite_r
 
         // Close the pool
         pool->close();
-    }
+    } */
 
     // Clean up ALL database files after test (no wait needed at end)
     // sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath, 0);
@@ -229,7 +229,7 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
 
     std::string connStr = dbConfig.createConnectionString();
 
-    SECTION("Basic transaction operations")
+    /* SECTION("Basic transaction operations") - moved to 22_141_test_sqlite_real_connection_pool.cpp
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -529,7 +529,7 @@ TEST_CASE("Real SQLite transaction manager tests", "[22_131_03_sqlite_real_trans
 
         // Close the pool
         pool->close();
-    }
+    } */
 
     // Clean up ALL database files after test (no wait needed at end)
     // sqlite_test_helpers::cleanupSQLiteTestFiles(dbPath, 0);

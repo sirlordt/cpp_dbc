@@ -151,7 +151,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         conn->close();
     }
 
-    SECTION("MySQL connection pool")
+    /* SECTION("MySQL connection pool") - moved to 20_141_test_mysql_real_connection_pool.cpp
     {
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -234,9 +234,9 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
 
         // Close the pool
         pool->close();
-    }
+    } */
 
-    SECTION("MySQL transaction management")
+    /* SECTION("MySQL transaction management") - moved to 20_141_test_mysql_real_connection_pool.cpp
     {
         // SafePoolManager poolManager;
 
@@ -334,7 +334,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         conn->close();
 
         // Pool will be closed automatically by SafePoolManager
-    }
+    } */
 
     SECTION("MySQL metadata retrieval")
     {
@@ -475,7 +475,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         conn->close();
     }
 
-    SECTION("MySQL stress test")
+    /* SECTION("MySQL stress test") - moved to 20_141_test_mysql_real_connection_pool.cpp
     {
         // SafePoolManager poolManager;
 
@@ -580,7 +580,7 @@ TEST_CASE("Real MySQL connection tests", "[20_031_01_mysql_real]")
         conn->returnToPool();
 
         // Pool will be closed automatically by SafePoolManager
-    }
+    } */
 }
 #else
 // Skip tests if MySQL support is not enabled

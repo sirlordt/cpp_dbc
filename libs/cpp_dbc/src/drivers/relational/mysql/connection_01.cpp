@@ -420,6 +420,31 @@ namespace cpp_dbc::MySQL
         return *result;
     }
 
+    bool MySQLDBConnection::ping()
+    {
+        auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+
+    cpp_dbc::expected<bool, DBException> MySQLDBConnection::ping(std::nothrow_t) noexcept
+    {
+        auto result = executeQuery(std::nothrow, "SELECT 1");
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        auto closeResult = result.value()->close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            return cpp_dbc::unexpected(closeResult.error());
+        }
+        return true;
+    }
+
 } // namespace cpp_dbc::MySQL
 
 #endif // USE_MYSQL

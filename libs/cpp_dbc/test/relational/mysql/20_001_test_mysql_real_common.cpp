@@ -115,6 +115,28 @@ namespace mysql_test_helpers
         return dbConfig;
     }
 
+    std::shared_ptr<cpp_dbc::MySQL::MySQLDBDriver> getMySQLDriver()
+    {
+        static std::shared_ptr<cpp_dbc::MySQL::MySQLDBDriver> driver =
+            std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>();
+        return driver;
+    }
+
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> getMySQLConnection()
+    {
+        auto dbConfig = getMySQLConfig("dev_mysql");
+
+        std::string connStr = dbConfig.createConnectionString();
+        std::string username = dbConfig.getUsername();
+        std::string password = dbConfig.getPassword();
+
+        auto driver = getMySQLDriver();
+        cpp_dbc::DriverManager::registerDriver(driver);
+        auto conn = cpp_dbc::DriverManager::getDBConnection(connStr, username, password);
+
+        return std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(conn);
+    }
+
     bool tryCreateDatabase()
     {
         try
@@ -139,8 +161,9 @@ namespace mysql_test_helpers
             // Create connection string without database name to connect to MySQL server
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/mysql";
 
-            // Register the MySQL driver
-            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+            // Register the MySQL driver singleton
+            auto driver = getMySQLDriver();
+            cpp_dbc::DriverManager::registerDriver(driver);
 
             // Attempt to connect to MySQL server
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to MySQL server to create database...");
@@ -156,9 +179,9 @@ namespace mysql_test_helpers
 
             return true;
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database creation error: " + std::string(e.what()));
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database creation error: " + std::string(ex.what()));
             return false;
         }
     }
@@ -181,8 +204,9 @@ namespace mysql_test_helpers
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
 
-            // Register the MySQL driver
-            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MySQL::MySQLDBDriver>());
+            // Register the MySQL driver singleton
+            auto driver = getMySQLDriver();
+            cpp_dbc::DriverManager::registerDriver(driver);
 
             // Attempt to connect to MySQL
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to MySQL with connection string: " + connStr);
@@ -193,18 +217,18 @@ namespace mysql_test_helpers
             // If we get here, the connection was successful
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "MySQL connection successful!");
 
-            // Execute a simple query to verify the connection
-            auto resultSet = conn->executeQuery("SELECT 1 as test_value");
-            bool success = resultSet->next() && resultSet->getInt("test_value") == 1;
+            // Verify the connection with ping()
+            bool success = conn->ping();
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", std::string("MySQL ping ") + (success ? "successful!" : "returned false"));
 
             // Close the connection
             conn->close();
 
             return success;
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "MySQL connection error: " + std::string(e.what()));
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "MySQL connection error: " + std::string(ex.what()));
             return false;
         }
     }

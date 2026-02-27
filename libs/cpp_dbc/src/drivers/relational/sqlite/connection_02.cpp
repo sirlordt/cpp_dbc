@@ -539,7 +539,7 @@ namespace cpp_dbc::SQLite
             if (!resetResult)
             {
                 SQLITE_DEBUG("returnToPool(nothrow): reset failed: %s",
-                             resetResult.error().what_s().c_str());
+                             resetResult.error().what_s().data());
                 // Continue - try to at least restore autocommit
             }
 

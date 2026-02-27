@@ -93,7 +93,7 @@ namespace cpp_dbc::SQLite
             auto closeResult = close(std::nothrow);
             if (!closeResult.has_value())
             {
-                SQLITE_DEBUG("SQLiteDBResultSet::destructor - close() failed: %s", closeResult.error().what_s().c_str());
+                SQLITE_DEBUG("SQLiteDBResultSet::destructor - close() failed: %s", closeResult.error().what_s().data());
             }
         }
 

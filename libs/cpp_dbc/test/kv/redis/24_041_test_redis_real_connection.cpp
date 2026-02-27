@@ -60,8 +60,7 @@ TEST_CASE("Redis connection test", "[24_041_01_redis_real_connection]")
 
             // If we get here, the connection was successful
             // Execute a ping command to verify the connection
-            std::string pingResult = conn->ping();
-            REQUIRE(pingResult == "PONG");
+            REQUIRE(conn->ping());
 
             // Test basic connection functions
             CHECK_FALSE(conn->isClosed());

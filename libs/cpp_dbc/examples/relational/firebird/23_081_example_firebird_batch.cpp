@@ -359,7 +359,7 @@ void demonstrateAtomicBatch(std::shared_ptr<cpp_dbc::RelationalDBConnection> con
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logData("Error occurred (as expected): " + e.what_s());
+        logData("Error occurred (as expected): " + std::string(e.what_s()));
         logStep("Rolling back transaction...");
         conn->rollback();
         conn->setAutoCommit(true);
@@ -433,7 +433,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -458,7 +458,7 @@ int main(int argc, char *argv[])
 
         if (!firebirdResult)
         {
-            logError("Failed to get Firebird config: " + firebirdResult.error().what_s());
+            logError("Failed to get Firebird config: " + std::string(firebirdResult.error().what_s()));
             return EXIT_ERROR_;
         }
 
@@ -484,7 +484,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         e.printCallStack();
         return EXIT_ERROR_;
     }

@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
 
         if (!mongoResult)
         {
-            logError("Failed to get MongoDB config: " + mongoResult.error().what_s());
+            logError("Failed to get MongoDB config: " + std::string(mongoResult.error().what_s()));
             return EXIT_ERROR_;
         }
 
@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
             }
             catch (const cpp_dbc::DBException &e)
             {
-                logInfo("Could not list collections: " + e.what_s());
+                logInfo("Could not list collections: " + std::string(e.what_s()));
             }
         }
 
@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         e.printCallStack();
         return EXIT_ERROR_;
     }

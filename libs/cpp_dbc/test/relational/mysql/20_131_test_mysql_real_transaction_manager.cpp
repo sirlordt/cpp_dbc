@@ -117,7 +117,7 @@ TEST_CASE("MySQL TransactionManager multi-threaded tests", "[20_131_02_mysql_rea
     std::string password = dbConfig.getPassword();
     std::string connStr = dbConfig.createConnectionString();
 
-    SECTION("Concurrent transactions with MySQL")
+    /* SECTION("Concurrent transactions with MySQL") - moved to 20_141_test_mysql_real_connection_pool.cpp
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -205,7 +205,7 @@ TEST_CASE("MySQL TransactionManager multi-threaded tests", "[20_131_02_mysql_rea
 
         // Close the pool
         pool->close();
-    }
+    } */
 }
 
 // =============================================================================
@@ -235,7 +235,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[20_131_03_mysql_real_transac
     std::string selectDataQuery = dbConfig.getOption("query__select_data");
     std::string dropTableQuery = dbConfig.getOption("query__drop_table");
 
-    SECTION("Basic transaction operations")
+    /* SECTION("Basic transaction operations") - moved to 20_141_test_mysql_real_connection_pool.cpp
     {
         // Create a connection pool configuration
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -477,7 +477,7 @@ TEST_CASE("Real MySQL transaction manager tests", "[20_131_03_mysql_real_transac
 
         // Close the pool
         pool->close();
-    }
+    } */
 }
 
 #endif

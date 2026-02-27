@@ -156,6 +156,7 @@ namespace cpp_dbc::Firebird
 
         // Get the connection URL
         std::string getURL() const override;
+        bool ping() override;
 
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
@@ -223,6 +224,9 @@ namespace cpp_dbc::Firebird
 
         cpp_dbc::expected<std::string, DBException>
             getURL(std::nothrow_t) const noexcept override;
+
+        cpp_dbc::expected<bool, DBException>
+            ping(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::Firebird
