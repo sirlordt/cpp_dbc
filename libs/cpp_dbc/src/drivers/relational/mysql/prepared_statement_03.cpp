@@ -373,19 +373,19 @@ namespace cpp_dbc::MySQL
 
             if (!m_stmt)
             {
-                return cpp_dbc::unexpected(DBException("255F5A0C6008", "Statement is applied", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("5LX1HOYTGK2I", "Statement is applied", system_utils::captureCallStack()));
             }
 
             // Bind parameters
             if (!m_binds.empty() && mysql_stmt_bind_param(m_stmt.get(), m_binds.data()) != 0)
             {
-                return cpp_dbc::unexpected(DBException("9B7E537EB656", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("BEQW22FPSELD", std::string("Failed to bind parameters: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
             }
 
             // Execute the query
             if (mysql_stmt_execute(m_stmt.get()) != 0)
             {
-                return cpp_dbc::unexpected(DBException("547F7466347C", std::string("Failed to execute update: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("GFRDKCPL25D3", std::string("Failed to execute update: ") + mysql_stmt_error(m_stmt.get()), system_utils::captureCallStack()));
             }
 
             return mysql_stmt_affected_rows(m_stmt.get());

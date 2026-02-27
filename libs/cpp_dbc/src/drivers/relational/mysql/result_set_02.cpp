@@ -403,7 +403,7 @@ namespace cpp_dbc::MySQL
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
             {
-                return cpp_dbc::unexpected(DBException("71685784D1EB", "Column not found: " + columnName, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("FA0HK6HTPRIP", "Column not found: " + columnName, system_utils::captureCallStack()));
             }
             return getDouble(std::nothrow, it->second + 1);
         }

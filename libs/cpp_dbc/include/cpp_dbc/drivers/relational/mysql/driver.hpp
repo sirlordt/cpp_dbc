@@ -94,7 +94,7 @@ namespace cpp_dbc::MySQL
                                                                       const std::string &,
                                                                       const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
             {
-                throw DBException("23D2107DA64F", "MySQL support is not enabled in this build");
+                throw DBException("IZJANRKTJ0U7", "MySQL support is not enabled in this build");
             }
 
             bool acceptsURL(const std::string & /*url*/) override
@@ -109,7 +109,7 @@ namespace cpp_dbc::MySQL
                 const std::string & /*password*/,
                 const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
             {
-                return cpp_dbc::unexpected(DBException("23D2107DA650", "MySQL support is not enabled in this build"));
+                return cpp_dbc::unexpected(DBException("NJTLBRGTJYPB", "MySQL support is not enabled in this build"));
             }
 
             std::string getName() const noexcept override

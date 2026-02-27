@@ -322,7 +322,7 @@ namespace cpp_dbc::Redis
                 auto reply = executeRaw("FLUSHDB", {});
                 if (!reply.get())
                 {
-                    return cpp_dbc::unexpected(DBException("D52B28178A91",
+                    return cpp_dbc::unexpected(DBException("JA7S8ZXPOT2R",
                                                            "flushDB failed: null reply",
                                                            system_utils::captureCallStack()));
                 }

@@ -135,7 +135,7 @@ namespace cpp_dbc::ScyllaDB
         catch (...)
         {
             SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Unknown exception");
-            return cpp_dbc::unexpected(DBException("A91238912C90", "Unknown error connecting to ScyllaDB", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("5U15TP5F3LQJ", "Unknown error connecting to ScyllaDB", system_utils::captureCallStack()));
         }
     }
 

@@ -135,7 +135,7 @@ namespace cpp_dbc::PostgreSQL
         auto conn = m_conn.lock();
         if (!conn)
         {
-            throw DBException("4EB26050A94C", "PostgreSQL connection has been closed", system_utils::captureCallStack());
+            throw DBException("569RL26Q2M1O", "PostgreSQL connection has been closed", system_utils::captureCallStack());
         }
         return conn.get();
     }

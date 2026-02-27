@@ -212,7 +212,7 @@ namespace cpp_dbc::PostgreSQL
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
-                return cpp_dbc::unexpected<DBException>(DBException("4A049129B485", "Invalid parameter index", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("XJEY7DUU1WM7", "Invalid parameter index", system_utils::captureCallStack()));
             }
 
             int idx = parameterIndex - 1;

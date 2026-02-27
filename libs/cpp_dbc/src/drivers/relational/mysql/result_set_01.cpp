@@ -44,7 +44,7 @@ namespace cpp_dbc::MySQL
 #endif
         if (!m_result)
         {
-            throw DBException("E53694BC170E", "ResultSet has been closed or is invalid", system_utils::captureCallStack());
+            throw DBException("RUZI7TWB4Y3G", "ResultSet has been closed or is invalid", system_utils::captureCallStack());
         }
     }
 

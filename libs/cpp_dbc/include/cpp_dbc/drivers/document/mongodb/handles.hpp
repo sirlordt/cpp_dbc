@@ -101,7 +101,7 @@ namespace cpp_dbc::MongoDB
 
             if (!bson)
             {
-                throw DBException("MongoDB", std::string("Failed to parse JSON: ") + error.message);
+                throw DBException("XQUH3BFIJ0P1", std::string("Failed to parse JSON: ") + error.message);
             }
 
             return BsonHandle(bson);

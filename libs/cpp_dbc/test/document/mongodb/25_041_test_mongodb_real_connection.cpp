@@ -32,7 +32,7 @@
 TEST_CASE("MongoDB connection test", "[25_041_01_mongodb_real_connection]")
 {
     // Get MongoDB configuration
-    auto dbConfig = mongodb_test_helpers::getMongoDBConfig("dev_mongodb", true);
+    auto dbConfig = mongodb_test_helpers::getMongoDBConfig("dev_mongodb");
 
     // Extract connection parameters
     std::string username = dbConfig.getUsername();
@@ -44,49 +44,44 @@ TEST_CASE("MongoDB connection test", "[25_041_01_mongodb_real_connection]")
     // Get a MongoDB driver
     auto driver = mongodb_test_helpers::getMongoDBDriver();
 
+    // Skip if MongoDB is not reachable — availability was already checked by canConnectToMongoDB()
+    // called in the TEST_CASE guard above; any DBException here is an unexpected regression.
+    if (!mongodb_test_helpers::canConnectToMongoDB())
+    {
+        SKIP("Cannot connect to MongoDB database");
+        return;
+    }
+
     SECTION("Test MongoDB connection")
     {
-        try
+        // Attempt to connect to MongoDB
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to MongoDB with connection string: " + connStr);
+
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
+            driver->connectDocument(connStr, username, password));
+        REQUIRE(conn != nullptr);
+
+        // Execute a ping to verify the connection
+        REQUIRE(conn->ping() == true);
+
+        // Verify connection state and URL
+        CHECK_FALSE(conn->isClosed());
+
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+
+        // The driver strips the "cpp_dbc:" prefix when storing the URL
+        if (connStr.substr(0, 8) == "cpp_dbc:")
         {
-            // Attempt to connect to MongoDB
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to MongoDB with connection string: " + connStr);
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
-
-            auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
-                driver->connectDocument(connStr, username, password));
-            REQUIRE(conn != nullptr);
-
-            // Execute a ping command to verify the connection
-            auto result = conn->runCommand("{\"ping\": 1}");
-            REQUIRE(result != nullptr);
-            REQUIRE(result->getBool("ok") == true);
-
-            // Verify connection state and URL
-            CHECK_FALSE(conn->isClosed());
-
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
-
-            // The driver strips the "cpp_dbc:" prefix when storing the URL
-            if (connStr.substr(0, 8) == "cpp_dbc:")
-            {
-                CHECK(conn->getURL() == connStr.substr(8));
-            }
-            else
-            {
-                CHECK(conn->getURL() == connStr);
-            }
-
-            // Close the connection
-            conn->close();
-            CHECK(conn->isClosed());
+            CHECK(conn->getURL() == connStr.substr(8));
         }
-        catch (const cpp_dbc::DBException &ex)
+        else
         {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB connection error: " + std::string(ex.what_s()));
-            WARN("MongoDB connection failed: " + std::string(ex.what_s()));
-            WARN("This is expected if MongoDB is not installed or the server is unavailable");
-            WARN("The test is still considered successful for CI purposes");
+            CHECK(conn->getURL() == connStr);
         }
+
+        // Close the connection
+        conn->close();
+        CHECK(conn->isClosed());
     }
 }
 #else

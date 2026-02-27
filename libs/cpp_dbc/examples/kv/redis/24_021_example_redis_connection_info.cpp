@@ -126,7 +126,14 @@ int main(int argc, char *argv[])
         logStep("Pinging server...");
         bool pong = redisConn->ping();
         logData(std::string("PING response: ") + (pong ? "PONG" : "FAILED"));
-        logOk("Server is responding");
+        if (pong)
+        {
+            logOk("Server is responding");
+        }
+        else
+        {
+            logError("Server did not respond to ping");
+        }
 
         logData("Connected to: " + redisConfig.getHost() + ":" + std::to_string(redisConfig.getPort()));
 

@@ -95,7 +95,7 @@ namespace cpp_dbc::SQLite
                                                                                const std::string &password,
                                                                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            throw DBException("269CC140F035", "SQLite support is not enabled in this build", system_utils::captureCallStack());
+            throw DBException("LH64SNQQJON8", "SQLite support is not enabled in this build", system_utils::captureCallStack());
         }
 
         bool acceptsURL(const std::string & /*url*/) override
@@ -116,7 +116,7 @@ namespace cpp_dbc::SQLite
             const std::string & /*password*/,
             const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
         {
-            return cpp_dbc::unexpected(DBException("269CC140F036", "SQLite support is not enabled in this build", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("2448VZ77JXYM", "SQLite support is not enabled in this build", system_utils::captureCallStack()));
         }
 
         std::string getName() const noexcept override

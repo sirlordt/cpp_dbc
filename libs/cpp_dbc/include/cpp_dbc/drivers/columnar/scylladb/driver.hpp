@@ -91,7 +91,7 @@ namespace cpp_dbc::ScyllaDB
     class ScyllaDBDriver final : public ColumnarDBDriver
     {
     public:
-        [[noreturn]] ScyllaDBDriver() { throw DBException("5F7826C0D4F2", "ScyllaDB support is not enabled in this build"); }
+        [[noreturn]] ScyllaDBDriver() { throw DBException("97O02DNI155N", "ScyllaDB support is not enabled in this build"); }
         ~ScyllaDBDriver() override = default;
 
         ScyllaDBDriver(const ScyllaDBDriver &) = delete;

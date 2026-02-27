@@ -73,7 +73,7 @@ namespace cpp_dbc::MongoDB
         }
         else
         {
-            throw DBException("106E13A1A80D", "Field is not an integer: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("BL8X9N2TDIW4", "Field is not an integer: " + fieldPath, system_utils::captureCallStack());
         }
     }
 
@@ -84,7 +84,7 @@ namespace cpp_dbc::MongoDB
         bson_iter_t iter;
         if (!navigateToField(fieldPath, iter))
         {
-            throw DBException("4F6F3CC06756", "Field not found: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("NSUK4ES5BSJI", "Field not found: " + fieldPath, system_utils::captureCallStack());
         }
 
         if (BSON_ITER_HOLDS_DOUBLE(&iter))
@@ -101,7 +101,7 @@ namespace cpp_dbc::MongoDB
         }
         else
         {
-            throw DBException("D14D13293D6E", "Field is not a number: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("FIMD9V4LPM40", "Field is not a number: " + fieldPath, system_utils::captureCallStack());
         }
     }
 
@@ -117,7 +117,7 @@ namespace cpp_dbc::MongoDB
 
         if (!BSON_ITER_HOLDS_BOOL(&iter))
         {
-            throw DBException("89845A16FE9B", "Field is not a boolean: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("OWR38035WYIA", "Field is not a boolean: " + fieldPath, system_utils::captureCallStack());
         }
 
         return bson_iter_bool(&iter);
@@ -130,12 +130,12 @@ namespace cpp_dbc::MongoDB
         bson_iter_t iter;
         if (!navigateToField(fieldPath, iter))
         {
-            throw DBException("8C871E66955A", "Field not found: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("2VKL9TEVDJ76", "Field not found: " + fieldPath, system_utils::captureCallStack());
         }
 
         if (!BSON_ITER_HOLDS_BINARY(&iter))
         {
-            throw DBException("25536C66C3CE", "Field is not binary: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("4FNOC1K3ZHZW", "Field is not binary: " + fieldPath, system_utils::captureCallStack());
         }
 
         bson_subtype_t subtype;
@@ -153,12 +153,12 @@ namespace cpp_dbc::MongoDB
         bson_iter_t iter;
         if (!navigateToField(fieldPath, iter))
         {
-            throw DBException("79B0503E9864", "Field not found: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("WAAIRB60TKSP", "Field not found: " + fieldPath, system_utils::captureCallStack());
         }
 
         if (!BSON_ITER_HOLDS_DOCUMENT(&iter))
         {
-            throw DBException("640CC8227742", "Field is not a document: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("W6CLED1V77EK", "Field is not a document: " + fieldPath, system_utils::captureCallStack());
         }
 
         const uint8_t *data = nullptr;
@@ -168,7 +168,7 @@ namespace cpp_dbc::MongoDB
         bson_t *subdoc = bson_new_from_data(data, length);
         if (!subdoc)
         {
-            throw DBException("911070CDD871", "Failed to extract subdocument", system_utils::captureCallStack());
+            throw DBException("R2WVOAD04V70", "Failed to extract subdocument", system_utils::captureCallStack());
         }
 
         return std::make_shared<MongoDBDocument>(subdoc);
@@ -186,7 +186,7 @@ namespace cpp_dbc::MongoDB
 
         if (!BSON_ITER_HOLDS_ARRAY(&iter))
         {
-            throw DBException("20E5C450C426", "Field is not an array: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("12BF0X7ZT7XL", "Field is not an array: " + fieldPath, system_utils::captureCallStack());
         }
 
         std::vector<std::shared_ptr<DocumentDBData>> result;

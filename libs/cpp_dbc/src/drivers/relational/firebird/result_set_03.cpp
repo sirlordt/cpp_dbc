@@ -414,7 +414,7 @@ namespace cpp_dbc::Firebird
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("09B6905763F3", "Unknown exception in isNull", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("HKQCD0FZ14OE", "Unknown exception in isNull", system_utils::captureCallStack()));
         }
     }
 

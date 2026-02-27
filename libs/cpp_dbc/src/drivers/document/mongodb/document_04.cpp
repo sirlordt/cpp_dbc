@@ -66,7 +66,7 @@ namespace cpp_dbc::MongoDB
 
         if (fieldPath.contains('.'))
         {
-            throw DBException("6C8902B6F059", "Nested field removal not yet implemented: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("EVH2Z04S03F4", "Nested field removal not yet implemented: " + fieldPath, system_utils::captureCallStack());
         }
 
         // Check if field exists
@@ -80,7 +80,7 @@ namespace cpp_dbc::MongoDB
         bson_t *newBson = bson_new();
         if (!newBson)
         {
-            throw DBException("957D5DE180B6", "Failed to create new BSON document", system_utils::captureCallStack());
+            throw DBException("9G3ZCIAIVQ0O", "Failed to create new BSON document", system_utils::captureCallStack());
         }
 
         if (bson_iter_init(&iter, m_bson.get()))
@@ -140,7 +140,7 @@ namespace cpp_dbc::MongoDB
         bson_t *empty = bson_new();
         if (!empty)
         {
-            throw DBException("1672D32248D8", "Failed to create empty BSON document", system_utils::captureCallStack());
+            throw DBException("R0NGPB9FHEGQ", "Failed to create empty BSON document", system_utils::captureCallStack());
         }
         m_bson.reset(empty);
 

@@ -144,7 +144,8 @@ TEST_CASE("Redis Thread-Safety Tests", "[24_111_01_redis_real_thread_safe]")
 
         cpp_dbc::system_utils::logWithTimesMillis("TEST", "Multiple threads with individual connections: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
-        REQUIRE(successCount > 0);
+        const int expectedAttempts = numThreads * opsPerThread;
+        REQUIRE(successCount >= static_cast<int>(expectedAttempts * 0.95));
     }
 
     SECTION("Rapid connection open/close stress test")
@@ -165,6 +166,13 @@ TEST_CASE("Redis Thread-Safety Tests", "[24_111_01_redis_real_thread_safe]")
                     {
                         auto conn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(
                             cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+
+                        if (!conn)
+                        {
+                            errorCount++;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection FAILED: dynamic_pointer_cast returned nullptr");
+                            continue;
+                        }
 
                         // Do a simple operation
                         if (conn->ping())

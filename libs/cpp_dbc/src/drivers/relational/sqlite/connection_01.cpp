@@ -433,13 +433,13 @@ namespace cpp_dbc::SQLite
         catch (const std::exception &e)
         {
             SQLITE_DEBUG("9A0B1C2D3E4F: std::exception: %s", e.what());
-            throw DBException("F1262039BA12", "SQLiteConnection constructor exception: " + std::string(e.what()),
+            throw DBException("7CA6S7EGU0CY", "SQLiteConnection constructor exception: " + std::string(e.what()),
                               system_utils::captureCallStack());
         }
         catch (...)
         {
             SQLITE_DEBUG("5G6H7I8J9K0L: Unknown exception");
-            throw DBException("D68199523A23", "SQLiteConnection constructor unknown exception",
+            throw DBException("4BDW1TTDMCYR", "SQLiteConnection constructor unknown exception",
                               system_utils::captureCallStack());
         }
     }

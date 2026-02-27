@@ -312,7 +312,7 @@ namespace cpp_dbc::Firebird
             if (m_invalidated.load(std::memory_order_acquire))
             {
                 FIREBIRD_DEBUG("  Statement was invalidated by DDL operation!");
-                return cpp_dbc::unexpected(DBException("FB1NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("TGXPWHHQXNUJ", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
             }
 
             // FIX #1: Access transaction handle safely via m_connection

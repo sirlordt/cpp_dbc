@@ -52,7 +52,7 @@ namespace cpp_dbc::SQLite
         auto conn = m_db.lock();
         if (!conn)
         {
-            throw DBException("471F2E35F962", "SQLite connection has been closed", system_utils::captureCallStack());
+            throw DBException("HYPD0BDZSOGX", "SQLite connection has been closed", system_utils::captureCallStack());
         }
         return conn.get();
     }

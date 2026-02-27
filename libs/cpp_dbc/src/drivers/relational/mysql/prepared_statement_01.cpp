@@ -53,7 +53,7 @@ namespace cpp_dbc::MySQL
         auto conn = m_mysql.lock();
         if (!conn)
         {
-            throw DBException("471F2E35F961", "MySQL connection has been closed", system_utils::captureCallStack());
+            throw DBException("0ERMQQV6NTD0", "MySQL connection has been closed", system_utils::captureCallStack());
         }
         return conn.get();
     }

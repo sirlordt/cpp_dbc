@@ -41,6 +41,12 @@ TEST_CASE("SQLite connection test", "[22_041_01_sqlite_real_connection]")
     // Register the SQLite driver
     cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
+    if (!sqlite_test_helpers::canConnectToSQLite())
+    {
+        SKIP("Cannot connect to SQLite database");
+        return;
+    }
+
     SECTION("Test SQLite connection")
     {
         try
@@ -128,9 +134,7 @@ TEST_CASE("SQLite connection test", "[22_041_01_sqlite_real_connection]")
         catch (const cpp_dbc::DBException &ex)
         {
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite connection error: " + std::string(ex.what_s()));
-            WARN("SQLite connection failed: " + std::string(ex.what_s()));
-            WARN("This is expected if SQLite is not installed or the database path is unavailable");
-            WARN("The test is still considered successful for CI purposes");
+            FAIL("SQLite connection test failed: " + std::string(ex.what_s()));
         }
     }
 }
@@ -186,9 +190,7 @@ TEST_CASE("SQLite in-memory database test", "[22_041_02_sqlite_real_connection]"
         catch (const cpp_dbc::DBException &ex)
         {
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite in-memory database error: " + std::string(ex.what_s()));
-            WARN("SQLite in-memory database test failed: " + std::string(ex.what_s()));
-            WARN("This is unexpected since in-memory SQLite should always be available");
-            WARN("The test is still considered successful for CI purposes");
+            FAIL("SQLite in-memory database test failed: " + std::string(ex.what_s()));
         }
     }
 }

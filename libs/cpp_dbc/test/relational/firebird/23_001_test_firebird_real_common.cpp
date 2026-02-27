@@ -138,7 +138,13 @@ namespace firebird_test_helpers
         cpp_dbc::DriverManager::registerDriver(driver);
         auto conn = cpp_dbc::DriverManager::getDBConnection(connStr, username, password);
 
-        return std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(conn);
+        auto relConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(conn);
+        if (!relConn)
+        {
+            throw std::runtime_error("getFirebirdConnection: dynamic_pointer_cast to RelationalDBConnection returned nullptr"
+                                     " (connStr=" + connStr + ", username=" + username + ")");
+        }
+        return relConn;
     }
 
     bool tryCreateDatabase()

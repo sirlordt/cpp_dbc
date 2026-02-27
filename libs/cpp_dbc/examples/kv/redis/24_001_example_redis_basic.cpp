@@ -244,7 +244,14 @@ void performRedisOperations(std::shared_ptr<cpp_dbc::KVDBConnection> conn)
     logStep("Pinging server...");
     bool pong = conn->ping();
     logData(std::string("PING = '") + (pong ? "PONG" : "FAILED") + "'");
-    logOk("Server responded");
+    if (pong)
+    {
+        logOk("Server responded");
+    }
+    else
+    {
+        logError("Server did not respond to ping");
+    }
 
     // ===== Cleanup =====
     logMsg("");

@@ -515,7 +515,7 @@ namespace cpp_dbc
 
                     if (!m_running.load(std::memory_order_acquire))
                     {
-                        return cpp_dbc::unexpected(DBException("26405F5CF154", "Connection pool is closed", system_utils::captureCallStack()));
+                        return cpp_dbc::unexpected(DBException("LJVQ3CEDEYL7", "Connection pool is closed", system_utils::captureCallStack()));
                     }
 
                     // Multiple break statements required to express mutually exclusive exit conditions
@@ -621,7 +621,7 @@ namespace cpp_dbc
                             if (!m_running.load(std::memory_order_acquire))
                             {
                                 std::erase(m_waitQueue, &req);
-                                return cpp_dbc::unexpected(DBException("04E13757D18B", "Connection pool is closed", system_utils::captureCallStack()));
+                                return cpp_dbc::unexpected(DBException("U9ZUMJ9SDFTN", "Connection pool is closed", system_utils::captureCallStack()));
                             }
 
                             if (status == std::cv_status::timeout)
@@ -638,7 +638,7 @@ namespace cpp_dbc
                                     break;
                                 }
 
-                                return cpp_dbc::unexpected(DBException("D2472D7067A8", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
+                                return cpp_dbc::unexpected(DBException("HF3V83PS83LA", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
                             }
 
                             // Spurious wakeup: check idle again
@@ -1269,7 +1269,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("D16CD1398113", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("L8G1QT50UXIA", "Connection is closed", system_utils::captureCallStack());
         }
         return m_conn->getDatabaseName();
     }
@@ -1288,7 +1288,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("AEF208932857", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("OQ3AKT1GWEFX", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->databaseExists(databaseName);
@@ -1308,7 +1308,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("33ABD0122921", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("4WJIPC98HTAS", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         m_conn->dropDatabase(databaseName);
@@ -1318,7 +1318,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("8781A8112718", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("W77JNUYM7UNB", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->getCollection(collectionName);
@@ -1328,7 +1328,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("4B1920591BBF", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("1C1ZHI36YMBN", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->listCollections();
@@ -1338,7 +1338,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("8074225964F3", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("LB8AQEYQ8W79", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->collectionExists(collectionName);
@@ -1359,7 +1359,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("B948C3233D2E", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("BBTF7NNNRUGA", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         m_conn->dropCollection(collectionName);
@@ -1369,7 +1369,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("A551087D0C0F", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("FGUY2RG1U7TL", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->createDocument();
@@ -1379,7 +1379,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("57A932F74BC9", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("QP1HG80G6YXD", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->createDocument(json);
@@ -1429,7 +1429,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("12B829E08231", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("NQGFYKY2EI6L", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->startSession();
@@ -1459,7 +1459,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("1AF497A444D9", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("NL6LRD2YUH7O", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         m_conn->commitTransaction(sessionId);
@@ -1469,7 +1469,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("4A713C729CE4", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("T8VY0CZRCSD1", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         m_conn->abortTransaction(sessionId);

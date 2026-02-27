@@ -48,7 +48,7 @@ namespace cpp_dbc::Firebird
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
             {
-                return cpp_dbc::unexpected(DBException("FB4NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("QLZNHJHJ02IA", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
             }
 
             ISC_LONG val = static_cast<ISC_LONG>(value);
@@ -78,7 +78,7 @@ namespace cpp_dbc::Firebird
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
             {
-                return cpp_dbc::unexpected(DBException("FB5NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("4EW6UBYPUTTG", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
             }
 
             ISC_INT64 val = static_cast<ISC_INT64>(value);
@@ -108,7 +108,7 @@ namespace cpp_dbc::Firebird
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
             {
-                return cpp_dbc::unexpected(DBException("FB6NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("TNPH5JLMW6GS", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
             }
 
             if (parameterIndex < 1 || parameterIndex > m_inputSqlda->sqld)
@@ -208,7 +208,7 @@ namespace cpp_dbc::Firebird
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
             {
-                return cpp_dbc::unexpected(DBException("FB7NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("2K8QBRG3F50U", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
             }
 
             if (parameterIndex < 1 || parameterIndex > m_inputSqlda->sqld)
@@ -278,7 +278,7 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("E4D915378DB1", std::string("Exception in setString: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("N7I4F22NXQ8F", std::string("Exception in setString: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
@@ -295,7 +295,7 @@ namespace cpp_dbc::Firebird
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
             {
-                return cpp_dbc::unexpected(DBException("FB8NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("KIHGPUFTQYQZ", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
             }
 
             short val = value ? 1 : 0;

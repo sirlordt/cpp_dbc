@@ -1184,6 +1184,11 @@ find_failure_lines() {
     done
 }
 
+# Catch2 result-line pattern: matches "All tests passed", "N test case(s) failed",
+# or "test cases: N | N passed" (the last form appears when assertions: - none -).
+# Defined once here and reused by count_total_tests_in_log and callers below.
+readonly CATCH2_RESULT_PATTERN="All tests passed|[0-9]+ test case(s)? failed|^test cases: [0-9]+ \| [0-9]+ passed"
+
 # Count total tests completed in a log file
 # Returns the count of completed test cases
 count_total_tests_in_log() {
@@ -1197,8 +1202,8 @@ count_total_tests_in_log() {
     # Count "All tests passed", "test case(s) failed", or "test cases: N | N passed" result lines
     # The third pattern covers Catch2 output when assertions: - none - (e.g. skipped/empty test cases)
     local count
-    count=$(grep -cE "All tests passed|[0-9]+ test case(s)? failed|^test cases: [0-9]+ \| [0-9]+ passed" "$log_file" 2>/dev/null) || true
-    echo "$count"
+    count=$(grep -cE "$CATCH2_RESULT_PATTERN" "$log_file" 2>/dev/null) || true
+    echo "${count:-0}"
 }
 
 # ============================================================================
@@ -2601,7 +2606,7 @@ get_test_progress_info() {
 
     # Count completed tests by counting "All tests passed", "test case(s) failed", or "test cases: N | N passed" result lines
     # The third pattern covers Catch2 output when assertions: - none - (e.g. skipped/empty test cases)
-    completed_tests=$(grep -cE "All tests passed|[0-9]+ test case(s)? failed|^test cases: [0-9]+ \| [0-9]+ passed" "$log_file" 2>/dev/null) || true
+    completed_tests=$(grep -cE "$CATCH2_RESULT_PATTERN" "$log_file" 2>/dev/null) || true
     completed_tests=$(echo "$completed_tests" | tr -d '\n\r')
     completed_tests="${completed_tests:-0}"
 
@@ -2814,7 +2819,9 @@ run_parallel_tests_simple() {
 
                             # Show final progress before changing status
                             # Third pattern covers Catch2 output when assertions: - none - (e.g. skipped/empty test cases)
-                            local final_count=$(grep -cE "All tests passed|[0-9]+ test case(s)? failed|^test cases: [0-9]+ \| [0-9]+ passed" "$log_file" 2>/dev/null || echo "0")
+                            local final_count
+                            final_count=$(grep -cE "$CATCH2_RESULT_PATTERN" "$log_file" 2>/dev/null) || true
+                            final_count="${final_count:-0}"
                             local total_tests="${PREFIX_TOTAL_TESTS[$prefix]}"
                             if [ -n "$total_tests" ] && [ "$total_tests" -gt 0 ]; then
                                 echo -e "${GREEN}[PASSED]${NC} ${prefix}_ Run $current_run completed - ${final_count}/${total_tests} tests"
@@ -2988,7 +2995,11 @@ cleanup() {
     done
 
     echo "All tests stopped."
-    exit 130
+    if [ "$CLEANUP_SIGNAL" = "TERM" ]; then
+        exit 143  # 128 + 15 (SIGTERM)
+    else
+        exit 130  # 128 + 2 (SIGINT), also default for unknown signals
+    fi
 }
 
 # Set up trap for cleanup — separate handlers so cleanup() knows the signal source

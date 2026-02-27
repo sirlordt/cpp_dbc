@@ -51,7 +51,7 @@ namespace cpp_dbc::SQLite
                 auto conn = m_db.lock();
                 if (!conn)
                 {
-                    throw DBException("SQLITE_BLOB_CONN_CLOSED", "SQLite connection has been closed", system_utils::captureCallStack());
+                    throw DBException("IUVQNZJI30CG", "SQLite connection has been closed", system_utils::captureCallStack());
                 }
                 return conn.get();
             }
@@ -130,7 +130,7 @@ namespace cpp_dbc::SQLite
                 int result = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("4AE05442DB70", "Failed to prepare statement for BLOB loading: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    throw DBException("BCOMBRIZ3NOO", "Failed to prepare statement for BLOB loading: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Bind the rowid parameter
@@ -249,7 +249,7 @@ namespace cpp_dbc::SQLite
                 if (result != SQLITE_OK)
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("6C9619BE36A2", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    throw DBException("ZIDTSWSKRVIY", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Bind the rowid parameter (parameter 2)
@@ -265,7 +265,7 @@ namespace cpp_dbc::SQLite
                 if (result != SQLITE_DONE)
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("8DB1A784821C", "Failed to save BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    throw DBException("LPJVG75T44E5", "Failed to save BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
                 }
 
                 // Finalize the statement

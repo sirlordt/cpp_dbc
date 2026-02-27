@@ -118,16 +118,16 @@ add_executable(cpp_dbc_tests
     relational/sqlite/22_031_test_sqlite_real.cpp
     relational/sqlite/22_041_test_sqlite_real_connection.cpp
 
-    # relational/sqlite/22_051_test_sqlite_real_json.cpp
+    # relational/sqlite/22_051_test_sqlite_real_json.cpp  # NOT YET IMPLEMENTED: test file does not exist
     relational/sqlite/22_061_test_sqlite_real_blob.cpp
     relational/sqlite/22_071_test_sqlite_real_inner_join.cpp
     relational/sqlite/22_081_test_sqlite_real_left_join.cpp
 
-    # relational/sqlite/22_091_test_sqlite_real_right_join.cpp
-    # relational/sqlite/22_101_test_sqlite_real_full_join.cpp
+    # relational/sqlite/22_091_test_sqlite_real_right_join.cpp  # NOT YET IMPLEMENTED: RIGHT JOIN support added in SQLite 3.39.0 (2022); test file does not exist
+    # relational/sqlite/22_101_test_sqlite_real_full_join.cpp   # NOT YET IMPLEMENTED: FULL OUTER JOIN support added in SQLite 3.39.0 (2022); test file does not exist
     relational/sqlite/22_111_test_sqlite_real_thread_safe.cpp
 
-    # relational/sqlite/22_121_test_sqlite_real_transaction_isolation.cpp
+    # relational/sqlite/22_121_test_sqlite_real_transaction_isolation.cpp  # NOT YET IMPLEMENTED: test file does not exist
     relational/sqlite/22_131_test_sqlite_real_transaction_manager.cpp
     relational/sqlite/22_141_test_sqlite_real_connection_pool.cpp
 

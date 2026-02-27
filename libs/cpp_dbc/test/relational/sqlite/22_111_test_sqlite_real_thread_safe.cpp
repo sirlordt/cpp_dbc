@@ -74,8 +74,6 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
     // Register the SQLite driver
     cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
 
-    /* Pool-related sections (Connection pool concurrent access, Concurrent read operations with connection pool,
-       High concurrency stress test) moved to 22_141_test_sqlite_real_connection_pool.cpp
     SECTION("Multiple threads with individual connections")
     {
         // Setup: create test table using a single connection
@@ -137,8 +135,9 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
 
                                     inserted = true;
                                 }
-                                catch (const std::exception& e)
+                                catch (const std::exception& ex1)
                                 {
+                                    // Intentionally ignored — retry loop handles SQLITE_BUSY by sleeping and retrying
                                     std::this_thread::sleep_for(std::chrono::milliseconds(10 * (retry + 1)));
                                 }
                             }
@@ -165,19 +164,19 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
                                 errorCount++;
                             }
                         }
-                        catch (const std::exception& e)
+                        catch (const std::exception& ex)
                         {
                             errorCount++;
-                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(e.what()));
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(ex.what()));
                         }
                     }
 
                     conn->close();
                 }
-                catch (const std::exception& e)
+                catch (const std::exception& ex)
                 {
                     errorCount += opsPerThread;
-                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection error: " + std::string(e.what()));
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection error: " + std::string(ex.what()));
                 } });
         }
 
@@ -197,386 +196,16 @@ TEST_CASE("SQLite Thread-Safety Tests", "[22_111_01_sqlite_real_thread_safe]")
         cpp_dbc::system_utils::logWithTimesMillis("TEST", "Multiple threads with individual connections: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
 
         // Clean up
-        // auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
-        // cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        // cleanupConn->close();
+        auto cleanupConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, "", ""));
+        cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
+        cleanupConn->close();
 
         // We expect most operations to succeed
         REQUIRE(successCount > numThreads * opsPerThread * 0.95); // At least 95% success rate
     }
 
-    SECTION("Connection pool concurrent access")
-    {
-        // Create connection pool
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        poolConfig.setUsername("");
-        poolConfig.setPassword("");
-        poolConfig.setInitialSize(3);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(1);
-        poolConfig.setConnectionTimeout(10000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setValidationQuery("SELECT 1");
-        // SQLite only supports SERIALIZABLE isolation level
-        poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
-
-        auto poolResult = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
-        if (!poolResult.has_value())
-        {
-            throw poolResult.error();
-        }
-        auto pool = poolResult.value();
-
-        // Setup: create test table
-        auto setupConn = pool->getRelationalDBConnection();
-        // setupConn->executeUpdate("PRAGMA journal_mode=WAL");
-        setupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        setupConn->executeUpdate("CREATE TABLE thread_test (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
-        setupConn->returnToPool();
-
-        const int numThreads = 10;
-        const int opsPerThread = 20;
-        std::atomic<int> successCount(0);
-        std::atomic<int> errorCount(0);
-        std::vector<std::thread> threads;
-        std::atomic<int> idCounter(0);
-
-        for (int i = 0; i < numThreads; i++)
-        {
-            threads.emplace_back([&, i]()
-                                 {
-                for (int j = 0; j < opsPerThread; j++)
-                {
-                    try
-                    {
-                        auto conn = pool->getRelationalDBConnection();
-                        int id = idCounter.fetch_add(1);
-
-                        // Insert with prepared statement and retry
-                        bool success = false;
-                        for (int retry = 0; retry < 5 && !success; retry++)
-                        {
-                            try
-                            {
-                                auto pstmt = conn->prepareStatement("INSERT INTO thread_test (id, name, value) VALUES (?, ?, ?)");
-                                pstmt->setInt(1, id);
-                                pstmt->setString(2, "Name " + std::to_string(id));
-                                pstmt->setDouble(3, id * 1.5);
-                                pstmt->executeUpdate();
-
-                                // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
-                                // to prevent resource leaks and file locks
-                                pstmt->close();
-
-                                success = true;
-                            }
-                            catch (const std::exception& e)
-                            {
-                                std::this_thread::sleep_for(std::chrono::milliseconds(10 * (retry + 1)));
-                            }
-                        }
-
-                        conn->returnToPool();
-
-                        if (success)
-                        {
-                            successCount++;
-                        }
-                        else
-                        {
-                            errorCount++;
-                        }
-                    }
-                    catch (const std::exception& e)
-                    {
-                        errorCount++;
-                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " error: " + std::string(e.what()));
-                    }
-                } });
-        }
-
-        for (auto &t : threads)
-        {
-            t.join();
-        }
-
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection pool concurrent access: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
-
-        // Clean up
-        // auto cleanupConn = pool->getRelationalDBConnection();
-        // cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        // cleanupConn->returnToPool();
-
-        REQUIRE(successCount > numThreads * opsPerThread * 0.95); // At least 95% success rate
-    }
-
-    SECTION("Concurrent read operations with connection pool")
-    {
-        // Create connection pool
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        poolConfig.setUsername("");
-        poolConfig.setPassword("");
-        poolConfig.setInitialSize(3);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(1);
-        poolConfig.setConnectionTimeout(10000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setValidationQuery("SELECT 1");
-        // SQLite only supports SERIALIZABLE isolation level
-        poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
-
-        auto poolResult2 = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
-        if (!poolResult2.has_value())
-        {
-            throw poolResult2.error();
-        }
-        auto pool = poolResult2.value();
-
-        // Setup: create and populate test table
-        auto setupConn = pool->getRelationalDBConnection();
-        // setupConn->executeUpdate("PRAGMA journal_mode=WAL");
-        setupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        setupConn->executeUpdate("CREATE TABLE thread_test (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
-
-        // Insert test data
-        for (int i = 0; i < 100; i++)
-        {
-            auto pstmt = setupConn->prepareStatement("INSERT INTO thread_test (id, name, value) VALUES (?, ?, ?)");
-            pstmt->setInt(1, i);
-            pstmt->setString(2, "Name " + std::to_string(i));
-            pstmt->setDouble(3, i * 1.5);
-            pstmt->executeUpdate();
-
-            // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
-            // to prevent resource leaks and file locks
-            pstmt->close();
-        }
-        setupConn->returnToPool();
-
-        const int numThreads = 10;
-        const int readsPerThread = 50;
-        std::atomic<int> readCount(0);
-        std::atomic<int> errorCount(0);
-        std::vector<std::thread> threads;
-
-        for (int i = 0; i < numThreads; i++)
-        {
-            threads.emplace_back([&, i]()
-                                 {
-                std::random_device rd;
-                std::mt19937 gen(rd());
-                std::uniform_int_distribution<> idDist(0, 99);
-
-                for (int j = 0; j < readsPerThread; j++)
-                {
-                    try
-                    {
-                        auto conn = pool->getRelationalDBConnection();
-                        int targetId = idDist(gen);
-
-                        auto pstmt = conn->prepareStatement("SELECT * FROM thread_test WHERE id = ?");
-                        pstmt->setInt(1, targetId);
-                        auto rs = pstmt->executeQuery();
-
-                        if (rs->next())
-                        {
-                            // Read all columns
-                            int id = rs->getInt("id");
-                            std::string name = rs->getString("name");
-                            double value = rs->getDouble("value");
-                            (void)id; (void)name; (void)value;
-                            readCount++;
-                        }
-
-                        // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set and statement after use
-                        // to prevent resource leaks and file locks
-                        rs->close();
-                        pstmt->close();
-
-                        conn->returnToPool();
-                    }
-                    catch (const std::exception& e)
-                    {
-                        errorCount++;
-                    }
-                } });
-        }
-
-        for (auto &t : threads)
-        {
-            t.join();
-        }
-
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Concurrent read operations: " + std::to_string(readCount) + " reads, " + std::to_string(errorCount) + " errors");
-
-        // Clean up
-        // auto cleanupConn = pool->getRelationalDBConnection();
-        // cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        // cleanupConn->returnToPool();
-
-        // Most reads should succeed
-        REQUIRE(readCount > numThreads * readsPerThread * 0.95); // At least 95% success rate
-    }
-
-    SECTION("High concurrency stress test")
-    {
-        // Create connection pool for stress test
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        poolConfig.setUsername("");
-        poolConfig.setPassword("");
-        poolConfig.setInitialSize(3);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(1);
-        poolConfig.setConnectionTimeout(10000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setValidationQuery("SELECT 1");
-        // SQLite only supports SERIALIZABLE isolation level
-        poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
-
-        auto poolResult3 = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
-        if (!poolResult3.has_value())
-        {
-            throw poolResult3.error();
-        }
-        auto pool = poolResult3.value();
-
-        // Create test table
-        auto setupConn = pool->getRelationalDBConnection();
-        // setupConn->executeUpdate("PRAGMA journal_mode=WAL");
-        setupConn->executeUpdate("DROP TABLE IF EXISTS thread_stress_test");
-        setupConn->executeUpdate("CREATE TABLE thread_stress_test (id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id INTEGER, op_id INTEGER, data TEXT)");
-        setupConn->returnToPool();
-
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "High concurrency stress test");
-
-        const int numThreads = 30;
-        const int opsPerThread = 50;
-        std::atomic<int> insertCount(0);
-        std::atomic<int> selectCount(0);
-        std::atomic<int> updateCount(0);
-        std::atomic<int> errorCount(0);
-        std::vector<std::thread> threads;
-
-        auto startTime = std::chrono::steady_clock::now();
-
-        for (int i = 0; i < numThreads; i++)
-        {
-            threads.emplace_back([&, i]()
-                                 {
-                std::random_device rd;
-                std::mt19937 gen(rd());
-                std::uniform_int_distribution<> opDist(0, 2);
-
-                for (int j = 0; j < opsPerThread; j++)
-                {
-                    try
-                    {
-                        auto conn = pool->getRelationalDBConnection();
-                        int op = opDist(gen);
-
-                        bool success = false;
-                        for (int retry = 0; retry < 5 && !success; retry++)
-                        {
-                            try
-                            {
-                                switch (op)
-                                {
-                                    case 0: // Insert
-                                    {
-                                        auto pstmt = conn->prepareStatement(
-                                            "INSERT INTO thread_stress_test (thread_id, op_id, data) VALUES (?, ?, ?)");
-                                        pstmt->setInt(1, i);
-                                        pstmt->setInt(2, j);
-                                        pstmt->setString(3, "Data from thread " + std::to_string(i) + " op " + std::to_string(j));
-                                        pstmt->executeUpdate();
-
-                                        // RESOURCE MANAGEMENT FIX (2026-02-15): Close statement after use
-                                        // to prevent resource leaks and file locks
-                                        pstmt->close();
-
-                                        insertCount++;
-                                        success = true;
-                                        break;
-                                    }
-                                    case 1: // Select
-                                    {
-                                        auto rs = conn->executeQuery("SELECT COUNT(*) as cnt FROM thread_stress_test");
-                                        if (rs->next())
-                                        {
-                                            rs->getInt("cnt");
-                                        }
-
-                                        // RESOURCE MANAGEMENT FIX (2026-02-15): Close result set after use
-                                        // to prevent resource leaks and file locks
-                                        rs->close();
-
-                                        selectCount++;
-                                        success = true;
-                                        break;
-                                    }
-                                    case 2: // Update
-                                    {
-                                        conn->executeUpdate("UPDATE thread_stress_test SET data = 'updated' WHERE thread_id = " + std::to_string(i) + " AND id IN (SELECT id FROM thread_stress_test WHERE thread_id = " + std::to_string(i) + " LIMIT 1)");
-                                        updateCount++;
-                                        success = true;
-                                        break;
-                                    }
-                                }
-                            }
-                            catch (const std::exception& e)
-                            {
-                                std::this_thread::sleep_for(std::chrono::milliseconds(10 * (retry + 1)));
-                            }
-                        }
-
-                        conn->returnToPool();
-
-                        if (!success)
-                        {
-                            errorCount++;
-                        }
-                    }
-                    catch (const std::exception& e)
-                    {
-                        errorCount++;
-                    }
-                } });
-        }
-
-        for (auto &t : threads)
-        {
-            t.join();
-        }
-
-        auto endTime = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "High concurrency stress test completed in " + std::to_string(duration) + " ms");
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Inserts: " + std::to_string(insertCount));
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Selects: " + std::to_string(selectCount));
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Updates: " + std::to_string(updateCount));
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Errors: " + std::to_string(errorCount));
-        if (duration > 0)
-        {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Operations per second: " + std::to_string((insertCount + selectCount + updateCount) * 1000.0 / static_cast<double>(duration)));
-        }
-
-        // Clean up
-        // auto cleanupConn = pool->getRelationalDBConnection();
-        // cleanupConn->executeUpdate("DROP TABLE IF EXISTS thread_stress_test");
-        // cleanupConn->returnToPool();
-
-        // Most operations should succeed (SQLite may have more contention)
-        int totalOps = insertCount + selectCount + updateCount;
-        REQUIRE(totalOps > numThreads * opsPerThread * 0.95); // At least 95% success rate
-    }
-    */
+    // Pool-based concurrent access, concurrent reads, and high-concurrency stress tests
+    // were moved to 22_141_test_sqlite_real_connection_pool.cpp
 
     SECTION("Rapid connection open/close stress test")
     {

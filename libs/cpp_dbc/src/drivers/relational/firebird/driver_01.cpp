@@ -330,7 +330,7 @@ namespace cpp_dbc::Firebird
 
             if (!parseURL(url, host, port, database))
             {
-                return cpp_dbc::unexpected(DBException("92112756B293", "Invalid Firebird URL: " + url,
+                return cpp_dbc::unexpected(DBException("YU88W61QFVD0", "Invalid Firebird URL: " + url,
                                                        system_utils::captureCallStack()));
             }
 

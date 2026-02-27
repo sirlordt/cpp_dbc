@@ -548,7 +548,7 @@ namespace cpp_dbc::ScyllaDB
 
         if (x == nullptr && length > 0)
         {
-            return cpp_dbc::unexpected(DBException("0DD0D3E74410", "Null pointer passed for bytes parameter", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("LJXZG4R9ZT2A", "Null pointer passed for bytes parameter", system_utils::captureCallStack()));
         }
 
         if (cass_statement_bind_bytes(m_statement.get(), parameterIndex - 1, x, length) != CASS_OK)

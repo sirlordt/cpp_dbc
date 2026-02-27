@@ -100,7 +100,7 @@ namespace cpp_dbc::PostgreSQL
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
             {
-                return cpp_dbc::unexpected<DBException>(DBException("392BEAA07684", "Column not found: " + columnName, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("2KRLG459MUS3", "Column not found: " + columnName, system_utils::captureCallStack()));
             }
 
             return getBlob(std::nothrow, it->second + 1); // +1 because getBlob(int) is 1-based
@@ -302,7 +302,7 @@ namespace cpp_dbc::PostgreSQL
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
             {
-                return cpp_dbc::unexpected<DBException>(DBException("599349A7DAA4", "Column not found: " + columnName, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("M222U1KZWXH4", "Column not found: " + columnName, system_utils::captureCallStack()));
             }
 
             return getBytes(std::nothrow, it->second + 1);

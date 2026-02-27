@@ -177,7 +177,7 @@ namespace cpp_dbc::ScyllaDB
         if (m_closed || !m_session)
         {
             SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Connection closed");
-            return cpp_dbc::unexpected(DBException("8A350B08A3B3", "Connection closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("1KNEN1MHOTOA", "Connection closed", system_utils::captureCallStack()));
         }
 
         CassStatementHandle statement(cass_statement_new(query.c_str(), 0));
@@ -190,7 +190,7 @@ namespace cpp_dbc::ScyllaDB
             cass_future_error_message(future.get(), &message, &length);
             std::string errorMsg(message, length);
             SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Execution failed: " << errorMsg);
-            return cpp_dbc::unexpected(DBException("772E10871903", errorMsg, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("13JPWFTYAH1G", errorMsg, system_utils::captureCallStack()));
         }
 
         const CassResult *result = cass_future_get_result(future.get());

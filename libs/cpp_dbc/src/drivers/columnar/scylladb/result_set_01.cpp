@@ -43,7 +43,7 @@ namespace cpp_dbc::ScyllaDB
         if (!m_iterator)
         {
             SCYLLADB_DEBUG("ScyllaDBResultSet::validateResultState - ResultSet is closed");
-            return cpp_dbc::unexpected(DBException("98907CB0524D", "ResultSet is closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("WIYIA79MF50M", "ResultSet is closed", system_utils::captureCallStack()));
         }
         return {};
     }

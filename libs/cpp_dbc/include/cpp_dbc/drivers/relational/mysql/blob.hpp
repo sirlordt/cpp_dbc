@@ -44,7 +44,7 @@ namespace cpp_dbc::MySQL
                 auto mysql = m_mysql.lock();
                 if (!mysql)
                 {
-                    throw DBException("MYSQL_BLOB_CONN_CLOSED", "Connection has been closed", system_utils::captureCallStack());
+                    throw DBException("R1CN39R0XLH7", "Connection has been closed", system_utils::captureCallStack());
                 }
                 return mysql.get();
             }
@@ -108,14 +108,14 @@ namespace cpp_dbc::MySQL
                 // Execute the query
                 if (mysql_query(mysql, query.c_str()) != 0)
                 {
-                    throw DBException("M1Y2S3Q4L5B", "Failed to fetch BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
+                    throw DBException("6VDNWQ8STSAG", "Failed to fetch BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
                 }
 
                 // Get the result
                 MYSQL_RES *result = mysql_store_result(mysql);
                 if (!result)
                 {
-                    throw DBException("L6O7B8R9E0S", "Failed to get result set for BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
+                    throw DBException("476QLR8BRXQK", "Failed to get result set for BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
                 }
 
                 // Get the row
@@ -123,7 +123,7 @@ namespace cpp_dbc::MySQL
                 if (!row)
                 {
                     mysql_free_result(result);
-                    throw DBException("U1L2T3N4O5D", "No data found for BLOB", system_utils::captureCallStack());
+                    throw DBException("QQ7NT0640BWW", "No data found for BLOB", system_utils::captureCallStack());
                 }
 
                 // Get the BLOB data
@@ -131,7 +131,7 @@ namespace cpp_dbc::MySQL
                 if (!lengths)
                 {
                     mysql_free_result(result);
-                    throw DBException("A6T7A8L9E0N", "Failed to get BLOB data length", system_utils::captureCallStack());
+                    throw DBException("VKZ2WW134M1Q", "Failed to get BLOB data length", system_utils::captureCallStack());
                 }
 
                 // Copy the BLOB data
@@ -215,14 +215,14 @@ namespace cpp_dbc::MySQL
                 MYSQL_STMT *stmt = mysql_stmt_init(mysql);
                 if (!stmt)
                 {
-                    throw DBException("G1T2H3I4N5I", "Failed to initialize statement for BLOB update: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
+                    throw DBException("F5W35AZHZKK7", "Failed to initialize statement for BLOB update: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
                 }
 
                 if (mysql_stmt_prepare(stmt, query.c_str(), query.length()) != 0)
                 {
                     std::string error = mysql_stmt_error(stmt);
                     mysql_stmt_close(stmt);
-                    throw DBException("T6S7T8M9T0P", "Failed to prepare statement for BLOB update: " + error, system_utils::captureCallStack());
+                    throw DBException("1M7I6MJ8UHON", "Failed to prepare statement for BLOB update: " + error, system_utils::captureCallStack());
                 }
 
                 // Bind the BLOB data
@@ -237,7 +237,7 @@ namespace cpp_dbc::MySQL
                 {
                     std::string error = mysql_stmt_error(stmt);
                     mysql_stmt_close(stmt);
-                    throw DBException("R1E2P3A4R5E", "Failed to bind BLOB data: " + error, system_utils::captureCallStack());
+                    throw DBException("K4PXEPQPAR99", "Failed to bind BLOB data: " + error, system_utils::captureCallStack());
                 }
 
                 // Execute the statement
@@ -245,7 +245,7 @@ namespace cpp_dbc::MySQL
                 {
                     std::string error = mysql_stmt_error(stmt);
                     mysql_stmt_close(stmt);
-                    throw DBException("B6L7O8B9U0P", "Failed to update BLOB data: " + error, system_utils::captureCallStack());
+                    throw DBException("SMT5X3RWBNV7", "Failed to update BLOB data: " + error, system_utils::captureCallStack());
                 }
 
                 // Clean up

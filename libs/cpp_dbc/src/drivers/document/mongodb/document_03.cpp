@@ -45,7 +45,7 @@ namespace cpp_dbc::MongoDB
 
         if (!BSON_ITER_HOLDS_ARRAY(&iter))
         {
-            throw DBException("FB88E110970F", "Field is not an array: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("K0WR8CEGWEWI", "Field is not an array: " + fieldPath, system_utils::captureCallStack());
         }
 
         std::vector<std::string> result;
@@ -114,7 +114,7 @@ namespace cpp_dbc::MongoDB
         }
         else
         {
-            throw DBException("EF1086B33F07", "Nested field setting not yet implemented: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("4WS6KLPHQOE1", "Nested field setting not yet implemented: " + fieldPath, system_utils::captureCallStack());
         }
     }
 
@@ -128,7 +128,7 @@ namespace cpp_dbc::MongoDB
             bson_t *newBson = bson_new();
             if (!newBson)
             {
-                throw DBException("3CA7686125A7", "Failed to create new BSON document", system_utils::captureCallStack());
+                throw DBException("4OK0OI4LWAP6", "Failed to create new BSON document", system_utils::captureCallStack());
             }
 
             bson_iter_t iter;
@@ -165,7 +165,7 @@ namespace cpp_dbc::MongoDB
             bson_t *newBson = bson_new();
             if (!newBson)
             {
-                throw DBException("1A96C0C78D87", "Failed to create new BSON document", system_utils::captureCallStack());
+                throw DBException("QP6YJTNDGWER", "Failed to create new BSON document", system_utils::captureCallStack());
             }
 
             bson_iter_t iter;
@@ -188,7 +188,7 @@ namespace cpp_dbc::MongoDB
         }
         else
         {
-            throw DBException("1B37D38CE245", "Nested field setting not yet implemented: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("OY9ZR3WIG8O1", "Nested field setting not yet implemented: " + fieldPath, system_utils::captureCallStack());
         }
     }
 
@@ -202,7 +202,7 @@ namespace cpp_dbc::MongoDB
             bson_t *newBson = bson_new();
             if (!newBson)
             {
-                throw DBException("594AC0F375D5", "Failed to create new BSON document", system_utils::captureCallStack());
+                throw DBException("26VOODWJR1ZN", "Failed to create new BSON document", system_utils::captureCallStack());
             }
 
             bson_iter_t iter;
@@ -239,7 +239,7 @@ namespace cpp_dbc::MongoDB
             bson_t *newBson = bson_new();
             if (!newBson)
             {
-                throw DBException("E6657751DB88", "Failed to create new BSON document", system_utils::captureCallStack());
+                throw DBException("IK72F5Y7D9S4", "Failed to create new BSON document", system_utils::captureCallStack());
             }
 
             bson_iter_t iter;
@@ -263,7 +263,7 @@ namespace cpp_dbc::MongoDB
         }
         else
         {
-            throw DBException("418CA26C4282", "Nested field setting not yet implemented: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("FGZT0IR4HZOC", "Nested field setting not yet implemented: " + fieldPath, system_utils::captureCallStack());
         }
     }
 
@@ -320,7 +320,7 @@ namespace cpp_dbc::MongoDB
             bson_t *newBson = bson_new();
             if (!newBson)
             {
-                throw DBException("19B7509217A9", "Failed to create new BSON document", system_utils::captureCallStack());
+                throw DBException("XUEO21OZM8A7", "Failed to create new BSON document", system_utils::captureCallStack());
             }
 
             bson_iter_t iter;
@@ -343,7 +343,7 @@ namespace cpp_dbc::MongoDB
         }
         else
         {
-            throw DBException("18C5E7864E82", "Nested field setting not yet implemented: " + fieldPath, system_utils::captureCallStack());
+            throw DBException("XV7HB9GJYIUE", "Nested field setting not yet implemented: " + fieldPath, system_utils::captureCallStack());
         }
     }
 

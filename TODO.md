@@ -20,7 +20,7 @@
   - New `system_utils::CallStackCapture` struct: `StackFrame frames[10]`, `int count`; `captureCallStack()` returns `std::shared_ptr<CallStackCapture>`
   - `ping()` promoted to pure virtual in base `DBConnection` with `bool` return type (both throwing and nothrow variants)
   - Removed family-specific `ping()` overloads from `KVDBConnection` (`std::string` return) and `DocumentDBConnection`
-  - All pool wrappers (relational, KV, columnar) and pooled connections updated for `bool ping()`
+  - All pool wrappers (relational, KV, document, columnar) and pooled connections updated for `bool ping()`
   - 50+ example files updated: `+ ex.what_s()` → `+ std::string(ex.what_s())`
   - `example_common.hpp` logging functions: `const std::string&` → `std::string_view` parameters
   - Redis examples: `std::string pong = conn->ping()` → `bool pong = conn->ping()` with `"PONG"/"FAILED"` display

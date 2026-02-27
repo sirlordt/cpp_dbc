@@ -190,7 +190,7 @@ namespace cpp_dbc::ScyllaDB
         }
         if (columnIndex < 1 || columnIndex > m_columnCount)
         {
-            return cpp_dbc::unexpected(DBException("D7F6C2471F23", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("3UCDXAV6M9SQ", "Invalid column index", system_utils::captureCallStack()));
         }
 
         const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
@@ -217,7 +217,7 @@ namespace cpp_dbc::ScyllaDB
         }
         if (columnIndex < 1 || columnIndex > m_columnCount)
         {
-            return cpp_dbc::unexpected(DBException("C6D5D1730470", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("GWVWIWXZA4VT", "Invalid column index", system_utils::captureCallStack()));
         }
 
         const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);

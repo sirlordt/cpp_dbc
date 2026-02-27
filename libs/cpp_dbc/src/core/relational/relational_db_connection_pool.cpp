@@ -692,7 +692,7 @@ namespace cpp_dbc
                             if (!m_running.load(std::memory_order_acquire))
                             {
                                 std::erase(m_waitQueue, &request);
-                                return cpp_dbc::unexpected(DBException("58566A84D1A1", "Connection pool is closed", system_utils::captureCallStack()));
+                                return cpp_dbc::unexpected(DBException("SVGG2874XLWL", "Connection pool is closed", system_utils::captureCallStack()));
                             }
 
                             if (status == std::cv_status::timeout)
@@ -710,7 +710,7 @@ namespace cpp_dbc
                                 }
                                 CP_DEBUG("borrow - TIMEOUT: active=%d, idle=%zu, total=%zu, pending=%zu",
                                          m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size(), m_pendingCreations);
-                                return cpp_dbc::unexpected(DBException("88D90026A76A", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
+                                return cpp_dbc::unexpected(DBException("JV6LANDTF256", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
                             }
 
                             // Spurious/non-fulfilled wakeup — check if idle connection appeared
@@ -789,7 +789,7 @@ namespace cpp_dbc
                         // Check if we still have time to retry
                         if (std::chrono::steady_clock::now() >= deadline)
                         {
-                            return cpp_dbc::unexpected(DBException("88D90026A76A", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
+                            return cpp_dbc::unexpected(DBException("JV6LANDTF256", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
                         }
 
                         continue; // Retry with new candidate
@@ -1312,7 +1312,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            return cpp_dbc::unexpected(DBException("95097A0AE22B", "Connection is closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("NGFY9OKTDK8C", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->prepareStatement(std::nothrow, sql);
@@ -1352,7 +1352,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            return cpp_dbc::unexpected(DBException("3D5C6173E4D1", "Connection is closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("JURJ0DBHVVPS", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->executeUpdate(std::nothrow, sql);
@@ -1372,7 +1372,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            return cpp_dbc::unexpected(DBException("5742170C69B4", "Connection is closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("XNDX9UDCTDQF", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->setAutoCommit(std::nothrow, autoCommit);
@@ -1430,7 +1430,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            return cpp_dbc::unexpected(DBException("094612AE91B6", "Connection is closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("C3UAXP7DGDPI", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->rollback(std::nothrow);

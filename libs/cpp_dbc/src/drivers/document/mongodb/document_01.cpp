@@ -82,7 +82,7 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBDocument::constructor - Creating empty document");
         if (!m_bson)
         {
-            throw DBException("17026ED8C0C9", "Failed to create empty BSON document", system_utils::captureCallStack());
+            throw DBException("LPLGD9BE9NM0", "Failed to create empty BSON document", system_utils::captureCallStack());
         }
         MONGODB_DEBUG("MongoDBDocument::constructor - Done");
     }
@@ -147,7 +147,7 @@ namespace cpp_dbc::MongoDB
                 m_bson.reset(bson_copy(other.m_bson.get()));
                 if (!m_bson)
                 {
-                    throw DBException("EA9E28036A09", "Failed to copy BSON document", system_utils::captureCallStack());
+                    throw DBException("OWX8BG6W9Q7I", "Failed to copy BSON document", system_utils::captureCallStack());
                 }
             }
             else
@@ -220,7 +220,7 @@ namespace cpp_dbc::MongoDB
         bson_t *newBson = bson_new();
         if (!newBson)
         {
-            throw DBException("F842E89C6432", "Failed to create new BSON document", system_utils::captureCallStack());
+            throw DBException("FQNH0YNO7HS3", "Failed to create new BSON document", system_utils::captureCallStack());
         }
 
         // Add the new _id first
@@ -267,7 +267,7 @@ namespace cpp_dbc::MongoDB
         char *json = bson_as_relaxed_extended_json(m_bson.get(), &length);
         if (!json)
         {
-            throw DBException("B41282C21719", "Failed to convert document to JSON", system_utils::captureCallStack());
+            throw DBException("0TSS2D60JNS8", "Failed to convert document to JSON", system_utils::captureCallStack());
         }
 
         std::string result(json, length);
@@ -304,7 +304,7 @@ namespace cpp_dbc::MongoDB
 
         if (!bson)
         {
-            throw DBException("671F94F63F3D", std::string("Failed to parse JSON: ") + error.message, system_utils::captureCallStack());
+            throw DBException("KKQVV6CEPD1Q", std::string("Failed to parse JSON: ") + error.message, system_utils::captureCallStack());
         }
 
         m_bson.reset(bson);

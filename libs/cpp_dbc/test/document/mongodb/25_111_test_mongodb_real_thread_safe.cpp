@@ -243,6 +243,11 @@ TEST_CASE("MongoDB thread safety tests", "[25_111_01_mongodb_real_thread_safe]")
                             successCount++;
                             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection " + std::to_string(j) + " ping OK");
                         }
+                        else if (pingResult.has_value() && !pingResult.value())
+                        {
+                            errorCount++;
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection " + std::to_string(j) + " ping FAILED: server returned false");
+                        }
                         else if (!pingResult.has_value())
                         {
                             errorCount++;

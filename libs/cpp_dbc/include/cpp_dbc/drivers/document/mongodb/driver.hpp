@@ -177,7 +177,7 @@ namespace cpp_dbc::MongoDB
                 const std::string &,
                 const std::map<std::string, std::string> & = {}) override
             {
-                throw DBException("AC208113FF23", "MongoDB support is not enabled in this build");
+                throw DBException("3JJ3FU3K46T6", "MongoDB support is not enabled in this build");
             }
 
             bool acceptsURL(const std::string &) override
@@ -191,7 +191,7 @@ namespace cpp_dbc::MongoDB
                 const std::string &,
                 const std::map<std::string, std::string> & = {}) override
             {
-                throw DBException("2CC107C18A39", "MongoDB support is not enabled in this build");
+                throw DBException("DS9UBFAQOC16", "MongoDB support is not enabled in this build");
             }
 
             int getDefaultPort() const override
@@ -215,7 +215,7 @@ namespace cpp_dbc::MongoDB
                 const std::string &,
                 const std::map<std::string, std::string> & = {}) override
             {
-                throw DBException("11202995FCE7", "MongoDB support is not enabled in this build");
+                throw DBException("MS0PEYE6LGXZ", "MongoDB support is not enabled in this build");
             }
 
             bool supportsReplicaSets() const override

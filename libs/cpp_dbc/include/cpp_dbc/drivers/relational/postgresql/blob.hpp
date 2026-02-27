@@ -45,7 +45,7 @@ namespace cpp_dbc::PostgreSQL
                 auto conn = m_conn.lock();
                 if (!conn)
                 {
-                    throw DBException("PG_BLOB_CONN_CLOSED", "Connection has been closed", system_utils::captureCallStack());
+                    throw DBException("5YU9WNT2OO3Z", "Connection has been closed", system_utils::captureCallStack());
                 }
                 return conn.get();
             }
@@ -103,7 +103,7 @@ namespace cpp_dbc::PostgreSQL
                 {
                     std::string error = PQresultErrorMessage(res);
                     PQclear(res);
-                    throw DBException("P1G2S3Q4L5B", "Failed to start transaction for BLOB loading: " + error, system_utils::captureCallStack());
+                    throw DBException("PLX9YW4JL8V7", "Failed to start transaction for BLOB loading: " + error, system_utils::captureCallStack());
                 }
                 PQclear(res);
 
@@ -112,7 +112,7 @@ namespace cpp_dbc::PostgreSQL
                 if (fd < 0)
                 {
                     PQexec(conn, "ROLLBACK");
-                    throw DBException("L6O7B8O9P0E", "Failed to open large object: " + std::to_string(m_lobOid), system_utils::captureCallStack());
+                    throw DBException("4LLXBMB5AMJ9", "Failed to open large object: " + std::to_string(m_lobOid), system_utils::captureCallStack());
                 }
 
                 // Get the size of the large object
@@ -128,7 +128,7 @@ namespace cpp_dbc::PostgreSQL
                     {
                         lo_close(conn, fd);
                         PQexec(conn, "ROLLBACK");
-                        throw DBException("N1R2E3A4D5L", "Failed to read large object data", system_utils::captureCallStack());
+                        throw DBException("GO1IJP3EU26A", "Failed to read large object data", system_utils::captureCallStack());
                     }
                 }
                 else
@@ -145,7 +145,7 @@ namespace cpp_dbc::PostgreSQL
                 {
                     std::string error = PQresultErrorMessage(res);
                     PQclear(res);
-                    throw DBException("O6B7C8O9M0M", "Failed to commit transaction for BLOB loading: " + error, system_utils::captureCallStack());
+                    throw DBException("PYQGW1S0NFFX", "Failed to commit transaction for BLOB loading: " + error, system_utils::captureCallStack());
                 }
                 PQclear(res);
 
@@ -215,7 +215,7 @@ namespace cpp_dbc::PostgreSQL
                 {
                     std::string error = PQresultErrorMessage(res);
                     PQclear(res);
-                    throw DBException("I1T2S3A4V5E", "Failed to start transaction for BLOB saving: " + error, system_utils::captureCallStack());
+                    throw DBException("MP57LH4DNE61", "Failed to start transaction for BLOB saving: " + error, system_utils::captureCallStack());
                 }
                 PQclear(res);
 
@@ -226,7 +226,7 @@ namespace cpp_dbc::PostgreSQL
                     if (m_lobOid == 0)
                     {
                         PQexec(conn, "ROLLBACK");
-                        throw DBException("C6R7E8A9T0E", "Failed to create large object", system_utils::captureCallStack());
+                        throw DBException("4KAPV652CRQU", "Failed to create large object", system_utils::captureCallStack());
                     }
                 }
 
@@ -235,7 +235,7 @@ namespace cpp_dbc::PostgreSQL
                 if (fd < 0)
                 {
                     PQexec(conn, "ROLLBACK");
-                    throw DBException("O1P2E3N4W5R", "Failed to open large object for writing", system_utils::captureCallStack());
+                    throw DBException("N38L3OFZ9NK6", "Failed to open large object for writing", system_utils::captureCallStack());
                 }
 
                 // Truncate the large object
@@ -249,7 +249,7 @@ namespace cpp_dbc::PostgreSQL
                     {
                         lo_close(conn, fd);
                         PQexec(conn, "ROLLBACK");
-                        throw DBException("W6R7I8T9E0D", "Failed to write large object data", system_utils::captureCallStack());
+                        throw DBException("PV3L5F2NMUOH", "Failed to write large object data", system_utils::captureCallStack());
                     }
                 }
 
@@ -262,7 +262,7 @@ namespace cpp_dbc::PostgreSQL
                 {
                     std::string error = PQresultErrorMessage(res);
                     PQclear(res);
-                    throw DBException("A1T2A3C4O5M", "Failed to commit transaction for BLOB saving: " + error, system_utils::captureCallStack());
+                    throw DBException("AZ9LET1SNHY9", "Failed to commit transaction for BLOB saving: " + error, system_utils::captureCallStack());
                 }
                 PQclear(res);
 

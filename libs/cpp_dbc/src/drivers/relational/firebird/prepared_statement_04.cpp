@@ -54,7 +54,7 @@ namespace cpp_dbc::Firebird
             if (m_invalidated.load(std::memory_order_acquire))
             {
                 FIREBIRD_DEBUG("  Statement was invalidated by DDL operation!");
-                return cpp_dbc::unexpected(DBException("FB2NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("SRK90BKB8M9D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
             }
 
             // FIX #1: Access transaction handle safely via m_connection
@@ -220,7 +220,7 @@ namespace cpp_dbc::Firebird
             // Check if statement was invalidated by connection due to DDL operation
             if (m_invalidated.load(std::memory_order_acquire))
             {
-                return cpp_dbc::unexpected(DBException("FB3NV4L1D4T3D", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("T967KCIH016C", "Statement was invalidated due to DDL operation (DROP/ALTER/CREATE). Please create a new prepared statement.", system_utils::captureCallStack()));
             }
 
             // FIX #1: Access transaction handle safely via m_connection
@@ -309,7 +309,7 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("C1B8225A38F6", std::string("Exception in close: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("84IPANP68YQ6", std::string("Exception in close: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {

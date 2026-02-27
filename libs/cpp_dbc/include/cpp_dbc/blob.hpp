@@ -192,7 +192,7 @@ namespace cpp_dbc
             : file(filename, append ? (std::ios::binary | std::ios::app) : (std::ios::binary | std::ios::trunc))
         {
             if (!file)
-                throw DBException("DFD87502D621", "Failed to open file for writing: " + filename, system_utils::captureCallStack());
+                throw DBException("79BOO1ZI630P", "Failed to open file for writing: " + filename, system_utils::captureCallStack());
         }
 
         void write(const uint8_t *buffer, size_t length) override
