@@ -50,8 +50,13 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            // Get the SQLite connection safely (throws if connection is closed)
-            sqlite3 *dbPtr = getSQLiteConnection();
+            // Get the SQLite connection safely (nothrow, returns expected)
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             if (parameterIndex <= 0)
             {
@@ -122,7 +127,12 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            sqlite3 *dbPtr = getSQLiteConnection();
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             if (parameterIndex <= 0)
             {
@@ -200,7 +210,12 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            sqlite3 *dbPtr = getSQLiteConnection();
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             if (parameterIndex <= 0)
             {
@@ -286,7 +301,12 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            sqlite3 *dbPtr = getSQLiteConnection();
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             if (parameterIndex <= 0)
             {

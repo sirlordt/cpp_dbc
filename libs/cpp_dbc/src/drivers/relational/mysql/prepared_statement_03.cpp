@@ -310,8 +310,13 @@ namespace cpp_dbc::MySQL
                 return cpp_dbc::unexpected(DBException("P1Z2A3B4C5D6", "Statement is applied", system_utils::captureCallStack()));
             }
 
-            // Get the MySQL connection safely (throws if connection is closed)
-            MYSQL *mysqlPtr = getMySQLConnection();
+            // Get the MySQL connection safely
+            auto mysqlResult = getMySQLConnection(std::nothrow);
+            if (!mysqlResult.has_value())
+            {
+                return cpp_dbc::unexpected(mysqlResult.error());
+            }
+            MYSQL *mysqlPtr = mysqlResult.value();
 
             // Reconstruct the query with bound parameters to avoid "Commands out of sync" issue
             std::string finalQuery = m_sql;
@@ -338,13 +343,17 @@ namespace cpp_dbc::MySQL
                 return cpp_dbc::unexpected(DBException("H1I2J3K4L5M6", std::string("Failed to get result set: ") + mysql_error(mysqlPtr), system_utils::captureCallStack()));
             }
 
-            auto resultSet = std::make_shared<MySQLDBResultSet>(result);
+            auto rsResult = MySQLDBResultSet::create(std::nothrow, result);
+            if (!rsResult.has_value())
+            {
+                return cpp_dbc::unexpected(rsResult.error());
+            }
 
             // Close the statement after execution (single-use)
             // This is safe because mysql_store_result() copies all data to client memory
             // close();
 
-            return std::shared_ptr<RelationalDBResultSet>(resultSet);
+            return std::shared_ptr<RelationalDBResultSet>(rsResult.value());
         }
         catch (const DBException &ex)
         {

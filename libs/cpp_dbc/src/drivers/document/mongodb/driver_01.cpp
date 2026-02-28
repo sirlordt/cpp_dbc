@@ -20,13 +20,8 @@
 
 #if USE_MONGODB
 
-#include <algorithm>
-#include <array>
-#include <cstring>
 #include <iostream>
-#include <ranges>
 #include <sstream>
-#include <stdexcept>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mongodb_internal.hpp"
 
@@ -47,7 +42,7 @@ namespace cpp_dbc::MongoDB
     {
         MONGODB_DEBUG("MongoDBDriver::initializeMongoc - Initializing MongoDB C driver");
         mongoc_init();
-        s_initialized = true;
+        s_initialized.store(true, std::memory_order_release);
         MONGODB_DEBUG("MongoDBDriver::initializeMongoc - Done");
     }
 
@@ -77,30 +72,19 @@ namespace cpp_dbc::MongoDB
         return url.starts_with("cpp_dbc:mongodb://");
     }
 
+    #ifdef __cpp_exceptions
     std::shared_ptr<DocumentDBConnection> MongoDBDriver::connectDocument(
         const std::string &url,
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options)
     {
-        MONGODB_DEBUG("MongoDBDriver::connectDocument - Connecting to: " << url);
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        if (!acceptsURL(url))
+        auto r = connectDocument(std::nothrow, url, user, password, options);
+        if (!r.has_value())
         {
-            throw DBException("MG1L2M3N4O5P", "Invalid MongoDB URL: " + url, system_utils::captureCallStack());
+            throw r.error();
         }
-
-        // Strip the 'cpp_dbc:' prefix if present
-        std::string mongoUrl = url;
-        if (url.starts_with("cpp_dbc:"))
-        {
-            mongoUrl = url.substr(8); // Remove "cpp_dbc:" prefix
-        }
-
-        auto conn = std::make_shared<MongoDBConnection>(mongoUrl, user, password, options);
-        MONGODB_DEBUG("MongoDBDriver::connectDocument - Connection established");
-        return conn;
+        return r.value();
     }
 
     int MongoDBDriver::getDefaultPort() const
@@ -115,42 +99,14 @@ namespace cpp_dbc::MongoDB
 
     std::map<std::string, std::string> MongoDBDriver::parseURI(const std::string &uri)
     {
-        std::map<std::string, std::string> result;
-
-        bson_error_t error;
-        MongoUriHandle mongoUri(mongoc_uri_new_with_error(uri.c_str(), &error));
-
-        if (!mongoUri)
+        auto r = parseURI(std::nothrow, uri);
+        if (!r.has_value())
         {
-            throw DBException("J0K1L2M3N4O5", std::string("Invalid URI: ") + error.message, system_utils::captureCallStack());
+            throw r.error();
         }
-
-        // Extract components
-        const mongoc_host_list_t *hosts = mongoc_uri_get_hosts(mongoUri.get());
-        if (hosts && hosts->host)
-        {
-            result["host"] = hosts->host;
-            result["port"] = std::to_string(hosts->port);
-        }
-
-        const char *database = mongoc_uri_get_database(mongoUri.get());
-        if (database)
-            result["database"] = database;
-
-        const char *username = mongoc_uri_get_username(mongoUri.get());
-        if (username)
-            result["username"] = username;
-
-        const char *authSource = mongoc_uri_get_auth_source(mongoUri.get());
-        if (authSource)
-            result["authSource"] = authSource;
-
-        const char *replicaSet = mongoc_uri_get_replica_set(mongoUri.get());
-        if (replicaSet)
-            result["replicaSet"] = replicaSet;
-
-        return result;
+        return r.value();
     }
+    #endif // __cpp_exceptions
 
     std::string MongoDBDriver::buildURI(
         const std::string &host,
@@ -208,17 +164,17 @@ namespace cpp_dbc::MongoDB
     void MongoDBDriver::cleanup()
     {
         MONGODB_DEBUG("MongoDBDriver::cleanup - Cleaning up MongoDB C driver");
-        if (s_initialized)
+        if (s_initialized.load(std::memory_order_acquire))
         {
             mongoc_cleanup();
-            s_initialized = false;
+            s_initialized.store(false, std::memory_order_release);
             MONGODB_DEBUG("MongoDBDriver::cleanup - Done");
         }
     }
 
     bool MongoDBDriver::isInitialized()
     {
-        return s_initialized;
+        return s_initialized.load(std::memory_order_acquire);
     }
 
     bool MongoDBDriver::validateURI(const std::string &uri)
@@ -320,19 +276,27 @@ namespace cpp_dbc::MongoDB
 
             const char *database = mongoc_uri_get_database(mongoUri.get());
             if (database)
+            {
                 result["database"] = database;
+            }
 
             const char *username = mongoc_uri_get_username(mongoUri.get());
             if (username)
+            {
                 result["username"] = username;
+            }
 
             const char *authSource = mongoc_uri_get_auth_source(mongoUri.get());
             if (authSource)
+            {
                 result["authSource"] = authSource;
+            }
 
             const char *replicaSet = mongoc_uri_get_replica_set(mongoUri.get());
             if (replicaSet)
+            {
                 result["replicaSet"] = replicaSet;
+            }
 
             return result;
         }

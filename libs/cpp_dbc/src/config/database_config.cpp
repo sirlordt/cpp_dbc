@@ -47,6 +47,7 @@ namespace cpp_dbc::config
             return dbConfig.createDBConnection();
         }
 
+        #ifdef __cpp_exceptions
         std::shared_ptr<RelationalDBConnectionPool> DatabaseConfigManager::createDBConnectionPool(
             const std::string &dbConfigName,
             const std::string &poolConfigName) const
@@ -79,4 +80,5 @@ namespace cpp_dbc::config
             }
             return poolResult.value();
         }
+        #endif // __cpp_exceptions
 } // namespace cpp_dbc::config

@@ -46,6 +46,7 @@ namespace cpp_dbc::Redis
             // DBDriver interface implementation
             bool acceptsURL(const std::string &url) override;
 
+            #ifdef __cpp_exceptions
             // KVDBDriver interface implementation
             std::shared_ptr<KVDBConnection> connectKV(
                 const std::string &url,
@@ -53,8 +54,6 @@ namespace cpp_dbc::Redis
                 const std::string &password,
                 const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
-            int getDefaultPort() const override;
-            std::string getURIScheme() const override;
             std::map<std::string, std::string> parseURI(const std::string &uri) override;
             std::string buildURI(
                 const std::string &host,
@@ -62,6 +61,10 @@ namespace cpp_dbc::Redis
                 const std::string &db = "",
                 const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
+            #endif // __cpp_exceptions
+
+            int getDefaultPort() const override;
+            std::string getURIScheme() const override;
             bool supportsClustering() const override;
             bool supportsReplication() const override;
             std::string getDriverVersion() const override;

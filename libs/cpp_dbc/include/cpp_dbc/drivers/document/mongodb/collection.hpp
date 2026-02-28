@@ -75,32 +75,30 @@ namespace cpp_dbc::MongoDB
 
             /**
              * @brief Validates that the connection is still valid
-             * @throws DBException if the connection has been closed
+             * @return unexpected(DBException) if the connection has been closed
              */
-            void validateConnection() const;
+            expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
 
             /**
              * @brief Helper to get the client pointer safely
-             * @return The client pointer
-             * @throws DBException if the connection has been closed
+             * @return The client pointer, or unexpected(DBException) if the connection has been closed
              */
-            mongoc_client_t *getClient() const;
+            expected<mongoc_client_t *, DBException> getClient(std::nothrow_t) const noexcept;
 
             /**
              * @brief Helper to parse a JSON filter string to BSON
              * @param filter The JSON filter string
-             * @return A BsonHandle containing the parsed filter
-             * @throws DBException if the JSON is invalid
+             * @return expected containing the BsonHandle, or DBException if the JSON is invalid
              */
-            BsonHandle parseFilter(const std::string &filter) const;
+            expected<BsonHandle, DBException> parseFilter(std::nothrow_t, const std::string &filter) const noexcept;
 
             /**
              * @brief Helper to handle MongoDB errors
              * @param error The bson_error_t from MongoDB
              * @param operation The operation that failed
-             * @throws DBException with the error details
+             * @return unexpected(DBException) with the error details
              */
-            [[noreturn]] void throwMongoError(const bson_error_t &error, const std::string &operation) const;
+            expected<void, DBException> throwMongoError(std::nothrow_t, const bson_error_t &error, const std::string &operation) const noexcept;
 
         public:
             /**
@@ -129,6 +127,86 @@ namespace cpp_dbc::MongoDB
 
             ~MongoDBCollection() override = default;
 
+#if DB_DRIVER_THREAD_SAFE
+            static cpp_dbc::expected<std::shared_ptr<MongoDBCollection>, DBException>
+            create(std::nothrow_t,
+                   std::weak_ptr<mongoc_client_t> client,
+                   mongoc_collection_t *collection,
+                   const std::string &name,
+                   const std::string &databaseName,
+                   std::weak_ptr<MongoDBConnection> connection,
+                   SharedConnMutex connMutex) noexcept
+            {
+                try
+                {
+                    return std::make_shared<MongoDBCollection>(std::move(client), collection, name, databaseName, std::move(connection), std::move(connMutex));
+                }
+                catch (const DBException &ex)
+                {
+                    return cpp_dbc::unexpected(ex);
+                }
+                catch (const std::exception &ex)
+                {
+                    return cpp_dbc::unexpected(DBException("IEAGMJKJZ33G", ex.what(), system_utils::captureCallStack()));
+                }
+                catch (...)
+                {
+                    return cpp_dbc::unexpected(DBException("AAIU13LTY75U", "Unknown error creating MongoDBCollection", system_utils::captureCallStack()));
+                }
+            }
+
+            static std::shared_ptr<MongoDBCollection>
+            create(std::weak_ptr<mongoc_client_t> client,
+                   mongoc_collection_t *collection,
+                   const std::string &name,
+                   const std::string &databaseName,
+                   std::weak_ptr<MongoDBConnection> connection,
+                   SharedConnMutex connMutex)
+            {
+                auto r = create(std::nothrow, std::move(client), collection, name, databaseName, std::move(connection), std::move(connMutex));
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+#else
+            static cpp_dbc::expected<std::shared_ptr<MongoDBCollection>, DBException>
+            create(std::nothrow_t,
+                   std::weak_ptr<mongoc_client_t> client,
+                   mongoc_collection_t *collection,
+                   const std::string &name,
+                   const std::string &databaseName,
+                   std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>()) noexcept
+            {
+                try
+                {
+                    return std::make_shared<MongoDBCollection>(std::move(client), collection, name, databaseName, std::move(connection));
+                }
+                catch (const DBException &ex)
+                {
+                    return cpp_dbc::unexpected(ex);
+                }
+                catch (const std::exception &ex)
+                {
+                    return cpp_dbc::unexpected(DBException("IEAGMJKJZ33G", ex.what(), system_utils::captureCallStack()));
+                }
+                catch (...)
+                {
+                    return cpp_dbc::unexpected(DBException("AAIU13LTY75U", "Unknown error creating MongoDBCollection", system_utils::captureCallStack()));
+                }
+            }
+
+            static std::shared_ptr<MongoDBCollection>
+            create(std::weak_ptr<mongoc_client_t> client,
+                   mongoc_collection_t *collection,
+                   const std::string &name,
+                   const std::string &databaseName,
+                   std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>())
+            {
+                auto r = create(std::nothrow, std::move(client), collection, name, databaseName, std::move(connection));
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+#endif
+
             // Prevent copying
             MongoDBCollection(const MongoDBCollection &) = delete;
             MongoDBCollection &operator=(const MongoDBCollection &) = delete;
@@ -137,15 +215,86 @@ namespace cpp_dbc::MongoDB
             MongoDBCollection(MongoDBCollection &&other) noexcept;
             MongoDBCollection &operator=(MongoDBCollection &&other) noexcept;
 
-            // DocumentDBCollection interface
+            // DocumentDBCollection interface - throwing API (wrappers)
+
+            #ifdef __cpp_exceptions
             std::string getName() const override;
             std::string getNamespace() const override;
             uint64_t estimatedDocumentCount() override;
             uint64_t countDocuments(const std::string &filter = "") override;
 
+            DocumentInsertResult insertOne(
+                std::shared_ptr<DocumentDBData> document,
+                const DocumentWriteOptions &options = DocumentWriteOptions()) override;
+
+            DocumentInsertResult insertOne(
+                const std::string &jsonDocument,
+                const DocumentWriteOptions &options = DocumentWriteOptions()) override;
+
+            DocumentInsertResult insertMany(
+                const std::vector<std::shared_ptr<DocumentDBData>> &documents,
+                const DocumentWriteOptions &options = DocumentWriteOptions()) override;
+
+            std::shared_ptr<DocumentDBData> findOne(const std::string &filter = "") override;
+            std::shared_ptr<DocumentDBData> findById(const std::string &id) override;
+            std::shared_ptr<DocumentDBCursor> find(const std::string &filter = "") override;
+            std::shared_ptr<DocumentDBCursor> find(
+                const std::string &filter,
+                const std::string &projection) override;
+
+            DocumentUpdateResult updateOne(
+                const std::string &filter,
+                const std::string &update,
+                const DocumentUpdateOptions &options = DocumentUpdateOptions()) override;
+
+            DocumentUpdateResult updateMany(
+                const std::string &filter,
+                const std::string &update,
+                const DocumentUpdateOptions &options = DocumentUpdateOptions()) override;
+
+            DocumentUpdateResult replaceOne(
+                const std::string &filter,
+                std::shared_ptr<DocumentDBData> replacement,
+                const DocumentUpdateOptions &options = DocumentUpdateOptions()) override;
+
+            DocumentDeleteResult deleteOne(const std::string &filter) override;
+            DocumentDeleteResult deleteMany(const std::string &filter) override;
+            DocumentDeleteResult deleteById(const std::string &id) override;
+
+            std::string createIndex(
+                const std::string &keys,
+                const std::string &options = "") override;
+
+            void dropIndex(const std::string &indexName) override;
+            void dropAllIndexes() override;
+            std::vector<std::string> listIndexes() override;
+
+            void drop() override;
+            void rename(const std::string &newName, bool dropTarget = false) override;
+
+            std::shared_ptr<DocumentDBCursor> aggregate(const std::string &pipeline) override;
+            std::vector<std::string> distinct(
+                const std::string &fieldPath,
+                const std::string &filter = "") override;
+
+            // MongoDB-specific methods
+
+            /**
+             * @brief Check if the connection is still valid
+             * @return true if the connection is valid
+             */
+            bool isConnectionValid() const;
+
+            #endif // __cpp_exceptions
             // ====================================================================
-            // INSERT OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+            // NOTHROW VERSIONS - Exception-free API
             // ====================================================================
+
+            expected<std::string, DBException> getName(std::nothrow_t) const noexcept override;
+            expected<std::string, DBException> getNamespace(std::nothrow_t) const noexcept override;
+            expected<uint64_t, DBException> estimatedDocumentCount(std::nothrow_t) noexcept override;
+            expected<uint64_t, DBException> countDocuments(
+                std::nothrow_t, const std::string &filter = "") noexcept override;
 
             expected<DocumentInsertResult, DBException> insertOne(
                 std::nothrow_t,
@@ -162,26 +311,6 @@ namespace cpp_dbc::MongoDB
                 const std::vector<std::shared_ptr<DocumentDBData>> &documents,
                 const DocumentWriteOptions &options = DocumentWriteOptions()) noexcept override;
 
-            // ====================================================================
-            // INSERT OPERATIONS - exception versions (WRAPPERS)
-            // ====================================================================
-
-            DocumentInsertResult insertOne(
-                std::shared_ptr<DocumentDBData> document,
-                const DocumentWriteOptions &options = DocumentWriteOptions()) override;
-
-            DocumentInsertResult insertOne(
-                const std::string &jsonDocument,
-                const DocumentWriteOptions &options = DocumentWriteOptions()) override;
-
-            DocumentInsertResult insertMany(
-                const std::vector<std::shared_ptr<DocumentDBData>> &documents,
-                const DocumentWriteOptions &options = DocumentWriteOptions()) override;
-
-            // ====================================================================
-            // FIND OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
-            // ====================================================================
-
             expected<std::shared_ptr<DocumentDBData>, DBException>
             findOne(std::nothrow_t, const std::string &filter = "") noexcept override;
 
@@ -193,21 +322,6 @@ namespace cpp_dbc::MongoDB
 
             expected<std::shared_ptr<DocumentDBCursor>, DBException>
             find(std::nothrow_t, const std::string &filter, const std::string &projection) noexcept override;
-
-            // ====================================================================
-            // FIND OPERATIONS - exception versions (WRAPPERS)
-            // ====================================================================
-
-            std::shared_ptr<DocumentDBData> findOne(const std::string &filter = "") override;
-            std::shared_ptr<DocumentDBData> findById(const std::string &id) override;
-            std::shared_ptr<DocumentDBCursor> find(const std::string &filter = "") override;
-            std::shared_ptr<DocumentDBCursor> find(
-                const std::string &filter,
-                const std::string &projection) override;
-
-            // ====================================================================
-            // UPDATE OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
-            // ====================================================================
 
             expected<DocumentUpdateResult, DBException> updateOne(
                 std::nothrow_t,
@@ -227,29 +341,6 @@ namespace cpp_dbc::MongoDB
                 std::shared_ptr<DocumentDBData> replacement,
                 const DocumentUpdateOptions &options = DocumentUpdateOptions()) noexcept override;
 
-            // ====================================================================
-            // UPDATE OPERATIONS - exception versions (WRAPPERS)
-            // ====================================================================
-
-            DocumentUpdateResult updateOne(
-                const std::string &filter,
-                const std::string &update,
-                const DocumentUpdateOptions &options = DocumentUpdateOptions()) override;
-
-            DocumentUpdateResult updateMany(
-                const std::string &filter,
-                const std::string &update,
-                const DocumentUpdateOptions &options = DocumentUpdateOptions()) override;
-
-            DocumentUpdateResult replaceOne(
-                const std::string &filter,
-                std::shared_ptr<DocumentDBData> replacement,
-                const DocumentUpdateOptions &options = DocumentUpdateOptions()) override;
-
-            // ====================================================================
-            // DELETE OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
-            // ====================================================================
-
             expected<DocumentDeleteResult, DBException> deleteOne(
                 std::nothrow_t,
                 const std::string &filter) noexcept override;
@@ -261,18 +352,6 @@ namespace cpp_dbc::MongoDB
             expected<DocumentDeleteResult, DBException> deleteById(
                 std::nothrow_t,
                 const std::string &id) noexcept override;
-
-            // ====================================================================
-            // DELETE OPERATIONS - exception versions (WRAPPERS)
-            // ====================================================================
-
-            DocumentDeleteResult deleteOne(const std::string &filter) override;
-            DocumentDeleteResult deleteMany(const std::string &filter) override;
-            DocumentDeleteResult deleteById(const std::string &id) override;
-
-            // ====================================================================
-            // INDEX & COLLECTION OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
-            // ====================================================================
 
             expected<std::string, DBException> createIndex(
                 std::nothrow_t,
@@ -305,34 +384,6 @@ namespace cpp_dbc::MongoDB
                 std::nothrow_t,
                 const std::string &fieldPath,
                 const std::string &filter = "") noexcept override;
-
-            // ====================================================================
-            // INDEX & COLLECTION OPERATIONS - exception versions (WRAPPERS)
-            // ====================================================================
-
-            std::string createIndex(
-                const std::string &keys,
-                const std::string &options = "") override;
-
-            void dropIndex(const std::string &indexName) override;
-            void dropAllIndexes() override;
-            std::vector<std::string> listIndexes() override;
-
-            void drop() override;
-            void rename(const std::string &newName, bool dropTarget = false) override;
-
-            std::shared_ptr<DocumentDBCursor> aggregate(const std::string &pipeline) override;
-            std::vector<std::string> distinct(
-                const std::string &fieldPath,
-                const std::string &filter = "") override;
-
-            // MongoDB-specific methods
-
-            /**
-             * @brief Check if the connection is still valid
-             * @return true if the connection is valid
-             */
-            bool isConnectionValid() const;
         };
 
 } // namespace cpp_dbc::MongoDB

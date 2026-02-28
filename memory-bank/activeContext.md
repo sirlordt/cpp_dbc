@@ -541,7 +541,7 @@ Recent changes to the codebase include:
        - Connection validation with Redis ping command
        - Configurable pool parameters (initial size, max size, min idle, etc.)
      - **Redis Implementation:**
-       - `RedisConnectionPool` concrete implementation for Redis
+       - `RedisDBConnectionPool` concrete implementation for Redis
        - Factory pattern with `create` static methods for pool creation
        - Protected constructors to enforce factory method usage
        - Support for Redis authentication and custom connection options
@@ -568,7 +568,7 @@ Recent changes to the codebase include:
        - `KVDBDriver`: Base interface for key-value database drivers
      - **Redis Driver Implementation:**
        - `RedisDriver`: Driver class for Redis connections
-       - `RedisConnection`: Connection management with proper resource cleanup
+       - `RedisDBConnection`: Connection management with proper resource cleanup
      - **Features:**
        - String operations with TTL support
        - List operations (push, pop, range)

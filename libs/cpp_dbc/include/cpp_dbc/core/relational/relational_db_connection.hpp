@@ -93,6 +93,7 @@ namespace cpp_dbc
          * stmt->close();
          * ```
          */
+        #ifdef __cpp_exceptions
         virtual std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) = 0;
 
         /**
@@ -205,6 +206,7 @@ namespace cpp_dbc
          */
         virtual TransactionIsolationLevel getTransactionIsolation() = 0;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -314,6 +316,7 @@ namespace cpp_dbc
          * - Rollback any active transaction
          * - Reset auto-commit to true
          */
+        #ifdef __cpp_exceptions
         virtual void prepareForPoolReturn() = 0;
 
         /**
@@ -323,6 +326,11 @@ namespace cpp_dbc
          * Firebird overrides this to ensure a fresh MVCC transaction snapshot.
          */
         virtual void prepareForBorrow() = 0;
+
+        #endif // __cpp_exceptions
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free protected API
+        // ====================================================================
 
         /**
          * @brief Prepare the connection for return to pool (nothrow version)

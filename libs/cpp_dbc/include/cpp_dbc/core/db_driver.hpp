@@ -69,11 +69,13 @@ namespace cpp_dbc
          * conn->close();
          * ```
          */
+        #ifdef __cpp_exceptions
         virtual std::shared_ptr<DBConnection> connect(
             const std::string &url,
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
+        #endif // __cpp_exceptions
 
         /**
          * @brief Check if this driver accepts the given URL

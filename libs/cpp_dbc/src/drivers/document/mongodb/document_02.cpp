@@ -13,221 +13,90 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file document_02.cpp
- * @brief MongoDB MongoDBDocument - Part 2 (getters)
+ * @brief MongoDB MongoDBDocument - Part 2 (getters - throwing wrappers)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
 
 #if USE_MONGODB
 
-#include <algorithm>
-#include <array>
-#include <cstring>
-#include <iostream>
-#include <ranges>
-#include <sstream>
-#include <stdexcept>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mongodb_internal.hpp"
 
 namespace cpp_dbc::MongoDB
 {
 
+    #ifdef __cpp_exceptions
     std::string MongoDBDocument::getString(const std::string &fieldPath) const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        bson_iter_t iter;
-        if (!navigateToField(fieldPath, iter))
+        auto r = getString(std::nothrow, fieldPath);
+        if (!r.has_value())
         {
-            throw DBException("E0C6A6D72CFB", "Field not found: " + fieldPath, system_utils::captureCallStack());
+            throw r.error();
         }
-
-        if (!BSON_ITER_HOLDS_UTF8(&iter))
-        {
-            throw DBException("0776DCEC534E", "Field is not a string: " + fieldPath, system_utils::captureCallStack());
-        }
-
-        uint32_t length = 0;
-        const char *str = bson_iter_utf8(&iter, &length);
-        return std::string(str, length);
+        return *r;
     }
 
     int64_t MongoDBDocument::getInt(const std::string &fieldPath) const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        bson_iter_t iter;
-        if (!navigateToField(fieldPath, iter))
+        auto r = getInt(std::nothrow, fieldPath);
+        if (!r.has_value())
         {
-            throw DBException("AC3BEA0AD9DC", "Field not found: " + fieldPath, system_utils::captureCallStack());
+            throw r.error();
         }
-
-        if (BSON_ITER_HOLDS_INT32(&iter))
-        {
-            return bson_iter_int32(&iter);
-        }
-        else if (BSON_ITER_HOLDS_INT64(&iter))
-        {
-            return bson_iter_int64(&iter);
-        }
-        else
-        {
-            throw DBException("BL8X9N2TDIW4", "Field is not an integer: " + fieldPath, system_utils::captureCallStack());
-        }
+        return *r;
     }
 
     double MongoDBDocument::getDouble(const std::string &fieldPath) const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        bson_iter_t iter;
-        if (!navigateToField(fieldPath, iter))
+        auto r = getDouble(std::nothrow, fieldPath);
+        if (!r.has_value())
         {
-            throw DBException("NSUK4ES5BSJI", "Field not found: " + fieldPath, system_utils::captureCallStack());
+            throw r.error();
         }
-
-        if (BSON_ITER_HOLDS_DOUBLE(&iter))
-        {
-            return bson_iter_double(&iter);
-        }
-        else if (BSON_ITER_HOLDS_INT32(&iter))
-        {
-            return static_cast<double>(bson_iter_int32(&iter));
-        }
-        else if (BSON_ITER_HOLDS_INT64(&iter))
-        {
-            return static_cast<double>(bson_iter_int64(&iter));
-        }
-        else
-        {
-            throw DBException("FIMD9V4LPM40", "Field is not a number: " + fieldPath, system_utils::captureCallStack());
-        }
+        return *r;
     }
 
     bool MongoDBDocument::getBool(const std::string &fieldPath) const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        bson_iter_t iter;
-        if (!navigateToField(fieldPath, iter))
+        auto r = getBool(std::nothrow, fieldPath);
+        if (!r.has_value())
         {
-            throw DBException("D3DDAB280443", "Field not found: " + fieldPath, system_utils::captureCallStack());
+            throw r.error();
         }
-
-        if (!BSON_ITER_HOLDS_BOOL(&iter))
-        {
-            throw DBException("OWR38035WYIA", "Field is not a boolean: " + fieldPath, system_utils::captureCallStack());
-        }
-
-        return bson_iter_bool(&iter);
+        return *r;
     }
 
     std::vector<uint8_t> MongoDBDocument::getBinary(const std::string &fieldPath) const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        bson_iter_t iter;
-        if (!navigateToField(fieldPath, iter))
+        auto r = getBinary(std::nothrow, fieldPath);
+        if (!r.has_value())
         {
-            throw DBException("2VKL9TEVDJ76", "Field not found: " + fieldPath, system_utils::captureCallStack());
+            throw r.error();
         }
-
-        if (!BSON_ITER_HOLDS_BINARY(&iter))
-        {
-            throw DBException("4FNOC1K3ZHZW", "Field is not binary: " + fieldPath, system_utils::captureCallStack());
-        }
-
-        bson_subtype_t subtype;
-        uint32_t length = 0;
-        const uint8_t *data = nullptr;
-        bson_iter_binary(&iter, &subtype, &length, &data);
-
-        return std::vector<uint8_t>(data, data + length);
+        return *r;
     }
 
     std::shared_ptr<DocumentDBData> MongoDBDocument::getDocument(const std::string &fieldPath) const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        bson_iter_t iter;
-        if (!navigateToField(fieldPath, iter))
+        auto r = getDocument(std::nothrow, fieldPath);
+        if (!r.has_value())
         {
-            throw DBException("WAAIRB60TKSP", "Field not found: " + fieldPath, system_utils::captureCallStack());
+            throw r.error();
         }
-
-        if (!BSON_ITER_HOLDS_DOCUMENT(&iter))
-        {
-            throw DBException("W6CLED1V77EK", "Field is not a document: " + fieldPath, system_utils::captureCallStack());
-        }
-
-        const uint8_t *data = nullptr;
-        uint32_t length = 0;
-        bson_iter_document(&iter, &length, &data);
-
-        bson_t *subdoc = bson_new_from_data(data, length);
-        if (!subdoc)
-        {
-            throw DBException("R2WVOAD04V70", "Failed to extract subdocument", system_utils::captureCallStack());
-        }
-
-        return std::make_shared<MongoDBDocument>(subdoc);
+        return *r;
     }
 
     std::vector<std::shared_ptr<DocumentDBData>> MongoDBDocument::getDocumentArray(const std::string &fieldPath) const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        bson_iter_t iter;
-        if (!navigateToField(fieldPath, iter))
+        auto r = getDocumentArray(std::nothrow, fieldPath);
+        if (!r.has_value())
         {
-            throw DBException("D6B7F1DFE191", "Field not found: " + fieldPath, system_utils::captureCallStack());
+            throw r.error();
         }
-
-        if (!BSON_ITER_HOLDS_ARRAY(&iter))
-        {
-            throw DBException("12BF0X7ZT7XL", "Field is not an array: " + fieldPath, system_utils::captureCallStack());
-        }
-
-        std::vector<std::shared_ptr<DocumentDBData>> result;
-
-        bson_iter_t arrayIter;
-        const uint8_t *data = nullptr;
-        uint32_t length = 0;
-        bson_iter_array(&iter, &length, &data);
-
-        bson_t arrayBson;
-        if (!bson_init_static(&arrayBson, data, length))
-        {
-            throw DBException("494F066BFAC9", "Failed to initialize array BSON", system_utils::captureCallStack());
-        }
-
-        if (bson_iter_init(&arrayIter, &arrayBson))
-        {
-            size_t elementIndex = 0;
-            while (bson_iter_next(&arrayIter))
-            {
-                if (BSON_ITER_HOLDS_DOCUMENT(&arrayIter))
-                {
-                    const uint8_t *docData = nullptr;
-                    uint32_t docLength = 0;
-                    bson_iter_document(&arrayIter, &docLength, &docData);
-
-                    bson_t *subdoc = bson_new_from_data(docData, docLength);
-                    if (!subdoc)
-                    {
-                        throw DBException("494F066BFACA",
-                            "Failed to construct subdocument at index " + std::to_string(elementIndex) + " in array field: " + fieldPath,
-                            system_utils::captureCallStack());
-                    }
-                    result.push_back(std::make_shared<MongoDBDocument>(subdoc));
-                }
-                elementIndex++;
-            }
-        }
-
-        return result;
+        return *r;
     }
+    #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB
 

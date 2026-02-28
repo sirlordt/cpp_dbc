@@ -176,6 +176,7 @@ namespace cpp_dbc
         }
     }
 
+    #ifdef __cpp_exceptions
     cpp_dbc::expected<void, DBException> KVDBConnectionPool::initializePool(std::nothrow_t) noexcept
     {
         try
@@ -1187,6 +1188,7 @@ namespace cpp_dbc
                         if (!returnResult.has_value())
                         {
                             CP_DEBUG("KVPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().data());
+                            return returnResult;
                         }
                     }
                 }
@@ -1310,6 +1312,7 @@ namespace cpp_dbc
                     if (!returnResult.has_value())
                     {
                         CP_DEBUG("KVPooledDBConnection::returnToPool - returnConnection failed: %s", returnResult.error().what_s().data());
+                        return returnResult;
                     }
                 }
             }
@@ -1391,6 +1394,7 @@ namespace cpp_dbc
             throw result.error();
         }
     }
+    #endif // __cpp_exceptions
 
     cpp_dbc::expected<void, DBException> KVPooledDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
     {
@@ -1910,11 +1914,11 @@ namespace cpp_dbc
         return m_conn->getServerInfo(std::nothrow);
     }
 
-    // RedisConnectionPool implementation
+    // RedisDBConnectionPool implementation
 
     namespace Redis
     {
-        RedisConnectionPool::RedisConnectionPool(DBConnectionPool::ConstructorTag,
+        RedisDBConnectionPool::RedisDBConnectionPool(DBConnectionPool::ConstructorTag,
                                                  const std::string &url,
                                                  const std::string &username,
                                                  const std::string &password)
@@ -1922,7 +1926,7 @@ namespace cpp_dbc
         {
         }
 
-        RedisConnectionPool::RedisConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config)
+        RedisDBConnectionPool::RedisDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config)
             : KVDBConnectionPool(DBConnectionPool::ConstructorTag{},
                                  config.getUrl(),
                                  config.getUsername(),
@@ -1943,14 +1947,14 @@ namespace cpp_dbc
             // Redis-specific initialization if needed
         }
 
-        cpp_dbc::expected<std::shared_ptr<RedisConnectionPool>, DBException> RedisConnectionPool::create(std::nothrow_t,
+        cpp_dbc::expected<std::shared_ptr<RedisDBConnectionPool>, DBException> RedisDBConnectionPool::create(std::nothrow_t,
                                                                                                          const std::string &url,
                                                                                                          const std::string &username,
                                                                                                          const std::string &password) noexcept
         {
             try
             {
-                auto pool = std::make_shared<RedisConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+                auto pool = std::make_shared<RedisDBConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
                 auto initResult = pool->initializePool(std::nothrow);
                 if (!initResult.has_value())
                 {
@@ -1968,11 +1972,11 @@ namespace cpp_dbc
             }
         }
 
-        cpp_dbc::expected<std::shared_ptr<RedisConnectionPool>, DBException> RedisConnectionPool::create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept
+        cpp_dbc::expected<std::shared_ptr<RedisDBConnectionPool>, DBException> RedisDBConnectionPool::create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept
         {
             try
             {
-                auto pool = std::make_shared<RedisConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
+                auto pool = std::make_shared<RedisDBConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
                 auto initResult = pool->initializePool(std::nothrow);
                 if (!initResult.has_value())
                 {

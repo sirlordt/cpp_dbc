@@ -39,14 +39,24 @@ namespace cpp_dbc::MySQL
              * @return Raw pointer to the MYSQL handle
              * @throws DBException if the connection has been closed
              */
-            MYSQL *getMySQLHandle() const
+            cpp_dbc::expected<MYSQL *, DBException> getMySQLHandle(std::nothrow_t) const noexcept
             {
                 auto mysql = m_mysql.lock();
                 if (!mysql)
                 {
-                    throw DBException("R1CN39R0XLH7", "Connection has been closed", system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("SWUSJLDWXH53", "Connection has been closed", system_utils::captureCallStack()));
                 }
                 return mysql.get();
+            }
+
+            MYSQL *getMySQLHandle() const
+            {
+                auto r = getMySQLHandle(std::nothrow);
+                if (!r.has_value())
+                {
+                    throw r.error();
+                }
+                return r.value();
             }
 
         public:
@@ -77,6 +87,65 @@ namespace cpp_dbc::MySQL
             MySQLBlob(std::shared_ptr<MYSQL> mysql, const std::vector<uint8_t> &initialData)
                 : MemoryBlob(initialData), m_mysql(mysql), m_loaded(true) {}
 
+            static cpp_dbc::expected<std::shared_ptr<MySQLBlob>, DBException> create(std::nothrow_t, std::shared_ptr<MYSQL> mysql) noexcept
+            {
+                return std::make_shared<MySQLBlob>(mysql);
+            }
+
+            static cpp_dbc::expected<std::shared_ptr<MySQLBlob>, DBException> create(std::nothrow_t, std::shared_ptr<MYSQL> mysql,
+                const std::string &tableName, const std::string &columnName, const std::string &whereClause) noexcept
+            {
+                return std::make_shared<MySQLBlob>(mysql, tableName, columnName, whereClause);
+            }
+
+            static cpp_dbc::expected<std::shared_ptr<MySQLBlob>, DBException> create(std::nothrow_t, std::shared_ptr<MYSQL> mysql,
+                const std::vector<uint8_t> &initialData) noexcept
+            {
+                return std::make_shared<MySQLBlob>(mysql, initialData);
+            }
+
+            static std::shared_ptr<MySQLBlob> create(std::shared_ptr<MYSQL> mysql)
+            {
+                auto r = create(std::nothrow, mysql);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            static std::shared_ptr<MySQLBlob> create(std::shared_ptr<MYSQL> mysql,
+                const std::string &tableName, const std::string &columnName, const std::string &whereClause)
+            {
+                auto r = create(std::nothrow, mysql, tableName, columnName, whereClause);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            static std::shared_ptr<MySQLBlob> create(std::shared_ptr<MYSQL> mysql,
+                const std::vector<uint8_t> &initialData)
+            {
+                auto r = create(std::nothrow, mysql, initialData);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const MySQLBlob &other) noexcept
+            {
+                if (this == &other) { return {}; }
+                auto r = MemoryBlob::copyFrom(std::nothrow, other);
+                if (!r.has_value()) { return r; }
+                m_mysql = other.m_mysql;
+                m_tableName = other.m_tableName;
+                m_columnName = other.m_columnName;
+                m_whereClause = other.m_whereClause;
+                m_loaded = other.m_loaded;
+                return {};
+            }
+
+            void copyFrom(const MySQLBlob &other)
+            {
+                auto r = copyFrom(std::nothrow, other);
+                if (!r.has_value()) { throw r.error(); }
+            }
+
             /**
              * @brief Check if the connection is still valid
              * @return true if the connection is still valid
@@ -92,49 +161,45 @@ namespace cpp_dbc::MySQL
              * This method safely accesses the connection through the weak_ptr,
              * ensuring the connection is still valid before attempting to read.
              */
-            void ensureLoaded() const
+            cpp_dbc::expected<void, DBException> ensureLoaded(std::nothrow_t) const noexcept
             {
                 if (m_loaded)
-                    return;
+                {
+                    return {};
+                }
+                auto mysqlResult = getMySQLHandle(std::nothrow);
+                if (!mysqlResult.has_value())
+                {
+                    return cpp_dbc::unexpected(mysqlResult.error());
+                }
+                MYSQL *mysql = mysqlResult.value();
 
-                // Get MySQL handle safely - throws if connection is closed
-                MYSQL *mysql = getMySQLHandle();
-
-                // Construct a query to fetch the BLOB data
                 std::string query = "SELECT " + m_columnName + " FROM " + m_tableName;
                 if (!m_whereClause.empty())
+                {
                     query += " WHERE " + m_whereClause;
-
-                // Execute the query
+                }
                 if (mysql_query(mysql, query.c_str()) != 0)
                 {
-                    throw DBException("6VDNWQ8STSAG", "Failed to fetch BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("6VDNWQ8STSAG", "Failed to fetch BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack()));
                 }
-
-                // Get the result
                 MYSQL_RES *result = mysql_store_result(mysql);
                 if (!result)
                 {
-                    throw DBException("476QLR8BRXQK", "Failed to get result set for BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("476QLR8BRXQK", "Failed to get result set for BLOB data: " + std::string(mysql_error(mysql)), system_utils::captureCallStack()));
                 }
-
-                // Get the row
                 MYSQL_ROW row = mysql_fetch_row(result);
                 if (!row)
                 {
                     mysql_free_result(result);
-                    throw DBException("QQ7NT0640BWW", "No data found for BLOB", system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("QQ7NT0640BWW", "No data found for BLOB", system_utils::captureCallStack()));
                 }
-
-                // Get the BLOB data
                 const unsigned long *lengths = mysql_fetch_lengths(result);
                 if (!lengths)
                 {
                     mysql_free_result(result);
-                    throw DBException("VKZ2WW134M1Q", "Failed to get BLOB data length", system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("VKZ2WW134M1Q", "Failed to get BLOB data length", system_utils::captureCallStack()));
                 }
-
-                // Copy the BLOB data
                 if (row[0] && lengths[0] > 0)
                 {
                     m_data.resize(lengths[0]);
@@ -144,53 +209,70 @@ namespace cpp_dbc::MySQL
                 {
                     m_data.clear();
                 }
-
-                // Free the result
                 mysql_free_result(result);
                 m_loaded = true;
+                return {};
             }
 
-            // Override methods that need to ensure the BLOB is loaded
+            void ensureLoaded() const
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value())
+                {
+                    throw r.error();
+                }
+            }
+
+            // ====================================================================
+            // THROWING API - Exception-based (requires __cpp_exceptions)
+            // ====================================================================
+
+            #ifdef __cpp_exceptions
+
             size_t length() const override
             {
-                ensureLoaded();
-                return MemoryBlob::length();
+                auto r = length(std::nothrow);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
             }
 
             std::vector<uint8_t> getBytes(size_t pos, size_t length) const override
             {
-                ensureLoaded();
-                return MemoryBlob::getBytes(pos, length);
+                auto r = getBytes(std::nothrow, pos, length);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
             }
 
             std::shared_ptr<InputStream> getBinaryStream() const override
             {
-                ensureLoaded();
-                return MemoryBlob::getBinaryStream();
+                auto r = getBinaryStream(std::nothrow);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
             }
 
             std::shared_ptr<OutputStream> setBinaryStream(size_t pos) override
             {
-                ensureLoaded();
-                return MemoryBlob::setBinaryStream(pos);
+                auto r = setBinaryStream(std::nothrow, pos);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
             }
 
             void setBytes(size_t pos, const std::vector<uint8_t> &bytes) override
             {
-                ensureLoaded();
-                MemoryBlob::setBytes(pos, bytes);
+                auto r = setBytes(std::nothrow, pos, bytes);
+                if (!r.has_value()) { throw r.error(); }
             }
 
             void setBytes(size_t pos, const uint8_t *bytes, size_t length) override
             {
-                ensureLoaded();
-                MemoryBlob::setBytes(pos, bytes, length);
+                auto r = setBytes(std::nothrow, pos, bytes, length);
+                if (!r.has_value()) { throw r.error(); }
             }
 
             void truncate(size_t len) override
             {
-                ensureLoaded();
-                MemoryBlob::truncate(len);
+                auto r = truncate(std::nothrow, len);
+                if (!r.has_value()) { throw r.error(); }
             }
 
             /**
@@ -201,61 +283,131 @@ namespace cpp_dbc::MySQL
              *
              * @throws DBException if the connection has been closed or if writing fails
              */
-            void save()
+            cpp_dbc::expected<void, DBException> save(std::nothrow_t) noexcept
             {
                 if (m_tableName.empty() || m_columnName.empty() || m_whereClause.empty())
-                    return; // Nothing to save
+                {
+                    return {}; // Nothing to save
+                }
+                auto mysqlResult = getMySQLHandle(std::nothrow);
+                if (!mysqlResult.has_value())
+                {
+                    return cpp_dbc::unexpected(mysqlResult.error());
+                }
+                MYSQL *mysql = mysqlResult.value();
 
-                // Get MySQL handle safely - throws if connection is closed
-                MYSQL *mysql = getMySQLHandle();
-
-                // Prepare a statement to update the BLOB data
                 std::string query = "UPDATE " + m_tableName + " SET " + m_columnName + " = ? WHERE " + m_whereClause;
-
                 MYSQL_STMT *stmt = mysql_stmt_init(mysql);
                 if (!stmt)
                 {
-                    throw DBException("F5W35AZHZKK7", "Failed to initialize statement for BLOB update: " + std::string(mysql_error(mysql)), system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("F5W35AZHZKK7", "Failed to initialize statement for BLOB update: " + std::string(mysql_error(mysql)), system_utils::captureCallStack()));
                 }
-
                 if (mysql_stmt_prepare(stmt, query.c_str(), query.length()) != 0)
                 {
                     std::string error = mysql_stmt_error(stmt);
                     mysql_stmt_close(stmt);
-                    throw DBException("1M7I6MJ8UHON", "Failed to prepare statement for BLOB update: " + error, system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("1M7I6MJ8UHON", "Failed to prepare statement for BLOB update: " + error, system_utils::captureCallStack()));
                 }
-
-                // Bind the BLOB data
                 MYSQL_BIND bind;
                 memset(&bind, 0, sizeof(bind));
                 bind.buffer_type = MYSQL_TYPE_BLOB;
                 bind.buffer = m_data.data();
                 bind.buffer_length = m_data.size();
                 bind.length_value = m_data.size();
-
                 if (mysql_stmt_bind_param(stmt, &bind) != 0)
                 {
                     std::string error = mysql_stmt_error(stmt);
                     mysql_stmt_close(stmt);
-                    throw DBException("K4PXEPQPAR99", "Failed to bind BLOB data: " + error, system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("K4PXEPQPAR99", "Failed to bind BLOB data: " + error, system_utils::captureCallStack()));
                 }
-
-                // Execute the statement
                 if (mysql_stmt_execute(stmt) != 0)
                 {
                     std::string error = mysql_stmt_error(stmt);
                     mysql_stmt_close(stmt);
-                    throw DBException("SMT5X3RWBNV7", "Failed to update BLOB data: " + error, system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("SMT5X3RWBNV7", "Failed to update BLOB data: " + error, system_utils::captureCallStack()));
                 }
-
-                // Clean up
                 mysql_stmt_close(stmt);
+                return {};
+            }
+
+            void save()
+            {
+                auto r = save(std::nothrow);
+                if (!r.has_value())
+                {
+                    throw r.error();
+                }
             }
 
             void free() override
             {
-                MemoryBlob::free();
+                auto r = free(std::nothrow);
+                if (!r.has_value())
+                {
+                    throw r.error();
+                }
+            }
+
+            #endif // __cpp_exceptions
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
+            cpp_dbc::expected<size_t, DBException> length(std::nothrow_t) const noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::length(std::nothrow);
+            }
+
+            cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t pos, size_t length) const noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::getBytes(std::nothrow, pos, length);
+            }
+
+            cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t) const noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::getBinaryStream(std::nothrow);
+            }
+
+            cpp_dbc::expected<std::shared_ptr<OutputStream>, DBException> setBinaryStream(std::nothrow_t, size_t pos) noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::setBinaryStream(std::nothrow, pos);
+            }
+
+            cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, size_t pos, const std::vector<uint8_t> &bytes) noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::setBytes(std::nothrow, pos, bytes);
+            }
+
+            cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, size_t pos, const uint8_t *bytes, size_t length) noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::setBytes(std::nothrow, pos, bytes, length);
+            }
+
+            cpp_dbc::expected<void, DBException> truncate(std::nothrow_t, size_t len) noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::truncate(std::nothrow, len);
+            }
+
+            cpp_dbc::expected<void, DBException> free(std::nothrow_t) noexcept override
+            {
+                auto r = MemoryBlob::free(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
                 m_loaded = false;
+                return {};
             }
         };
 

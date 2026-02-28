@@ -13,152 +13,89 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file document_04.cpp
- * @brief MongoDB MongoDBDocument - Part 4 (field operations, utilities)
+ * @brief MongoDB MongoDBDocument - Part 4 (field operations, utilities - throwing wrappers)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
 
 #if USE_MONGODB
 
-#include <algorithm>
-#include <array>
-#include <cstring>
-#include <iostream>
-#include <ranges>
-#include <sstream>
-#include <stdexcept>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mongodb_internal.hpp"
 
 namespace cpp_dbc::MongoDB
 {
 
+    #ifdef __cpp_exceptions
     bool MongoDBDocument::hasField(const std::string &fieldPath) const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        if (!m_bson)
+        auto r = hasField(std::nothrow, fieldPath);
+        if (!r.has_value())
         {
-            return false;
+            throw r.error();
         }
-
-        bson_iter_t iter;
-        return navigateToField(fieldPath, iter);
+        return *r;
     }
 
     bool MongoDBDocument::isNull(const std::string &fieldPath) const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        bson_iter_t iter;
-        if (!navigateToField(fieldPath, iter))
+        auto r = isNull(std::nothrow, fieldPath);
+        if (!r.has_value())
         {
-            return true; // Field doesn't exist, treat as null
+            throw r.error();
         }
-
-        return BSON_ITER_HOLDS_NULL(&iter);
+        return *r;
     }
 
     bool MongoDBDocument::removeField(const std::string &fieldPath)
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
-
-        if (fieldPath.contains('.'))
+        auto r = removeField(std::nothrow, fieldPath);
+        if (!r.has_value())
         {
-            throw DBException("EVH2Z04S03F4", "Nested field removal not yet implemented: " + fieldPath, system_utils::captureCallStack());
+            throw r.error();
         }
-
-        // Check if field exists
-        bson_iter_t iter;
-        if (!navigateToField(fieldPath, iter))
-        {
-            return false;
-        }
-
-        // Create new document without the field
-        bson_t *newBson = bson_new();
-        if (!newBson)
-        {
-            throw DBException("9G3ZCIAIVQ0O", "Failed to create new BSON document", system_utils::captureCallStack());
-        }
-
-        if (bson_iter_init(&iter, m_bson.get()))
-        {
-            while (bson_iter_next(&iter))
-            {
-                const char *key = bson_iter_key(&iter);
-                if (fieldPath != key)
-                {
-                    bson_append_iter(newBson, key, -1, &iter);
-                }
-            }
-        }
-
-        m_bson.reset(newBson);
-        m_idCached = false;
-        return true;
+        return *r;
     }
 
     std::vector<std::string> MongoDBDocument::getFieldNames() const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
-
-        std::vector<std::string> names;
-
-        bson_iter_t iter;
-        if (bson_iter_init(&iter, m_bson.get()))
+        auto r = getFieldNames(std::nothrow);
+        if (!r.has_value())
         {
-            while (bson_iter_next(&iter))
-            {
-                names.emplace_back(bson_iter_key(&iter));
-            }
+            throw r.error();
         }
-
-        return names;
+        return *r;
     }
 
     std::shared_ptr<DocumentDBData> MongoDBDocument::clone() const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
-
-        bson_t *copy = bson_copy(m_bson.get());
-        if (!copy)
+        auto r = clone(std::nothrow);
+        if (!r.has_value())
         {
-            throw DBException("5380CBC18BA5", "Failed to clone document", system_utils::captureCallStack());
+            throw r.error();
         }
-
-        return std::make_shared<MongoDBDocument>(copy);
+        return *r;
     }
 
     void MongoDBDocument::clear()
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        bson_t *empty = bson_new();
-        if (!empty)
+        auto r = clear(std::nothrow);
+        if (!r.has_value())
         {
-            throw DBException("R0NGPB9FHEGQ", "Failed to create empty BSON document", system_utils::captureCallStack());
+            throw r.error();
         }
-        m_bson.reset(empty);
-
-        m_idCached = false;
-        m_cachedId.clear();
     }
 
     bool MongoDBDocument::isEmpty() const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        if (!m_bson)
+        auto r = isEmpty(std::nothrow);
+        if (!r.has_value())
         {
-            return true;
+            throw r.error();
         }
-
-        return bson_count_keys(m_bson.get()) == 0;
+        return *r;
     }
+    #endif // __cpp_exceptions
 
     const bson_t *MongoDBDocument::getBson() const
     {
@@ -173,26 +110,37 @@ namespace cpp_dbc::MongoDB
         return m_bson.get();
     }
 
-    std::shared_ptr<MongoDBDocument> MongoDBDocument::fromBson(bson_t *bson)
+    expected<std::shared_ptr<MongoDBDocument>, DBException>
+    MongoDBDocument::fromBson(std::nothrow_t, bson_t *bson) noexcept
     {
         if (!bson)
         {
-            throw DBException("B8C4D3E2F5A7", "Cannot create document from null BSON pointer", system_utils::captureCallStack());
+            return unexpected<DBException>(DBException(
+                "TIPPT5AZJ1I1",
+                "Cannot create document from null BSON pointer",
+                system_utils::captureCallStack()));
         }
         return std::make_shared<MongoDBDocument>(bson);
     }
 
-    std::shared_ptr<MongoDBDocument> MongoDBDocument::fromBsonCopy(const bson_t *bson)
+    expected<std::shared_ptr<MongoDBDocument>, DBException>
+    MongoDBDocument::fromBsonCopy(std::nothrow_t, const bson_t *bson) noexcept
     {
         if (!bson)
         {
-            throw DBException("A7B3C2D1E4F5", "Cannot create document from null BSON pointer", system_utils::captureCallStack());
+            return unexpected<DBException>(DBException(
+                "Z99M25OOHIBD",
+                "Cannot create document from null BSON pointer",
+                system_utils::captureCallStack()));
         }
 
         bson_t *copy = bson_copy(bson);
         if (!copy)
         {
-            throw DBException("B8C4D3E2F5A6", "Failed to copy BSON document", system_utils::captureCallStack());
+            return unexpected<DBException>(DBException(
+                "UYBXP3TMVRMC",
+                "Failed to copy BSON document",
+                system_utils::captureCallStack()));
         }
 
         return std::make_shared<MongoDBDocument>(copy);

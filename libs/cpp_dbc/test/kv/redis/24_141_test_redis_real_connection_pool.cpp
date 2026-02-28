@@ -52,7 +52,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
     std::string password = dbConfig.getPassword();
 
     // Build Redis connection string
-    std::string connStr = redis_test_helpers::buildRedisConnectionString(dbConfig);
+    std::string connStr = redis_test_helpers::buildRedisDBConnectionString(dbConfig);
 
     SECTION("Basic connection pool operations")
     {
@@ -73,7 +73,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
         poolConfigLocal.setValidationQuery("PING");
 
         // Create a connection pool using factory method
-        auto poolResult = cpp_dbc::Redis::RedisConnectionPool::create(std::nothrow, poolConfigLocal);
+        auto poolResult = cpp_dbc::Redis::RedisDBConnectionPool::create(std::nothrow, poolConfigLocal);
         if (!poolResult.has_value())
         {
             throw poolResult.error();
@@ -138,7 +138,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
         poolConfigLocal.setValidationQuery("PING");
 
         // Create a connection pool
-        auto poolResult2 = cpp_dbc::Redis::RedisConnectionPool::create(std::nothrow, poolConfigLocal);
+        auto poolResult2 = cpp_dbc::Redis::RedisDBConnectionPool::create(std::nothrow, poolConfigLocal);
         if (!poolResult2.has_value())
         {
             throw poolResult2.error();

@@ -119,9 +119,9 @@ namespace cpp_dbc::MongoDB
 
             /**
              * @brief Validates that the connection is open
-             * @throws DBException if the connection is closed
+             * @return unexpected(DBException) if the connection is closed
              */
-            void validateConnection() const;
+            expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
 
             /**
              * @brief Generate a unique session ID
@@ -130,6 +130,68 @@ namespace cpp_dbc::MongoDB
             std::string generateSessionId();
 
         public:
+            /**
+             * @brief Construct a MongoDB connection
+             * @param uri The MongoDB connection URI
+             * @param user The username (may be empty if auth is in URI)
+             * @param password The password (may be empty if auth is in URI)
+             * @param options Additional connection options
+             * @throws DBException if the connection fails
+             */
+            MongoDBConnection(const std::string &uri,
+                              const std::string &user,
+                              const std::string &password,
+                              const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+
+            ~MongoDBConnection() override;
+
+            // Prevent copying
+            MongoDBConnection(const MongoDBConnection &) = delete;
+            MongoDBConnection &operator=(const MongoDBConnection &) = delete;
+
+            // Allow moving
+            MongoDBConnection(MongoDBConnection &&other) noexcept;
+            MongoDBConnection &operator=(MongoDBConnection &&other) noexcept;
+
+            static cpp_dbc::expected<std::shared_ptr<MongoDBConnection>, DBException>
+            create(std::nothrow_t,
+                   const std::string &uri,
+                   const std::string &user,
+                   const std::string &password,
+                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+            {
+                try
+                {
+                    return std::make_shared<MongoDBConnection>(uri, user, password, options);
+                }
+                catch (const DBException &ex)
+                {
+                    return cpp_dbc::unexpected(ex);
+                }
+                catch (const std::exception &ex)
+                {
+                    return cpp_dbc::unexpected(DBException("T8M36V2EA5BN", ex.what(), system_utils::captureCallStack()));
+                }
+                catch (...)
+                {
+                    return cpp_dbc::unexpected(DBException("LXBZHYAP2AAQ", "Unknown error creating MongoDBConnection", system_utils::captureCallStack()));
+                }
+            }
+
+            static std::shared_ptr<MongoDBConnection>
+            create(const std::string &uri,
+                   const std::string &user,
+                   const std::string &password,
+                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
+            {
+                auto r = create(std::nothrow, uri, user, password, options);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            // DocumentDBConnection interface - throwing API (wrappers)
+
+            #ifdef __cpp_exceptions
             /**
              * @brief Register a collection for cleanup tracking
              * @param collection Weak pointer to the collection to register
@@ -154,30 +216,6 @@ namespace cpp_dbc::MongoDB
              */
             void unregisterCursor(std::weak_ptr<MongoDBCursor> cursor);
 
-            /**
-             * @brief Construct a MongoDB connection
-             * @param uri The MongoDB connection URI
-             * @param user The username (may be empty if auth is in URI)
-             * @param password The password (may be empty if auth is in URI)
-             * @param options Additional connection options
-             * @throws DBException if the connection fails
-             */
-            MongoDBConnection(const std::string &uri,
-                              const std::string &user,
-                              const std::string &password,
-                              const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
-
-            ~MongoDBConnection() override;
-
-            // Prevent copying
-            MongoDBConnection(const MongoDBConnection &) = delete;
-            MongoDBConnection &operator=(const MongoDBConnection &) = delete;
-
-            // Allow moving
-            MongoDBConnection(MongoDBConnection &&other) noexcept;
-            MongoDBConnection &operator=(MongoDBConnection &&other) noexcept;
-
-            // DBConnection interface
             void close() override;
             bool isClosed() const override;
             void returnToPool() override;
@@ -185,7 +223,6 @@ namespace cpp_dbc::MongoDB
             std::string getURL() const override;
             void reset() override;
 
-            // DocumentDBConnection interface
             std::string getDatabaseName() const override;
             std::vector<std::string> listDatabases() override;
             bool databaseExists(const std::string &databaseName) override;
@@ -239,11 +276,11 @@ namespace cpp_dbc::MongoDB
              */
             void setPooled(bool pooled);
 
+            #endif // __cpp_exceptions
             // ====================================================================
             // NOTHROW VERSIONS - Exception-free API
             // ====================================================================
 
-            // DBConnection nothrow interface
             expected<void, DBException> close(std::nothrow_t) noexcept override;
             expected<void, DBException> reset(std::nothrow_t) noexcept override;
             expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
@@ -251,7 +288,6 @@ namespace cpp_dbc::MongoDB
             expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
             expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
 
-            // DocumentDBConnection nothrow interface
             expected<std::string, DBException> getDatabaseName(std::nothrow_t) const noexcept override;
             expected<std::vector<std::string>, DBException> listDatabases(std::nothrow_t) noexcept override;
             expected<bool, DBException> databaseExists(

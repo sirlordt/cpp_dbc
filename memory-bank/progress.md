@@ -513,7 +513,7 @@ The project includes example code demonstrating:
   - Firebird: FirebirdConnectionPool
   - MongoDB: MongoDBConnectionPool
   - ScyllaDB: ScyllaConnectionPool (ColumnarDBConnectionPool)
-  - Redis: RedisConnectionPool
+  - Redis: RedisDBConnectionPool
 
 ### SQLite Support
 - Connection to SQLite databases

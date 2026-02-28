@@ -104,6 +104,7 @@ namespace cpp_dbc::ScyllaDB
         }
     }
 
+    #ifdef __cpp_exceptions
     void ScyllaDBResultSet::close()
     {
         auto result = close(std::nothrow);
@@ -425,6 +426,7 @@ namespace cpp_dbc::ScyllaDB
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::ScyllaDB
 

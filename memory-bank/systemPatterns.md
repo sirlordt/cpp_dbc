@@ -235,7 +235,7 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - `KVDBConnectionPool` for key-value databases with factory pattern
 - Each connection pool implementation follows the same architecture:
   - Abstract base class defining the pool interface
-  - Concrete implementations for specific database types (PostgreSQLConnectionPool, MongoDBConnectionPool, ScyllaConnectionPool, RedisConnectionPool, etc.)
+  - Concrete implementations for specific database types (PostgreSQLConnectionPool, MongoDBConnectionPool, ScyllaConnectionPool, RedisDBConnectionPool, etc.)
   - Factory methods (`create`) return `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` — exception-free pool creation
   - ConstructorTag pattern (PassKey idiom) to enable `std::make_shared` while enforcing factory pattern:
     - `DBConnectionPool::ConstructorTag` is a protected struct that acts as an access token
@@ -384,7 +384,7 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - `KVDBDriver` → Creates → `KVDBConnection`
 - `KVDBConnection` → Performs → Key-Value Operations (get, set, list, hash, etc.)
 - `RedisDriver` → Implements → `KVDBDriver`
-- `RedisConnection` → Implements → `KVDBConnection`
+- `RedisDBConnection` → Implements → `KVDBConnection`
 - `KVDBConnectionPool` → Manages → `KVPooledDBConnection`
 - `KVPooledDBConnection` → Wraps → `KVDBConnection`
 
@@ -468,14 +468,14 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 ### Connection Pooling with Key-Value Databases Flow
 1. Client creates a connection pool using the factory method:
    ```cpp
-   auto pool = cpp_dbc::Redis::RedisConnectionPool::create(url, username, password);
+   auto pool = cpp_dbc::Redis::RedisDBConnectionPool::create(url, username, password);
    ```
    or with a configuration object:
    ```cpp
    config::DBConnectionPoolConfig config;
    config.setUrl("redis://localhost:6379");
    // Set other configuration options...
-   auto pool = cpp_dbc::Redis::RedisConnectionPool::create(config);
+   auto pool = cpp_dbc::Redis::RedisDBConnectionPool::create(config);
    ```
 2. Client requests a connection from the pool:
    ```cpp

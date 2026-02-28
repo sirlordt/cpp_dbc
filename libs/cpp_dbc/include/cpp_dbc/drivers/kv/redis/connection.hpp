@@ -2,6 +2,9 @@
 
 #include "reply_handle.hpp"
 #include "cpp_dbc/core/kv/kv_db_connection.hpp"
+#include "cpp_dbc/core/db_expected.hpp"
+#include "cpp_dbc/core/db_exception.hpp"
+#include "cpp_dbc/common/system_utils.hpp"
 #include <mutex>
 #include <atomic>
 #include <memory>
@@ -27,14 +30,14 @@ namespace cpp_dbc::Redis
          * ### Example
          *
          * ```cpp
-         * auto conn = std::dynamic_pointer_cast<cpp_dbc::Redis::RedisConnection>(
+         * auto conn = std::dynamic_pointer_cast<cpp_dbc::Redis::RedisDBConnection>(
          *     cpp_dbc::DriverManager::getDBConnection("cpp_dbc:redis://localhost:6379", "", ""));
          * conn->setString("key", "value");
          * std::string val = conn->getString("key");
          * conn->close();
          * ```
          */
-        class RedisConnection final : public KVDBConnection, public std::enable_shared_from_this<RedisConnection>
+        class RedisDBConnection final : public KVDBConnection, public std::enable_shared_from_this<RedisDBConnection>
         {
         public:
             /**
@@ -45,7 +48,7 @@ namespace cpp_dbc::Redis
              * @param password The password for authentication
              * @param options Additional connection options
              */
-            RedisConnection(
+            RedisDBConnection(
                 const std::string &uri,
                 const std::string &user,
                 const std::string &password,
@@ -54,17 +57,18 @@ namespace cpp_dbc::Redis
             /**
              * @brief Destructor
              */
-            ~RedisConnection() override;
+            ~RedisDBConnection() override;
 
             // Delete copy operations
-            RedisConnection(const RedisConnection &) = delete;
-            RedisConnection &operator=(const RedisConnection &) = delete;
+            RedisDBConnection(const RedisDBConnection &) = delete;
+            RedisDBConnection &operator=(const RedisDBConnection &) = delete;
 
             // Enable move operations
-            RedisConnection(RedisConnection &&other) noexcept;
-            RedisConnection &operator=(RedisConnection &&other) noexcept;
+            RedisDBConnection(RedisDBConnection &&other) noexcept;
+            RedisDBConnection &operator=(RedisDBConnection &&other) noexcept;
 
             // DBConnection interface implementation
+            #ifdef __cpp_exceptions
             void close() override;
             bool isClosed() const override;
             void returnToPool() override;
@@ -154,9 +158,28 @@ namespace cpp_dbc::Redis
              */
             void selectDatabase(int index);
 
+            #endif // __cpp_exceptions
             // ====================================================================
             // NOTHROW VERSIONS - Exception-free API
             // ====================================================================
+
+            /**
+             * @brief Execute a Redis command and return the raw reply (nothrow version)
+             *
+             * @param command The Redis command
+             * @param args The command arguments
+             * @return expected containing the RedisReplyHandle, or DBException on failure
+             */
+            cpp_dbc::expected<RedisReplyHandle, DBException> executeRaw(
+                std::nothrow_t, const std::string &command, const std::vector<std::string> &args = {}) noexcept;
+
+            /**
+             * @brief Select a Redis database (nothrow version)
+             *
+             * @param index The database index
+             * @return expected containing void on success, or DBException on failure
+             */
+            cpp_dbc::expected<void, DBException> selectDatabase(std::nothrow_t, int index) noexcept;
 
             cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
             cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override;
@@ -281,37 +304,73 @@ namespace cpp_dbc::Redis
             cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(
                 std::nothrow_t) noexcept override;
 
+            static cpp_dbc::expected<std::shared_ptr<RedisDBConnection>, DBException> create(
+                std::nothrow_t,
+                const std::string &uri,
+                const std::string &user,
+                const std::string &password,
+                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+            {
+                try
+                {
+                    return std::make_shared<RedisDBConnection>(uri, user, password, options);
+                }
+                catch (const DBException &ex)
+                {
+                    return cpp_dbc::unexpected(ex);
+                }
+                catch (const std::exception &ex)
+                {
+                    return cpp_dbc::unexpected(DBException("4GHXP2YB13QO", ex.what(), system_utils::captureCallStack()));
+                }
+                catch (...)
+                {
+                    return cpp_dbc::unexpected(DBException("T8G8EZ8RSCDL", "Unknown error creating RedisDBConnection", system_utils::captureCallStack()));
+                }
+            }
+
+            static std::shared_ptr<RedisDBConnection> create(
+                const std::string &uri,
+                const std::string &user,
+                const std::string &password,
+                const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
+            {
+                auto r = create(std::nothrow, uri, user, password, options);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
         private:
             /**
              * @brief Check if the connection is valid
              *
-             * @throws DBException if the connection is closed or invalid
+             * @return unexpected(DBException) if the connection is closed or invalid
              */
-            void validateConnection() const;
+            cpp_dbc::expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
 
             /**
              * @brief Extract string value from Redis reply
              *
              * @param reply The Redis reply
-             * @return std::string The string value
+             * @return expected containing the string value, or DBException on failure
              */
-            std::string extractString(const RedisReplyHandle &reply);
+            cpp_dbc::expected<std::string, DBException> extractString(std::nothrow_t, const RedisReplyHandle &reply) const noexcept;
 
             /**
              * @brief Extract integer value from Redis reply
              *
              * @param reply The Redis reply
-             * @return int64_t The integer value
+             * @return expected containing the integer value, or DBException on failure
              */
-            int64_t extractInteger(const RedisReplyHandle &reply);
+            cpp_dbc::expected<int64_t, DBException> extractInteger(std::nothrow_t, const RedisReplyHandle &reply) const noexcept;
 
             /**
              * @brief Extract string array from Redis reply
              *
              * @param reply The Redis reply
-             * @return std::vector<std::string> The string array
+             * @return expected containing the string array, or DBException on failure
              */
-            std::vector<std::string> extractArray(const RedisReplyHandle &reply);
+            cpp_dbc::expected<std::vector<std::string>, DBException> extractArray(std::nothrow_t, const RedisReplyHandle &reply) const noexcept;
 
             /**
              * @brief Try to parse a double from a string

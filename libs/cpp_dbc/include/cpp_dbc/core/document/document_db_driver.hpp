@@ -73,6 +73,7 @@ namespace cpp_dbc
          * @return std::shared_ptr<DocumentDBConnection> A connection to the database
          * @throws DBException if the connection fails
          */
+        #ifdef __cpp_exceptions
         virtual std::shared_ptr<DocumentDBConnection> connectDocument(
             const std::string &url,
             const std::string &user,
@@ -148,6 +149,7 @@ namespace cpp_dbc
          */
         virtual std::string getDriverVersion() const = 0;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

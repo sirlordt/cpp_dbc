@@ -144,20 +144,20 @@ namespace cpp_dbc::Firebird
         FIREBIRD_DEBUG("FirebirdResultSet::initializeColumns - Done");
     }
 
-    std::string FirebirdDBResultSet::getColumnValue(size_t columnIndex) const
+    cpp_dbc::expected<std::string, DBException> FirebirdDBResultSet::getColumnValue(std::nothrow_t, size_t columnIndex) const noexcept
     {
         FIREBIRD_DEBUG("getColumnValue: columnIndex=%zu, m_fieldCount=%zu", columnIndex, m_fieldCount);
         if (columnIndex >= m_fieldCount)
         {
-            throw DBException("A7B3C9D2E5F1", "Column index out of range: " + std::to_string(columnIndex),
-                              system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("A7B3C9D2E5F1", "Column index out of range: " + std::to_string(columnIndex),
+                                                   system_utils::captureCallStack()));
         }
 
         FIREBIRD_DEBUG("  nullIndicator=%d", (int)m_nullIndicators[columnIndex]);
         if (m_nullIndicators[columnIndex] < 0)
         {
             FIREBIRD_DEBUG("  returning empty (NULL)");
-            return "";
+            return std::string{};
         }
 
         XSQLVAR *var = &m_sqlda->sqlvar[columnIndex];
@@ -254,7 +254,7 @@ namespace cpp_dbc::Firebird
             auto conn = m_connection.lock();
             if (!conn)
             {
-                return "[BLOB]"; // Can't read without connection
+                return std::string{"[BLOB]"}; // Can't read without connection
             }
 
             ISC_QUAD *blobId = reinterpret_cast<ISC_QUAD *>(var->sqldata);
@@ -264,13 +264,20 @@ namespace cpp_dbc::Firebird
                 std::vector<uint8_t> data = blob->getBytes(0, blob->length());
                 return std::string(data.begin(), data.end());
             }
+            catch (const std::exception &ex)
+            {
+                // FirebirdBlob constructor or getBytes threw — return placeholder
+                FIREBIRD_DEBUG("  getColumnValue BLOB read failed: %s", ex.what());
+                return std::string{"[BLOB]"};
+            }
             catch (...)
             {
-                return "[BLOB]"; // Return placeholder on error
+                // Intentionally silenced — return placeholder for unreadable BLOB
+                return std::string{"[BLOB]"};
             }
         }
         default:
-            return "";
+            return std::string{};
         }
     }
 

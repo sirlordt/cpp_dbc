@@ -28,7 +28,7 @@ static void BM_Redis_Update_String_Small(benchmark::State &state)
     // Setup phase - outside of measurement
     cpp_dbc::system_utils::logWithTimestampInfo("Setting up Redis connection and populating with " +
                                                 std::to_string(common_benchmark_helpers::SMALL_SIZE) + " keys for benchmark '" + keyPrefix + "'...");
-    auto conn = redis_benchmark_helpers::setupRedisConnection(keyPrefix, common_benchmark_helpers::SMALL_SIZE);
+    auto conn = redis_benchmark_helpers::setupRedisDBConnection(keyPrefix, common_benchmark_helpers::SMALL_SIZE);
 
     if (!conn)
     {
@@ -70,7 +70,7 @@ static void BM_Redis_Increment_Small(benchmark::State &state)
 
     // Setup phase - outside of measurement
     cpp_dbc::system_utils::logWithTimestampInfo("Setting up Redis connection for benchmark '" + keyPrefix + "'...");
-    auto conn = redis_benchmark_helpers::setupRedisConnection(keyPrefix);
+    auto conn = redis_benchmark_helpers::setupRedisDBConnection(keyPrefix);
 
     if (!conn)
     {
@@ -128,7 +128,7 @@ static void BM_Redis_Decrement_Small(benchmark::State &state)
 
     // Setup phase - outside of measurement
     cpp_dbc::system_utils::logWithTimestampInfo("Setting up Redis connection for benchmark '" + keyPrefix + "'...");
-    auto conn = redis_benchmark_helpers::setupRedisConnection(keyPrefix);
+    auto conn = redis_benchmark_helpers::setupRedisDBConnection(keyPrefix);
 
     if (!conn)
     {
@@ -187,7 +187,7 @@ static void BM_Redis_Update_Hash_Small(benchmark::State &state)
 
     // Setup phase - outside of measurement
     cpp_dbc::system_utils::logWithTimestampInfo("Setting up Redis connection for benchmark '" + keyPrefix + "'...");
-    auto conn = redis_benchmark_helpers::setupRedisConnection(keyPrefix);
+    auto conn = redis_benchmark_helpers::setupRedisDBConnection(keyPrefix);
 
     if (!conn)
     {
@@ -239,7 +239,7 @@ static void BM_Redis_Update_SortedSet_Small(benchmark::State &state)
 
     // Setup phase - outside of measurement
     cpp_dbc::system_utils::logWithTimestampInfo("Setting up Redis connection for benchmark '" + keyPrefix + "'...");
-    auto conn = redis_benchmark_helpers::setupRedisConnection(keyPrefix);
+    auto conn = redis_benchmark_helpers::setupRedisDBConnection(keyPrefix);
 
     if (!conn)
     {
@@ -293,7 +293,7 @@ static void BM_Redis_Update_String_Medium(benchmark::State &state)
     // Setup phase - outside of measurement
     cpp_dbc::system_utils::logWithTimestampInfo("Setting up Redis connection and populating with " +
                                                 std::to_string(common_benchmark_helpers::MEDIUM_SIZE) + " keys for benchmark '" + keyPrefix + "'...");
-    auto conn = redis_benchmark_helpers::setupRedisConnection(keyPrefix, common_benchmark_helpers::MEDIUM_SIZE);
+    auto conn = redis_benchmark_helpers::setupRedisDBConnection(keyPrefix, common_benchmark_helpers::MEDIUM_SIZE);
 
     if (!conn)
     {
@@ -336,7 +336,7 @@ static void BM_Redis_Increment_Medium_Batch(benchmark::State &state)
 
     // Setup phase - outside of measurement
     cpp_dbc::system_utils::logWithTimestampInfo("Setting up Redis connection for benchmark '" + keyPrefix + "'...");
-    auto conn = redis_benchmark_helpers::setupRedisConnection(keyPrefix);
+    auto conn = redis_benchmark_helpers::setupRedisDBConnection(keyPrefix);
 
     if (!conn)
     {
@@ -405,7 +405,7 @@ static void BM_Redis_Update_String_Large_Batch(benchmark::State &state)
     // Setup phase - outside of measurement
     cpp_dbc::system_utils::logWithTimestampInfo("Setting up Redis connection and populating with " +
                                                 std::to_string(common_benchmark_helpers::LARGE_SIZE) + " keys for benchmark '" + keyPrefix + "'...");
-    auto conn = redis_benchmark_helpers::setupRedisConnection(keyPrefix, common_benchmark_helpers::LARGE_SIZE);
+    auto conn = redis_benchmark_helpers::setupRedisDBConnection(keyPrefix, common_benchmark_helpers::LARGE_SIZE);
 
     if (!conn)
     {

@@ -74,6 +74,7 @@ namespace cpp_dbc::Redis
         return url.starts_with("cpp_dbc:redis://");
     }
 
+    #ifdef __cpp_exceptions
     std::shared_ptr<KVDBConnection> RedisDriver::connectKV(
         const std::string &url,
         const std::string &user,
@@ -107,6 +108,7 @@ namespace cpp_dbc::Redis
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
     std::string RedisDriver::buildURI(
         const std::string &host,
@@ -199,7 +201,7 @@ namespace cpp_dbc::Redis
                 redisUrl = url.substr(8);
             }
 
-            auto conn = std::make_shared<RedisConnection>(redisUrl, user, password, options);
+            auto conn = std::make_shared<RedisDBConnection>(redisUrl, user, password, options);
             REDIS_DEBUG("RedisDriver::connectKV(nothrow) - Connection established");
             return std::shared_ptr<KVDBConnection>(conn);
         }

@@ -284,6 +284,7 @@ if(USE_MONGODB)
         src/drivers/document/mongodb/document_04.cpp
         src/drivers/document/mongodb/document_05.cpp
         src/drivers/document/mongodb/document_06.cpp
+        src/drivers/document/mongodb/document_07.cpp
 
         # MongoDBCursor
         src/drivers/document/mongodb/cursor_01.cpp
@@ -353,22 +354,22 @@ if(USE_REDIS)
     target_sources(cpp_dbc PRIVATE
 
         # src/drivers/kv/driver_redis.cpp
-        # RedisReplyDeleter, RedisReplyHandle, RedisContextDeleter, RedisConnection constructor, destructor, move ops, helpers
+        # RedisReplyDeleter, RedisReplyHandle, RedisContextDeleter, RedisDBConnection constructor, destructor, move ops, helpers
         src/drivers/kv/redis/connection_01.cpp
 
-        # RedisConnection - DBConnection interface, executeRaw, basic KV, counter, list throwing
+        # RedisDBConnection - DBConnection interface, executeRaw, basic KV, counter, list throwing
         src/drivers/kv/redis/connection_02.cpp
 
-        # RedisConnection - hash, set, sorted set, scan, server throwing
+        # RedisDBConnection - hash, set, sorted set, scan, server throwing
         src/drivers/kv/redis/connection_03.cpp
 
-        # RedisConnection - NOTHROW basic, counter, list
+        # RedisDBConnection - NOTHROW basic, counter, list
         src/drivers/kv/redis/connection_04.cpp
 
-        # RedisConnection - NOTHROW hash, set
+        # RedisDBConnection - NOTHROW hash, set
         src/drivers/kv/redis/connection_05.cpp
 
-        # RedisConnection - NOTHROW sorted set, scan, server
+        # RedisDBConnection - NOTHROW sorted set, scan, server
         src/drivers/kv/redis/connection_06.cpp
 
         # RedisDriver

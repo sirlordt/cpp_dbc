@@ -1204,7 +1204,7 @@ namespace redis_benchmark_helpers
     }
 
     // Build a Redis connection string from a DatabaseConfig
-    std::string buildRedisConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig)
+    std::string buildRedisDBConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig)
     {
         std::string host = dbConfig.getHost();
         int port = dbConfig.getPort();
@@ -1229,7 +1229,7 @@ namespace redis_benchmark_helpers
             std::string password = dbConfig.getPassword();
 
             // Build connection string for Redis
-            std::string connStr = buildRedisConnectionString(dbConfig);
+            std::string connStr = buildRedisDBConnectionString(dbConfig);
 
             // Attempt to connect to Redis
             cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to Redis with connection string: " + connStr);
@@ -1313,7 +1313,7 @@ namespace redis_benchmark_helpers
     }
 
     // Helper function to setup Redis connection
-    std::shared_ptr<cpp_dbc::KVDBConnection> setupRedisConnection(const std::string &keyPrefix, int itemCount)
+    std::shared_ptr<cpp_dbc::KVDBConnection> setupRedisDBConnection(const std::string &keyPrefix, int itemCount)
     {
         try
         {
@@ -1321,7 +1321,7 @@ namespace redis_benchmark_helpers
             auto dbConfig = getRedisConfig("dev_redis");
 
             // Get connection parameters
-            std::string connStr = buildRedisConnectionString(dbConfig);
+            std::string connStr = buildRedisDBConnectionString(dbConfig);
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
 

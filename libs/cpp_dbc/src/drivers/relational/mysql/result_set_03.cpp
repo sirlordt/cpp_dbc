@@ -41,7 +41,11 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            validateCurrentRow();
+            auto validateResult = validateCurrentRow(std::nothrow);
+            if (!validateResult.has_value())
+            {
+                return cpp_dbc::unexpected(validateResult.error());
+            }
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -110,7 +114,11 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            validateCurrentRow();
+            auto validateResult = validateCurrentRow(std::nothrow);
+            if (!validateResult.has_value())
+            {
+                return cpp_dbc::unexpected(validateResult.error());
+            }
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -180,7 +188,11 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            validateCurrentRow();
+            auto validateResult = validateCurrentRow(std::nothrow);
+            if (!validateResult.has_value())
+            {
+                return cpp_dbc::unexpected(validateResult.error());
+            }
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -244,7 +256,11 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            validateCurrentRow();
+            auto validateResult = validateCurrentRow(std::nothrow);
+            if (!validateResult.has_value())
+            {
+                return cpp_dbc::unexpected(validateResult.error());
+            }
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -313,7 +329,11 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            validateCurrentRow();
+            auto validateResult = validateCurrentRow(std::nothrow);
+            if (!validateResult.has_value())
+            {
+                return cpp_dbc::unexpected(validateResult.error());
+            }
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -382,7 +402,11 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            validateCurrentRow();
+            auto validateResult = validateCurrentRow(std::nothrow);
+            if (!validateResult.has_value())
+            {
+                return cpp_dbc::unexpected(validateResult.error());
+            }
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {

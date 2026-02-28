@@ -70,6 +70,7 @@ namespace cpp_dbc::PostgreSQL
         }
     }
 
+    #ifdef __cpp_exceptions
     void PostgreSQLDBResultSet::close()
     {
         auto result = close(std::nothrow);
@@ -390,6 +391,7 @@ namespace cpp_dbc::PostgreSQL
 
         return getBytes(it->second + 1); // +1 because getBytes(int) is 1-based
     }
+    #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::PostgreSQL
 

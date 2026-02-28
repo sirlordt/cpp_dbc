@@ -37,28 +37,30 @@ namespace cpp_dbc::MongoDB
     // MongoDBCursor Implementation - Private Helpers
     // ============================================================================
 
-    void MongoDBCursor::validateConnection() const
+    expected<void, DBException> MongoDBCursor::validateConnection(std::nothrow_t) const noexcept
     {
         if (m_client.expired())
         {
-            throw DBException("D0E6F5A4B9C8", "MongoDB connection has been closed", system_utils::captureCallStack());
+            return unexpected(DBException("D0E6F5A4B9C8", "MongoDB connection has been closed", system_utils::captureCallStack()));
         }
+        return {};
     }
 
-    void MongoDBCursor::validateCursor() const
+    expected<void, DBException> MongoDBCursor::validateCursor(std::nothrow_t) const noexcept
     {
         if (!m_cursor)
         {
-            throw DBException("E1F7A6B5C0D9", "Cursor is not initialized or has been closed", system_utils::captureCallStack());
+            return unexpected(DBException("E1F7A6B5C0D9", "Cursor is not initialized or has been closed", system_utils::captureCallStack()));
         }
+        return {};
     }
 
-    mongoc_client_t *MongoDBCursor::getClient() const
+    expected<mongoc_client_t *, DBException> MongoDBCursor::getClient(std::nothrow_t) const noexcept
     {
         auto client = m_client.lock();
         if (!client)
         {
-            throw DBException("F2A8B7C6D1E0", "MongoDB connection has been closed", system_utils::captureCallStack());
+            return unexpected(DBException("F2A8B7C6D1E0", "MongoDB connection has been closed", system_utils::captureCallStack()));
         }
         return client.get();
     }
@@ -147,240 +149,156 @@ namespace cpp_dbc::MongoDB
     }
 
     // ============================================================================
-    // MongoDBCursor Implementation - DocumentDBCursor Interface
+    // MongoDBCursor Implementation - DocumentDBCursor Interface (throwing wrappers)
     // ============================================================================
 
+    #ifdef __cpp_exceptions
     void MongoDBCursor::close()
     {
-        auto result = close(std::nothrow);
-        if (!result.has_value())
+        auto r = close(std::nothrow);
+        if (!r.has_value())
         {
-            throw result.error();
+            throw r.error();
         }
     }
 
     bool MongoDBCursor::isEmpty()
     {
-        auto result = isEmpty(std::nothrow);
-        if (!result.has_value())
+        auto r = isEmpty(std::nothrow);
+        if (!r.has_value())
         {
-            throw result.error();
+            throw r.error();
         }
-        return *result;
+        return *r;
     }
 
     bool MongoDBCursor::next()
     {
-        MONGODB_DEBUG("MongoDBCursor::next - Moving to next document, position: " << m_position);
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        validateConnection();
-        validateCursor();
-
-        m_iterationStarted = true;
-
-        // If we have a peeked document from hasNext(), use it
-        if (m_peekedDoc)
+        auto r = next(std::nothrow);
+        if (!r.has_value())
         {
-            m_currentDoc = std::move(m_peekedDoc);
-            m_peekedDoc.reset();
-            m_position++;
-            MONGODB_DEBUG("MongoDBCursor::next - Using peeked document at position: " << m_position);
-            return true;
+            throw r.error();
         }
-
-        const bson_t *doc = nullptr;
-        if (mongoc_cursor_next(m_cursor.get(), &doc))
-        {
-            bson_t *docCopy = bson_copy(doc);
-            if (!docCopy)
-            {
-                throw DBException("A3B9C8D7E2F1", "Failed to copy document from cursor", system_utils::captureCallStack());
-            }
-            m_currentDoc = std::make_shared<MongoDBDocument>(docCopy);
-            m_position++;
-            MONGODB_DEBUG("MongoDBCursor::next - Found document at position: " << m_position);
-            return true;
-        }
-
-        bson_error_t error;
-        if (mongoc_cursor_error(m_cursor.get(), &error))
-        {
-            throw DBException("B4C0D9E8F3A2", std::string("Cursor error: ") + error.message, system_utils::captureCallStack());
-        }
-
-        MONGODB_DEBUG("MongoDBCursor::next - Cursor exhausted");
-        m_exhausted = true;
-        m_currentDoc.reset();
-        return false;
+        return *r;
     }
 
     bool MongoDBCursor::hasNext()
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        validateConnection();
-        validateCursor();
-
-        if (m_exhausted)
-            return false;
-
-        // If we already have a peeked document, we know there's a next one
-        if (m_peekedDoc)
-            return true;
-
-        // mongoc_cursor_more() is unreliable, so we peek ahead to be sure
-        // Read the next document and store it in m_peekedDoc
-        const bson_t *doc = nullptr;
-        if (mongoc_cursor_next(m_cursor.get(), &doc))
+        auto r = hasNext(std::nothrow);
+        if (!r.has_value())
         {
-            bson_t *docCopy = bson_copy(doc);
-            if (!docCopy)
-            {
-                throw DBException("38F1FRMH5NXW", "Failed to copy peeked document", system_utils::captureCallStack());
-            }
-            m_peekedDoc = std::make_shared<MongoDBDocument>(docCopy);
-            MONGODB_DEBUG("MongoDBCursor::hasNext - Peeked next document, has more: true");
-            return true;
+            throw r.error();
         }
-
-        // Check for cursor errors
-        bson_error_t error;
-        if (mongoc_cursor_error(m_cursor.get(), &error))
-        {
-            throw DBException("UE875SSEXTXD", std::string("Cursor error during hasNext: ") + error.message, system_utils::captureCallStack());
-        }
-
-        // No more documents
-        MONGODB_DEBUG("MongoDBCursor::hasNext - No more documents");
-        m_exhausted = true;
-        return false;
+        return *r;
     }
 
     std::shared_ptr<DocumentDBData> MongoDBCursor::current()
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        validateCursor();
-        if (!m_currentDoc)
+        auto r = current(std::nothrow);
+        if (!r.has_value())
         {
-            throw DBException("C5D1E0F9A4B3", "No current document - call next() first", system_utils::captureCallStack());
+            throw r.error();
         }
-        return m_currentDoc;
+        return *r;
     }
 
     std::shared_ptr<DocumentDBData> MongoDBCursor::nextDocument()
     {
-        if (!next())
+        auto r = nextDocument(std::nothrow);
+        if (!r.has_value())
         {
-            throw DBException("D6E2F1A0B5C4", "No more documents in cursor", system_utils::captureCallStack());
+            throw r.error();
         }
-        return m_currentDoc;
+        return *r;
     }
 
     std::vector<std::shared_ptr<DocumentDBData>> MongoDBCursor::toVector()
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        validateConnection();
-        validateCursor();
-
-        std::vector<std::shared_ptr<DocumentDBData>> result;
-        const bson_t *doc = nullptr;
-        while (mongoc_cursor_next(m_cursor.get(), &doc))
+        auto r = toVector(std::nothrow);
+        if (!r.has_value())
         {
-            bson_t *docCopy = bson_copy(doc);
-            if (docCopy)
-            {
-                result.push_back(std::make_shared<MongoDBDocument>(docCopy));
-            }
+            throw r.error();
         }
-
-        bson_error_t error;
-        if (mongoc_cursor_error(m_cursor.get(), &error))
-        {
-            throw DBException("E7F3A2B1C6D5", std::string("Cursor error: ") + error.message, system_utils::captureCallStack());
-        }
-
-        m_exhausted = true;
-        m_currentDoc.reset();
-        return result;
+        return *r;
     }
 
     std::vector<std::shared_ptr<DocumentDBData>> MongoDBCursor::getBatch(size_t batchSize)
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        validateConnection();
-        validateCursor();
-
-        std::vector<std::shared_ptr<DocumentDBData>> result;
-        result.reserve(batchSize);
-
-        const bson_t *doc = nullptr;
-        size_t count = 0;
-
-        while (count < batchSize && mongoc_cursor_next(m_cursor.get(), &doc))
+        auto r = getBatch(std::nothrow, batchSize);
+        if (!r.has_value())
         {
-            bson_t *docCopy = bson_copy(doc);
-            if (docCopy)
-            {
-                result.push_back(std::make_shared<MongoDBDocument>(docCopy));
-                count++;
-                m_position++;
-            }
+            throw r.error();
         }
-
-        bson_error_t error;
-        if (mongoc_cursor_error(m_cursor.get(), &error))
-        {
-            throw DBException("F8A4B3C2D7E6", std::string("Cursor error: ") + error.message, system_utils::captureCallStack());
-        }
-
-        if (count < batchSize)
-            m_exhausted = true;
-        return result;
+        return *r;
     }
 
-    int64_t MongoDBCursor::count() { return -1; }
-    uint64_t MongoDBCursor::getPosition() { return m_position; }
+    int64_t MongoDBCursor::count()
+    {
+        auto r = count(std::nothrow);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return *r;
+    }
+
+    uint64_t MongoDBCursor::getPosition()
+    {
+        auto r = getPosition(std::nothrow);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return *r;
+    }
 
     DocumentDBCursor &MongoDBCursor::skip(uint64_t n)
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        if (m_iterationStarted)
+        auto r = skip(std::nothrow, n);
+        if (!r.has_value())
         {
-            throw DBException("A9B5C4D3E8F7", "Cannot modify cursor after iteration has begun", system_utils::captureCallStack());
+            throw r.error();
         }
-        m_skipCount = n;
-        return *this;
+        return r->get();
     }
 
     DocumentDBCursor &MongoDBCursor::limit(uint64_t n)
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        if (m_iterationStarted)
+        auto r = limit(std::nothrow, n);
+        if (!r.has_value())
         {
-            throw DBException("B0C6D5E4F9A8", "Cannot modify cursor after iteration has begun", system_utils::captureCallStack());
+            throw r.error();
         }
-        m_limitCount = n;
-        return *this;
+        return r->get();
     }
 
     DocumentDBCursor &MongoDBCursor::sort(const std::string &fieldPath, bool ascending)
     {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        if (m_iterationStarted)
+        auto r = sort(std::nothrow, fieldPath, ascending);
+        if (!r.has_value())
         {
-            throw DBException("C1D7E6F5A0B9", "Cannot modify cursor after iteration has begun", system_utils::captureCallStack());
+            throw r.error();
         }
-        std::ostringstream oss;
-        oss << "{\"" << fieldPath << "\": " << (ascending ? "1" : "-1") << "}";
-        m_sortSpec = oss.str();
-        return *this;
+        return r->get();
     }
 
-    bool MongoDBCursor::isExhausted() { return m_exhausted; }
+    bool MongoDBCursor::isExhausted()
+    {
+        auto r = isExhausted(std::nothrow);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return *r;
+    }
 
     [[noreturn]] void MongoDBCursor::rewind()
     {
-        throw DBException("D2E8F7A6B1C0", "MongoDB cursors do not support rewinding", system_utils::captureCallStack());
+        auto r = rewind(std::nothrow);
+        // rewind(std::nothrow) always returns unexpected for MongoDB
+        throw r.error();
     }
+    #endif // __cpp_exceptions
 
     bool MongoDBCursor::isConnectionValid() const { return !m_client.expired(); }
 

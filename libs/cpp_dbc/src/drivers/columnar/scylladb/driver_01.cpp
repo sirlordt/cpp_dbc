@@ -46,6 +46,7 @@ namespace cpp_dbc::ScyllaDB
         cass_log_set_level(CASS_LOG_ERROR);
     }
 
+    #ifdef __cpp_exceptions
     std::shared_ptr<ColumnarDBConnection> ScyllaDBDriver::connectColumnar(
         const std::string &url,
         const std::string &user,
@@ -72,6 +73,7 @@ namespace cpp_dbc::ScyllaDB
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
     std::string ScyllaDBDriver::buildURI(const std::string &host, int port, const std::string &database, const std::map<std::string, std::string> &options)
     {

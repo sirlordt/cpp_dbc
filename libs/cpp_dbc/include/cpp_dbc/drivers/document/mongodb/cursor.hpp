@@ -117,22 +117,21 @@ namespace cpp_dbc::MongoDB
 
             /**
              * @brief Validates that the connection is still valid
-             * @throws DBException if the connection has been closed
+             * @return unexpected(DBException) if the connection has been closed
              */
-            void validateConnection() const;
+            expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
 
             /**
              * @brief Validates that the cursor is valid
-             * @throws DBException if the cursor is nullptr
+             * @return unexpected(DBException) if the cursor is nullptr
              */
-            void validateCursor() const;
+            expected<void, DBException> validateCursor(std::nothrow_t) const noexcept;
 
             /**
              * @brief Helper to get the client pointer safely
-             * @return The client pointer
-             * @throws DBException if the connection has been closed
+             * @return The client pointer, or unexpected(DBException) if the connection has been closed
              */
-            mongoc_client_t *getClient() const;
+            expected<mongoc_client_t *, DBException> getClient(std::nothrow_t) const noexcept;
 
         public:
             /**
@@ -152,6 +151,78 @@ namespace cpp_dbc::MongoDB
 
             ~MongoDBCursor() override;
 
+#if DB_DRIVER_THREAD_SAFE
+            static cpp_dbc::expected<std::shared_ptr<MongoDBCursor>, DBException>
+            create(std::nothrow_t,
+                   std::weak_ptr<mongoc_client_t> client,
+                   mongoc_cursor_t *cursor,
+                   std::weak_ptr<MongoDBConnection> connection,
+                   SharedConnMutex connMutex) noexcept
+            {
+                try
+                {
+                    return std::make_shared<MongoDBCursor>(std::move(client), cursor, std::move(connection), std::move(connMutex));
+                }
+                catch (const DBException &ex)
+                {
+                    return cpp_dbc::unexpected(ex);
+                }
+                catch (const std::exception &ex)
+                {
+                    return cpp_dbc::unexpected(DBException("RZBZ4Y4YRGA4", ex.what(), system_utils::captureCallStack()));
+                }
+                catch (...)
+                {
+                    return cpp_dbc::unexpected(DBException("IAIC3W3US4IE", "Unknown error creating MongoDBCursor", system_utils::captureCallStack()));
+                }
+            }
+
+            static std::shared_ptr<MongoDBCursor>
+            create(std::weak_ptr<mongoc_client_t> client,
+                   mongoc_cursor_t *cursor,
+                   std::weak_ptr<MongoDBConnection> connection,
+                   SharedConnMutex connMutex)
+            {
+                auto r = create(std::nothrow, std::move(client), cursor, std::move(connection), std::move(connMutex));
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+#else
+            static cpp_dbc::expected<std::shared_ptr<MongoDBCursor>, DBException>
+            create(std::nothrow_t,
+                   std::weak_ptr<mongoc_client_t> client,
+                   mongoc_cursor_t *cursor,
+                   std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>()) noexcept
+            {
+                try
+                {
+                    return std::make_shared<MongoDBCursor>(std::move(client), cursor, std::move(connection));
+                }
+                catch (const DBException &ex)
+                {
+                    return cpp_dbc::unexpected(ex);
+                }
+                catch (const std::exception &ex)
+                {
+                    return cpp_dbc::unexpected(DBException("RZBZ4Y4YRGA4", ex.what(), system_utils::captureCallStack()));
+                }
+                catch (...)
+                {
+                    return cpp_dbc::unexpected(DBException("IAIC3W3US4IE", "Unknown error creating MongoDBCursor", system_utils::captureCallStack()));
+                }
+            }
+
+            static std::shared_ptr<MongoDBCursor>
+            create(std::weak_ptr<mongoc_client_t> client,
+                   mongoc_cursor_t *cursor,
+                   std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>())
+            {
+                auto r = create(std::nothrow, std::move(client), cursor, std::move(connection));
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+#endif
+
             // Prevent copying (cursors are not copyable)
             MongoDBCursor(const MongoDBCursor &) = delete;
             MongoDBCursor &operator=(const MongoDBCursor &) = delete;
@@ -160,11 +231,12 @@ namespace cpp_dbc::MongoDB
             MongoDBCursor(MongoDBCursor &&other) noexcept;
             MongoDBCursor &operator=(MongoDBCursor &&other) noexcept;
 
-            // DBResultSet interface
+            // DocumentDBCursor interface - throwing API (wrappers)
+
+            #ifdef __cpp_exceptions
             void close() override;
             bool isEmpty() override;
 
-            // DocumentDBCursor interface
             bool next() override;
             bool hasNext() override;
             std::shared_ptr<DocumentDBData> current() override;
@@ -197,16 +269,31 @@ namespace cpp_dbc::MongoDB
              */
             std::string getError() const;
 
-            // Nothrow versions - DBResultSet interface
+            #endif // __cpp_exceptions
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
             expected<void, DBException> close(std::nothrow_t) noexcept override;
             expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
 
-            // Nothrow versions - DocumentDBCursor interface
+            expected<bool, DBException> next(std::nothrow_t) noexcept override;
+            expected<bool, DBException> hasNext(std::nothrow_t) noexcept override;
             expected<std::shared_ptr<DocumentDBData>, DBException> current(std::nothrow_t) noexcept override;
             expected<std::shared_ptr<DocumentDBData>, DBException> nextDocument(std::nothrow_t) noexcept override;
             expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> toVector(std::nothrow_t) noexcept override;
             expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> getBatch(
                 std::nothrow_t, size_t batchSize) noexcept override;
+            expected<int64_t, DBException> count(std::nothrow_t) noexcept override;
+            expected<uint64_t, DBException> getPosition(std::nothrow_t) noexcept override;
+            expected<std::reference_wrapper<DocumentDBCursor>, DBException> skip(
+                std::nothrow_t, uint64_t n) noexcept override;
+            expected<std::reference_wrapper<DocumentDBCursor>, DBException> limit(
+                std::nothrow_t, uint64_t n) noexcept override;
+            expected<std::reference_wrapper<DocumentDBCursor>, DBException> sort(
+                std::nothrow_t, const std::string &fieldPath, bool ascending = true) noexcept override;
+            expected<bool, DBException> isExhausted(std::nothrow_t) noexcept override;
+            expected<void, DBException> rewind(std::nothrow_t) noexcept override;
         };
 
 } // namespace cpp_dbc::MongoDB

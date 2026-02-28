@@ -209,7 +209,7 @@ namespace redis_benchmark_helpers
     cpp_dbc::config::DatabaseConfig getRedisConfig(const std::string &databaseName = "dev_redis");
 
     // Build a Redis connection string from a DatabaseConfig
-    std::string buildRedisConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig);
+    std::string buildRedisDBConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig);
 
     // Check if a connection to Redis can be established
     bool canConnectToRedis();
@@ -218,7 +218,7 @@ namespace redis_benchmark_helpers
     std::shared_ptr<cpp_dbc::Redis::RedisDriver> getRedisDriver();
 
     // Helper function to setup Redis connection
-    std::shared_ptr<cpp_dbc::KVDBConnection> setupRedisConnection(const std::string &keyPrefix, int itemCount = 0);
+    std::shared_ptr<cpp_dbc::KVDBConnection> setupRedisDBConnection(const std::string &keyPrefix, int itemCount = 0);
 
     // Helper function to generate a random key
     std::string generateRandomKey(const std::string &prefix);

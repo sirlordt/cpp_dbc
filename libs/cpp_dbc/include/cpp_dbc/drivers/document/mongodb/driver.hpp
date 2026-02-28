@@ -78,14 +78,13 @@ namespace cpp_dbc::MongoDB
             MongoDBDriver(MongoDBDriver &&) = delete;
             MongoDBDriver &operator=(MongoDBDriver &&) = delete;
 
+            #ifdef __cpp_exceptions
             // DBDriver interface
             std::shared_ptr<DBConnection> connect(
                 const std::string &url,
                 const std::string &user,
                 const std::string &password,
                 const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
-
-            bool acceptsURL(const std::string &url) override;
 
             // DocumentDBDriver interface
             std::shared_ptr<DocumentDBConnection> connectDocument(
@@ -94,8 +93,6 @@ namespace cpp_dbc::MongoDB
                 const std::string &password,
                 const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
-            int getDefaultPort() const override;
-            std::string getURIScheme() const override;
             std::map<std::string, std::string> parseURI(const std::string &uri) override;
             std::string buildURI(
                 const std::string &host,
@@ -103,6 +100,12 @@ namespace cpp_dbc::MongoDB
                 const std::string &database,
                 const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
+            #endif // __cpp_exceptions
+
+            bool acceptsURL(const std::string &url) override;
+
+            int getDefaultPort() const override;
+            std::string getURIScheme() const override;
             bool supportsReplicaSets() const override;
             bool supportsSharding() const override;
             std::string getDriverVersion() const override;
@@ -130,7 +133,10 @@ namespace cpp_dbc::MongoDB
              */
             static bool validateURI(const std::string &uri);
 
-            // Nothrow versions
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
             expected<std::shared_ptr<DocumentDBConnection>, DBException> connectDocument(
                 std::nothrow_t,
                 const std::string &url,
@@ -171,6 +177,7 @@ namespace cpp_dbc::MongoDB
             MongoDBDriver(MongoDBDriver &&) = delete;
             MongoDBDriver &operator=(MongoDBDriver &&) = delete;
 
+            #ifdef __cpp_exceptions
             std::shared_ptr<DBConnection> connect(
                 const std::string &,
                 const std::string &,
@@ -180,11 +187,6 @@ namespace cpp_dbc::MongoDB
                 throw DBException("3JJ3FU3K46T6", "MongoDB support is not enabled in this build");
             }
 
-            bool acceptsURL(const std::string &) override
-            {
-                return false;
-            }
-
             std::shared_ptr<DocumentDBConnection> connectDocument(
                 const std::string &,
                 const std::string &,
@@ -192,16 +194,6 @@ namespace cpp_dbc::MongoDB
                 const std::map<std::string, std::string> & = {}) override
             {
                 throw DBException("DS9UBFAQOC16", "MongoDB support is not enabled in this build");
-            }
-
-            int getDefaultPort() const override
-            {
-                return 27017;
-            }
-
-            std::string getURIScheme() const override
-            {
-                return "mongodb";
             }
 
             std::map<std::string, std::string> parseURI(const std::string &) override
@@ -216,6 +208,23 @@ namespace cpp_dbc::MongoDB
                 const std::map<std::string, std::string> & = {}) override
             {
                 throw DBException("MS0PEYE6LGXZ", "MongoDB support is not enabled in this build");
+            }
+
+            #endif // __cpp_exceptions
+
+            bool acceptsURL(const std::string &) override
+            {
+                return false;
+            }
+
+            int getDefaultPort() const override
+            {
+                return 27017;
+            }
+
+            std::string getURIScheme() const override
+            {
+                return "mongodb";
             }
 
             bool supportsReplicaSets() const override

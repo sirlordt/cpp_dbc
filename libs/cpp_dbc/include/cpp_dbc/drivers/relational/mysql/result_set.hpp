@@ -156,15 +156,15 @@ namespace cpp_dbc::MySQL
 
             /**
              * @brief Validates that the result set is still valid (not closed)
-             * @throws DBException if m_result is nullptr
+             * @return unexpected(DBException) if m_result is nullptr
              */
-            void validateResultState() const;
+            cpp_dbc::expected<void, DBException> validateResultState(std::nothrow_t) const noexcept;
 
             /**
              * @brief Validates that there is a current row to read from
-             * @throws DBException if m_result is nullptr or m_currentRow is nullptr
+             * @return unexpected(DBException) if m_result is nullptr or m_currentRow is nullptr
              */
-            void validateCurrentRow() const;
+            cpp_dbc::expected<void, DBException> validateCurrentRow(std::nothrow_t) const noexcept;
 
         public:
             explicit MySQLDBResultSet(MYSQL_RES *res);
@@ -175,7 +175,36 @@ namespace cpp_dbc::MySQL
             MySQLDBResultSet(MySQLDBResultSet &&) = delete;
             MySQLDBResultSet &operator=(MySQLDBResultSet &&) = delete;
 
+            static cpp_dbc::expected<std::shared_ptr<MySQLDBResultSet>, DBException>
+            create(std::nothrow_t, MYSQL_RES *res) noexcept
+            {
+                try
+                {
+                    return std::make_shared<MySQLDBResultSet>(res);
+                }
+                catch (const DBException &ex)
+                {
+                    return cpp_dbc::unexpected(ex);
+                }
+                catch (const std::exception &ex)
+                {
+                    return cpp_dbc::unexpected(DBException("7P0XOLEF6UAN", ex.what(), system_utils::captureCallStack()));
+                }
+                catch (...)
+                {
+                    return cpp_dbc::unexpected(DBException("LQB26FSO1V1W", "Unknown error creating MySQLDBResultSet", system_utils::captureCallStack()));
+                }
+            }
+
+            static std::shared_ptr<MySQLDBResultSet> create(MYSQL_RES *res)
+            {
+                auto r = create(std::nothrow, res);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
             // DBResultSet interface
+            #ifdef __cpp_exceptions
             void close() override;
             bool isEmpty() override;
 
@@ -225,7 +254,11 @@ namespace cpp_dbc::MySQL
             std::vector<uint8_t> getBytes(size_t columnIndex) override;
             std::vector<uint8_t> getBytes(const std::string &columnName) override;
 
-            // Nothrow API
+            #endif // __cpp_exceptions
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
             cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
             cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
             cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;

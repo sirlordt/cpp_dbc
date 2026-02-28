@@ -81,6 +81,7 @@ namespace cpp_dbc
          * }
          * ```
          */
+        #ifdef __cpp_exceptions
         virtual bool next() = 0;
 
         /**
@@ -524,6 +525,7 @@ namespace cpp_dbc
          */
         virtual std::vector<uint8_t> getBytes(const std::string &columnName) = 0;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

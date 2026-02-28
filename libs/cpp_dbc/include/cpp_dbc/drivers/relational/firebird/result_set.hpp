@@ -83,7 +83,7 @@ namespace cpp_dbc::Firebird
         /**
          * @brief Get column value as string
          */
-        std::string getColumnValue(size_t columnIndex) const;
+        cpp_dbc::expected<std::string, DBException> getColumnValue(std::nothrow_t, size_t columnIndex) const noexcept;
 
         /**
          * @brief Get raw statement handle pointer for Firebird API calls
@@ -109,6 +109,48 @@ namespace cpp_dbc::Firebird
         FirebirdDBResultSet(FirebirdDBResultSet &&) = delete;
         FirebirdDBResultSet &operator=(FirebirdDBResultSet &&) = delete;
 
+        static cpp_dbc::expected<std::shared_ptr<FirebirdDBResultSet>, DBException>
+        create(std::nothrow_t,
+               FirebirdStmtHandle stmt,
+               XSQLDAHandle sqlda,
+               bool ownStatement,
+               std::shared_ptr<FirebirdDBConnection> conn) noexcept
+        {
+            try
+            {
+                // NOTE: registerResultSet() is NOT called here because FirebirdDBConnection
+                // is an incomplete type at this point (forward-declared in handles.hpp).
+                // The caller is responsible for registering the ResultSet with the connection
+                // after create() returns, in the .cpp translation unit where the full
+                // FirebirdDBConnection definition is available.
+                return std::make_shared<FirebirdDBResultSet>(std::move(stmt), std::move(sqlda), ownStatement, conn);
+            }
+            catch (const DBException &ex)
+            {
+                return cpp_dbc::unexpected(ex);
+            }
+            catch (const std::exception &ex)
+            {
+                return cpp_dbc::unexpected(DBException("RQAE6RY483EJ", ex.what(), system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return cpp_dbc::unexpected(DBException("T00DXEGVDZK4", "Unknown error creating FirebirdDBResultSet", system_utils::captureCallStack()));
+            }
+        }
+
+        static std::shared_ptr<FirebirdDBResultSet>
+        create(FirebirdStmtHandle stmt,
+               XSQLDAHandle sqlda,
+               bool ownStatement,
+               std::shared_ptr<FirebirdDBConnection> conn)
+        {
+            auto r = create(std::nothrow, std::move(stmt), std::move(sqlda), ownStatement, conn);
+            if (!r.has_value()) { throw r.error(); }
+            return r.value();
+        }
+
+        #ifdef __cpp_exceptions
         bool next() override;
         bool isBeforeFirst() override;
         bool isAfterLast() override;
@@ -156,6 +198,7 @@ namespace cpp_dbc::Firebird
         std::vector<uint8_t> getBytes(size_t columnIndex) override;
         std::vector<uint8_t> getBytes(const std::string &columnName) override;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

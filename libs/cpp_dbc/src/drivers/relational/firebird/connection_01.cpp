@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file connection_01.cpp
- @brief Firebird database driver implementation - FirebirdDBConnection throwing methods (part 1)
+ @brief Firebird database driver implementation - FirebirdDBConnection constructor, destructor, private nothrow helpers
 
 */
 
@@ -139,7 +139,13 @@ namespace cpp_dbc::Firebird
         if (m_autoCommit)
         {
             FIREBIRD_DEBUG("  Starting initial transaction...");
-            startTransaction();
+            auto txResult = startTransaction(std::nothrow);
+            if (!txResult.has_value())
+            {
+                // Clean up the database handle before throwing
+                m_db.reset();
+                throw txResult.error();
+            }
         }
         FIREBIRD_DEBUG("FirebirdConnection::constructor - Done");
     }
@@ -150,49 +156,62 @@ namespace cpp_dbc::Firebird
         [[maybe_unused]] auto closeResult = close(std::nothrow);
     }
 
-    void FirebirdDBConnection::registerStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt)
+    // ============================================================================
+    // Private nothrow helpers
+    // ============================================================================
+
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::registerStatement(std::nothrow_t, std::weak_ptr<FirebirdDBPreparedStatement> stmt) noexcept
     {
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("8M8M7HGIZ54V", "Connection closed");
+        FIREBIRD_CONNECTION_LOCK_OR_RETURN("8M8M7HGIZ54V", "Connection closed");
         if (m_activeStatements.size() > 50)
         {
             std::erase_if(m_activeStatements, [](const auto &w)
                           { return w.expired(); });
         }
         m_activeStatements.insert(stmt);
+        return {};
     }
 
-    void FirebirdDBConnection::unregisterStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt)
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::unregisterStatement(std::nothrow_t, std::weak_ptr<FirebirdDBPreparedStatement> stmt) noexcept
     {
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("VHFDYJ7QU5JF", "Connection closed");
+        FIREBIRD_CONNECTION_LOCK_OR_RETURN("VHFDYJ7QU5JF", "Connection closed");
         m_activeStatements.erase(stmt);
+        return {};
     }
 
-    void FirebirdDBConnection::registerResultSet(std::weak_ptr<FirebirdDBResultSet> rs)
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::registerResultSet(std::nothrow_t, std::weak_ptr<FirebirdDBResultSet> rs) noexcept
     {
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("Y5XZR2IJY743", "Connection closed");
+        FIREBIRD_CONNECTION_LOCK_OR_RETURN("Y5XZR2IJY743", "Connection closed");
         if (m_activeResultSets.size() > 50)
         {
             std::erase_if(m_activeResultSets, [](const auto &w)
                           { return w.expired(); });
         }
         m_activeResultSets.insert(rs);
+        return {};
     }
 
-    void FirebirdDBConnection::unregisterResultSet(std::weak_ptr<FirebirdDBResultSet> rs)
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::unregisterResultSet(std::nothrow_t, std::weak_ptr<FirebirdDBResultSet> rs) noexcept
     {
-        FIREBIRD_CONNECTION_LOCK_OR_THROW("N10W81OLXB29", "Connection closed");
+        FIREBIRD_CONNECTION_LOCK_OR_RETURN("N10W81OLXB29", "Connection closed");
         m_activeResultSets.erase(rs);
+        return {};
     }
 
-    void FirebirdDBConnection::startTransaction()
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::startTransaction(std::nothrow_t) noexcept
     {
-        FIREBIRD_DEBUG("FirebirdConnection::startTransaction - Starting");
+        FIREBIRD_DEBUG("FirebirdConnection::startTransaction(nothrow) - Starting");
         FIREBIRD_DEBUG("  m_tr: %ld", (long)m_tr);
 
         if (m_tr)
         {
             FIREBIRD_DEBUG("  Transaction already active, returning");
-            return; // Transaction already active
+            return {}; // Transaction already active
         }
 
         ISC_STATUS_ARRAY status;
@@ -204,23 +223,33 @@ namespace cpp_dbc::Firebird
         switch (m_isolationLevel)
         {
         case TransactionIsolationLevel::TRANSACTION_READ_UNCOMMITTED:
+        {
             tpb.push_back(isc_tpb_read_committed);
             tpb.push_back(isc_tpb_rec_version);
             break;
+        }
         case TransactionIsolationLevel::TRANSACTION_READ_COMMITTED:
+        {
             tpb.push_back(isc_tpb_read_committed);
             tpb.push_back(isc_tpb_no_rec_version);
             break;
+        }
         case TransactionIsolationLevel::TRANSACTION_REPEATABLE_READ:
+        {
             tpb.push_back(isc_tpb_concurrency);
             break;
+        }
         case TransactionIsolationLevel::TRANSACTION_SERIALIZABLE:
+        {
             tpb.push_back(isc_tpb_consistency);
             break;
+        }
         default:
+        {
             tpb.push_back(isc_tpb_read_committed);
             tpb.push_back(isc_tpb_no_rec_version);
             break;
+        }
         }
 
         tpb.push_back(isc_tpb_write);
@@ -233,28 +262,30 @@ namespace cpp_dbc::Firebird
         {
             std::string errorMsg = interpretStatusVector(status);
             FIREBIRD_DEBUG("  Failed to start transaction: %s", errorMsg.c_str());
-            throw DBException("FB8B9C0D1E2F", "Failed to start transaction: " + errorMsg,
-                              system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("FB8B9C0D1E2F", "Failed to start transaction: " + errorMsg,
+                                                   system_utils::captureCallStack()));
         }
 
         m_transactionActive = true;
-        FIREBIRD_DEBUG("FirebirdConnection::startTransaction - Done, m_tr=%ld", (long)m_tr);
+        FIREBIRD_DEBUG("FirebirdConnection::startTransaction(nothrow) - Done, m_tr=%ld", (long)m_tr);
+        return {};
     }
 
-    void FirebirdDBConnection::endTransaction(bool commit)
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::endTransaction(std::nothrow_t, bool commit) noexcept
     {
-        FIREBIRD_DEBUG("FirebirdConnection::endTransaction - Starting, commit=%s", (commit ? "true" : "false"));
+        FIREBIRD_DEBUG("FirebirdConnection::endTransaction(nothrow) - Starting, commit=%s", (commit ? "true" : "false"));
         if (!m_tr)
         {
             FIREBIRD_DEBUG("  No active transaction (m_tr=0), returning");
-            return;
+            return {};
         }
 
         // CRITICAL: Close all active ResultSets BEFORE ending the transaction
         // In Firebird, statements are bound to transactions and must be freed
         // before the transaction ends, otherwise we get invalid memory access
         FIREBIRD_DEBUG("  Closing all active ResultSets before ending transaction");
-        closeAllActiveResultSets();
+        closeAllActiveResultSets(std::nothrow);
 
         ISC_STATUS_ARRAY status;
 
@@ -264,8 +295,8 @@ namespace cpp_dbc::Firebird
             if (isc_commit_transaction(status, &m_tr))
             {
                 FIREBIRD_DEBUG("  isc_commit_transaction failed: %s", interpretStatusVector(status).c_str());
-                throw DBException("FB9C0D1E2F3A", "Failed to commit transaction: " + interpretStatusVector(status),
-                                  system_utils::captureCallStack());
+                return cpp_dbc::unexpected(DBException("FB9C0D1E2F3A", "Failed to commit transaction: " + interpretStatusVector(status),
+                                                       system_utils::captureCallStack()));
             }
             FIREBIRD_DEBUG("  isc_commit_transaction succeeded");
         }
@@ -275,20 +306,22 @@ namespace cpp_dbc::Firebird
             if (isc_rollback_transaction(status, &m_tr))
             {
                 FIREBIRD_DEBUG("  isc_rollback_transaction failed: %s", interpretStatusVector(status).c_str());
-                throw DBException("FB0D1E2F3A4B", "Failed to rollback transaction: " + interpretStatusVector(status),
-                                  system_utils::captureCallStack());
+                return cpp_dbc::unexpected(DBException("FB0D1E2F3A4B", "Failed to rollback transaction: " + interpretStatusVector(status),
+                                                       system_utils::captureCallStack()));
             }
             FIREBIRD_DEBUG("  isc_rollback_transaction succeeded");
         }
 
         m_tr = 0;
         m_transactionActive = false;
-        FIREBIRD_DEBUG("FirebirdConnection::endTransaction - Done");
+        FIREBIRD_DEBUG("FirebirdConnection::endTransaction(nothrow) - Done");
+        return {};
     }
 
-    void FirebirdDBConnection::closeAllActiveResultSets()
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::closeAllActiveResultSets(std::nothrow_t) noexcept
     {
-        FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets - Starting");
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets(nothrow) - Starting");
 
         // Collect result sets into a temporary vector while holding the lock,
         // then release the lock before calling close() to prevent:
@@ -297,7 +330,7 @@ namespace cpp_dbc::Firebird
         std::vector<std::shared_ptr<FirebirdDBResultSet>> resultSetsToClose;
 
         {
-            FIREBIRD_CONNECTION_LOCK_OR_THROW("2QTZY8G48KDG", "Connection closed");
+            FIREBIRD_CONNECTION_LOCK_OR_RETURN("2QTZY8G48KDG", "Connection closed");
             for (auto &weakRs : m_activeResultSets)
             {
                 if (auto rs = weakRs.lock())
@@ -313,22 +346,24 @@ namespace cpp_dbc::Firebird
         int closedCount = 0;
         for (auto &rs : resultSetsToClose)
         {
-            try
+            auto closeResult = rs->close(std::nothrow);
+            if (closeResult.has_value())
             {
-                rs->close();
                 closedCount++;
             }
-            catch (...)
+            else
             {
-                FIREBIRD_DEBUG("  Exception while closing ResultSet, ignoring");
+                FIREBIRD_DEBUG("  Failed to close ResultSet: %s", closeResult.error().what_s().data());
             }
         }
-        FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets - Closed %d result sets", closedCount);
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllActiveResultSets(nothrow) - Closed %d result sets", closedCount);
+        return {};
     }
 
-    void FirebirdDBConnection::closeAllActivePreparedStatements()
+    cpp_dbc::expected<void, DBException>
+    FirebirdDBConnection::closeAllActivePreparedStatements(std::nothrow_t) noexcept
     {
-        FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements - Starting");
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements(nothrow) - Starting");
 
         // Collect statements into a temporary vector while holding the lock,
         // then release the lock before calling invalidate() to prevent deadlock.
@@ -337,7 +372,7 @@ namespace cpp_dbc::Firebird
         std::vector<std::shared_ptr<FirebirdDBPreparedStatement>> statementsToInvalidate;
 
         {
-            FIREBIRD_CONNECTION_LOCK_OR_THROW("1KDSKXL120UP", "Connection closed");
+            FIREBIRD_CONNECTION_LOCK_OR_RETURN("1KDSKXL120UP", "Connection closed");
             for (auto &weakStmt : m_activeStatements)
             {
                 if (auto stmt = weakStmt.lock())
@@ -352,23 +387,25 @@ namespace cpp_dbc::Firebird
         int invalidatedCount = 0;
         for (auto &stmt : statementsToInvalidate)
         {
-            try
+            auto invalidateResult = stmt->invalidate(std::nothrow);
+            if (invalidateResult.has_value())
             {
-                stmt->invalidate();
                 invalidatedCount++;
             }
-            catch (...)
+            else
             {
-                FIREBIRD_DEBUG("  Exception while invalidating PreparedStatement, ignoring");
+                FIREBIRD_DEBUG("  Failed to invalidate PreparedStatement: %s", invalidateResult.error().what_s().data());
             }
         }
 
-        FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements - Invalidated %d prepared statements", invalidatedCount);
+        FIREBIRD_DEBUG("FirebirdConnection::closeAllActivePreparedStatements(nothrow) - Invalidated %d prepared statements", invalidatedCount);
+        return {};
     }
 
-    uint64_t FirebirdDBConnection::executeCreateDatabase(const std::string &sql)
+    cpp_dbc::expected<uint64_t, DBException>
+    FirebirdDBConnection::executeCreateDatabase(std::nothrow_t, const std::string &sql) noexcept
     {
-        FIREBIRD_DEBUG("FirebirdConnection::executeCreateDatabase - Starting");
+        FIREBIRD_DEBUG("FirebirdConnection::executeCreateDatabase(nothrow) - Starting");
         FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
 
         ISC_STATUS_ARRAY status;
@@ -381,8 +418,8 @@ namespace cpp_dbc::Firebird
         {
             std::string errorMsg = interpretStatusVector(status);
             FIREBIRD_DEBUG("  Failed to create database or schema: %s", errorMsg.c_str());
-            throw DBException("G8H4I0J6K2L8", "Failed to create database/schema: " + errorMsg,
-                              system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("G8H4I0J6K2L8", "Failed to create database/schema: " + errorMsg,
+                                                   system_utils::captureCallStack()));
         }
 
         FIREBIRD_DEBUG("  Database created successfully!");
@@ -393,9 +430,10 @@ namespace cpp_dbc::Firebird
             isc_detach_database(status, &db);
         }
 
-        return 0; // CREATE DATABASE doesn't return affected rows
+        return static_cast<uint64_t>(0); // CREATE DATABASE doesn't return affected rows
     }
 
+    #ifdef __cpp_exceptions
     bool FirebirdDBConnection::ping()
     {
         auto result = ping(std::nothrow);
@@ -405,6 +443,7 @@ namespace cpp_dbc::Firebird
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
     cpp_dbc::expected<bool, DBException> FirebirdDBConnection::ping(std::nothrow_t) noexcept
     {

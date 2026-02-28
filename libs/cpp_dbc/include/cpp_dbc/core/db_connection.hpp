@@ -65,6 +65,7 @@ namespace cpp_dbc
          * conn->close();  // release resources
          * ```
          */
+        #ifdef __cpp_exceptions
         virtual void close() = 0;
 
         /**
@@ -125,6 +126,19 @@ namespace cpp_dbc
          */
         virtual void reset() = 0;
 
+        /**
+         * @brief Ping the server to verify the connection is alive
+         *
+         * Each driver implements the appropriate liveness check for its protocol:
+         * relational drivers execute a lightweight query, Redis sends PING,
+         * MongoDB sends a ping command, ScyllaDB executes an OPTIONS request.
+         *
+         * @return true if the connection is alive and the server responds
+         * @throws DBException if the check fails
+         */
+        virtual bool ping() = 0;
+
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -173,18 +187,6 @@ namespace cpp_dbc
          * @return expected containing the connection URL string, or DBException on failure
          */
         virtual cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept = 0;
-
-        /**
-         * @brief Ping the server to verify the connection is alive
-         *
-         * Each driver implements the appropriate liveness check for its protocol:
-         * relational drivers execute a lightweight query, Redis sends PING,
-         * MongoDB sends a ping command, ScyllaDB executes an OPTIONS request.
-         *
-         * @return true if the connection is alive and the server responds
-         * @throws DBException if the check fails
-         */
-        virtual bool ping() = 0;
 
         /**
          * @brief Ping the server to verify the connection is alive (nothrow version)

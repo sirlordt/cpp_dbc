@@ -46,14 +46,24 @@ namespace cpp_dbc::SQLite
              * @return The sqlite3 connection pointer
              * @throws DBException if the connection has been closed
              */
-            sqlite3 *getSQLiteConnection() const
+            cpp_dbc::expected<sqlite3 *, DBException> getSQLiteConnection(std::nothrow_t) const noexcept
             {
                 auto conn = m_db.lock();
                 if (!conn)
                 {
-                    throw DBException("IUVQNZJI30CG", "SQLite connection has been closed", system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("8VHM5QBP014Y", "SQLite connection has been closed", system_utils::captureCallStack()));
                 }
                 return conn.get();
+            }
+
+            sqlite3 *getSQLiteConnection() const
+            {
+                auto r = getSQLiteConnection(std::nothrow);
+                if (!r.has_value())
+                {
+                    throw r.error();
+                }
+                return r.value();
             }
 
             /**
@@ -64,21 +74,30 @@ namespace cpp_dbc::SQLite
              * Only allows alphanumeric characters and underscores to prevent SQL injection.
              * This follows the cpp_dbc project convention for schema name validation.
              */
-            static void validateIdentifier(const std::string &identifier)
+            static cpp_dbc::expected<void, DBException> validateIdentifier(std::nothrow_t, const std::string &identifier) noexcept
             {
                 if (identifier.empty())
                 {
-                    throw DBException("9Z4K7W2P5NXF", "Empty SQL identifier not allowed", system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("SL0KQV7GOWPA", "Empty SQL identifier not allowed", system_utils::captureCallStack()));
                 }
-
                 for (char c : identifier)
                 {
                     if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_')
                     {
-                        throw DBException("3H8T6Q9R2VCJ",
+                        return cpp_dbc::unexpected(DBException("UJBY12IVMBRI",
                             "Invalid character in SQL identifier '" + identifier + "': only alphanumeric and underscore allowed",
-                            system_utils::captureCallStack());
+                            system_utils::captureCallStack()));
                     }
+                }
+                return {};
+            }
+
+            static void validateIdentifier(const std::string &identifier)
+            {
+                auto r = validateIdentifier(std::nothrow, identifier);
+                if (!r.has_value())
+                {
+                    throw r.error();
                 }
             }
 
@@ -106,50 +125,102 @@ namespace cpp_dbc::SQLite
             SQLiteBlob(std::shared_ptr<sqlite3> db, const std::vector<uint8_t> &initialData)
                 : MemoryBlob(initialData), m_db(db), m_loaded(true) {}
 
+            static cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> create(std::nothrow_t, std::shared_ptr<sqlite3> db) noexcept
+            {
+                return std::make_shared<SQLiteBlob>(db);
+            }
+
+            static cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> create(std::nothrow_t, std::shared_ptr<sqlite3> db,
+                const std::string &tableName, const std::string &columnName, const std::string &rowId) noexcept
+            {
+                return std::make_shared<SQLiteBlob>(db, tableName, columnName, rowId);
+            }
+
+            static cpp_dbc::expected<std::shared_ptr<SQLiteBlob>, DBException> create(std::nothrow_t, std::shared_ptr<sqlite3> db,
+                const std::vector<uint8_t> &initialData) noexcept
+            {
+                return std::make_shared<SQLiteBlob>(db, initialData);
+            }
+
+            static std::shared_ptr<SQLiteBlob> create(std::shared_ptr<sqlite3> db)
+            {
+                auto r = create(std::nothrow, db);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            static std::shared_ptr<SQLiteBlob> create(std::shared_ptr<sqlite3> db,
+                const std::string &tableName, const std::string &columnName, const std::string &rowId)
+            {
+                auto r = create(std::nothrow, db, tableName, columnName, rowId);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            static std::shared_ptr<SQLiteBlob> create(std::shared_ptr<sqlite3> db,
+                const std::vector<uint8_t> &initialData)
+            {
+                auto r = create(std::nothrow, db, initialData);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const SQLiteBlob &other) noexcept
+            {
+                if (this == &other) { return {}; }
+                auto r = MemoryBlob::copyFrom(std::nothrow, other);
+                if (!r.has_value()) { return r; }
+                m_db = other.m_db;
+                m_tableName = other.m_tableName;
+                m_columnName = other.m_columnName;
+                m_rowId = other.m_rowId;
+                m_loaded = other.m_loaded;
+                return {};
+            }
+
+            void copyFrom(const SQLiteBlob &other)
+            {
+                auto r = copyFrom(std::nothrow, other);
+                if (!r.has_value()) { throw r.error(); }
+            }
+
             /**
              * @brief Load the BLOB data from the database if not already loaded
              * @throws DBException if the connection is closed or loading fails
              */
-            void ensureLoaded() const
+            cpp_dbc::expected<void, DBException> ensureLoaded(std::nothrow_t) const noexcept
             {
                 if (m_loaded || m_tableName.empty() || m_columnName.empty() || m_rowId.empty())
-                    return;
+                {
+                    return {};
+                }
+                auto tableResult = validateIdentifier(std::nothrow, m_tableName);
+                if (!tableResult.has_value()) { return cpp_dbc::unexpected(tableResult.error()); }
+                auto colResult = validateIdentifier(std::nothrow, m_columnName);
+                if (!colResult.has_value()) { return cpp_dbc::unexpected(colResult.error()); }
 
-                // Validate identifiers to prevent SQL injection
-                validateIdentifier(m_tableName);
-                validateIdentifier(m_columnName);
+                auto dbResult = getSQLiteConnection(std::nothrow);
+                if (!dbResult.has_value()) { return cpp_dbc::unexpected(dbResult.error()); }
+                sqlite3 *db = dbResult.value();
 
-                // Get the SQLite connection safely (throws if connection is closed)
-                sqlite3 *db = getSQLiteConnection();
-
-                // Construct a query with parameterized rowid to prevent SQL injection
                 std::string query = "SELECT " + m_columnName + " FROM " + m_tableName + " WHERE rowid = ?";
-
-                // Prepare the statement
                 sqlite3_stmt *stmt = nullptr;
                 int result = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("BCOMBRIZ3NOO", "Failed to prepare statement for BLOB loading: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("BCOMBRIZ3NOO", "Failed to prepare statement for BLOB loading: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack()));
                 }
-
-                // Bind the rowid parameter
                 result = sqlite3_bind_text(stmt, 1, m_rowId.c_str(), -1, SQLITE_STATIC);
                 if (result != SQLITE_OK)
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("2F9K4N8V7QXW", "Failed to bind rowid parameter: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("2F9K4N8V7QXW", "Failed to bind rowid parameter: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack()));
                 }
-
-                // Execute the statement
                 result = sqlite3_step(stmt);
                 if (result == SQLITE_ROW)
                 {
-                    // Get the BLOB data
                     const void *blobData = sqlite3_column_blob(stmt, 0);
                     int blobSize = sqlite3_column_bytes(stmt, 0);
-
-                    // Copy the BLOB data
                     if (blobData && blobSize > 0)
                     {
                         m_data.resize(blobSize);
@@ -163,55 +234,72 @@ namespace cpp_dbc::SQLite
                 else
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("D281D99D6FAC", "Failed to fetch BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("D281D99D6FAC", "Failed to fetch BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack()));
                 }
-
-                // Finalize the statement
                 sqlite3_finalize(stmt);
                 m_loaded = true;
+                return {};
             }
 
-            // Override methods that need to ensure the BLOB is loaded
+            void ensureLoaded() const
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value())
+                {
+                    throw r.error();
+                }
+            }
+
+            // ====================================================================
+            // THROWING API - Exception-based (requires __cpp_exceptions)
+            // ====================================================================
+
+            #ifdef __cpp_exceptions
+
             size_t length() const override
             {
-                ensureLoaded();
-                return MemoryBlob::length();
+                auto r = length(std::nothrow);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
             }
 
             std::vector<uint8_t> getBytes(size_t pos, size_t length) const override
             {
-                ensureLoaded();
-                return MemoryBlob::getBytes(pos, length);
+                auto r = getBytes(std::nothrow, pos, length);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
             }
 
             std::shared_ptr<InputStream> getBinaryStream() const override
             {
-                ensureLoaded();
-                return MemoryBlob::getBinaryStream();
+                auto r = getBinaryStream(std::nothrow);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
             }
 
             std::shared_ptr<OutputStream> setBinaryStream(size_t pos) override
             {
-                ensureLoaded();
-                return MemoryBlob::setBinaryStream(pos);
+                auto r = setBinaryStream(std::nothrow, pos);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
             }
 
             void setBytes(size_t pos, const std::vector<uint8_t> &bytes) override
             {
-                ensureLoaded();
-                MemoryBlob::setBytes(pos, bytes);
+                auto r = setBytes(std::nothrow, pos, bytes);
+                if (!r.has_value()) { throw r.error(); }
             }
 
             void setBytes(size_t pos, const uint8_t *bytes, size_t length) override
             {
-                ensureLoaded();
-                MemoryBlob::setBytes(pos, bytes, length);
+                auto r = setBytes(std::nothrow, pos, bytes, length);
+                if (!r.has_value()) { throw r.error(); }
             }
 
             void truncate(size_t len) override
             {
-                ensureLoaded();
-                MemoryBlob::truncate(len);
+                auto r = truncate(std::nothrow, len);
+                if (!r.has_value()) { throw r.error(); }
             }
 
             /**
@@ -220,18 +308,91 @@ namespace cpp_dbc::SQLite
              */
             void save()
             {
+                auto r = save(std::nothrow);
+                if (!r.has_value()) { throw r.error(); }
+            }
+
+            void free() override
+            {
+                auto r = free(std::nothrow);
+                if (!r.has_value()) { throw r.error(); }
+            }
+
+            #endif // __cpp_exceptions
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
+            cpp_dbc::expected<size_t, DBException> length(std::nothrow_t) const noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::length(std::nothrow);
+            }
+
+            cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t pos, size_t length) const noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::getBytes(std::nothrow, pos, length);
+            }
+
+            cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t) const noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::getBinaryStream(std::nothrow);
+            }
+
+            cpp_dbc::expected<std::shared_ptr<OutputStream>, DBException> setBinaryStream(std::nothrow_t, size_t pos) noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::setBinaryStream(std::nothrow, pos);
+            }
+
+            cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, size_t pos, const std::vector<uint8_t> &bytes) noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::setBytes(std::nothrow, pos, bytes);
+            }
+
+            cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, size_t pos, const uint8_t *bytes, size_t length) noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::setBytes(std::nothrow, pos, bytes, length);
+            }
+
+            cpp_dbc::expected<void, DBException> truncate(std::nothrow_t, size_t len) noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::truncate(std::nothrow, len);
+            }
+
+            cpp_dbc::expected<void, DBException> save(std::nothrow_t) noexcept
+            {
                 if (m_tableName.empty() || m_columnName.empty() || m_rowId.empty())
-                    return; // Nothing to save
+                {
+                    return {}; // Nothing to save
+                }
 
                 // Ensure BLOB data is loaded before saving to prevent overwriting with empty data
-                ensureLoaded();
+                auto loadResult = ensureLoaded(std::nothrow);
+                if (!loadResult.has_value()) { return cpp_dbc::unexpected(loadResult.error()); }
 
                 // Validate identifiers to prevent SQL injection
-                validateIdentifier(m_tableName);
-                validateIdentifier(m_columnName);
+                auto tableResult = validateIdentifier(std::nothrow, m_tableName);
+                if (!tableResult.has_value()) { return cpp_dbc::unexpected(tableResult.error()); }
+                auto colResult = validateIdentifier(std::nothrow, m_columnName);
+                if (!colResult.has_value()) { return cpp_dbc::unexpected(colResult.error()); }
 
-                // Get the SQLite connection safely (throws if connection is closed)
-                sqlite3 *db = getSQLiteConnection();
+                // Get the SQLite connection safely
+                auto dbResult = getSQLiteConnection(std::nothrow);
+                if (!dbResult.has_value()) { return cpp_dbc::unexpected(dbResult.error()); }
+                sqlite3 *db = dbResult.value();
 
                 // Construct a query with parameterized rowid to prevent SQL injection
                 std::string query = "UPDATE " + m_tableName + " SET " + m_columnName + " = ? WHERE rowid = ?";
@@ -241,7 +402,7 @@ namespace cpp_dbc::SQLite
                 int result = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
                 if (result != SQLITE_OK)
                 {
-                    throw DBException("78BBDB81BED9", "Failed to prepare statement for BLOB saving: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("78BBDB81BED9", "Failed to prepare statement for BLOB saving: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack()));
                 }
 
                 // Bind the BLOB data (parameter 1)
@@ -249,7 +410,7 @@ namespace cpp_dbc::SQLite
                 if (result != SQLITE_OK)
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("ZIDTSWSKRVIY", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("ZIDTSWSKRVIY", "Failed to bind BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack()));
                 }
 
                 // Bind the rowid parameter (parameter 2)
@@ -257,7 +418,7 @@ namespace cpp_dbc::SQLite
                 if (result != SQLITE_OK)
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("5L7M3P9K8TJV", "Failed to bind rowid parameter: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("5L7M3P9K8TJV", "Failed to bind rowid parameter: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack()));
                 }
 
                 // Execute the statement
@@ -265,17 +426,20 @@ namespace cpp_dbc::SQLite
                 if (result != SQLITE_DONE)
                 {
                     sqlite3_finalize(stmt);
-                    throw DBException("LPJVG75T44E5", "Failed to save BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("LPJVG75T44E5", "Failed to save BLOB data: " + std::string(sqlite3_errmsg(db)), system_utils::captureCallStack()));
                 }
 
                 // Finalize the statement
                 sqlite3_finalize(stmt);
+                return {};
             }
 
-            void free() override
+            cpp_dbc::expected<void, DBException> free(std::nothrow_t) noexcept override
             {
-                MemoryBlob::free();
+                auto r = MemoryBlob::free(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
                 m_loaded = false;
+                return {};
             }
         };
 

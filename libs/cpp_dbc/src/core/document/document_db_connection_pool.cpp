@@ -88,6 +88,7 @@ namespace cpp_dbc
         // to ensure shared_from_this() works correctly
     }
 
+    #ifdef __cpp_exceptions
     cpp_dbc::expected<void, DBException> DocumentDBConnectionPool::initializePool(std::nothrow_t) noexcept
     {
         try
@@ -1101,6 +1102,7 @@ namespace cpp_dbc
                     if (!returnResult.has_value())
                     {
                         CP_DEBUG("DocumentPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().data());
+                        return returnResult;
                     }
                 }
             }
@@ -1484,6 +1486,7 @@ namespace cpp_dbc
         updateLastUsedTime(std::nothrow);
         return m_conn->supportsTransactions();
     }
+    #endif // __cpp_exceptions
 
     // ====================================================================
     // NOTHROW VERSIONS - delegate to underlying connection

@@ -74,6 +74,7 @@ add_executable(cpp_dbc_tests
     common/10_041_test_expected.cpp
     common/10_051_test_yaml.cpp
     common/10_061_test_integration.cpp
+    common/10_071_test_blob_stream_create_copyfrom.cpp
 
     # MySQL tests (relational/mysql/)
     relational/mysql/20_001_test_mysql_real_common.cpp

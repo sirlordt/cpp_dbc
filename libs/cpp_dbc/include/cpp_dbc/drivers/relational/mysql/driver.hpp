@@ -36,10 +36,12 @@ namespace cpp_dbc::MySQL
             MySQLDBDriver(MySQLDBDriver &&) = delete;
             MySQLDBDriver &operator=(MySQLDBDriver &&) = delete;
 
+            #ifdef __cpp_exceptions
             std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                       const std::string &user,
                                                                       const std::string &password,
                                                                       const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+            #endif // __cpp_exceptions
 
             bool acceptsURL(const std::string &url) override;
 
@@ -56,7 +58,9 @@ namespace cpp_dbc::MySQL
                           int &port,
                           std::string &database) const;
 
-            // Nothrow API
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
             cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
                 std::nothrow_t,
                 const std::string &url,
@@ -89,6 +93,7 @@ namespace cpp_dbc::MySQL
             MySQLDBDriver(MySQLDBDriver &&) = delete;
             MySQLDBDriver &operator=(MySQLDBDriver &&) = delete;
 
+            #ifdef __cpp_exceptions
             [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
                                                                       const std::string &,
                                                                       const std::string &,
@@ -96,6 +101,7 @@ namespace cpp_dbc::MySQL
             {
                 throw DBException("IZJANRKTJ0U7", "MySQL support is not enabled in this build");
             }
+            #endif // __cpp_exceptions
 
             bool acceptsURL(const std::string & /*url*/) override
             {

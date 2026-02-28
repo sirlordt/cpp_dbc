@@ -83,6 +83,7 @@ namespace cpp_dbc
         // Pool initialization will be done in the factory method
     }
 
+    #ifdef __cpp_exceptions
     cpp_dbc::expected<void, DBException> RelationalDBConnectionPool::initializePool(std::nothrow_t) noexcept
     {
         try
@@ -1746,6 +1747,7 @@ namespace cpp_dbc
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
     cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::ping(std::nothrow_t) noexcept
     {

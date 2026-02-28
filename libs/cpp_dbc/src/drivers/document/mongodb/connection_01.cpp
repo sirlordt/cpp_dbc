@@ -37,12 +37,13 @@ namespace cpp_dbc::MongoDB
     // MongoDBConnection Implementation - Private Helpers
     // ============================================================================
 
-    void MongoDBConnection::validateConnection() const
+    expected<void, DBException> MongoDBConnection::validateConnection(std::nothrow_t) const noexcept
     {
-        if (m_closed)
+        if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("M7N8O9P0Q1R2", "MongoDB connection is closed", system_utils::captureCallStack());
+            return unexpected(DBException("M7N8O9P0Q1R2", "MongoDB connection is closed", system_utils::captureCallStack()));
         }
+        return {};
     }
 
     std::string MongoDBConnection::generateSessionId()
@@ -199,18 +200,10 @@ namespace cpp_dbc::MongoDB
     MongoDBConnection::~MongoDBConnection()
     {
         MONGODB_DEBUG("MongoDBConnection::destructor - Destroying connection");
-        if (!m_closed)
+        if (!m_closed.load(std::memory_order_acquire))
         {
-            try
-            {
-                // Explicitly call our own close() since virtual dispatch doesn't work in destructors
-                MongoDBConnection::close();
-            }
-            catch (...)
-            {
-                // Suppress exceptions in destructor
-                MONGODB_DEBUG("MongoDBConnection::destructor - Exception suppressed during close");
-            }
+            // Explicitly call our own close(nothrow) since virtual dispatch doesn't work in destructors
+            MongoDBConnection::close(std::nothrow);
         }
         MONGODB_DEBUG("MongoDBConnection::destructor - Done");
     }
@@ -219,43 +212,32 @@ namespace cpp_dbc::MongoDB
         : m_client(std::move(other.m_client)),
           m_databaseName(std::move(other.m_databaseName)),
           m_url(std::move(other.m_url)),
-          m_closed(other.m_closed.load()),
+          m_closed(other.m_closed.load(std::memory_order_acquire)),
           m_pooled(other.m_pooled),
           m_sessions(std::move(other.m_sessions)),
-          m_sessionCounter(other.m_sessionCounter.load())
+          m_sessionCounter(other.m_sessionCounter.load(std::memory_order_acquire))
     {
-        other.m_closed = true;
+        other.m_closed.store(true, std::memory_order_release);
     }
 
     MongoDBConnection &MongoDBConnection::operator=(MongoDBConnection &&other) noexcept
     {
         if (this != &other)
         {
-            // Guard close() call since it can throw and this function is noexcept.
-            // We must ensure the object is in a valid state even if close() fails.
-            if (!m_closed)
+            if (!m_closed.load(std::memory_order_acquire))
             {
-                try
-                {
-                    close();
-                }
-                catch (...)
-                {
-                    // close() threw - mark as closed to maintain invariants
-                    m_closed = true;
-                    MONGODB_DEBUG("MongoDBConnection::operator= - close() threw during move assignment, marking as closed");
-                }
+                close(std::nothrow);
             }
 
             m_client = std::move(other.m_client);
             m_databaseName = std::move(other.m_databaseName);
             m_url = std::move(other.m_url);
-            m_closed = other.m_closed.load();
+            m_closed.store(other.m_closed.load(std::memory_order_acquire), std::memory_order_release);
             m_pooled = other.m_pooled;
             m_sessions = std::move(other.m_sessions);
-            m_sessionCounter = other.m_sessionCounter.load();
+            m_sessionCounter.store(other.m_sessionCounter.load(std::memory_order_acquire), std::memory_order_release);
 
-            other.m_closed = true;
+            other.m_closed.store(true, std::memory_order_release);
         }
         return *this;
     }
@@ -264,6 +246,7 @@ namespace cpp_dbc::MongoDB
     // MongoDBConnection Implementation - DBConnection Interface
     // ============================================================================
 
+    #ifdef __cpp_exceptions
     void MongoDBConnection::close()
     {
         auto result = close(std::nothrow);
@@ -275,7 +258,7 @@ namespace cpp_dbc::MongoDB
 
     bool MongoDBConnection::isClosed() const
     {
-        return m_closed;
+        return m_closed.load(std::memory_order_acquire);
     }
 
     void MongoDBConnection::returnToPool()
@@ -357,6 +340,7 @@ namespace cpp_dbc::MongoDB
             throw result.error();
         }
     }
+    #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB
 

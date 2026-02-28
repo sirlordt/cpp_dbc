@@ -72,6 +72,7 @@ namespace cpp_dbc
          * @return std::shared_ptr<ColumnarDBConnection> A connection to the database
          * @throws DBException if the connection fails
          */
+        #ifdef __cpp_exceptions
         virtual std::shared_ptr<ColumnarDBConnection> connectColumnar(
             const std::string &url,
             const std::string &user,
@@ -147,6 +148,7 @@ namespace cpp_dbc
          */
         virtual std::string getDriverVersion() const = 0;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -174,11 +176,11 @@ namespace cpp_dbc
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
         {
             auto result = connectColumnar(std::nothrow, url, user, password, options);
-            if (!result)
+            if (!result.has_value())
             {
                 return cpp_dbc::unexpected(result.error());
             }
-            return std::static_pointer_cast<DBConnection>(*result);
+            return std::static_pointer_cast<DBConnection>(result.value());
         }
 
         /**

@@ -96,17 +96,17 @@ namespace cpp_dbc::Redis
     }
 
     // ============================================================================
-    // RedisConnection Implementation
+    // RedisDBConnection Implementation
     // ============================================================================
 
-    RedisConnection::RedisConnection(
+    RedisDBConnection::RedisDBConnection(
         const std::string &uri,
         const std::string &user,
         const std::string &password,
         const std::map<std::string, std::string> &options)
         : m_url(uri)
     {
-        REDIS_DEBUG("RedisConnection::constructor - Connecting to: " << uri);
+        REDIS_DEBUG("RedisDBConnection::constructor - Connecting to: " << uri);
 
         // Parse the URI - supports both IPv4 and IPv6 (IPv6 addresses must be in brackets)
         // Examples: redis://localhost:6379/0, redis://192.168.1.1:6379, redis://[::1]:6379/0, redis://[2001:db8::1]:6379
@@ -160,7 +160,7 @@ namespace cpp_dbc::Redis
                               system_utils::captureCallStack());
         }
 
-        REDIS_DEBUG("RedisConnection::constructor - Connecting to host: " << host
+        REDIS_DEBUG("RedisDBConnection::constructor - Connecting to host: " << host
                                                                           << " port: " << port << " db: " << m_dbIndex);
 
         // Connect to Redis server with configurable timeout
@@ -175,12 +175,12 @@ namespace cpp_dbc::Redis
                 if (timeoutMs <= 0)
                 {
                     timeoutMs = 3000; // Reset to default if invalid
-                    REDIS_DEBUG("RedisConnection::constructor - Invalid connect_timeout value, using default 3000ms");
+                    REDIS_DEBUG("RedisDBConnection::constructor - Invalid connect_timeout value, using default 3000ms");
                 }
             }
             catch (const std::exception &ex)
             {
-                REDIS_DEBUG("RedisConnection::constructor - Failed to parse connect_timeout: " << ex.what() << ", using default 3000ms");
+                REDIS_DEBUG("RedisDBConnection::constructor - Failed to parse connect_timeout: " << ex.what() << ", using default 3000ms");
                 timeoutMs = 3000;
             }
         }
@@ -206,7 +206,7 @@ namespace cpp_dbc::Redis
         timeout.tv_sec = static_cast<time_t>(timeoutMs / 1000);                              // NOSONAR - intentional cast for portability
         timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>((timeoutMs % 1000) * 1000); // NOSONAR - intentional cast for portability
 
-        REDIS_DEBUG("RedisConnection::constructor - Using connect timeout: " << timeoutMs << "ms");
+        REDIS_DEBUG("RedisDBConnection::constructor - Using connect timeout: " << timeoutMs << "ms");
         redisContext *context = redisConnectWithTimeout(host.c_str(), port, timeout);
 
         if (!context || context->err)
@@ -272,7 +272,7 @@ namespace cpp_dbc::Redis
                 {
                     if (reply->type == REDIS_REPLY_ERROR)
                     {
-                        REDIS_DEBUG("RedisConnection::constructor - CLIENT SETNAME failed: " << reply->str);
+                        REDIS_DEBUG("RedisDBConnection::constructor - CLIENT SETNAME failed: " << reply->str);
                     }
                     freeReplyObject(reply);
                 }
@@ -280,12 +280,12 @@ namespace cpp_dbc::Redis
         }
 
         m_closed = false;
-        REDIS_DEBUG("RedisConnection::constructor - Connected successfully");
+        REDIS_DEBUG("RedisDBConnection::constructor - Connected successfully");
     }
 
-    RedisConnection::~RedisConnection()
+    RedisDBConnection::~RedisDBConnection()
     {
-        REDIS_DEBUG("RedisConnection::destructor - Destroying connection");
+        REDIS_DEBUG("RedisDBConnection::destructor - Destroying connection");
         // Inline close() logic to avoid virtual call in destructor (S1699)
         if (!m_closed)
         {
@@ -297,17 +297,17 @@ namespace cpp_dbc::Redis
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
-                REDIS_DEBUG("RedisConnection::~RedisConnection - Exception: " << ex.what());
+                REDIS_DEBUG("RedisDBConnection::~RedisDBConnection - Exception: " << ex.what());
             }
             catch (...)
             {
-                REDIS_DEBUG("RedisConnection::~RedisConnection - Unknown exception");
+                REDIS_DEBUG("RedisDBConnection::~RedisDBConnection - Unknown exception");
             }
         }
-        REDIS_DEBUG("RedisConnection::destructor - Done");
+        REDIS_DEBUG("RedisDBConnection::destructor - Done");
     }
 
-    RedisConnection::RedisConnection(RedisConnection &&other) noexcept
+    RedisDBConnection::RedisDBConnection(RedisDBConnection &&other) noexcept
         : m_context(std::move(other.m_context)),
           m_url(std::move(other.m_url)),
           m_dbIndex(other.m_dbIndex),
@@ -316,7 +316,7 @@ namespace cpp_dbc::Redis
         other.m_closed = true;
     }
 
-    RedisConnection &RedisConnection::operator=(RedisConnection &&other) noexcept
+    RedisDBConnection &RedisDBConnection::operator=(RedisDBConnection &&other) noexcept
     {
         if (this != &other)
         {
@@ -330,7 +330,7 @@ namespace cpp_dbc::Redis
                 {
                     // Swallow exception to maintain noexcept guarantee
                     // Connection cleanup failed but we must continue with move
-                    REDIS_DEBUG("RedisConnection::operator= - Exception during close(), continuing with move");
+                    REDIS_DEBUG("RedisDBConnection::operator= - Exception during close(), continuing with move");
                     m_context.reset();
                     m_closed = true;
                 }
@@ -348,7 +348,8 @@ namespace cpp_dbc::Redis
 
     // DBConnection interface implementation
 
-    void RedisConnection::close()
+    #ifdef __cpp_exceptions
+    void RedisDBConnection::close()
     {
         auto result = close(std::nothrow);
         if (!result.has_value())
@@ -357,12 +358,12 @@ namespace cpp_dbc::Redis
         }
     }
 
-    bool RedisConnection::isClosed() const
+    bool RedisDBConnection::isClosed() const
     {
         return m_closed;
     }
 
-    void RedisConnection::returnToPool()
+    void RedisDBConnection::returnToPool()
     {
         auto result = returnToPool(std::nothrow);
         if (!result.has_value())
@@ -371,17 +372,17 @@ namespace cpp_dbc::Redis
         }
     }
 
-    bool RedisConnection::isPooled() const
+    bool RedisDBConnection::isPooled() const
     {
         return false;
     }
 
-    std::string RedisConnection::getURL() const
+    std::string RedisDBConnection::getURL() const
     {
         return m_url;
     }
 
-    void RedisConnection::reset()
+    void RedisDBConnection::reset()
     {
         auto result = reset(std::nothrow);
         if (!result.has_value())
@@ -390,7 +391,7 @@ namespace cpp_dbc::Redis
         }
     }
 
-    void RedisConnection::prepareForPoolReturn()
+    void RedisDBConnection::prepareForPoolReturn()
     {
         auto result = prepareForPoolReturn(std::nothrow);
         if (!result.has_value())
@@ -401,7 +402,7 @@ namespace cpp_dbc::Redis
 
     // KVDBConnection interface implementation - Basic key-value operations
 
-    bool RedisConnection::setString(const std::string &key, const std::string &value,
+    bool RedisDBConnection::setString(const std::string &key, const std::string &value,
                                     std::optional<int64_t> expirySeconds)
     {
         auto result = setString(std::nothrow, key, value, expirySeconds);
@@ -412,7 +413,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::string RedisConnection::getString(const std::string &key)
+    std::string RedisDBConnection::getString(const std::string &key)
     {
         auto result = getString(std::nothrow, key);
         if (!result.has_value())
@@ -422,7 +423,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    bool RedisConnection::exists(const std::string &key)
+    bool RedisDBConnection::exists(const std::string &key)
     {
         auto result = exists(std::nothrow, key);
         if (!result.has_value())
@@ -432,7 +433,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    bool RedisConnection::deleteKey(const std::string &key)
+    bool RedisDBConnection::deleteKey(const std::string &key)
     {
         auto result = deleteKey(std::nothrow, key);
         if (!result.has_value())
@@ -442,7 +443,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    int64_t RedisConnection::deleteKeys(const std::vector<std::string> &keys)
+    int64_t RedisDBConnection::deleteKeys(const std::vector<std::string> &keys)
     {
         auto result = deleteKeys(std::nothrow, keys);
         if (!result.has_value())
@@ -452,7 +453,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    bool RedisConnection::expire(const std::string &key, int64_t seconds)
+    bool RedisDBConnection::expire(const std::string &key, int64_t seconds)
     {
         auto result = expire(std::nothrow, key, seconds);
         if (!result.has_value())
@@ -462,7 +463,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    int64_t RedisConnection::getTTL(const std::string &key)
+    int64_t RedisDBConnection::getTTL(const std::string &key)
     {
         auto result = getTTL(std::nothrow, key);
         if (!result.has_value())
@@ -474,7 +475,7 @@ namespace cpp_dbc::Redis
 
     // Counter operations
 
-    int64_t RedisConnection::increment(const std::string &key, int64_t by)
+    int64_t RedisDBConnection::increment(const std::string &key, int64_t by)
     {
         auto result = increment(std::nothrow, key, by);
         if (!result.has_value())
@@ -484,7 +485,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    int64_t RedisConnection::decrement(const std::string &key, int64_t by)
+    int64_t RedisDBConnection::decrement(const std::string &key, int64_t by)
     {
         auto result = decrement(std::nothrow, key, by);
         if (!result.has_value())
@@ -496,7 +497,7 @@ namespace cpp_dbc::Redis
 
     // List operations
 
-    int64_t RedisConnection::listPushLeft(const std::string &key, const std::string &value)
+    int64_t RedisDBConnection::listPushLeft(const std::string &key, const std::string &value)
     {
         auto result = listPushLeft(std::nothrow, key, value);
         if (!result.has_value())
@@ -506,7 +507,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    int64_t RedisConnection::listPushRight(const std::string &key, const std::string &value)
+    int64_t RedisDBConnection::listPushRight(const std::string &key, const std::string &value)
     {
         auto result = listPushRight(std::nothrow, key, value);
         if (!result.has_value())
@@ -516,7 +517,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::string RedisConnection::listPopLeft(const std::string &key)
+    std::string RedisDBConnection::listPopLeft(const std::string &key)
     {
         auto result = listPopLeft(std::nothrow, key);
         if (!result.has_value())
@@ -526,7 +527,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::string RedisConnection::listPopRight(const std::string &key)
+    std::string RedisDBConnection::listPopRight(const std::string &key)
     {
         auto result = listPopRight(std::nothrow, key);
         if (!result.has_value())
@@ -536,7 +537,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::vector<std::string> RedisConnection::listRange(
+    std::vector<std::string> RedisDBConnection::listRange(
         const std::string &key, int64_t start, int64_t stop)
     {
         auto result = listRange(std::nothrow, key, start, stop);
@@ -547,7 +548,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    int64_t RedisConnection::listLength(const std::string &key)
+    int64_t RedisDBConnection::listLength(const std::string &key)
     {
         auto result = listLength(std::nothrow, key);
         if (!result.has_value())
@@ -556,6 +557,7 @@ namespace cpp_dbc::Redis
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::Redis
 

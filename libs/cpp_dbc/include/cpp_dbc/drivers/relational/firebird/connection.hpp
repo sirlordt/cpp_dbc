@@ -73,26 +73,26 @@ namespace cpp_dbc::Firebird
         mutable SharedConnMutex m_connMutex;
 #endif
 
-        void registerStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt);
-        void unregisterStatement(std::weak_ptr<FirebirdDBPreparedStatement> stmt);
-        void registerResultSet(std::weak_ptr<FirebirdDBResultSet> rs);
-        void unregisterResultSet(std::weak_ptr<FirebirdDBResultSet> rs);
-        void startTransaction();
-        void endTransaction(bool commit);
-        void closeAllActiveResultSets();
+        cpp_dbc::expected<void, DBException> registerStatement(std::nothrow_t, std::weak_ptr<FirebirdDBPreparedStatement> stmt) noexcept;
+        cpp_dbc::expected<void, DBException> unregisterStatement(std::nothrow_t, std::weak_ptr<FirebirdDBPreparedStatement> stmt) noexcept;
+        cpp_dbc::expected<void, DBException> registerResultSet(std::nothrow_t, std::weak_ptr<FirebirdDBResultSet> rs) noexcept;
+        cpp_dbc::expected<void, DBException> unregisterResultSet(std::nothrow_t, std::weak_ptr<FirebirdDBResultSet> rs) noexcept;
+        cpp_dbc::expected<void, DBException> startTransaction(std::nothrow_t) noexcept;
+        cpp_dbc::expected<void, DBException> endTransaction(std::nothrow_t, bool commit) noexcept;
+        cpp_dbc::expected<void, DBException> closeAllActiveResultSets(std::nothrow_t) noexcept;
 
         /**
          * @brief Close and invalidate all active prepared statements
          * Called before DDL operations to release metadata locks
          */
-        void closeAllActivePreparedStatements();
+        cpp_dbc::expected<void, DBException> closeAllActivePreparedStatements(std::nothrow_t) noexcept;
 
         /**
          * @brief Execute a CREATE DATABASE statement using isc_dsql_execute_immediate
          * @param sql The CREATE DATABASE SQL statement
          * @return 0 (CREATE DATABASE doesn't return affected rows)
          */
-        uint64_t executeCreateDatabase(const std::string &sql);
+        cpp_dbc::expected<uint64_t, DBException> executeCreateDatabase(std::nothrow_t, const std::string &sql) noexcept;
 
     protected:
         // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
@@ -131,6 +131,47 @@ namespace cpp_dbc::Firebird
                              const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
         ~FirebirdDBConnection() override;
 
+        static cpp_dbc::expected<std::shared_ptr<FirebirdDBConnection>, DBException>
+        create(std::nothrow_t,
+               const std::string &host,
+               int port,
+               const std::string &database,
+               const std::string &user,
+               const std::string &password,
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+        {
+            try
+            {
+                return std::make_shared<FirebirdDBConnection>(host, port, database, user, password, options);
+            }
+            catch (const DBException &ex)
+            {
+                return cpp_dbc::unexpected(ex);
+            }
+            catch (const std::exception &ex)
+            {
+                return cpp_dbc::unexpected(DBException("NXZ242YS9FRK", ex.what(), system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return cpp_dbc::unexpected(DBException("J24BZGLBC24P", "Unknown error creating FirebirdDBConnection", system_utils::captureCallStack()));
+            }
+        }
+
+        static std::shared_ptr<FirebirdDBConnection>
+        create(const std::string &host,
+               int port,
+               const std::string &database,
+               const std::string &user,
+               const std::string &password,
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
+        {
+            auto r = create(std::nothrow, host, port, database, user, password, options);
+            if (!r.has_value()) { throw r.error(); }
+            return r.value();
+        }
+
+        #ifdef __cpp_exceptions
         void close() override;
         void reset() override;
         bool isClosed() const override;
@@ -158,6 +199,7 @@ namespace cpp_dbc::Firebird
         std::string getURL() const override;
         bool ping() override;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

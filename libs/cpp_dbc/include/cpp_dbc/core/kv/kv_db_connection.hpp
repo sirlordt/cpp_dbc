@@ -54,7 +54,7 @@ namespace cpp_dbc
      * conn->close();
      * ```
      *
-     * Implementations: RedisConnection
+     * Implementations: RedisDBConnection
      *
      * @see DBConnection, KVDBData
      */
@@ -80,6 +80,7 @@ namespace cpp_dbc
          * conn->setString("config:mode", "production");               // no expiry
          * ```
          */
+        #ifdef __cpp_exceptions
         virtual bool setString(const std::string &key, const std::string &value,
                                std::optional<int64_t> expirySeconds = std::nullopt) = 0;
 
@@ -440,6 +441,7 @@ namespace cpp_dbc
          */
         virtual void prepareForPoolReturn() = 0;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

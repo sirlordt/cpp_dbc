@@ -81,13 +81,46 @@ namespace cpp_dbc::ScyllaDB
             mutable std::recursive_mutex m_mutex;
 #endif
 
-            void checkSession();
-            void recreateStatement();
+            cpp_dbc::expected<void, DBException> checkSession(std::nothrow_t) noexcept;
+            cpp_dbc::expected<void, DBException> recreateStatement(std::nothrow_t) noexcept;
 
         public:
             ScyllaDBPreparedStatement(std::weak_ptr<CassSession> session, const std::string &query, const CassPrepared *prepared);
             ~ScyllaDBPreparedStatement() override;
 
+            static cpp_dbc::expected<std::shared_ptr<ScyllaDBPreparedStatement>, DBException>
+            create(std::nothrow_t,
+                   std::weak_ptr<CassSession> session,
+                   const std::string &query,
+                   const CassPrepared *prepared) noexcept
+            {
+                try
+                {
+                    return std::make_shared<ScyllaDBPreparedStatement>(session, query, prepared);
+                }
+                catch (const DBException &ex)
+                {
+                    return cpp_dbc::unexpected(ex);
+                }
+                catch (const std::exception &ex)
+                {
+                    return cpp_dbc::unexpected(DBException("WPY84W810ACP", ex.what(), system_utils::captureCallStack()));
+                }
+                catch (...)
+                {
+                    return cpp_dbc::unexpected(DBException("XG4Q9JLJX5T3", "Unknown error creating ScyllaDBPreparedStatement", system_utils::captureCallStack()));
+                }
+            }
+
+            static std::shared_ptr<ScyllaDBPreparedStatement>
+            create(std::weak_ptr<CassSession> session, const std::string &query, const CassPrepared *prepared)
+            {
+                auto r = create(std::nothrow, session, query, prepared);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            #ifdef __cpp_exceptions
             void setInt(int parameterIndex, int value) override;
             void setLong(int parameterIndex, int64_t value) override;
             void setDouble(int parameterIndex, double value) override;
@@ -113,7 +146,11 @@ namespace cpp_dbc::ScyllaDB
             std::vector<uint64_t> executeBatch() override;
             void close() override;
 
-            // Nothrow API
+            #endif // __cpp_exceptions
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
             [[nodiscard]] cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept override;
             [[nodiscard]] cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept override;
             [[nodiscard]] cpp_dbc::expected<void, DBException> setDouble(std::nothrow_t, int parameterIndex, double value) noexcept override;

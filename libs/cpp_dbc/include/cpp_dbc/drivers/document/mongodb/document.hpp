@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <mutex>
+#include <new>
 #include <string>
 #include <vector>
 
@@ -57,26 +58,18 @@ namespace cpp_dbc::MongoDB
 #endif
 
             /**
-             * @brief Helper to navigate to a nested field using dot notation
+             * @brief Helper to navigate to a nested field using dot notation (nothrow)
              * @param fieldPath The field path (e.g., "address.city")
              * @param outIter Output iterator positioned at the field
-             * @return true if the field was found
+             * @return expected containing true if found, or DBException on error
              */
-            bool navigateToField(const std::string &fieldPath, bson_iter_t &outIter) const;
+            expected<bool, DBException> navigateToField(std::nothrow_t, const std::string &fieldPath, bson_iter_t &outIter) const noexcept;
 
             /**
-             * @brief Helper to set a value at a nested path
-             * @param fieldPath The field path
-             * @param appendFunc Function to append the value to a BSON builder
+             * @brief Validates that the BSON document is valid (nothrow)
+             * @return expected<void> or DBException if m_bson is nullptr
              */
-            template <typename AppendFunc>
-            void setFieldValue(const std::string &fieldPath, AppendFunc appendFunc);
-
-            /**
-             * @brief Validates that the BSON document is valid
-             * @throws DBException if m_bson is nullptr
-             */
-            void validateDocument() const;
+            expected<void, DBException> validateDocument(std::nothrow_t) const noexcept;
 
         public:
             /**
@@ -120,7 +113,9 @@ namespace cpp_dbc::MongoDB
 
             ~MongoDBDocument() override = default;
 
-            // DocumentDBData interface implementation
+            // DocumentDBData interface - throwing API (wrappers)
+
+            #ifdef __cpp_exceptions
             std::string getId() const override;
             void setId(const std::string &id) override;
 
@@ -174,36 +169,55 @@ namespace cpp_dbc::MongoDB
             /**
              * @brief Create a document from a BSON document (takes ownership)
              * @param bson The BSON document
-             * @return A shared pointer to the new document
+             * @return expected containing the document, or DBException if bson is null
              */
-            static std::shared_ptr<MongoDBDocument> fromBson(bson_t *bson);
+            static expected<std::shared_ptr<MongoDBDocument>, DBException> fromBson(std::nothrow_t, bson_t *bson) noexcept;
+
+            /**
+             * @brief Create a document from a BSON document (takes ownership) — throwing variant
+             * @param bson The BSON document
+             * @return shared_ptr to the new document
+             * @throws DBException if bson is null
+             */
+            static std::shared_ptr<MongoDBDocument> fromBson(bson_t *bson)
+            {
+                auto r = fromBson(std::nothrow, bson);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
 
             /**
              * @brief Create a document from a const BSON document (makes a copy)
              * @param bson The BSON document
-             * @return A shared pointer to the new document
+             * @return expected containing the document, or DBException if bson is null or copy fails
              */
-            static std::shared_ptr<MongoDBDocument> fromBsonCopy(const bson_t *bson);
+            static expected<std::shared_ptr<MongoDBDocument>, DBException> fromBsonCopy(std::nothrow_t, const bson_t *bson) noexcept;
 
             /**
-             * @brief Get an array of documents with optional strict type checking
-             * @param fieldPath The path to the field
-             * @param strict If true, fails if any element is not a document; if false, skips non-document elements
-             * @return Vector of documents or error
+             * @brief Create a document from a const BSON document (makes a copy) — throwing variant
+             * @param bson The BSON document
+             * @return shared_ptr to the new document
+             * @throws DBException if bson is null or copy fails
              */
-            expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> getDocumentArray(
-                std::nothrow_t, const std::string &fieldPath, bool strict) const noexcept;
+            static std::shared_ptr<MongoDBDocument> fromBsonCopy(const bson_t *bson)
+            {
+                auto r = fromBsonCopy(std::nothrow, bson);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
 
-            /**
-             * @brief Get an array of strings with optional strict type checking
-             * @param fieldPath The path to the field
-             * @param strict If true, fails if any element is not a string; if false, skips non-string elements
-             * @return Vector of strings or error
-             */
-            expected<std::vector<std::string>, DBException> getStringArray(
-                std::nothrow_t, const std::string &fieldPath, bool strict) const noexcept;
+            #endif // __cpp_exceptions
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
 
-            // Nothrow versions
+            expected<std::string, DBException> getId(std::nothrow_t) const noexcept override;
+            expected<void, DBException> setId(std::nothrow_t, const std::string &id) noexcept override;
+
+            expected<std::string, DBException> toJson(std::nothrow_t) const noexcept override;
+            expected<std::string, DBException> toJsonPretty(std::nothrow_t) const noexcept override;
+            expected<void, DBException> fromJson(std::nothrow_t, const std::string &json) noexcept override;
+
             expected<std::string, DBException> getString(std::nothrow_t, const std::string &fieldPath) const noexcept override;
             expected<int64_t, DBException> getInt(std::nothrow_t, const std::string &fieldPath) const noexcept override;
             expected<double, DBException> getDouble(std::nothrow_t, const std::string &fieldPath) const noexcept override;
@@ -212,7 +226,37 @@ namespace cpp_dbc::MongoDB
             expected<std::shared_ptr<DocumentDBData>, DBException> getDocument(std::nothrow_t, const std::string &fieldPath) const noexcept override;
             expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> getDocumentArray(std::nothrow_t, const std::string &fieldPath) const noexcept override;
             expected<std::vector<std::string>, DBException> getStringArray(std::nothrow_t, const std::string &fieldPath) const noexcept override;
+
+            /**
+             * @brief Get an array of documents with optional strict type checking
+             * @param strict If true, fails if any element is not a document; if false, skips non-document elements
+             */
+            expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> getDocumentArray(
+                std::nothrow_t, const std::string &fieldPath, bool strict) const noexcept;
+
+            /**
+             * @brief Get an array of strings with optional strict type checking
+             * @param strict If true, fails if any element is not a string; if false, skips non-string elements
+             */
+            expected<std::vector<std::string>, DBException> getStringArray(
+                std::nothrow_t, const std::string &fieldPath, bool strict) const noexcept;
+
+            expected<void, DBException> setString(std::nothrow_t, const std::string &fieldPath, const std::string &value) noexcept override;
+            expected<void, DBException> setInt(std::nothrow_t, const std::string &fieldPath, int64_t value) noexcept override;
+            expected<void, DBException> setDouble(std::nothrow_t, const std::string &fieldPath, double value) noexcept override;
+            expected<void, DBException> setBool(std::nothrow_t, const std::string &fieldPath, bool value) noexcept override;
+            expected<void, DBException> setBinary(std::nothrow_t, const std::string &fieldPath, const std::vector<uint8_t> &value) noexcept override;
+            expected<void, DBException> setDocument(std::nothrow_t, const std::string &fieldPath, std::shared_ptr<DocumentDBData> doc) noexcept override;
+            expected<void, DBException> setNull(std::nothrow_t, const std::string &fieldPath) noexcept override;
+
+            expected<bool, DBException> hasField(std::nothrow_t, const std::string &fieldPath) const noexcept override;
+            expected<bool, DBException> isNull(std::nothrow_t, const std::string &fieldPath) const noexcept override;
+            expected<bool, DBException> removeField(std::nothrow_t, const std::string &fieldPath) noexcept override;
+            expected<std::vector<std::string>, DBException> getFieldNames(std::nothrow_t) const noexcept override;
+
             expected<std::shared_ptr<DocumentDBData>, DBException> clone(std::nothrow_t) const noexcept override;
+            expected<void, DBException> clear(std::nothrow_t) noexcept override;
+            expected<bool, DBException> isEmpty(std::nothrow_t) const noexcept override;
         };
 
 } // namespace cpp_dbc::MongoDB

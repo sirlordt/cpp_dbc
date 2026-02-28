@@ -50,8 +50,13 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            // Get the SQLite connection safely (throws if connection is closed)
-            sqlite3 *dbPtr = getSQLiteConnection();
+            // Get the SQLite connection safely (nothrow, returns expected)
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             // Reset the statement to ensure it's ready for execution
             int resetResult = sqlite3_reset(m_stmt.get());
@@ -64,9 +69,12 @@ namespace cpp_dbc::SQLite
             // Pass global file mutex to ResultSet - required because SQLite uses cursor-based iteration
             // where sqlite3_step() and sqlite3_column_*() access the connection handle on every call.
             // Unlike MySQL/PostgreSQL where results are fully loaded into client memory.
-            auto resultSet = std::make_shared<SQLiteDBResultSet>(m_stmt.get(), false, m_connection.lock(), shared_from_this(), m_globalFileMutex);
-            resultSet->initialize();  // CRITICAL: Must be called after shared_ptr exists
-            return std::shared_ptr<RelationalDBResultSet>(resultSet);
+            auto rsResult = SQLiteDBResultSet::create(std::nothrow, m_stmt.get(), false, m_connection.lock(), shared_from_this(), m_globalFileMutex);
+            if (!rsResult.has_value())
+            {
+                return cpp_dbc::unexpected(rsResult.error());
+            }
+            return std::shared_ptr<RelationalDBResultSet>(rsResult.value());
         }
         catch (const DBException &ex)
         {
@@ -98,8 +106,13 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            // Get the SQLite connection safely (throws if connection is closed)
-            sqlite3 *dbPtr = getSQLiteConnection();
+            // Get the SQLite connection safely (nothrow, returns expected)
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             // Reset the statement to ensure it's ready for execution
             int resetResult = sqlite3_reset(m_stmt.get());
@@ -160,8 +173,13 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            // Get the SQLite connection safely (throws if connection is closed)
-            sqlite3 *dbPtr = getSQLiteConnection();
+            // Get the SQLite connection safely (nothrow, returns expected)
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             // Reset the statement to ensure it's ready for execution
             sqlite3_reset(m_stmt.get());

@@ -13,20 +13,14 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file document_05.cpp
- * @brief MongoDB MongoDBDocument - Part 5 (nothrow getters part 1)
+ * @brief MongoDB MongoDBDocument - Part 5 (nothrow API: getId, setId, toJson, toJsonPretty, fromJson)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
 
 #if USE_MONGODB
 
-#include <algorithm>
 #include <array>
-#include <cstring>
-#include <iostream>
-#include <ranges>
-#include <sstream>
-#include <stdexcept>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mongodb_internal.hpp"
 
@@ -34,301 +28,170 @@ namespace cpp_dbc::MongoDB
 {
 
     // ====================================================================
-    // MongoDBDocument NOTHROW VERSIONS
+    // NOTHROW API - getId, setId, toJson, toJsonPretty, fromJson (real implementations)
     // ====================================================================
 
-    expected<std::string, DBException> MongoDBDocument::getString(std::nothrow_t, const std::string &fieldPath) const noexcept
+    expected<std::string, DBException> MongoDBDocument::getId(std::nothrow_t) const noexcept
     {
-        try
-        {
-            MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(m_mutex);
 
-            bson_iter_t iter;
-            if (!navigateToField(fieldPath, iter))
+        auto v = validateDocument(std::nothrow);
+        if (!v.has_value())
+        {
+            return unexpected<DBException>(v.error());
+        }
+
+        if (m_idCached)
+        {
+            return m_cachedId;
+        }
+
+        bson_iter_t iter;
+        if (bson_iter_init_find(&iter, m_bson.get(), "_id"))
+        {
+            if (BSON_ITER_HOLDS_OID(&iter))
             {
-                return unexpected<DBException>(DBException(
-                    "P2Q3R4S5T6U7",
-                    "Field not found: " + fieldPath));
+                const bson_oid_t *oid = bson_iter_oid(&iter);
+                std::array<char, 25> oidStr{};
+                bson_oid_to_string(oid, oidStr.data());
+                m_cachedId = oidStr.data();
+                m_idCached = true;
+                return m_cachedId;
             }
-
-            if (!BSON_ITER_HOLDS_UTF8(&iter))
+            else if (BSON_ITER_HOLDS_UTF8(&iter))
             {
-                return unexpected<DBException>(DBException(
-                    "8B9C0D1E2F3A",
-                    "Field is not a string: " + fieldPath));
+                uint32_t length = 0;
+                const char *str = bson_iter_utf8(&iter, &length);
+                m_cachedId = std::string(str, length);
+                m_idCached = true;
+                return m_cachedId;
             }
+        }
 
-            uint32_t length = 0;
-            const char *str = bson_iter_utf8(&iter, &length);
-            return std::string(str, length);
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "9C0D1E2F3A4B",
-                std::string("Error in getString: ") + ex.what()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "0D1E2F3A4B5C",
-                "Unknown error in getString"));
-        }
+        return std::string{};
     }
 
-    expected<int64_t, DBException> MongoDBDocument::getInt(std::nothrow_t, const std::string &fieldPath) const noexcept
+    expected<void, DBException> MongoDBDocument::setId(std::nothrow_t, const std::string &id) noexcept
     {
-        try
-        {
-            MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(m_mutex);
 
-            bson_iter_t iter;
-            if (!navigateToField(fieldPath, iter))
-            {
-                return unexpected<DBException>(DBException(
-                    "1E2F3A4B5C6D",
-                    "Field not found: " + fieldPath));
-            }
-
-            if (BSON_ITER_HOLDS_INT32(&iter))
-            {
-                return bson_iter_int32(&iter);
-            }
-            else if (BSON_ITER_HOLDS_INT64(&iter))
-            {
-                return bson_iter_int64(&iter);
-            }
-            else
-            {
-                return unexpected<DBException>(DBException(
-                    "2F3A4B5C6D7E",
-                    "Field is not an integer: " + fieldPath));
-            }
-        }
-        catch (const DBException &ex)
+        auto v = validateDocument(std::nothrow);
+        if (!v.has_value())
         {
-            return unexpected<DBException>(ex);
+            return unexpected<DBException>(v.error());
         }
-        catch (const std::exception &ex)
+
+        bson_t *newBson = bson_new();
+        if (!newBson)
         {
             return unexpected<DBException>(DBException(
-                "3A4B5C6D7E8F",
-                std::string("Error in getInt: ") + ex.what()));
+                "AKMSOBSD178M",
+                "Failed to create new BSON document",
+                system_utils::captureCallStack()));
         }
-        catch (...)
+
+        bson_oid_t oid;
+        if (bson_oid_is_valid(id.c_str(), id.length()))
         {
-            return unexpected<DBException>(DBException(
-                "4B5C6D7E8F9A",
-                "Unknown error in getInt"));
+            bson_oid_init_from_string(&oid, id.c_str());
+            BSON_APPEND_OID(newBson, "_id", &oid);
         }
+        else
+        {
+            BSON_APPEND_UTF8(newBson, "_id", id.c_str());
+        }
+
+        bson_iter_t iter;
+        if (bson_iter_init(&iter, m_bson.get()))
+        {
+            while (bson_iter_next(&iter))
+            {
+                const char *key = bson_iter_key(&iter);
+                if (std::string_view(key) != "_id")
+                {
+                    bson_append_iter(newBson, key, -1, &iter);
+                }
+            }
+        }
+
+        m_bson.reset(newBson);
+        m_cachedId = id;
+        m_idCached = true;
+        return {};
     }
 
-    expected<double, DBException> MongoDBDocument::getDouble(std::nothrow_t, const std::string &fieldPath) const noexcept
+    expected<std::string, DBException> MongoDBDocument::toJson(std::nothrow_t) const noexcept
     {
-        try
-        {
-            MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(m_mutex);
 
-            bson_iter_t iter;
-            if (!navigateToField(fieldPath, iter))
-            {
-                return unexpected<DBException>(DBException(
-                    "5C6D7E8F9A0B",
-                    "Field not found: " + fieldPath));
-            }
-
-            if (BSON_ITER_HOLDS_DOUBLE(&iter))
-            {
-                return bson_iter_double(&iter);
-            }
-            else if (BSON_ITER_HOLDS_INT32(&iter))
-            {
-                return static_cast<double>(bson_iter_int32(&iter));
-            }
-            else if (BSON_ITER_HOLDS_INT64(&iter))
-            {
-                return static_cast<double>(bson_iter_int64(&iter));
-            }
-            else
-            {
-                return unexpected<DBException>(DBException(
-                    "6D7E8F9A0B1C",
-                    "Field is not a number: " + fieldPath));
-            }
-        }
-        catch (const DBException &ex)
+        auto v = validateDocument(std::nothrow);
+        if (!v.has_value())
         {
-            return unexpected<DBException>(ex);
+            return unexpected<DBException>(v.error());
         }
-        catch (const std::exception &ex)
+
+        size_t length = 0;
+        char *json = bson_as_relaxed_extended_json(m_bson.get(), &length);
+        if (!json)
         {
             return unexpected<DBException>(DBException(
-                "7E8F9A0B1C2D",
-                std::string("Error in getDouble: ") + ex.what()));
+                "8X5RXA1WE1JA",
+                "Failed to convert document to JSON",
+                system_utils::captureCallStack()));
         }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "8F9A0B1C2D3E",
-                "Unknown error in getDouble"));
-        }
+
+        std::string result(json, length);
+        bson_free(json);
+        return result;
     }
 
-    expected<bool, DBException> MongoDBDocument::getBool(std::nothrow_t, const std::string &fieldPath) const noexcept
+    expected<std::string, DBException> MongoDBDocument::toJsonPretty(std::nothrow_t) const noexcept
     {
-        try
+        MONGODB_LOCK_GUARD(m_mutex);
+
+        auto v = validateDocument(std::nothrow);
+        if (!v.has_value())
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-
-            bson_iter_t iter;
-            if (!navigateToField(fieldPath, iter))
-            {
-                return unexpected<DBException>(DBException(
-                    "9A0B1C2D3E4F",
-                    "Field not found: " + fieldPath));
-            }
-
-            if (!BSON_ITER_HOLDS_BOOL(&iter))
-            {
-                return unexpected<DBException>(DBException(
-                    "0B1C2D3E4F5A",
-                    "Field is not a boolean: " + fieldPath));
-            }
-
-            return bson_iter_bool(&iter);
+            return unexpected<DBException>(v.error());
         }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
+
+        size_t length = 0;
+        char *json = bson_as_canonical_extended_json(m_bson.get(), &length);
+        if (!json)
         {
             return unexpected<DBException>(DBException(
-                "1C2D3E4F5A6B",
-                std::string("Error in getBool: ") + ex.what()));
+                "QPNHC42C5L6Y",
+                "Failed to convert document to JSON",
+                system_utils::captureCallStack()));
         }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "2D3E4F5A6B7C",
-                "Unknown error in getBool"));
-        }
+
+        std::string result(json, length);
+        bson_free(json);
+        return result;
     }
 
-    expected<std::vector<uint8_t>, DBException> MongoDBDocument::getBinary(std::nothrow_t, const std::string &fieldPath) const noexcept
+    expected<void, DBException> MongoDBDocument::fromJson(std::nothrow_t, const std::string &json) noexcept
     {
-        try
-        {
-            MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_LOCK_GUARD(m_mutex);
 
-            bson_iter_t iter;
-            if (!navigateToField(fieldPath, iter))
-            {
-                return unexpected<DBException>(DBException(
-                    "3E4F5A6B7C8D",
-                    "Field not found: " + fieldPath));
-            }
+        bson_error_t error;
+        bson_t *bson = bson_new_from_json(
+            reinterpret_cast<const uint8_t *>(json.c_str()),
+            static_cast<ssize_t>(json.length()),
+            &error);
 
-            if (!BSON_ITER_HOLDS_BINARY(&iter))
-            {
-                return unexpected<DBException>(DBException(
-                    "4F5A6B7C8D9E",
-                    "Field is not binary: " + fieldPath));
-            }
-
-            bson_subtype_t subtype;
-            uint32_t length = 0;
-            const uint8_t *data = nullptr;
-            bson_iter_binary(&iter, &subtype, &length, &data);
-
-            return std::vector<uint8_t>(data, data + length);
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        if (!bson)
         {
             return unexpected<DBException>(DBException(
-                "5A6B7C8D9E0F",
-                "Memory allocation failed in getBinary"));
+                "3CKKBLN3Q4OW",
+                std::string("Failed to parse JSON: ") + error.message,
+                system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "6B7C8D9E0F1A",
-                std::string("Error in getBinary: ") + ex.what()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "7C8D9E0F1A2B",
-                "Unknown error in getBinary"));
-        }
-    }
 
-    expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBDocument::getDocument(std::nothrow_t, const std::string &fieldPath) const noexcept
-    {
-        try
-        {
-            MONGODB_LOCK_GUARD(m_mutex);
-
-            bson_iter_t iter;
-            if (!navigateToField(fieldPath, iter))
-            {
-                return unexpected<DBException>(DBException(
-                    "8D9E0F1A2B3C",
-                    "Field not found: " + fieldPath));
-            }
-
-            if (!BSON_ITER_HOLDS_DOCUMENT(&iter))
-            {
-                return unexpected<DBException>(DBException(
-                    "9E0F1A2B3C4D",
-                    "Field is not a document: " + fieldPath));
-            }
-
-            const uint8_t *data = nullptr;
-            uint32_t length = 0;
-            bson_iter_document(&iter, &length, &data);
-
-            bson_t *subdoc = bson_new_from_data(data, length);
-            if (!subdoc)
-            {
-                return unexpected<DBException>(DBException(
-                    "0F1A2B3C4D5E",
-                    "Failed to extract subdocument"));
-            }
-
-            auto doc = std::make_shared<MongoDBDocument>(subdoc);
-            return std::static_pointer_cast<DocumentDBData>(doc);
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "1A2B3C4D5E6F",
-                "Memory allocation failed in getDocument"));
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "2B3C4D5E6F7A",
-                std::string("Error in getDocument: ") + ex.what()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "3C4D5E6F7A8B",
-                "Unknown error in getDocument"));
-        }
+        m_bson.reset(bson);
+        m_idCached = false;
+        m_cachedId.clear();
+        return {};
     }
 
 } // namespace cpp_dbc::MongoDB

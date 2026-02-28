@@ -110,6 +110,7 @@ namespace cpp_dbc::ScyllaDB
         ScyllaDBConnection::close();
     }
 
+    #ifdef __cpp_exceptions
     void ScyllaDBConnection::close()
     {
         auto result = close(std::nothrow);
@@ -214,6 +215,7 @@ namespace cpp_dbc::ScyllaDB
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
     cpp_dbc::expected<bool, DBException> ScyllaDBConnection::ping(std::nothrow_t) noexcept
     {

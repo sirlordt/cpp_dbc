@@ -44,12 +44,11 @@ namespace cpp_dbc::Firebird
         FirebirdDBDriver();
         ~FirebirdDBDriver() override;
 
+        #ifdef __cpp_exceptions
         std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                   const std::string &user,
                                                                   const std::string &password,
                                                                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
-
-        bool acceptsURL(const std::string &url) override;
 
         /**
          * @brief Execute a driver-specific command
@@ -85,6 +84,10 @@ namespace cpp_dbc::Firebird
                             const std::string &password,
                             const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
 
+        #endif // __cpp_exceptions
+
+        bool acceptsURL(const std::string &url) override;
+
         /**
          * @brief Parses a URL: cpp_dbc:firebird://host:port/path/to/database.fdb
          * @param url The URL to parse
@@ -106,6 +109,16 @@ namespace cpp_dbc::Firebird
             const std::string &user,
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
+
+        [[nodiscard]] cpp_dbc::expected<int, DBException>
+        command(std::nothrow_t, const std::map<std::string, std::any> &params) noexcept;
+
+        [[nodiscard]] cpp_dbc::expected<bool, DBException>
+        createDatabase(std::nothrow_t,
+                       const std::string &url,
+                       const std::string &user,
+                       const std::string &password,
+                       const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept;
 
         std::string getName() const noexcept override;
     };
@@ -156,6 +169,7 @@ namespace cpp_dbc::Firebird
         FirebirdDBDriver(FirebirdDBDriver &&) = delete;
         FirebirdDBDriver &operator=(FirebirdDBDriver &&) = delete;
 
+        #ifdef __cpp_exceptions
         [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string & /*url*/,
                                                                                const std::string & /*user*/,
                                                                                const std::string & /*password*/,
@@ -163,6 +177,7 @@ namespace cpp_dbc::Firebird
         {
             throw DBException("S0U4V6W2X8Y5", "Firebird support is not enabled in this build", system_utils::captureCallStack());
         }
+        #endif // __cpp_exceptions
 
         bool acceptsURL(const std::string & /*url*/) override
         {

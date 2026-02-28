@@ -106,6 +106,7 @@ namespace cpp_dbc::SQLite
         }
     }
 
+    #ifdef __cpp_exceptions
     std::shared_ptr<RelationalDBConnection> SQLiteDBDriver::connectRelational(const std::string &url,
                                                                               [[maybe_unused]] const std::string &user,
                                                                               [[maybe_unused]] const std::string &password,
@@ -118,6 +119,7 @@ namespace cpp_dbc::SQLite
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
     bool SQLiteDBDriver::acceptsURL(const std::string &url)
     {

@@ -115,7 +115,7 @@ namespace cpp_dbc
 
     protected:
         // Sets the transaction isolation level for the pool
-        void setPoolTransactionIsolation(TransactionIsolationLevel level) override
+        void setPoolTransactionIsolation(TransactionIsolationLevel level) noexcept override
         {
             m_transactionIsolation = level;
         }
@@ -169,6 +169,7 @@ namespace cpp_dbc
 
         ~RelationalDBConnectionPool() override;
 
+        #ifdef __cpp_exceptions
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
 
@@ -186,6 +187,7 @@ namespace cpp_dbc
         // Check if pool is running
         bool isRunning() const override;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -242,6 +244,7 @@ namespace cpp_dbc
                                      std::shared_ptr<std::atomic<bool>> poolAlive);
         ~RelationalPooledDBConnection() override;
 
+        #ifdef __cpp_exceptions
         // DBConnection interface methods
         void close() override;
         bool isClosed() const override;
@@ -268,6 +271,7 @@ namespace cpp_dbc
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -303,8 +307,10 @@ namespace cpp_dbc
         // Implementation of DBConnectionPooled interface
         std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
 
+        #ifdef __cpp_exceptions
         // RelationalPooledDBConnection specific method
         std::shared_ptr<RelationalDBConnection> getUnderlyingRelationalConnection();
+        #endif // __cpp_exceptions
     };
 
     // Specialized connection pools for MySQL, PostgreSQL, SQLite, and Firebird

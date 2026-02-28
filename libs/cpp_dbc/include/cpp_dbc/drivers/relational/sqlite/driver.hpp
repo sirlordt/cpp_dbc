@@ -42,10 +42,12 @@ namespace cpp_dbc::SQLite
         SQLiteDBDriver();
         ~SQLiteDBDriver() override;
 
+        #ifdef __cpp_exceptions
         std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                   const std::string &user,
                                                                   const std::string &password,
                                                                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+        #endif // __cpp_exceptions
 
         bool acceptsURL(const std::string &url) override;
 
@@ -57,7 +59,9 @@ namespace cpp_dbc::SQLite
          */
         bool parseURL(const std::string &url, std::string &database);
 
-        // Nothrow API
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
             const std::string &url,
@@ -90,6 +94,7 @@ namespace cpp_dbc::SQLite
         SQLiteDBDriver(SQLiteDBDriver &&) = delete;
         SQLiteDBDriver &operator=(SQLiteDBDriver &&) = delete;
 
+        #ifdef __cpp_exceptions
         [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                                const std::string &user,
                                                                                const std::string &password,
@@ -97,6 +102,7 @@ namespace cpp_dbc::SQLite
         {
             throw DBException("LH64SNQQJON8", "SQLite support is not enabled in this build", system_utils::captureCallStack());
         }
+        #endif // __cpp_exceptions
 
         bool acceptsURL(const std::string & /*url*/) override
         {

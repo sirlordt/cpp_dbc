@@ -1350,7 +1350,7 @@ All throwing method variants (`close()`, `reset()`, `isClosed()`, etc.) in every
 * **Redis Driver Split:**
   * `src/drivers/kv/redis/redis_internal.hpp` - Internal declarations and shared definitions
   * `src/drivers/kv/redis/driver_01.cpp` - RedisDriver implementation
-  * `src/drivers/kv/redis/connection_01.cpp` to `connection_06.cpp` - RedisConnection implementation
+  * `src/drivers/kv/redis/connection_01.cpp` to `connection_06.cpp` - RedisDBConnection implementation
 
 * **ScyllaDB Driver Split:**
   * `src/drivers/columnar/scylladb/scylladb_internal.hpp` - Internal declarations and shared definitions
@@ -1386,7 +1386,7 @@ All throwing method variants (`close()`, `reset()`, `isClosed()`, etc.) in every
   * Enables single memory allocation with `std::make_shared` instead of separate allocations with `new`
   * Removed NOSONAR comments that were needed for the previous `new` usage
   * Applied to: `ColumnarDBConnectionPool`, `DocumentDBConnectionPool`, `KVDBConnectionPool`, `RelationalDBConnectionPool`
-  * Applied to all derived pools: `ScyllaConnectionPool`, `MongoDBConnectionPool`, `RedisConnectionPool`, `MySQLConnectionPool`, `PostgreSQLConnectionPool`, `SQLiteConnectionPool`, `FirebirdConnectionPool`
+  * Applied to all derived pools: `ScyllaConnectionPool`, `MongoDBConnectionPool`, `RedisDBConnectionPool`, `MySQLConnectionPool`, `PostgreSQLConnectionPool`, `SQLiteConnectionPool`, `FirebirdConnectionPool`
 * **SonarCloud Code Quality Fixes:**
   * Added NOSONAR comments with explanations for intentional code patterns
   * Added `[[noreturn]]` attributes to stub methods that always throw exceptions (ScyllaDB disabled driver)

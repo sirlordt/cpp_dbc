@@ -290,10 +290,10 @@ The test log analysis feature checks for:
 #   config.setPassword(""); // Optional
 #   config.setInitialSize(5);
 #   config.setMaxSize(20);
-#   auto pool = cpp_dbc::Redis::RedisConnectionPool::create(config);
+#   auto pool = cpp_dbc::Redis::RedisDBConnectionPool::create(config);
 #
 # Using direct parameters:
-#   auto pool = cpp_dbc::Redis::RedisConnectionPool::create(
+#   auto pool = cpp_dbc::Redis::RedisDBConnectionPool::create(
 #       "redis://localhost:6379", "", ""); // URL, username, password
 #
 # Getting and using connections:

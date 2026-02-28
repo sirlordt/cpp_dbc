@@ -13,7 +13,10 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file connection_05.cpp
- * @brief MongoDB MongoDBConnection - Part 5 (nothrow versions: DBConnection interface and session/transaction operations)
+ * @brief MongoDB MongoDBConnection - Part 5 (MongoDB-specific methods and nothrow API:
+ *        createDocument, runCommand, getServerInfo, getServerStatus, ping,
+ *        startSession, endSession, startTransaction, commitTransaction,
+ *        abortTransaction, supportsTransactions, prepareForPoolReturn)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
@@ -33,281 +36,223 @@
 namespace cpp_dbc::MongoDB
 {
 
-    // ============================================================================
-    // MongoDBConnection - DBConnection nothrow interface implementations
-    // ============================================================================
+    // ====================================================================
+    // NOTHROW API - createDocument, runCommand, getServerInfo, getServerStatus (real implementations)
+    // ====================================================================
 
-    expected<void, DBException> MongoDBConnection::close(std::nothrow_t) noexcept
+    expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::createDocument(std::nothrow_t) noexcept
+    {
+        try
+        {
+            auto doc = std::make_shared<MongoDBDocument>();
+            return std::static_pointer_cast<DocumentDBData>(doc);
+        }
+        catch (const DBException &ex)
+        {
+            return unexpected<DBException>(ex);
+        }
+        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "0B1C2D3E4F5A",
+                "Memory allocation failed in createDocument"));
+        }
+        catch (const std::exception &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "1C2D3E4F5A6B",
+                std::string("Unexpected error in createDocument: ") + ex.what()));
+        }
+        catch (...)
+        {
+            return unexpected<DBException>(DBException(
+                "2D3E4F5A6B7C",
+                "Unknown error in createDocument"));
+        }
+    }
+
+    expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::createDocument(
+        std::nothrow_t, const std::string &json) noexcept
+    {
+        try
+        {
+            auto doc = std::make_shared<MongoDBDocument>(json);
+            return std::static_pointer_cast<DocumentDBData>(doc);
+        }
+        catch (const DBException &ex)
+        {
+            return unexpected<DBException>(ex);
+        }
+        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "3E4F5A6B7C8D",
+                "Memory allocation failed in createDocument"));
+        }
+        catch (const std::exception &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "4F5A6B7C8D9E",
+                std::string("Failed to parse JSON in createDocument: ") + ex.what()));
+        }
+        catch (...)
+        {
+            return unexpected<DBException>(DBException(
+                "5A6B7C8D9E0F",
+                "Unknown error in createDocument"));
+        }
+    }
+
+    expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::runCommand(
+        std::nothrow_t, const std::string &command) noexcept
     {
         try
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed)
-                return {};
-
-            MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Closing connection");
-
-            // Close all active cursors BEFORE destroying the client
+            if (m_closed.load(std::memory_order_acquire))
             {
-                std::scoped_lock cursorsLock(m_cursorsMutex);
-                MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Closing " << m_activeCursors.size() << " active cursors");
-                for (const auto &weakCursor : m_activeCursors)
-                {
-                    if (auto cursor = weakCursor.lock())
-                    {
-                        try { cursor->close(); }
-                        catch ([[maybe_unused]] const std::exception &ex)
-                        {
-                            MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Exception ignored during cursor cleanup: " << ex.what());
-                        }
-                    }
-                }
-                m_activeCursors.clear();
+                return unexpected<DBException>(DBException(
+                    "6B7C8D9E0F1A",
+                    "Connection has been closed"));
             }
 
-            // End all active sessions
+            if (m_databaseName.empty())
             {
-                std::scoped_lock sessionsLock(m_sessionsMutex);
-                m_sessions.clear();
+                return unexpected<DBException>(DBException(
+                    "7C8D9E0F1A2B",
+                    "No database selected. Call useDatabase() first"));
             }
 
-            // Clear active collections
+            BsonHandle cmdBson = makeBsonHandleFromJson(command);
+
+            MongoDatabaseHandle db(mongoc_client_get_database(m_client.get(), m_databaseName.c_str()));
+
+            bson_error_t error;
+            bson_t reply;
+            bson_init(&reply);
+
+            bool success = mongoc_database_command_simple(db.get(), cmdBson.get(), nullptr, &reply, &error);
+
+            if (!success)
             {
-                std::scoped_lock collectionsLock(m_collectionsMutex);
-                m_activeCollections.clear();
+                bson_destroy(&reply);
+                return unexpected<DBException>(DBException(
+                    "8D9E0F1A2B3C",
+                    std::string("Command failed: ") + error.message));
             }
 
-            m_client.reset();
-            m_closed = true;
+            bson_t *replyCopy = bson_copy(&reply);
+            bson_destroy(&reply);
 
-            MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Connection closed");
-            return {};
+            if (!replyCopy)
+            {
+                return unexpected<DBException>(DBException(
+                    "9E0F1A2B3C4D",
+                    "Failed to copy command reply"));
+            }
+
+            auto doc = std::make_shared<MongoDBDocument>(replyCopy);
+            return std::static_pointer_cast<DocumentDBData>(doc);
         }
-        catch (const DBException &e)
+        catch (const DBException &ex)
         {
-            return cpp_dbc::unexpected(e);
+            return unexpected<DBException>(ex);
         }
-        catch (const std::exception &e)
+        catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
-            return cpp_dbc::unexpected(DBException("7DGLQ7C4QX4R",
-                std::string("Exception in close: ") + e.what(),
-                system_utils::captureCallStack()));
+            return unexpected<DBException>(DBException(
+                "0F1A2B3C4D5E",
+                "Memory allocation failed in runCommand"));
+        }
+        catch (const std::exception &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "1A2B3C4D5E6F",
+                std::string("Unexpected error in runCommand: ") + ex.what()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("VS3RNHCXXBMC",
-                "Unknown exception in close",
-                system_utils::captureCallStack()));
+            return unexpected<DBException>(DBException(
+                "2B3C4D5E6F7A",
+                "Unknown error in runCommand"));
         }
     }
 
-    expected<void, DBException> MongoDBConnection::reset(std::nothrow_t) noexcept
-    {
-        return prepareForPoolReturn(std::nothrow);
-    }
-
-    expected<bool, DBException> MongoDBConnection::isClosed(std::nothrow_t) const noexcept
-    {
-        return m_closed.load();
-    }
-
-    expected<void, DBException> MongoDBConnection::returnToPool(std::nothrow_t) noexcept
-    {
-        if (m_pooled)
-        {
-            return reset(std::nothrow);
-        }
-        return close(std::nothrow);
-    }
-
-    expected<bool, DBException> MongoDBConnection::isPooled(std::nothrow_t) const noexcept
-    {
-        return m_pooled;
-    }
-
-    expected<std::string, DBException> MongoDBConnection::getURL(std::nothrow_t) const noexcept
+    expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerInfo(std::nothrow_t) noexcept
     {
         try
         {
-            return m_url;
+            return runCommand(std::nothrow, "{\"buildInfo\": 1}");
         }
-        catch (const std::exception &e)
+        catch (const DBException &ex)
         {
-            return cpp_dbc::unexpected(DBException("GVJMECK6CHOE",
-                std::string("Exception in getURL: ") + e.what(),
-                system_utils::captureCallStack()));
+            return unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "3C4D5E6F7A8B",
+                std::string("Error in getServerInfo: ") + ex.what()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("TUBIOISE94Y7",
-                "Unknown exception in getURL",
-                system_utils::captureCallStack()));
+            return unexpected<DBException>(DBException(
+                "4D5E6F7A8B9C",
+                "Unknown error in getServerInfo"));
         }
     }
 
-    // ============================================================================
-    // MongoDBConnection - DocumentDBConnection nothrow interface implementations
-    // ============================================================================
-
-    expected<void, DBException> MongoDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerStatus(std::nothrow_t) noexcept
     {
         try
         {
-            MONGODB_DEBUG("MongoDBConnection::prepareForPoolReturn(nothrow) - Cleaning up connection");
-
-            // Close all active cursors
-            {
-                std::scoped_lock cursorsLock(m_cursorsMutex);
-                for (const auto &weakCursor : m_activeCursors)
-                {
-                    if (auto cursor = weakCursor.lock())
-                    {
-                        try { cursor->close(); }
-                        catch ([[maybe_unused]] const std::exception &ex)
-                        {
-                            MONGODB_DEBUG("prepareForPoolReturn(nothrow) - Exception closing cursor: " << ex.what());
-                        }
-                    }
-                }
-                m_activeCursors.clear();
-            }
-
-            // End all active sessions (also aborts any active transactions)
-            {
-                std::scoped_lock sessionsLock(m_sessionsMutex);
-                m_sessions.clear();
-            }
-
-            // Clear active collections
-            {
-                std::scoped_lock collectionsLock(m_collectionsMutex);
-                m_activeCollections.clear();
-            }
-
-            MONGODB_DEBUG("MongoDBConnection::prepareForPoolReturn(nothrow) - Cleanup complete");
-            return {};
+            return runCommand(std::nothrow, "{\"serverStatus\": 1}");
         }
-        catch (const DBException &e)
+        catch (const DBException &ex)
         {
-            return cpp_dbc::unexpected(e);
+            return unexpected<DBException>(ex);
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("OINP1LDHWCQ7",
-                std::string("Exception in prepareForPoolReturn: ") + e.what(),
-                system_utils::captureCallStack()));
+            return unexpected<DBException>(DBException(
+                "5E6F7A8B9C0D",
+                std::string("Error in getServerStatus: ") + ex.what()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("MZTNXIRUAJZZ",
-                "Unknown exception in prepareForPoolReturn",
-                system_utils::captureCallStack()));
+            return unexpected<DBException>(DBException(
+                "6F7A8B9C0D1E",
+                "Unknown error in getServerStatus"));
         }
     }
 
-    expected<std::string, DBException> MongoDBConnection::getDatabaseName(std::nothrow_t) const noexcept
+    // ====================================================================
+    // MongoDB-specific public methods
+    // ====================================================================
+
+    std::weak_ptr<mongoc_client_t> MongoDBConnection::getClientWeak() const
     {
-        try
-        {
-            MONGODB_LOCK_GUARD(*m_connMutex);
-            return m_databaseName;
-        }
-        catch (const DBException &e) { return cpp_dbc::unexpected(e); }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("SXWDJ4BE7HDN",
-                std::string("Exception in getDatabaseName: ") + e.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("ZD984T94Z3QJ",
-                "Unknown exception in getDatabaseName",
-                system_utils::captureCallStack()));
-        }
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        return std::weak_ptr<mongoc_client_t>(m_client);
     }
 
-    expected<bool, DBException> MongoDBConnection::databaseExists(
-        std::nothrow_t, const std::string &databaseName) noexcept
+    MongoClientHandle MongoDBConnection::getClient() const
     {
-        try
-        {
-            auto dbsResult = listDatabases(std::nothrow);
-            if (!dbsResult)
-            {
-                return cpp_dbc::unexpected(dbsResult.error());
-            }
-            const auto &databases = *dbsResult;
-            return std::ranges::find(databases, databaseName) != databases.end();
-        }
-        catch (const DBException &e) { return cpp_dbc::unexpected(e); }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("CLA4YAJP87LT",
-                std::string("Exception in databaseExists: ") + e.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("M38AKVVOH6MQ",
-                "Unknown exception in databaseExists",
-                system_utils::captureCallStack()));
-        }
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        return m_client;
     }
 
-    expected<void, DBException> MongoDBConnection::useDatabase(
-        std::nothrow_t, const std::string &databaseName) noexcept
+    void MongoDBConnection::setPooled(bool pooled)
     {
-        try
-        {
-            MONGODB_LOCK_GUARD(*m_connMutex);
-            validateConnection();
-            m_databaseName = databaseName;
-            return {};
-        }
-        catch (const DBException &e) { return cpp_dbc::unexpected(e); }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("W7OJJY9U0NHH",
-                std::string("Exception in useDatabase: ") + e.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("AK6049UQC43W",
-                "Unknown exception in useDatabase",
-                system_utils::captureCallStack()));
-        }
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        m_pooled = pooled;
     }
 
-    expected<bool, DBException> MongoDBConnection::collectionExists(
-        std::nothrow_t, const std::string &collectionName) noexcept
-    {
-        try
-        {
-            auto colsResult = listCollections(std::nothrow);
-            if (!colsResult)
-            {
-                return cpp_dbc::unexpected(colsResult.error());
-            }
-            const auto &collections = *colsResult;
-            return std::ranges::find(collections, collectionName) != collections.end();
-        }
-        catch (const DBException &e) { return cpp_dbc::unexpected(e); }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("HCA7AJHZUCGE",
-                std::string("Exception in collectionExists: ") + e.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("R3LWE02BEA9G",
-                "Unknown exception in collectionExists",
-                system_utils::captureCallStack()));
-        }
-    }
+    // ====================================================================
+    // NOTHROW API - ping, startSession, endSession, startTransaction, commitTransaction,
+    //               abortTransaction, supportsTransactions, prepareForPoolReturn (real implementations)
+    // ====================================================================
 
     expected<bool, DBException> MongoDBConnection::ping(std::nothrow_t) noexcept
     {
@@ -315,7 +260,7 @@ namespace cpp_dbc::MongoDB
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
 
-            if (m_closed)
+            if (m_closed.load(std::memory_order_acquire))
             {
                 return false;
             }
@@ -359,7 +304,13 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
-            validateConnection();
+            {
+                auto r = validateConnection(std::nothrow);
+                if (!r.has_value())
+                {
+                    return cpp_dbc::unexpected(r.error());
+                }
+            }
 
             mongoc_session_opt_t *opts = mongoc_session_opts_new();
             mongoc_session_opts_set_causal_consistency(opts, true);
@@ -385,11 +336,14 @@ namespace cpp_dbc::MongoDB
 
             return sessionId;
         }
-        catch (const DBException &e) { return cpp_dbc::unexpected(e); }
-        catch (const std::exception &e)
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("BCHTJZZLWQIE",
-                std::string("Exception in startSession: ") + e.what(),
+                std::string("Exception in startSession: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
@@ -413,11 +367,14 @@ namespace cpp_dbc::MongoDB
             }
             return {};
         }
-        catch (const DBException &e) { return cpp_dbc::unexpected(e); }
-        catch (const std::exception &e)
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("RXK2INDHV9CO",
-                std::string("Exception in endSession: ") + e.what(),
+                std::string("Exception in endSession: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
@@ -455,11 +412,14 @@ namespace cpp_dbc::MongoDB
 
             return {};
         }
-        catch (const DBException &e) { return cpp_dbc::unexpected(e); }
-        catch (const std::exception &e)
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("VCLTNNKFT0IK",
-                std::string("Exception in startTransaction: ") + e.what(),
+                std::string("Exception in startTransaction: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
@@ -502,11 +462,14 @@ namespace cpp_dbc::MongoDB
 
             return {};
         }
-        catch (const DBException &e) { return cpp_dbc::unexpected(e); }
-        catch (const std::exception &e)
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("NP61YLGUZ60N",
-                std::string("Exception in commitTransaction: ") + e.what(),
+                std::string("Exception in commitTransaction: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
@@ -544,11 +507,14 @@ namespace cpp_dbc::MongoDB
 
             return {};
         }
-        catch (const DBException &e) { return cpp_dbc::unexpected(e); }
-        catch (const std::exception &e)
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("HLS4PYB1NRN4",
-                std::string("Exception in abortTransaction: ") + e.what(),
+                std::string("Exception in abortTransaction: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
@@ -643,17 +609,79 @@ namespace cpp_dbc::MongoDB
 
             return maxWireVersion >= 7;
         }
-        catch (const DBException &e) { return cpp_dbc::unexpected(e); }
-        catch (const std::exception &e)
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("FE471BR4PG7X",
-                std::string("Exception in supportsTransactions: ") + e.what(),
+                std::string("Exception in supportsTransactions: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException("LBIGF6VZJ2R7",
                 "Unknown exception in supportsTransactions",
+                system_utils::captureCallStack()));
+        }
+    }
+
+    expected<void, DBException> MongoDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    {
+        try
+        {
+            MONGODB_DEBUG("MongoDBConnection::prepareForPoolReturn(nothrow) - Cleaning up connection");
+
+            // Close all active cursors
+            {
+                std::scoped_lock cursorsLock(m_cursorsMutex);
+                for (const auto &weakCursor : m_activeCursors)
+                {
+                    if (auto cursor = weakCursor.lock())
+                    {
+                        try
+                        {
+                            cursor->close();
+                        }
+                        catch ([[maybe_unused]] const std::exception &ex)
+                        {
+                            MONGODB_DEBUG("prepareForPoolReturn(nothrow) - Exception closing cursor: " << ex.what());
+                        }
+                    }
+                }
+                m_activeCursors.clear();
+            }
+
+            // End all active sessions (also aborts any active transactions)
+            {
+                std::scoped_lock sessionsLock(m_sessionsMutex);
+                m_sessions.clear();
+            }
+
+            // Clear active collections
+            {
+                std::scoped_lock collectionsLock(m_collectionsMutex);
+                m_activeCollections.clear();
+            }
+
+            MONGODB_DEBUG("MongoDBConnection::prepareForPoolReturn(nothrow) - Cleanup complete");
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return cpp_dbc::unexpected(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return cpp_dbc::unexpected(DBException("OINP1LDHWCQ7",
+                std::string("Exception in prepareForPoolReturn: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return cpp_dbc::unexpected(DBException("MZTNXIRUAJZZ",
+                "Unknown exception in prepareForPoolReturn",
                 system_utils::captureCallStack()));
         }
     }

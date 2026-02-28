@@ -80,7 +80,7 @@ namespace redis_test_helpers
         return driver;
     }
 
-    std::string buildRedisConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig)
+    std::string buildRedisDBConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig)
     {
         std::string host = dbConfig.getHost();
         int port = dbConfig.getPort();
@@ -93,7 +93,7 @@ namespace redis_test_helpers
         return connStr;
     }
 
-    std::shared_ptr<cpp_dbc::KVDBConnection> getRedisConnection()
+    std::shared_ptr<cpp_dbc::KVDBConnection> getRedisDBConnection()
     {
         auto dbConfig = getRedisConfig("test_redis");
 
@@ -101,7 +101,7 @@ namespace redis_test_helpers
         std::string password = dbConfig.getPassword();
 
         // Build connection string for Redis
-        std::string connStr = buildRedisConnectionString(dbConfig);
+        std::string connStr = buildRedisDBConnectionString(dbConfig);
 
         auto driver = getRedisDriver();
         cpp_dbc::DriverManager::registerDriver(driver);
@@ -122,7 +122,7 @@ namespace redis_test_helpers
             std::string password = dbConfig.getPassword();
 
             // Build connection string for Redis
-            std::string connStr = buildRedisConnectionString(dbConfig);
+            std::string connStr = buildRedisDBConnectionString(dbConfig);
 
             // Register the driver singleton in DriverManager so connection pools
             // (which use DriverManager::getDBConnection internally) can find it.

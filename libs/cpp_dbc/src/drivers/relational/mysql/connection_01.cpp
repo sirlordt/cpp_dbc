@@ -49,7 +49,7 @@ namespace cpp_dbc::MySQL
      * @see closeAllStatements() for cleanup logic
      * @see m_activeStatements for design rationale
      */
-    void MySQLDBConnection::registerStatement(std::weak_ptr<MySQLDBPreparedStatement> stmt)
+    cpp_dbc::expected<void, DBException> MySQLDBConnection::registerStatement(std::nothrow_t, std::weak_ptr<MySQLDBPreparedStatement> stmt) noexcept
     {
         std::scoped_lock lock(m_statementsMutex);
         if (m_activeStatements.size() > 50)
@@ -57,6 +57,7 @@ namespace cpp_dbc::MySQL
             std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
         }
         m_activeStatements.insert(stmt);
+        return {};
     }
 
     /**
@@ -73,7 +74,7 @@ namespace cpp_dbc::MySQL
      *
      * @param stmt Weak pointer to the statement to unregister
      */
-    void MySQLDBConnection::unregisterStatement(std::weak_ptr<MySQLDBPreparedStatement> stmt)
+    cpp_dbc::expected<void, DBException> MySQLDBConnection::unregisterStatement(std::nothrow_t, std::weak_ptr<MySQLDBPreparedStatement> stmt) noexcept
     {
         std::scoped_lock lock(m_statementsMutex);
         // Remove expired weak_ptrs and the specified one
@@ -83,6 +84,7 @@ namespace cpp_dbc::MySQL
             auto locked = w.lock();
             return !locked || (stmtLocked && locked.get() == stmtLocked.get());
         });
+        return {};
     }
 
     /**
@@ -131,7 +133,7 @@ namespace cpp_dbc::MySQL
      * leading to use-after-free errors because mysql_stmt_close() and mysql_query()
      * both access shared internal structures in libmysqlclient.
      */
-    void MySQLDBConnection::closeAllStatements()
+    cpp_dbc::expected<void, DBException> MySQLDBConnection::closeAllStatements(std::nothrow_t) noexcept
     {
         // CRITICAL: Must hold connection mutex to prevent other threads from using
         // the MYSQL* connection while we close statements. mysql_stmt_close() uses
@@ -152,6 +154,7 @@ namespace cpp_dbc::MySQL
             // If weak_ptr is expired, statement was already destroyed - nothing to do
         }
         m_activeStatements.clear();
+        return {};
     }
 
     MySQLDBConnection::MySQLDBConnection(const std::string &host,
@@ -233,6 +236,7 @@ namespace cpp_dbc::MySQL
         m_url = urlBuilder.str();
     }
 
+    #ifdef __cpp_exceptions
     MySQLDBConnection::~MySQLDBConnection()
     {
         // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
@@ -429,6 +433,7 @@ namespace cpp_dbc::MySQL
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
     cpp_dbc::expected<bool, DBException> MySQLDBConnection::ping(std::nothrow_t) noexcept
     {

@@ -55,21 +55,29 @@ namespace cpp_dbc::ScyllaDB
             ScyllaDBDriver();
             ~ScyllaDBDriver() override = default;
 
+            #ifdef __cpp_exceptions
             std::shared_ptr<ColumnarDBConnection> connectColumnar(
                 const std::string &url,
                 const std::string &user,
                 const std::string &password,
                 const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
-            int getDefaultPort() const override;
-            std::string getURIScheme() const override;
             std::map<std::string, std::string> parseURI(const std::string &uri) override;
             std::string buildURI(const std::string &host, int port, const std::string &database, const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+
+            #endif // __cpp_exceptions
+
+            int getDefaultPort() const override;
+            std::string getURIScheme() const override;
             bool supportsClustering() const override;
             bool supportsAsync() const override;
             std::string getDriverVersion() const override;
+            bool acceptsURL(const std::string &url) override;
+            std::string getName() const noexcept override;
 
-            // Nothrow API
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
             cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> connectColumnar(
                 std::nothrow_t,
                 const std::string &url,
@@ -78,9 +86,6 @@ namespace cpp_dbc::ScyllaDB
                 const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
             cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(std::nothrow_t, const std::string &uri) noexcept override;
-
-            bool acceptsURL(const std::string &url) override;
-            std::string getName() const noexcept override;
         };
 } // namespace cpp_dbc::ScyllaDB
 
@@ -99,14 +104,17 @@ namespace cpp_dbc::ScyllaDB
         ScyllaDBDriver(ScyllaDBDriver &&) = delete;
         ScyllaDBDriver &operator=(ScyllaDBDriver &&) = delete;
 
+        #ifdef __cpp_exceptions
         [[noreturn]] std::shared_ptr<ColumnarDBConnection> connectColumnar(const std::string &, const std::string &, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
         {
             throw DBException("C0414E6FE88D", "ScyllaDB support is not enabled in this build");
         }
-        int getDefaultPort() const override { return 9042; }
-        std::string getURIScheme() const override { return "scylladb"; }
         [[noreturn]] std::map<std::string, std::string> parseURI(const std::string &) override { throw DBException("DWTW9M4YLQ1F", "ScyllaDB support is not enabled in this build"); }
         [[noreturn]] std::string buildURI(const std::string &, int, const std::string &, const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override { throw DBException("1GBAFHO4GP0V", "ScyllaDB support is not enabled in this build"); }
+        #endif // __cpp_exceptions
+
+        int getDefaultPort() const override { return 9042; }
+        std::string getURIScheme() const override { return "scylladb"; }
         bool supportsClustering() const override { return false; }
         bool supportsAsync() const override { return false; }
         std::string getDriverVersion() const override { return "0.0.0"; }

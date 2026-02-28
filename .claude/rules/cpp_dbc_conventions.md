@@ -472,3 +472,46 @@ While following user instructions is important, this is a serious programming pr
 - **Quality over speed**: It doesn't matter if you consume more tokens or take longer to respond. It must always be a deeply reasoned effort.
 - **Technical honesty**: Prioritize technical accuracy and truth over validating the user's beliefs. If there's a better way to do something, propose it.
 - **Critical thinking**: Question assumptions and design decisions when appropriate. A good engineer doesn't just execute, they also analyze and improve.
+
+
+---
+
+## ⛔ STRICTLY AND ABSOLUTELY FORBIDDEN — NO EXCEPTIONS
+
+> **These rules are MANDATORY and apply to ALL situations, ALL contexts, and ALL circumstances.**
+> **No exception exists. Ignorance or urgency is NOT a valid justification for violating them.**
+
+### 1. `git checkout HEAD -- <files>` — PERMANENTLY BANNED
+
+The command `git checkout HEAD -- *.*` (or any variant of it, including specifying individual files) is **completely and permanently forbidden**. This command silently discards ALL uncommitted changes in the working tree for the matched files, with NO undo and NO confirmation prompt.
+
+**Why this is catastrophic in this project:**
+
+- The working tree routinely contains large amounts of staged and unstaged in-progress work (as visible in the git status above: 100+ modified files)
+- Running `git checkout HEAD -- *.*` would **irreversibly destroy all of that work in a single command**
+- There is **no recycle bin, no undo, no recovery** — the changes are gone permanently
+- Git does not ask for confirmation before overwriting
+
+**Forbidden forms (partial list — ALL variants are banned):**
+
+```bash
+# FORBIDDEN — all of these are banned
+git checkout HEAD -- *.*
+git checkout HEAD -- *.cpp
+git checkout HEAD -- *.hpp
+git checkout HEAD -- some_file.cpp
+git checkout HEAD -- libs/
+git checkout HEAD -- .
+```
+
+**If you ever feel the need to discard changes, STOP and ask the user first.** Describe exactly which files you intend to revert and why. The user must explicitly approve each file before any discard operation.
+
+**Safe alternatives (only with explicit user approval per file):**
+
+```bash
+# Show what would be affected — ALWAYS do this first
+git diff HEAD -- path/to/specific_file.cpp
+
+# Only after user explicitly approves discarding that specific file
+git restore path/to/specific_file.cpp   # preferred modern form
+```

@@ -72,7 +72,48 @@ namespace cpp_dbc::ScyllaDB
                                const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
             ~ScyllaDBConnection() override;
 
+            static cpp_dbc::expected<std::shared_ptr<ScyllaDBConnection>, DBException>
+            create(std::nothrow_t,
+                   const std::string &host,
+                   int port,
+                   const std::string &keyspace,
+                   const std::string &user,
+                   const std::string &password,
+                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+            {
+                try
+                {
+                    return std::make_shared<ScyllaDBConnection>(host, port, keyspace, user, password, options);
+                }
+                catch (const DBException &ex)
+                {
+                    return cpp_dbc::unexpected(ex);
+                }
+                catch (const std::exception &ex)
+                {
+                    return cpp_dbc::unexpected(DBException("X6Q16XPT7903", ex.what(), system_utils::captureCallStack()));
+                }
+                catch (...)
+                {
+                    return cpp_dbc::unexpected(DBException("RJ7DK1D5NGQ1", "Unknown error creating ScyllaDBConnection", system_utils::captureCallStack()));
+                }
+            }
+
+            static std::shared_ptr<ScyllaDBConnection>
+            create(const std::string &host,
+                   int port,
+                   const std::string &keyspace,
+                   const std::string &user,
+                   const std::string &password,
+                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
+            {
+                auto r = create(std::nothrow, host, port, keyspace, user, password, options);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
             // DBConnection interface
+            #ifdef __cpp_exceptions
             void close() override;
             bool isClosed() const override;
             void returnToPool() override;
@@ -91,6 +132,7 @@ namespace cpp_dbc::ScyllaDB
             void rollback() override;
             void prepareForPoolReturn() override;
 
+            #endif // __cpp_exceptions
             // ====================================================================
             // NOTHROW VERSIONS - Exception-free API
             // ====================================================================

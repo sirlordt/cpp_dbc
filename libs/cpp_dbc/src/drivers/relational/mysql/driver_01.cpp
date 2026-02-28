@@ -47,6 +47,7 @@ namespace cpp_dbc::MySQL
         mysql_library_end();
     }
 
+    #ifdef __cpp_exceptions
     std::shared_ptr<RelationalDBConnection> MySQLDBDriver::connectRelational(const std::string &url,
                                                                              const std::string &user,
                                                                              const std::string &password,
@@ -59,6 +60,7 @@ namespace cpp_dbc::MySQL
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
     bool MySQLDBDriver::acceptsURL(const std::string &url)
     {

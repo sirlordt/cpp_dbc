@@ -53,7 +53,7 @@ TEST_CASE("Redis Thread-Safety Tests", "[24_111_01_redis_real_thread_safe]")
     auto dbConfig = redis_test_helpers::getRedisConfig("dev_redis");
     std::string username = dbConfig.getUsername();
     std::string password = dbConfig.getPassword();
-    std::string connStr = redis_test_helpers::buildRedisConnectionString(dbConfig);
+    std::string connStr = redis_test_helpers::buildRedisDBConnectionString(dbConfig);
 
     // Register the Redis driver
     cpp_dbc::DriverManager::registerDriver(redis_test_helpers::getRedisDriver());

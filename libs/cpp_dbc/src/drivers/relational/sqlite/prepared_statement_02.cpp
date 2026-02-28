@@ -50,8 +50,13 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            // Get the SQLite connection safely (throws if connection is closed)
-            sqlite3 *dbPtr = getSQLiteConnection();
+            // Get the SQLite connection safely (nothrow, returns expected)
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             // SQLite parameter indices are 1-based, which matches our API
             // Make sure parameterIndex is valid
@@ -107,8 +112,13 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            // Get the SQLite connection safely (throws if connection is closed)
-            sqlite3 *dbPtr = getSQLiteConnection();
+            // Get the SQLite connection safely (nothrow, returns expected)
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             // SQLite parameter indices are 1-based, which matches our API
             // Make sure parameterIndex is valid
@@ -164,8 +174,13 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            // Get the SQLite connection safely (throws if connection is closed)
-            sqlite3 *dbPtr = getSQLiteConnection();
+            // Get the SQLite connection safely (nothrow, returns expected)
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             // SQLite parameter indices are 1-based, which matches our API
             // Make sure parameterIndex is valid
@@ -221,8 +236,13 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            // Get the SQLite connection safely (throws if connection is closed)
-            sqlite3 *dbPtr = getSQLiteConnection();
+            // Get the SQLite connection safely (nothrow, returns expected)
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             // SQLite parameter indices are 1-based, which matches our API
             // Make sure parameterIndex is valid
@@ -279,8 +299,13 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            // Get the SQLite connection safely (throws if connection is closed)
-            sqlite3 *dbPtr = getSQLiteConnection();
+            // Get the SQLite connection safely (nothrow, returns expected)
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             // SQLite parameter indices are 1-based, which matches our API
             // Make sure parameterIndex is valid
@@ -337,8 +362,13 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            // Get the SQLite connection safely (throws if connection is closed)
-            sqlite3 *dbPtr = getSQLiteConnection();
+            // Get the SQLite connection safely (nothrow, returns expected)
+            auto dbPtrResult = getSQLiteConnection(std::nothrow);
+            if (!dbPtrResult.has_value())
+            {
+                return cpp_dbc::unexpected(dbPtrResult.error());
+            }
+            sqlite3 *dbPtr = dbPtrResult.value();
 
             // SQLite parameter indices are 1-based, which matches our API
             // Make sure parameterIndex is valid

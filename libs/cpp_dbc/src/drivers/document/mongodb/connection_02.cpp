@@ -33,6 +33,7 @@
 namespace cpp_dbc::MongoDB
 {
 
+    #ifdef __cpp_exceptions
     std::shared_ptr<DocumentDBCollection> MongoDBConnection::getCollection(const std::string &collectionName)
     {
         auto result = getCollection(std::nothrow, collectionName);
@@ -208,6 +209,7 @@ namespace cpp_dbc::MongoDB
             throw result.error();
         }
     }
+    #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB
 

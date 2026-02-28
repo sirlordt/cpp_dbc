@@ -108,13 +108,13 @@ namespace cpp_dbc::SQLite
             // Unregister from Connection
             if (auto conn = m_connection.lock())
             {
-                conn->unregisterResultSet(weak_from_this());
+                [[maybe_unused]] auto unregResult = conn->unregisterResultSet(std::nothrow, weak_from_this());
             }
 
             // Unregister from PreparedStatement
             if (auto prepStmt = m_preparedStatement.lock())
             {
-                prepStmt->unregisterResultSet(weak_from_this());
+                [[maybe_unused]] auto unregResult = prepStmt->unregisterResultSet(std::nothrow, weak_from_this());
             }
 
             // Clear the references

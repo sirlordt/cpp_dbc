@@ -46,6 +46,7 @@ namespace cpp_dbc::PostgreSQL
     // PostgreSQLDBPreparedStatement implementation
 
     // Private methods (in order of declaration in .hpp)
+    #ifdef __cpp_exceptions
     void PostgreSQLDBPreparedStatement::notifyConnClosing()
     {
         // Connection is closing, invalidate the statement without calling mysql_stmt_close
@@ -59,7 +60,7 @@ namespace cpp_dbc::PostgreSQL
     }
 
     // Helper method to process SQL and count parameters
-    int PostgreSQLDBPreparedStatement::processSQL(std::string &sqlQuery) const
+    cpp_dbc::expected<int, DBException> PostgreSQLDBPreparedStatement::processSQL(std::nothrow_t, std::string &sqlQuery) const noexcept
     {
         // Count parameters (using $1, $2, etc. or ? placeholders)
         int paramCount = 0;
@@ -129,13 +130,13 @@ namespace cpp_dbc::PostgreSQL
         return paramCount;
     }
 
-    // Helper method to get PGconn* safely, throws if connection is closed
-    PGconn *PostgreSQLDBPreparedStatement::getPGConnection() const
+    // Helper method to get PGconn* safely, returns unexpected if connection is closed
+    cpp_dbc::expected<PGconn *, DBException> PostgreSQLDBPreparedStatement::getPGConnection(std::nothrow_t) const noexcept
     {
         auto conn = m_conn.lock();
         if (!conn)
         {
-            throw DBException("569RL26Q2M1O", "PostgreSQL connection has been closed", system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("CKU5QR7U7HBC", "PostgreSQL connection has been closed", system_utils::captureCallStack()));
         }
         return conn.get();
     }
@@ -150,14 +151,23 @@ namespace cpp_dbc::PostgreSQL
     {
 #endif
         // Verify connection is valid by trying to lock it
-        const PGconn *connPtr = getPGConnection();
-        if (!connPtr)
+        auto connResult = getPGConnection(std::nothrow);
+        if (!connResult.has_value())
+        {
+            throw connResult.error();
+        }
+        if (!connResult.value())
         {
             throw DBException("E2L06693IILH", "Invalid PostgreSQL connection", system_utils::captureCallStack());
         }
 
         // Process SQL and count parameters
-        int paramCount = processSQL(m_sql);
+        auto processSQLResult = processSQL(std::nothrow, m_sql);
+        if (!processSQLResult.has_value())
+        {
+            throw processSQLResult.error();
+        }
+        int paramCount = processSQLResult.value();
 
         // Initialize parameter arrays
         m_paramValues.resize(paramCount);
@@ -357,5 +367,6 @@ namespace cpp_dbc::PostgreSQL
     }
 
 } // namespace cpp_dbc::PostgreSQL
+    #endif // __cpp_exceptions
 
 #endif // USE_POSTGRESQL

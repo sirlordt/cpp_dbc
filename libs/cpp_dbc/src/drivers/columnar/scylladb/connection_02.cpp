@@ -166,7 +166,12 @@ namespace cpp_dbc::ScyllaDB
 
         const CassPrepared *prepared = cass_future_get_prepared(future.get());
         SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Query prepared successfully");
-        return std::shared_ptr<ColumnarDBPreparedStatement>(std::make_shared<ScyllaDBPreparedStatement>(m_session, query, prepared));
+        auto stmtResult = ScyllaDBPreparedStatement::create(std::nothrow, m_session, query, prepared);
+        if (!stmtResult.has_value())
+        {
+            return cpp_dbc::unexpected(stmtResult.error());
+        }
+        return std::shared_ptr<ColumnarDBPreparedStatement>(stmtResult.value());
     }
 
     cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException>
@@ -195,7 +200,12 @@ namespace cpp_dbc::ScyllaDB
 
         const CassResult *result = cass_future_get_result(future.get());
         SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Query executed successfully");
-        return std::shared_ptr<ColumnarDBResultSet>(std::make_shared<ScyllaDBResultSet>(result));
+        auto rsResult = ScyllaDBResultSet::create(std::nothrow, result);
+        if (!rsResult.has_value())
+        {
+            return cpp_dbc::unexpected(rsResult.error());
+        }
+        return std::shared_ptr<ColumnarDBResultSet>(rsResult.value());
     }
 
     cpp_dbc::expected<uint64_t, DBException>

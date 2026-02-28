@@ -45,21 +45,27 @@ namespace cpp_dbc::Firebird
         m_closed.store(true, std::memory_order_release);
     }
 
-    isc_db_handle *FirebirdDBPreparedStatement::getFirebirdConnection() const
+    cpp_dbc::expected<isc_db_handle *, DBException> FirebirdDBPreparedStatement::getFirebirdConnection(std::nothrow_t) const noexcept
     {
         auto db = m_dbHandle.lock();
         if (!db)
         {
-            throw DBException("D2E8F4A0B7C3", "Connection has been closed", system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("D2E8F4A0B7C3", "Connection has been closed", system_utils::captureCallStack()));
         }
         return db.get();
     }
 
-    void FirebirdDBPreparedStatement::prepareStatement()
+    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::prepareStatement(std::nothrow_t) noexcept
     {
         FIREBIRD_DEBUG("FirebirdPreparedStatement::prepareStatement - Starting");
         ISC_STATUS_ARRAY status;
-        isc_db_handle *db = getFirebirdConnection();
+
+        auto dbResult = getFirebirdConnection(std::nothrow);
+        if (!dbResult.has_value())
+        {
+            return cpp_dbc::unexpected(dbResult.error());
+        }
+        isc_db_handle *db = dbResult.value();
         FIREBIRD_DEBUG("  db handle: %p, *db: %ld", (void*)db, (db ? (long)*db : 0L));
 
         // Allocate statement handle
@@ -67,8 +73,9 @@ namespace cpp_dbc::Firebird
         if (isc_dsql_allocate_statement(status, db, &m_stmt))
         {
             FIREBIRD_DEBUG("  Failed to allocate statement: %s", interpretStatusVector(status).c_str());
-            throw DBException("E3F9A5B1C8D4", "Failed to allocate statement: " + interpretStatusVector(status),
-                              system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("E3F9A5B1C8D4",
+                                                   "Failed to allocate statement: " + interpretStatusVector(status),
+                                                   system_utils::captureCallStack()));
         }
         FIREBIRD_DEBUG("  Statement allocated, m_stmt=%p", (void*)(uintptr_t)m_stmt);
 
@@ -91,7 +98,7 @@ namespace cpp_dbc::Firebird
             m_outputSqlda.reset();
             ISC_STATUS_ARRAY freeStatus;
             isc_dsql_free_statement(freeStatus, &m_stmt, DSQL_drop);
-            throw DBException("FB9D2E3F4A5B", errorMsg, system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("FB9D2E3F4A5B", errorMsg, system_utils::captureCallStack()));
         }
 
         FIREBIRD_DEBUG("  conn->m_tr=%ld", (long)conn->m_tr);
@@ -105,8 +112,9 @@ namespace cpp_dbc::Firebird
             ISC_STATUS_ARRAY freeStatus; // Use separate status array for cleanup
             isc_dsql_free_statement(freeStatus, &m_stmt, DSQL_drop);
             std::this_thread::sleep_for(std::chrono::milliseconds(25));
-            throw DBException("F4A0B6C2D9E5", "Failed to prepare statement: " + errorMsg,
-                              system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("F4A0B6C2D9E5",
+                                                   "Failed to prepare statement: " + errorMsg,
+                                                   system_utils::captureCallStack()));
         }
         FIREBIRD_DEBUG("  Statement prepared, m_stmt=%p, output columns=%d", (void*)(uintptr_t)m_stmt, (int)m_outputSqlda->sqld);
 
@@ -123,20 +131,26 @@ namespace cpp_dbc::Firebird
             if (isc_dsql_describe(status, &m_stmt, SQL_DIALECT_V6, m_outputSqlda.get()))
             {
                 FIREBIRD_DEBUG("  Failed to describe statement: %s", interpretStatusVector(status).c_str());
-                throw DBException("A5B1C7D3E0F6", "Failed to describe statement: " + interpretStatusVector(status),
-                                  system_utils::captureCallStack());
+                return cpp_dbc::unexpected(DBException("A5B1C7D3E0F6",
+                                                       "Failed to describe statement: " + interpretStatusVector(status),
+                                                       system_utils::captureCallStack()));
             }
         }
 
         // Allocate input SQLDA
         FIREBIRD_DEBUG("  Allocating input SQLDA...");
-        allocateInputSqlda();
+        auto allocResult = allocateInputSqlda(std::nothrow);
+        if (!allocResult.has_value())
+        {
+            return cpp_dbc::unexpected(allocResult.error());
+        }
 
         m_prepared = true;
         FIREBIRD_DEBUG("FirebirdPreparedStatement::prepareStatement - Done, m_stmt=%p", (void*)(uintptr_t)m_stmt);
+        return {};
     }
 
-    void FirebirdDBPreparedStatement::allocateInputSqlda()
+    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::allocateInputSqlda(std::nothrow_t) noexcept
     {
         ISC_STATUS_ARRAY status;
 
@@ -150,8 +164,9 @@ namespace cpp_dbc::Firebird
         if (isc_dsql_describe_bind(status, &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
         {
             m_inputSqlda.reset();
-            throw DBException("B6C2D8E4F1A7", "Failed to describe bind parameters: " + interpretStatusVector(status),
-                              system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("B6C2D8E4F1A7",
+                                                   "Failed to describe bind parameters: " + interpretStatusVector(status),
+                                                   system_utils::captureCallStack()));
         }
 
         // Reallocate if needed
@@ -165,8 +180,9 @@ namespace cpp_dbc::Firebird
 
             if (isc_dsql_describe_bind(status, &m_stmt, SQL_DIALECT_V6, m_inputSqlda.get()))
             {
-                throw DBException("C7D3E9F5A2B8", "Failed to describe bind parameters: " + interpretStatusVector(status),
-                                  system_utils::captureCallStack());
+                return cpp_dbc::unexpected(DBException("C7D3E9F5A2B8",
+                                                       "Failed to describe bind parameters: " + interpretStatusVector(status),
+                                                       system_utils::captureCallStack()));
             }
         }
 
@@ -192,14 +208,17 @@ namespace cpp_dbc::Firebird
             var->sqldata = m_paramBuffers[static_cast<size_t>(i)].data();
             var->sqlind = &m_paramNullIndicators[static_cast<size_t>(i)];
         }
+        return {};
     }
 
-    void FirebirdDBPreparedStatement::setParameter(int parameterIndex, const void *data, size_t length, [[maybe_unused]] short sqlType)
+    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::setParameter(
+        std::nothrow_t, int parameterIndex, const void *data, size_t length, [[maybe_unused]] short sqlType) noexcept
     {
         if (parameterIndex < 1 || parameterIndex > m_inputSqlda->sqld)
         {
-            throw DBException("D8E4F0A6B3C9", "Parameter index out of range: " + std::to_string(parameterIndex),
-                              system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("D8E4F0A6B3C9",
+                                                   "Parameter index out of range: " + std::to_string(parameterIndex),
+                                                   system_utils::captureCallStack()));
         }
 
         size_t idx = static_cast<size_t>(parameterIndex - 1);
@@ -215,12 +234,14 @@ namespace cpp_dbc::Firebird
         std::memcpy(var->sqldata, data, length);
         var->sqllen = static_cast<short>(length);
         m_paramNullIndicators[idx] = 0;
+        return {};
     }
 
     // ============================================================================
     // FirebirdDBPreparedStatement Implementation - Public Methods
     // ============================================================================
 
+    #ifdef __cpp_exceptions
     FirebirdDBPreparedStatement::FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db,
                                                              const std::string &sql,
                                                              std::weak_ptr<FirebirdDBConnection> conn)
@@ -230,7 +251,11 @@ namespace cpp_dbc::Firebird
         FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Creating statement");
         FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
         // No longer receives m_connMutex - accesses it through m_connection when needed
-        prepareStatement();
+        auto prepResult = prepareStatement(std::nothrow);
+        if (!prepResult.has_value())
+        {
+            throw prepResult.error();
+        }
         m_closed.store(false, std::memory_order_release);
         FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Done, m_stmt=%p", (void*)(uintptr_t)m_stmt);
     }
@@ -407,6 +432,7 @@ namespace cpp_dbc::Firebird
             throw result.error();
         }
     }
+    #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::Firebird
 

@@ -34,13 +34,27 @@ namespace cpp_dbc::MongoDB
 {
 
     // ============================================================================
-    // MongoDBDocument Implementation - Private Helpers
+    // MongoDBDocument Implementation - Private Helpers (nothrow)
     // ============================================================================
 
-    bool MongoDBDocument::navigateToField(const std::string &fieldPath, bson_iter_t &outIter) const
+    expected<void, DBException> MongoDBDocument::validateDocument(std::nothrow_t) const noexcept
+    {
+        if (!m_bson)
+        {
+            return unexpected(DBException("DBA6A185E250", "Document is not initialized", system_utils::captureCallStack()));
+        }
+        return {};
+    }
+
+    expected<bool, DBException> MongoDBDocument::navigateToField(std::nothrow_t, const std::string &fieldPath, bson_iter_t &outIter) const noexcept
     {
         MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
+
+        auto v = validateDocument(std::nothrow);
+        if (!v.has_value())
+        {
+            return unexpected(v.error());
+        }
 
         bson_iter_t iter;
         if (!bson_iter_init(&iter, m_bson.get()))
@@ -51,7 +65,7 @@ namespace cpp_dbc::MongoDB
         // Handle dot notation for nested fields
         if (fieldPath.contains('.'))
         {
-            return bson_iter_find_descendant(&iter, fieldPath.c_str(), &outIter);
+            return static_cast<bool>(bson_iter_find_descendant(&iter, fieldPath.c_str(), &outIter));
         }
         else
         {
@@ -61,14 +75,6 @@ namespace cpp_dbc::MongoDB
                 return true;
             }
             return false;
-        }
-    }
-
-    void MongoDBDocument::validateDocument() const
-    {
-        if (!m_bson)
-        {
-            throw DBException("DBA6A185E250", "Document is not initialized", system_utils::captureCallStack());
         }
     }
 
@@ -173,144 +179,62 @@ namespace cpp_dbc::MongoDB
     }
 
     // ============================================================================
-    // MongoDBDocument Implementation - getId, setId
+    // MongoDBDocument Implementation - getId, setId (throwing wrappers)
     // ============================================================================
 
+    #ifdef __cpp_exceptions
     std::string MongoDBDocument::getId() const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
-
-        if (m_idCached)
+        auto r = getId(std::nothrow);
+        if (!r.has_value())
         {
-            return m_cachedId;
+            throw r.error();
         }
-
-        bson_iter_t iter;
-        if (bson_iter_init_find(&iter, m_bson.get(), "_id"))
-        {
-            if (BSON_ITER_HOLDS_OID(&iter))
-            {
-                const bson_oid_t *oid = bson_iter_oid(&iter);
-                std::array<char, 25> oidStr{};
-                bson_oid_to_string(oid, oidStr.data());
-                m_cachedId = oidStr.data();
-                m_idCached = true;
-                return m_cachedId;
-            }
-            else if (BSON_ITER_HOLDS_UTF8(&iter))
-            {
-                uint32_t length = 0;
-                const char *str = bson_iter_utf8(&iter, &length);
-                m_cachedId = std::string(str, length);
-                m_idCached = true;
-                return m_cachedId;
-            }
-        }
-
-        return "";
+        return *r;
     }
 
     void MongoDBDocument::setId(const std::string &id)
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
-
-        // Remove existing _id if present
-        bson_t *newBson = bson_new();
-        if (!newBson)
+        auto r = setId(std::nothrow, id);
+        if (!r.has_value())
         {
-            throw DBException("FQNH0YNO7HS3", "Failed to create new BSON document", system_utils::captureCallStack());
+            throw r.error();
         }
-
-        // Add the new _id first
-        bson_oid_t oid;
-        if (bson_oid_is_valid(id.c_str(), id.length()))
-        {
-            bson_oid_init_from_string(&oid, id.c_str());
-            BSON_APPEND_OID(newBson, "_id", &oid);
-        }
-        else
-        {
-            BSON_APPEND_UTF8(newBson, "_id", id.c_str());
-        }
-
-        // Copy all other fields
-        bson_iter_t iter;
-        if (bson_iter_init(&iter, m_bson.get()))
-        {
-            while (bson_iter_next(&iter))
-            {
-                const char *key = bson_iter_key(&iter);
-                if (std::string_view(key) != "_id")
-                {
-                    bson_append_iter(newBson, key, -1, &iter);
-                }
-            }
-        }
-
-        m_bson.reset(newBson);
-        m_cachedId = id;
-        m_idCached = true;
     }
 
     // ============================================================================
-    // MongoDBDocument Implementation - toJson, toJsonPretty, fromJson
+    // MongoDBDocument Implementation - toJson, toJsonPretty, fromJson (throwing wrappers)
     // ============================================================================
 
     std::string MongoDBDocument::toJson() const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
-
-        size_t length = 0;
-        char *json = bson_as_relaxed_extended_json(m_bson.get(), &length);
-        if (!json)
+        auto r = toJson(std::nothrow);
+        if (!r.has_value())
         {
-            throw DBException("0TSS2D60JNS8", "Failed to convert document to JSON", system_utils::captureCallStack());
+            throw r.error();
         }
-
-        std::string result(json, length);
-        bson_free(json);
-        return result;
+        return *r;
     }
 
     std::string MongoDBDocument::toJsonPretty() const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
-
-        size_t length = 0;
-        char *json = bson_as_canonical_extended_json(m_bson.get(), &length);
-        if (!json)
+        auto r = toJsonPretty(std::nothrow);
+        if (!r.has_value())
         {
-            throw DBException("9D9EA6A742A4", "Failed to convert document to JSON", system_utils::captureCallStack());
+            throw r.error();
         }
-
-        std::string result(json, length);
-        bson_free(json);
-        return result;
+        return *r;
     }
 
     void MongoDBDocument::fromJson(const std::string &json)
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        bson_error_t error;
-        bson_t *bson = bson_new_from_json(
-            reinterpret_cast<const uint8_t *>(json.c_str()),
-            static_cast<ssize_t>(json.length()),
-            &error);
-
-        if (!bson)
+        auto r = fromJson(std::nothrow, json);
+        if (!r.has_value())
         {
-            throw DBException("KKQVV6CEPD1Q", std::string("Failed to parse JSON: ") + error.message, system_utils::captureCallStack());
+            throw r.error();
         }
-
-        m_bson.reset(bson);
-        m_idCached = false;
-        m_cachedId.clear();
     }
+    #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB
 

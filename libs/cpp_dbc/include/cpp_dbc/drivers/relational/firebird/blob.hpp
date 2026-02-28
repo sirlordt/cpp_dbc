@@ -48,14 +48,21 @@ namespace cpp_dbc::Firebird
              * @return shared_ptr to the connection
              * @throws DBException if the connection has been closed
              */
-            std::shared_ptr<FirebirdDBConnection> getConnection() const
+            cpp_dbc::expected<std::shared_ptr<FirebirdDBConnection>, DBException> getConnection(std::nothrow_t) const noexcept
             {
                 auto conn = m_connection.lock();
                 if (!conn)
                 {
-                    throw DBException("LMHROWFG5PNN", "Connection has been closed", system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("FAPY178ZS5UI", "Connection has been closed", system_utils::captureCallStack()));
                 }
                 return conn;
+            }
+
+            std::shared_ptr<FirebirdDBConnection> getConnection() const
+            {
+                auto r = getConnection(std::nothrow);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
             }
 
             /**
@@ -104,19 +111,80 @@ namespace cpp_dbc::Firebird
                 m_blobId.gds_quad_low = 0;
             }
 
+            static cpp_dbc::expected<std::shared_ptr<FirebirdBlob>, DBException> create(std::nothrow_t,
+                std::shared_ptr<FirebirdDBConnection> connection) noexcept
+            {
+                return std::make_shared<FirebirdBlob>(connection);
+            }
+
+            static cpp_dbc::expected<std::shared_ptr<FirebirdBlob>, DBException> create(std::nothrow_t,
+                std::shared_ptr<FirebirdDBConnection> connection, ISC_QUAD blobId) noexcept
+            {
+                return std::make_shared<FirebirdBlob>(connection, blobId);
+            }
+
+            static cpp_dbc::expected<std::shared_ptr<FirebirdBlob>, DBException> create(std::nothrow_t,
+                std::shared_ptr<FirebirdDBConnection> connection, const std::vector<uint8_t> &initialData) noexcept
+            {
+                return std::make_shared<FirebirdBlob>(connection, initialData);
+            }
+
+            static std::shared_ptr<FirebirdBlob> create(std::shared_ptr<FirebirdDBConnection> connection)
+            {
+                auto r = create(std::nothrow, connection);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            static std::shared_ptr<FirebirdBlob> create(std::shared_ptr<FirebirdDBConnection> connection, ISC_QUAD blobId)
+            {
+                auto r = create(std::nothrow, connection, blobId);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            static std::shared_ptr<FirebirdBlob> create(std::shared_ptr<FirebirdDBConnection> connection,
+                const std::vector<uint8_t> &initialData)
+            {
+                auto r = create(std::nothrow, connection, initialData);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const FirebirdBlob &other) noexcept
+            {
+                if (this == &other) { return {}; }
+                auto r = MemoryBlob::copyFrom(std::nothrow, other);
+                if (!r.has_value()) { return r; }
+                m_connection = other.m_connection;
+                m_blobId = other.m_blobId;
+                m_loaded = other.m_loaded;
+                m_hasValidId = other.m_hasValidId;
+                return {};
+            }
+
+            void copyFrom(const FirebirdBlob &other)
+            {
+                auto r = copyFrom(std::nothrow, other);
+                if (!r.has_value()) { throw r.error(); }
+            }
+
             /**
              * @brief Load the BLOB data from the database if not already loaded
              *
              * This method safely accesses the connection through the weak_ptr,
              * ensuring the connection is still valid before attempting to read.
              */
-            void ensureLoaded() const
+            cpp_dbc::expected<void, DBException> ensureLoaded(std::nothrow_t) const noexcept
             {
                 if (m_loaded || !m_hasValidId)
-                    return;
+                {
+                    return {};
+                }
 
-                // Get connection safely - throws if connection is closed
-                auto conn = getConnection();
+                // Get connection safely
+                auto connResult = getConnection(std::nothrow);
+                if (!connResult.has_value()) { return cpp_dbc::unexpected(connResult.error()); }
                 isc_db_handle *db = getDbHandle();
                 isc_tr_handle *tr = getTrHandle();
 
@@ -126,7 +194,7 @@ namespace cpp_dbc::Firebird
                 // Open the blob
                 if (isc_open_blob2(status, db, tr, &blobHandle, &m_blobId, 0, nullptr))
                 {
-                    throw DBException("K3M7N9P2Q5R8", "Failed to open BLOB for reading", system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("K3M7N9P2Q5R8", "Failed to open BLOB for reading", system_utils::captureCallStack()));
                 }
 
                 // Read the blob data in chunks
@@ -151,7 +219,7 @@ namespace cpp_dbc::Firebird
                     if (blobStatus && blobStatus != isc_segment)
                     {
                         isc_close_blob(status, &blobHandle);
-                        throw DBException("L4N8P0Q6R2S9", "Failed to read BLOB segment", system_utils::captureCallStack());
+                        return cpp_dbc::unexpected(DBException("L4N8P0Q6R2S9", "Failed to read BLOB segment", system_utils::captureCallStack()));
                     }
 
                     m_data.insert(m_data.end(), buffer.begin(), buffer.begin() + actualLength);
@@ -160,110 +228,17 @@ namespace cpp_dbc::Firebird
                 // Close the blob
                 if (isc_close_blob(status, &blobHandle))
                 {
-                    throw DBException("M5P9Q1R7S3T0", "Failed to close BLOB after reading", system_utils::captureCallStack());
+                    return cpp_dbc::unexpected(DBException("M5P9Q1R7S3T0", "Failed to close BLOB after reading", system_utils::captureCallStack()));
                 }
 
                 m_loaded = true;
+                return {};
             }
 
-            // Override methods that need to ensure the BLOB is loaded
-            size_t length() const override
+            void ensureLoaded() const
             {
-                ensureLoaded();
-                return MemoryBlob::length();
-            }
-
-            std::vector<uint8_t> getBytes(size_t pos, size_t length) const override
-            {
-                ensureLoaded();
-                return MemoryBlob::getBytes(pos, length);
-            }
-
-            std::shared_ptr<InputStream> getBinaryStream() const override
-            {
-                ensureLoaded();
-                // Use FirebirdInputStream which stores a COPY of the data,
-                // not MemoryInputStream which stores a reference.
-                // This ensures the data remains valid even after the blob is destroyed.
-                return std::make_shared<FirebirdInputStream>(m_data.data(), m_data.size());
-            }
-
-            std::shared_ptr<OutputStream> setBinaryStream(size_t pos) override
-            {
-                ensureLoaded();
-                return MemoryBlob::setBinaryStream(pos);
-            }
-
-            void setBytes(size_t pos, const std::vector<uint8_t> &bytes) override
-            {
-                ensureLoaded();
-                MemoryBlob::setBytes(pos, bytes);
-            }
-
-            void setBytes(size_t pos, const uint8_t *bytes, size_t length) override
-            {
-                ensureLoaded();
-                MemoryBlob::setBytes(pos, bytes, length);
-            }
-
-            void truncate(size_t len) override
-            {
-                ensureLoaded();
-                MemoryBlob::truncate(len);
-            }
-
-            /**
-             * @brief Save the BLOB data to the database and return the blob ID
-             *
-             * This method safely accesses the connection through the weak_ptr,
-             * ensuring the connection is still valid before attempting to write.
-             *
-             * @return The BLOB ID that can be used to reference this BLOB
-             * @throws DBException if the connection has been closed or if writing fails
-             */
-            ISC_QUAD save()
-            {
-                // Get connection safely - throws if connection is closed
-                auto conn = getConnection();
-                isc_db_handle *db = getDbHandle();
-                isc_tr_handle *tr = getTrHandle();
-
-                ISC_STATUS_ARRAY status;
-                isc_blob_handle blobHandle = 0;
-
-                // Create a new blob
-                if (isc_create_blob2(status, db, tr, &blobHandle, &m_blobId, 0, nullptr))
-                {
-                    throw DBException("N6Q0R2S8T4U1", "Failed to create BLOB for writing", system_utils::captureCallStack());
-                }
-
-                // Write the data in chunks
-                const size_t CHUNK_SIZE = 32768;
-                size_t offset = 0;
-
-                while (offset < m_data.size())
-                {
-                    size_t chunkSize = std::min(CHUNK_SIZE, m_data.size() - offset);
-
-                    if (isc_put_segment(status, &blobHandle,
-                                        static_cast<unsigned short>(chunkSize),
-                                        reinterpret_cast<const char *>(m_data.data() + offset)))
-                    {
-                        isc_close_blob(status, &blobHandle);
-                        throw DBException("P7R1S3T9U5V2", "Failed to write BLOB segment", system_utils::captureCallStack());
-                    }
-
-                    offset += chunkSize;
-                }
-
-                // Close the blob
-                if (isc_close_blob(status, &blobHandle))
-                {
-                    throw DBException("Q8S2T4U0V6W3", "Failed to close BLOB after writing", system_utils::captureCallStack());
-                }
-
-                m_hasValidId = true;
-                return m_blobId;
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { throw r.error(); }
             }
 
             /**
@@ -293,13 +268,192 @@ namespace cpp_dbc::Firebird
                 return !m_connection.expired();
             }
 
+            // ====================================================================
+            // THROWING API - Exception-based (requires __cpp_exceptions)
+            // ====================================================================
+
+            #ifdef __cpp_exceptions
+
+            size_t length() const override
+            {
+                auto r = length(std::nothrow);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            std::vector<uint8_t> getBytes(size_t pos, size_t length) const override
+            {
+                auto r = getBytes(std::nothrow, pos, length);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            std::shared_ptr<InputStream> getBinaryStream() const override
+            {
+                auto r = getBinaryStream(std::nothrow);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            std::shared_ptr<OutputStream> setBinaryStream(size_t pos) override
+            {
+                auto r = setBinaryStream(std::nothrow, pos);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            void setBytes(size_t pos, const std::vector<uint8_t> &bytes) override
+            {
+                auto r = setBytes(std::nothrow, pos, bytes);
+                if (!r.has_value()) { throw r.error(); }
+            }
+
+            void setBytes(size_t pos, const uint8_t *bytes, size_t length) override
+            {
+                auto r = setBytes(std::nothrow, pos, bytes, length);
+                if (!r.has_value()) { throw r.error(); }
+            }
+
+            void truncate(size_t len) override
+            {
+                auto r = truncate(std::nothrow, len);
+                if (!r.has_value()) { throw r.error(); }
+            }
+
+            /**
+             * @brief Save the BLOB data to the database and return the blob ID
+             *
+             * This method safely accesses the connection through the weak_ptr,
+             * ensuring the connection is still valid before attempting to write.
+             *
+             * @return The BLOB ID that can be used to reference this BLOB
+             * @throws DBException if the connection has been closed or if writing fails
+             */
+            ISC_QUAD save()
+            {
+                auto r = save(std::nothrow);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
             void free() override
             {
-                MemoryBlob::free();
+                auto r = free(std::nothrow);
+                if (!r.has_value()) { throw r.error(); }
+            }
+
+            #endif // __cpp_exceptions
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
+            cpp_dbc::expected<size_t, DBException> length(std::nothrow_t) const noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::length(std::nothrow);
+            }
+
+            cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t pos, size_t length) const noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::getBytes(std::nothrow, pos, length);
+            }
+
+            cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t) const noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                // Use FirebirdInputStream which stores a COPY of the data,
+                // not MemoryInputStream which stores a reference.
+                // This ensures the data remains valid even after the blob is destroyed.
+                return std::shared_ptr<InputStream>(std::make_shared<FirebirdInputStream>(m_data.data(), m_data.size()));
+            }
+
+            cpp_dbc::expected<std::shared_ptr<OutputStream>, DBException> setBinaryStream(std::nothrow_t, size_t pos) noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::setBinaryStream(std::nothrow, pos);
+            }
+
+            cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, size_t pos, const std::vector<uint8_t> &bytes) noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::setBytes(std::nothrow, pos, bytes);
+            }
+
+            cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, size_t pos, const uint8_t *bytes, size_t length) noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::setBytes(std::nothrow, pos, bytes, length);
+            }
+
+            cpp_dbc::expected<void, DBException> truncate(std::nothrow_t, size_t len) noexcept override
+            {
+                auto r = ensureLoaded(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
+                return MemoryBlob::truncate(std::nothrow, len);
+            }
+
+            cpp_dbc::expected<ISC_QUAD, DBException> save(std::nothrow_t) noexcept
+            {
+                // Get connection safely
+                auto connResult = getConnection(std::nothrow);
+                if (!connResult.has_value()) { return cpp_dbc::unexpected(connResult.error()); }
+                isc_db_handle *db = getDbHandle();
+                isc_tr_handle *tr = getTrHandle();
+
+                ISC_STATUS_ARRAY status;
+                isc_blob_handle blobHandle = 0;
+
+                // Create a new blob
+                if (isc_create_blob2(status, db, tr, &blobHandle, &m_blobId, 0, nullptr))
+                {
+                    return cpp_dbc::unexpected(DBException("N6Q0R2S8T4U1", "Failed to create BLOB for writing", system_utils::captureCallStack()));
+                }
+
+                // Write the data in chunks
+                const size_t CHUNK_SIZE = 32768;
+                size_t offset = 0;
+
+                while (offset < m_data.size())
+                {
+                    size_t chunkSize = std::min(CHUNK_SIZE, m_data.size() - offset);
+
+                    if (isc_put_segment(status, &blobHandle,
+                                        static_cast<unsigned short>(chunkSize),
+                                        reinterpret_cast<const char *>(m_data.data() + offset)))
+                    {
+                        isc_close_blob(status, &blobHandle);
+                        return cpp_dbc::unexpected(DBException("P7R1S3T9U5V2", "Failed to write BLOB segment", system_utils::captureCallStack()));
+                    }
+
+                    offset += chunkSize;
+                }
+
+                // Close the blob
+                if (isc_close_blob(status, &blobHandle))
+                {
+                    return cpp_dbc::unexpected(DBException("Q8S2T4U0V6W3", "Failed to close BLOB after writing", system_utils::captureCallStack()));
+                }
+
+                m_hasValidId = true;
+                return m_blobId;
+            }
+
+            cpp_dbc::expected<void, DBException> free(std::nothrow_t) noexcept override
+            {
+                auto r = MemoryBlob::free(std::nothrow);
+                if (!r.has_value()) { return cpp_dbc::unexpected(r.error()); }
                 m_loaded = false;
                 m_hasValidId = false;
                 m_blobId.gds_quad_high = 0;
                 m_blobId.gds_quad_low = 0;
+                return {};
             }
         };
 

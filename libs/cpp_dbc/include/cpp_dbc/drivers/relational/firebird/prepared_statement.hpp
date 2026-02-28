@@ -85,16 +85,16 @@ namespace cpp_dbc::Firebird
         std::vector<std::shared_ptr<InputStream>> m_streamObjects;
 
         void notifyConnClosing();
-        isc_db_handle *getFirebirdConnection() const;
-        void prepareStatement();
-        void allocateInputSqlda();
-        void setParameter(int parameterIndex, const void *data, size_t length, short sqlType);
+        cpp_dbc::expected<isc_db_handle *, DBException> getFirebirdConnection(std::nothrow_t) const noexcept;
+        cpp_dbc::expected<void, DBException> prepareStatement(std::nothrow_t) noexcept;
+        cpp_dbc::expected<void, DBException> allocateInputSqlda(std::nothrow_t) noexcept;
+        cpp_dbc::expected<void, DBException> setParameter(std::nothrow_t, int parameterIndex, const void *data, size_t length, short sqlType) noexcept;
 
         /**
          * @brief Invalidate this prepared statement (called by connection before DDL operations)
          * After invalidation, any attempt to use this statement will throw/return an error.
          */
-        void invalidate();
+        cpp_dbc::expected<void, DBException> invalidate(std::nothrow_t) noexcept;
 
     public:
         // Constructor no longer takes SharedConnMutex parameter
@@ -104,6 +104,39 @@ namespace cpp_dbc::Firebird
                                     std::weak_ptr<FirebirdDBConnection> conn);
         ~FirebirdDBPreparedStatement() override;
 
+        static cpp_dbc::expected<std::shared_ptr<FirebirdDBPreparedStatement>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<isc_db_handle> db,
+               const std::string &sql,
+               std::weak_ptr<FirebirdDBConnection> conn) noexcept
+        {
+            try
+            {
+                return std::make_shared<FirebirdDBPreparedStatement>(db, sql, conn);
+            }
+            catch (const DBException &ex)
+            {
+                return cpp_dbc::unexpected(ex);
+            }
+            catch (const std::exception &ex)
+            {
+                return cpp_dbc::unexpected(DBException("ROR1R5ON4NAU", ex.what(), system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return cpp_dbc::unexpected(DBException("Q87X6U636FPM", "Unknown error creating FirebirdDBPreparedStatement", system_utils::captureCallStack()));
+            }
+        }
+
+        static std::shared_ptr<FirebirdDBPreparedStatement>
+        create(std::weak_ptr<isc_db_handle> db, const std::string &sql, std::weak_ptr<FirebirdDBConnection> conn)
+        {
+            auto r = create(std::nothrow, db, sql, conn);
+            if (!r.has_value()) { throw r.error(); }
+            return r.value();
+        }
+
+        #ifdef __cpp_exceptions
         void setInt(int parameterIndex, int value) override;
         void setLong(int parameterIndex, int64_t value) override;
         void setDouble(int parameterIndex, double value) override;
@@ -126,6 +159,7 @@ namespace cpp_dbc::Firebird
         bool execute() override;
         void close() override;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

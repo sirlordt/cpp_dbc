@@ -52,8 +52,7 @@ namespace cpp_dbc::Firebird
             }
 
             ISC_LONG val = static_cast<ISC_LONG>(value);
-            setParameter(parameterIndex, &val, sizeof(ISC_LONG), SQL_LONG);
-            return {};
+            return setParameter(std::nothrow, parameterIndex, &val, sizeof(ISC_LONG), SQL_LONG);
         }
         catch (const DBException &e)
         {
@@ -82,8 +81,7 @@ namespace cpp_dbc::Firebird
             }
 
             ISC_INT64 val = static_cast<ISC_INT64>(value);
-            setParameter(parameterIndex, &val, sizeof(ISC_INT64), SQL_INT64);
-            return {};
+            return setParameter(std::nothrow, parameterIndex, &val, sizeof(ISC_INT64), SQL_INT64);
         }
         catch (const DBException &e)
         {
@@ -169,19 +167,31 @@ namespace cpp_dbc::Firebird
                 else
                 {
                     FIREBIRD_DEBUG("  Unknown scaled type, falling back to double");
-                    setParameter(parameterIndex, &value, sizeof(double), SQL_DOUBLE);
+                    auto setResult = setParameter(std::nothrow, parameterIndex, &value, sizeof(double), SQL_DOUBLE);
+                    if (!setResult.has_value())
+                    {
+                        return cpp_dbc::unexpected(setResult.error());
+                    }
                 }
             }
             else if (sqlType == SQL_FLOAT)
             {
                 float floatValue = static_cast<float>(value);
                 FIREBIRD_DEBUG("  SQL_FLOAT: floatValue=%f", (double)floatValue);
-                setParameter(parameterIndex, &floatValue, sizeof(float), SQL_FLOAT);
+                auto setResult = setParameter(std::nothrow, parameterIndex, &floatValue, sizeof(float), SQL_FLOAT);
+                if (!setResult.has_value())
+                {
+                    return cpp_dbc::unexpected(setResult.error());
+                }
             }
             else
             {
                 FIREBIRD_DEBUG("  SQL_DOUBLE: value=%f", value);
-                setParameter(parameterIndex, &value, sizeof(double), SQL_DOUBLE);
+                auto setResult = setParameter(std::nothrow, parameterIndex, &value, sizeof(double), SQL_DOUBLE);
+                if (!setResult.has_value())
+                {
+                    return cpp_dbc::unexpected(setResult.error());
+                }
             }
             return {};
         }
@@ -299,8 +309,7 @@ namespace cpp_dbc::Firebird
             }
 
             short val = value ? 1 : 0;
-            setParameter(parameterIndex, &val, sizeof(short), SQL_SHORT);
-            return {};
+            return setParameter(std::nothrow, parameterIndex, &val, sizeof(short), SQL_SHORT);
         }
         catch (const DBException &e)
         {
@@ -375,8 +384,7 @@ namespace cpp_dbc::Firebird
 
             ISC_DATE date;
             isc_encode_sql_date(&time, &date);
-            setParameter(parameterIndex, &date, sizeof(ISC_DATE), SQL_TYPE_DATE);
-            return {};
+            return setParameter(std::nothrow, parameterIndex, &date, sizeof(ISC_DATE), SQL_TYPE_DATE);
         }
         catch (const DBException &e)
         {
@@ -417,8 +425,7 @@ namespace cpp_dbc::Firebird
 
             ISC_TIMESTAMP ts;
             isc_encode_timestamp(&time, &ts);
-            setParameter(parameterIndex, &ts, sizeof(ISC_TIMESTAMP), SQL_TIMESTAMP);
-            return {};
+            return setParameter(std::nothrow, parameterIndex, &ts, sizeof(ISC_TIMESTAMP), SQL_TIMESTAMP);
         }
         catch (const DBException &e)
         {
@@ -456,8 +463,7 @@ namespace cpp_dbc::Firebird
 
             ISC_TIME t;
             isc_encode_sql_time(&time, &t);
-            setParameter(parameterIndex, &t, sizeof(ISC_TIME), SQL_TYPE_TIME);
-            return {};
+            return setParameter(std::nothrow, parameterIndex, &t, sizeof(ISC_TIME), SQL_TYPE_TIME);
         }
         catch (const DBException &e)
         {

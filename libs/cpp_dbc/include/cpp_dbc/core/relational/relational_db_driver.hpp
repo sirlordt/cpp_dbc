@@ -65,6 +65,7 @@ namespace cpp_dbc
          * @return std::shared_ptr<RelationalDBConnection> A connection to the database
          * @throws DBException if the connection fails
          */
+        #ifdef __cpp_exceptions
         virtual std::shared_ptr<RelationalDBConnection> connectRelational(
             const std::string &url,
             const std::string &user,
@@ -86,6 +87,7 @@ namespace cpp_dbc
             return connectRelational(url, user, password, options);
         }
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -123,11 +125,11 @@ namespace cpp_dbc
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
         {
             auto result = connectRelational(std::nothrow, url, user, password, options);
-            if (!result)
+            if (!result.has_value())
             {
                 return cpp_dbc::unexpected(result.error());
             }
-            return std::static_pointer_cast<DBConnection>(*result);
+            return std::static_pointer_cast<DBConnection>(result.value());
         }
     };
 

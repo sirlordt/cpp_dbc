@@ -62,7 +62,7 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
         auto dbConfig = redis_test_helpers::getRedisConfig("dev_redis");
 
         // Create connection parameters
-        std::string connStr = redis_test_helpers::buildRedisConnectionString(dbConfig);
+        std::string connStr = redis_test_helpers::buildRedisDBConnectionString(dbConfig);
         std::string username = dbConfig.getUsername();
         std::string password = dbConfig.getPassword();
 

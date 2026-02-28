@@ -38,81 +38,63 @@ namespace cpp_dbc::Firebird
     cpp_dbc::expected<void, DBException>
     FirebirdDBConnection::commit(std::nothrow_t) noexcept
     {
-        try
+        FIREBIRD_DEBUG("FirebirdConnection::commit(nothrow) - Starting");
+
+        FIREBIRD_DEBUG("  Acquiring lock...");
+        FIREBIRD_CONNECTION_LOCK_OR_RETURN("WXETVZN5SFDN", "Connection closed");
+        FIREBIRD_DEBUG("  Lock acquired");
+
+        FIREBIRD_DEBUG("  Calling endTransaction(true)...");
+        auto endResult = endTransaction(std::nothrow, true);
+        if (!endResult.has_value())
         {
-            FIREBIRD_DEBUG("FirebirdConnection::commit(nothrow) - Starting");
+            return cpp_dbc::unexpected(endResult.error());
+        }
+        FIREBIRD_DEBUG("  endTransaction completed");
 
-            FIREBIRD_DEBUG("  Acquiring lock...");
-            FIREBIRD_CONNECTION_LOCK_OR_RETURN("WXETVZN5SFDN", "Connection closed");
-            FIREBIRD_DEBUG("  Lock acquired");
-
-            FIREBIRD_DEBUG("  Calling endTransaction(true)...");
-            endTransaction(true);
-            FIREBIRD_DEBUG("  endTransaction completed");
-
-            if (m_autoCommit)
+        if (m_autoCommit)
+        {
+            FIREBIRD_DEBUG("  AutoCommit is enabled, calling startTransaction()...");
+            auto startResult = startTransaction(std::nothrow);
+            if (!startResult.has_value())
             {
-                FIREBIRD_DEBUG("  AutoCommit is enabled, calling startTransaction()...");
-                startTransaction();
-                FIREBIRD_DEBUG("  startTransaction completed");
+                return cpp_dbc::unexpected(startResult.error());
             }
+            FIREBIRD_DEBUG("  startTransaction completed");
+        }
 
-            FIREBIRD_DEBUG("FirebirdConnection::commit(nothrow) - Done");
-            return {};
-        }
-        catch (const DBException &e)
-        {
-            return cpp_dbc::unexpected(e);
-        }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("A3B4C5D6E7F8", std::string("Exception in commit: ") + e.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("B4C5D6E7F8A9", "Unknown exception in commit",
-                                                   system_utils::captureCallStack()));
-        }
+        FIREBIRD_DEBUG("FirebirdConnection::commit(nothrow) - Done");
+        return {};
     }
 
     cpp_dbc::expected<void, DBException>
     FirebirdDBConnection::rollback(std::nothrow_t) noexcept
     {
-        try
+        FIREBIRD_DEBUG("FirebirdConnection::rollback(nothrow) - Starting");
+
+        FIREBIRD_CONNECTION_LOCK_OR_RETURN("FYUWP3CPT23W", "Connection closed");
+
+        FIREBIRD_DEBUG("  Calling endTransaction(false)...");
+        auto endResult = endTransaction(std::nothrow, false);
+        if (!endResult.has_value())
         {
-            FIREBIRD_DEBUG("FirebirdConnection::rollback(nothrow) - Starting");
+            return cpp_dbc::unexpected(endResult.error());
+        }
+        FIREBIRD_DEBUG("  endTransaction completed");
 
-            FIREBIRD_CONNECTION_LOCK_OR_RETURN("FYUWP3CPT23W", "Connection closed");
-
-            FIREBIRD_DEBUG("  Calling endTransaction(false)...");
-            endTransaction(false);
-            FIREBIRD_DEBUG("  endTransaction completed");
-
-            if (m_autoCommit)
+        if (m_autoCommit)
+        {
+            FIREBIRD_DEBUG("  AutoCommit is enabled, calling startTransaction()...");
+            auto startResult = startTransaction(std::nothrow);
+            if (!startResult.has_value())
             {
-                FIREBIRD_DEBUG("  AutoCommit is enabled, calling startTransaction()...");
-                startTransaction();
-                FIREBIRD_DEBUG("  startTransaction completed");
+                return cpp_dbc::unexpected(startResult.error());
             }
+            FIREBIRD_DEBUG("  startTransaction completed");
+        }
 
-            FIREBIRD_DEBUG("FirebirdConnection::rollback(nothrow) - Done");
-            return {};
-        }
-        catch (const DBException &e)
-        {
-            return cpp_dbc::unexpected(e);
-        }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("C5D6E7F8A9B0", std::string("Exception in rollback: ") + e.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("D6E7F8A9B0C1", "Unknown exception in rollback",
-                                                   system_utils::captureCallStack()));
-        }
+        FIREBIRD_DEBUG("FirebirdConnection::rollback(nothrow) - Done");
+        return {};
     }
 
     cpp_dbc::expected<void, cpp_dbc::DBException> FirebirdDBConnection::close(std::nothrow_t) noexcept
@@ -126,7 +108,7 @@ namespace cpp_dbc::Firebird
             // Reset connection state (close statements/resultsets, rollback)
             // Note: reset() already acquired the lock, but it's recursive so it's safe
             auto resetResult = reset(std::nothrow);
-            if (!resetResult)
+            if (!resetResult.has_value())
             {
                 FIREBIRD_DEBUG("  Failed to reset connection state: %s", resetResult.error().what_s().data());
                 // Continue with close even if reset failed
@@ -193,12 +175,20 @@ namespace cpp_dbc::Firebird
                 if (m_autoCommit)
                 {
                     FIREBIRD_DEBUG("  AutoCommit is enabled, committing current transaction");
-                    endTransaction(true); // Commit
+                    auto endResult = endTransaction(std::nothrow, true);
+                    if (!endResult.has_value())
+                    {
+                        return cpp_dbc::unexpected(endResult.error());
+                    }
                 }
                 else
                 {
                     FIREBIRD_DEBUG("  AutoCommit is disabled, rolling back current transaction");
-                    endTransaction(false); // Rollback
+                    auto endResult = endTransaction(std::nothrow, false);
+                    if (!endResult.has_value())
+                    {
+                        return cpp_dbc::unexpected(endResult.error());
+                    }
                 }
             }
 
@@ -209,14 +199,11 @@ namespace cpp_dbc::Firebird
             if (hadActiveTransaction && m_autoCommit)
             {
                 FIREBIRD_DEBUG("  Restarting transaction with new isolation level");
-                try
+                auto startResult = startTransaction(std::nothrow);
+                if (!startResult.has_value())
                 {
-                    startTransaction();
-                }
-                catch (const DBException &e)
-                {
-                    FIREBIRD_DEBUG("  Failed to restart transaction: %s", e.what_s().data());
-                    return cpp_dbc::unexpected(e);
+                    FIREBIRD_DEBUG("  Failed to restart transaction: %s", startResult.error().what_s().data());
+                    return cpp_dbc::unexpected(startResult.error());
                 }
             }
 
@@ -293,11 +280,8 @@ namespace cpp_dbc::Firebird
             if (!m_tr && !m_closed.load(std::memory_order_acquire))
             {
                 FIREBIRD_DEBUG("  Starting fresh transaction for pool reuse");
-                try
-                {
-                    startTransaction();
-                }
-                catch (...)
+                [[maybe_unused]] auto startResult = startTransaction(std::nothrow);
+                if (!startResult.has_value())
                 {
                     FIREBIRD_DEBUG("  Failed to start fresh transaction");
                 }
@@ -341,7 +325,7 @@ namespace cpp_dbc::Firebird
     {
         // Reset connection state: close all statements/resultsets and rollback
         auto resetResult = reset(std::nothrow);
-        if (!resetResult)
+        if (!resetResult.has_value())
         {
             FIREBIRD_DEBUG("prepareForPoolReturn(nothrow): Failed to reset: %s",
                            resetResult.error().what_s().data());
@@ -359,42 +343,23 @@ namespace cpp_dbc::Firebird
     {
         // See MVCC documentation in connection_01.cpp prepareForBorrow() comment block
         // for explanation of why this is needed.
-        try
+        FIREBIRD_CONNECTION_LOCK_OR_RETURN("HR0QTJ2GVXFT", "Connection closed");
+
+        if (m_closed.load(std::memory_order_acquire))
         {
-            FIREBIRD_CONNECTION_LOCK_OR_RETURN("HR0QTJ2GVXFT", "Connection closed");
-
-            if (m_closed)
-            {
-                return {};
-            }
-
-            // Refresh the MVCC snapshot by rolling back and starting a new transaction.
-            // This ensures the borrowed connection can see all DDL changes committed
-            // after the previous transaction started.
-            if (m_tr && m_autoCommit)
-            {
-                FIREBIRD_DEBUG("FirebirdConnection::prepareForBorrow(nothrow) - Refreshing MVCC snapshot");
-                rollback(std::nothrow);
-            }
-
             return {};
         }
-        catch (const DBException &e)
+
+        // Refresh the MVCC snapshot by rolling back and starting a new transaction.
+        // This ensures the borrowed connection can see all DDL changes committed
+        // after the previous transaction started.
+        if (m_tr && m_autoCommit)
         {
-            return cpp_dbc::unexpected(e);
+            FIREBIRD_DEBUG("FirebirdConnection::prepareForBorrow(nothrow) - Refreshing MVCC snapshot");
+            [[maybe_unused]] auto rollbackResult = rollback(std::nothrow);
         }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("MJSBD64U3FD2",
-                                                   std::string("prepareForBorrow failed: ") + e.what(),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("Y2Z6MSE9WN8P",
-                                                   "prepareForBorrow failed with unknown error",
-                                                   system_utils::captureCallStack()));
-        }
+
+        return {};
     }
 
 } // namespace cpp_dbc::Firebird

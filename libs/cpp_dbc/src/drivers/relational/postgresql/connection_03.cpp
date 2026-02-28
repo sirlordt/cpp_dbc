@@ -308,7 +308,7 @@ namespace cpp_dbc::PostgreSQL
             {
                 // Close all active statements before closing the connection
                 // This ensures statement deallocation while we have exclusive access
-                closeAllStatements();
+                [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
                 // Sleep for 25ms to avoid problems with concurrency
                 std::this_thread::sleep_for(std::chrono::milliseconds(25));
@@ -349,7 +349,7 @@ namespace cpp_dbc::PostgreSQL
             }
 
             // Close all active statements
-            closeAllStatements();
+            [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
             // Rollback any active transaction
             auto txActive = transactionActive(std::nothrow);
@@ -392,7 +392,7 @@ namespace cpp_dbc::PostgreSQL
         {
             // CRITICAL: Close all active statements BEFORE making connection available
             // closeAllStatements() acquires m_connMutex internally
-            closeAllStatements();
+            [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
             // Restore autocommit for the next user of this connection
             if (!m_autoCommit)

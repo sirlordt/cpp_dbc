@@ -274,7 +274,11 @@ namespace cpp_dbc::Firebird
             {
                 // For non-BLOB types, store the raw bytes
                 m_blobValues.push_back(std::vector<uint8_t>(x, x + length));
-                setParameter(parameterIndex, x, length, SQL_BLOB);
+                auto setResult = setParameter(std::nothrow, parameterIndex, x, length, SQL_BLOB);
+                if (!setResult.has_value())
+                {
+                    return cpp_dbc::unexpected(setResult.error());
+                }
             }
             return {};
         }
@@ -398,12 +402,19 @@ namespace cpp_dbc::Firebird
             FIREBIRD_DEBUG("  Creating FirebirdResultSet with ownStatement=true");
             // ResultSet no longer receives m_connMutex as parameter
             // It will access the mutex through m_connection when needed
-            auto resultSet = std::make_shared<FirebirdDBResultSet>(std::move(stmtHandle), std::move(sqldaHandle), true, conn);
+            auto rsResult = FirebirdDBResultSet::create(std::nothrow, std::move(stmtHandle), std::move(sqldaHandle), true, conn);
+            if (!rsResult.has_value())
+            {
+                return cpp_dbc::unexpected(rsResult.error());
+            }
+            auto resultSet = rsResult.value();
 
-            // Register the ResultSet with the connection for automatic cleanup
+            // Register the ResultSet with the connection for automatic cleanup.
+            // Done here (not inside create()) because FirebirdDBConnection is an incomplete
+            // type inside result_set.hpp and registerResultSet() cannot be called there.
             if (conn)
             {
-                conn->registerResultSet(std::weak_ptr<FirebirdDBResultSet>(resultSet));
+                [[maybe_unused]] auto regResult = conn->registerResultSet(std::nothrow, std::weak_ptr<FirebirdDBResultSet>(resultSet));
             }
 
             FIREBIRD_DEBUG("FirebirdPreparedStatement::executeQuery(nothrow) - Done");

@@ -82,7 +82,12 @@ namespace cpp_dbc::ScyllaDB
         // But Cassandra driver says "CassStatement" is single-use? No, it can be executed multiple times.
         // However, best practice is to bind new values.
 
-        return std::shared_ptr<ColumnarDBResultSet>(std::make_shared<ScyllaDBResultSet>(result));
+        auto rsResult = ScyllaDBResultSet::create(std::nothrow, result);
+        if (!rsResult.has_value())
+        {
+            return cpp_dbc::unexpected(rsResult.error());
+        }
+        return std::shared_ptr<ColumnarDBResultSet>(rsResult.value());
     }
 
     cpp_dbc::expected<uint64_t, DBException> ScyllaDBPreparedStatement::executeUpdate(std::nothrow_t) noexcept

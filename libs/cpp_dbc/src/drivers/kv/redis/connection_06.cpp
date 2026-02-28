@@ -38,23 +38,25 @@ namespace cpp_dbc::Redis
 {
 
     // ============================================================================
-    // RedisConnection - Private helper methods
+    // RedisDBConnection - Private helper methods
     // ============================================================================
 
-    void RedisConnection::validateConnection() const
+    cpp_dbc::expected<void, DBException> RedisDBConnection::validateConnection(std::nothrow_t) const noexcept
     {
-        if (m_closed || !m_context)
+        if (m_closed.load(std::memory_order_acquire) || !m_context)
         {
-            throw DBException("F92C4A6E7D10", "Redis connection is closed or invalid",
-                              system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("F92C4A6E7D10", "Redis connection is closed or invalid",
+                                                   system_utils::captureCallStack()));
         }
+        return {};
     }
 
-    std::string RedisConnection::extractString(const RedisReplyHandle &reply)
+    cpp_dbc::expected<std::string, DBException> RedisDBConnection::extractString(
+        std::nothrow_t, const RedisReplyHandle &reply) const noexcept
     {
         if (!reply.get())
         {
-            return "";
+            return std::string{};
         }
 
         if (reply.get()->type == REDIS_REPLY_STRING || reply.get()->type == REDIS_REPLY_STATUS)
@@ -63,21 +65,22 @@ namespace cpp_dbc::Redis
         }
         else if (reply.get()->type == REDIS_REPLY_NIL)
         {
-            return "";
+            return std::string{};
         }
         else if (reply.get()->type == REDIS_REPLY_INTEGER)
         {
             return std::to_string(reply.get()->integer);
         }
 
-        return "";
+        return std::string{};
     }
 
-    int64_t RedisConnection::extractInteger(const RedisReplyHandle &reply)
+    cpp_dbc::expected<int64_t, DBException> RedisDBConnection::extractInteger(
+        std::nothrow_t, const RedisReplyHandle &reply) const noexcept
     {
         if (!reply.get())
         {
-            return 0;
+            return int64_t{0};
         }
 
         if (reply.get()->type == REDIS_REPLY_INTEGER)
@@ -90,17 +93,23 @@ namespace cpp_dbc::Redis
             {
                 return std::stoll(std::string(reply.get()->str, reply.get()->len));
             }
-            catch ([[maybe_unused]] const std::exception &ex)
+            catch (const std::exception &ex)
             {
-                REDIS_DEBUG("RedisConnection::extractInteger - Failed to parse: " << ex.what());
-                return 0;
+                REDIS_DEBUG("RedisDBConnection::extractInteger - Failed to parse: " << ex.what());
+                return int64_t{0};
+            }
+            catch (...)
+            {
+                // Intentionally empty — non-std exceptions during string parse silenced; return 0
+                return int64_t{0};
             }
         }
 
-        return 0;
+        return int64_t{0};
     }
 
-    std::vector<std::string> RedisConnection::extractArray(const RedisReplyHandle &reply)
+    cpp_dbc::expected<std::vector<std::string>, DBException> RedisDBConnection::extractArray(
+        std::nothrow_t, const RedisReplyHandle &reply) const noexcept
     {
         std::vector<std::string> result;
 
@@ -137,7 +146,7 @@ namespace cpp_dbc::Redis
         return result;
     }
 
-    std::optional<double> RedisConnection::tryParseDouble(const std::string &str) noexcept
+    std::optional<double> RedisDBConnection::tryParseDouble(const std::string &str) noexcept
     {
         try
         {
@@ -145,31 +154,31 @@ namespace cpp_dbc::Redis
         }
         catch ([[maybe_unused]] const std::exception &ex)
         {
-            REDIS_DEBUG("RedisConnection::tryParseDouble - Failed to parse: " << str << " error: " << ex.what());
+            REDIS_DEBUG("RedisDBConnection::tryParseDouble - Failed to parse: " << str << " error: " << ex.what());
             return std::nullopt;
         }
         catch (...)
         {
-            REDIS_DEBUG("RedisConnection::tryParseDouble - Failed to parse: " << str << " unknown error");
+            REDIS_DEBUG("RedisDBConnection::tryParseDouble - Failed to parse: " << str << " unknown error");
             return std::nullopt;
         }
     }
 
     // ============================================================================
-    // RedisConnection - DBConnection nothrow interface implementations
+    // RedisDBConnection - DBConnection nothrow interface implementations
     // ============================================================================
 
-    cpp_dbc::expected<void, DBException> RedisConnection::close(std::nothrow_t) noexcept
+    cpp_dbc::expected<void, DBException> RedisDBConnection::close(std::nothrow_t) noexcept
     {
         try
         {
             std::scoped_lock lock_(m_mutex);
             if (m_closed)
                 return {};
-            REDIS_DEBUG("RedisConnection::close(nothrow) - Closing connection");
+            REDIS_DEBUG("RedisDBConnection::close(nothrow) - Closing connection");
             m_context.reset();
             m_closed = true;
-            REDIS_DEBUG("RedisConnection::close(nothrow) - Connection closed");
+            REDIS_DEBUG("RedisDBConnection::close(nothrow) - Connection closed");
             return {};
         }
         catch (const DBException &e)
@@ -190,7 +199,7 @@ namespace cpp_dbc::Redis
         }
     }
 
-    cpp_dbc::expected<void, DBException> RedisConnection::reset(std::nothrow_t) noexcept
+    cpp_dbc::expected<void, DBException> RedisDBConnection::reset(std::nothrow_t) noexcept
     {
         try
         {
@@ -215,22 +224,22 @@ namespace cpp_dbc::Redis
         }
     }
 
-    cpp_dbc::expected<bool, DBException> RedisConnection::isClosed(std::nothrow_t) const noexcept
+    cpp_dbc::expected<bool, DBException> RedisDBConnection::isClosed(std::nothrow_t) const noexcept
     {
         return m_closed.load();
     }
 
-    cpp_dbc::expected<void, DBException> RedisConnection::returnToPool(std::nothrow_t) noexcept
+    cpp_dbc::expected<void, DBException> RedisDBConnection::returnToPool(std::nothrow_t) noexcept
     {
         return reset(std::nothrow);
     }
 
-    cpp_dbc::expected<bool, DBException> RedisConnection::isPooled(std::nothrow_t) const noexcept
+    cpp_dbc::expected<bool, DBException> RedisDBConnection::isPooled(std::nothrow_t) const noexcept
     {
         return false;
     }
 
-    cpp_dbc::expected<std::string, DBException> RedisConnection::getURL(std::nothrow_t) const noexcept
+    cpp_dbc::expected<std::string, DBException> RedisDBConnection::getURL(std::nothrow_t) const noexcept
     {
         try
         {
@@ -250,7 +259,7 @@ namespace cpp_dbc::Redis
         }
     }
 
-    cpp_dbc::expected<void, DBException> RedisConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    cpp_dbc::expected<void, DBException> RedisDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
     {
         try
         {

@@ -134,7 +134,36 @@ namespace cpp_dbc::PostgreSQL
         PostgreSQLDBResultSet(PostgreSQLDBResultSet &&) = delete;
         PostgreSQLDBResultSet &operator=(PostgreSQLDBResultSet &&) = delete;
 
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBResultSet>, DBException>
+        create(std::nothrow_t, PGresult *res) noexcept
+        {
+            try
+            {
+                return std::make_shared<PostgreSQLDBResultSet>(res);
+            }
+            catch (const DBException &ex)
+            {
+                return cpp_dbc::unexpected(ex);
+            }
+            catch (const std::exception &ex)
+            {
+                return cpp_dbc::unexpected(DBException("ERPW6QWYXJXH", ex.what(), system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return cpp_dbc::unexpected(DBException("HVBYKQUD6IPW", "Unknown error creating PostgreSQLDBResultSet", system_utils::captureCallStack()));
+            }
+        }
+
+        static std::shared_ptr<PostgreSQLDBResultSet> create(PGresult *res)
+        {
+            auto r = create(std::nothrow, res);
+            if (!r.has_value()) { throw r.error(); }
+            return r.value();
+        }
+
         // DBResultSet interface
+        #ifdef __cpp_exceptions
         void close() override;
         bool isEmpty() override;
 
@@ -184,7 +213,11 @@ namespace cpp_dbc::PostgreSQL
         std::vector<uint8_t> getBytes(size_t columnIndex) override;
         std::vector<uint8_t> getBytes(const std::string &columnName) override;
 
-        // Nothrow API
+        #endif // __cpp_exceptions
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
         cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;

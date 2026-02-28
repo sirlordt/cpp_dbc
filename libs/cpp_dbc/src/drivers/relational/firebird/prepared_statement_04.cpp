@@ -272,7 +272,7 @@ namespace cpp_dbc::Firebird
             auto conn = m_connection.lock();
             if (conn && !conn->isResetting())
             {
-                conn->unregisterStatement(weak_from_this());
+                [[maybe_unused]] auto unregResult = conn->unregisterStatement(std::nothrow, weak_from_this());
             }
 
             ISC_STATUS_ARRAY status;
@@ -317,7 +317,7 @@ namespace cpp_dbc::Firebird
         }
     }
 
-    void FirebirdDBPreparedStatement::invalidate()
+    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::invalidate(std::nothrow_t) noexcept
     {
         FIREBIRD_DEBUG("FirebirdPreparedStatement::invalidate - Starting");
 
@@ -326,12 +326,13 @@ namespace cpp_dbc::Firebird
 
         // Close the statement to release metadata locks
         auto closeResult = close(std::nothrow);
-        if (!closeResult)
+        if (!closeResult.has_value())
         {
             FIREBIRD_DEBUG("  close() failed during invalidation: %s", closeResult.error().what_s().data());
         }
 
         FIREBIRD_DEBUG("FirebirdPreparedStatement::invalidate - Done");
+        return {};
     }
 
 } // namespace cpp_dbc::Firebird

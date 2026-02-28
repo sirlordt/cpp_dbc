@@ -51,7 +51,7 @@ namespace cpp_dbc::Firebird
             auto conn = m_connection.lock();
             if (conn && !conn->isResetting())
             {
-                conn->unregisterResultSet(weak_from_this());
+                [[maybe_unused]] auto unregResult = conn->unregisterResultSet(std::nothrow, weak_from_this());
             }
 
             // Mark as closed FIRST to prevent double-close attempts
@@ -281,7 +281,12 @@ namespace cpp_dbc::Firebird
         try
         {
             FIREBIRD_LOCK_OR_RETURN("KKJ6AU7N7GC0", "Connection lost");
-            std::string value = getColumnValue(columnIndex);
+            auto valResult = getColumnValue(std::nothrow, columnIndex);
+            if (!valResult.has_value())
+            {
+                return cpp_dbc::unexpected(valResult.error());
+            }
+            const std::string &value = valResult.value();
             return value.empty() ? 0 : std::stoi(value);
         }
         catch (const DBException &e)
@@ -303,7 +308,12 @@ namespace cpp_dbc::Firebird
         try
         {
             FIREBIRD_LOCK_OR_RETURN("BKG4AMM82M79", "Connection lost");
-            std::string value = getColumnValue(columnIndex);
+            auto valResult = getColumnValue(std::nothrow, columnIndex);
+            if (!valResult.has_value())
+            {
+                return cpp_dbc::unexpected(valResult.error());
+            }
+            const std::string &value = valResult.value();
             return value.empty() ? static_cast<int64_t>(0) : std::stoll(value);
         }
         catch (const DBException &e)
@@ -326,7 +336,12 @@ namespace cpp_dbc::Firebird
         {
             FIREBIRD_LOCK_OR_RETURN("WW48OXWIIVBF", "Connection lost");
             FIREBIRD_DEBUG("getDouble(columnIndex=%zu)", columnIndex);
-            std::string value = getColumnValue(columnIndex);
+            auto valResult = getColumnValue(std::nothrow, columnIndex);
+            if (!valResult.has_value())
+            {
+                return cpp_dbc::unexpected(valResult.error());
+            }
+            const std::string &value = valResult.value();
             FIREBIRD_DEBUG("  getColumnValue returned: '%s'", value.c_str());
             return value.empty() ? 0.0 : std::stod(value);
         }
@@ -349,7 +364,7 @@ namespace cpp_dbc::Firebird
         try
         {
             FIREBIRD_LOCK_OR_RETURN("FEKRO46JEMTL", "Connection lost");
-            return getColumnValue(columnIndex);
+            return getColumnValue(std::nothrow, columnIndex);
         }
         catch (const DBException &e)
         {
@@ -370,12 +385,21 @@ namespace cpp_dbc::Firebird
         try
         {
             FIREBIRD_LOCK_OR_RETURN("C9VHRLKU1UYP", "Connection lost");
-            std::string value = getColumnValue(columnIndex);
+            auto valResult = getColumnValue(std::nothrow, columnIndex);
+            if (!valResult.has_value())
+            {
+                return cpp_dbc::unexpected(valResult.error());
+            }
+            const std::string &value = valResult.value();
             if (value.empty())
+            {
                 return false;
+            }
 
             if (value == "1" || value == "true" || value == "TRUE" || value == "T" || value == "t" || value == "Y" || value == "y")
+            {
                 return true;
+            }
             return false;
         }
         catch (const DBException &e)
@@ -423,7 +447,7 @@ namespace cpp_dbc::Firebird
         try
         {
             FIREBIRD_LOCK_OR_RETURN("7OAQLW6S1NV5", "Connection lost");
-            return getColumnValue(columnIndex);
+            return getColumnValue(std::nothrow, columnIndex);
         }
         catch (const DBException &e)
         {
@@ -444,7 +468,7 @@ namespace cpp_dbc::Firebird
         try
         {
             FIREBIRD_LOCK_OR_RETURN("4Q9KI4JP2XTB", "Connection lost");
-            return getColumnValue(columnIndex);
+            return getColumnValue(std::nothrow, columnIndex);
         }
         catch (const DBException &e)
         {
@@ -465,7 +489,7 @@ namespace cpp_dbc::Firebird
         try
         {
             FIREBIRD_LOCK_OR_RETURN("ZRWB1E4M2L52", "Connection lost");
-            return getColumnValue(columnIndex);
+            return getColumnValue(std::nothrow, columnIndex);
         }
         catch (const DBException &e)
         {

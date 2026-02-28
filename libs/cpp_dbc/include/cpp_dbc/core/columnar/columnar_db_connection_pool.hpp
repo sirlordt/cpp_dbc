@@ -115,7 +115,7 @@ namespace cpp_dbc
 
     protected:
         // Sets the transaction isolation level for the pool
-        void setPoolTransactionIsolation(TransactionIsolationLevel level) override
+        void setPoolTransactionIsolation(TransactionIsolationLevel level) noexcept override
         {
             m_transactionIsolation = level;
         }
@@ -167,6 +167,7 @@ namespace cpp_dbc
 
         ~ColumnarDBConnectionPool() override;
 
+        #ifdef __cpp_exceptions
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
 
@@ -184,6 +185,7 @@ namespace cpp_dbc
         // Check if pool is running
         bool isRunning() const override;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -236,6 +238,7 @@ namespace cpp_dbc
                                    std::shared_ptr<std::atomic<bool>> poolAlive);
         ~ColumnarPooledDBConnection() override;
 
+        #ifdef __cpp_exceptions
         // Overridden DBConnection interface methods
         void close() final;
         bool isClosed() const override;
@@ -255,7 +258,15 @@ namespace cpp_dbc
         void rollback() override;
         void prepareForPoolReturn() override;
 
-        // Nothrow API - ColumnarDBConnection
+        // ColumnarPooledDBConnection specific method
+        std::shared_ptr<ColumnarDBConnection> getUnderlyingColumnarConnection();
+
+        #endif // __cpp_exceptions
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
+        // ColumnarDBConnection nothrow interface
         cpp_dbc::expected<std::shared_ptr<ColumnarDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &query) noexcept override;
         cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &query) noexcept override;
         cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &query) noexcept override;
@@ -281,9 +292,6 @@ namespace cpp_dbc
 
         // Implementation of DBConnectionPooled interface
         std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
-
-        // ColumnarPooledDBConnection specific method
-        std::shared_ptr<ColumnarDBConnection> getUnderlyingColumnarConnection();
     };
 
     // Specialized connection pool for ScyllaDB

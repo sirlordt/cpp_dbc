@@ -35,6 +35,7 @@
 namespace cpp_dbc::Firebird
 {
 
+    #ifdef __cpp_exceptions
     void FirebirdDBConnection::close()
     {
         auto result = close(std::nothrow);
@@ -276,6 +277,7 @@ namespace cpp_dbc::Firebird
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::Firebird
 

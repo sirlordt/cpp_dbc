@@ -60,8 +60,8 @@ namespace cpp_dbc::MySQL
             // Internal method called by connection when closing
             void notifyConnClosing();
 
-            // Helper method to get MYSQL* safely, throws if connection is closed
-            MYSQL *getMySQLConnection() const;
+            // Helper method to get MYSQL* safely, returns unexpected if connection is closed
+            cpp_dbc::expected<MYSQL *, DBException> getMySQLConnection(std::nothrow_t) const noexcept;
 
         public:
 #if DB_DRIVER_THREAD_SAFE
@@ -71,6 +71,72 @@ namespace cpp_dbc::MySQL
 #endif
             ~MySQLDBPreparedStatement() override;
 
+#if DB_DRIVER_THREAD_SAFE
+            static cpp_dbc::expected<std::shared_ptr<MySQLDBPreparedStatement>, DBException>
+            create(std::nothrow_t,
+                   std::weak_ptr<MYSQL> mysql,
+                   SharedConnMutex connMutex,
+                   const std::string &sql) noexcept
+            {
+                try
+                {
+                    return std::make_shared<MySQLDBPreparedStatement>(mysql, connMutex, sql);
+                }
+                catch (const DBException &ex)
+                {
+                    return cpp_dbc::unexpected(ex);
+                }
+                catch (const std::exception &ex)
+                {
+                    return cpp_dbc::unexpected(DBException("CQ7QTLFW080H", ex.what(), system_utils::captureCallStack()));
+                }
+                catch (...)
+                {
+                    return cpp_dbc::unexpected(DBException("6DPPQ65WEMDW", "Unknown error creating MySQLDBPreparedStatement", system_utils::captureCallStack()));
+                }
+            }
+
+            static std::shared_ptr<MySQLDBPreparedStatement>
+            create(std::weak_ptr<MYSQL> mysql, SharedConnMutex connMutex, const std::string &sql)
+            {
+                auto r = create(std::nothrow, mysql, connMutex, sql);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+#else
+            static cpp_dbc::expected<std::shared_ptr<MySQLDBPreparedStatement>, DBException>
+            create(std::nothrow_t,
+                   std::weak_ptr<MYSQL> mysql,
+                   const std::string &sql) noexcept
+            {
+                try
+                {
+                    return std::make_shared<MySQLDBPreparedStatement>(mysql, sql);
+                }
+                catch (const DBException &ex)
+                {
+                    return cpp_dbc::unexpected(ex);
+                }
+                catch (const std::exception &ex)
+                {
+                    return cpp_dbc::unexpected(DBException("CQ7QTLFW080H", ex.what(), system_utils::captureCallStack()));
+                }
+                catch (...)
+                {
+                    return cpp_dbc::unexpected(DBException("6DPPQ65WEMDW", "Unknown error creating MySQLDBPreparedStatement", system_utils::captureCallStack()));
+                }
+            }
+
+            static std::shared_ptr<MySQLDBPreparedStatement>
+            create(std::weak_ptr<MYSQL> mysql, const std::string &sql)
+            {
+                auto r = create(std::nothrow, mysql, sql);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+#endif
+
+            #ifdef __cpp_exceptions
             void setInt(int parameterIndex, int value) override;
             void setLong(int parameterIndex, int64_t value) override;
             void setDouble(int parameterIndex, double value) override;
@@ -93,7 +159,11 @@ namespace cpp_dbc::MySQL
             bool execute() override;
             void close() override;
 
-            // Nothrow API
+            #endif // __cpp_exceptions
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
             [[nodiscard]] cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept override;
             [[nodiscard]] cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept override;
             [[nodiscard]] cpp_dbc::expected<void, DBException> setDouble(std::nothrow_t, int parameterIndex, double value) noexcept override;

@@ -83,6 +83,7 @@ namespace cpp_dbc
         // Pool initialization will be done in the factory method
     }
 
+    #ifdef __cpp_exceptions
     cpp_dbc::expected<void, DBException> ColumnarDBConnectionPool::initializePool(std::nothrow_t) noexcept
     {
         try
@@ -1089,6 +1090,7 @@ namespace cpp_dbc
                         if (!returnResult.has_value())
                         {
                             CP_DEBUG("ColumnarPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().data());
+                            return returnResult;
                         }
                     }
                 }
@@ -1352,6 +1354,7 @@ namespace cpp_dbc
                     if (!returnResult.has_value())
                     {
                         CP_DEBUG("ColumnarPooledDBConnection::returnToPool - returnConnection failed: %s", returnResult.error().what_s().data());
+                        return returnResult;
                     }
                 }
             }
@@ -1445,6 +1448,7 @@ namespace cpp_dbc
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
     cpp_dbc::expected<bool, DBException> ColumnarPooledDBConnection::ping(std::nothrow_t) noexcept
     {

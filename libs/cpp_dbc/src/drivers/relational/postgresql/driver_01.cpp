@@ -47,6 +47,7 @@ namespace cpp_dbc::PostgreSQL
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
+    #ifdef __cpp_exceptions
     std::shared_ptr<RelationalDBConnection> PostgreSQLDBDriver::connectRelational(const std::string &url,
                                                                                   const std::string &user,
                                                                                   const std::string &password,
@@ -59,6 +60,7 @@ namespace cpp_dbc::PostgreSQL
         }
         return result.value();
     }
+    #endif // __cpp_exceptions
 
     bool PostgreSQLDBDriver::acceptsURL(const std::string &url)
     {

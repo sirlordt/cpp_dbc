@@ -237,7 +237,7 @@ cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std
 
 ```cpp
 cpp_dbc::expected<std::string, DBException>
-RedisConnection::getString(std::nothrow_t, const std::string &key) noexcept
+RedisDBConnection::getString(std::nothrow_t, const std::string &key) noexcept
 {
     try
     {

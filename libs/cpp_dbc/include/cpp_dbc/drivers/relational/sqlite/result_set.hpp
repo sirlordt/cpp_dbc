@@ -137,6 +137,47 @@ namespace cpp_dbc::SQLite
         SQLiteDBResultSet(SQLiteDBResultSet &&) = delete;
         SQLiteDBResultSet &operator=(SQLiteDBResultSet &&) = delete;
 
+        static cpp_dbc::expected<std::shared_ptr<SQLiteDBResultSet>, DBException>
+        create(std::nothrow_t,
+               sqlite3_stmt *stmt,
+               bool ownStatement,
+               std::shared_ptr<SQLiteDBConnection> conn,
+               std::shared_ptr<SQLiteDBPreparedStatement> prepStmt,
+               std::shared_ptr<std::recursive_mutex> globalFileMutex) noexcept
+        {
+            try
+            {
+                auto rs = std::make_shared<SQLiteDBResultSet>(stmt, ownStatement, conn, prepStmt, globalFileMutex);
+                rs->initialize(); // must be called after make_shared (requires shared_ptr to exist)
+                return rs;
+            }
+            catch (const DBException &ex)
+            {
+                return cpp_dbc::unexpected(ex);
+            }
+            catch (const std::exception &ex)
+            {
+                return cpp_dbc::unexpected(DBException("K25Q6R7D76I8", ex.what(), system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return cpp_dbc::unexpected(DBException("UO9CAPWGI7G3", "Unknown error creating SQLiteDBResultSet", system_utils::captureCallStack()));
+            }
+        }
+
+        static std::shared_ptr<SQLiteDBResultSet>
+        create(sqlite3_stmt *stmt,
+               bool ownStatement,
+               std::shared_ptr<SQLiteDBConnection> conn,
+               std::shared_ptr<SQLiteDBPreparedStatement> prepStmt,
+               std::shared_ptr<std::recursive_mutex> globalFileMutex)
+        {
+            auto r = create(std::nothrow, stmt, ownStatement, conn, prepStmt, globalFileMutex);
+            if (!r.has_value()) { throw r.error(); }
+            return r.value();
+        }
+
+        #ifdef __cpp_exceptions
         bool next() override;
         bool isBeforeFirst() override;
         bool isAfterLast() override;
@@ -184,7 +225,11 @@ namespace cpp_dbc::SQLite
         std::vector<uint8_t> getBytes(size_t columnIndex) override;
         std::vector<uint8_t> getBytes(const std::string &columnName) override;
 
-        // Nothrow API
+        #endif // __cpp_exceptions
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
         cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;

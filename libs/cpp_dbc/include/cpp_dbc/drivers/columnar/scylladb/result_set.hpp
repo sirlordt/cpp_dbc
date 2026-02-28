@@ -84,7 +84,36 @@ namespace cpp_dbc::ScyllaDB
             ScyllaDBResultSet(ScyllaDBResultSet &&) = delete;
             ScyllaDBResultSet &operator=(ScyllaDBResultSet &&) = delete;
 
+            static cpp_dbc::expected<std::shared_ptr<ScyllaDBResultSet>, DBException>
+            create(std::nothrow_t, const CassResult *res) noexcept
+            {
+                try
+                {
+                    return std::make_shared<ScyllaDBResultSet>(res);
+                }
+                catch (const DBException &ex)
+                {
+                    return cpp_dbc::unexpected(ex);
+                }
+                catch (const std::exception &ex)
+                {
+                    return cpp_dbc::unexpected(DBException("FW4COLJE385A", ex.what(), system_utils::captureCallStack()));
+                }
+                catch (...)
+                {
+                    return cpp_dbc::unexpected(DBException("RHA07MNRLVT1", "Unknown error creating ScyllaDBResultSet", system_utils::captureCallStack()));
+                }
+            }
+
+            static std::shared_ptr<ScyllaDBResultSet> create(const CassResult *res)
+            {
+                auto r = create(std::nothrow, res);
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
             // DBResultSet interface
+            #ifdef __cpp_exceptions
             void close() override;
             bool isEmpty() override;
 
@@ -138,11 +167,13 @@ namespace cpp_dbc::ScyllaDB
             std::vector<uint8_t> getBytes(size_t columnIndex) override;
             std::vector<uint8_t> getBytes(const std::string &columnName) override;
 
-            // Nothrow API - DBResultSet interface
+            #endif // __cpp_exceptions
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
             cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
             cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
-
-            // Nothrow API - ColumnarDBResultSet interface
             cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;
             cpp_dbc::expected<bool, DBException> isBeforeFirst(std::nothrow_t) noexcept override;
             cpp_dbc::expected<bool, DBException> isAfterLast(std::nothrow_t) noexcept override;
