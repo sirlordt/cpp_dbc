@@ -47,11 +47,7 @@ namespace cpp_dbc::MongoDB
         /**
          * @brief Initialize the MongoDB C driver library
          */
-        static void initializeMongoc();
-
-#if DB_DRIVER_THREAD_SAFE
-        mutable std::recursive_mutex m_mutex;
-#endif
+        static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
 
     public:
         /**

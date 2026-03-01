@@ -30,67 +30,81 @@
 
 #if USE_SCYLLADB
 
+#include <atomic>
+#include <mutex>
+
 namespace cpp_dbc::ScyllaDB
 {
-        /**
-         * @brief ScyllaDB database driver implementation
-         *
-         * Concrete ColumnarDBDriver for ScyllaDB/Cassandra databases using the
-         * Cassandra C/C++ driver. Handles connection establishment, URI parsing,
-         * and driver registration with the DriverManager.
-         * Accepts URLs in the format `cpp_dbc:scylladb://host:port/keyspace`.
-         *
-         * ```cpp
-         * auto driver = std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>();
-         * cpp_dbc::DriverManager::registerDriver(driver);
-         * auto conn = driver->connectColumnar(
-         *     "cpp_dbc:scylladb://localhost:9042/mykeyspace", "", "");
-         * ```
-         *
-         * @see ColumnarDBDriver, ScyllaDBConnection
-         */
-        class ScyllaDBDriver final : public cpp_dbc::ColumnarDBDriver
-        {
-        public:
-            ScyllaDBDriver();
-            ~ScyllaDBDriver() override = default;
+    /**
+     * @brief ScyllaDB database driver implementation
+     *
+     * Concrete ColumnarDBDriver for ScyllaDB/Cassandra databases using the
+     * Cassandra C/C++ driver. Handles connection establishment, URI parsing,
+     * and driver registration with the DriverManager.
+     * Accepts URLs in the format `cpp_dbc:scylladb://host:port/keyspace`.
+     *
+     * ```cpp
+     * auto driver = std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>();
+     * cpp_dbc::DriverManager::registerDriver(driver);
+     * auto conn = driver->connectColumnar(
+     *     "cpp_dbc:scylladb://localhost:9042/mykeyspace", "", "");
+     * ```
+     *
+     * @see ColumnarDBDriver, ScyllaDBConnection
+     */
+    class ScyllaDBDriver final : public cpp_dbc::ColumnarDBDriver
+    {
+    private:
+        // Note: Using atomic<bool> + mutex instead of std::once_flag because
+        // std::once_flag cannot be reset, but we need cleanup() to allow
+        // re-initialization on subsequent driver construction.
+        // Also, std::call_once can throw std::system_error, which is incompatible
+        // with -fno-exceptions builds.
+        static std::atomic<bool> s_initialized;
+        static std::mutex s_initMutex;
 
-            // ====================================================================
-            // THROWING API — requires exception support
-            // ====================================================================
+        static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
+    public:
+        ScyllaDBDriver();
+        ~ScyllaDBDriver() override = default;
+
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
 #ifdef __cpp_exceptions
-            std::shared_ptr<ColumnarDBConnection> connectColumnar(
-                const std::string &url,
-                const std::string &user,
-                const std::string &password,
-                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+        std::shared_ptr<ColumnarDBConnection> connectColumnar(
+            const std::string &url,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
-            std::map<std::string, std::string> parseURI(const std::string &uri) override;
-            std::string buildURI(const std::string &host, int port, const std::string &database, const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+        std::map<std::string, std::string> parseURI(const std::string &uri) override;
+        std::string buildURI(const std::string &host, int port, const std::string &database, const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
 #endif // __cpp_exceptions
 
-            // ====================================================================
-            // NOTHROW API — exception-free, always available
-            // ====================================================================
+        // ====================================================================
+        // NOTHROW API — exception-free, always available
+        // ====================================================================
 
-            std::string getURIScheme() const noexcept override;
-            bool supportsClustering() const noexcept override;
-            bool supportsAsync() const noexcept override;
-            std::string getDriverVersion() const noexcept override;
-            bool acceptsURL(const std::string &url) noexcept override;
-            std::string getName() const noexcept override;
+        std::string getURIScheme() const noexcept override;
+        bool supportsClustering() const noexcept override;
+        bool supportsAsync() const noexcept override;
+        std::string getDriverVersion() const noexcept override;
+        bool acceptsURL(const std::string &url) noexcept override;
+        std::string getName() const noexcept override;
 
-            cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> connectColumnar(
-                std::nothrow_t,
-                const std::string &url,
-                const std::string &user,
-                const std::string &password,
-                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
+        cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> connectColumnar(
+            std::nothrow_t,
+            const std::string &url,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
-            cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(std::nothrow_t, const std::string &uri) noexcept override;
-        };
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(std::nothrow_t, const std::string &uri) noexcept override;
+    };
 } // namespace cpp_dbc::ScyllaDB
 
 #else // USE_SCYLLADB

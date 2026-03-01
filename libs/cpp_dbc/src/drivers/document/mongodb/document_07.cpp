@@ -15,7 +15,7 @@
  * @file document_07.cpp
  * @brief MongoDB MongoDBDocument - Part 7 (nothrow API: getDocumentArray, getStringArray,
  *        setters, hasField, isNull, removeField, getFieldNames, clone, clear, isEmpty,
- *        getBson, getBsonMutable, copyFrom)
+ *        getBson, getBsonMutable)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
@@ -60,7 +60,7 @@ namespace cpp_dbc::MongoDB
         if (!*nav)
         {
             return unexpected<DBException>(DBException(
-                "4D5E6F7A8B9C",
+                "ETFVXIKSNL8N",
                 "Field not found: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -68,7 +68,7 @@ namespace cpp_dbc::MongoDB
         if (!BSON_ITER_HOLDS_ARRAY(&iter))
         {
             return unexpected<DBException>(DBException(
-                "5E6F7A8B9C0D",
+                "GTXYN62PIXJE",
                 "Field is not an array: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -84,7 +84,7 @@ namespace cpp_dbc::MongoDB
         if (!bson_init_static(&arrayBson, data, length))
         {
             return unexpected<DBException>(DBException(
-                "6F7A8B9C0D1E",
+                "NF2R6MV8KK5L",
                 "Failed to initialize array BSON",
                 system_utils::captureCallStack()));
         }
@@ -121,7 +121,7 @@ namespace cpp_dbc::MongoDB
                 else if (strict)
                 {
                     return unexpected<DBException>(DBException(
-                        "7A8B9C0D1E2F",
+                        "OBCZEIAED7KA",
                         "Unexpected element type at index " + std::to_string(elementIndex) + " in array field: " + fieldPath + " (expected document)",
                         system_utils::captureCallStack()));
                 }
@@ -147,7 +147,7 @@ namespace cpp_dbc::MongoDB
         if (!*nav)
         {
             return unexpected<DBException>(DBException(
-                "0D1E2F3A4B5C",
+                "OZAG3C66FY2I",
                 "Field not found: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -155,7 +155,7 @@ namespace cpp_dbc::MongoDB
         if (!BSON_ITER_HOLDS_ARRAY(&iter))
         {
             return unexpected<DBException>(DBException(
-                "1E2F3A4B5C6D",
+                "R8T5JVV0E4D0",
                 "Field is not an array: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -171,7 +171,7 @@ namespace cpp_dbc::MongoDB
         if (!bson_init_static(&arrayBson, data, length))
         {
             return unexpected<DBException>(DBException(
-                "2F3A4B5C6D7E",
+                "I93Q6XI9RNS5",
                 "Failed to initialize array BSON",
                 system_utils::captureCallStack()));
         }
@@ -707,7 +707,7 @@ namespace cpp_dbc::MongoDB
         if (!copy)
         {
             return unexpected<DBException>(DBException(
-                "7E8F9A0B1C2D",
+                "ILK5IWU0MFPB",
                 "Failed to clone document",
                 system_utils::captureCallStack()));
         }
@@ -755,7 +755,7 @@ namespace cpp_dbc::MongoDB
     }
 
     // ====================================================================
-    // NOTHROW API - MongoDB-specific: getBson, getBsonMutable, copyFrom, create
+    // NOTHROW API - MongoDB-specific: getBson, getBsonMutable
     // ====================================================================
 
     const bson_t *MongoDBDocument::getBson() const
@@ -769,29 +769,6 @@ namespace cpp_dbc::MongoDB
         MONGODB_LOCK_GUARD(m_mutex);
         m_idCached = false;
         return m_bson.get();
-    }
-
-    expected<std::shared_ptr<MongoDBDocument>, DBException>
-    MongoDBDocument::copyFrom(std::nothrow_t, const bson_t *bson) noexcept
-    {
-        if (!bson)
-        {
-            return unexpected<DBException>(DBException(
-                "Z99M25OOHIBD",
-                "Cannot copy from null BSON pointer",
-                system_utils::captureCallStack()));
-        }
-
-        bson_t *copy = bson_copy(bson);
-        if (!copy)
-        {
-            return unexpected<DBException>(DBException(
-                "UYBXP3TMVRMC",
-                "Failed to copy BSON document",
-                system_utils::captureCallStack()));
-        }
-
-        return create(std::nothrow, copy);
     }
 
 } // namespace cpp_dbc::MongoDB

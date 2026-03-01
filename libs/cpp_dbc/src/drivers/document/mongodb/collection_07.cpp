@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file collection_07.cpp
- * @brief MongoDB MongoDBCollection - Part 7 (nothrow API: drop, rename, aggregate, distinct)
+ * @brief MongoDB MongoDBCollection - Part 7 (nothrow API: drop, rename, aggregate, distinct, isConnectionValid)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
@@ -34,7 +34,7 @@ namespace cpp_dbc::MongoDB
 {
 
     // ====================================================================
-    // NOTHROW API - drop, rename, aggregate, distinct (implementations)
+    // NOTHROW API - drop, rename, aggregate, distinct, isConnectionValid (implementations)
     // ====================================================================
 
     expected<void, DBException> MongoDBCollection::drop(
@@ -48,7 +48,7 @@ namespace cpp_dbc::MongoDB
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "A2B3C4D5E6F7",
+                    "60KC02UP28TD",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
@@ -59,7 +59,7 @@ namespace cpp_dbc::MongoDB
             if (!success)
             {
                 return unexpected<DBException>(DBException(
-                    "B3C4D5E6F7A8",
+                    "WKWQ8Y8GK4MB",
                     std::string("drop failed: ") + error.message,
                     system_utils::captureCallStack()));
             }
@@ -73,14 +73,14 @@ namespace cpp_dbc::MongoDB
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "C4D5E6F7A8B9",
+                "MI3O5E6WP79H",
                 std::string("Unexpected error in drop: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "D5E6F7A8B9C0",
+                "F45RS3XRODY4",
                 "Unknown error in drop",
                 system_utils::captureCallStack()));
         }
@@ -99,7 +99,7 @@ namespace cpp_dbc::MongoDB
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "E6F7A8B9C0D1",
+                    "YAZPQV1NVX5Q",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
@@ -111,7 +111,7 @@ namespace cpp_dbc::MongoDB
             if (!success)
             {
                 return unexpected<DBException>(DBException(
-                    "F7A8B9C0D1E2",
+                    "X0DFPPGZHISW",
                     std::string("rename failed: ") + error.message,
                     system_utils::captureCallStack()));
             }
@@ -126,14 +126,14 @@ namespace cpp_dbc::MongoDB
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "A8B9C0D1E2F3",
+                "3DR5FQNRS468",
                 std::string("Unexpected error in rename: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "B9C0D1E2F3A4",
+                "T8EFXZCJ4KS7",
                 "Unknown error in rename",
                 system_utils::captureCallStack()));
         }
@@ -151,12 +151,17 @@ namespace cpp_dbc::MongoDB
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "C0D1E2F3A4B5",
+                    "CMF7381Q36OF",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
 
-            BsonHandle pipelineBson = makeBsonHandleFromJson(pipeline);
+            auto pipelineBsonResult = makeBsonHandleFromJson(std::nothrow, pipeline);
+            if (!pipelineBsonResult.has_value())
+            {
+                return unexpected<DBException>(pipelineBsonResult.error());
+            }
+            BsonHandle pipelineBson = std::move(pipelineBsonResult.value());
 
             mongoc_cursor_t *cursor = mongoc_collection_aggregate(
                 m_collection.get(), MONGOC_QUERY_NONE, pipelineBson.get(), nullptr, nullptr);
@@ -171,7 +176,8 @@ namespace cpp_dbc::MongoDB
 
             auto cursorResult = MongoDBCursor::create(std::nothrow, m_client, cursor, m_connection
 #if DB_DRIVER_THREAD_SAFE
-                , m_connMutex
+                                                      ,
+                                                      m_connMutex
 #endif
             );
             if (!cursorResult.has_value())
@@ -183,7 +189,7 @@ namespace cpp_dbc::MongoDB
             // Register cursor with connection for cleanup tracking
             if (auto conn = m_connection.lock())
             {
-                conn->registerCursor(mongoCursor);
+                conn->registerCursor(std::nothrow, mongoCursor);
             }
 
             return std::shared_ptr<DocumentDBCursor>(mongoCursor);
@@ -195,21 +201,21 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "D1E2F3A4B5C6",
+                "T0HPSCP9XKY4",
                 "Memory allocation failed in aggregate",
                 system_utils::captureCallStack()));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "E2F3A4B5C6D7",
+                "JM97F8UZ4U9Z",
                 std::string("Unexpected error in aggregate: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "F3A4B5C6D7E8",
+                "B3FOC2B8N515",
                 "Unknown error in aggregate",
                 system_utils::captureCallStack()));
         }
@@ -228,7 +234,7 @@ namespace cpp_dbc::MongoDB
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "A4B5C6D7E8F9",
+                    "VNI5DI2C3HHP",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
@@ -270,7 +276,7 @@ namespace cpp_dbc::MongoDB
             {
                 bson_destroy(&reply);
                 return unexpected<DBException>(DBException(
-                    "B5C6D7E8F9A0",
+                    "2U5HMTIIHN30",
                     std::string("distinct failed: ") + error.message,
                     system_utils::captureCallStack()));
             }
@@ -323,24 +329,29 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "C6D7E8F9A0B1",
+                "W1IFMEQ6E49I",
                 "Memory allocation failed in distinct",
                 system_utils::captureCallStack()));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "D7E8F9A0B1C2",
+                "34IHRDACI2QZ",
                 std::string("Unexpected error in distinct: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "E8F9A0B1C2D3",
+                "ADQCRG3164KE",
                 "Unknown error in distinct",
                 system_utils::captureCallStack()));
         }
+    }
+
+    bool MongoDBCollection::isConnectionValid(std::nothrow_t) const noexcept
+    {
+        return !m_client.expired();
     }
 
 } // namespace cpp_dbc::MongoDB

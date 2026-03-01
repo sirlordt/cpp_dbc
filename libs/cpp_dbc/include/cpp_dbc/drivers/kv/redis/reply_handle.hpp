@@ -27,7 +27,15 @@ namespace cpp_dbc::Redis
     class RedisReplyHandle // NOSONAR - Rule of 5 satisfied: destructor is = default because unique_ptr handles resource
     {
     public:
-        explicit RedisReplyHandle(redisReply *reply);
+        /**
+         * @brief Nothrow constructor — takes ownership of a reply pointer without null-checking.
+         *
+         * Callers must validate the pointer before constructing. This variant is used in
+         * noexcept contexts (e.g., executeRaw(std::nothrow_t)) where the reply has already
+         * been validated as non-null and non-error before being handed off.
+         */
+        RedisReplyHandle(std::nothrow_t, redisReply *reply) noexcept;
+
         ~RedisReplyHandle();
 
         // Disable copy operations

@@ -28,7 +28,8 @@
 namespace cpp_dbc::MongoDB
 {
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
+
     std::string MongoDBDocument::getString(const std::string &fieldPath) const
     {
         auto r = getString(std::nothrow, fieldPath);
@@ -108,7 +109,7 @@ namespace cpp_dbc::MongoDB
         }
         return *r;
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB
 

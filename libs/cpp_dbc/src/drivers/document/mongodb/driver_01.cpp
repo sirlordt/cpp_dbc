@@ -38,12 +38,13 @@ namespace cpp_dbc::MongoDB
     // MongoDBDriver Implementation
     // ============================================================================
 
-    void MongoDBDriver::initializeMongoc()
+    cpp_dbc::expected<bool, DBException> MongoDBDriver::initialize(std::nothrow_t) noexcept
     {
-        MONGODB_DEBUG("MongoDBDriver::initializeMongoc - Initializing MongoDB C driver");
+        MONGODB_DEBUG("MongoDBDriver::initialize - Initializing MongoDB C driver");
         mongoc_init();
         s_initialized.store(true, std::memory_order_release);
-        MONGODB_DEBUG("MongoDBDriver::initializeMongoc - Done");
+        MONGODB_DEBUG("MongoDBDriver::initialize - Done");
+        return true;
     }
 
     MongoDBDriver::MongoDBDriver()
@@ -56,7 +57,11 @@ namespace cpp_dbc::MongoDB
             std::scoped_lock lock(s_initMutex);
             if (!s_initialized.load(std::memory_order_relaxed))
             {
-                initializeMongoc();
+                auto initResult = initialize(std::nothrow);
+                if (!initResult.has_value())
+                {
+                    MONGODB_DEBUG("MongoDBDriver::constructor - Initialization failed: " << initResult.error().what());
+                }
             }
         }
         MONGODB_DEBUG("MongoDBDriver::constructor - Done");
@@ -198,7 +203,6 @@ namespace cpp_dbc::MongoDB
         const std::map<std::string, std::string> &options) noexcept
     {
         MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: " << url);
-        MONGODB_LOCK_GUARD(m_mutex);
 
         if (!acceptsURL(url))
         {
@@ -236,7 +240,7 @@ namespace cpp_dbc::MongoDB
         if (!mongoUri)
         {
             return unexpected<DBException>(DBException(
-                "5A6B7C8D9E0F",
+                "A9G0ICAHJT85",
                 std::string("Invalid URI: ") + error.message));
         }
 

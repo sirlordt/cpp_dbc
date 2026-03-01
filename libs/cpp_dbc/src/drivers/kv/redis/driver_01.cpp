@@ -48,6 +48,15 @@ namespace cpp_dbc::Redis
     // RedisDriver Implementation
     // ============================================================================
 
+    cpp_dbc::expected<bool, DBException> RedisDriver::initialize(std::nothrow_t) noexcept
+    {
+        REDIS_DEBUG("RedisDriver::initialize - Initializing Redis driver");
+        // No specific initialization needed for hiredis
+        s_initialized.store(true, std::memory_order_release);
+        REDIS_DEBUG("RedisDriver::initialize - Done");
+        return true;
+    }
+
     RedisDriver::RedisDriver()
     {
         REDIS_DEBUG("RedisDriver::constructor - Creating driver");
@@ -58,7 +67,11 @@ namespace cpp_dbc::Redis
             std::scoped_lock lock(s_initMutex);
             if (!s_initialized.load(std::memory_order_relaxed))
             {
-                initialize();
+                auto initResult = initialize(std::nothrow);
+                if (!initResult.has_value())
+                {
+                    REDIS_DEBUG("RedisDriver::constructor - Initialization failed: " << initResult.error().what());
+                }
             }
         }
         REDIS_DEBUG("RedisDriver::constructor - Done");
@@ -182,7 +195,6 @@ namespace cpp_dbc::Redis
         try
         {
             REDIS_DEBUG("RedisDriver::connectKV(nothrow) - Connecting to: " << url);
-            REDIS_LOCK_GUARD(m_mutex);
 
             if (!acceptsURL(url))
             {
@@ -196,13 +208,13 @@ namespace cpp_dbc::Redis
                 redisUrl = url.substr(8);
             }
 
-            auto conn = std::make_shared<RedisDBConnection>(redisUrl, user, password, options);
+            auto connResult = RedisDBConnection::create(std::nothrow, redisUrl, user, password, options);
+            if (!connResult.has_value())
+            {
+                return cpp_dbc::unexpected(connResult.error());
+            }
             REDIS_DEBUG("RedisDriver::connectKV(nothrow) - Connection established");
-            return std::shared_ptr<KVDBConnection>(conn);
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
+            return std::shared_ptr<KVDBConnection>(connResult.value());
         }
         catch (const std::exception &ex)
         {
@@ -292,18 +304,6 @@ namespace cpp_dbc::Redis
     std::string RedisDriver::getName() const noexcept
     {
         return "redis";
-    }
-
-    // ============================================================================
-    // RedisDriver - Private methods
-    // ============================================================================
-
-    void RedisDriver::initialize()
-    {
-        REDIS_DEBUG("RedisDriver::initialize - Initializing Redis driver");
-        // No specific initialization needed for hiredis
-        s_initialized.store(true, std::memory_order_release);
-        REDIS_DEBUG("RedisDriver::initialize - Done");
     }
 
 } // namespace cpp_dbc::Redis

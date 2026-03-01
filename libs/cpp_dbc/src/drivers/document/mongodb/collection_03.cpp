@@ -89,7 +89,7 @@ namespace cpp_dbc::MongoDB
             // Register cursor with connection for cleanup tracking
             if (auto conn = m_connection.lock())
             {
-                conn->registerCursor(cursor);
+                conn->registerCursor(std::nothrow, cursor);
             }
 
             return std::shared_ptr<DocumentDBCursor>(cursor);
@@ -134,7 +134,7 @@ namespace cpp_dbc::MongoDB
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "A4B5C6D7E8F9",
+                    "G5WTH2GFNGLV",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
@@ -186,7 +186,7 @@ namespace cpp_dbc::MongoDB
             // Register cursor with connection for cleanup tracking
             if (auto conn = m_connection.lock())
             {
-                conn->registerCursor(cursor);
+                conn->registerCursor(std::nothrow, cursor);
             }
 
             return std::shared_ptr<DocumentDBCursor>(cursor);

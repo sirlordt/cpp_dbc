@@ -64,32 +64,11 @@ namespace cpp_dbc::MongoDB
 
     expected<BsonHandle, DBException> MongoDBCollection::parseFilter(std::nothrow_t, const std::string &filter) const noexcept
     {
-        try
+        if (filter.empty())
         {
-            if (filter.empty())
-            {
-                return makeBsonHandle();
-            }
-            return makeBsonHandleFromJson(filter);
+            return makeBsonHandle();
         }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "B2C3D4E5F6A1",
-                std::string("Failed to parse filter: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "C3D4E5F6A1B2",
-                "Unknown error parsing filter",
-                system_utils::captureCallStack()));
-        }
+        return makeBsonHandleFromJson(std::nothrow, filter);
     }
 
     expected<void, DBException> MongoDBCollection::throwMongoError(std::nothrow_t, const bson_error_t &error, const std::string &operation) const noexcept
@@ -423,11 +402,6 @@ namespace cpp_dbc::MongoDB
             throw r.error();
         }
         return r.value();
-    }
-
-    bool MongoDBCollection::isConnectionValid() const
-    {
-        return !m_client.expired();
     }
 
 #endif // __cpp_exceptions

@@ -46,7 +46,7 @@ namespace cpp_dbc::PostgreSQL
 
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("1A2B3C4D5E6F", "Invalid column index or row position", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("UBNZW9NY218W", "Invalid column index or row position", system_utils::captureCallStack()));
             }
 
             auto idx = static_cast<int>(columnIndex - 1);

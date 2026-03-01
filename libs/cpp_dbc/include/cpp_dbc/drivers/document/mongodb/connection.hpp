@@ -155,23 +155,9 @@ namespace cpp_dbc::MongoDB
         MongoDBConnection(MongoDBConnection &&) = delete;
         MongoDBConnection &operator=(MongoDBConnection &&) = delete;
 
-        static cpp_dbc::expected<std::shared_ptr<MongoDBConnection>, DBException>
-        create(std::nothrow_t,
-               const std::string &uri,
-               const std::string &user,
-               const std::string &password,
-               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
-        {
-            // Use `new` instead of std::make_shared: std::make_shared cannot access private constructors,
-            // but a static class member function can. The private nothrow constructor stores init
-            // errors in m_initFailed/m_initError rather than throwing, so no try/catch is needed here.
-            auto obj = std::shared_ptr<MongoDBConnection>(new MongoDBConnection(std::nothrow, uri, user, password, options));
-            if (obj->m_initFailed)
-            {
-                return cpp_dbc::unexpected(obj->m_initError);
-            }
-            return obj;
-        }
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
 #ifdef __cpp_exceptions
         static std::shared_ptr<MongoDBConnection>
@@ -187,32 +173,6 @@ namespace cpp_dbc::MongoDB
             }
             return r.value();
         }
-
-        // DocumentDBConnection interface - throwing API (wrappers)
-
-        /**
-         * @brief Register a collection for cleanup tracking
-         * @param collection Weak pointer to the collection to register
-         */
-        void registerCollection(std::weak_ptr<MongoDBCollection> collection);
-
-        /**
-         * @brief Unregister a collection from cleanup tracking
-         * @param collection Weak pointer to the collection to unregister
-         */
-        void unregisterCollection(std::weak_ptr<MongoDBCollection> collection);
-
-        /**
-         * @brief Register a cursor for cleanup tracking
-         * @param cursor Weak pointer to the cursor to register
-         */
-        void registerCursor(std::weak_ptr<MongoDBCursor> cursor);
-
-        /**
-         * @brief Unregister a cursor from cleanup tracking
-         * @param cursor Weak pointer to the cursor to unregister
-         */
-        void unregisterCursor(std::weak_ptr<MongoDBCursor> cursor);
 
         void close() override;
         bool isClosed() const override;
@@ -275,9 +235,52 @@ namespace cpp_dbc::MongoDB
         void setPooled(bool pooled);
 
 #endif // __cpp_exceptions
-       // ====================================================================
-       // NOTHROW VERSIONS - Exception-free API
-       // ====================================================================
+
+        // ====================================================================
+        // NOTHROW API — exception-free, always available
+        // ====================================================================
+
+        static cpp_dbc::expected<std::shared_ptr<MongoDBConnection>, DBException>
+        create(std::nothrow_t,
+               const std::string &uri,
+               const std::string &user,
+               const std::string &password,
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+        {
+            // Use `new` instead of std::make_shared: std::make_shared cannot access private constructors,
+            // but a static class member function can. The private nothrow constructor stores init
+            // errors in m_initFailed/m_initError rather than throwing, so no try/catch is needed here.
+            auto obj = std::shared_ptr<MongoDBConnection>(new MongoDBConnection(std::nothrow, uri, user, password, options));
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(obj->m_initError);
+            }
+            return obj;
+        }
+
+        /**
+         * @brief Register a collection for cleanup tracking
+         * @param collection Weak pointer to the collection to register
+         */
+        void registerCollection(std::nothrow_t, std::weak_ptr<MongoDBCollection> collection) noexcept;
+
+        /**
+         * @brief Unregister a collection from cleanup tracking
+         * @param collection Weak pointer to the collection to unregister
+         */
+        void unregisterCollection(std::nothrow_t, std::weak_ptr<MongoDBCollection> collection) noexcept;
+
+        /**
+         * @brief Register a cursor for cleanup tracking
+         * @param cursor Weak pointer to the cursor to register
+         */
+        void registerCursor(std::nothrow_t, std::weak_ptr<MongoDBCursor> cursor) noexcept;
+
+        /**
+         * @brief Unregister a cursor from cleanup tracking
+         * @param cursor Weak pointer to the cursor to unregister
+         */
+        void unregisterCursor(std::nothrow_t, std::weak_ptr<MongoDBCursor> cursor) noexcept;
 
         expected<void, DBException> close(std::nothrow_t) noexcept override;
         expected<void, DBException> reset(std::nothrow_t) noexcept override;

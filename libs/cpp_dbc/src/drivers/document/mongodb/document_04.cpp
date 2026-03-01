@@ -27,7 +27,8 @@
 namespace cpp_dbc::MongoDB
 {
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
+
     bool MongoDBDocument::hasField(const std::string &fieldPath) const
     {
         auto r = hasField(std::nothrow, fieldPath);
@@ -96,7 +97,7 @@ namespace cpp_dbc::MongoDB
         }
         return *r;
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB
 

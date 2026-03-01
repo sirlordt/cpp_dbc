@@ -82,26 +82,9 @@ namespace cpp_dbc::ScyllaDB
     public:
         ~ScyllaDBConnection() override;
 
-        static cpp_dbc::expected<std::shared_ptr<ScyllaDBConnection>, DBException>
-        create(std::nothrow_t,
-               const std::string &host,
-               int port,
-               const std::string &keyspace,
-               const std::string &user,
-               const std::string &password,
-               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
-        {
-            // Use the private nothrow constructor directly via raw new — no try/catch
-            // needed because it never throws; errors are stored in m_initFailed/m_initError.
-            // std::make_shared cannot be used here because the nothrow constructor is private;
-            // only members of this class can access it, so new is the correct form.
-            auto obj = std::shared_ptr<ScyllaDBConnection>(new ScyllaDBConnection(std::nothrow, host, port, keyspace, user, password, options));
-            if (obj->m_initFailed)
-            {
-                return cpp_dbc::unexpected(obj->m_initError);
-            }
-            return obj;
-        }
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
 #ifdef __cpp_exceptions
         static std::shared_ptr<ScyllaDBConnection>
@@ -141,9 +124,31 @@ namespace cpp_dbc::ScyllaDB
         void prepareForPoolReturn() override;
 
 #endif // __cpp_exceptions
+
         // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
+        // NOTHROW API — exception-free, always available
         // ====================================================================
+
+        static cpp_dbc::expected<std::shared_ptr<ScyllaDBConnection>, DBException>
+        create(std::nothrow_t,
+               const std::string &host,
+               int port,
+               const std::string &keyspace,
+               const std::string &user,
+               const std::string &password,
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+        {
+            // Use the private nothrow constructor directly via raw new — no try/catch
+            // needed because it never throws; errors are stored in m_initFailed/m_initError.
+            // std::make_shared cannot be used here because the nothrow constructor is private;
+            // only members of this class can access it, so new is the correct form.
+            auto obj = std::shared_ptr<ScyllaDBConnection>(new ScyllaDBConnection(std::nothrow, host, port, keyspace, user, password, options));
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(obj->m_initError);
+            }
+            return obj;
+        }
 
         // DBConnection nothrow interface
         cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;

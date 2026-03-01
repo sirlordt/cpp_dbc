@@ -72,11 +72,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("C6D7E8F9A0B1", std::string("Exception in setBlob: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("1JRHIFR1Y51S", std::string("Exception in setBlob: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("D7E8F9A0B1C2", "Unknown exception in setBlob", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("852887QOZF7T", "Unknown exception in setBlob", system_utils::captureCallStack()));
         }
     }
 
@@ -126,11 +126,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("E8F9A0B1C2D3", std::string("Exception in setBinaryStream: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("7RY082CXVXMQ", std::string("Exception in setBinaryStream: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("F9A0B1C2D3E4", "Unknown exception in setBinaryStream", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("TUA3F0JK7POG", "Unknown exception in setBinaryStream", system_utils::captureCallStack()));
         }
     }
 
@@ -183,11 +183,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("A0B1C2D3E4F5", std::string("Exception in setBinaryStream(length): ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("L9GSTC0A6PQD", std::string("Exception in setBinaryStream(length): ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("B1C2D3E4F5A6", "Unknown exception in setBinaryStream(length)", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("SFLCZB8B01NP", "Unknown exception in setBinaryStream(length)", system_utils::captureCallStack()));
         }
     }
 
@@ -209,11 +209,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("C2D3E4F5A6B7", std::string("Exception in setBytes(vector): ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("S4RHMMDDP15X", std::string("Exception in setBytes(vector): ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("D3E4F5A6B7C8", "Unknown exception in setBytes(vector)", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("ZYGLR0ZVX7TZ", "Unknown exception in setBytes(vector)", system_utils::captureCallStack()));
         }
     }
 
@@ -288,11 +288,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("E4F5A6B7C8D9", std::string("Exception in setBytes(pointer): ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("VGCX6IKVV3T1", std::string("Exception in setBytes(pointer): ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("F5A6B7C8D9E0", "Unknown exception in setBytes(pointer)", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("B4OCE5N25F3R", "Unknown exception in setBytes(pointer)", system_utils::captureCallStack()));
         }
     }
 
@@ -426,11 +426,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("A6B7C8D9E0F1", std::string("Exception in executeQuery: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("O09MEPGXMZRW", std::string("Exception in executeQuery: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("B7C8D9E0F1A2", "Unknown exception in executeQuery", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("HSNZSJIN0Z8P", "Unknown exception in executeQuery", system_utils::captureCallStack()));
         }
     }
 

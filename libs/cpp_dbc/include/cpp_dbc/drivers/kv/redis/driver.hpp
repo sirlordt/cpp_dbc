@@ -35,6 +35,20 @@ namespace cpp_dbc::Redis
      */
     class RedisDriver final : public KVDBDriver
     {
+    private:
+        // Note: Using atomic<bool> + mutex instead of std::once_flag because
+        // std::once_flag cannot be reset, but we need cleanup() to allow
+        // re-initialization on subsequent driver construction.
+        // Also, std::call_once can throw std::system_error, which is incompatible
+        // with -fno-exceptions builds.
+        static std::atomic<bool> s_initialized;
+        static std::mutex s_initMutex;
+
+        /**
+         * @brief Initialize Redis driver
+         */
+        static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
     public:
         /**
          * @brief Construct a new Redis Driver
@@ -93,20 +107,6 @@ namespace cpp_dbc::Redis
             std::nothrow_t, const std::string &uri) noexcept override;
 
         std::string getName() const noexcept override;
-
-    private:
-        // Note: Using atomic<bool> + mutex instead of std::once_flag because
-        // std::once_flag cannot be reset, but we need cleanup() to allow
-        // re-initialization on subsequent driver construction.
-        static std::atomic<bool> s_initialized;
-        static std::mutex s_initMutex;
-
-        /**
-         * @brief Initialize Redis driver
-         */
-        static void initialize();
-
-        std::mutex m_mutex;
     };
 
 } // namespace cpp_dbc::Redis

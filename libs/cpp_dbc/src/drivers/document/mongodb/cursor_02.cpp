@@ -351,21 +351,21 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "8D9E0F1A2B3C",
+                "8JMI13HSG058",
                 "Memory allocation failed in toVector",
                 system_utils::captureCallStack()));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "9E0F1A2B3C4D",
+                "GXH7LWOSMCFB",
                 std::string("Error in toVector: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "0F1A2B3C4D5E",
+                "C89KP00MYCR1",
                 "Unknown error in toVector",
                 system_utils::captureCallStack()));
         }
@@ -437,21 +437,21 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "4D5E6F7A8B9C",
+                "4IN5HEA6W71A",
                 "Memory allocation failed in getBatch",
                 system_utils::captureCallStack()));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "5E6F7A8B9C0D",
+                "CYP12EUDBSOF",
                 std::string("Error in getBatch: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "6F7A8B9C0D1E",
+                "TST54SD3OK7J",
                 "Unknown error in getBatch",
                 system_utils::captureCallStack()));
         }

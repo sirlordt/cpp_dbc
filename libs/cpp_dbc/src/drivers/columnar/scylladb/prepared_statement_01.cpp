@@ -70,6 +70,17 @@ namespace cpp_dbc::ScyllaDB
         recreateStatement(std::nothrow);
     }
 
+    ScyllaDBPreparedStatement::~ScyllaDBPreparedStatement()
+    {
+        SCYLLADB_DEBUG("ScyllaDBPreparedStatement::destructor - Destroying prepared statement");
+        auto result = ScyllaDBPreparedStatement::close(std::nothrow);
+        if (!result.has_value())
+        {
+            // Log the error but don't throw - in destructor
+            SCYLLADB_DEBUG("Failed to close prepared statement: " << result.error().what_s());
+        }
+    }
+
 #ifdef __cpp_exceptions
     // Throwing wrappers (same order as in prepared_statement.hpp)
 
@@ -266,17 +277,6 @@ namespace cpp_dbc::ScyllaDB
         }
     }
 #endif // __cpp_exceptions
-
-    ScyllaDBPreparedStatement::~ScyllaDBPreparedStatement()
-    {
-        SCYLLADB_DEBUG("ScyllaDBPreparedStatement::destructor - Destroying prepared statement");
-        auto result = ScyllaDBPreparedStatement::close(std::nothrow);
-        if (!result.has_value())
-        {
-            // Log the error but don't throw - in destructor
-            SCYLLADB_DEBUG("Failed to close prepared statement: " << result.error().what_s());
-        }
-    }
 
 } // namespace cpp_dbc::ScyllaDB
 

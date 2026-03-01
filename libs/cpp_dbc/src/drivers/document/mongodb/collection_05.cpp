@@ -49,7 +49,7 @@ namespace cpp_dbc::MongoDB
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "B3C4D5E6F7A8",
+                    "B6A0V7R1M3X3",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
@@ -83,7 +83,7 @@ namespace cpp_dbc::MongoDB
             {
                 bson_destroy(&reply);
                 return unexpected<DBException>(DBException(
-                    "C4D5E6F7A8B9",
+                    "4DDW3BUKHACF",
                     std::string("deleteOne failed: ") + error.message,
                     system_utils::captureCallStack()));
             }
@@ -98,21 +98,21 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "D5E6F7A8B9C0",
+                "CMHT2N4EYWGP",
                 "Memory allocation failed in deleteOne",
                 system_utils::captureCallStack()));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "E6F7A8B9C0D1",
+                "UXJ17ON2OKOO",
                 std::string("Unexpected error in deleteOne: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "F7A8B9C0D1E2",
+                "SDNODBZB844G",
                 "Unknown error in deleteOne",
                 system_utils::captureCallStack()));
         }
@@ -130,7 +130,7 @@ namespace cpp_dbc::MongoDB
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "A8B9C0D1E2F3",
+                    "3J4J8KKRTRN9",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
@@ -164,7 +164,7 @@ namespace cpp_dbc::MongoDB
             {
                 bson_destroy(&reply);
                 return unexpected<DBException>(DBException(
-                    "B9C0D1E2F3A4",
+                    "GZER4DMZR6NA",
                     std::string("deleteMany failed: ") + error.message,
                     system_utils::captureCallStack()));
             }
@@ -179,21 +179,21 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "C0D1E2F3A4B5",
+                "N40US9CGP2UF",
                 "Memory allocation failed in deleteMany",
                 system_utils::captureCallStack()));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "D1E2F3A4B5C6",
+                "3I490LSGKGYN",
                 std::string("Unexpected error in deleteMany: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "E2F3A4B5C6D7",
+                "XF8L10AQIPW4",
                 "Unknown error in deleteMany",
                 system_utils::captureCallStack()));
         }
@@ -250,14 +250,14 @@ namespace cpp_dbc::MongoDB
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "F3A4B5C6D7E8",
+                "UA2IN4W3P9WC",
                 std::string("Error in deleteById: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "A4B5C6D7E8F9",
+                "8B9QZBSSDA63",
                 "Unknown error in deleteById",
                 system_utils::captureCallStack()));
         }

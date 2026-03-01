@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file connection_02.cpp
- * @brief Redis connection implementation - hash, set, sorted set, scan, server throwing + executeRaw, getDatabaseIndex, selectDatabase
+ * @brief Redis connection implementation - hash, set, sorted set, scan, server throwing + executeRaw, selectDatabase
  */
 
 #include "cpp_dbc/drivers/kv/driver_redis.hpp"
@@ -39,7 +39,7 @@ namespace cpp_dbc::Redis
 
     // Hash operations
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     bool RedisDBConnection::hashSet(
         const std::string &key, const std::string &field, const std::string &value)
     {
@@ -283,11 +283,6 @@ namespace cpp_dbc::Redis
         return std::move(r.value());
     }
 
-    int RedisDBConnection::getDatabaseIndex() const
-    {
-        return m_dbIndex;
-    }
-
     void RedisDBConnection::selectDatabase(int index)
     {
         auto r = selectDatabase(std::nothrow, index);
@@ -296,7 +291,7 @@ namespace cpp_dbc::Redis
             throw r.error();
         }
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::Redis
 

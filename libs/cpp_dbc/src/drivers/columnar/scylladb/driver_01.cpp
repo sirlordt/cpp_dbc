@@ -38,12 +38,38 @@ namespace cpp_dbc::ScyllaDB
     // ScyllaDBDriver
     // ====================================================================
 
-    ScyllaDBDriver::ScyllaDBDriver()
+    // Static member initialization
+    std::atomic<bool> ScyllaDBDriver::s_initialized{false}; // NOSONAR - Explicit template arg for clarity in static member definition
+    std::mutex ScyllaDBDriver::s_initMutex;
+
+    cpp_dbc::expected<bool, DBException> ScyllaDBDriver::initialize(std::nothrow_t) noexcept
     {
-        SCYLLADB_DEBUG("ScyllaDBDriver::constructor - Initializing driver");
-        // Global init if needed
+        SCYLLADB_DEBUG("ScyllaDBDriver::initialize - Initializing Cassandra driver");
         // Suppress server-side warnings (like SimpleStrategy recommendations)
         cass_log_set_level(CASS_LOG_ERROR);
+        s_initialized.store(true, std::memory_order_release);
+        SCYLLADB_DEBUG("ScyllaDBDriver::initialize - Done");
+        return true;
+    }
+
+    ScyllaDBDriver::ScyllaDBDriver()
+    {
+        SCYLLADB_DEBUG("ScyllaDBDriver::constructor - Creating driver");
+        // Double-checked locking: compatible with -fno-exceptions (std::call_once can throw
+        // std::system_error internally). Also allows re-initialization if needed.
+        if (!s_initialized.load(std::memory_order_acquire))
+        {
+            std::scoped_lock lock(s_initMutex);
+            if (!s_initialized.load(std::memory_order_relaxed))
+            {
+                auto initResult = initialize(std::nothrow);
+                if (!initResult.has_value())
+                {
+                    SCYLLADB_DEBUG("ScyllaDBDriver::constructor - Initialization failed: " << initResult.error().what());
+                }
+            }
+        }
+        SCYLLADB_DEBUG("ScyllaDBDriver::constructor - Done");
     }
 
 #ifdef __cpp_exceptions
@@ -81,9 +107,20 @@ namespace cpp_dbc::ScyllaDB
     }
 #endif // __cpp_exceptions
 
-    std::string ScyllaDBDriver::getURIScheme() const noexcept { return "cpp_dbc:scylladb://"; }
-    bool ScyllaDBDriver::supportsClustering() const noexcept { return true; }
-    bool ScyllaDBDriver::supportsAsync() const noexcept { return true; }
+    std::string ScyllaDBDriver::getURIScheme() const noexcept
+    {
+        return "cpp_dbc:scylladb://";
+    }
+
+    bool ScyllaDBDriver::supportsClustering() const noexcept
+    {
+        return true;
+    }
+
+    bool ScyllaDBDriver::supportsAsync() const noexcept
+    {
+        return true;
+    }
 
     std::string ScyllaDBDriver::getDriverVersion() const noexcept
     {
@@ -94,6 +131,16 @@ namespace cpp_dbc::ScyllaDB
 #else
         return "unknown";
 #endif
+    }
+
+    bool ScyllaDBDriver::acceptsURL(const std::string &url) noexcept
+    {
+        return url.starts_with("cpp_dbc:scylladb://");
+    }
+
+    std::string ScyllaDBDriver::getName() const noexcept
+    {
+        return "scylladb";
     }
 
     // Nothrow API
@@ -154,13 +201,6 @@ namespace cpp_dbc::ScyllaDB
         SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Parsed host: " << result["host"] << ", port: " << result["port"] << ", database: " << result["database"]);
         return result;
     }
-
-    bool ScyllaDBDriver::acceptsURL(const std::string &url) noexcept
-    {
-        return url.starts_with("cpp_dbc:scylladb://");
-    }
-
-    std::string ScyllaDBDriver::getName() const noexcept { return "scylladb"; }
 
 } // namespace cpp_dbc::ScyllaDB
 

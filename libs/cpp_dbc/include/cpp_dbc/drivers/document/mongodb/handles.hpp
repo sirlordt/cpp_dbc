@@ -86,12 +86,12 @@ namespace cpp_dbc::MongoDB
     }
 
     /**
-     * @brief Helper function to create a BsonHandle from JSON
+     * @brief Nothrow overload: create a BsonHandle from JSON without throwing
      * @param json The JSON string to parse
-     * @return A BsonHandle owning the parsed BSON document
-     * @throws DBException if the JSON is invalid
+     * @return expected containing the BsonHandle on success, or unexpected(DBException) if the JSON is invalid
      */
-    inline BsonHandle makeBsonHandleFromJson(const std::string &json)
+    inline expected<BsonHandle, DBException>
+    makeBsonHandleFromJson(std::nothrow_t, const std::string &json) noexcept
     {
         bson_error_t error;
         bson_t *bson = bson_new_from_json(
@@ -101,7 +101,10 @@ namespace cpp_dbc::MongoDB
 
         if (!bson)
         {
-            throw DBException("XQUH3BFIJ0P1", std::string("Failed to parse JSON: ") + error.message);
+            return unexpected<DBException>(DBException(
+                "O6OUICDVHROG",
+                std::string("Failed to parse JSON: ") + error.message,
+                system_utils::captureCallStack()));
         }
 
         return BsonHandle(bson);

@@ -176,50 +176,6 @@ namespace cpp_dbc::MongoDB
 
     #ifdef __cpp_exceptions
     // ============================================================================
-    // MongoDBConnection Implementation - Collection Registration (Public)
-    // ============================================================================
-
-    void MongoDBConnection::registerCollection(std::weak_ptr<MongoDBCollection> collection)
-    {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        if (m_activeCollections.size() > 50)
-        {
-            std::erase_if(m_activeCollections, [](const auto &w) { return w.expired(); });
-        }
-        m_activeCollections.insert(std::move(collection));
-        MONGODB_DEBUG("MongoDBConnection::registerCollection - Registered collection, total: " << m_activeCollections.size());
-    }
-
-    void MongoDBConnection::unregisterCollection(std::weak_ptr<MongoDBCollection> collection)
-    {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        m_activeCollections.erase(collection);
-        MONGODB_DEBUG("MongoDBConnection::unregisterCollection - Unregistered collection, remaining: " << m_activeCollections.size());
-    }
-
-    // ============================================================================
-    // MongoDBConnection Implementation - Cursor Registration (Public)
-    // ============================================================================
-
-    void MongoDBConnection::registerCursor(std::weak_ptr<MongoDBCursor> cursor)
-    {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        if (m_activeCursors.size() > 50)
-        {
-            std::erase_if(m_activeCursors, [](const auto &w) { return w.expired(); });
-        }
-        m_activeCursors.insert(std::move(cursor));
-        MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: " << m_activeCursors.size());
-    }
-
-    void MongoDBConnection::unregisterCursor(std::weak_ptr<MongoDBCursor> cursor)
-    {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        m_activeCursors.erase(cursor);
-        MONGODB_DEBUG("MongoDBConnection::unregisterCursor - Unregistered cursor, remaining: " << m_activeCursors.size());
-    }
-
-    // ============================================================================
     // MongoDBConnection Implementation - DBConnection Interface
     // ============================================================================
 
@@ -317,6 +273,50 @@ namespace cpp_dbc::MongoDB
         }
     }
     #endif // __cpp_exceptions
+
+    // ============================================================================
+    // MongoDBConnection Implementation - Collection Registration (Public)
+    // ============================================================================
+
+    void MongoDBConnection::registerCollection(std::nothrow_t, std::weak_ptr<MongoDBCollection> collection) noexcept
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        if (m_activeCollections.size() > 50)
+        {
+            std::erase_if(m_activeCollections, [](const auto &w) { return w.expired(); });
+        }
+        m_activeCollections.insert(std::move(collection));
+        MONGODB_DEBUG("MongoDBConnection::registerCollection - Registered collection, total: " << m_activeCollections.size());
+    }
+
+    void MongoDBConnection::unregisterCollection(std::nothrow_t, std::weak_ptr<MongoDBCollection> collection) noexcept
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        m_activeCollections.erase(collection);
+        MONGODB_DEBUG("MongoDBConnection::unregisterCollection - Unregistered collection, remaining: " << m_activeCollections.size());
+    }
+
+    // ============================================================================
+    // MongoDBConnection Implementation - Cursor Registration (Public)
+    // ============================================================================
+
+    void MongoDBConnection::registerCursor(std::nothrow_t, std::weak_ptr<MongoDBCursor> cursor) noexcept
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        if (m_activeCursors.size() > 50)
+        {
+            std::erase_if(m_activeCursors, [](const auto &w) { return w.expired(); });
+        }
+        m_activeCursors.insert(std::move(cursor));
+        MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: " << m_activeCursors.size());
+    }
+
+    void MongoDBConnection::unregisterCursor(std::nothrow_t, std::weak_ptr<MongoDBCursor> cursor) noexcept
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        m_activeCursors.erase(cursor);
+        MONGODB_DEBUG("MongoDBConnection::unregisterCursor - Unregistered cursor, remaining: " << m_activeCursors.size());
+    }
 
 } // namespace cpp_dbc::MongoDB
 

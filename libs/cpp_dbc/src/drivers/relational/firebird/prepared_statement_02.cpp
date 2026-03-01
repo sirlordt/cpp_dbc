@@ -317,11 +317,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("A8B9C0D1E2F3", std::string("Exception in setBoolean: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("Z2JIOTY2DQEC", std::string("Exception in setBoolean: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("B9C0D1E2F3A4", "Unknown exception in setBoolean", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("ZVLP6Z3TJ1QW", "Unknown exception in setBoolean", system_utils::captureCallStack()));
         }
     }
 
@@ -353,11 +353,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("C0D1E2F3A4B5", std::string("Exception in setNull: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("CQFU8NWG4F8Z", std::string("Exception in setNull: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("D1E2F3A4B5C6", "Unknown exception in setNull", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("GR106THOYE9G", "Unknown exception in setNull", system_utils::captureCallStack()));
         }
     }
 
@@ -392,11 +392,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("E2F3A4B5C6D7", std::string("Exception in setDate: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("V48I5KV341HZ", std::string("Exception in setDate: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("F3A4B5C6D7E8", "Unknown exception in setDate", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("QNO7IPW8753E", "Unknown exception in setDate", system_utils::captureCallStack()));
         }
     }
 
@@ -437,7 +437,7 @@ namespace cpp_dbc::Firebird
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("B5C6D7E8F9A0", "Unknown exception in setTimestamp", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("P1YQIY30S02A", "Unknown exception in setTimestamp", system_utils::captureCallStack()));
         }
     }
 

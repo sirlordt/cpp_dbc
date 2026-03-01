@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file connection_01.cpp
- * @brief Redis connection implementation - deleters, handlers, constructor, destructor, move ops, DBConnection interface, basic KV, counter, list throwing
+ * @brief Redis connection implementation - deleters, handlers, nothrow constructor, private helpers, destructor, DBConnection interface (throwing), basic KV, counter, list
  */
 
 #include "cpp_dbc/drivers/kv/driver_redis.hpp"
@@ -52,14 +52,11 @@ namespace cpp_dbc::Redis
     // RedisReplyHandle Implementation
     // ============================================================================
 
-    RedisReplyHandle::RedisReplyHandle(redisReply *reply)
+    RedisReplyHandle::RedisReplyHandle(std::nothrow_t, redisReply *reply) noexcept
         : m_reply(reply)
     {
-        if (!m_reply)
-        {
-            throw DBException("D72E49F1A3B0", "Failed to create Redis reply (null pointer)",
-                              system_utils::captureCallStack());
-        }
+        // No null check: callers have already validated the reply pointer before constructing.
+        // The nothrow variant trusts its caller and simply takes ownership of the pointer.
     }
 
     RedisReplyHandle::~RedisReplyHandle() = default;
@@ -100,13 +97,14 @@ namespace cpp_dbc::Redis
     // ============================================================================
 
     RedisDBConnection::RedisDBConnection(
+        std::nothrow_t,
         const std::string &uri,
         const std::string &user,
         const std::string &password,
-        const std::map<std::string, std::string> &options)
+        const std::map<std::string, std::string> &options) noexcept
         : m_url(uri)
     {
-        REDIS_DEBUG("RedisDBConnection::constructor - Connecting to: " << uri);
+        REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - Connecting to: " << uri);
 
         // Parse the URI - supports both IPv4 and IPv6 (IPv6 addresses must be in brackets)
         // Examples: redis://localhost:6379/0, redis://192.168.1.1:6379, redis://[::1]:6379/0, redis://[2001:db8::1]:6379
@@ -136,8 +134,18 @@ namespace cpp_dbc::Redis
                 }
                 catch (const std::exception &ex)
                 {
-                    throw DBException("C58E02D9F1A8", "Invalid port in Redis URI: " + matches[2].str() + " - " + ex.what(),
-                                      system_utils::captureCallStack());
+                    m_initFailed = true;
+                    m_initError = DBException("C58E02D9F1A8", "Invalid port in Redis URI: " + matches[2].str() + " - " + ex.what(),
+                                              system_utils::captureCallStack());
+                    return;
+                }
+                catch (...)
+                {
+                    // Intentionally catching non-std exceptions from std::stoi to prevent terminate() in noexcept context
+                    m_initFailed = true;
+                    m_initError = DBException("HUAN9KM8N8SH", "Invalid port in Redis URI: " + matches[2].str() + " (unknown exception)",
+                                              system_utils::captureCallStack());
+                    return;
                 }
             }
 
@@ -149,19 +157,31 @@ namespace cpp_dbc::Redis
                 }
                 catch (const std::exception &ex)
                 {
-                    throw DBException("C58E02D9F1A9", "Invalid database index in Redis URI: " + matches[3].str() + " - " + ex.what(),
-                                      system_utils::captureCallStack());
+                    m_initFailed = true;
+                    m_initError = DBException("C58E02D9F1A9", "Invalid database index in Redis URI: " + matches[3].str() + " - " + ex.what(),
+                                              system_utils::captureCallStack());
+                    return;
+                }
+                catch (...)
+                {
+                    // Intentionally catching non-std exceptions from std::stoi to prevent terminate() in noexcept context
+                    m_initFailed = true;
+                    m_initError = DBException("7GGFM9K667HP", "Invalid database index in Redis URI: " + matches[3].str() + " (unknown exception)",
+                                              system_utils::captureCallStack());
+                    return;
                 }
             }
         }
         else
         {
-            throw DBException("C58E02D9F1A7", "Invalid Redis URI format: " + uri,
-                              system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = DBException("C58E02D9F1A7", "Invalid Redis URI format: " + uri,
+                                      system_utils::captureCallStack());
+            return;
         }
 
-        REDIS_DEBUG("RedisDBConnection::constructor - Connecting to host: " << host
-                                                                          << " port: " << port << " db: " << m_dbIndex);
+        REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - Connecting to host: " << host
+                                                                                     << " port: " << port << " db: " << m_dbIndex);
 
         // Connect to Redis server with configurable timeout
         // Default: 3 seconds, can be overridden via "connect_timeout" option (in milliseconds)
@@ -175,12 +195,18 @@ namespace cpp_dbc::Redis
                 if (timeoutMs <= 0)
                 {
                     timeoutMs = 3000; // Reset to default if invalid
-                    REDIS_DEBUG("RedisDBConnection::constructor - Invalid connect_timeout value, using default 3000ms");
+                    REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - Invalid connect_timeout value, using default 3000ms");
                 }
             }
             catch (const std::exception &ex)
             {
-                REDIS_DEBUG("RedisDBConnection::constructor - Failed to parse connect_timeout: " << ex.what() << ", using default 3000ms");
+                REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - Failed to parse connect_timeout: " << ex.what() << ", using default 3000ms");
+                timeoutMs = 3000;
+            }
+            catch (...)
+            {
+                // Intentionally catching non-std exceptions from std::stoll; fall back to default
+                REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - Failed to parse connect_timeout: unknown exception, using default 3000ms");
                 timeoutMs = 3000;
             }
         }
@@ -206,7 +232,7 @@ namespace cpp_dbc::Redis
         timeout.tv_sec = static_cast<time_t>(timeoutMs / 1000);                              // NOSONAR - intentional cast for portability
         timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>((timeoutMs % 1000) * 1000); // NOSONAR - intentional cast for portability
 
-        REDIS_DEBUG("RedisDBConnection::constructor - Using connect timeout: " << timeoutMs << "ms");
+        REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - Using connect timeout: " << timeoutMs << "ms");
         redisContext *context = redisConnectWithTimeout(host.c_str(), port, timeout);
 
         if (!context || context->err)
@@ -216,8 +242,10 @@ namespace cpp_dbc::Redis
             {
                 redisFree(context);
             }
-            throw DBException("B49D7C01E3F5", "Redis connection failed: " + errorMsg,
-                              system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = DBException("B49D7C01E3F5", "Redis connection failed: " + errorMsg,
+                                      system_utils::captureCallStack());
+            return;
         }
 
         // Create shared_ptr with custom deleter
@@ -247,8 +275,10 @@ namespace cpp_dbc::Redis
                 {
                     freeReplyObject(reply);
                 }
-                throw DBException("A76F5C23D89B", "Redis authentication failed: " + errorMsg,
-                                  system_utils::captureCallStack());
+                m_initFailed = true;
+                m_initError = DBException("A76F5C23D89B", "Redis authentication failed: " + errorMsg,
+                                          system_utils::captureCallStack());
+                return;
             }
 
             freeReplyObject(reply);
@@ -257,7 +287,13 @@ namespace cpp_dbc::Redis
         // Select database if specified
         if (m_dbIndex > 0)
         {
-            selectDatabase(m_dbIndex);
+            auto selectResult = selectDatabase(std::nothrow, m_dbIndex);
+            if (!selectResult.has_value())
+            {
+                m_initFailed = true;
+                m_initError = selectResult.error();
+                return;
+            }
         }
 
         // Handle connection options
@@ -272,15 +308,141 @@ namespace cpp_dbc::Redis
                 {
                     if (reply->type == REDIS_REPLY_ERROR)
                     {
-                        REDIS_DEBUG("RedisDBConnection::constructor - CLIENT SETNAME failed: " << reply->str);
+                        REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - CLIENT SETNAME failed: " << reply->str);
                     }
                     freeReplyObject(reply);
                 }
             }
         }
 
-        m_closed = false;
-        REDIS_DEBUG("RedisDBConnection::constructor - Connected successfully");
+        REDIS_DEBUG("RedisDBConnection::constructor(nothrow) - Connected successfully");
+    }
+
+    // ============================================================================
+    // RedisDBConnection - Private helper methods
+    // ============================================================================
+
+    cpp_dbc::expected<void, DBException> RedisDBConnection::validateConnection(std::nothrow_t) const noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire) || !m_context)
+        {
+            return cpp_dbc::unexpected(DBException("F92C4A6E7D10", "Redis connection is closed or invalid",
+                                                   system_utils::captureCallStack()));
+        }
+        return {};
+    }
+
+    cpp_dbc::expected<std::string, DBException> RedisDBConnection::extractString(
+        std::nothrow_t, const RedisReplyHandle &reply) const noexcept
+    {
+        if (!reply.get())
+        {
+            return std::string{};
+        }
+
+        if (reply.get()->type == REDIS_REPLY_STRING || reply.get()->type == REDIS_REPLY_STATUS)
+        {
+            return std::string(reply.get()->str, reply.get()->len);
+        }
+        else if (reply.get()->type == REDIS_REPLY_NIL)
+        {
+            return std::string{};
+        }
+        else if (reply.get()->type == REDIS_REPLY_INTEGER)
+        {
+            return std::to_string(reply.get()->integer);
+        }
+
+        return std::string{};
+    }
+
+    cpp_dbc::expected<int64_t, DBException> RedisDBConnection::extractInteger(
+        std::nothrow_t, const RedisReplyHandle &reply) const noexcept
+    {
+        if (!reply.get())
+        {
+            return int64_t{0};
+        }
+
+        if (reply.get()->type == REDIS_REPLY_INTEGER)
+        {
+            return reply.get()->integer;
+        }
+        else if (reply.get()->type == REDIS_REPLY_STRING)
+        {
+            try
+            {
+                return std::stoll(std::string(reply.get()->str, reply.get()->len));
+            }
+            catch (const std::exception &ex)
+            {
+                REDIS_DEBUG("RedisDBConnection::extractInteger - Failed to parse: " << ex.what());
+                return int64_t{0};
+            }
+            catch (...)
+            {
+                // Intentionally empty — non-std exceptions during string parse silenced; return 0
+                return int64_t{0};
+            }
+        }
+
+        return int64_t{0};
+    }
+
+    cpp_dbc::expected<std::vector<std::string>, DBException> RedisDBConnection::extractArray(
+        std::nothrow_t, const RedisReplyHandle &reply) const noexcept
+    {
+        std::vector<std::string> result;
+
+        if (!reply.get() || reply.get()->type != REDIS_REPLY_ARRAY)
+        {
+            return result;
+        }
+
+        for (size_t i = 0; i < reply.get()->elements; ++i)
+        {
+            redisReply *element = reply.get()->element[i];
+
+            // Defensive null check to prevent crashes
+            if (!element)
+            {
+                result.emplace_back("");
+                continue;
+            }
+
+            if (element->type == REDIS_REPLY_STRING || element->type == REDIS_REPLY_STATUS)
+            {
+                result.emplace_back(element->str, element->len);
+            }
+            else if (element->type == REDIS_REPLY_INTEGER)
+            {
+                result.emplace_back(std::to_string(element->integer));
+            }
+            else if (element->type == REDIS_REPLY_NIL)
+            {
+                result.emplace_back("");
+            }
+        }
+
+        return result;
+    }
+
+    std::optional<double> RedisDBConnection::tryParseDouble(const std::string &str) noexcept
+    {
+        try
+        {
+            return std::stod(str);
+        }
+        catch ([[maybe_unused]] const std::exception &ex)
+        {
+            REDIS_DEBUG("RedisDBConnection::tryParseDouble - Failed to parse: " << str << " error: " << ex.what());
+            return std::nullopt;
+        }
+        catch (...)
+        {
+            REDIS_DEBUG("RedisDBConnection::tryParseDouble - Failed to parse: " << str << " unknown error");
+            return std::nullopt;
+        }
     }
 
     RedisDBConnection::~RedisDBConnection()
@@ -307,45 +469,9 @@ namespace cpp_dbc::Redis
         REDIS_DEBUG("RedisDBConnection::destructor - Done");
     }
 
-    RedisDBConnection::RedisDBConnection(RedisDBConnection &&other) noexcept
-        : m_context(std::move(other.m_context)),
-          m_url(std::move(other.m_url)),
-          m_dbIndex(other.m_dbIndex),
-          m_closed(other.m_closed.load())
-    {
-        other.m_closed = true;
-    }
-
-    RedisDBConnection &RedisDBConnection::operator=(RedisDBConnection &&other) noexcept
-    {
-        if (this != &other)
-        {
-            if (!m_closed.load(std::memory_order_acquire))
-            {
-                // Prefer nothrow close to avoid exception risk inside noexcept context
-                auto closeResult = close(std::nothrow);
-                if (!closeResult.has_value())
-                {
-                    // Close failed — force-reset to maintain invariants and continue with move
-                    REDIS_DEBUG("RedisDBConnection::operator= - close(nothrow) failed: " << closeResult.error().what_s() << ", continuing with move");
-                    m_context.reset();
-                    m_closed.store(true, std::memory_order_release);
-                }
-            }
-
-            m_context = std::move(other.m_context);
-            m_url = std::move(other.m_url);
-            m_dbIndex = other.m_dbIndex;
-            m_closed.store(other.m_closed.load(std::memory_order_acquire), std::memory_order_release);
-
-            other.m_closed.store(true, std::memory_order_release);
-        }
-        return *this;
-    }
-
     // DBConnection interface implementation
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     void RedisDBConnection::close()
     {
         auto result = close(std::nothrow);
@@ -391,7 +517,7 @@ namespace cpp_dbc::Redis
     // KVDBConnection interface implementation - Basic key-value operations
 
     bool RedisDBConnection::setString(const std::string &key, const std::string &value,
-                                    std::optional<int64_t> expirySeconds)
+                                      std::optional<int64_t> expirySeconds)
     {
         auto result = setString(std::nothrow, key, value, expirySeconds);
         if (!result.has_value())
@@ -545,7 +671,7 @@ namespace cpp_dbc::Redis
         }
         return *result;
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::Redis
 

@@ -94,17 +94,9 @@ namespace cpp_dbc::ScyllaDB
     public:
         ~ScyllaDBPreparedStatement() override;
 
-        static cpp_dbc::expected<std::shared_ptr<ScyllaDBPreparedStatement>, DBException>
-        create(std::nothrow_t,
-               std::weak_ptr<CassSession> session,
-               const std::string &query,
-               const CassPrepared *prepared) noexcept
-        {
-            // Use new directly — constructor is private, so std::make_shared cannot access it.
-            // No try/catch needed: the nothrow constructor never throws.
-            return std::shared_ptr<ScyllaDBPreparedStatement>(
-                new ScyllaDBPreparedStatement(std::nothrow, session, query, prepared));
-        }
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
 #ifdef __cpp_exceptions
         static std::shared_ptr<ScyllaDBPreparedStatement>
@@ -144,9 +136,22 @@ namespace cpp_dbc::ScyllaDB
         void close() override;
 
 #endif // __cpp_exceptions
-       // ====================================================================
-       // NOTHROW VERSIONS - Exception-free API
-       // ====================================================================
+
+        // ====================================================================
+        // NOTHROW API — exception-free, always available
+        // ====================================================================
+
+        static cpp_dbc::expected<std::shared_ptr<ScyllaDBPreparedStatement>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<CassSession> session,
+               const std::string &query,
+               const CassPrepared *prepared) noexcept
+        {
+            // Use new directly — constructor is private, so std::make_shared cannot access it.
+            // No try/catch needed: the nothrow constructor never throws.
+            return std::shared_ptr<ScyllaDBPreparedStatement>(
+                new ScyllaDBPreparedStatement(std::nothrow, session, query, prepared));
+        }
 
         [[nodiscard]] cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept override;
         [[nodiscard]] cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept override;

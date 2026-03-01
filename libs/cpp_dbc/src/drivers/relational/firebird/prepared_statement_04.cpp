@@ -198,11 +198,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("C8D9E0F1A2B3", std::string("Exception in executeUpdate: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("YG9JUZJPLI8K", std::string("Exception in executeUpdate: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("D9E0F1A2B3C4", "Unknown exception in executeUpdate", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("3B7VAPY1CKRC", "Unknown exception in executeUpdate", system_utils::captureCallStack()));
         }
     }
 
@@ -248,11 +248,11 @@ namespace cpp_dbc::Firebird
         }
         catch (const std::exception &e)
         {
-            return cpp_dbc::unexpected(DBException("E0F1A2B3C4D5", std::string("Exception in execute: ") + e.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("DW2B453AWA0H", std::string("Exception in execute: ") + e.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("F1A2B3C4D5E6", "Unknown exception in execute", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("7412Z1JIL71U", "Unknown exception in execute", system_utils::captureCallStack()));
         }
     }
 

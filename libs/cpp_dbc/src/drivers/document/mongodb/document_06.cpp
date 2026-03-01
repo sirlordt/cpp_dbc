@@ -51,7 +51,7 @@ namespace cpp_dbc::MongoDB
         if (!BSON_ITER_HOLDS_UTF8(&iter))
         {
             return unexpected<DBException>(DBException(
-                "8B9C0D1E2F3A",
+                "73PGMS31DBTT",
                 "Field is not a string: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -74,7 +74,7 @@ namespace cpp_dbc::MongoDB
         if (!*nav)
         {
             return unexpected<DBException>(DBException(
-                "1E2F3A4B5C6D",
+                "5KQJWMGPA4DR",
                 "Field not found: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -90,7 +90,7 @@ namespace cpp_dbc::MongoDB
         else
         {
             return unexpected<DBException>(DBException(
-                "2F3A4B5C6D7E",
+                "MPJ01JP0VTF9",
                 "Field is not an integer: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -109,7 +109,7 @@ namespace cpp_dbc::MongoDB
         if (!*nav)
         {
             return unexpected<DBException>(DBException(
-                "5C6D7E8F9A0B",
+                "RYTVNGX2A6I7",
                 "Field not found: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -129,7 +129,7 @@ namespace cpp_dbc::MongoDB
         else
         {
             return unexpected<DBException>(DBException(
-                "6D7E8F9A0B1C",
+                "0FUWA2WLGIDG",
                 "Field is not a number: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -148,7 +148,7 @@ namespace cpp_dbc::MongoDB
         if (!*nav)
         {
             return unexpected<DBException>(DBException(
-                "9A0B1C2D3E4F",
+                "051XCGDXXMHB",
                 "Field not found: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -211,7 +211,7 @@ namespace cpp_dbc::MongoDB
         if (!*nav)
         {
             return unexpected<DBException>(DBException(
-                "8D9E0F1A2B3C",
+                "8XRRGGDLL8T3",
                 "Field not found: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -219,7 +219,7 @@ namespace cpp_dbc::MongoDB
         if (!BSON_ITER_HOLDS_DOCUMENT(&iter))
         {
             return unexpected<DBException>(DBException(
-                "9E0F1A2B3C4D",
+                "19748SFF3VQI",
                 "Field is not a document: " + fieldPath,
                 system_utils::captureCallStack()));
         }
@@ -232,7 +232,7 @@ namespace cpp_dbc::MongoDB
         if (!subdoc)
         {
             return unexpected<DBException>(DBException(
-                "0F1A2B3C4D5E",
+                "YB5QK5036ZKR",
                 "Failed to extract subdocument",
                 system_utils::captureCallStack()));
         }

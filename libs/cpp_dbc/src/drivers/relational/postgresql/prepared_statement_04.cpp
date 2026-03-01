@@ -91,7 +91,7 @@ namespace cpp_dbc::PostgreSQL
             {
                 std::string error = PQresultErrorMessage(result);
                 PQclear(result);
-                return cpp_dbc::unexpected<DBException>(DBException("9A0B1C2D3E4F", "Failed to execute query: " + error, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7ZYR9G76KRKT", "Failed to execute query: " + error, system_utils::captureCallStack()));
             }
 
             auto rsResult = PostgreSQLDBResultSet::create(std::nothrow, result);

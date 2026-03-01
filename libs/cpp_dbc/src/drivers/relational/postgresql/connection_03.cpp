@@ -165,7 +165,7 @@ namespace cpp_dbc::PostgreSQL
             {
                 std::string error = PQresultErrorMessage(result);
                 PQclear(result);
-                return cpp_dbc::unexpected<DBException>(DBException("5A6B7C8D9E0F", "Failed to set transaction isolation level: " + error, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("3Q37JJHOWQJE", "Failed to set transaction isolation level: " + error, system_utils::captureCallStack()));
             }
             PQclear(result);
 

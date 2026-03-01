@@ -27,7 +27,8 @@
 namespace cpp_dbc::MongoDB
 {
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
+
     void MongoDBDocument::setString(const std::string &fieldPath, const std::string &value)
     {
         auto r = setString(std::nothrow, fieldPath, value);
@@ -90,7 +91,7 @@ namespace cpp_dbc::MongoDB
             throw r.error();
         }
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB
 

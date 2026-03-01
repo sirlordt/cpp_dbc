@@ -58,18 +58,17 @@ namespace cpp_dbc::MongoDB
 #endif
 
         /**
-         * @brief Helper to navigate to a nested field using dot notation (nothrow)
-         * @param fieldPath The field path (e.g., "address.city")
-         * @param outIter Output iterator positioned at the field
-         * @return expected containing true if found, or DBException on error
+         * @brief Flag indicating constructor initialization failed
+         *
+         * Set by private nothrow constructors when initialization fails.
+         * Inspected by create(nothrow_t) to convert to unexpected.
          */
-        expected<bool, DBException> navigateToField(std::nothrow_t, const std::string &fieldPath, bson_iter_t &outIter) const noexcept;
+        bool m_initFailed{false};
 
         /**
-         * @brief Validates that the BSON document is valid (nothrow)
-         * @return expected<void> or DBException if m_bson is nullptr
+         * @brief Error captured when constructor initialization fails
          */
-        expected<void, DBException> validateDocument(std::nothrow_t) const noexcept;
+        DBException m_initError{"QBIW9CD0D9T6", "", {}};
 
         // Private nothrow constructors: contain all initialization logic.
         // Never throw — create(std::nothrow_t) is the only nothrow entry point.
@@ -99,52 +98,21 @@ namespace cpp_dbc::MongoDB
         explicit MongoDBDocument(std::nothrow_t, const std::string &json) noexcept;
 
         /**
-         * @brief Flag indicating constructor initialization failed
-         *
-         * Set by private nothrow constructors when initialization fails.
-         * Inspected by create(nothrow_t) to convert to unexpected.
+         * @brief Helper to navigate to a nested field using dot notation (nothrow)
+         * @param fieldPath The field path (e.g., "address.city")
+         * @param outIter Output iterator positioned at the field
+         * @return expected containing true if found, or DBException on error
          */
-        bool m_initFailed{false};
+        expected<bool, DBException> navigateToField(std::nothrow_t, const std::string &fieldPath, bson_iter_t &outIter) const noexcept;
 
         /**
-         * @brief Error captured when constructor initialization fails
+         * @brief Validates that the BSON document is valid (nothrow)
+         * @return expected<void> or DBException if m_bson is nullptr
          */
-        DBException m_initError{"QBIW9CD0D9T6", "", {}};
+        expected<void, DBException> validateDocument(std::nothrow_t) const noexcept;
 
     public:
         ~MongoDBDocument() override = default;
-
-        // ====================================================================
-        // NOTHROW FACTORIES — always available, compiles with -fno-exceptions
-        // ====================================================================
-
-        /**
-         * @brief Nothrow factory — creates an empty BSON document.
-         *
-         * @return expected containing the new document, or DBException on allocation failure.
-         */
-        static expected<std::shared_ptr<MongoDBDocument>, DBException> create(std::nothrow_t) noexcept;
-
-        /**
-         * @brief Nothrow factory — takes ownership of an existing BSON pointer.
-         *
-         * Use this whenever a document must be built from a raw bson_t* without exceptions
-         * (e.g. under -fno-exceptions or inside a noexcept method).
-         *
-         * Precondition: bson must not be null (callers must check before invoking).
-         *
-         * @param bson Raw BSON pointer whose ownership is transferred to the new document.
-         * @return expected containing the new document, or DBException on allocation failure.
-         */
-        static expected<std::shared_ptr<MongoDBDocument>, DBException> create(std::nothrow_t, bson_t *bson) noexcept;
-
-        /**
-         * @brief Nothrow factory — parses a JSON string into a new document.
-         *
-         * @param json The JSON string to parse.
-         * @return expected containing the new document, or DBException if parsing fails.
-         */
-        static expected<std::shared_ptr<MongoDBDocument>, DBException> create(std::nothrow_t, const std::string &json) noexcept;
 
         // Non-copyable and non-movable: always managed via shared_ptr from create().
         // Copy semantics are covered by clone(). Move is not needed since the object
@@ -230,6 +198,41 @@ namespace cpp_dbc::MongoDB
         // NOTHROW API — exception-free, always available
         // ====================================================================
 
+        /**
+         * @brief Nothrow factory — creates an empty BSON document.
+         *
+         * @return expected containing the new document, or DBException on allocation failure.
+         */
+        static expected<std::shared_ptr<MongoDBDocument>, DBException> create(std::nothrow_t) noexcept;
+
+        /**
+         * @brief Nothrow factory — takes ownership of an existing BSON pointer.
+         *
+         * Use this whenever a document must be built from a raw bson_t* without exceptions
+         * (e.g. under -fno-exceptions or inside a noexcept method).
+         *
+         * Precondition: bson must not be null (callers must check before invoking).
+         *
+         * @param bson Raw BSON pointer whose ownership is transferred to the new document.
+         * @return expected containing the new document, or DBException on allocation failure.
+         */
+        static expected<std::shared_ptr<MongoDBDocument>, DBException> create(std::nothrow_t, bson_t *bson) noexcept;
+
+        /**
+         * @brief Nothrow factory — parses a JSON string into a new document.
+         *
+         * @param json The JSON string to parse.
+         * @return expected containing the new document, or DBException if parsing fails.
+         */
+        static expected<std::shared_ptr<MongoDBDocument>, DBException> create(std::nothrow_t, const std::string &json) noexcept;
+
+        /**
+         * @brief Create a deep copy of a const BSON document (nothrow)
+         * @param bson The source BSON document to copy from
+         * @return expected containing the new document, or DBException if bson is null or copy fails
+         */
+        static expected<std::shared_ptr<MongoDBDocument>, DBException> copyFrom(std::nothrow_t, const bson_t *bson) noexcept;
+
         expected<std::string, DBException> getId(std::nothrow_t) const noexcept override;
         expected<void, DBException> setId(std::nothrow_t, const std::string &id) noexcept override;
 
@@ -292,13 +295,6 @@ namespace cpp_dbc::MongoDB
          * @note Use with caution - modifications may invalidate cached data
          */
         bson_t *getBsonMutable();
-
-        /**
-         * @brief Create a deep copy of a const BSON document (nothrow)
-         * @param bson The source BSON document to copy from
-         * @return expected containing the new document, or DBException if bson is null or copy fails
-         */
-        static expected<std::shared_ptr<MongoDBDocument>, DBException> copyFrom(std::nothrow_t, const bson_t *bson) noexcept;
     };
 
 } // namespace cpp_dbc::MongoDB

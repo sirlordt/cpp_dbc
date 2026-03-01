@@ -62,7 +62,13 @@ namespace cpp_dbc::MongoDB
                 return unexpected<DBException>(filterResult.error());
             }
             BsonHandle filterBson = std::move(filterResult.value());
-            BsonHandle updateBson = makeBsonHandleFromJson(update);
+
+            auto updateBsonResult = makeBsonHandleFromJson(std::nothrow, update);
+            if (!updateBsonResult.has_value())
+            {
+                return unexpected<DBException>(updateBsonResult.error());
+            }
+            BsonHandle updateBson = std::move(updateBsonResult.value());
 
             bson_t opts = BSON_INITIALIZER;
             if (options.upsert)
@@ -164,7 +170,13 @@ namespace cpp_dbc::MongoDB
                 return unexpected<DBException>(filterResult.error());
             }
             BsonHandle filterBson = std::move(filterResult.value());
-            BsonHandle updateBson = makeBsonHandleFromJson(update);
+
+            auto updateBsonResult = makeBsonHandleFromJson(std::nothrow, update);
+            if (!updateBsonResult.has_value())
+            {
+                return unexpected<DBException>(updateBsonResult.error());
+            }
+            BsonHandle updateBson = std::move(updateBsonResult.value());
 
             bson_t opts = BSON_INITIALIZER;
             if (options.upsert)
@@ -302,7 +314,7 @@ namespace cpp_dbc::MongoDB
             {
                 bson_destroy(&reply);
                 return unexpected<DBException>(DBException(
-                    "D9E0F1A2B3C4",
+                    "CQPAGOVXJN0Z",
                     std::string("replaceOne failed: ") + error.message,
                     system_utils::captureCallStack()));
             }
@@ -317,21 +329,21 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "E0F1A2B3C4D5",
+                "SAOB1UJ2HYAN",
                 "Memory allocation failed in replaceOne",
                 system_utils::captureCallStack()));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "F1A2B3C4D5E6",
+                "EA1OE9V91RLD",
                 std::string("Unexpected error in replaceOne: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "A2B3C4D5E6F7",
+                "NKRWKKNKU5MZ",
                 "Unknown error in replaceOne",
                 system_utils::captureCallStack()));
         }

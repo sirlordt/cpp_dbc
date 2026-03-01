@@ -50,12 +50,17 @@ namespace cpp_dbc::MongoDB
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "B5C6D7E8F9A0",
+                    "0YQZ6L3A2KIT",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
 
-            BsonHandle keysBson = makeBsonHandleFromJson(keys);
+            auto keysBsonResult = makeBsonHandleFromJson(std::nothrow, keys);
+            if (!keysBsonResult.has_value())
+            {
+                return unexpected<DBException>(keysBsonResult.error());
+            }
+            BsonHandle keysBson = std::move(keysBsonResult.value());
 
             mongoc_index_opt_t indexOpts;
             mongoc_index_opt_init(&indexOpts);
@@ -132,7 +137,7 @@ namespace cpp_dbc::MongoDB
             if (!success)
             {
                 return unexpected<DBException>(DBException(
-                    "C6D7E8F9A0B1",
+                    "7XT99XJD1MTY",
                     std::string("createIndex failed: ") + error.message,
                     system_utils::captureCallStack()));
             }
@@ -146,21 +151,21 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "D7E8F9A0B1C2",
+                "9LPAK5FMMYYG",
                 "Memory allocation failed in createIndex",
                 system_utils::captureCallStack()));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "E8F9A0B1C2D3",
+                "6S4ZDEJIWD46",
                 std::string("Unexpected error in createIndex: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "F9A0B1C2D3E4",
+                "2X6F38U6BCGB",
                 "Unknown error in createIndex",
                 system_utils::captureCallStack()));
         }
@@ -178,7 +183,7 @@ namespace cpp_dbc::MongoDB
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "A0B1C2D3E4F5",
+                    "VEL150XDHYR0",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
@@ -189,7 +194,7 @@ namespace cpp_dbc::MongoDB
             if (!success)
             {
                 return unexpected<DBException>(DBException(
-                    "B1C2D3E4F5A6",
+                    "FJBVW4E7VW6I",
                     std::string("dropIndex failed: ") + error.message,
                     system_utils::captureCallStack()));
             }
@@ -203,14 +208,14 @@ namespace cpp_dbc::MongoDB
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "C2D3E4F5A6B7",
+                "2RZ9WXVWKBYD",
                 std::string("Unexpected error in dropIndex: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "D3E4F5A6B7C8",
+                "530EXDK9GE03",
                 "Unknown error in dropIndex",
                 system_utils::captureCallStack()));
         }
@@ -227,7 +232,7 @@ namespace cpp_dbc::MongoDB
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "E4F5A6B7C8D9",
+                    "N0T9W636KMQL",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
@@ -255,7 +260,7 @@ namespace cpp_dbc::MongoDB
             if (!success)
             {
                 return unexpected<DBException>(DBException(
-                    "F5A6B7C8D9E0",
+                    "SOKCW51FVEH5",
                     std::string("dropAllIndexes failed: ") + error.message,
                     system_utils::captureCallStack()));
             }
@@ -269,14 +274,14 @@ namespace cpp_dbc::MongoDB
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "A6B7C8D9E0F1",
+                "FA4WVLT3XAI7",
                 std::string("Unexpected error in dropAllIndexes: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "B7C8D9E0F1A2",
+                "HJSHBTM33109",
                 "Unknown error in dropAllIndexes",
                 system_utils::captureCallStack()));
         }
@@ -293,7 +298,7 @@ namespace cpp_dbc::MongoDB
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "C8D9E0F1A2B3",
+                    "UUX8YNHN90X5",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
@@ -343,21 +348,21 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "D9E0F1A2B3C4",
+                "SEBH3RD25UXD",
                 "Memory allocation failed in listIndexes",
                 system_utils::captureCallStack()));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "E0F1A2B3C4D5",
+                "UXFKWGMA9P3P",
                 std::string("Unexpected error in listIndexes: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "F1A2B3C4D5E6",
+                "J6QVBK077HHA",
                 "Unknown error in listIndexes",
                 system_utils::captureCallStack()));
         }

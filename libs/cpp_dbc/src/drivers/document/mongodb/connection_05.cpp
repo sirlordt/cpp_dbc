@@ -64,81 +64,61 @@ namespace cpp_dbc::MongoDB
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::runCommand(
         std::nothrow_t, const std::string &command) noexcept
     {
-        try
+        MONGODB_LOCK_GUARD(*m_connMutex);
+
+        if (m_closed.load(std::memory_order_acquire))
         {
-            MONGODB_LOCK_GUARD(*m_connMutex);
+            return unexpected<DBException>(DBException(
+                "44TYH8VEG840",
+                "Connection has been closed"));
+        }
 
-            if (m_closed.load(std::memory_order_acquire))
-            {
-                return unexpected<DBException>(DBException(
-                    "6B7C8D9E0F1A",
-                    "Connection has been closed"));
-            }
+        if (m_databaseName.empty())
+        {
+            return unexpected<DBException>(DBException(
+                "2Q3BVH2J9131",
+                "No database selected. Call useDatabase() first"));
+        }
 
-            if (m_databaseName.empty())
-            {
-                return unexpected<DBException>(DBException(
-                    "7C8D9E0F1A2B",
-                    "No database selected. Call useDatabase() first"));
-            }
+        auto cmdBsonResult = makeBsonHandleFromJson(std::nothrow, command);
+        if (!cmdBsonResult.has_value())
+        {
+            return unexpected<DBException>(cmdBsonResult.error());
+        }
+        BsonHandle cmdBson = std::move(cmdBsonResult.value());
 
-            BsonHandle cmdBson = makeBsonHandleFromJson(command);
+        MongoDatabaseHandle db(mongoc_client_get_database(m_client.get(), m_databaseName.c_str()));
 
-            MongoDatabaseHandle db(mongoc_client_get_database(m_client.get(), m_databaseName.c_str()));
+        bson_error_t error;
+        bson_t reply;
+        bson_init(&reply);
 
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
+        bool success = mongoc_database_command_simple(db.get(), cmdBson.get(), nullptr, &reply, &error);
 
-            bool success = mongoc_database_command_simple(db.get(), cmdBson.get(), nullptr, &reply, &error);
-
-            if (!success)
-            {
-                bson_destroy(&reply);
-                return unexpected<DBException>(DBException(
-                    "8D9E0F1A2B3C",
-                    std::string("Command failed: ") + error.message));
-            }
-
-            bson_t *replyCopy = bson_copy(&reply);
+        if (!success)
+        {
             bson_destroy(&reply);
+            return unexpected<DBException>(DBException(
+                "1T8I8LQS1TCB",
+                std::string("Command failed: ") + error.message));
+        }
 
-            if (!replyCopy)
-            {
-                return unexpected<DBException>(DBException(
-                    "9E0F1A2B3C4D",
-                    "Failed to copy command reply"));
-            }
+        bson_t *replyCopy = bson_copy(&reply);
+        bson_destroy(&reply);
 
-            auto docResult = MongoDBDocument::create(std::nothrow, replyCopy);
-            if (!docResult.has_value())
-            {
-                return unexpected<DBException>(docResult.error());
-            }
-            return std::static_pointer_cast<DocumentDBData>(docResult.value());
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        if (!replyCopy)
         {
             return unexpected<DBException>(DBException(
-                "0F1A2B3C4D5E",
-                "Memory allocation failed in runCommand"));
+                "9J4REIE6R4YN",
+                "Failed to copy command reply"));
         }
-        catch (const std::exception &ex)
+
+        auto docResult = MongoDBDocument::create(std::nothrow, replyCopy);
+        if (!docResult.has_value())
         {
-            return unexpected<DBException>(DBException(
-                "1A2B3C4D5E6F",
-                std::string("Unexpected error in runCommand: ") + ex.what()));
+            return unexpected<DBException>(docResult.error());
         }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "2B3C4D5E6F7A",
-                "Unknown error in runCommand"));
-        }
+        return std::static_pointer_cast<DocumentDBData>(docResult.value());
     }
 
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerInfo(std::nothrow_t) noexcept

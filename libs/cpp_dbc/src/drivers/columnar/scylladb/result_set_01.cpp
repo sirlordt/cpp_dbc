@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file result_set_01.cpp
- * @brief ScyllaDB database driver implementation - ScyllaDBResultSet constructor, destructor and throwing wrappers
+ * @brief ScyllaDB database driver implementation - ScyllaDBResultSet private helpers, constructor, destructor and throwing wrappers
  */
 
 #include "cpp_dbc/drivers/columnar/driver_scylladb.hpp"
@@ -34,6 +34,35 @@
 
 namespace cpp_dbc::ScyllaDB
 {
+    // ====================================================================
+    // Private helpers
+    // ====================================================================
+
+    cpp_dbc::expected<void, DBException> ScyllaDBResultSet::validateResultState(std::nothrow_t) const noexcept
+    {
+        if (!m_iterator)
+        {
+            SCYLLADB_DEBUG("ScyllaDBResultSet::validateResultState - ResultSet is closed");
+            return cpp_dbc::unexpected(DBException("WIYIA79MF50M", "ResultSet is closed", system_utils::captureCallStack()));
+        }
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> ScyllaDBResultSet::validateCurrentRow(std::nothrow_t) const noexcept
+    {
+        auto result = validateResultState(std::nothrow);
+        if (!result.has_value())
+        {
+            return result;
+        }
+        if (!m_currentRow)
+        {
+            SCYLLADB_DEBUG("ScyllaDBResultSet::validateCurrentRow - No current row available");
+            return cpp_dbc::unexpected(DBException("U2V3W4X5Y6Z7", "No current row available", system_utils::captureCallStack()));
+        }
+        return {};
+    }
+
     // ====================================================================
     // ScyllaDBResultSet — constructor (always compiled)
     // ====================================================================

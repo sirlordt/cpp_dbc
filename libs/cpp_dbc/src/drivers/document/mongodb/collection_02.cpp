@@ -95,14 +95,20 @@ namespace cpp_dbc::MongoDB
             {
                 bson_destroy(&reply);
                 return unexpected<DBException>(DBException(
-                    "F7G8H9I0J1K2",
+                    "HFCOF0QROEDU",
                     std::string("Insert failed: ") + error.message,
                     system_utils::captureCallStack()));
             }
 
             DocumentInsertResult result;
             result.acknowledged = true;
-            result.insertedId = mongoDoc->getId();
+            auto idResult = mongoDoc->getId(std::nothrow);
+            if (!idResult.has_value())
+            {
+                bson_destroy(&reply);
+                return unexpected<DBException>(idResult.error());
+            }
+            result.insertedId = idResult.value();
             result.insertedCount = 1;
 
             bson_destroy(&reply);
@@ -122,7 +128,7 @@ namespace cpp_dbc::MongoDB
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "74B74B69CF86",
+                "PTKLNILERTGP",
                 std::string("Unexpected error in insertOne: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
@@ -233,7 +239,15 @@ namespace cpp_dbc::MongoDB
                 {
                     auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(doc);
                     if (mongoDoc)
-                        result.insertedIds.push_back(mongoDoc->getId());
+                    {
+                        auto idResult = mongoDoc->getId(std::nothrow);
+                        if (!idResult.has_value())
+                        {
+                            bson_destroy(&reply);
+                            return unexpected<DBException>(idResult.error());
+                        }
+                        result.insertedIds.push_back(idResult.value());
+                    }
                 }
             }
             else
@@ -262,7 +276,7 @@ namespace cpp_dbc::MongoDB
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "A2B3C4D5E6F7",
+                "I19ZDSW6SZ0Y",
                 std::string("Unexpected error in insertMany: ") + ex.what(),
                 system_utils::captureCallStack()));
         }

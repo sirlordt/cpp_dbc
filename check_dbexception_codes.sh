@@ -17,56 +17,84 @@ VALID_MARK_REGEX='^[A-Z0-9]{12}$'
 VALID_LETTER_MIN=5
 
 # ------------------------------------------------------------------------------
-# collect_all_marks
-# Outputs lines: FILE:LINE:MARK
-# Excludes commented-out lines.
-# Captures ANY string in the first argument position of DBException(...),
-# including empty string, lowercase, wrong length — everything.
+# collect_marks
+# Outputs lines: FILE:LINENO:MARK
+#
+# Handles ALL patterns where DBException("CODE", ...) appears:
+#
+#   Pattern 1 — code on the same line as DBException(:
+#     throw DBException("CODE", "msg", callstack);
+#     return unexpected(DBException("CODE", "msg", callstack));
+#     m_initError = DBException("CODE", "msg", callstack);
+#
+#   Pattern 2 — code on the line immediately after DBException(:
+#     return unexpected<DBException>(DBException(
+#         "CODE",
+#         "msg",
+#         callstack));
+#
+# Skips full-line comments (// ...).
+# Skips DBException( after an inline // comment on the same line.
+#
+# Line numbers are per-file (reset to 1 at each new file).
+# Uses: perl -e with explicit while + continue { close ARGV if eof }
+#       to correctly reset $. between files.
 # ------------------------------------------------------------------------------
-collect_all_marks() {
-    grep -rnP --include="*.cpp" --include="*.hpp" \
-        'DBException\s*\(\s*"[^"]*"\s*,' "${SCAN_DIRS[@]}" 2>/dev/null \
-    | grep -vP ':\s*//' \
-    | grep -vP '^\s*//' \
-    | grep -oP '^[^:]+:\d+:.*DBException\s*\(\s*"\K[^"]*' \
-    | while IFS= read -r line; do
-        # line is "FILE:LINE:MARK" but grep -oP consumed up to the mark
-        # We need to reconstruct — use a two-pass approach below
-        echo "$line"
-    done
-}
-
-# Better two-pass: extract FILE:LINE and MARK separately then combine
 collect_marks() {
-    grep -rnP --include="*.cpp" --include="*.hpp" \
-        'DBException\s*\(\s*"[^"]*"\s*,' "${SCAN_DIRS[@]}" 2>/dev/null \
-    | grep -vP ':\s*//' \
-    | grep -vPv '^\S' \
-    | while IFS=: read -r file line rest; do
-        mark=$(echo "$rest" | grep -oP 'DBException\s*\(\s*"\K[^"]*')
-        if [ -n "$mark" ] || echo "$rest" | grep -qP 'DBException\s*\(\s*""'; then
-            [ -z "$mark" ] && mark="<EMPTY>"
-            echo "$file:$line:$mark"
-        fi
-    done
-}
+    local files
+    mapfile -t files < <(
+        find "${SCAN_DIRS[@]}" \( -name "*.cpp" -o -name "*.hpp" \) 2>/dev/null | sort
+    )
+    [ ${#files[@]} -eq 0 ] && return
 
-# Reliable extraction via awk-style sed
-collect_marks() {
-    grep -rnP --include="*.cpp" --include="*.hpp" \
-        'DBException\s*\(\s*"[^"]*"\s*,' "${SCAN_DIRS[@]}" 2>/dev/null \
-    | grep -vP '(^\s*//)|(:\s*//.*DBException)' \
-    | while IFS= read -r fullline; do
-        # fullline = /path/file.cpp:42:    throw DBException("MARK", ...
-        file=$(echo "$fullline" | cut -d: -f1)
-        lineno=$(echo "$fullline" | cut -d: -f2)
-        mark=$(echo "$fullline" | grep -oP 'DBException\s*\(\s*"\K[^"]*')
-        # Handle empty mark case: DBException("", ...)
-        if echo "$fullline" | grep -qP 'DBException\s*\(\s*""'; then
-            mark="<EMPTY>"
-        fi
-        echo "${file}:${lineno}:${mark}"
-    done
+    perl -e '
+        while (<>) {
+            # Skip full-line comments
+            next if /^\s*\/\//;
+
+            # Skip lines without DBException(
+            next unless /DBException\s*\(/;
+
+            # Verify that DBException( is not after an inline // on this line
+            my $before_dbe = substr($_, 0, index($_, "DBException"));
+            next if $before_dbe =~ m{//};
+
+            # -------------------------------------------------------------------
+            # Pattern 1: "CODE" on the same line as DBException(
+            # -------------------------------------------------------------------
+            if (/DBException\s*\(\s*"([^"]*)"/) {
+                printf "%s:%d:%s\n", $ARGV, $., $1;
+                next;
+            }
+
+            # -------------------------------------------------------------------
+            # Pattern 2: "CODE" on the next line
+            # The line ends after DBException( with no quoted string.
+            # -------------------------------------------------------------------
+            my $cur_file = $ARGV;
+            my $lnum     = $.;
+            my $next     = <>;
+
+            # EOF of all files
+            last unless defined $next;
+
+            # Do not cross into the next file
+            next unless $ARGV eq $cur_file;
+
+            # Skip if the next line is a comment
+            next if $next =~ /^\s*\/\//;
+
+            # The next line must be only whitespace + a quoted string
+            if ($next =~ /^\s*"([^"]*)"/) {
+                printf "%s:%d:%s\n", $cur_file, $lnum, $1;
+            }
+
+        } continue {
+            # Reset $. to 0 at end of each file so the next file starts at 1.
+            # This gives correct per-file line numbers instead of cumulative ones.
+            close ARGV if eof;
+        }
+    ' "${files[@]}" 2>/dev/null
 }
 
 # ------------------------------------------------------------------------------
@@ -92,6 +120,7 @@ is_valid_mark() {
 # ------------------------------------------------------------------------------
 find_invalid_marks() {
     collect_marks | while IFS=: read -r file lineno mark; do
+        [ -z "$mark" ] && mark="<EMPTY>"
         if ! is_valid_mark "$mark"; then
             echo "${file}:${lineno}:${mark}"
         fi
@@ -110,6 +139,7 @@ find_duplicate_marks() {
     | awk '{marks[$2]=marks[$2] " " $1} END {
         for (m in marks) {
             n = split(marks[m], files, " ")
+            delete seen
             seen[""] = 0
             unique = 0
             for (i=1; i<=n; i++) {
@@ -123,6 +153,41 @@ find_duplicate_marks() {
     }'
 }
 
+# ------------------------------------------------------------------------------
+# replace_code_at_line FILE LINENO OLD_CODE NEW_CODE
+#
+# Replaces OLD_CODE with NEW_CODE at the exact location reported by
+# collect_marks. Handles both patterns:
+#
+#   Pattern 1 — code on LINENO (same line as DBException():
+#     sed replaces "OLD_CODE" → "NEW_CODE" on that exact line.
+#
+#   Pattern 2 — code on LINENO+1 (DBException( is on LINENO, code is next):
+#     sed replaces "OLD_CODE" → "NEW_CODE" on LINENO+1.
+#
+# Line-specific replacement (not global) correctly handles same-file duplicates:
+# only the target occurrence is replaced, not all occurrences in the file.
+# ------------------------------------------------------------------------------
+replace_code_at_line() {
+    local file="$1"
+    local lineno="$2"
+    local old_code="$3"
+    local new_code="$4"
+
+    # Check which line the quoted code string actually lives on
+    local line_content
+    line_content=$(sed -n "${lineno}p" "$file")
+
+    if echo "$line_content" | grep -qF "\"${old_code}\""; then
+        # Pattern 1: code is on lineno
+        sed -i "${lineno}s|\"${old_code}\"|\"${new_code}\"|" "$file"
+    else
+        # Pattern 2: code is on the next line
+        local next_lineno=$(( lineno + 1 ))
+        sed -i "${next_lineno}s|\"${old_code}\"|\"${new_code}\"|" "$file"
+    fi
+}
+
 show_usage() {
     echo "Usage: $0 [--check|--list|--fix|--help]"
     echo ""
@@ -134,6 +199,12 @@ show_usage() {
     echo "  - No more than 4 consecutive repeated characters"
     echo "  - No empty marks"
     echo "  - No duplicate codes across different files"
+    echo ""
+    echo "Detected patterns:"
+    echo "  Pattern 1 (single-line): DBException(\"CODE\", \"msg\", callstack)"
+    echo "  Pattern 2 (multi-line):  DBException("
+    echo "                               \"CODE\","
+    echo "                               \"msg\", callstack)"
     echo ""
     echo "Options:"
     echo "  --check   Report all invalid marks and cross-file duplicates (exit 1 if found)"
@@ -159,7 +230,7 @@ check_mode() {
         echo "$invalids" | while IFS=: read -r file lineno mark; do
             local len=${#mark}
             [ "$mark" = "<EMPTY>" ] && len=0
-            printf "  %-6s  len=%-3s  %s:%s\n" "$mark" "$len" "$file" "$lineno"
+            printf "  %-14s  len=%-3s  %s:%s\n" "$mark" "$len" "$file" "$lineno"
         done
         found_problems=1
     else
@@ -176,7 +247,7 @@ check_mode() {
         echo "$duplicates" | while read -r code; do
             echo "  === $code ==="
             collect_marks | grep ":${code}$" | while IFS=: read -r file lineno mark; do
-                echo "    $file:$lineno"
+                printf "    %s:%s\n" "${file#$PROJECT_ROOT/}" "$lineno"
             done
         done
         found_problems=1
@@ -205,6 +276,7 @@ list_mode() {
     printf "%-14s  %-4s  %-7s  %s\n" "--------------" "----" "-------" "--------"
 
     collect_marks | sort -t: -k3 | while IFS=: read -r file lineno mark; do
+        [ -z "$mark" ] && mark="<EMPTY>"
         local len=${#mark}
         [ "$mark" = "<EMPTY>" ] && len=0
         local status
@@ -213,7 +285,6 @@ list_mode() {
         else
             status="INVALID"
         fi
-        # Shorten path to relative from PROJECT_ROOT
         local shortfile="${file#$PROJECT_ROOT/}"
         printf "%-14s  %-4s  %-7s  %s:%s\n" "$mark" "$len" "$status" "$shortfile" "$lineno"
     done
@@ -228,8 +299,6 @@ fix_mode() {
         exit 1
     fi
 
-    local fixed=0
-
     echo "=== Fixing DBException marks ==="
     echo ""
 
@@ -242,17 +311,11 @@ fix_mode() {
             local new_code
             new_code=$("$GENERATE_SCRIPT" "$PROJECT_ROOT" 1 2>/dev/null)
             if [ -z "$new_code" ]; then
-                echo "  ERROR: Failed to generate code for $mark at $file:$lineno"
+                echo "  ERROR: Failed to generate code for '${mark}' at $file:$lineno"
                 continue
             fi
-            if [ "$mark" = "<EMPTY>" ]; then
-                # Replace DBException("", with DBException("NEW_CODE",
-                sed -i "s|DBException(\"\",|DBException(\"${new_code}\",|g" "$file"
-            else
-                sed -i "s|DBException(\"${mark}\"|DBException(\"${new_code}\"|g" "$file"
-            fi
-            echo "  $mark  →  $new_code  ($file:$lineno)"
-            fixed=1
+            replace_code_at_line "$file" "$lineno" "$mark" "$new_code"
+            echo "  ${mark}  →  ${new_code}  (${file#$PROJECT_ROOT/}:$lineno)"
         done
     else
         echo "  OK: No invalid marks."
@@ -260,7 +323,9 @@ fix_mode() {
 
     echo ""
 
-    # 2. Fix cross-file duplicates (keep first occurrence, replace rest)
+    # 2. Fix cross-file duplicates
+    # Strategy: keep the first occurrence (by sorted file path), replace all others.
+    # Each replacement generates a fresh unique code via generate_dbexception_code.sh.
     echo "--- Fixing cross-file duplicates ---"
     local duplicates
     duplicates=$(find_duplicate_marks)
@@ -268,20 +333,21 @@ fix_mode() {
         echo "$duplicates" | while read -r old_code; do
             local locations
             locations=$(collect_marks | grep ":${old_code}$")
-            local first_file
+
+            local first_file first_lineno
             first_file=$(echo "$locations" | head -1 | cut -d: -f1)
-            echo "  Keeping $old_code in: ${first_file#$PROJECT_ROOT/}"
+            first_lineno=$(echo "$locations" | head -1 | cut -d: -f2)
+            echo "  Keeping ${old_code} in: ${first_file#$PROJECT_ROOT/}:${first_lineno}"
 
             echo "$locations" | tail -n +2 | while IFS=: read -r file lineno mark; do
                 local new_code
                 new_code=$("$GENERATE_SCRIPT" "$PROJECT_ROOT" 1 2>/dev/null)
                 if [ -z "$new_code" ]; then
-                    echo "    ERROR: Failed to generate code for $old_code at $file:$lineno"
+                    echo "    ERROR: Failed to generate code at ${file#$PROJECT_ROOT/}:$lineno"
                     continue
                 fi
-                sed -i "s|DBException(\"${old_code}\"|DBException(\"${new_code}\"|g" "$file"
-                echo "    $old_code  →  $new_code  (${file#$PROJECT_ROOT/}:$lineno)"
-                fixed=1
+                replace_code_at_line "$file" "$lineno" "$old_code" "$new_code"
+                echo "    ${old_code}  →  ${new_code}  (${file#$PROJECT_ROOT/}:$lineno)"
             done
         done
     else

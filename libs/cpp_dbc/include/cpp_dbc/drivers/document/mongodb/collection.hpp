@@ -248,8 +248,6 @@ namespace cpp_dbc::MongoDB
             const std::string &fieldPath,
             const std::string &filter = "") override;
 
-        bool isConnectionValid() const;
-
 #endif // __cpp_exceptions
 
         // ====================================================================
@@ -393,6 +391,8 @@ namespace cpp_dbc::MongoDB
             std::nothrow_t,
             const std::string &fieldPath,
             const std::string &filter = "") noexcept override;
+
+        bool isConnectionValid(std::nothrow_t) const noexcept;
     };
 
 } // namespace cpp_dbc::MongoDB

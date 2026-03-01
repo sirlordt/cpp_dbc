@@ -102,7 +102,7 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "1DCF59899097",
+                "OWXNS6VQP61O",
                 "Memory allocation failed in listDatabases"));
         }
         catch (const std::exception &ex)
@@ -114,7 +114,7 @@ namespace cpp_dbc::MongoDB
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "79046EE25E4F",
+                "EGOK917DH41Q",
                 "Unknown error in listDatabases"));
         }
     }
@@ -194,7 +194,7 @@ namespace cpp_dbc::MongoDB
             if (m_closed.load(std::memory_order_acquire))
             {
                 return unexpected<DBException>(DBException(
-                    "5C6D7E8F9A0B",
+                    "U06DKBMOC39W",
                     "Connection has been closed"));
             }
 
@@ -206,7 +206,7 @@ namespace cpp_dbc::MongoDB
             if (!success)
             {
                 return unexpected<DBException>(DBException(
-                    "6D7E8F9A0B1C",
+                    "3OT3OF7PRQFA",
                     std::string("Failed to drop database: ") + error.message));
             }
 
@@ -219,7 +219,7 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "7E8F9A0B1C2D",
+                "6UUWT77M2KLB",
                 "Memory allocation failed in dropDatabase"));
         }
         catch (const std::exception &ex)
@@ -257,7 +257,7 @@ namespace cpp_dbc::MongoDB
             if (m_databaseName.empty())
             {
                 return unexpected<DBException>(DBException(
-                    "79292056CE1F",
+                    "4QCN6OXX3B8N",
                     "No database selected. Call useDatabase() first"));
             }
 
@@ -290,7 +290,7 @@ namespace cpp_dbc::MongoDB
             }
             auto collectionPtr = collResult.value();
 
-            registerCollection(collectionPtr);
+            registerCollection(std::nothrow, collectionPtr);
 
             return std::static_pointer_cast<DocumentDBCollection>(collectionPtr);
         }
@@ -301,13 +301,13 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "D8267AB49B49",
+                "4SA8Z30QAS7Q",
                 "Memory allocation failed in getCollection"));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "277C75E974F0",
+                "T05R4LCMCDEW",
                 std::string("Unexpected error in getCollection: ") + ex.what()));
         }
         catch (...)
@@ -488,7 +488,7 @@ namespace cpp_dbc::MongoDB
             }
             auto collectionPtr = collResult.value();
 
-            registerCollection(collectionPtr);
+            registerCollection(std::nothrow, collectionPtr);
 
             return std::static_pointer_cast<DocumentDBCollection>(collectionPtr);
         }
@@ -526,14 +526,14 @@ namespace cpp_dbc::MongoDB
             if (m_closed.load(std::memory_order_acquire))
             {
                 return unexpected<DBException>(DBException(
-                    "8B9C0D1E2F3A",
+                    "LCTMVU4COTWE",
                     "Connection has been closed"));
             }
 
             if (m_databaseName.empty())
             {
                 return unexpected<DBException>(DBException(
-                    "9C0D1E2F3A4B",
+                    "IK7PNBHX4UYQ",
                     "No database selected. Call useDatabase() first"));
             }
 
@@ -543,7 +543,7 @@ namespace cpp_dbc::MongoDB
             if (!coll)
             {
                 return unexpected<DBException>(DBException(
-                    "0D1E2F3A4B5C",
+                    "SNKN547TL3LV",
                     "Failed to get collection: " + collectionName));
             }
 
@@ -555,7 +555,7 @@ namespace cpp_dbc::MongoDB
             if (!success)
             {
                 return unexpected<DBException>(DBException(
-                    "1E2F3A4B5C6D",
+                    "25KZMHWC7LOM",
                     std::string("Failed to drop collection: ") + error.message));
             }
 
@@ -568,19 +568,19 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "2F3A4B5C6D7E",
+                "WKYWTDNRHHQ7",
                 "Memory allocation failed in dropCollection"));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "3A4B5C6D7E8F",
+                "ORKDZSTMMSM0",
                 std::string("Unexpected error in dropCollection: ") + ex.what()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "4B5C6D7E8F9A",
+                "CKJ52W4NXG22",
                 "Unknown error in dropCollection"));
         }
     }
