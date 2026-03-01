@@ -287,13 +287,13 @@ namespace cpp_dbc::Redis
     {
         REDIS_DEBUG("RedisDBConnection::destructor - Destroying connection");
         // Inline close() logic to avoid virtual call in destructor (S1699)
-        if (!m_closed)
+        if (!m_closed.load(std::memory_order_acquire))
         {
             try
             {
                 std::scoped_lock lock_(m_mutex);
                 m_context.reset();
-                m_closed = true;
+                m_closed.store(true, std::memory_order_release);
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
@@ -320,28 +320,25 @@ namespace cpp_dbc::Redis
     {
         if (this != &other)
         {
-            if (!m_closed)
+            if (!m_closed.load(std::memory_order_acquire))
             {
-                try
+                // Prefer nothrow close to avoid exception risk inside noexcept context
+                auto closeResult = close(std::nothrow);
+                if (!closeResult.has_value())
                 {
-                    close();
-                }
-                catch (...)
-                {
-                    // Swallow exception to maintain noexcept guarantee
-                    // Connection cleanup failed but we must continue with move
-                    REDIS_DEBUG("RedisDBConnection::operator= - Exception during close(), continuing with move");
+                    // Close failed — force-reset to maintain invariants and continue with move
+                    REDIS_DEBUG("RedisDBConnection::operator= - close(nothrow) failed: " << closeResult.error().what_s() << ", continuing with move");
                     m_context.reset();
-                    m_closed = true;
+                    m_closed.store(true, std::memory_order_release);
                 }
             }
 
             m_context = std::move(other.m_context);
             m_url = std::move(other.m_url);
             m_dbIndex = other.m_dbIndex;
-            m_closed = other.m_closed.load();
+            m_closed.store(other.m_closed.load(std::memory_order_acquire), std::memory_order_release);
 
-            other.m_closed = true;
+            other.m_closed.store(true, std::memory_order_release);
         }
         return *this;
     }
@@ -360,7 +357,7 @@ namespace cpp_dbc::Redis
 
     bool RedisDBConnection::isClosed() const
     {
-        return m_closed;
+        return m_closed.load(std::memory_order_acquire);
     }
 
     void RedisDBConnection::returnToPool()
@@ -385,15 +382,6 @@ namespace cpp_dbc::Redis
     void RedisDBConnection::reset()
     {
         auto result = reset(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    void RedisDBConnection::prepareForPoolReturn()
-    {
-        auto result = prepareForPoolReturn(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();

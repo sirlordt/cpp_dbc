@@ -433,7 +433,7 @@ namespace cpp_dbc::Firebird
         return static_cast<uint64_t>(0); // CREATE DATABASE doesn't return affected rows
     }
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     bool FirebirdDBConnection::ping()
     {
         auto result = ping(std::nothrow);
@@ -443,7 +443,7 @@ namespace cpp_dbc::Firebird
         }
         return *result;
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
     cpp_dbc::expected<bool, DBException> FirebirdDBConnection::ping(std::nothrow_t) noexcept
     {

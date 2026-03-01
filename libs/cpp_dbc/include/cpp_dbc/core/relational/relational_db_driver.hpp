@@ -44,15 +44,11 @@ namespace cpp_dbc
     public:
         ~RelationalDBDriver() override = default;
 
-        /**
-         * @brief Get the database type
-         * @return Always returns DBType::RELATIONAL
-         */
-        DBType getDBType() const override
-        {
-            return DBType::RELATIONAL;
-        }
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
+#ifdef __cpp_exceptions
         /**
          * @brief Connect to a relational database
          *
@@ -65,7 +61,6 @@ namespace cpp_dbc
          * @return std::shared_ptr<RelationalDBConnection> A connection to the database
          * @throws DBException if the connection fails
          */
-        #ifdef __cpp_exceptions
         virtual std::shared_ptr<RelationalDBConnection> connectRelational(
             const std::string &url,
             const std::string &user,
@@ -75,8 +70,7 @@ namespace cpp_dbc
         /**
          * @brief Connect to a database (base class implementation)
          *
-         * This method delegates to connectRelational() and returns the result
-         * as a DBConnection pointer.
+         * This method delegates to connectRelational(nothrow) and rethrows on error.
          */
         std::shared_ptr<DBConnection> connect(
             const std::string &url,
@@ -84,13 +78,28 @@ namespace cpp_dbc
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            return connectRelational(url, user, password, options);
+            auto result = connectRelational(std::nothrow, url, user, password, options);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return std::static_pointer_cast<DBConnection>(result.value());
         }
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
+
         // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
+        // NOTHROW API — exception-free, always available
         // ====================================================================
+
+        /**
+         * @brief Get the database type
+         * @return Always returns DBType::RELATIONAL
+         */
+        DBType getDBType() const noexcept override
+        {
+            return DBType::RELATIONAL;
+        }
 
         /**
          * @brief Connect to a relational database (nothrow version)
@@ -122,7 +131,7 @@ namespace cpp_dbc
             const std::string &url,
             const std::string &user,
             const std::string &password,
-            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override
         {
             auto result = connectRelational(std::nothrow, url, user, password, options);
             if (!result.has_value())

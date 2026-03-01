@@ -13,7 +13,8 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file document_03.cpp
- * @brief MongoDB MongoDBDocument - Part 3 (getStringArray, setters - throwing wrappers)
+ * @brief MongoDB MongoDBDocument - Part 3 (setters throwing wrappers:
+ *        setString, setInt, setDouble, setBool, setBinary, setDocument, setNull)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
@@ -27,16 +28,6 @@ namespace cpp_dbc::MongoDB
 {
 
     #ifdef __cpp_exceptions
-    std::vector<std::string> MongoDBDocument::getStringArray(const std::string &fieldPath) const
-    {
-        auto r = getStringArray(std::nothrow, fieldPath);
-        if (!r.has_value())
-        {
-            throw r.error();
-        }
-        return *r;
-    }
-
     void MongoDBDocument::setString(const std::string &fieldPath, const std::string &value)
     {
         auto r = setString(std::nothrow, fieldPath, value);

@@ -23,14 +23,14 @@
 
 #include "cpp_dbc/drivers/relational/driver_firebird.hpp"
 
-#if USE_FIREBIRD
-
 #include <sstream>
 #include <algorithm>
 #include <cstring>
 #include <cstdlib>
 
 #include "firebird_internal.hpp"
+
+#if USE_FIREBIRD
 
 namespace cpp_dbc::Firebird
 {
@@ -80,7 +80,7 @@ namespace cpp_dbc::Firebird
         return result.value();
     }
 
-    bool FirebirdDBDriver::acceptsURL(const std::string &url)
+    bool FirebirdDBDriver::acceptsURL(const std::string &url) noexcept
     {
         return url.find("cpp_dbc:firebird:") == 0;
     }

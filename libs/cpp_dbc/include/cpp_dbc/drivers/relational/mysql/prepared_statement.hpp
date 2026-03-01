@@ -9,180 +9,186 @@
 
 namespace cpp_dbc::MySQL
 {
-        class MySQLDBConnection; // Forward declaration for friend
+    class MySQLDBConnection; // Forward declaration for friend
 
+    /**
+     * @brief MySQL prepared statement implementation
+     *
+     * Concrete RelationalDBPreparedStatement for MySQL/MariaDB.
+     * Uses mysql_stmt_* API for parameter binding and execution.
+     *
+     * ```cpp
+     * auto stmt = conn->prepareStatement("INSERT INTO users (name, age) VALUES (?, ?)");
+     * stmt->setString(1, "Alice");
+     * stmt->setInt(2, 30);
+     * stmt->executeUpdate();
+     * stmt->close();
+     * ```
+     *
+     * @see MySQLDBConnection, MySQLDBResultSet
+     */
+    class MySQLDBPreparedStatement final : public RelationalDBPreparedStatement
+    {
+        friend class MySQLDBConnection;
+
+        std::weak_ptr<MYSQL> m_mysql; // Safe weak reference to connection - detects when connection is closed
+        std::string m_sql;
+        MySQLStmtHandle m_stmt{nullptr}; // Smart pointer for MYSQL_STMT - automatically calls mysql_stmt_close
+        std::vector<MYSQL_BIND> m_binds;
+        std::vector<std::string> m_stringValues;                   // To keep string values alive
+        std::vector<std::string> m_parameterValues;                // To store parameter values for query reconstruction
+        std::vector<int> m_intValues;                              // To keep int values alive
+        std::vector<int64_t> m_longValues;                         // To keep long values alive
+        std::vector<double> m_doubleValues;                        // To keep double values alive
+        std::vector<char> m_nullFlags;                             // To keep null flags alive (char instead of bool for pointer access)
+        std::vector<std::vector<uint8_t>> m_blobValues;            // To keep blob values alive
+        std::vector<std::shared_ptr<Blob>> m_blobObjects;          // To keep blob objects alive
+        std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
+
+#if DB_DRIVER_THREAD_SAFE
         /**
-         * @brief MySQL prepared statement implementation
+         * @brief Shared mutex with the parent connection
          *
-         * Concrete RelationalDBPreparedStatement for MySQL/MariaDB.
-         * Uses mysql_stmt_* API for parameter binding and execution.
-         *
-         * ```cpp
-         * auto stmt = conn->prepareStatement("INSERT INTO users (name, age) VALUES (?, ?)");
-         * stmt->setString(1, "Alice");
-         * stmt->setInt(2, 30);
-         * stmt->executeUpdate();
-         * stmt->close();
-         * ```
-         *
-         * @see MySQLDBConnection, MySQLDBResultSet
+         * This is the SAME mutex instance as the connection's m_connMutex.
+         * All operations on both Connection and PreparedStatement lock this mutex,
+         * ensuring mysql_stmt_close() in the destructor never races with other
+         * connection operations.
          */
-        class MySQLDBPreparedStatement final : public RelationalDBPreparedStatement
+        SharedConnMutex m_connMutex;
+#endif
+
+        // Internal method called by connection when closing
+        void notifyConnClosing();
+
+        // Helper method to get MYSQL* safely, returns unexpected if connection is closed
+        cpp_dbc::expected<MYSQL *, DBException> getMySQLConnection(std::nothrow_t) const noexcept;
+
+    public:
+#if DB_DRIVER_THREAD_SAFE
+        MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql, SharedConnMutex connMutex, const std::string &sql);
+#else
+        MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql, const std::string &sql);
+#endif
+        ~MySQLDBPreparedStatement() override;
+
+#if DB_DRIVER_THREAD_SAFE
+        static cpp_dbc::expected<std::shared_ptr<MySQLDBPreparedStatement>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<MYSQL> mysql,
+               SharedConnMutex connMutex,
+               const std::string &sql) noexcept
         {
-            friend class MySQLDBConnection;
+            try
+            {
+                return std::make_shared<MySQLDBPreparedStatement>(mysql, connMutex, sql);
+            }
+            catch (const DBException &ex)
+            {
+                return cpp_dbc::unexpected(ex);
+            }
+            catch (const std::exception &ex)
+            {
+                return cpp_dbc::unexpected(DBException("CQ7QTLFW080H", ex.what(), system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return cpp_dbc::unexpected(DBException("6DPPQ65WEMDW", "Unknown error creating MySQLDBPreparedStatement", system_utils::captureCallStack()));
+            }
+        }
 
-            std::weak_ptr<MYSQL> m_mysql; // Safe weak reference to connection - detects when connection is closed
-            std::string m_sql;
-            MySQLStmtHandle m_stmt{nullptr}; // Smart pointer for MYSQL_STMT - automatically calls mysql_stmt_close
-            std::vector<MYSQL_BIND> m_binds;
-            std::vector<std::string> m_stringValues;                   // To keep string values alive
-            std::vector<std::string> m_parameterValues;                // To store parameter values for query reconstruction
-            std::vector<int> m_intValues;                              // To keep int values alive
-            std::vector<int64_t> m_longValues;                         // To keep long values alive
-            std::vector<double> m_doubleValues;                        // To keep double values alive
-            std::vector<char> m_nullFlags;                             // To keep null flags alive (char instead of bool for pointer access)
-            std::vector<std::vector<uint8_t>> m_blobValues;            // To keep blob values alive
-            std::vector<std::shared_ptr<Blob>> m_blobObjects;          // To keep blob objects alive
-            std::vector<std::shared_ptr<InputStream>> m_streamObjects; // To keep stream objects alive
-
-#if DB_DRIVER_THREAD_SAFE
-            /**
-             * @brief Shared mutex with the parent connection
-             *
-             * This is the SAME mutex instance as the connection's m_connMutex.
-             * All operations on both Connection and PreparedStatement lock this mutex,
-             * ensuring mysql_stmt_close() in the destructor never races with other
-             * connection operations.
-             */
-            SharedConnMutex m_connMutex;
-#endif
-
-            // Internal method called by connection when closing
-            void notifyConnClosing();
-
-            // Helper method to get MYSQL* safely, returns unexpected if connection is closed
-            cpp_dbc::expected<MYSQL *, DBException> getMySQLConnection(std::nothrow_t) const noexcept;
-
-        public:
-#if DB_DRIVER_THREAD_SAFE
-            MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql, SharedConnMutex connMutex, const std::string &sql);
+        static std::shared_ptr<MySQLDBPreparedStatement>
+        create(std::weak_ptr<MYSQL> mysql, SharedConnMutex connMutex, const std::string &sql)
+        {
+            auto r = create(std::nothrow, mysql, connMutex, sql);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
+        }
 #else
-            MySQLDBPreparedStatement(std::weak_ptr<MYSQL> mysql, const std::string &sql);
-#endif
-            ~MySQLDBPreparedStatement() override;
+        static cpp_dbc::expected<std::shared_ptr<MySQLDBPreparedStatement>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<MYSQL> mysql,
+               const std::string &sql) noexcept
+        {
+            try
+            {
+                return std::make_shared<MySQLDBPreparedStatement>(mysql, sql);
+            }
+            catch (const DBException &ex)
+            {
+                return cpp_dbc::unexpected(ex);
+            }
+            catch (const std::exception &ex)
+            {
+                return cpp_dbc::unexpected(DBException("CQ7QTLFW080H", ex.what(), system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return cpp_dbc::unexpected(DBException("6DPPQ65WEMDW", "Unknown error creating MySQLDBPreparedStatement", system_utils::captureCallStack()));
+            }
+        }
 
-#if DB_DRIVER_THREAD_SAFE
-            static cpp_dbc::expected<std::shared_ptr<MySQLDBPreparedStatement>, DBException>
-            create(std::nothrow_t,
-                   std::weak_ptr<MYSQL> mysql,
-                   SharedConnMutex connMutex,
-                   const std::string &sql) noexcept
+        static std::shared_ptr<MySQLDBPreparedStatement>
+        create(std::weak_ptr<MYSQL> mysql, const std::string &sql)
+        {
+            auto r = create(std::nothrow, mysql, sql);
+            if (!r.has_value())
             {
-                try
-                {
-                    return std::make_shared<MySQLDBPreparedStatement>(mysql, connMutex, sql);
-                }
-                catch (const DBException &ex)
-                {
-                    return cpp_dbc::unexpected(ex);
-                }
-                catch (const std::exception &ex)
-                {
-                    return cpp_dbc::unexpected(DBException("CQ7QTLFW080H", ex.what(), system_utils::captureCallStack()));
-                }
-                catch (...)
-                {
-                    return cpp_dbc::unexpected(DBException("6DPPQ65WEMDW", "Unknown error creating MySQLDBPreparedStatement", system_utils::captureCallStack()));
-                }
+                throw r.error();
             }
-
-            static std::shared_ptr<MySQLDBPreparedStatement>
-            create(std::weak_ptr<MYSQL> mysql, SharedConnMutex connMutex, const std::string &sql)
-            {
-                auto r = create(std::nothrow, mysql, connMutex, sql);
-                if (!r.has_value()) { throw r.error(); }
-                return r.value();
-            }
-#else
-            static cpp_dbc::expected<std::shared_ptr<MySQLDBPreparedStatement>, DBException>
-            create(std::nothrow_t,
-                   std::weak_ptr<MYSQL> mysql,
-                   const std::string &sql) noexcept
-            {
-                try
-                {
-                    return std::make_shared<MySQLDBPreparedStatement>(mysql, sql);
-                }
-                catch (const DBException &ex)
-                {
-                    return cpp_dbc::unexpected(ex);
-                }
-                catch (const std::exception &ex)
-                {
-                    return cpp_dbc::unexpected(DBException("CQ7QTLFW080H", ex.what(), system_utils::captureCallStack()));
-                }
-                catch (...)
-                {
-                    return cpp_dbc::unexpected(DBException("6DPPQ65WEMDW", "Unknown error creating MySQLDBPreparedStatement", system_utils::captureCallStack()));
-                }
-            }
-
-            static std::shared_ptr<MySQLDBPreparedStatement>
-            create(std::weak_ptr<MYSQL> mysql, const std::string &sql)
-            {
-                auto r = create(std::nothrow, mysql, sql);
-                if (!r.has_value()) { throw r.error(); }
-                return r.value();
-            }
+            return r.value();
+        }
 #endif
 
-            #ifdef __cpp_exceptions
-            void setInt(int parameterIndex, int value) override;
-            void setLong(int parameterIndex, int64_t value) override;
-            void setDouble(int parameterIndex, double value) override;
-            void setString(int parameterIndex, const std::string &value) override;
-            void setBoolean(int parameterIndex, bool value) override;
-            void setNull(int parameterIndex, Types type) override;
-            void setDate(int parameterIndex, const std::string &value) override;
-            void setTimestamp(int parameterIndex, const std::string &value) override;
-            void setTime(int parameterIndex, const std::string &value) override;
+#ifdef __cpp_exceptions
+        void setInt(int parameterIndex, int value) override;
+        void setLong(int parameterIndex, int64_t value) override;
+        void setDouble(int parameterIndex, double value) override;
+        void setString(int parameterIndex, const std::string &value) override;
+        void setBoolean(int parameterIndex, bool value) override;
+        void setNull(int parameterIndex, Types type) override;
+        void setDate(int parameterIndex, const std::string &value) override;
+        void setTimestamp(int parameterIndex, const std::string &value) override;
+        void setTime(int parameterIndex, const std::string &value) override;
 
-            // BLOB support methods
-            void setBlob(int parameterIndex, std::shared_ptr<Blob> x) override;
-            void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x) override;
-            void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length) override;
-            void setBytes(int parameterIndex, const std::vector<uint8_t> &x) override;
-            void setBytes(int parameterIndex, const uint8_t *x, size_t length) override;
+        // BLOB support methods
+        void setBlob(int parameterIndex, std::shared_ptr<Blob> x) override;
+        void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x) override;
+        void setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length) override;
+        void setBytes(int parameterIndex, const std::vector<uint8_t> &x) override;
+        void setBytes(int parameterIndex, const uint8_t *x, size_t length) override;
 
-            std::shared_ptr<RelationalDBResultSet> executeQuery() override;
-            uint64_t executeUpdate() override;
-            bool execute() override;
-            void close() override;
+        std::shared_ptr<RelationalDBResultSet> executeQuery() override;
+        uint64_t executeUpdate() override;
+        bool execute() override;
+        void close() override;
 
-            #endif // __cpp_exceptions
-            // ====================================================================
-            // NOTHROW VERSIONS - Exception-free API
-            // ====================================================================
+#endif // __cpp_exceptions
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
 
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setDouble(std::nothrow_t, int parameterIndex, double value) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setString(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setBoolean(std::nothrow_t, int parameterIndex, bool value) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setNull(std::nothrow_t, int parameterIndex, Types type) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setDate(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setTime(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<bool, DBException> execute(std::nothrow_t) noexcept override;
-            [[nodiscard]] cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
-        };
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setDouble(std::nothrow_t, int parameterIndex, double value) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setString(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setBoolean(std::nothrow_t, int parameterIndex, bool value) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setNull(std::nothrow_t, int parameterIndex, Types type) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setDate(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setTimestamp(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setTime(std::nothrow_t, int parameterIndex, const std::string &value) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setBlob(std::nothrow_t, int parameterIndex, std::shared_ptr<Blob> x) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setBinaryStream(std::nothrow_t, int parameterIndex, std::shared_ptr<InputStream> x, size_t length) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, int parameterIndex, const std::vector<uint8_t> &x) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, int parameterIndex, const uint8_t *x, size_t length) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> execute(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+    };
 
 } // namespace cpp_dbc::MySQL
 

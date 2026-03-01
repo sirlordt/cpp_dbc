@@ -133,11 +133,14 @@ namespace cpp_dbc::SQLite
                const std::string &sql)
         {
             auto r = create(std::nothrow, db, conn, globalFileMutex, sql);
-            if (!r.has_value()) { throw r.error(); }
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
             return r.value();
         }
 
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         void setInt(int parameterIndex, int value) override;
         void setLong(int parameterIndex, int64_t value) override;
         void setDouble(int parameterIndex, double value) override;
@@ -160,7 +163,7 @@ namespace cpp_dbc::SQLite
         bool execute() override;
         void close() override;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

@@ -18,8 +18,6 @@
 
 #include "cpp_dbc/drivers/kv/driver_redis.hpp"
 
-#if USE_REDIS
-
 #include <algorithm>
 #include <cstring>
 #include <iostream>
@@ -33,6 +31,8 @@
 #include <hiredis/hiredis.h>
 
 #include "redis_internal.hpp"
+
+#if USE_REDIS
 
 namespace cpp_dbc::Redis
 {
@@ -69,12 +69,7 @@ namespace cpp_dbc::Redis
         REDIS_DEBUG("RedisDriver::destructor - Destroying driver");
     }
 
-    bool RedisDriver::acceptsURL(const std::string &url)
-    {
-        return url.starts_with("cpp_dbc:redis://");
-    }
-
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     std::shared_ptr<KVDBConnection> RedisDriver::connectKV(
         const std::string &url,
         const std::string &user,
@@ -89,16 +84,6 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    int RedisDriver::getDefaultPort() const
-    {
-        return 6379;
-    }
-
-    std::string RedisDriver::getURIScheme() const
-    {
-        return "redis";
-    }
-
     std::map<std::string, std::string> RedisDriver::parseURI(const std::string &uri)
     {
         auto result = parseURI(std::nothrow, uri);
@@ -108,7 +93,6 @@ namespace cpp_dbc::Redis
         }
         return *result;
     }
-    #endif // __cpp_exceptions
 
     std::string RedisDriver::buildURI(
         const std::string &host,
@@ -141,18 +125,29 @@ namespace cpp_dbc::Redis
 
         return uri.str();
     }
+#endif // __cpp_exceptions
 
-    bool RedisDriver::supportsClustering() const
+    bool RedisDriver::acceptsURL(const std::string &url) noexcept
+    {
+        return url.starts_with("cpp_dbc:redis://");
+    }
+
+    std::string RedisDriver::getURIScheme() const noexcept
+    {
+        return "cpp_dbc:redis://";
+    }
+
+    bool RedisDriver::supportsClustering() const noexcept
     {
         return true;
     }
 
-    bool RedisDriver::supportsReplication() const
+    bool RedisDriver::supportsReplication() const noexcept
     {
         return true;
     }
 
-    std::string RedisDriver::getDriverVersion() const
+    std::string RedisDriver::getDriverVersion() const noexcept
     {
         // Build version string from hiredis version macros
 #if defined(HIREDIS_MAJOR) && defined(HIREDIS_MINOR) && defined(HIREDIS_PATCH)

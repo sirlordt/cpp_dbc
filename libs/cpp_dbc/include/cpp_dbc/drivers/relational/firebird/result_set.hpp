@@ -53,7 +53,7 @@ namespace cpp_dbc::Firebird
      * ensuring all operations on the database handle are serialized.
      */
     class FirebirdDBResultSet final : public RelationalDBResultSet,
-                                       public std::enable_shared_from_this<FirebirdDBResultSet>
+                                      public std::enable_shared_from_this<FirebirdDBResultSet>
     {
         friend class FirebirdDBConnection;
         friend class FirebirdConnectionLock;
@@ -146,11 +146,14 @@ namespace cpp_dbc::Firebird
                std::shared_ptr<FirebirdDBConnection> conn)
         {
             auto r = create(std::nothrow, std::move(stmt), std::move(sqlda), ownStatement, conn);
-            if (!r.has_value()) { throw r.error(); }
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
             return r.value();
         }
 
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         bool next() override;
         bool isBeforeFirst() override;
         bool isAfterLast() override;
@@ -198,10 +201,10 @@ namespace cpp_dbc::Firebird
         std::vector<uint8_t> getBytes(size_t columnIndex) override;
         std::vector<uint8_t> getBytes(const std::string &columnName) override;
 
-        #endif // __cpp_exceptions
-        // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
-        // ====================================================================
+#endif // __cpp_exceptions
+       // ====================================================================
+       // NOTHROW VERSIONS - Exception-free API
+       // ====================================================================
 
         cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;

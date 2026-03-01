@@ -57,28 +57,22 @@ namespace cpp_dbc::ScyllaDB
         return {};
     }
 
-    // Public methods
+    // Private nothrow constructor
 
-    ScyllaDBPreparedStatement::ScyllaDBPreparedStatement(std::weak_ptr<CassSession> session, const std::string &query, const CassPrepared *prepared)
+    ScyllaDBPreparedStatement::ScyllaDBPreparedStatement(std::nothrow_t,
+                                                         std::weak_ptr<CassSession> session,
+                                                         const std::string &query,
+                                                         const CassPrepared *prepared) noexcept
         : m_session(session), m_query(query), m_prepared(makeCassPreparedHandle(prepared))
     {
-        SCYLLADB_DEBUG("ScyllaDBPreparedStatement::constructor - Creating prepared statement for query: " << query);
+        SCYLLADB_DEBUG("ScyllaDBPreparedStatement::constructor(nothrow) - Creating prepared statement for query: " << query);
         // recreateStatement cannot fail (cass_prepared_bind does not return null per Cassandra driver contract)
         recreateStatement(std::nothrow);
     }
 
-    ScyllaDBPreparedStatement::~ScyllaDBPreparedStatement()
-    {
-        SCYLLADB_DEBUG("ScyllaDBPreparedStatement::destructor - Destroying prepared statement");
-        auto result = ScyllaDBPreparedStatement::close(std::nothrow);
-        if (!result.has_value())
-        {
-            // Log the error but don't throw - in destructor
-            SCYLLADB_DEBUG("Failed to close prepared statement: " << result.error().what_s());
-        }
-    }
+#ifdef __cpp_exceptions
+    // Throwing wrappers (same order as in prepared_statement.hpp)
 
-    #ifdef __cpp_exceptions
     void ScyllaDBPreparedStatement::setInt(int parameterIndex, int value)
     {
         auto result = setInt(std::nothrow, parameterIndex, value);
@@ -271,7 +265,18 @@ namespace cpp_dbc::ScyllaDB
             throw result.error();
         }
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
+
+    ScyllaDBPreparedStatement::~ScyllaDBPreparedStatement()
+    {
+        SCYLLADB_DEBUG("ScyllaDBPreparedStatement::destructor - Destroying prepared statement");
+        auto result = ScyllaDBPreparedStatement::close(std::nothrow);
+        if (!result.has_value())
+        {
+            // Log the error but don't throw - in destructor
+            SCYLLADB_DEBUG("Failed to close prepared statement: " << result.error().what_s());
+        }
+    }
 
 } // namespace cpp_dbc::ScyllaDB
 

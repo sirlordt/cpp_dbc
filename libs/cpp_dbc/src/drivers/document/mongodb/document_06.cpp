@@ -237,8 +237,15 @@ namespace cpp_dbc::MongoDB
                 system_utils::captureCallStack()));
         }
 
-        auto doc = std::make_shared<MongoDBDocument>(subdoc);
-        return std::static_pointer_cast<DocumentDBData>(doc);
+        // Use the private nothrow factory to construct the document without invoking
+        // the throwing constructor — required to stay within this method's noexcept contract.
+        // subdoc is guaranteed non-null here (bson_new_from_data returned it above).
+        auto docResult = MongoDBDocument::create(std::nothrow, subdoc);
+        if (!docResult.has_value())
+        {
+            return unexpected<DBException>(docResult.error());
+        }
+        return std::static_pointer_cast<DocumentDBData>(docResult.value());
     }
 
 } // namespace cpp_dbc::MongoDB

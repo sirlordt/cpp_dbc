@@ -20,8 +20,6 @@
 
 #include "cpp_dbc/drivers/relational/driver_postgresql.hpp"
 
-#if USE_POSTGRESQL
-
 #include <array>
 #include <cstring>
 #include <sstream>
@@ -34,6 +32,8 @@
 #include <charconv>
 
 #include "postgresql_internal.hpp"
+
+#if USE_POSTGRESQL
 
 namespace cpp_dbc::PostgreSQL
 {
@@ -62,7 +62,7 @@ namespace cpp_dbc::PostgreSQL
     }
     #endif // __cpp_exceptions
 
-    bool PostgreSQLDBDriver::acceptsURL(const std::string &url)
+    bool PostgreSQLDBDriver::acceptsURL(const std::string &url) noexcept
     {
         return url.starts_with("cpp_dbc:postgresql://");
     }

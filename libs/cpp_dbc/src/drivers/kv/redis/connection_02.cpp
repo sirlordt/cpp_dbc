@@ -263,50 +263,13 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    cpp_dbc::expected<RedisReplyHandle, DBException> RedisDBConnection::executeRaw(
-        std::nothrow_t, const std::string &command, const std::vector<std::string> &args) noexcept
+    void RedisDBConnection::prepareForPoolReturn()
     {
-        REDIS_LOCK_GUARD(m_mutex);
-
-        auto connCheck = validateConnection(std::nothrow);
-        if (!connCheck.has_value())
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result.has_value())
         {
-            return cpp_dbc::unexpected(connCheck.error());
+            throw result.error();
         }
-
-        // Prepare the command and arguments
-        std::vector<const char *> argv;
-        std::vector<size_t> argvlen;
-
-        argv.push_back(command.c_str());
-        argvlen.push_back(command.length());
-
-        for (const auto &arg : args)
-        {
-            argv.push_back(arg.c_str());
-            argvlen.push_back(arg.length());
-        }
-
-        auto *reply = static_cast<redisReply *>(redisCommandArgv(
-            m_context.get(), static_cast<int>(argv.size()), argv.data(), argvlen.data()));
-
-        if (!reply)
-        {
-            return cpp_dbc::unexpected(DBException("IYULQRKMNKJ9",
-                                                   "Redis command execution failed: " + command,
-                                                   system_utils::captureCallStack()));
-        }
-
-        if (reply->type == REDIS_REPLY_ERROR)
-        {
-            std::string errorMsg = reply->str ? reply->str : "Unknown error";
-            freeReplyObject(reply);
-            return cpp_dbc::unexpected(DBException("MOPD5WOXBBPJ",
-                                                   "Redis command error: " + errorMsg,
-                                                   system_utils::captureCallStack()));
-        }
-
-        return RedisReplyHandle(reply);
     }
 
     RedisReplyHandle RedisDBConnection::executeRaw(
@@ -323,28 +286,6 @@ namespace cpp_dbc::Redis
     int RedisDBConnection::getDatabaseIndex() const
     {
         return m_dbIndex;
-    }
-
-    cpp_dbc::expected<void, DBException> RedisDBConnection::selectDatabase(
-        std::nothrow_t, int index) noexcept
-    {
-        auto replyResult = executeRaw(std::nothrow, "SELECT", {std::to_string(index)});
-        if (!replyResult.has_value())
-        {
-            return cpp_dbc::unexpected(replyResult.error());
-        }
-
-        const auto &reply = replyResult.value();
-        if (reply.get()->type == REDIS_REPLY_STATUS &&
-            std::string(reply.get()->str, reply.get()->len) == "OK")
-        {
-            m_dbIndex = index;
-            return {};
-        }
-
-        return cpp_dbc::unexpected(DBException("4Y6O0DLL7OEX",
-                                               "Failed to select Redis database: " + std::to_string(index),
-                                               system_utils::captureCallStack()));
     }
 
     void RedisDBConnection::selectDatabase(int index)

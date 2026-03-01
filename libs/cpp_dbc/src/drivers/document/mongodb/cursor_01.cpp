@@ -69,41 +69,6 @@ namespace cpp_dbc::MongoDB
     // MongoDBCursor Implementation - Constructor, Destructor, Move
     // ============================================================================
 
-#if DB_DRIVER_THREAD_SAFE
-    MongoDBCursor::MongoDBCursor(std::weak_ptr<mongoc_client_t> client, mongoc_cursor_t *cursor,
-                                  std::weak_ptr<MongoDBConnection> connection, SharedConnMutex connMutex)
-        : m_client(std::move(client)),
-          m_connection(std::move(connection)),
-          m_cursor(cursor),
-          m_connMutex(std::move(connMutex))
-    {
-        MONGODB_DEBUG("MongoDBCursor::constructor - Creating cursor");
-        if (!m_cursor)
-        {
-            throw DBException("C9D5E4F3A7B8", "Cannot create cursor from null pointer", system_utils::captureCallStack());
-        }
-        // Note: Cursor registration is done by MongoDBCollection after make_shared
-        // to enable weak_from_this() usage
-        MONGODB_DEBUG("MongoDBCursor::constructor - Done");
-    }
-#else
-    MongoDBCursor::MongoDBCursor(std::weak_ptr<mongoc_client_t> client, mongoc_cursor_t *cursor,
-                                  std::weak_ptr<MongoDBConnection> connection)
-        : m_client(std::move(client)),
-          m_connection(std::move(connection)),
-          m_cursor(cursor)
-    {
-        MONGODB_DEBUG("MongoDBCursor::constructor - Creating cursor");
-        if (!m_cursor)
-        {
-            throw DBException("C9D5E4F3A7B8", "Cannot create cursor from null pointer", system_utils::captureCallStack());
-        }
-        // Note: Cursor registration is done by MongoDBCollection after make_shared
-        // to enable weak_from_this() usage
-        MONGODB_DEBUG("MongoDBCursor::constructor - Done");
-    }
-#endif
-
     MongoDBCursor::~MongoDBCursor()
     {
         MONGODB_DEBUG("MongoDBCursor::destructor - Destroying cursor");
@@ -112,47 +77,59 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBCursor::destructor - Done");
     }
 
-    MongoDBCursor::MongoDBCursor(MongoDBCursor &&other) noexcept
-        : m_client(std::move(other.m_client)),
-          m_connection(std::move(other.m_connection)),
-          m_cursor(std::move(other.m_cursor)),
-          m_currentDoc(std::move(other.m_currentDoc)),
-          m_position(other.m_position),
-          m_iterationStarted(other.m_iterationStarted),
-          m_exhausted(other.m_exhausted)
-#if DB_DRIVER_THREAD_SAFE
-          , m_connMutex(std::move(other.m_connMutex))
-#endif
-    {
-        // Note: weak_ptr registration stays with the shared_ptr control block,
-        // not the internal object state, so no re-registration needed
-        other.m_exhausted = true;
-    }
+    // Private nothrow constructors
 
-    MongoDBCursor &MongoDBCursor::operator=(MongoDBCursor &&other) noexcept
-    {
-        if (this != &other)
-        {
-            m_client = std::move(other.m_client);
-            m_connection = std::move(other.m_connection);
-            m_cursor = std::move(other.m_cursor);
-            m_currentDoc = std::move(other.m_currentDoc);
-            m_position = other.m_position;
-            m_iterationStarted = other.m_iterationStarted;
-            m_exhausted = other.m_exhausted;
 #if DB_DRIVER_THREAD_SAFE
-            m_connMutex = std::move(other.m_connMutex);
-#endif
-            other.m_exhausted = true;
+    MongoDBCursor::MongoDBCursor(std::nothrow_t,
+                                 std::weak_ptr<mongoc_client_t> client,
+                                 mongoc_cursor_t *cursor,
+                                 std::weak_ptr<MongoDBConnection> connection,
+                                 SharedConnMutex connMutex) noexcept
+        : m_client(std::move(client)),
+          m_connection(std::move(connection)),
+          m_cursor(cursor),
+          m_connMutex(std::move(connMutex))
+    {
+        MONGODB_DEBUG("MongoDBCursor::constructor(nothrow) - Creating cursor");
+        if (!m_cursor)
+        {
+            m_initFailed = true;
+            m_initError = DBException("C9D5E4F3A7B8", "Cannot create cursor from null pointer", system_utils::captureCallStack());
+            return;
         }
-        return *this;
+        // Note: Cursor registration is done by MongoDBCollection after make_shared
+        // to enable weak_from_this() usage
+        MONGODB_DEBUG("MongoDBCursor::constructor(nothrow) - Done");
     }
+#else
+    MongoDBCursor::MongoDBCursor(std::nothrow_t,
+                                 std::weak_ptr<mongoc_client_t> client,
+                                 mongoc_cursor_t *cursor,
+                                 std::weak_ptr<MongoDBConnection> connection) noexcept
+        : m_client(std::move(client)),
+          m_connection(std::move(connection)),
+          m_cursor(cursor)
+    {
+        MONGODB_DEBUG("MongoDBCursor::constructor(nothrow) - Creating cursor");
+        if (!m_cursor)
+        {
+            m_initFailed = true;
+            m_initError = DBException("C9D5E4F3A7B8", "Cannot create cursor from null pointer", system_utils::captureCallStack());
+            return;
+        }
+        // Note: Cursor registration is done by MongoDBCollection after make_shared
+        // to enable weak_from_this() usage
+        MONGODB_DEBUG("MongoDBCursor::constructor(nothrow) - Done");
+    }
+#endif
+
+#ifdef __cpp_exceptions
+    // Throwing wrappers (same order as in cursor.hpp)
 
     // ============================================================================
     // MongoDBCursor Implementation - DocumentDBCursor Interface (throwing wrappers)
     // ============================================================================
 
-    #ifdef __cpp_exceptions
     void MongoDBCursor::close()
     {
         auto r = close(std::nothrow);
@@ -294,19 +271,27 @@ namespace cpp_dbc::MongoDB
 
     [[noreturn]] void MongoDBCursor::rewind()
     {
+        // rewind(std::nothrow) always returns unexpected for MongoDB cursors
         auto r = rewind(std::nothrow);
-        // rewind(std::nothrow) always returns unexpected for MongoDB
         throw r.error();
     }
-    #endif // __cpp_exceptions
 
-    bool MongoDBCursor::isConnectionValid() const { return !m_client.expired(); }
+    // ============================================================================
+    // MongoDBCursor Implementation - MongoDB-specific methods
+    // ============================================================================
+
+    bool MongoDBCursor::isConnectionValid() const
+    {
+        return !m_client.expired();
+    }
 
     std::string MongoDBCursor::getError() const
     {
         MONGODB_LOCK_GUARD(*m_connMutex);
         if (!m_cursor)
+        {
             return "";
+        }
         bson_error_t error;
         if (mongoc_cursor_error(m_cursor.get(), &error))
         {
@@ -314,6 +299,7 @@ namespace cpp_dbc::MongoDB
         }
         return "";
     }
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB
 

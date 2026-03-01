@@ -38,25 +38,32 @@ namespace cpp_dbc::ScyllaDB
     // ScyllaDBConnection
     // ====================================================================
 
-    ScyllaDBConnection::ScyllaDBConnection(const std::string &host, int port, const std::string &keyspace,
-                                           const std::string &user, const std::string &password,
+    // Private nothrow constructor — contains all connection logic.
+    // Never throws: any failure is recorded in m_initFailed/m_initError so that
+    // the delegating throwing constructor and the create() factory can both
+    // reuse this code path without duplication.
+    ScyllaDBConnection::ScyllaDBConnection(std::nothrow_t,
+                                           const std::string &host,
+                                           int port,
+                                           const std::string &keyspace,
+                                           const std::string &user,
+                                           const std::string &password,
                                            [[maybe_unused]] const std::map<std::string, std::string> &options)
     {
-        SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connecting to " << host << ":" << port);
+        SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Connecting to " << host << ":" << port);
         m_cluster = std::shared_ptr<CassCluster>(cass_cluster_new(), CassClusterDeleter());
         cass_cluster_set_contact_points(m_cluster.get(), host.c_str());
         cass_cluster_set_port(m_cluster.get(), port);
 
         if (!user.empty())
         {
-            SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Setting credentials for user: " << user);
+            SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Setting credentials for user: " << user);
             cass_cluster_set_credentials(m_cluster.get(), user.c_str(), password.c_str());
         }
 
         m_session = std::shared_ptr<CassSession>(cass_session_new(), CassSessionDeleter());
 
-        // Connect
-        SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connecting to cluster");
+        SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Connecting to cluster");
         CassFutureHandle connect_future(cass_session_connect(m_session.get(), m_cluster.get()));
 
         if (cass_future_error_code(connect_future.get()) != CASS_OK)
@@ -65,33 +72,38 @@ namespace cpp_dbc::ScyllaDB
             size_t length;
             cass_future_error_message(connect_future.get(), &message, &length);
             std::string errorMsg(message, length);
-            SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connection failed: " << errorMsg);
-            throw DBException("Q8R9S0T1U2V3", errorMsg, system_utils::captureCallStack());
+            SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Connection failed: " << errorMsg);
+            m_initFailed = true;
+            m_initError = DBException("Q8R9S0T1U2V3", errorMsg, system_utils::captureCallStack());
+            return;
         }
 
-        SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connected successfully");
+        SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Connected successfully");
 
-        // Use keyspace if provided
         if (!keyspace.empty())
         {
-            // Validate keyspace name to prevent CQL injection
-            // Keyspace names should only contain alphanumeric characters and underscores
+            // Validate keyspace name to prevent CQL injection.
+            // Keyspace names should only contain alphanumeric characters and underscores.
             bool isValidKeyspace = std::ranges::all_of(keyspace, [](unsigned char c) {
                 return std::isalnum(c) || c == '_';
             });
             if (!isValidKeyspace)
             {
-                throw DBException("7A3F9E2B5C8D", "Invalid keyspace name: " + keyspace, system_utils::captureCallStack());
+                m_initFailed = true;
+                m_initError = DBException("7A3F9E2B5C8D", "Invalid keyspace name: " + keyspace, system_utils::captureCallStack());
+                return;
             }
 
-            SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Using keyspace: " << keyspace);
+            SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Using keyspace: " << keyspace);
             std::string query = "USE " + keyspace;
             CassStatementHandle statement(cass_statement_new(query.c_str(), 0));
             CassFutureHandle future(cass_session_execute(m_session.get(), statement.get()));
             if (cass_future_error_code(future.get()) != CASS_OK)
             {
-                SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Failed to use keyspace: " << keyspace);
-                throw DBException("R9S0T1U2V3W4", "Failed to use keyspace " + keyspace, system_utils::captureCallStack());
+                SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Failed to use keyspace: " << keyspace);
+                m_initFailed = true;
+                m_initError = DBException("R9S0T1U2V3W4", "Failed to use keyspace " + keyspace, system_utils::captureCallStack());
+                return;
             }
         }
 
@@ -101,33 +113,39 @@ namespace cpp_dbc::ScyllaDB
         // on connections that don't select a keyspace (e.g. "cpp_dbc:scylladb://host:port").
         m_url = "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) +
                 (keyspace.empty() ? "" : "/" + keyspace);
-        SCYLLADB_DEBUG("ScyllaDBConnection::constructor - Connection established");
+        SCYLLADB_DEBUG("ScyllaDBConnection::constructor(nothrow) - Connection established");
     }
 
     ScyllaDBConnection::~ScyllaDBConnection()
     {
         SCYLLADB_DEBUG("ScyllaDBConnection::destructor - Destroying connection");
-        ScyllaDBConnection::close();
+        ScyllaDBConnection::close(std::nothrow);
     }
 
     #ifdef __cpp_exceptions
+    // DBConnection interface — throwing wrappers
+
     void ScyllaDBConnection::close()
     {
         auto result = close(std::nothrow);
         if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
     bool ScyllaDBConnection::isClosed() const
     {
-        return m_closed;
+        return m_closed.load(std::memory_order_acquire);
     }
 
     void ScyllaDBConnection::returnToPool()
     {
         auto result = returnToPool(std::nothrow);
         if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
     bool ScyllaDBConnection::isPooled() const
@@ -144,15 +162,22 @@ namespace cpp_dbc::ScyllaDB
     {
         auto result = reset(std::nothrow);
         if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
-    void ScyllaDBConnection::prepareForPoolReturn()
+    bool ScyllaDBConnection::ping()
     {
-        auto result = prepareForPoolReturn(std::nothrow);
+        auto result = ping(std::nothrow);
         if (!result.has_value())
+        {
             throw result.error();
+        }
+        return *result;
     }
+
+    // ColumnarDBConnection interface — throwing wrappers (same order as in connection.hpp)
 
     std::shared_ptr<ColumnarDBPreparedStatement> ScyllaDBConnection::prepareStatement(const std::string &query)
     {
@@ -188,7 +213,9 @@ namespace cpp_dbc::ScyllaDB
     {
         auto result = beginTransaction(std::nothrow);
         if (!result.has_value())
+        {
             throw result.error();
+        }
         return *result;
     }
 
@@ -196,41 +223,30 @@ namespace cpp_dbc::ScyllaDB
     {
         auto result = commit(std::nothrow);
         if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
     void ScyllaDBConnection::rollback()
     {
         auto result = rollback(std::nothrow);
         if (!result.has_value())
+        {
             throw result.error();
+        }
     }
 
-    bool ScyllaDBConnection::ping()
+    void ScyllaDBConnection::prepareForPoolReturn()
     {
-        auto result = ping(std::nothrow);
+        auto result = prepareForPoolReturn(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();
         }
-        return *result;
     }
+
     #endif // __cpp_exceptions
-
-    cpp_dbc::expected<bool, DBException> ScyllaDBConnection::ping(std::nothrow_t) noexcept
-    {
-        auto result = executeQuery(std::nothrow, "SELECT release_version FROM system.local");
-        if (!result.has_value())
-        {
-            return cpp_dbc::unexpected(result.error());
-        }
-        auto closeResult = result.value()->close(std::nothrow);
-        if (!closeResult.has_value())
-        {
-            return cpp_dbc::unexpected(closeResult.error());
-        }
-        return true;
-    }
 
 } // namespace cpp_dbc::ScyllaDB
 

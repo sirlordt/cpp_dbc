@@ -209,12 +209,15 @@ namespace cpp_dbc::PostgreSQL
                const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
         {
             auto r = create(std::nothrow, host, port, database, user, password, options);
-            if (!r.has_value()) { throw r.error(); }
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
             return r.value();
         }
 
-        // DBConnection interface
-        #ifdef __cpp_exceptions
+// DBConnection interface
+#ifdef __cpp_exceptions
         void close() override;
         void reset() override;
         bool isClosed() const override;
@@ -244,7 +247,7 @@ namespace cpp_dbc::PostgreSQL
         /** @brief Generate a unique name for server-side prepared statements */
         std::string generateStatementName();
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

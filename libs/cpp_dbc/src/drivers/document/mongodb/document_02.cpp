@@ -13,7 +13,9 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file document_02.cpp
- * @brief MongoDB MongoDBDocument - Part 2 (getters - throwing wrappers)
+ * @brief MongoDB MongoDBDocument - Part 2 (getters throwing wrappers:
+ *        getString, getInt, getDouble, getBool, getBinary,
+ *        getDocument, getDocumentArray, getStringArray)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
@@ -90,6 +92,16 @@ namespace cpp_dbc::MongoDB
     std::vector<std::shared_ptr<DocumentDBData>> MongoDBDocument::getDocumentArray(const std::string &fieldPath) const
     {
         auto r = getDocumentArray(std::nothrow, fieldPath);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return *r;
+    }
+
+    std::vector<std::string> MongoDBDocument::getStringArray(const std::string &fieldPath) const
+    {
+        auto r = getStringArray(std::nothrow, fieldPath);
         if (!r.has_value())
         {
             throw r.error();

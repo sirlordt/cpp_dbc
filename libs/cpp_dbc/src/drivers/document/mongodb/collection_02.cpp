@@ -34,54 +34,7 @@ namespace cpp_dbc::MongoDB
 {
 
     // ====================================================================
-    // THROWING API - insertOne, insertMany, findOne, findById (wrappers)
-    // ====================================================================
-
-    #ifdef __cpp_exceptions
-    DocumentInsertResult MongoDBCollection::insertOne(
-        std::shared_ptr<DocumentDBData> document,
-        const DocumentWriteOptions &options)
-    {
-        auto r = insertOne(std::nothrow, std::move(document), options);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-
-    DocumentInsertResult MongoDBCollection::insertOne(
-        const std::string &jsonDocument,
-        const DocumentWriteOptions &options)
-    {
-        auto r = insertOne(std::nothrow, jsonDocument, options);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-
-    DocumentInsertResult MongoDBCollection::insertMany(
-        const std::vector<std::shared_ptr<DocumentDBData>> &documents,
-        const DocumentWriteOptions &options)
-    {
-        auto r = insertMany(std::nothrow, documents, options);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-
-    std::shared_ptr<DocumentDBData> MongoDBCollection::findOne(const std::string &filter)
-    {
-        auto r = findOne(std::nothrow, filter);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-
-    std::shared_ptr<DocumentDBData> MongoDBCollection::findById(const std::string &id)
-    {
-        auto r = findById(std::nothrow, id);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-    #endif // __cpp_exceptions
-
-    // ====================================================================
-    // NOTHROW API - insertOne, insertMany (real implementations)
+    // NOTHROW API - insertOne, insertMany, findOne, findById (implementations)
     // ====================================================================
 
     expected<DocumentInsertResult, DBException> MongoDBCollection::insertOne(
@@ -187,29 +140,12 @@ namespace cpp_dbc::MongoDB
         const std::string &jsonDocument,
         const DocumentWriteOptions &options) noexcept
     {
-        try
+        auto r = MongoDBDocument::create(std::nothrow, jsonDocument);
+        if (!r.has_value())
         {
-            auto doc = std::make_shared<MongoDBDocument>(jsonDocument);
-            return insertOne(std::nothrow, doc, options);
+            return unexpected<DBException>(r.error());
         }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "B7C8D9E0F1A2",
-                std::string("Failed to parse JSON document: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "C8D9E0F1A2B3",
-                "Unknown error parsing JSON document",
-                system_utils::captureCallStack()));
-        }
+        return insertOne(std::nothrow, r.value(), options);
     }
 
     expected<DocumentInsertResult, DBException> MongoDBCollection::insertMany(
@@ -339,9 +275,6 @@ namespace cpp_dbc::MongoDB
         }
     }
 
-    // ====================================================================
-    // NOTHROW API - findOne, findById (real implementations)
-    // ====================================================================
 
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBCollection::findOne(
         std::nothrow_t,
@@ -397,9 +330,14 @@ namespace cpp_dbc::MongoDB
                         "Failed to copy BSON document in findOne (memory allocation failure)",
                         system_utils::captureCallStack()));
                 }
-                // Use RAII guard to prevent leak if make_shared throws
-                BsonHandle guard(docCopy);
-                result = std::make_shared<MongoDBDocument>(guard.release());
+                // create() takes ownership of docCopy; on success m_bson holds it.
+                // docCopy is guaranteed non-null here (bson_copy returned it above).
+                auto docResult = MongoDBDocument::create(std::nothrow, docCopy);
+                if (!docResult.has_value())
+                {
+                    return unexpected<DBException>(docResult.error());
+                }
+                result = docResult.value();
             }
 
             bson_error_t error;

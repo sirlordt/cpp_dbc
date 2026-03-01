@@ -209,6 +209,28 @@ namespace cpp_dbc::MongoDB
             throw result.error();
         }
     }
+
+    // ============================================================================
+    // MongoDBConnection Implementation - MongoDB-specific methods
+    // ============================================================================
+
+    std::weak_ptr<mongoc_client_t> MongoDBConnection::getClientWeak() const
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        return std::weak_ptr<mongoc_client_t>(m_client);
+    }
+
+    MongoClientHandle MongoDBConnection::getClient() const
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        return m_client;
+    }
+
+    void MongoDBConnection::setPooled(bool pooled)
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        m_pooled = pooled;
+    }
     #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MongoDB

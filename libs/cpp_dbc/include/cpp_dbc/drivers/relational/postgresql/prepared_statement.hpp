@@ -112,7 +112,10 @@ namespace cpp_dbc::PostgreSQL
         create(std::weak_ptr<PGconn> conn, SharedConnMutex connMutex, const std::string &sql, const std::string &stmt_name)
         {
             auto r = create(std::nothrow, conn, connMutex, sql, stmt_name);
-            if (!r.has_value()) { throw r.error(); }
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
             return r.value();
         }
 #else
@@ -144,12 +147,15 @@ namespace cpp_dbc::PostgreSQL
         create(std::weak_ptr<PGconn> conn, const std::string &sql, const std::string &stmt_name)
         {
             auto r = create(std::nothrow, conn, sql, stmt_name);
-            if (!r.has_value()) { throw r.error(); }
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
             return r.value();
         }
 #endif
 
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         void setInt(int parameterIndex, int value) override;
         void setLong(int parameterIndex, int64_t value) override;
         void setDouble(int parameterIndex, double value) override;
@@ -172,7 +178,7 @@ namespace cpp_dbc::PostgreSQL
         bool execute() override;
         void close() override;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

@@ -34,7 +34,7 @@ namespace cpp_dbc::Firebird
      * @see FirebirdDBConnection, FirebirdDBResultSet
      */
     class FirebirdDBPreparedStatement final : public RelationalDBPreparedStatement,
-                                               public std::enable_shared_from_this<FirebirdDBPreparedStatement>
+                                              public std::enable_shared_from_this<FirebirdDBPreparedStatement>
     {
         friend class FirebirdDBConnection;
         friend class FirebirdConnectionLock;
@@ -132,11 +132,14 @@ namespace cpp_dbc::Firebird
         create(std::weak_ptr<isc_db_handle> db, const std::string &sql, std::weak_ptr<FirebirdDBConnection> conn)
         {
             auto r = create(std::nothrow, db, sql, conn);
-            if (!r.has_value()) { throw r.error(); }
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
             return r.value();
         }
 
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         void setInt(int parameterIndex, int value) override;
         void setLong(int parameterIndex, int64_t value) override;
         void setDouble(int parameterIndex, double value) override;
@@ -159,7 +162,7 @@ namespace cpp_dbc::Firebird
         bool execute() override;
         void close() override;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

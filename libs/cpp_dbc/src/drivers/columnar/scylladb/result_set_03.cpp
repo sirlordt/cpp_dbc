@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file result_set_03.cpp
- * @brief ScyllaDB database driver implementation - ScyllaDBResultSet nothrow methods (part 2)
+ * @brief ScyllaDB database driver implementation - ScyllaDBResultSet nothrow methods (part 2: by-name getters + column metadata + binary)
  */
 
 #include "cpp_dbc/drivers/columnar/driver_scylladb.hpp"
@@ -34,6 +34,10 @@
 
 namespace cpp_dbc::ScyllaDB
 {
+    // ====================================================================
+    // Nothrow API — by-name typed getters
+    // ====================================================================
+
     cpp_dbc::expected<int, DBException> ScyllaDBResultSet::getInt(std::nothrow_t, const std::string &columnName) noexcept
     {
         auto it = m_columnMap.find(columnName);
@@ -134,6 +138,10 @@ namespace cpp_dbc::ScyllaDB
         return getTime(std::nothrow, it->second + 1);
     }
 
+    // ====================================================================
+    // Nothrow API — column metadata
+    // ====================================================================
+
     cpp_dbc::expected<std::vector<std::string>, DBException> ScyllaDBResultSet::getColumnNames(std::nothrow_t) noexcept
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -146,10 +154,14 @@ namespace cpp_dbc::ScyllaDB
         return m_columnCount;
     }
 
+    // ====================================================================
+    // Nothrow API — BLOB/Binary support
+    // ====================================================================
+
     cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> ScyllaDBResultSet::getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept
     {
         auto bytes = getBytes(std::nothrow, columnIndex);
-        if (!bytes)
+        if (!bytes.has_value())
         {
             return cpp_dbc::unexpected(bytes.error());
         }

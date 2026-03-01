@@ -91,7 +91,7 @@ namespace cpp_dbc::SQLite
         std::map<std::string, size_t> m_columnMap;
         bool m_hasData{false};
         bool m_closed{true};
-        std::weak_ptr<SQLiteDBConnection> m_connection; // Weak reference to the connection
+        std::weak_ptr<SQLiteDBConnection> m_connection;               // Weak reference to the connection
         std::weak_ptr<SQLiteDBPreparedStatement> m_preparedStatement; // Optional weak reference to prepared statement (if created from PreparedStatement::executeQuery)
 
         /**
@@ -173,11 +173,14 @@ namespace cpp_dbc::SQLite
                std::shared_ptr<std::recursive_mutex> globalFileMutex)
         {
             auto r = create(std::nothrow, stmt, ownStatement, conn, prepStmt, globalFileMutex);
-            if (!r.has_value()) { throw r.error(); }
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
             return r.value();
         }
 
-        #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
         bool next() override;
         bool isBeforeFirst() override;
         bool isAfterLast() override;
@@ -225,7 +228,7 @@ namespace cpp_dbc::SQLite
         std::vector<uint8_t> getBytes(size_t columnIndex) override;
         std::vector<uint8_t> getBytes(const std::string &columnName) override;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

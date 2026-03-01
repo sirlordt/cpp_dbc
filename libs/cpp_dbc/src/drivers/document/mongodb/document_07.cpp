@@ -14,7 +14,8 @@
  *
  * @file document_07.cpp
  * @brief MongoDB MongoDBDocument - Part 7 (nothrow API: getDocumentArray, getStringArray,
- *        setters, hasField, isNull, removeField, getFieldNames, clone, clear, isEmpty)
+ *        setters, hasField, isNull, removeField, getFieldNames, clone, clear, isEmpty,
+ *        getBson, getBsonMutable, copyFrom)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
@@ -107,7 +108,15 @@ namespace cpp_dbc::MongoDB
                             "Failed to construct subdocument at index " + std::to_string(elementIndex) + " in array field: " + fieldPath,
                             system_utils::captureCallStack()));
                     }
-                    result.push_back(std::make_shared<MongoDBDocument>(subdoc));
+                    // Use the private nothrow factory to construct the document without invoking
+                    // the throwing constructor — required to stay within this method's noexcept contract.
+                    // subdoc is guaranteed non-null here (bson_new_from_data returned it above).
+                    auto subdocResult = MongoDBDocument::create(std::nothrow, subdoc);
+                    if (!subdocResult.has_value())
+                    {
+                        return unexpected<DBException>(subdocResult.error());
+                    }
+                    result.push_back(subdocResult.value());
                 }
                 else if (strict)
                 {
@@ -703,8 +712,15 @@ namespace cpp_dbc::MongoDB
                 system_utils::captureCallStack()));
         }
 
-        auto doc = std::make_shared<MongoDBDocument>(copy);
-        return std::static_pointer_cast<DocumentDBData>(doc);
+        // Use the private nothrow factory to construct the document without invoking
+        // the throwing constructor — required to stay within this method's noexcept contract.
+        // copy is guaranteed non-null here (bson_copy returned it above).
+        auto docResult = MongoDBDocument::create(std::nothrow, copy);
+        if (!docResult.has_value())
+        {
+            return unexpected<DBException>(docResult.error());
+        }
+        return std::static_pointer_cast<DocumentDBData>(docResult.value());
     }
 
     expected<void, DBException> MongoDBDocument::clear(std::nothrow_t) noexcept
@@ -736,6 +752,46 @@ namespace cpp_dbc::MongoDB
         }
 
         return bson_count_keys(m_bson.get()) == 0;
+    }
+
+    // ====================================================================
+    // NOTHROW API - MongoDB-specific: getBson, getBsonMutable, copyFrom, create
+    // ====================================================================
+
+    const bson_t *MongoDBDocument::getBson() const
+    {
+        MONGODB_LOCK_GUARD(m_mutex);
+        return m_bson.get();
+    }
+
+    bson_t *MongoDBDocument::getBsonMutable()
+    {
+        MONGODB_LOCK_GUARD(m_mutex);
+        m_idCached = false;
+        return m_bson.get();
+    }
+
+    expected<std::shared_ptr<MongoDBDocument>, DBException>
+    MongoDBDocument::copyFrom(std::nothrow_t, const bson_t *bson) noexcept
+    {
+        if (!bson)
+        {
+            return unexpected<DBException>(DBException(
+                "Z99M25OOHIBD",
+                "Cannot copy from null BSON pointer",
+                system_utils::captureCallStack()));
+        }
+
+        bson_t *copy = bson_copy(bson);
+        if (!copy)
+        {
+            return unexpected<DBException>(DBException(
+                "UYBXP3TMVRMC",
+                "Failed to copy BSON document",
+                system_utils::captureCallStack()));
+        }
+
+        return create(std::nothrow, copy);
     }
 
 } // namespace cpp_dbc::MongoDB

@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file result_set_01.cpp
- * @brief ScyllaDB database driver implementation - ScyllaDBResultSet throwing methods
+ * @brief ScyllaDB database driver implementation - ScyllaDBResultSet constructor, destructor and throwing wrappers
  */
 
 #include "cpp_dbc/drivers/columnar/driver_scylladb.hpp"
@@ -35,33 +35,8 @@
 namespace cpp_dbc::ScyllaDB
 {
     // ====================================================================
-    // ScyllaDBResultSet
+    // ScyllaDBResultSet — constructor (always compiled)
     // ====================================================================
-
-    cpp_dbc::expected<void, DBException> ScyllaDBResultSet::validateResultState(std::nothrow_t) const noexcept
-    {
-        if (!m_iterator)
-        {
-            SCYLLADB_DEBUG("ScyllaDBResultSet::validateResultState - ResultSet is closed");
-            return cpp_dbc::unexpected(DBException("WIYIA79MF50M", "ResultSet is closed", system_utils::captureCallStack()));
-        }
-        return {};
-    }
-
-    cpp_dbc::expected<void, DBException> ScyllaDBResultSet::validateCurrentRow(std::nothrow_t) const noexcept
-    {
-        auto result = validateResultState(std::nothrow);
-        if (!result.has_value())
-        {
-            return result;
-        }
-        if (!m_currentRow)
-        {
-            SCYLLADB_DEBUG("ScyllaDBResultSet::validateCurrentRow - No current row available");
-            return cpp_dbc::unexpected(DBException("U2V3W4X5Y6Z7", "No current row available", system_utils::captureCallStack()));
-        }
-        return {};
-    }
 
     ScyllaDBResultSet::ScyllaDBResultSet(const CassResult *res)
         : m_result(res), // Takes ownership via unique_ptr
@@ -85,26 +60,25 @@ namespace cpp_dbc::ScyllaDB
         }
     }
 
+    // ====================================================================
+    // ScyllaDBResultSet — destructor (always compiled, calls nothrow close)
+    // ====================================================================
+
     ScyllaDBResultSet::~ScyllaDBResultSet()
     {
         SCYLLADB_DEBUG("ScyllaDBResultSet::destructor - Destroying result set");
-        try
+        auto result = ScyllaDBResultSet::close(std::nothrow);
+        if (!result.has_value())
         {
-            ScyllaDBResultSet::close();
-        }
-        catch (const std::exception &e)
-        {
-            // Log the error but don't throw - in destructor
-            SCYLLADB_DEBUG("Failed to close result set: " << e.what());
-        }
-        catch (...)
-        {
-            // Catch all other exceptions
-            SCYLLADB_DEBUG("Failed to close result set: unknown error");
+            SCYLLADB_DEBUG("Failed to close result set: " << result.error().what_s());
         }
     }
 
     #ifdef __cpp_exceptions
+    // ====================================================================
+    // DBResultSet interface — throwing wrappers
+    // ====================================================================
+
     void ScyllaDBResultSet::close()
     {
         auto result = close(std::nothrow);
@@ -123,6 +97,10 @@ namespace cpp_dbc::ScyllaDB
         }
         return *result;
     }
+
+    // ====================================================================
+    // ColumnarDBResultSet interface — throwing wrappers
+    // ====================================================================
 
     bool ScyllaDBResultSet::next()
     {
@@ -174,7 +152,6 @@ namespace cpp_dbc::ScyllaDB
         return *result;
     }
 
-    // String overload delegates to map lookup then index
     int ScyllaDBResultSet::getInt(const std::string &columnName)
     {
         auto result = getInt(std::nothrow, columnName);
@@ -385,7 +362,6 @@ namespace cpp_dbc::ScyllaDB
         return *result;
     }
 
-    // Stream not fully supported in simple mapping, returning in-memory stream
     std::shared_ptr<InputStream> ScyllaDBResultSet::getBinaryStream(size_t columnIndex)
     {
         auto result = getBinaryStream(std::nothrow, columnIndex);
@@ -406,7 +382,6 @@ namespace cpp_dbc::ScyllaDB
         return *result;
     }
 
-    // Binary support - stubbed or implemented using bytes
     std::vector<uint8_t> ScyllaDBResultSet::getBytes(size_t columnIndex)
     {
         auto result = getBytes(std::nothrow, columnIndex);
@@ -426,6 +401,7 @@ namespace cpp_dbc::ScyllaDB
         }
         return *result;
     }
+
     #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::ScyllaDB

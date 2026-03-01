@@ -34,34 +34,7 @@ namespace cpp_dbc::MongoDB
 {
 
     // ====================================================================
-    // THROWING API - deleteOne, deleteMany, deleteById (wrappers)
-    // ====================================================================
-
-    #ifdef __cpp_exceptions
-    DocumentDeleteResult MongoDBCollection::deleteOne(const std::string &filter)
-    {
-        auto r = deleteOne(std::nothrow, filter);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-
-    DocumentDeleteResult MongoDBCollection::deleteMany(const std::string &filter)
-    {
-        auto r = deleteMany(std::nothrow, filter);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-
-    DocumentDeleteResult MongoDBCollection::deleteById(const std::string &id)
-    {
-        auto r = deleteById(std::nothrow, id);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-    #endif // __cpp_exceptions
-
-    // ====================================================================
-    // NOTHROW API - deleteOne, deleteMany, deleteById (real implementations)
+    // NOTHROW API - deleteOne, deleteMany, deleteById (implementations)
     // ====================================================================
 
     expected<DocumentDeleteResult, DBException> MongoDBCollection::deleteOne(

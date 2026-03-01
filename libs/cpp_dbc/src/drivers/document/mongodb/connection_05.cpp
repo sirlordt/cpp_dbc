@@ -42,65 +42,23 @@ namespace cpp_dbc::MongoDB
 
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::createDocument(std::nothrow_t) noexcept
     {
-        try
+        auto r = MongoDBDocument::create(std::nothrow);
+        if (!r.has_value())
         {
-            auto doc = std::make_shared<MongoDBDocument>();
-            return std::static_pointer_cast<DocumentDBData>(doc);
+            return unexpected<DBException>(r.error());
         }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "0B1C2D3E4F5A",
-                "Memory allocation failed in createDocument"));
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "1C2D3E4F5A6B",
-                std::string("Unexpected error in createDocument: ") + ex.what()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "2D3E4F5A6B7C",
-                "Unknown error in createDocument"));
-        }
+        return std::static_pointer_cast<DocumentDBData>(r.value());
     }
 
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::createDocument(
         std::nothrow_t, const std::string &json) noexcept
     {
-        try
+        auto r = MongoDBDocument::create(std::nothrow, json);
+        if (!r.has_value())
         {
-            auto doc = std::make_shared<MongoDBDocument>(json);
-            return std::static_pointer_cast<DocumentDBData>(doc);
+            return unexpected<DBException>(r.error());
         }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "3E4F5A6B7C8D",
-                "Memory allocation failed in createDocument"));
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "4F5A6B7C8D9E",
-                std::string("Failed to parse JSON in createDocument: ") + ex.what()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "5A6B7C8D9E0F",
-                "Unknown error in createDocument"));
-        }
+        return std::static_pointer_cast<DocumentDBData>(r.value());
     }
 
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::runCommand(
@@ -152,8 +110,12 @@ namespace cpp_dbc::MongoDB
                     "Failed to copy command reply"));
             }
 
-            auto doc = std::make_shared<MongoDBDocument>(replyCopy);
-            return std::static_pointer_cast<DocumentDBData>(doc);
+            auto docResult = MongoDBDocument::create(std::nothrow, replyCopy);
+            if (!docResult.has_value())
+            {
+                return unexpected<DBException>(docResult.error());
+            }
+            return std::static_pointer_cast<DocumentDBData>(docResult.value());
         }
         catch (const DBException &ex)
         {
@@ -181,72 +143,12 @@ namespace cpp_dbc::MongoDB
 
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerInfo(std::nothrow_t) noexcept
     {
-        try
-        {
-            return runCommand(std::nothrow, "{\"buildInfo\": 1}");
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "3C4D5E6F7A8B",
-                std::string("Error in getServerInfo: ") + ex.what()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "4D5E6F7A8B9C",
-                "Unknown error in getServerInfo"));
-        }
+        return runCommand(std::nothrow, "{\"buildInfo\": 1}");
     }
 
     expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBConnection::getServerStatus(std::nothrow_t) noexcept
     {
-        try
-        {
-            return runCommand(std::nothrow, "{\"serverStatus\": 1}");
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "5E6F7A8B9C0D",
-                std::string("Error in getServerStatus: ") + ex.what()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "6F7A8B9C0D1E",
-                "Unknown error in getServerStatus"));
-        }
-    }
-
-    // ====================================================================
-    // MongoDB-specific public methods
-    // ====================================================================
-
-    std::weak_ptr<mongoc_client_t> MongoDBConnection::getClientWeak() const
-    {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        return std::weak_ptr<mongoc_client_t>(m_client);
-    }
-
-    MongoClientHandle MongoDBConnection::getClient() const
-    {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        return m_client;
-    }
-
-    void MongoDBConnection::setPooled(bool pooled)
-    {
-        MONGODB_LOCK_GUARD(*m_connMutex);
-        m_pooled = pooled;
+        return runCommand(std::nothrow, "{\"serverStatus\": 1}");
     }
 
     // ====================================================================
@@ -328,12 +230,7 @@ namespace cpp_dbc::MongoDB
             }
 
             std::string sessionId = generateSessionId();
-
-            {
-                std::scoped_lock sessionsLock(m_sessionsMutex);
-                m_sessions[sessionId] = MongoSessionHandle(session);
-            }
-
+            m_sessions[sessionId] = MongoSessionHandle(session);
             return sessionId;
         }
         catch (const DBException &ex)
@@ -359,7 +256,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            std::scoped_lock lock(m_sessionsMutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
             auto it = m_sessions.find(sessionId);
             if (it != m_sessions.end())
             {
@@ -390,7 +287,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            std::scoped_lock lock(m_sessionsMutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             auto it = m_sessions.find(sessionId);
             if (it == m_sessions.end())
@@ -435,7 +332,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            std::scoped_lock lock(m_sessionsMutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             auto it = m_sessions.find(sessionId);
             if (it == m_sessions.end())
@@ -485,7 +382,7 @@ namespace cpp_dbc::MongoDB
     {
         try
         {
-            std::scoped_lock lock(m_sessionsMutex);
+            MONGODB_LOCK_GUARD(*m_connMutex);
 
             auto it = m_sessions.find(sessionId);
             if (it == m_sessions.end())
@@ -633,37 +530,27 @@ namespace cpp_dbc::MongoDB
         {
             MONGODB_DEBUG("MongoDBConnection::prepareForPoolReturn(nothrow) - Cleaning up connection");
 
+            MONGODB_LOCK_GUARD(*m_connMutex);
+
             // Close all active cursors
+            for (const auto &weakCursor : m_activeCursors)
             {
-                std::scoped_lock cursorsLock(m_cursorsMutex);
-                for (const auto &weakCursor : m_activeCursors)
+                if (auto cursor = weakCursor.lock())
                 {
-                    if (auto cursor = weakCursor.lock())
+                    auto r = cursor->close(std::nothrow);
+                    if (!r.has_value())
                     {
-                        try
-                        {
-                            cursor->close();
-                        }
-                        catch ([[maybe_unused]] const std::exception &ex)
-                        {
-                            MONGODB_DEBUG("prepareForPoolReturn(nothrow) - Exception closing cursor: " << ex.what());
-                        }
+                        MONGODB_DEBUG("prepareForPoolReturn(nothrow) - Error ignored during cursor cleanup: " << r.error().what());
                     }
                 }
-                m_activeCursors.clear();
             }
+            m_activeCursors.clear();
 
             // End all active sessions (also aborts any active transactions)
-            {
-                std::scoped_lock sessionsLock(m_sessionsMutex);
-                m_sessions.clear();
-            }
+            m_sessions.clear();
 
             // Clear active collections
-            {
-                std::scoped_lock collectionsLock(m_collectionsMutex);
-                m_activeCollections.clear();
-            }
+            m_activeCollections.clear();
 
             MONGODB_DEBUG("MongoDBConnection::prepareForPoolReturn(nothrow) - Cleanup complete");
             return {};

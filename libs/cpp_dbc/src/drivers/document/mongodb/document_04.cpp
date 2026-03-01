@@ -13,7 +13,8 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file document_04.cpp
- * @brief MongoDB MongoDBDocument - Part 4 (field operations, utilities - throwing wrappers)
+ * @brief MongoDB MongoDBDocument - Part 4 (hasField, isNull, removeField, getFieldNames,
+ *        clone, clear, isEmpty - throwing wrappers)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
@@ -96,55 +97,6 @@ namespace cpp_dbc::MongoDB
         return *r;
     }
     #endif // __cpp_exceptions
-
-    const bson_t *MongoDBDocument::getBson() const
-    {
-        MONGODB_LOCK_GUARD(m_mutex);
-        return m_bson.get();
-    }
-
-    bson_t *MongoDBDocument::getBsonMutable()
-    {
-        MONGODB_LOCK_GUARD(m_mutex);
-        m_idCached = false;
-        return m_bson.get();
-    }
-
-    expected<std::shared_ptr<MongoDBDocument>, DBException>
-    MongoDBDocument::fromBson(std::nothrow_t, bson_t *bson) noexcept
-    {
-        if (!bson)
-        {
-            return unexpected<DBException>(DBException(
-                "TIPPT5AZJ1I1",
-                "Cannot create document from null BSON pointer",
-                system_utils::captureCallStack()));
-        }
-        return std::make_shared<MongoDBDocument>(bson);
-    }
-
-    expected<std::shared_ptr<MongoDBDocument>, DBException>
-    MongoDBDocument::fromBsonCopy(std::nothrow_t, const bson_t *bson) noexcept
-    {
-        if (!bson)
-        {
-            return unexpected<DBException>(DBException(
-                "Z99M25OOHIBD",
-                "Cannot create document from null BSON pointer",
-                system_utils::captureCallStack()));
-        }
-
-        bson_t *copy = bson_copy(bson);
-        if (!copy)
-        {
-            return unexpected<DBException>(DBException(
-                "UYBXP3TMVRMC",
-                "Failed to copy BSON document",
-                system_utils::captureCallStack()));
-        }
-
-        return std::make_shared<MongoDBDocument>(copy);
-    }
 
 } // namespace cpp_dbc::MongoDB
 

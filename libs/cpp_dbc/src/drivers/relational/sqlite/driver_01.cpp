@@ -121,7 +121,7 @@ namespace cpp_dbc::SQLite
     }
     #endif // __cpp_exceptions
 
-    bool SQLiteDBDriver::acceptsURL(const std::string &url)
+    bool SQLiteDBDriver::acceptsURL(const std::string &url) noexcept
     {
         return url.starts_with("cpp_dbc:sqlite://");
     }

@@ -34,41 +34,7 @@ namespace cpp_dbc::MongoDB
 {
 
     // ====================================================================
-    // THROWING API - drop, rename, aggregate, distinct (wrappers)
-    // ====================================================================
-
-    #ifdef __cpp_exceptions
-    void MongoDBCollection::drop()
-    {
-        auto r = drop(std::nothrow);
-        if (!r.has_value()) { throw r.error(); }
-    }
-
-    void MongoDBCollection::rename(const std::string &newName, bool dropTarget)
-    {
-        auto r = rename(std::nothrow, newName, dropTarget);
-        if (!r.has_value()) { throw r.error(); }
-    }
-
-    std::shared_ptr<DocumentDBCursor> MongoDBCollection::aggregate(const std::string &pipeline)
-    {
-        auto r = aggregate(std::nothrow, pipeline);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-
-    std::vector<std::string> MongoDBCollection::distinct(
-        const std::string &fieldPath,
-        const std::string &filter)
-    {
-        auto r = distinct(std::nothrow, fieldPath, filter);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-    #endif // __cpp_exceptions
-
-    // ====================================================================
-    // NOTHROW API - drop, rename, aggregate, distinct (real implementations)
+    // NOTHROW API - drop, rename, aggregate, distinct (implementations)
     // ====================================================================
 
     expected<void, DBException> MongoDBCollection::drop(

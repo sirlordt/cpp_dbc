@@ -18,12 +18,12 @@
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
 
-#if USE_MONGODB
-
 #include <iostream>
 #include <sstream>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mongodb_internal.hpp"
+
+#if USE_MONGODB
 
 namespace cpp_dbc::MongoDB
 {
@@ -31,8 +31,8 @@ namespace cpp_dbc::MongoDB
     // Static member initialization
     // ============================================================================
 
-    std::once_flag MongoDBDriver::s_initFlag;
     std::atomic<bool> MongoDBDriver::s_initialized{false}; // NOSONAR - Explicit template arg for clarity in static member definition
+    std::mutex MongoDBDriver::s_initMutex;
 
     // ============================================================================
     // MongoDBDriver Implementation
@@ -49,7 +49,16 @@ namespace cpp_dbc::MongoDB
     MongoDBDriver::MongoDBDriver()
     {
         MONGODB_DEBUG("MongoDBDriver::constructor - Creating driver");
-        std::call_once(s_initFlag, initializeMongoc);
+        // Double-checked locking: compatible with -fno-exceptions (std::call_once can throw
+        // std::system_error internally). Also allows re-initialization after cleanup().
+        if (!s_initialized.load(std::memory_order_acquire))
+        {
+            std::scoped_lock lock(s_initMutex);
+            if (!s_initialized.load(std::memory_order_relaxed))
+            {
+                initializeMongoc();
+            }
+        }
         MONGODB_DEBUG("MongoDBDriver::constructor - Done");
     }
 
@@ -58,21 +67,7 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBDriver::destructor - Destroying driver");
     }
 
-    std::shared_ptr<DBConnection> MongoDBDriver::connect(
-        const std::string &url,
-        const std::string &user,
-        const std::string &password,
-        const std::map<std::string, std::string> &options)
-    {
-        return connectDocument(url, user, password, options);
-    }
-
-    bool MongoDBDriver::acceptsURL(const std::string &url)
-    {
-        return url.starts_with("cpp_dbc:mongodb://");
-    }
-
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     std::shared_ptr<DocumentDBConnection> MongoDBDriver::connectDocument(
         const std::string &url,
         const std::string &user,
@@ -87,16 +82,6 @@ namespace cpp_dbc::MongoDB
         return r.value();
     }
 
-    int MongoDBDriver::getDefaultPort() const
-    {
-        return 27017;
-    }
-
-    std::string MongoDBDriver::getURIScheme() const
-    {
-        return "mongodb";
-    }
-
     std::map<std::string, std::string> MongoDBDriver::parseURI(const std::string &uri)
     {
         auto r = parseURI(std::nothrow, uri);
@@ -106,7 +91,6 @@ namespace cpp_dbc::MongoDB
         }
         return r.value();
     }
-    #endif // __cpp_exceptions
 
     std::string MongoDBDriver::buildURI(
         const std::string &host,
@@ -145,18 +129,29 @@ namespace cpp_dbc::MongoDB
 
         return uri.str();
     }
+#endif // __cpp_exceptions
 
-    bool MongoDBDriver::supportsReplicaSets() const
+    bool MongoDBDriver::acceptsURL(const std::string &url) noexcept
+    {
+        return url.starts_with("cpp_dbc:mongodb://");
+    }
+
+    std::string MongoDBDriver::getURIScheme() const noexcept
+    {
+        return "cpp_dbc:mongodb://";
+    }
+
+    bool MongoDBDriver::supportsReplicaSets() const noexcept
     {
         return true;
     }
 
-    bool MongoDBDriver::supportsSharding() const
+    bool MongoDBDriver::supportsSharding() const noexcept
     {
         return true;
     }
 
-    std::string MongoDBDriver::getDriverVersion() const
+    std::string MongoDBDriver::getDriverVersion() const noexcept
     {
         return MONGOC_VERSION_S;
     }
@@ -202,126 +197,82 @@ namespace cpp_dbc::MongoDB
         const std::string &password,
         const std::map<std::string, std::string> &options) noexcept
     {
-        try
-        {
-            MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: " << url);
-            MONGODB_LOCK_GUARD(m_mutex);
+        MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connecting to: " << url);
+        MONGODB_LOCK_GUARD(m_mutex);
 
-            if (!acceptsURL(url))
-            {
-                return unexpected<DBException>(DBException(
-                    "1C2D3E4F5A6B",
-                    "Invalid MongoDB URL: " + url));
-            }
-
-            // Strip the 'cpp_dbc:' prefix if present
-            std::string mongoUrl = url;
-            if (url.starts_with("cpp_dbc:"))
-            {
-                mongoUrl = url.substr(8);
-            }
-
-            auto conn = std::make_shared<MongoDBConnection>(mongoUrl, user, password, options);
-            MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection established");
-            return std::static_pointer_cast<DocumentDBConnection>(conn);
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        if (!acceptsURL(url))
         {
             return unexpected<DBException>(DBException(
-                "2D3E4F5A6B7C",
-                "Memory allocation failed in connectDocument"));
+                "1C2D3E4F5A6B",
+                "Invalid MongoDB URL: " + url));
         }
-        catch (const std::exception &ex)
+
+        // Strip the 'cpp_dbc:' prefix if present
+        std::string mongoUrl = url;
+        if (url.starts_with("cpp_dbc:"))
         {
-            return unexpected<DBException>(DBException(
-                "3E4F5A6B7C8D",
-                std::string("Error in connectDocument: ") + ex.what()));
+            mongoUrl = url.substr(8);
         }
-        catch (...)
+
+        auto connResult = MongoDBConnection::create(std::nothrow, mongoUrl, user, password, options);
+        if (!connResult.has_value())
         {
-            return unexpected<DBException>(DBException(
-                "4F5A6B7C8D9E",
-                "Unknown error in connectDocument"));
+            MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection failed: " << connResult.error().what());
+            return unexpected<DBException>(connResult.error());
         }
+
+        MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection established");
+        return std::static_pointer_cast<DocumentDBConnection>(connResult.value());
     }
 
     expected<std::map<std::string, std::string>, DBException> MongoDBDriver::parseURI(
         std::nothrow_t, const std::string &uri) noexcept
     {
-        try
-        {
-            std::map<std::string, std::string> result;
+        std::map<std::string, std::string> result;
 
-            bson_error_t error;
-            MongoUriHandle mongoUri(mongoc_uri_new_with_error(uri.c_str(), &error));
+        bson_error_t error;
+        MongoUriHandle mongoUri(mongoc_uri_new_with_error(uri.c_str(), &error));
 
-            if (!mongoUri)
-            {
-                return unexpected<DBException>(DBException(
-                    "5A6B7C8D9E0F",
-                    std::string("Invalid URI: ") + error.message));
-            }
-
-            // Extract components
-            const mongoc_host_list_t *hosts = mongoc_uri_get_hosts(mongoUri.get());
-            if (hosts && hosts->host)
-            {
-                result["host"] = hosts->host;
-                result["port"] = std::to_string(hosts->port);
-            }
-
-            const char *database = mongoc_uri_get_database(mongoUri.get());
-            if (database)
-            {
-                result["database"] = database;
-            }
-
-            const char *username = mongoc_uri_get_username(mongoUri.get());
-            if (username)
-            {
-                result["username"] = username;
-            }
-
-            const char *authSource = mongoc_uri_get_auth_source(mongoUri.get());
-            if (authSource)
-            {
-                result["authSource"] = authSource;
-            }
-
-            const char *replicaSet = mongoc_uri_get_replica_set(mongoUri.get());
-            if (replicaSet)
-            {
-                result["replicaSet"] = replicaSet;
-            }
-
-            return result;
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        if (!mongoUri)
         {
             return unexpected<DBException>(DBException(
-                "6B7C8D9E0F1A",
-                "Memory allocation failed in parseURI"));
+                "5A6B7C8D9E0F",
+                std::string("Invalid URI: ") + error.message));
         }
-        catch (const std::exception &ex)
+
+        // Extract components — all mongoc_uri_get_* are C functions, they do not throw
+        const mongoc_host_list_t *hosts = mongoc_uri_get_hosts(mongoUri.get());
+        if (hosts && hosts->host)
         {
-            return unexpected<DBException>(DBException(
-                "7C8D9E0F1A2B",
-                std::string("Error in parseURI: ") + ex.what()));
+            result["host"] = hosts->host;
+            result["port"] = std::to_string(hosts->port);
         }
-        catch (...)
+
+        const char *database = mongoc_uri_get_database(mongoUri.get());
+        if (database)
         {
-            return unexpected<DBException>(DBException(
-                "8D9E0F1A2B3C",
-                "Unknown error in parseURI"));
+            result["database"] = database;
         }
+
+        const char *username = mongoc_uri_get_username(mongoUri.get());
+        if (username)
+        {
+            result["username"] = username;
+        }
+
+        const char *authSource = mongoc_uri_get_auth_source(mongoUri.get());
+        if (authSource)
+        {
+            result["authSource"] = authSource;
+        }
+
+        const char *replicaSet = mongoc_uri_get_replica_set(mongoUri.get());
+        if (replicaSet)
+        {
+            result["replicaSet"] = replicaSet;
+        }
+
+        return result;
     }
 
     std::string MongoDBDriver::getName() const noexcept

@@ -158,12 +158,15 @@ namespace cpp_dbc::PostgreSQL
         static std::shared_ptr<PostgreSQLDBResultSet> create(PGresult *res)
         {
             auto r = create(std::nothrow, res);
-            if (!r.has_value()) { throw r.error(); }
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
             return r.value();
         }
 
-        // DBResultSet interface
-        #ifdef __cpp_exceptions
+// DBResultSet interface
+#ifdef __cpp_exceptions
         void close() override;
         bool isEmpty() override;
 
@@ -213,7 +216,7 @@ namespace cpp_dbc::PostgreSQL
         std::vector<uint8_t> getBytes(size_t columnIndex) override;
         std::vector<uint8_t> getBytes(const std::string &columnName) override;
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

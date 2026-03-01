@@ -2,6 +2,9 @@
 
 #include "cpp_dbc/core/kv/kv_db_driver.hpp"
 #include "cpp_dbc/core/kv/kv_db_connection.hpp"
+
+#if USE_REDIS
+
 #include <mutex>
 #include <atomic>
 #include <memory>
@@ -10,99 +13,183 @@
 
 namespace cpp_dbc::Redis
 {
+    /**
+     * @brief Redis driver implementation.
+     *
+     * This class implements the KVDBDriver interface for Redis,
+     * providing connection management, URI parsing, and driver
+     * registration with the DriverManager.
+     *
+     * ### Example
+     *
+     * ```cpp
+     * #include "cpp_dbc/drivers/kv/driver_redis.hpp"
+     * #include "cpp_dbc/core/driver_manager.hpp"
+     *
+     * auto driver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+     * cpp_dbc::DriverManager::registerDriver(driver);
+     * auto conn = driver->connectKV("cpp_dbc:redis://localhost:6379", "", "");
+     * auto reply = conn->ping();
+     * conn->close();
+     * ```
+     */
+    class RedisDriver final : public KVDBDriver
+    {
+    public:
         /**
-         * @brief Redis driver implementation.
-         *
-         * This class implements the KVDBDriver interface for Redis,
-         * providing connection management, URI parsing, and driver
-         * registration with the DriverManager.
-         *
-         * ### Example
-         *
-         * ```cpp
-         * #include "cpp_dbc/drivers/kv/driver_redis.hpp"
-         * #include "cpp_dbc/core/driver_manager.hpp"
-         *
-         * auto driver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
-         * cpp_dbc::DriverManager::registerDriver(driver);
-         * auto conn = driver->connectKV("cpp_dbc:redis://localhost:6379", "", "");
-         * auto reply = conn->ping();
-         * conn->close();
-         * ```
+         * @brief Construct a new Redis Driver
          */
-        class RedisDriver final : public KVDBDriver
-        {
-        public:
-            /**
-             * @brief Construct a new Redis Driver
-             */
-            RedisDriver();
+        RedisDriver();
 
-            /**
-             * @brief Destructor
-             */
-            ~RedisDriver() override;
+        /**
+         * @brief Destructor
+         */
+        ~RedisDriver() override;
 
-            // DBDriver interface implementation
-            bool acceptsURL(const std::string &url) override;
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
-            #ifdef __cpp_exceptions
-            // KVDBDriver interface implementation
-            std::shared_ptr<KVDBConnection> connectKV(
-                const std::string &url,
-                const std::string &user,
-                const std::string &password,
-                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+#ifdef __cpp_exceptions
+        std::shared_ptr<KVDBConnection> connectKV(
+            const std::string &url,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
-            std::map<std::string, std::string> parseURI(const std::string &uri) override;
-            std::string buildURI(
-                const std::string &host,
-                int port,
-                const std::string &db = "",
-                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+        std::map<std::string, std::string> parseURI(const std::string &uri) override;
+        std::string buildURI(
+            const std::string &host,
+            int port,
+            const std::string &db = "",
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
-            #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
-            int getDefaultPort() const override;
-            std::string getURIScheme() const override;
-            bool supportsClustering() const override;
-            bool supportsReplication() const override;
-            std::string getDriverVersion() const override;
+        // ====================================================================
+        // NOTHROW API — exception-free, always available
+        // ====================================================================
 
-            /**
-             * @brief Clean up Redis driver resources
-             */
-            static void cleanup();
+        bool acceptsURL(const std::string &url) noexcept override;
 
-            // ====================================================================
-            // NOTHROW VERSIONS - Exception-free API
-            // ====================================================================
+        std::string getURIScheme() const noexcept override;
+        bool supportsClustering() const noexcept override;
+        bool supportsReplication() const noexcept override;
+        std::string getDriverVersion() const noexcept override;
 
-            cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> connectKV(
-                std::nothrow_t,
-                const std::string &url,
-                const std::string &user,
-                const std::string &password,
-                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
+        /**
+         * @brief Clean up Redis driver resources
+         */
+        static void cleanup();
 
-            cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
-                std::nothrow_t, const std::string &uri) noexcept override;
+        cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> connectKV(
+            std::nothrow_t,
+            const std::string &url,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override;
 
-            std::string getName() const noexcept override;
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
+            std::nothrow_t, const std::string &uri) noexcept override;
 
-        private:
-            // Note: Using atomic<bool> + mutex instead of std::once_flag because
-            // std::once_flag cannot be reset, but we need cleanup() to allow
-            // re-initialization on subsequent driver construction.
-            static std::atomic<bool> s_initialized;
-            static std::mutex s_initMutex;
+        std::string getName() const noexcept override;
 
-            /**
-             * @brief Initialize Redis driver
-             */
-            static void initialize();
+    private:
+        // Note: Using atomic<bool> + mutex instead of std::once_flag because
+        // std::once_flag cannot be reset, but we need cleanup() to allow
+        // re-initialization on subsequent driver construction.
+        static std::atomic<bool> s_initialized;
+        static std::mutex s_initMutex;
 
-            std::mutex m_mutex;
-        };
+        /**
+         * @brief Initialize Redis driver
+         */
+        static void initialize();
+
+        std::mutex m_mutex;
+    };
 
 } // namespace cpp_dbc::Redis
+
+#else // USE_REDIS
+
+#include <memory>
+#include <string>
+#include <map>
+
+namespace cpp_dbc::Redis
+{
+    class RedisDriver final : public KVDBDriver
+    {
+    public:
+        RedisDriver() = default; // Driver not enabled in this build
+        ~RedisDriver() override = default;
+
+        RedisDriver(const RedisDriver &) = delete;
+        RedisDriver &operator=(const RedisDriver &) = delete;
+        RedisDriver(RedisDriver &&) = delete;
+        RedisDriver &operator=(RedisDriver &&) = delete;
+
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
+
+#ifdef __cpp_exceptions
+        std::shared_ptr<KVDBConnection> connectKV(
+            const std::string &,
+            const std::string &,
+            const std::string &,
+            const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
+        {
+            return nullptr;
+        }
+
+        std::map<std::string, std::string> parseURI(const std::string &) override
+        {
+            return {};
+        }
+
+        std::string buildURI(
+            const std::string &,
+            int,
+            const std::string & = std::string{},
+            const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
+        {
+            return {};
+        }
+#endif // __cpp_exceptions
+
+        // ====================================================================
+        // NOTHROW API — exception-free, always available
+        // ====================================================================
+
+        bool acceptsURL(const std::string &url) noexcept override
+        {
+            return url.starts_with("cpp_dbc:redis://");
+        }
+
+        cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> connectKV(
+            std::nothrow_t,
+            const std::string & /*url*/,
+            const std::string & /*user*/,
+            const std::string & /*password*/,
+            const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
+        {
+            return cpp_dbc::unexpected(DBException("2UVDC4191LJY", "Redis support is not enabled in this build"));
+        }
+
+        cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
+            std::nothrow_t, const std::string & /*uri*/) noexcept override
+        {
+            return cpp_dbc::unexpected(DBException("RM4SN70ZPIL7", "Redis support is not enabled in this build"));
+        }
+
+        std::string getURIScheme() const noexcept override { return "cpp_dbc:redis://"; }
+        bool supportsClustering() const noexcept override { return false; }
+        bool supportsReplication() const noexcept override { return false; }
+        std::string getDriverVersion() const noexcept override { return "0.0.0"; }
+        std::string getName() const noexcept override { return "redis (disabled)"; }
+    };
+} // namespace cpp_dbc::Redis
+
+#endif // USE_REDIS

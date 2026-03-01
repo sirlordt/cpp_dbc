@@ -34,43 +34,7 @@ namespace cpp_dbc::MongoDB
 {
 
     // ====================================================================
-    // THROWING API - updateOne, updateMany, replaceOne (wrappers)
-    // ====================================================================
-
-    #ifdef __cpp_exceptions
-    DocumentUpdateResult MongoDBCollection::updateOne(
-        const std::string &filter,
-        const std::string &update,
-        const DocumentUpdateOptions &options)
-    {
-        auto r = updateOne(std::nothrow, filter, update, options);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-
-    DocumentUpdateResult MongoDBCollection::updateMany(
-        const std::string &filter,
-        const std::string &update,
-        const DocumentUpdateOptions &options)
-    {
-        auto r = updateMany(std::nothrow, filter, update, options);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-
-    DocumentUpdateResult MongoDBCollection::replaceOne(
-        const std::string &filter,
-        std::shared_ptr<DocumentDBData> replacement,
-        const DocumentUpdateOptions &options)
-    {
-        auto r = replaceOne(std::nothrow, filter, std::move(replacement), options);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-    #endif // __cpp_exceptions
-
-    // ====================================================================
-    // NOTHROW API - updateOne, updateMany, replaceOne (real implementations)
+    // NOTHROW API - updateOne, updateMany, replaceOne (implementations)
     // ====================================================================
 
     expected<DocumentUpdateResult, DBException> MongoDBCollection::updateOne(

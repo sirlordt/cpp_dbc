@@ -51,37 +51,25 @@ namespace cpp_dbc::MongoDB
             MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Closing connection");
 
             // Close all active cursors BEFORE destroying the client
+            MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Closing " << m_activeCursors.size() << " active cursors");
+            for (const auto &weakCursor : m_activeCursors)
             {
-                std::scoped_lock cursorsLock(m_cursorsMutex);
-                MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Closing " << m_activeCursors.size() << " active cursors");
-                for (const auto &weakCursor : m_activeCursors)
+                if (auto cursor = weakCursor.lock())
                 {
-                    if (auto cursor = weakCursor.lock())
+                    auto r = cursor->close(std::nothrow);
+                    if (!r.has_value())
                     {
-                        try
-                        {
-                            cursor->close();
-                        }
-                        catch ([[maybe_unused]] const std::exception &ex)
-                        {
-                            MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Exception ignored during cursor cleanup: " << ex.what());
-                        }
+                        MONGODB_DEBUG("MongoDBConnection::close(nothrow) - Error ignored during cursor cleanup: " << r.error().what());
                     }
                 }
-                m_activeCursors.clear();
             }
+            m_activeCursors.clear();
 
             // End all active sessions
-            {
-                std::scoped_lock sessionsLock(m_sessionsMutex);
-                m_sessions.clear();
-            }
+            m_sessions.clear();
 
             // Clear active collections
-            {
-                std::scoped_lock collectionsLock(m_collectionsMutex);
-                m_activeCollections.clear();
-            }
+            m_activeCollections.clear();
 
             m_client.reset();
             m_closed.store(true, std::memory_order_release);
@@ -133,22 +121,7 @@ namespace cpp_dbc::MongoDB
 
     expected<std::string, DBException> MongoDBConnection::getURL(std::nothrow_t) const noexcept
     {
-        try
-        {
-            return m_url;
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("GVJMECK6CHOE",
-                std::string("Exception in getURL: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("TUBIOISE94Y7",
-                "Unknown exception in getURL",
-                system_utils::captureCallStack()));
-        }
+        return m_url;
     }
 
 } // namespace cpp_dbc::MongoDB

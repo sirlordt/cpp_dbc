@@ -34,41 +34,7 @@ namespace cpp_dbc::MongoDB
 {
 
     // ====================================================================
-    // THROWING API - createIndex, dropIndex, dropAllIndexes, listIndexes (wrappers)
-    // ====================================================================
-
-    #ifdef __cpp_exceptions
-    std::string MongoDBCollection::createIndex(
-        const std::string &keys,
-        const std::string &options)
-    {
-        auto r = createIndex(std::nothrow, keys, options);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-
-    void MongoDBCollection::dropIndex(const std::string &indexName)
-    {
-        auto r = dropIndex(std::nothrow, indexName);
-        if (!r.has_value()) { throw r.error(); }
-    }
-
-    void MongoDBCollection::dropAllIndexes()
-    {
-        auto r = dropAllIndexes(std::nothrow);
-        if (!r.has_value()) { throw r.error(); }
-    }
-
-    std::vector<std::string> MongoDBCollection::listIndexes()
-    {
-        auto r = listIndexes(std::nothrow);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-    #endif // __cpp_exceptions
-
-    // ====================================================================
-    // NOTHROW API - createIndex, dropIndex, dropAllIndexes, listIndexes (real implementations)
+    // NOTHROW API - createIndex, dropIndex, dropAllIndexes, listIndexes (implementations)
     // ====================================================================
 
     expected<std::string, DBException> MongoDBCollection::createIndex(

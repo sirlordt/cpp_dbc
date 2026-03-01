@@ -20,8 +20,6 @@
 
 #include "cpp_dbc/drivers/relational/driver_mysql.hpp"
 
-#if USE_MYSQL
-
 #include <array>
 #include <cstring>
 #include <sstream>
@@ -30,6 +28,8 @@
 #include <chrono>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mysql_internal.hpp"
+
+#if USE_MYSQL
 
 namespace cpp_dbc::MySQL
 {
@@ -62,7 +62,7 @@ namespace cpp_dbc::MySQL
     }
     #endif // __cpp_exceptions
 
-    bool MySQLDBDriver::acceptsURL(const std::string &url)
+    bool MySQLDBDriver::acceptsURL(const std::string &url) noexcept
     {
         return url.starts_with("cpp_dbc:mysql://");
     }

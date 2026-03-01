@@ -44,7 +44,11 @@ namespace cpp_dbc::Firebird
         FirebirdDBDriver();
         ~FirebirdDBDriver() override;
 
-        #ifdef __cpp_exceptions
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
+
+#ifdef __cpp_exceptions
         std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                   const std::string &user,
                                                                   const std::string &password,
@@ -84,9 +88,13 @@ namespace cpp_dbc::Firebird
                             const std::string &password,
                             const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
 
-        #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
-        bool acceptsURL(const std::string &url) override;
+        // ====================================================================
+        // NOTHROW API — exception-free, always available
+        // ====================================================================
+
+        bool acceptsURL(const std::string &url) noexcept override;
 
         /**
          * @brief Parses a URL: cpp_dbc:firebird://host:port/path/to/database.fdb
@@ -97,10 +105,6 @@ namespace cpp_dbc::Firebird
          * @return true if parsing was successful
          */
         bool parseURL(const std::string &url, std::string &host, int &port, std::string &database);
-
-        // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
-        // ====================================================================
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
         connectRelational(
@@ -158,10 +162,7 @@ namespace cpp_dbc::Firebird
     class FirebirdDBDriver final : public RelationalDBDriver
     {
     public:
-        [[noreturn]] FirebirdDBDriver()
-        {
-            throw DBException("R9T3U5V1W7X4", "Firebird support is not enabled in this build", system_utils::captureCallStack());
-        }
+        FirebirdDBDriver() = default;
         ~FirebirdDBDriver() override = default;
 
         FirebirdDBDriver(const FirebirdDBDriver &) = delete;
@@ -169,19 +170,40 @@ namespace cpp_dbc::Firebird
         FirebirdDBDriver(FirebirdDBDriver &&) = delete;
         FirebirdDBDriver &operator=(FirebirdDBDriver &&) = delete;
 
-        #ifdef __cpp_exceptions
-        [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string & /*url*/,
-                                                                               const std::string & /*user*/,
-                                                                               const std::string & /*password*/,
-                                                                               const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) override
-        {
-            throw DBException("S0U4V6W2X8Y5", "Firebird support is not enabled in this build", system_utils::captureCallStack());
-        }
-        #endif // __cpp_exceptions
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
-        bool acceptsURL(const std::string & /*url*/) override
+#ifdef __cpp_exceptions
+        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
+                                                                  const std::string &,
+                                                                  const std::string &,
+                                                                  const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
+        {
+            return nullptr;
+        }
+
+        int command(const std::map<std::string, std::any> &) override
+        {
+            return 0;
+        }
+
+        bool createDatabase(const std::string &,
+                            const std::string &,
+                            const std::string &,
+                            const std::map<std::string, std::string> & = std::map<std::string, std::string>())
         {
             return false;
+        }
+#endif // __cpp_exceptions
+
+        // ====================================================================
+        // NOTHROW API — exception-free, always available
+        // ====================================================================
+
+        bool acceptsURL(const std::string &url) noexcept override
+        {
+            return url.starts_with("cpp_dbc:firebird://");
         }
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
@@ -191,7 +213,23 @@ namespace cpp_dbc::Firebird
             const std::string & /*password*/,
             const std::map<std::string, std::string> & /*options*/ = std::map<std::string, std::string>()) noexcept override
         {
-            return cpp_dbc::unexpected(DBException("S0U4V6W2X8Y6", "Firebird support is not enabled in this build", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("S0U4V6W2X8Y6", "Firebird support is not enabled in this build"));
+        }
+
+        [[nodiscard]] cpp_dbc::expected<int, DBException>
+        command(std::nothrow_t, const std::map<std::string, std::any> &) noexcept
+        {
+            return 0;
+        }
+
+        [[nodiscard]] cpp_dbc::expected<bool, DBException>
+        createDatabase(std::nothrow_t,
+                       const std::string &,
+                       const std::string &,
+                       const std::string &,
+                       const std::map<std::string, std::string> & = std::map<std::string, std::string>()) noexcept
+        {
+            return false;
         }
 
         std::string getName() const noexcept override

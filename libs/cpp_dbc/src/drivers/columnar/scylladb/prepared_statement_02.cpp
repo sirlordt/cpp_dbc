@@ -226,9 +226,14 @@ namespace cpp_dbc::ScyllaDB
                 parseSuccess = true;
             }
         }
+        catch (const std::exception &ex)
+        {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setDate - Failed to parse date string: " << ex.what());
+            parseSuccess = false;
+        }
         catch (...)
         {
-            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setDate - Failed to parse date string");
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setDate - Failed to parse date string: unknown exception");
             parseSuccess = false;
         }
 
@@ -301,9 +306,14 @@ namespace cpp_dbc::ScyllaDB
                 parseSuccess = true;
             }
         }
+        catch (const std::exception &ex)
+        {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setTimestamp - Failed to parse timestamp string: " << ex.what());
+            parseSuccess = false;
+        }
         catch (...)
         {
-            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setTimestamp - Failed to parse timestamp string");
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setTimestamp - Failed to parse timestamp string: unknown exception");
             parseSuccess = false;
         }
 
@@ -362,9 +372,14 @@ namespace cpp_dbc::ScyllaDB
                 parseSuccess = true;
             }
         }
+        catch (const std::exception &ex)
+        {
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setTime - Failed to parse time string: " << ex.what());
+            parseSuccess = false;
+        }
         catch (...)
         {
-            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setTime - Failed to parse time string");
+            SCYLLADB_DEBUG("ScyllaDBPreparedStatement::setTime - Failed to parse time string: unknown exception");
             parseSuccess = false;
         }
 

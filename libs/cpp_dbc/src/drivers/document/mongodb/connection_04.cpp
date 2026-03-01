@@ -52,14 +52,14 @@ namespace cpp_dbc::MongoDB
         catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("SXWDJ4BE7HDN",
-                std::string("Exception in getDatabaseName: ") + ex.what(),
-                system_utils::captureCallStack()));
+                                                   std::string("Exception in getDatabaseName: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException("ZD984T94Z3QJ",
-                "Unknown exception in getDatabaseName",
-                system_utils::captureCallStack()));
+                                                   "Unknown exception in getDatabaseName",
+                                                   system_utils::captureCallStack()));
         }
     }
 
@@ -139,14 +139,14 @@ namespace cpp_dbc::MongoDB
         catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("CLA4YAJP87LT",
-                std::string("Exception in databaseExists: ") + ex.what(),
-                system_utils::captureCallStack()));
+                                                   std::string("Exception in databaseExists: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException("M38AKVVOH6MQ",
-                "Unknown exception in databaseExists",
-                system_utils::captureCallStack()));
+                                                   "Unknown exception in databaseExists",
+                                                   system_utils::captureCallStack()));
         }
     }
 
@@ -173,14 +173,14 @@ namespace cpp_dbc::MongoDB
         catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("W7OJJY9U0NHH",
-                std::string("Exception in useDatabase: ") + ex.what(),
-                system_utils::captureCallStack()));
+                                                   std::string("Exception in useDatabase: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException("AK6049UQC43W",
-                "Unknown exception in useDatabase",
-                system_utils::captureCallStack()));
+                                                   "Unknown exception in useDatabase",
+                                                   system_utils::captureCallStack()));
         }
     }
 
@@ -274,13 +274,14 @@ namespace cpp_dbc::MongoDB
             }
 
             auto collResult = MongoDBCollection::create(std::nothrow,
-                m_client,
-                collection,
-                collectionName,
-                m_databaseName,
-                weak_from_this()
+                                                        m_client,
+                                                        collection,
+                                                        collectionName,
+                                                        m_databaseName,
+                                                        weak_from_this()
 #if DB_DRIVER_THREAD_SAFE
-                , m_connMutex
+                                                            ,
+                                                        m_connMutex
 #endif
             );
             if (!collResult.has_value())
@@ -402,14 +403,14 @@ namespace cpp_dbc::MongoDB
         catch (const std::exception &ex)
         {
             return cpp_dbc::unexpected(DBException("HCA7AJHZUCGE",
-                std::string("Exception in collectionExists: ") + ex.what(),
-                system_utils::captureCallStack()));
+                                                   std::string("Exception in collectionExists: ") + ex.what(),
+                                                   system_utils::captureCallStack()));
         }
         catch (...)
         {
             return cpp_dbc::unexpected(DBException("R3LWE02BEA9G",
-                "Unknown exception in collectionExists",
-                system_utils::captureCallStack()));
+                                                   "Unknown exception in collectionExists",
+                                                   system_utils::captureCallStack()));
         }
     }
 
@@ -471,13 +472,14 @@ namespace cpp_dbc::MongoDB
             }
 
             auto collResult = MongoDBCollection::create(std::nothrow,
-                m_client,
-                coll,
-                collectionName,
-                m_databaseName,
-                weak_from_this()
+                                                        m_client,
+                                                        coll,
+                                                        collectionName,
+                                                        m_databaseName,
+                                                        weak_from_this()
 #if DB_DRIVER_THREAD_SAFE
-                , m_connMutex
+                                                            ,
+                                                        m_connMutex
 #endif
             );
             if (!collResult.has_value())

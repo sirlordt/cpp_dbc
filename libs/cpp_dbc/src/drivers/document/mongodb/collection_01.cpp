@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file collection_01.cpp
- * @brief MongoDB MongoDBCollection - Part 1 (private nothrow helpers, constructor, getName/getNamespace, count)
+ * @brief MongoDB MongoDBCollection - Part 1 (private nothrow helpers, constructor, throwing API wrappers, getName/getNamespace/count nothrow)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
@@ -101,11 +101,12 @@ namespace cpp_dbc::MongoDB
     }
 
     // ============================================================================
-    // MongoDBCollection Implementation - Constructor, Move
+    // MongoDBCollection Implementation - Private Nothrow Constructor
     // ============================================================================
 
 #if DB_DRIVER_THREAD_SAFE
-    MongoDBCollection::MongoDBCollection(std::weak_ptr<mongoc_client_t> client,
+    MongoDBCollection::MongoDBCollection(std::nothrow_t,
+                                         std::weak_ptr<mongoc_client_t> client,
                                          mongoc_collection_t *collection,
                                          const std::string &name,
                                          const std::string &databaseName,
@@ -118,15 +119,18 @@ namespace cpp_dbc::MongoDB
           m_databaseName(databaseName),
           m_connMutex(std::move(connMutex))
     {
-        MONGODB_DEBUG("MongoDBCollection::constructor - Creating collection: " << name << " in database: " << databaseName);
+        MONGODB_DEBUG("MongoDBCollection::constructor(nothrow) - Creating collection: " << name << " in database: " << databaseName);
         if (!m_collection)
         {
-            throw DBException("E3F9A8B7C2D1", "Cannot create collection from null pointer", system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = DBException("Q1U86NUBRYWR", "Cannot create collection from null pointer", system_utils::captureCallStack());
+            return;
         }
-        MONGODB_DEBUG("MongoDBCollection::constructor - Done");
+        MONGODB_DEBUG("MongoDBCollection::constructor(nothrow) - Done");
     }
 #else
-    MongoDBCollection::MongoDBCollection(std::weak_ptr<mongoc_client_t> client,
+    MongoDBCollection::MongoDBCollection(std::nothrow_t,
+                                         std::weak_ptr<mongoc_client_t> client,
                                          mongoc_collection_t *collection,
                                          const std::string &name,
                                          const std::string &databaseName,
@@ -137,49 +141,42 @@ namespace cpp_dbc::MongoDB
           m_name(name),
           m_databaseName(databaseName)
     {
-        MONGODB_DEBUG("MongoDBCollection::constructor - Creating collection: " << name << " in database: " << databaseName);
+        MONGODB_DEBUG("MongoDBCollection::constructor(nothrow) - Creating collection: " << name << " in database: " << databaseName);
         if (!m_collection)
         {
-            throw DBException("E3F9A8B7C2D1", "Cannot create collection from null pointer", system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = DBException("Q1U86NUBRYWR", "Cannot create collection from null pointer", system_utils::captureCallStack());
+            return;
         }
-        MONGODB_DEBUG("MongoDBCollection::constructor - Done");
+        MONGODB_DEBUG("MongoDBCollection::constructor(nothrow) - Done");
     }
 #endif
 
-    MongoDBCollection::MongoDBCollection(MongoDBCollection &&other) noexcept
-        : m_client(std::move(other.m_client)),
-          m_connection(std::move(other.m_connection)),
-          m_collection(std::move(other.m_collection)),
-          m_name(std::move(other.m_name)),
-          m_databaseName(std::move(other.m_databaseName))
-#if DB_DRIVER_THREAD_SAFE
-          , m_connMutex(std::move(other.m_connMutex))
-#endif
-    {}
+    // ============================================================================
+    // MongoDBCollection Implementation - THROWING API (all wrappers)
+    // ============================================================================
 
-    MongoDBCollection &MongoDBCollection::operator=(MongoDBCollection &&other) noexcept
+#ifdef __cpp_exceptions
+
+    std::string MongoDBCollection::getName() const
     {
-        if (this != &other)
+        auto r = getName(std::nothrow);
+        if (!r.has_value())
         {
-            m_client = std::move(other.m_client);
-            m_connection = std::move(other.m_connection);
-            m_collection = std::move(other.m_collection);
-            m_name = std::move(other.m_name);
-            m_databaseName = std::move(other.m_databaseName);
-#if DB_DRIVER_THREAD_SAFE
-            m_connMutex = std::move(other.m_connMutex);
-#endif
+            throw r.error();
         }
-        return *this;
+        return r.value();
     }
 
-    // ============================================================================
-    // MongoDBCollection Implementation - DocumentDBCollection Interface (Name, Count)
-    // ============================================================================
-
-    #ifdef __cpp_exceptions
-    std::string MongoDBCollection::getName() const { return m_name; }
-    std::string MongoDBCollection::getNamespace() const { return m_databaseName + "." + m_name; }
+    std::string MongoDBCollection::getNamespace() const
+    {
+        auto r = getNamespace(std::nothrow);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
 
     uint64_t MongoDBCollection::estimatedDocumentCount()
     {
@@ -201,11 +198,243 @@ namespace cpp_dbc::MongoDB
         return r.value();
     }
 
+    DocumentInsertResult MongoDBCollection::insertOne(
+        std::shared_ptr<DocumentDBData> document,
+        const DocumentWriteOptions &options)
+    {
+        auto r = insertOne(std::nothrow, std::move(document), options);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    DocumentInsertResult MongoDBCollection::insertOne(
+        const std::string &jsonDocument,
+        const DocumentWriteOptions &options)
+    {
+        auto r = insertOne(std::nothrow, jsonDocument, options);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    DocumentInsertResult MongoDBCollection::insertMany(
+        const std::vector<std::shared_ptr<DocumentDBData>> &documents,
+        const DocumentWriteOptions &options)
+    {
+        auto r = insertMany(std::nothrow, documents, options);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    std::shared_ptr<DocumentDBData> MongoDBCollection::findOne(const std::string &filter)
+    {
+        auto r = findOne(std::nothrow, filter);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    std::shared_ptr<DocumentDBData> MongoDBCollection::findById(const std::string &id)
+    {
+        auto r = findById(std::nothrow, id);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    std::shared_ptr<DocumentDBCursor> MongoDBCollection::find(const std::string &filter)
+    {
+        auto r = find(std::nothrow, filter);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    std::shared_ptr<DocumentDBCursor> MongoDBCollection::find(
+        const std::string &filter,
+        const std::string &projection)
+    {
+        auto r = find(std::nothrow, filter, projection);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    DocumentUpdateResult MongoDBCollection::updateOne(
+        const std::string &filter,
+        const std::string &update,
+        const DocumentUpdateOptions &options)
+    {
+        auto r = updateOne(std::nothrow, filter, update, options);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    DocumentUpdateResult MongoDBCollection::updateMany(
+        const std::string &filter,
+        const std::string &update,
+        const DocumentUpdateOptions &options)
+    {
+        auto r = updateMany(std::nothrow, filter, update, options);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    DocumentUpdateResult MongoDBCollection::replaceOne(
+        const std::string &filter,
+        std::shared_ptr<DocumentDBData> replacement,
+        const DocumentUpdateOptions &options)
+    {
+        auto r = replaceOne(std::nothrow, filter, std::move(replacement), options);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    DocumentDeleteResult MongoDBCollection::deleteOne(const std::string &filter)
+    {
+        auto r = deleteOne(std::nothrow, filter);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    DocumentDeleteResult MongoDBCollection::deleteMany(const std::string &filter)
+    {
+        auto r = deleteMany(std::nothrow, filter);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    DocumentDeleteResult MongoDBCollection::deleteById(const std::string &id)
+    {
+        auto r = deleteById(std::nothrow, id);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    std::string MongoDBCollection::createIndex(
+        const std::string &keys,
+        const std::string &options)
+    {
+        auto r = createIndex(std::nothrow, keys, options);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    void MongoDBCollection::dropIndex(const std::string &indexName)
+    {
+        auto r = dropIndex(std::nothrow, indexName);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+    }
+
+    void MongoDBCollection::dropAllIndexes()
+    {
+        auto r = dropAllIndexes(std::nothrow);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+    }
+
+    std::vector<std::string> MongoDBCollection::listIndexes()
+    {
+        auto r = listIndexes(std::nothrow);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    void MongoDBCollection::drop()
+    {
+        auto r = drop(std::nothrow);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+    }
+
+    void MongoDBCollection::rename(const std::string &newName, bool dropTarget)
+    {
+        auto r = rename(std::nothrow, newName, dropTarget);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+    }
+
+    std::shared_ptr<DocumentDBCursor> MongoDBCollection::aggregate(const std::string &pipeline)
+    {
+        auto r = aggregate(std::nothrow, pipeline);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
+    std::vector<std::string> MongoDBCollection::distinct(
+        const std::string &fieldPath,
+        const std::string &filter)
+    {
+        auto r = distinct(std::nothrow, fieldPath, filter);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+
     bool MongoDBCollection::isConnectionValid() const
     {
         return !m_client.expired();
     }
-    #endif // __cpp_exceptions
+
+#endif // __cpp_exceptions
+
+    // ============================================================================
+    // MongoDBCollection Implementation - NOTHROW API: getName, getNamespace, count
+    // ============================================================================
 
     expected<std::string, DBException> MongoDBCollection::getName(std::nothrow_t) const noexcept
     {

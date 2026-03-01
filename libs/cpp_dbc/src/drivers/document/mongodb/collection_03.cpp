@@ -34,29 +34,7 @@ namespace cpp_dbc::MongoDB
 {
 
     // ====================================================================
-    // THROWING API - find (wrappers)
-    // ====================================================================
-
-    #ifdef __cpp_exceptions
-    std::shared_ptr<DocumentDBCursor> MongoDBCollection::find(const std::string &filter)
-    {
-        auto r = find(std::nothrow, filter);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-
-    std::shared_ptr<DocumentDBCursor> MongoDBCollection::find(
-        const std::string &filter,
-        const std::string &projection)
-    {
-        auto r = find(std::nothrow, filter, projection);
-        if (!r.has_value()) { throw r.error(); }
-        return r.value();
-    }
-    #endif // __cpp_exceptions
-
-    // ====================================================================
-    // NOTHROW API - find (real implementations)
+    // NOTHROW API - find (implementations)
     // ====================================================================
 
     expected<std::shared_ptr<DocumentDBCursor>, DBException> MongoDBCollection::find(
