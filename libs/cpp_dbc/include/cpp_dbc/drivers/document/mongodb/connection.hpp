@@ -122,15 +122,15 @@ namespace cpp_dbc::MongoDB
 
             /**
              * @brief Validates that the connection is open
-             * @throws DBException if the connection is closed
+             * @return expected<void> or DBException if the connection is closed
              */
-            void validateConnection() const;
+            expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
 
             /**
              * @brief Generate a unique session ID
-             * @return A unique session ID string
+             * @return expected with a unique session ID string, or DBException on error
              */
-            std::string generateSessionId();
+            expected<std::string, DBException> generateSessionId(std::nothrow_t) noexcept;
 
             MongoDBConnection(std::nothrow_t,
                               const std::string &uri,

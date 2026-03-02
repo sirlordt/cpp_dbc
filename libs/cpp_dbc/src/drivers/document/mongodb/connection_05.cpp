@@ -262,7 +262,11 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
-            validateConnection();
+            auto validateResult = validateConnection(std::nothrow);
+            if (!validateResult.has_value())
+            {
+                return cpp_dbc::unexpected(validateResult.error());
+            }
             m_databaseName = databaseName;
             return {};
         }
@@ -356,7 +360,11 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
-            validateConnection();
+            auto validateResult = validateConnection(std::nothrow);
+            if (!validateResult.has_value())
+            {
+                return cpp_dbc::unexpected(validateResult.error());
+            }
 
             mongoc_session_opt_t *opts = mongoc_session_opts_new();
             mongoc_session_opts_set_causal_consistency(opts, true);
@@ -373,7 +381,12 @@ namespace cpp_dbc::MongoDB
                     system_utils::captureCallStack()));
             }
 
-            std::string sessionId = generateSessionId();
+            auto sessionIdResult = generateSessionId(std::nothrow);
+            if (!sessionIdResult.has_value())
+            {
+                return cpp_dbc::unexpected(sessionIdResult.error());
+            }
+            std::string sessionId = sessionIdResult.value();
 
             {
                 std::scoped_lock sessionsLock(m_sessionsMutex);

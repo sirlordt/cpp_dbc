@@ -37,15 +37,16 @@ namespace cpp_dbc::MongoDB
     // MongoDBConnection Implementation - Private Helpers
     // ============================================================================
 
-    void MongoDBConnection::validateConnection() const
+    expected<void, DBException> MongoDBConnection::validateConnection(std::nothrow_t) const noexcept
     {
         if (m_closed)
         {
-            throw DBException("M7N8O9P0Q1R2", "MongoDB connection is closed", system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("M7N8O9P0Q1R2", "MongoDB connection is closed", system_utils::captureCallStack()));
         }
+        return {};
     }
 
-    std::string MongoDBConnection::generateSessionId()
+    expected<std::string, DBException> MongoDBConnection::generateSessionId(std::nothrow_t) noexcept
     {
         uint64_t id = m_sessionCounter.fetch_add(1);
         std::ostringstream oss;
