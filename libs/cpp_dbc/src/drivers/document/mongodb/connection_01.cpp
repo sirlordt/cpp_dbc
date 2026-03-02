@@ -101,99 +101,119 @@ namespace cpp_dbc::MongoDB
     // MongoDBConnection Implementation - Constructor, Destructor, Move
     // ============================================================================
 
-    MongoDBConnection::MongoDBConnection(const std::string &uri,
+    MongoDBConnection::MongoDBConnection(std::nothrow_t,
+                                         const std::string &uri,
                                          const std::string &user,
                                          const std::string &password,
-                                         const std::map<std::string, std::string> &options)
+                                         const std::map<std::string, std::string> &options) noexcept
         : m_url(uri)
 #if DB_DRIVER_THREAD_SAFE
         , m_connMutex(std::make_shared<std::recursive_mutex>())
 #endif
     {
-        MONGODB_DEBUG("MongoDBConnection::constructor - Connecting to: " << uri);
-        // Build the connection URI with credentials if provided
-        std::string connectionUri = uri;
-
-        // If user/password provided and not in URI, add them
-        if (!user.empty() && !uri.contains("@"))
+        try
         {
-            // Parse the URI to insert credentials
-            size_t schemeEnd = uri.find("://");
-            if (schemeEnd != std::string::npos)
+            MONGODB_DEBUG("MongoDBConnection::constructor - Connecting to: " << uri);
+            // Build the connection URI with credentials if provided
+            std::string connectionUri = uri;
+
+            // If user/password provided and not in URI, add them
+            if (!user.empty() && !uri.contains("@"))
             {
-                std::string scheme = uri.substr(0, schemeEnd + 3);
-                std::string rest = uri.substr(schemeEnd + 3);
-                connectionUri = scheme + user + ":" + password + "@" + rest;
+                // Parse the URI to insert credentials
+                size_t schemeEnd = uri.find("://");
+                if (schemeEnd != std::string::npos)
+                {
+                    std::string scheme = uri.substr(0, schemeEnd + 3);
+                    std::string rest = uri.substr(schemeEnd + 3);
+                    connectionUri = scheme + user + ":" + password + "@" + rest;
+                }
             }
-        }
 
-        // Add options to URI if provided
-        // Convert snake_case option names to lowerCamelCase as expected by mongoc
-        if (!options.empty())
-        {
-            bool hasQuery = connectionUri.contains('?');
-            for (const auto &[key, value] : options)
+            // Add options to URI if provided
+            // Convert snake_case option names to lowerCamelCase as expected by mongoc
+            if (!options.empty())
             {
-                connectionUri += (hasQuery ? "&" : "?");
-                // Convert option name from snake_case (YAML convention) to lowerCamelCase (mongoc convention)
-                std::string normalizedKey = system_utils::snakeCaseToLowerCamelCase(key);
-                connectionUri += normalizedKey + "=" + value;
-                hasQuery = true;
+                bool hasQuery = connectionUri.contains('?');
+                for (const auto &[key, value] : options)
+                {
+                    connectionUri += (hasQuery ? "&" : "?");
+                    // Convert option name from snake_case (YAML convention) to lowerCamelCase (mongoc convention)
+                    std::string normalizedKey = system_utils::snakeCaseToLowerCamelCase(key);
+                    connectionUri += normalizedKey + "=" + value;
+                    hasQuery = true;
+                }
             }
+
+            // Parse and validate URI
+            bson_error_t error;
+            MongoUriHandle mongoUri(mongoc_uri_new_with_error(connectionUri.c_str(), &error));
+
+            if (!mongoUri)
+            {
+                m_initFailed = true;
+                m_initError = DBException("J4K5L6M7N8O9", std::string("Invalid MongoDB URI: ") + error.message, system_utils::captureCallStack());
+                return;
+            }
+
+            // Extract database name from URI
+            const char *dbName = mongoc_uri_get_database(mongoUri.get());
+            if (dbName)
+            {
+                m_databaseName = dbName;
+            }
+
+            // Create client
+            mongoc_client_t *rawClient = mongoc_client_new_from_uri(mongoUri.get());
+            if (!rawClient)
+            {
+                m_initFailed = true;
+                m_initError = DBException("K5L6M7N8O9P0", "Failed to create MongoDB client", system_utils::captureCallStack());
+                return;
+            }
+
+            // Set application name for monitoring
+            mongoc_client_set_appname(rawClient, "cpp_dbc");
+
+            // Wrap in shared_ptr with custom deleter
+            m_client = MongoClientHandle(rawClient, MongoClientDeleter());
+
+            // Test connection with ping
+            bson_t pingCmd = BSON_INITIALIZER;
+            BSON_APPEND_INT32(&pingCmd, "ping", 1);
+
+            bson_t reply;
+            bson_init(&reply);
+
+            MongoDatabaseHandle adminDb(mongoc_client_get_database(m_client.get(), "admin"));
+
+            bool pingSuccess = mongoc_database_command_simple(
+                adminDb.get(), &pingCmd, nullptr, &reply, &error);
+
+            bson_destroy(&pingCmd);
+            bson_destroy(&reply);
+
+            if (!pingSuccess)
+            {
+                m_client.reset();
+                m_initFailed = true;
+                m_initError = DBException("L6M7N8O9P0Q1", std::string("Failed to connect to MongoDB: ") + error.message, system_utils::captureCallStack());
+                return;
+            }
+
+            m_closed = false;
+            MONGODB_DEBUG("MongoDBConnection::constructor - Connected successfully");
         }
-
-        // Parse and validate URI
-        bson_error_t error;
-        MongoUriHandle mongoUri(mongoc_uri_new_with_error(connectionUri.c_str(), &error));
-
-        if (!mongoUri)
+        catch (const std::exception &ex)
         {
-            throw DBException("J4K5L6M7N8O9", std::string("Invalid MongoDB URI: ") + error.message, system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = DBException("MGDBCNCT0ERR", std::string("Unexpected error during connection: ") + ex.what(), system_utils::captureCallStack());
         }
-
-        // Extract database name from URI
-        const char *dbName = mongoc_uri_get_database(mongoUri.get());
-        if (dbName)
+        catch (...)
         {
-            m_databaseName = dbName;
+            m_initFailed = true;
+            m_initError = DBException("MGDBCNCTUNER", "Unknown error during connection", system_utils::captureCallStack());
         }
-
-        // Create client
-        mongoc_client_t *rawClient = mongoc_client_new_from_uri(mongoUri.get());
-        if (!rawClient)
-        {
-            throw DBException("K5L6M7N8O9P0", "Failed to create MongoDB client", system_utils::captureCallStack());
-        }
-
-        // Set application name for monitoring
-        mongoc_client_set_appname(rawClient, "cpp_dbc");
-
-        // Wrap in shared_ptr with custom deleter
-        m_client = MongoClientHandle(rawClient, MongoClientDeleter());
-
-        // Test connection with ping
-        bson_t pingCmd = BSON_INITIALIZER;
-        BSON_APPEND_INT32(&pingCmd, "ping", 1);
-
-        bson_t reply;
-        bson_init(&reply);
-
-        MongoDatabaseHandle adminDb(mongoc_client_get_database(m_client.get(), "admin"));
-
-        bool pingSuccess = mongoc_database_command_simple(
-            adminDb.get(), &pingCmd, nullptr, &reply, &error);
-
-        bson_destroy(&pingCmd);
-        bson_destroy(&reply);
-
-        if (!pingSuccess)
-        {
-            m_client.reset();
-            throw DBException("L6M7N8O9P0Q1", std::string("Failed to connect to MongoDB: ") + error.message, system_utils::captureCallStack());
-        }
-
-        m_closed = false;
-        MONGODB_DEBUG("MongoDBConnection::constructor - Connected successfully");
     }
 
     MongoDBConnection::~MongoDBConnection()

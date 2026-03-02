@@ -98,7 +98,7 @@ namespace cpp_dbc::MongoDB
             mongoUrl = url.substr(8); // Remove "cpp_dbc:" prefix
         }
 
-        auto conn = std::make_shared<MongoDBConnection>(mongoUrl, user, password, options);
+        auto conn = MongoDBConnection::create(mongoUrl, user, password, options);
         MONGODB_DEBUG("MongoDBDriver::connectDocument - Connection established");
         return conn;
     }
@@ -260,9 +260,13 @@ namespace cpp_dbc::MongoDB
                 mongoUrl = url.substr(8);
             }
 
-            auto conn = std::make_shared<MongoDBConnection>(mongoUrl, user, password, options);
+            auto connResult = MongoDBConnection::create(std::nothrow, mongoUrl, user, password, options);
+            if (!connResult.has_value())
+            {
+                return unexpected<DBException>(connResult.error());
+            }
             MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection established");
-            return std::static_pointer_cast<DocumentDBConnection>(conn);
+            return std::static_pointer_cast<DocumentDBConnection>(connResult.value());
         }
         catch (const DBException &ex)
         {

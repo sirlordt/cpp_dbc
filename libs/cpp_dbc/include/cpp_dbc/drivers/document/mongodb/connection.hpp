@@ -86,6 +86,9 @@ namespace cpp_dbc::MongoDB
              */
             std::atomic<uint64_t> m_sessionCounter{0};
 
+            bool m_initFailed{false};
+            DBException m_initError{"MDBINITERR0A", "", {}};
+
             /**
              * @brief Active collections (weak references for cleanup tracking)
              */
@@ -129,6 +132,12 @@ namespace cpp_dbc::MongoDB
              */
             std::string generateSessionId();
 
+            MongoDBConnection(std::nothrow_t,
+                              const std::string &uri,
+                              const std::string &user,
+                              const std::string &password,
+                              const std::map<std::string, std::string> &options) noexcept;
+
         public:
             /**
              * @brief Register a collection for cleanup tracking
@@ -154,18 +163,37 @@ namespace cpp_dbc::MongoDB
              */
             void unregisterCursor(std::weak_ptr<MongoDBCursor> cursor);
 
-            /**
-             * @brief Construct a MongoDB connection
-             * @param uri The MongoDB connection URI
-             * @param user The username (may be empty if auth is in URI)
-             * @param password The password (may be empty if auth is in URI)
-             * @param options Additional connection options
-             * @throws DBException if the connection fails
-             */
-            MongoDBConnection(const std::string &uri,
-                              const std::string &user,
-                              const std::string &password,
-                              const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+#ifdef __cpp_exceptions
+            static std::shared_ptr<MongoDBConnection>
+            create(const std::string &uri,
+                   const std::string &user,
+                   const std::string &password,
+                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
+            {
+                auto r = create(std::nothrow, uri, user, password, options);
+                if (!r.has_value())
+                {
+                    throw r.error();
+                }
+                return r.value();
+            }
+#endif
+
+            static expected<std::shared_ptr<MongoDBConnection>, DBException>
+            create(std::nothrow_t,
+                   const std::string &uri,
+                   const std::string &user,
+                   const std::string &password,
+                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+            {
+                auto obj = std::shared_ptr<MongoDBConnection>(
+                    new MongoDBConnection(std::nothrow, uri, user, password, options));
+                if (obj->m_initFailed)
+                {
+                    return cpp_dbc::unexpected(obj->m_initError);
+                }
+                return obj;
+            }
 
             ~MongoDBConnection() override;
 
