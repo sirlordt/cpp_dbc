@@ -372,7 +372,7 @@ if(USE_REDIS)
         # RedisDBConnection - NOTHROW sorted set, scan, server
         src/drivers/kv/redis/connection_06.cpp
 
-        # RedisDriver
+        # RedisDBDriver
         src/drivers/kv/redis/driver_01.cpp
     )
 

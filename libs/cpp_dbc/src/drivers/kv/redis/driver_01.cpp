@@ -41,25 +41,25 @@ namespace cpp_dbc::Redis
     // Static member initialization
     // ============================================================================
 
-    std::atomic<bool> RedisDriver::s_initialized{false}; // NOSONAR - Must match declaration in header
-    std::mutex RedisDriver::s_initMutex;
+    std::atomic<bool> RedisDBDriver::s_initialized{false}; // NOSONAR - Must match declaration in header
+    std::mutex RedisDBDriver::s_initMutex;
 
     // ============================================================================
-    // RedisDriver Implementation
+    // RedisDBDriver Implementation
     // ============================================================================
 
-    cpp_dbc::expected<bool, DBException> RedisDriver::initialize(std::nothrow_t) noexcept
+    cpp_dbc::expected<bool, DBException> RedisDBDriver::initialize(std::nothrow_t) noexcept
     {
-        REDIS_DEBUG("RedisDriver::initialize - Initializing Redis driver");
+        REDIS_DEBUG("RedisDBDriver::initialize - Initializing Redis driver");
         // No specific initialization needed for hiredis
         s_initialized.store(true, std::memory_order_release);
-        REDIS_DEBUG("RedisDriver::initialize - Done");
+        REDIS_DEBUG("RedisDBDriver::initialize - Done");
         return true;
     }
 
-    RedisDriver::RedisDriver()
+    RedisDBDriver::RedisDBDriver()
     {
-        REDIS_DEBUG("RedisDriver::constructor - Creating driver");
+        REDIS_DEBUG("RedisDBDriver::constructor - Creating driver");
         // Use double-checked locking pattern for thread-safe initialization
         // that can be reset by cleanup()
         if (!s_initialized.load(std::memory_order_acquire))
@@ -70,20 +70,20 @@ namespace cpp_dbc::Redis
                 auto initResult = initialize(std::nothrow);
                 if (!initResult.has_value())
                 {
-                    REDIS_DEBUG("RedisDriver::constructor - Initialization failed: " << initResult.error().what());
+                    REDIS_DEBUG("RedisDBDriver::constructor - Initialization failed: " << initResult.error().what());
                 }
             }
         }
-        REDIS_DEBUG("RedisDriver::constructor - Done");
+        REDIS_DEBUG("RedisDBDriver::constructor - Done");
     }
 
-    RedisDriver::~RedisDriver()
+    RedisDBDriver::~RedisDBDriver()
     {
-        REDIS_DEBUG("RedisDriver::destructor - Destroying driver");
+        REDIS_DEBUG("RedisDBDriver::destructor - Destroying driver");
     }
 
 #ifdef __cpp_exceptions
-    std::shared_ptr<KVDBConnection> RedisDriver::connectKV(
+    std::shared_ptr<KVDBConnection> RedisDBDriver::connectKV(
         const std::string &url,
         const std::string &user,
         const std::string &password,
@@ -97,7 +97,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::map<std::string, std::string> RedisDriver::parseURI(const std::string &uri)
+    std::map<std::string, std::string> RedisDBDriver::parseURI(const std::string &uri)
     {
         auto result = parseURI(std::nothrow, uri);
         if (!result.has_value())
@@ -107,7 +107,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::string RedisDriver::buildURI(
+    std::string RedisDBDriver::buildURI(
         const std::string &host,
         int port,
         const std::string &db,
@@ -140,27 +140,27 @@ namespace cpp_dbc::Redis
     }
 #endif // __cpp_exceptions
 
-    bool RedisDriver::acceptsURL(const std::string &url) noexcept
+    bool RedisDBDriver::acceptsURL(const std::string &url) noexcept
     {
         return url.starts_with("cpp_dbc:redis://");
     }
 
-    std::string RedisDriver::getURIScheme() const noexcept
+    std::string RedisDBDriver::getURIScheme() const noexcept
     {
         return "cpp_dbc:redis://";
     }
 
-    bool RedisDriver::supportsClustering() const noexcept
+    bool RedisDBDriver::supportsClustering() const noexcept
     {
         return true;
     }
 
-    bool RedisDriver::supportsReplication() const noexcept
+    bool RedisDBDriver::supportsReplication() const noexcept
     {
         return true;
     }
 
-    std::string RedisDriver::getDriverVersion() const noexcept
+    std::string RedisDBDriver::getDriverVersion() const noexcept
     {
         // Build version string from hiredis version macros
 #if defined(HIREDIS_MAJOR) && defined(HIREDIS_MINOR) && defined(HIREDIS_PATCH)
@@ -173,19 +173,19 @@ namespace cpp_dbc::Redis
 #endif
     }
 
-    void RedisDriver::cleanup()
+    void RedisDBDriver::cleanup()
     {
-        REDIS_DEBUG("RedisDriver::cleanup - Cleaning up Redis driver");
+        REDIS_DEBUG("RedisDBDriver::cleanup - Cleaning up Redis driver");
         // No specific cleanup needed for hiredis
         s_initialized.store(false, std::memory_order_release);
-        REDIS_DEBUG("RedisDriver::cleanup - Done");
+        REDIS_DEBUG("RedisDBDriver::cleanup - Done");
     }
 
     // ============================================================================
-    // RedisDriver - NOTHROW IMPLEMENTATIONS
+    // RedisDBDriver - NOTHROW IMPLEMENTATIONS
     // ============================================================================
 
-    cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> RedisDriver::connectKV(
+    cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> RedisDBDriver::connectKV(
         std::nothrow_t,
         const std::string &url,
         const std::string &user,
@@ -194,7 +194,7 @@ namespace cpp_dbc::Redis
     {
         try
         {
-            REDIS_DEBUG("RedisDriver::connectKV(nothrow) - Connecting to: " << url);
+            REDIS_DEBUG("RedisDBDriver::connectKV(nothrow) - Connecting to: " << url);
 
             if (!acceptsURL(url))
             {
@@ -213,7 +213,7 @@ namespace cpp_dbc::Redis
             {
                 return cpp_dbc::unexpected(connResult.error());
             }
-            REDIS_DEBUG("RedisDriver::connectKV(nothrow) - Connection established");
+            REDIS_DEBUG("RedisDBDriver::connectKV(nothrow) - Connection established");
             return std::shared_ptr<KVDBConnection>(connResult.value());
         }
         catch (const std::exception &ex)
@@ -230,7 +230,7 @@ namespace cpp_dbc::Redis
         }
     }
 
-    cpp_dbc::expected<std::map<std::string, std::string>, DBException> RedisDriver::parseURI(
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> RedisDBDriver::parseURI(
         std::nothrow_t, const std::string &uri) noexcept
     {
         try
@@ -301,7 +301,7 @@ namespace cpp_dbc::Redis
         }
     }
 
-    std::string RedisDriver::getName() const noexcept
+    std::string RedisDBDriver::getName() const noexcept
     {
         return "redis";
     }

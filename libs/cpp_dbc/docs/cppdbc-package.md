@@ -86,7 +86,7 @@ Each database driver implementation is split into multiple focused files within 
 
 **Redis Driver** (`src/drivers/kv/redis/`):
 - `redis_internal.hpp` - Internal declarations and shared definitions
-- `driver_01.cpp` - RedisDriver implementation
+- `driver_01.cpp` - RedisDBDriver implementation
 - `connection_01.cpp` to `connection_06.cpp` - RedisDBConnection implementation
 
 **ScyllaDB Driver** (`src/drivers/columnar/scylladb/`):

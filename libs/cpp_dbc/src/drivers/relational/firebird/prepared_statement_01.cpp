@@ -14,7 +14,8 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file prepared_statement_01.cpp
- @brief Firebird database driver implementation - FirebirdDBPreparedStatement throwing methods
+ @brief Firebird database driver implementation - FirebirdDBPreparedStatement private nothrow
+        constructor, private helpers, destructor, and throwing API wrappers
 
 */
 
@@ -36,13 +37,52 @@ namespace cpp_dbc::Firebird
 {
 
     // ============================================================================
-    // FirebirdDBPreparedStatement Implementation - Private Methods
+    // FirebirdDBPreparedStatement Implementation - Private Nothrow Constructor
     // ============================================================================
 
-    void FirebirdDBPreparedStatement::notifyConnClosing()
+    FirebirdDBPreparedStatement::FirebirdDBPreparedStatement(std::nothrow_t,
+                                                             std::weak_ptr<isc_db_handle> db,
+                                                             const std::string &sql,
+                                                             std::weak_ptr<FirebirdDBConnection> conn) noexcept
+        : m_dbHandle(db), m_connection(conn), m_stmt(0), m_sql(sql),
+          m_inputSqlda(nullptr), m_outputSqlda(nullptr)
     {
-        // No lock needed - m_closed is atomic
-        m_closed.store(true, std::memory_order_release);
+        FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor(nothrow) - Creating statement");
+        FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
+
+        auto prepResult = prepareStatement(std::nothrow);
+        if (!prepResult.has_value())
+        {
+            // Store the error for deferred delivery via create(nothrow_t) — do not throw
+            m_initFailed = true;
+            m_initError = prepResult.error();
+            return;
+        }
+
+        m_closed.store(false, std::memory_order_release);
+        FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor(nothrow) - Done, m_stmt=%p", (void*)(uintptr_t)m_stmt);
+    }
+
+    // ============================================================================
+    // FirebirdDBPreparedStatement Implementation - Private Helper Methods
+    // ============================================================================
+
+    cpp_dbc::expected<void, DBException> FirebirdDBPreparedStatement::notifyConnClosing(std::nothrow_t) noexcept
+    {
+        FIREBIRD_DEBUG("FirebirdPreparedStatement::notifyConnClosing - Starting");
+
+        // Set the invalidated flag first so any concurrent operations fail immediately
+        m_invalidated.store(true, std::memory_order_release);
+
+        // Close the statement to release metadata locks and free Firebird handles
+        auto closeResult = close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            FIREBIRD_DEBUG("  close() failed during notifyConnClosing: %s", closeResult.error().what_s().data());
+        }
+
+        FIREBIRD_DEBUG("FirebirdPreparedStatement::notifyConnClosing - Done");
+        return {};
     }
 
     cpp_dbc::expected<isc_db_handle *, DBException> FirebirdDBPreparedStatement::getFirebirdConnection(std::nothrow_t) const noexcept
@@ -238,27 +278,8 @@ namespace cpp_dbc::Firebird
     }
 
     // ============================================================================
-    // FirebirdDBPreparedStatement Implementation - Public Methods
+    // FirebirdDBPreparedStatement Implementation - Destructor
     // ============================================================================
-
-    #ifdef __cpp_exceptions
-    FirebirdDBPreparedStatement::FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db,
-                                                             const std::string &sql,
-                                                             std::weak_ptr<FirebirdDBConnection> conn)
-        : m_dbHandle(db), m_connection(conn), m_stmt(0), m_sql(sql),
-          m_inputSqlda(nullptr), m_outputSqlda(nullptr)
-    {
-        FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Creating statement");
-        FIREBIRD_DEBUG("  SQL: %s", sql.c_str());
-        // No longer receives m_connMutex - accesses it through m_connection when needed
-        auto prepResult = prepareStatement(std::nothrow);
-        if (!prepResult.has_value())
-        {
-            throw prepResult.error();
-        }
-        m_closed.store(false, std::memory_order_release);
-        FIREBIRD_DEBUG("FirebirdPreparedStatement::constructor - Done, m_stmt=%p", (void*)(uintptr_t)m_stmt);
-    }
 
     FirebirdDBPreparedStatement::~FirebirdDBPreparedStatement()
     {
@@ -268,10 +289,16 @@ namespace cpp_dbc::Firebird
         FIREBIRD_DEBUG("FirebirdPreparedStatement::destructor - Done");
     }
 
+    // ============================================================================
+    // FirebirdDBPreparedStatement Implementation - Throwing API Wrappers
+    // ============================================================================
+
+#ifdef __cpp_exceptions
+
     void FirebirdDBPreparedStatement::setInt(int parameterIndex, int value)
     {
         auto result = setInt(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -280,7 +307,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setLong(int parameterIndex, int64_t value)
     {
         auto result = setLong(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -289,7 +316,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setDouble(int parameterIndex, double value)
     {
         auto result = setDouble(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -298,7 +325,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setString(int parameterIndex, const std::string &value)
     {
         auto result = setString(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -307,7 +334,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setBoolean(int parameterIndex, bool value)
     {
         auto result = setBoolean(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -316,7 +343,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setNull(int parameterIndex, Types type)
     {
         auto result = setNull(std::nothrow, parameterIndex, type);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -325,7 +352,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setDate(int parameterIndex, const std::string &value)
     {
         auto result = setDate(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -334,7 +361,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setTimestamp(int parameterIndex, const std::string &value)
     {
         auto result = setTimestamp(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -343,7 +370,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setTime(int parameterIndex, const std::string &value)
     {
         auto result = setTime(std::nothrow, parameterIndex, value);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -352,7 +379,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setBlob(int parameterIndex, std::shared_ptr<Blob> x)
     {
         auto result = setBlob(std::nothrow, parameterIndex, x);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -361,7 +388,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x)
     {
         auto result = setBinaryStream(std::nothrow, parameterIndex, x);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -370,7 +397,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setBinaryStream(int parameterIndex, std::shared_ptr<InputStream> x, size_t length)
     {
         auto result = setBinaryStream(std::nothrow, parameterIndex, x, length);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -379,7 +406,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setBytes(int parameterIndex, const std::vector<uint8_t> &x)
     {
         auto result = setBytes(std::nothrow, parameterIndex, x);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -388,7 +415,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::setBytes(int parameterIndex, const uint8_t *x, size_t length)
     {
         auto result = setBytes(std::nothrow, parameterIndex, x, length);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -397,7 +424,7 @@ namespace cpp_dbc::Firebird
     std::shared_ptr<RelationalDBResultSet> FirebirdDBPreparedStatement::executeQuery()
     {
         auto result = executeQuery(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -407,7 +434,7 @@ namespace cpp_dbc::Firebird
     uint64_t FirebirdDBPreparedStatement::executeUpdate()
     {
         auto result = executeUpdate(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -417,7 +444,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBPreparedStatement::execute()
     {
         auto result = execute(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -427,12 +454,13 @@ namespace cpp_dbc::Firebird
     void FirebirdDBPreparedStatement::close()
     {
         auto result = close(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
     }
-    #endif // __cpp_exceptions
+
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::Firebird
 

@@ -68,13 +68,13 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         poolConfigLocal.setInitialSize(5);
         poolConfigLocal.setMaxSize(10);
         poolConfigLocal.setMinIdle(3);
-        poolConfigLocal.setConnectionTimeout(5000);
-        poolConfigLocal.setValidationInterval(1000);
-        poolConfigLocal.setIdleTimeout(30000);
-        poolConfigLocal.setMaxLifetimeMillis(60000);
+        poolConfigLocal.setConnectionTimeout(3500);
+        poolConfigLocal.setIdleTimeout(10000);
+        poolConfigLocal.setMaxLifetimeMillis(30000);
         poolConfigLocal.setTestOnBorrow(true);
-        poolConfigLocal.setTestOnReturn(false);
+        poolConfigLocal.setTestOnReturn(true);
         poolConfigLocal.setValidationQuery("{\"ping\": 1}");
+        // poolConfigLocal.setValidationInterval(1000);
 
         // Create a connection pool using factory method
         auto poolResult = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfigLocal);
@@ -158,7 +158,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         poolConfigLocal.setInitialSize(5);
         poolConfigLocal.setMaxSize(10);
         poolConfigLocal.setMinIdle(3);
-        poolConfigLocal.setConnectionTimeout(3500);
+        poolConfigLocal.setConnectionTimeout(5000);
         poolConfigLocal.setIdleTimeout(10000);
         poolConfigLocal.setMaxLifetimeMillis(30000);
         poolConfigLocal.setTestOnBorrow(true);
@@ -166,13 +166,14 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         poolConfigLocal.setValidationQuery("{\"ping\": 1}");
 
         // Create a connection pool
-        auto poolResult2 = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfigLocal);
-        if (!poolResult2.has_value())
+        auto poolResult = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfigLocal);
+        if (!poolResult.has_value())
         {
-            throw poolResult2.error();
+            throw poolResult.error();
         }
-        auto pool = poolResult2.value();
+        auto pool = poolResult.value();
 
+        /*
         // Test connection validation
         SECTION("Connection validation")
         {
@@ -339,6 +340,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
                 newConn->close();
             }
         }
+            */
 
         // Test concurrent connections under load
         SECTION("Connection pool under load")

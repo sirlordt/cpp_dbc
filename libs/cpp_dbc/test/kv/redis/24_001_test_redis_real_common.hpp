@@ -70,7 +70,7 @@ namespace redis_test_helpers
     /**
      * @brief Helper function to get a Redis driver instance
      */
-    std::shared_ptr<cpp_dbc::Redis::RedisDriver> getRedisDriver();
+    std::shared_ptr<cpp_dbc::Redis::RedisDBDriver> getRedisDBDriver();
 
     /**
      * @brief Helper function to get a Redis connection

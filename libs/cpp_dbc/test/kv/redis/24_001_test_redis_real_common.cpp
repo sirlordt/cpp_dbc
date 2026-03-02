@@ -73,10 +73,10 @@ namespace redis_test_helpers
         return dbConfig;
     }
 
-    std::shared_ptr<cpp_dbc::Redis::RedisDriver> getRedisDriver()
+    std::shared_ptr<cpp_dbc::Redis::RedisDBDriver> getRedisDBDriver()
     {
-        static std::shared_ptr<cpp_dbc::Redis::RedisDriver> driver =
-            std::make_shared<cpp_dbc::Redis::RedisDriver>();
+        static std::shared_ptr<cpp_dbc::Redis::RedisDBDriver> driver =
+            std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
         return driver;
     }
 
@@ -103,7 +103,7 @@ namespace redis_test_helpers
         // Build connection string for Redis
         std::string connStr = buildRedisDBConnectionString(dbConfig);
 
-        auto driver = getRedisDriver();
+        auto driver = getRedisDBDriver();
         cpp_dbc::DriverManager::registerDriver(driver);
         auto conn = cpp_dbc::DriverManager::getDBConnection(connStr, username, password);
 
@@ -126,7 +126,7 @@ namespace redis_test_helpers
 
             // Register the driver singleton in DriverManager so connection pools
             // (which use DriverManager::getDBConnection internally) can find it.
-            auto driver = getRedisDriver();
+            auto driver = getRedisDBDriver();
             cpp_dbc::DriverManager::registerDriver(driver);
 
             // Attempt to connect to Redis via DriverManager (consistent with all other drivers)

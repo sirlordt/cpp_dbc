@@ -80,7 +80,7 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
     }
 }
 
-void demonstrateConnectionErrors(cpp_dbc::Redis::RedisDriver &driver)
+void demonstrateConnectionErrors(cpp_dbc::Redis::RedisDBDriver &driver)
 {
     logMsg("");
     logMsg("=== Connection Errors ===");
@@ -435,7 +435,7 @@ int main(int argc, char *argv[])
     registerDriver("redis");
     logOk("Driver registered");
 
-    auto driver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+    auto driver = std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
 
     // Demonstrate connection errors (before main connection)
     demonstrateConnectionErrors(*driver);

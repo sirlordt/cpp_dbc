@@ -49,10 +49,11 @@ namespace cpp_dbc::Firebird
         friend class FirebirdBlob;
 
     private:
+        // ── Member variables ──────────────────────────────────────────────────
         FirebirdDbHandle m_db;
         isc_tr_handle m_tr;
         std::atomic<bool> m_closed{true};
-        std::atomic<bool> m_resetting{false};  // True during reset() to prevent unregister deadlock
+        std::atomic<bool> m_resetting{false}; // True during reset() to prevent unregister deadlock
         bool m_autoCommit{true};
         bool m_transactionActive{false};
         TransactionIsolationLevel m_isolationLevel;
@@ -73,6 +74,40 @@ namespace cpp_dbc::Firebird
         mutable SharedConnMutex m_connMutex;
 #endif
 
+        /**
+         * @brief Flag indicating constructor initialization failed
+         *
+         * Set by the private nothrow constructor when connection setup fails.
+         * Inspected by create(nothrow_t) to propagate the error via expected.
+         */
+        bool m_initFailed{false};
+
+        /**
+         * @brief Error captured when constructor initialization fails
+         *
+         * Holds the DBException that would have been thrown, for deferred delivery.
+         */
+        DBException m_initError{"RE8MSLXITHQ2", "", {}};
+
+        // ── Private nothrow constructor ───────────────────────────────────────
+        /**
+         * @brief Private nothrow constructor — contains all connection logic
+         *
+         * All DPB construction, isc_attach_database, and initial transaction logic
+         * lives here. On failure, sets m_initFailed and m_initError instead of throwing.
+         * Only intended to be called from the static create() factory methods.
+         *
+         * @note create(nothrow_t) uses `new` (not std::make_shared) to access this private constructor.
+         */
+        FirebirdDBConnection(std::nothrow_t,
+                             const std::string &host,
+                             int port,
+                             const std::string &database,
+                             const std::string &user,
+                             const std::string &password,
+                             const std::map<std::string, std::string> &options) noexcept;
+
+        // ── Private helper methods ────────────────────────────────────────────
         cpp_dbc::expected<void, DBException> registerStatement(std::nothrow_t, std::weak_ptr<FirebirdDBPreparedStatement> stmt) noexcept;
         cpp_dbc::expected<void, DBException> unregisterStatement(std::nothrow_t, std::weak_ptr<FirebirdDBPreparedStatement> stmt) noexcept;
         cpp_dbc::expected<void, DBException> registerResultSet(std::nothrow_t, std::weak_ptr<FirebirdDBResultSet> rs) noexcept;
@@ -95,41 +130,72 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<uint64_t, DBException> executeCreateDatabase(std::nothrow_t, const std::string &sql) noexcept;
 
     protected:
-        // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
+        // Pool lifecycle overrides — only callable by pool infrastructure (via friend in RelationalDBConnection).
+#ifdef __cpp_exceptions
         void prepareForPoolReturn() override;
         void prepareForBorrow() override;
+#endif
+
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
     public:
-#if DB_DRIVER_THREAD_SAFE
-        /**
-         * @brief Get the connection mutex for PreparedStatement/ResultSet access
-         *
-         * This method allows PreparedStatement and ResultSet to access the connection
-         * mutex through their weak_ptr<FirebirdDBConnection>, implementing the
-         * requirement that they don't store the mutex directly.
-         *
-         * @return Reference to the connection's recursive_mutex
-         */
-        std::recursive_mutex &getConnectionMutex() { return *m_connMutex; }
-#endif
-
-        /**
-         * @brief Check if connection is currently in reset() operation
-         * @return true if reset() is active, false otherwise
-         *
-         * Used by ResultSet/PreparedStatement to avoid unregister deadlock during closeAll*()
-         */
-        bool isResetting() const noexcept { return m_resetting.load(std::memory_order_acquire); }
-
-        FirebirdDBConnection(const std::string &host,
-                             int port,
-                             const std::string &database,
-                             const std::string &user,
-                             const std::string &password,
-                             const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
+        // ── Destructor ────────────────────────────────────────────────────────
         ~FirebirdDBConnection() override;
+
+        // ── Deleted copy/move — non-copyable, non-movable: owns mutexes and a live DB connection ──
+        FirebirdDBConnection(const FirebirdDBConnection &) = delete;
+        FirebirdDBConnection &operator=(const FirebirdDBConnection &) = delete;
+        FirebirdDBConnection(FirebirdDBConnection &&) = delete;
+        FirebirdDBConnection &operator=(FirebirdDBConnection &&) = delete;
+
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
+
+#ifdef __cpp_exceptions
+        static std::shared_ptr<FirebirdDBConnection>
+        create(const std::string &host,
+               int port,
+               const std::string &database,
+               const std::string &user,
+               const std::string &password,
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
+        {
+            auto r = create(std::nothrow, host, port, database, user, password, options);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
+        }
+
+        void close() override;
+        void reset() override;
+        bool isClosed() const override;
+        void returnToPool() override;
+        bool isPooled() const override;
+        std::string getURL() const override;
+        bool ping() override;
+
+        std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
+        std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
+        uint64_t executeUpdate(const std::string &sql) override;
+
+        void setAutoCommit(bool autoCommit) override;
+        bool getAutoCommit() override;
+        bool beginTransaction() override;
+        bool transactionActive() override;
+        void commit() override;
+        void rollback() override;
+        void setTransactionIsolation(TransactionIsolationLevel level) override;
+        TransactionIsolationLevel getTransactionIsolation() override;
+
+#endif // __cpp_exceptions
+
+        // ====================================================================
+        // NOTHROW API — exception-free, always available
+        // ====================================================================
 
         static cpp_dbc::expected<std::shared_ptr<FirebirdDBConnection>, DBException>
         create(std::nothrow_t,
@@ -140,84 +206,49 @@ namespace cpp_dbc::Firebird
                const std::string &password,
                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
         {
-            try
+            // Use `new` instead of std::make_shared: std::make_shared cannot access private constructors,
+            // but a static class member function can. The private nothrow constructor stores init
+            // errors in m_initFailed/m_initError rather than throwing, so no try/catch is needed here.
+            auto obj = std::shared_ptr<FirebirdDBConnection>(
+                new FirebirdDBConnection(std::nothrow, host, port, database, user, password, options));
+            if (obj->m_initFailed)
             {
-                return std::make_shared<FirebirdDBConnection>(host, port, database, user, password, options);
+                return cpp_dbc::unexpected(obj->m_initError);
             }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("NXZ242YS9FRK", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("J24BZGLBC24P", "Unknown error creating FirebirdDBConnection", system_utils::captureCallStack()));
-            }
+            return obj;
         }
 
-        static std::shared_ptr<FirebirdDBConnection>
-        create(const std::string &host,
-               int port,
-               const std::string &database,
-               const std::string &user,
-               const std::string &password,
-               const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
+#if DB_DRIVER_THREAD_SAFE
+        /**
+         * @brief Get the connection mutex for PreparedStatement/ResultSet access
+         *
+         * Allows PreparedStatement and ResultSet to serialize their operations through
+         * the connection mutex via their weak_ptr<FirebirdDBConnection>, without storing
+         * the mutex directly.
+         *
+         * @return Reference to the connection's recursive_mutex
+         */
+        std::recursive_mutex &getConnectionMutex() noexcept
         {
-            auto r = create(std::nothrow, host, port, database, user, password, options);
-            if (!r.has_value()) { throw r.error(); }
-            return r.value();
+            return *m_connMutex;
         }
-
-        #ifdef __cpp_exceptions
-        void close() override;
-        void reset() override;
-        bool isClosed() const override;
-        void returnToPool() override;
-        bool isPooled() const override;
-
-        std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
-        std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
-        uint64_t executeUpdate(const std::string &sql) override;
-
-        void setAutoCommit(bool autoCommit) override;
-        bool getAutoCommit() override;
-
-        bool beginTransaction() override;
-        bool transactionActive() override;
-
-        void commit() override;
-        void rollback() override;
-
-        // Transaction isolation level methods
-        void setTransactionIsolation(TransactionIsolationLevel level) override;
-        TransactionIsolationLevel getTransactionIsolation() override;
-
-        // Get the connection URL
-        std::string getURL() const override;
-        bool ping() override;
-
-        #endif // __cpp_exceptions
-        // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
-        // ====================================================================
+#endif
 
         /**
-         * @brief Reset connection state - close all statements/resultsets and rollback (nothrow version)
+         * @brief Check if connection is currently in reset() operation
+         * @return true if reset() is active, false otherwise
          *
-         * Override of DBConnection::reset(std::nothrow_t).
-         * Called by close() and prepareForPoolReturn() to ensure clean state.
-         * Always performs:
-         * 1. Close all active PreparedStatements
-         * 2. Close all active ResultSets
-         * 3. Rollback any active transaction
-         *
-         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
-         * @return expected containing void on success, or DBException on failure
+         * Used by ResultSet/PreparedStatement to avoid unregister deadlock during closeAll*()
          */
+        bool isResetting() const noexcept { return m_resetting.load(std::memory_order_acquire); }
+
+        cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>
         prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
@@ -228,47 +259,14 @@ namespace cpp_dbc::Firebird
         cpp_dbc::expected<uint64_t, DBException>
         executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
 
-        cpp_dbc::expected<void, DBException>
-        setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override;
-
-        cpp_dbc::expected<bool, DBException>
-            getAutoCommit(std::nothrow_t) noexcept override;
-
-        cpp_dbc::expected<bool, DBException>
-            beginTransaction(std::nothrow_t) noexcept override;
-
-        cpp_dbc::expected<bool, DBException>
-            transactionActive(std::nothrow_t) noexcept override;
-
-        cpp_dbc::expected<void, DBException>
-            commit(std::nothrow_t) noexcept override;
-
-        cpp_dbc::expected<void, DBException>
-            rollback(std::nothrow_t) noexcept override;
-
-        cpp_dbc::expected<void, cpp_dbc::DBException>
-            close(std::nothrow_t) noexcept override;
-
-        cpp_dbc::expected<void, DBException>
-        setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
-
-        cpp_dbc::expected<TransactionIsolationLevel, DBException>
-            getTransactionIsolation(std::nothrow_t) noexcept override;
-
-        cpp_dbc::expected<bool, DBException>
-            isClosed(std::nothrow_t) const noexcept override;
-
-        cpp_dbc::expected<void, DBException>
-            returnToPool(std::nothrow_t) noexcept override;
-
-        cpp_dbc::expected<bool, DBException>
-            isPooled(std::nothrow_t) const noexcept override;
-
-        cpp_dbc::expected<std::string, DBException>
-            getURL(std::nothrow_t) const noexcept override;
-
-        cpp_dbc::expected<bool, DBException>
-            ping(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> setAutoCommit(std::nothrow_t, bool autoCommit) noexcept override;
+        cpp_dbc::expected<bool, DBException> getAutoCommit(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> beginTransaction(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> transactionActive(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+        cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::Firebird

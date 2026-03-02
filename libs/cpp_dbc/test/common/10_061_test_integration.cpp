@@ -92,7 +92,7 @@ TEST_CASE("Real database integration with all drivers", "[10_061_02_integration]
 #endif
 
 #if USE_REDIS
-    auto redisDriver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+    auto redisDriver = std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
     cpp_dbc::DriverManager::registerDriver(redisDriver);
     // std::cout << "Redis driver registered" << std::endl;
 #endif

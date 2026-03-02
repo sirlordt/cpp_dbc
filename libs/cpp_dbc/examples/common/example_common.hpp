@@ -378,7 +378,7 @@ namespace cpp_dbc::examples
         cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::MongoDB::MongoDBDriver>());
 #endif
 #if USE_REDIS
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDBDriver>());
 #endif
 #if USE_SCYLLADB
         cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::ScyllaDB::ScyllaDBDriver>());
@@ -431,7 +431,7 @@ namespace cpp_dbc::examples
 #if USE_REDIS
         if (dbType == "redis")
         {
-            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDBDriver>());
             return true;
         }
 #endif

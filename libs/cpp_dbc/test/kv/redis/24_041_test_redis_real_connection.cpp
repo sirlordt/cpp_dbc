@@ -48,7 +48,7 @@ TEST_CASE("Redis connection test", "[24_041_01_redis_real_connection]")
         std::string connStr = redis_test_helpers::buildRedisDBConnectionString(dbConfig);
 
         // Get a Redis driver
-        auto driver = redis_test_helpers::getRedisDriver();
+        auto driver = redis_test_helpers::getRedisDBDriver();
 
         try
         {
@@ -69,7 +69,7 @@ TEST_CASE("Redis connection test", "[24_041_01_redis_real_connection]")
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Original URL: " + connStr);
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
 
-            // In the RedisDriver::connectKV method, the URL gets the "cpp_dbc:" prefix stripped
+            // In the RedisDBDriver::connectKV method, the URL gets the "cpp_dbc:" prefix stripped
             // before being passed to the RedisDBConnection constructor
             if (connStr.substr(0, 8) == "cpp_dbc:")
             {

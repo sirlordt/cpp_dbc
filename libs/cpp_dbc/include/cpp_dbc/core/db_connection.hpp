@@ -51,8 +51,10 @@ namespace cpp_dbc
     class DBConnection
     {
     public:
+        DBConnection() = default;
         virtual ~DBConnection() = default;
 
+#ifdef __cpp_exceptions
         /**
          * @brief Close the database connection and release resources
          *
@@ -65,7 +67,6 @@ namespace cpp_dbc
          * conn->close();  // release resources
          * ```
          */
-        #ifdef __cpp_exceptions
         virtual void close() = 0;
 
         /**
@@ -138,10 +139,10 @@ namespace cpp_dbc
          */
         virtual bool ping() = 0;
 
-        #endif // __cpp_exceptions
-        // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
-        // ====================================================================
+#endif // __cpp_exceptions
+       // ====================================================================
+       // NOTHROW VERSIONS - Exception-free API
+       // ====================================================================
 
         /**
          * @brief Close the database connection (nothrow version)

@@ -76,9 +76,39 @@ namespace cpp_dbc::Firebird
         std::vector<short> m_nullIndicators;
 
         /**
+         * @brief Flag indicating constructor initialization failed
+         *
+         * Set by the private nothrow constructor when SQLDA initialization fails.
+         * Inspected by create(nothrow_t) to propagate the error via expected.
+         */
+        bool m_initFailed{false};
+
+        /**
+         * @brief Error captured when constructor initialization fails
+         *
+         * Holds the DBException that would have been thrown, for deferred delivery.
+         */
+        DBException m_initError{"3P1IZSM4H52F", "", {}};
+
+        /**
+         * @brief Private nothrow constructor — all initialization logic lives here
+         *
+         * Initializes SQLDA metadata and column maps. On failure, sets m_initFailed
+         * and m_initError instead of throwing. Only callable from create() factories.
+         *
+         * @note create(nothrow_t) uses `new` (not std::make_shared) to access this
+         * private constructor since std::make_shared cannot call private constructors.
+         */
+        FirebirdDBResultSet(std::nothrow_t,
+                            FirebirdStmtHandle stmt,
+                            XSQLDAHandle sqlda,
+                            bool ownStatement,
+                            std::shared_ptr<FirebirdDBConnection> conn) noexcept;
+
+        /**
          * @brief Initialize column metadata from SQLDA
          */
-        void initializeColumns();
+        cpp_dbc::expected<void, DBException> initializeColumns(std::nothrow_t) noexcept;
 
         /**
          * @brief Get column value as string
@@ -88,20 +118,14 @@ namespace cpp_dbc::Firebird
         /**
          * @brief Get raw statement handle pointer for Firebird API calls
          */
-        isc_stmt_handle *getStmtPtr() { return m_stmt.get(); }
+        [[nodiscard]] isc_stmt_handle *getStmtPtr(std::nothrow_t) const noexcept { return m_stmt.get(); }
 
         /**
          * @brief Notify this ResultSet that the connection is closing
          */
-        void notifyConnClosing();
+        cpp_dbc::expected<void, DBException> notifyConnClosing(std::nothrow_t) noexcept;
 
     public:
-        // Constructor no longer takes SharedConnMutex parameter
-        // The mutex is accessed through m_connection when needed
-        FirebirdDBResultSet(FirebirdStmtHandle stmt,
-                            XSQLDAHandle sqlda,
-                            bool ownStatement,
-                            std::shared_ptr<FirebirdDBConnection> conn);
         ~FirebirdDBResultSet() override;
 
         FirebirdDBResultSet(const FirebirdDBResultSet &) = delete;
@@ -109,51 +133,17 @@ namespace cpp_dbc::Firebird
         FirebirdDBResultSet(FirebirdDBResultSet &&) = delete;
         FirebirdDBResultSet &operator=(FirebirdDBResultSet &&) = delete;
 
-        static cpp_dbc::expected<std::shared_ptr<FirebirdDBResultSet>, DBException>
-        create(std::nothrow_t,
-               FirebirdStmtHandle stmt,
-               XSQLDAHandle sqlda,
-               bool ownStatement,
-               std::shared_ptr<FirebirdDBConnection> conn) noexcept
-        {
-            try
-            {
-                // NOTE: registerResultSet() is NOT called here because FirebirdDBConnection
-                // is an incomplete type at this point (forward-declared in handles.hpp).
-                // The caller is responsible for registering the ResultSet with the connection
-                // after create() returns, in the .cpp translation unit where the full
-                // FirebirdDBConnection definition is available.
-                return std::make_shared<FirebirdDBResultSet>(std::move(stmt), std::move(sqlda), ownStatement, conn);
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("RQAE6RY483EJ", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("T00DXEGVDZK4", "Unknown error creating FirebirdDBResultSet", system_utils::captureCallStack()));
-            }
-        }
+#ifdef __cpp_exceptions
+        // ====================================================================
+        // THROWING API — Requires exceptions enabled (-fno-exceptions: excluded)
+        // ====================================================================
 
         static std::shared_ptr<FirebirdDBResultSet>
         create(FirebirdStmtHandle stmt,
                XSQLDAHandle sqlda,
                bool ownStatement,
-               std::shared_ptr<FirebirdDBConnection> conn)
-        {
-            auto r = create(std::nothrow, std::move(stmt), std::move(sqlda), ownStatement, conn);
-            if (!r.has_value())
-            {
-                throw r.error();
-            }
-            return r.value();
-        }
+               std::shared_ptr<FirebirdDBConnection> conn);
 
-#ifdef __cpp_exceptions
         bool next() override;
         bool isBeforeFirst() override;
         bool isAfterLast() override;
@@ -191,7 +181,6 @@ namespace cpp_dbc::Firebird
         void close() override;
         bool isEmpty() override;
 
-        // BLOB support methods
         std::shared_ptr<Blob> getBlob(size_t columnIndex) override;
         std::shared_ptr<Blob> getBlob(const std::string &columnName) override;
 
@@ -202,47 +191,64 @@ namespace cpp_dbc::Firebird
         std::vector<uint8_t> getBytes(const std::string &columnName) override;
 
 #endif // __cpp_exceptions
-       // ====================================================================
-       // NOTHROW VERSIONS - Exception-free API
-       // ====================================================================
 
-        cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> isBeforeFirst(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> isAfterLast(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<uint64_t, DBException> getRow(std::nothrow_t) noexcept override;
+        // ====================================================================
+        // NOTHROW API — Exception-free interface (always compiled)
+        // ====================================================================
 
-        cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, size_t columnIndex) noexcept override;
+        static cpp_dbc::expected<std::shared_ptr<FirebirdDBResultSet>, DBException>
+        create(std::nothrow_t,
+               FirebirdStmtHandle stmt,
+               XSQLDAHandle sqlda,
+               bool ownStatement,
+               std::shared_ptr<FirebirdDBConnection> conn) noexcept;
 
-        cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> next(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> isBeforeFirst(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> isAfterLast(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<uint64_t, DBException> getRow(std::nothrow_t) noexcept override;
 
-        cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<int, DBException> getInt(std::nothrow_t, const std::string &columnName) noexcept override;
 
-        cpp_dbc::expected<std::vector<std::string>, DBException> getColumnNames(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<size_t, DBException> getColumnCount(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<int64_t, DBException> getLong(std::nothrow_t, const std::string &columnName) noexcept override;
 
-        cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept override;
-        cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t columnIndex) noexcept override;
-        cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<double, DBException> getDouble(std::nothrow_t, const std::string &columnName) noexcept override;
+
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getString(std::nothrow_t, const std::string &columnName) noexcept override;
+
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> getBoolean(std::nothrow_t, const std::string &columnName) noexcept override;
+
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> isNull(std::nothrow_t, const std::string &columnName) noexcept override;
+
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getDate(std::nothrow_t, const std::string &columnName) noexcept override;
+
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getTimestamp(std::nothrow_t, const std::string &columnName) noexcept override;
+
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::string, DBException> getTime(std::nothrow_t, const std::string &columnName) noexcept override;
+
+        [[nodiscard]] cpp_dbc::expected<std::vector<std::string>, DBException> getColumnNames(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<size_t, DBException> getColumnCount(std::nothrow_t) noexcept override;
+
+        [[nodiscard]] cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<bool, DBException> isEmpty(std::nothrow_t) noexcept override;
+
+        [[nodiscard]] cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::shared_ptr<Blob>, DBException> getBlob(std::nothrow_t, const std::string &columnName) noexcept override;
+
+        [[nodiscard]] cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t, const std::string &columnName) noexcept override;
+
+        [[nodiscard]] cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t columnIndex) noexcept override;
+        [[nodiscard]] cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, const std::string &columnName) noexcept override;
     };
 
 } // namespace cpp_dbc::Firebird

@@ -26,14 +26,14 @@ namespace cpp_dbc::Redis
      * #include "cpp_dbc/drivers/kv/driver_redis.hpp"
      * #include "cpp_dbc/core/driver_manager.hpp"
      *
-     * auto driver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+     * auto driver = std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
      * cpp_dbc::DriverManager::registerDriver(driver);
      * auto conn = driver->connectKV("cpp_dbc:redis://localhost:6379", "", "");
      * auto reply = conn->ping();
      * conn->close();
      * ```
      */
-    class RedisDriver final : public KVDBDriver
+    class RedisDBDriver final : public KVDBDriver
     {
     private:
         // Note: Using atomic<bool> + mutex instead of std::once_flag because
@@ -53,12 +53,12 @@ namespace cpp_dbc::Redis
         /**
          * @brief Construct a new Redis Driver
          */
-        RedisDriver();
+        RedisDBDriver();
 
         /**
          * @brief Destructor
          */
-        ~RedisDriver() override;
+        ~RedisDBDriver() override;
 
         // ====================================================================
         // THROWING API — requires exception support
@@ -119,16 +119,16 @@ namespace cpp_dbc::Redis
 
 namespace cpp_dbc::Redis
 {
-    class RedisDriver final : public KVDBDriver
+    class RedisDBDriver final : public KVDBDriver
     {
     public:
-        RedisDriver() = default; // Driver not enabled in this build
-        ~RedisDriver() override = default;
+        RedisDBDriver() = default; // Driver not enabled in this build
+        ~RedisDBDriver() override = default;
 
-        RedisDriver(const RedisDriver &) = delete;
-        RedisDriver &operator=(const RedisDriver &) = delete;
-        RedisDriver(RedisDriver &&) = delete;
-        RedisDriver &operator=(RedisDriver &&) = delete;
+        RedisDBDriver(const RedisDBDriver &) = delete;
+        RedisDBDriver &operator=(const RedisDBDriver &) = delete;
+        RedisDBDriver(RedisDBDriver &&) = delete;
+        RedisDBDriver &operator=(RedisDBDriver &&) = delete;
 
         // ====================================================================
         // THROWING API — requires exception support

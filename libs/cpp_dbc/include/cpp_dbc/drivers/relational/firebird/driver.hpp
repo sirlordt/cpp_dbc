@@ -1,3 +1,23 @@
+/**
+
+ * Copyright 2025 Tomas R Moreno P <tomasr.morenop@gmail.com>. All Rights Reserved.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+
+ * This file is part of the cpp_dbc project and is licensed under the GNU GPL v3.
+ * See the LICENSE.md file in the project root for more information.
+
+ @file driver.hpp
+ @brief Firebird database driver declaration - FirebirdDBDriver
+
+*/
+
 #pragma once
 
 #include "../../../cpp_dbc.hpp"
@@ -41,18 +61,28 @@ namespace cpp_dbc::Firebird
         static std::mutex s_initMutex;
 
     public:
+        // ── Constructor ───────────────────────────────────────────────────────
         FirebirdDBDriver();
+
+        // ── Destructor ────────────────────────────────────────────────────────
         ~FirebirdDBDriver() override;
+
+        // ── Deleted copy/move — non-copyable, non-movable ─────────────────────
+        FirebirdDBDriver(const FirebirdDBDriver &) = delete;
+        FirebirdDBDriver &operator=(const FirebirdDBDriver &) = delete;
+        FirebirdDBDriver(FirebirdDBDriver &&) = delete;
+        FirebirdDBDriver &operator=(FirebirdDBDriver &&) = delete;
 
         // ====================================================================
         // THROWING API — requires exception support
         // ====================================================================
 
 #ifdef __cpp_exceptions
-        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
-                                                                  const std::string &user,
-                                                                  const std::string &password,
-                                                                  const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+        std::shared_ptr<RelationalDBConnection> connectRelational(
+            const std::string &url,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
         /**
          * @brief Execute a driver-specific command
@@ -104,7 +134,7 @@ namespace cpp_dbc::Firebird
          * @param database Output: the database path
          * @return true if parsing was successful
          */
-        bool parseURL(const std::string &url, std::string &host, int &port, std::string &database);
+        bool parseURL(const std::string &url, std::string &host, int &port, std::string &database) noexcept;
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException>
         connectRelational(
@@ -162,9 +192,11 @@ namespace cpp_dbc::Firebird
     class FirebirdDBDriver final : public RelationalDBDriver
     {
     public:
+        // ── Constructor and Destructor ────────────────────────────────────────
         FirebirdDBDriver() = default;
         ~FirebirdDBDriver() override = default;
 
+        // ── Deleted copy/move — non-copyable, non-movable ─────────────────────
         FirebirdDBDriver(const FirebirdDBDriver &) = delete;
         FirebirdDBDriver &operator=(const FirebirdDBDriver &) = delete;
         FirebirdDBDriver(FirebirdDBDriver &&) = delete;
@@ -204,6 +236,14 @@ namespace cpp_dbc::Firebird
         bool acceptsURL(const std::string &url) noexcept override
         {
             return url.starts_with("cpp_dbc:firebird://");
+        }
+
+        bool parseURL(const std::string & /*url*/,
+                      std::string & /*host*/,
+                      int & /*port*/,
+                      std::string & /*database*/) noexcept
+        {
+            return false;
         }
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(

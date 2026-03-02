@@ -56,7 +56,7 @@ TEST_CASE("Redis Thread-Safety Tests", "[24_111_01_redis_real_thread_safe]")
     std::string connStr = redis_test_helpers::buildRedisDBConnectionString(dbConfig);
 
     // Register the Redis driver
-    cpp_dbc::DriverManager::registerDriver(redis_test_helpers::getRedisDriver());
+    cpp_dbc::DriverManager::registerDriver(redis_test_helpers::getRedisDBDriver());
 
     SECTION("Multiple threads with individual connections")
     {

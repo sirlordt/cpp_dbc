@@ -1349,7 +1349,7 @@ All throwing method variants (`close()`, `reset()`, `isClosed()`, etc.) in every
 
 * **Redis Driver Split:**
   * `src/drivers/kv/redis/redis_internal.hpp` - Internal declarations and shared definitions
-  * `src/drivers/kv/redis/driver_01.cpp` - RedisDriver implementation
+  * `src/drivers/kv/redis/driver_01.cpp` - RedisDBDriver implementation
   * `src/drivers/kv/redis/connection_01.cpp` to `connection_06.cpp` - RedisDBConnection implementation
 
 * **ScyllaDB Driver Split:**

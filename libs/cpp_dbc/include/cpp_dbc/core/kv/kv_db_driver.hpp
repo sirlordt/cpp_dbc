@@ -38,14 +38,14 @@ namespace cpp_dbc
      * KVDBConnection. Also provides URI parsing/building helpers.
      *
      * ```cpp
-     * auto driver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+     * auto driver = std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
      * cpp_dbc::DriverManager::registerDriver(driver);
      * auto conn = driver->connectKV("redis://localhost:6379", "", "");
      * conn->setString("key", "value");
      * conn->close();
      * ```
      *
-     * Implementations: RedisDriver
+     * Implementations: RedisDBDriver
      *
      * @see KVDBConnection, DBDriver
      */

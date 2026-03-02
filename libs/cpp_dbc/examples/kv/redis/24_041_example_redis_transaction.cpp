@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
     {
         logStep("Connecting to Redis...");
 
-        auto driver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+        auto driver = std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
         std::string url = "cpp_dbc:redis://" + dbConfig.getHost() + ":" + std::to_string(dbConfig.getPort()) + "/" + dbConfig.getDatabase();
         auto conn = driver->connectKV(url, dbConfig.getUsername(), dbConfig.getPassword());
 

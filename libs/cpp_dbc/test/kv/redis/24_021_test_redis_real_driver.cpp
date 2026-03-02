@@ -34,7 +34,7 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
     SECTION("Redis driver URL acceptance")
     {
         // Create a Redis driver
-        cpp_dbc::Redis::RedisDriver driver;
+        cpp_dbc::Redis::RedisDBDriver driver;
 
         // Check that it accepts Redis URLs
         REQUIRE(driver.acceptsURL("cpp_dbc:redis://localhost:6379/0"));
@@ -67,7 +67,7 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
         std::string password = dbConfig.getPassword();
 
         // Create a Redis driver and connect
-        cpp_dbc::Redis::RedisDriver driver;
+        cpp_dbc::Redis::RedisDBDriver driver;
         auto conn = driver.connectKV(connStr, username, password);
 
         // Verify connection is valid
@@ -82,7 +82,7 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
 
     SECTION("Redis driver rejects invalid URL format")
     {
-        cpp_dbc::Redis::RedisDriver driver;
+        cpp_dbc::Redis::RedisDBDriver driver;
 
         // Invalid URL format should throw
         REQUIRE_THROWS_AS(
@@ -92,7 +92,7 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
 
     SECTION("Redis driver parseURI - valid URIs")
     {
-        cpp_dbc::Redis::RedisDriver driver;
+        cpp_dbc::Redis::RedisDBDriver driver;
 
         // Full URI with host, port, and db index
         auto params = driver.parseURI("cpp_dbc:redis://localhost:6379/0");
@@ -121,7 +121,7 @@ TEST_CASE("Redis driver tests", "[24_021_01_redis_real_driver]")
 
     SECTION("Redis driver parseURI - invalid URIs")
     {
-        cpp_dbc::Redis::RedisDriver driver;
+        cpp_dbc::Redis::RedisDBDriver driver;
 
         // Completely invalid URI
         REQUIRE_THROWS_AS(

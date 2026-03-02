@@ -40,6 +40,7 @@ namespace cpp_dbc::Firebird
         friend class FirebirdConnectionLock;
 
     private:
+        // ── Member variables ──────────────────────────────────────────────────
         std::weak_ptr<isc_db_handle> m_dbHandle;
 
         // ============================================================================
@@ -84,52 +85,67 @@ namespace cpp_dbc::Firebird
         std::vector<std::shared_ptr<Blob>> m_blobObjects;
         std::vector<std::shared_ptr<InputStream>> m_streamObjects;
 
-        void notifyConnClosing();
+        /**
+         * @brief Flag indicating constructor initialization failed
+         *
+         * Set by the private nothrow constructor when statement preparation fails.
+         * Inspected by create(nothrow_t) to propagate the error via expected.
+         */
+        bool m_initFailed{false};
+
+        /**
+         * @brief Error captured when constructor initialization fails
+         *
+         * Holds the DBException that would have been thrown, for deferred delivery.
+         */
+        DBException m_initError{"W5NGKYRJZB0X", "", {}};
+
+        // ── Private nothrow constructor ───────────────────────────────────────
+        /**
+         * @brief Private nothrow constructor — contains all initialization logic
+         *
+         * Calls prepareStatement(std::nothrow) internally. On failure, sets
+         * m_initFailed and m_initError instead of throwing. Only intended to be
+         * called from the static create() factory methods via `new`.
+         *
+         * @note create(nothrow_t) uses `new` (not std::make_shared) to access this private constructor.
+         */
+        FirebirdDBPreparedStatement(std::nothrow_t,
+                                    std::weak_ptr<isc_db_handle> db,
+                                    const std::string &sql,
+                                    std::weak_ptr<FirebirdDBConnection> conn) noexcept;
+
+        // ── Private helper methods ────────────────────────────────────────────
+        /**
+         * @brief Notify that the connection is closing or a DDL operation is about to execute.
+         * Sets m_invalidated and m_closed by calling close(), releasing metadata locks.
+         * After this call, any attempt to use this statement will return an error.
+         */
+        cpp_dbc::expected<void, DBException> notifyConnClosing(std::nothrow_t) noexcept;
         cpp_dbc::expected<isc_db_handle *, DBException> getFirebirdConnection(std::nothrow_t) const noexcept;
         cpp_dbc::expected<void, DBException> prepareStatement(std::nothrow_t) noexcept;
         cpp_dbc::expected<void, DBException> allocateInputSqlda(std::nothrow_t) noexcept;
         cpp_dbc::expected<void, DBException> setParameter(std::nothrow_t, int parameterIndex, const void *data, size_t length, short sqlType) noexcept;
 
-        /**
-         * @brief Invalidate this prepared statement (called by connection before DDL operations)
-         * After invalidation, any attempt to use this statement will throw/return an error.
-         */
-        cpp_dbc::expected<void, DBException> invalidate(std::nothrow_t) noexcept;
-
     public:
-        // Constructor no longer takes SharedConnMutex parameter
-        // The mutex is accessed through m_connection weak_ptr when needed
-        FirebirdDBPreparedStatement(std::weak_ptr<isc_db_handle> db,
-                                    const std::string &sql,
-                                    std::weak_ptr<FirebirdDBConnection> conn);
+        // ── Destructor ────────────────────────────────────────────────────────
         ~FirebirdDBPreparedStatement() override;
 
-        static cpp_dbc::expected<std::shared_ptr<FirebirdDBPreparedStatement>, DBException>
-        create(std::nothrow_t,
-               std::weak_ptr<isc_db_handle> db,
-               const std::string &sql,
-               std::weak_ptr<FirebirdDBConnection> conn) noexcept
-        {
-            try
-            {
-                return std::make_shared<FirebirdDBPreparedStatement>(db, sql, conn);
-            }
-            catch (const DBException &ex)
-            {
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("ROR1R5ON4NAU", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("Q87X6U636FPM", "Unknown error creating FirebirdDBPreparedStatement", system_utils::captureCallStack()));
-            }
-        }
+        // ── Deleted copy/move — non-copyable, non-movable ─────────────────────
+        FirebirdDBPreparedStatement(const FirebirdDBPreparedStatement &) = delete;
+        FirebirdDBPreparedStatement &operator=(const FirebirdDBPreparedStatement &) = delete;
+        FirebirdDBPreparedStatement(FirebirdDBPreparedStatement &&) = delete;
+        FirebirdDBPreparedStatement &operator=(FirebirdDBPreparedStatement &&) = delete;
 
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
+
+#ifdef __cpp_exceptions
         static std::shared_ptr<FirebirdDBPreparedStatement>
-        create(std::weak_ptr<isc_db_handle> db, const std::string &sql, std::weak_ptr<FirebirdDBConnection> conn)
+        create(std::weak_ptr<isc_db_handle> db,
+               const std::string &sql,
+               std::weak_ptr<FirebirdDBConnection> conn)
         {
             auto r = create(std::nothrow, db, sql, conn);
             if (!r.has_value())
@@ -139,7 +155,6 @@ namespace cpp_dbc::Firebird
             return r.value();
         }
 
-#ifdef __cpp_exceptions
         void setInt(int parameterIndex, int value) override;
         void setLong(int parameterIndex, int64_t value) override;
         void setDouble(int parameterIndex, double value) override;
@@ -163,9 +178,28 @@ namespace cpp_dbc::Firebird
         void close() override;
 
 #endif // __cpp_exceptions
+
         // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
+        // NOTHROW API — exception-free, always available
         // ====================================================================
+
+        static cpp_dbc::expected<std::shared_ptr<FirebirdDBPreparedStatement>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<isc_db_handle> db,
+               const std::string &sql,
+               std::weak_ptr<FirebirdDBConnection> conn) noexcept
+        {
+            // Use `new` instead of std::make_shared: std::make_shared cannot access private constructors,
+            // but a static class member function can. The private nothrow constructor stores init
+            // errors in m_initFailed/m_initError rather than throwing, so no try/catch is needed here.
+            auto obj = std::shared_ptr<FirebirdDBPreparedStatement>(
+                new FirebirdDBPreparedStatement(std::nothrow, db, sql, conn));
+            if (obj->m_initFailed)
+            {
+                return cpp_dbc::unexpected(obj->m_initError);
+            }
+            return obj;
+        }
 
         [[nodiscard]] cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept override;
         [[nodiscard]] cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept override;

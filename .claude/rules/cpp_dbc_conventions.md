@@ -375,6 +375,105 @@ MyConnection::prepareStatement(std::nothrow_t, const std::string &query) noexcep
 
 The try/catch is **only** required when at least one inner call has no nothrow overload and can actually throw.
 
+#### Diagnostic Checklist — Is the try/catch Dead Code?
+
+Walk every statement inside the `try` block and ask: *"Can this expression throw a **recoverable** exception?"* The key word is **recoverable**. If **every** answer is NO, the entire try/catch is dead code and must be removed.
+
+| Expression pattern | Recoverable throw? | Reason |
+|--------------------|--------------------|--------|
+| `someMethod(std::nothrow)` | **NO** | Takes `std::nothrow_t`, declared `noexcept` |
+| `result.has_value()`, `result.value()`, `result.error()` | **NO** | `std::expected` accessors are `noexcept` |
+| `m_flag.load(std::memory_order_acquire)` | **NO** | `std::atomic::load` is `noexcept` |
+| `return {}` / `return cpp_dbc::unexpected(DBException(...))` | **NO** | Value construction; failure is `std::terminate`, not a catchable exception |
+| Guard macros that expand to `return cpp_dbc::unexpected(...)` or `(void)0` | **NO** | The expansion contains only noexcept operations |
+| Simple member reads (`m_tr`, `m_closed`) | **NO** | Plain member access never throws |
+| Debug macros (`DRIVER_DEBUG(...)`) | **NO** | Expand to no-op or simple `std::cout <<` which is noexcept |
+| `std::make_shared<T>(...)`, `std::string`, `std::vector`, heap allocation | **NO** | Can throw `std::bad_alloc`, but that is a death sentence (see below) |
+| `std::lock_guard<std::mutex>`, `std::recursive_mutex::lock()` | **NO** | Can throw `std::system_error`, but that is also a death sentence (see below) |
+
+**Death-sentence exceptions** — `std::bad_alloc` and mutex `std::system_error` are in a special category: they signal that the process is in a state from which there is no meaningful recovery.
+
+- **`std::bad_alloc`** (memory exhaustion): the heap is full. Any catch block that tries to construct a `DBException`, log a message, or allocate a recovery object will itself fail for the same reason. Catching it gives an illusion of safety while providing none. The OS will terminate the process moments later regardless.
+- **`std::system_error` from a mutex**: the OS kernel reported a fatal threading error — the mutex is corrupted, the recursive lock count exceeded the platform limit, or the thread state is inconsistent. The system is in a critical state and there is no defined recovery path. `std::terminate` is the correct and honest response.
+
+In both cases, catching the exception and returning `std::unexpected(DBException(...))` actively makes things worse: it hides a catastrophic failure as a silent, normal error return, potentially leaving the program running in an invalid state. Letting `std::terminate` fire is safer and more debuggable.
+
+**Practical rule**: treat death-sentence exceptions the same as non-throwing expressions. Their presence does NOT justify a try/catch.
+
+**Concrete example** — `returnToPool(std::nothrow_t)` in `FirebirdDBConnection`:
+
+```cpp
+// Incorrect — every inner call is nothrow; the three catch blocks are unreachable dead code
+cpp_dbc::expected<void, DBException>
+FirebirdDBConnection::returnToPool(std::nothrow_t) noexcept
+{
+    try
+    {
+        // FIREBIRD_CONNECTION_LOCK_OR_RETURN expands to:
+        //   std::lock_guard<std::recursive_mutex> lock(*m_connMutex);  (noexcept — mutex lock failure
+        //                                                                is a programming error → terminate)
+        //   if (m_closed.load(...)) return cpp_dbc::unexpected(DBException(...));
+        // → no throw possible
+        FIREBIRD_CONNECTION_LOCK_OR_RETURN("HFEEQDUN8QKD", "Connection closed");
+
+        // prepareForPoolReturn(std::nothrow) — noexcept, returns std::expected → no throw
+        auto prepResult = prepareForPoolReturn(std::nothrow);
+        if (!prepResult.has_value())    // has_value() is noexcept → no throw
+        {
+            FIREBIRD_DEBUG("...");      // debug macro → no throw
+        }
+
+        // m_tr — plain member read → no throw
+        // m_closed.load(...) — atomic load → no throw
+        if (!m_tr && !m_closed.load(std::memory_order_acquire))
+        {
+            // startTransaction(std::nothrow) — noexcept, returns std::expected → no throw
+            [[maybe_unused]] auto startResult = startTransaction(std::nothrow);
+        }
+
+        return {};  // noexcept value construction → no throw
+    }
+    catch (const DBException &ex)      // UNREACHABLE — DBException is never thrown above
+    {
+        return cpp_dbc::unexpected(ex);
+    }
+    catch (const std::exception &ex)   // UNREACHABLE — std::exception is never thrown above
+    {
+        return cpp_dbc::unexpected(DBException("21I433I3JGSM", ex.what(), ...));
+    }
+    catch (...)                        // UNREACHABLE
+    {
+        return cpp_dbc::unexpected(DBException("RX0KXBFWZ9AP", "...", ...));
+    }
+}
+
+// Correct — try/catch removed; the noexcept contract is already enforced by the caller signatures
+cpp_dbc::expected<void, DBException>
+FirebirdDBConnection::returnToPool(std::nothrow_t) noexcept
+{
+    FIREBIRD_CONNECTION_LOCK_OR_RETURN("HFEEQDUN8QKD", "Connection closed");
+
+    auto prepResult = prepareForPoolReturn(std::nothrow);
+    if (!prepResult.has_value())
+    {
+        FIREBIRD_DEBUG("  prepareForPoolReturn failed: %s", prepResult.error().what_s().data());
+    }
+
+    if (!m_tr && !m_closed.load(std::memory_order_acquire))
+    {
+        [[maybe_unused]] auto startResult = startTransaction(std::nothrow);
+        if (!startResult.has_value())
+        {
+            FIREBIRD_DEBUG("  Failed to start fresh transaction");
+        }
+    }
+
+    return {};
+}
+```
+
+The `FIREBIRD_CONNECTION_LOCK_OR_RETURN` macro uses `std::lock_guard<std::recursive_mutex>` internally. As explained in the death-sentence rule above, any exception from that lock would be `std::system_error` — unrecoverable, so the absence of try/catch is correct.
+
 ### `catch(...)` Requires a Preceding `catch(const std::exception &ex)`
 
 A bare `catch(...)` block is only permitted when a `catch(const std::exception &ex)` block precedes it in the same try/catch chain. If none exists, one must be added. This ensures typed exceptions are handled and logged before the fallback:
@@ -441,11 +540,363 @@ catch (const std::exception &err) { }   // not 'ex'
 catch (const std::exception &exc) { }   // not 'ex'
 ```
 
+## Class Layout — Static Factory Pattern and `-fno-exceptions` Compatibility
+
+Classes whose construction can fail, or that must remain compilable under `-fno-exceptions`, follow the **static factory + dual API** pattern. The goals are:
+
+- Move all fallible initialization out of the constructor and into the `create` factory or a private `initialize` helper.
+- Expose a throwing `create` overload guarded by `#ifdef __cpp_exceptions` for conventional call sites.
+- Expose a nothrow `create(std::nothrow_t, ...)` overload that always compiles, returning `std::expected`.
+- Keep the class body free of any `throw` statement — all error paths return `std::unexpected`. The throwing API is a thin wrapper that calls the nothrow overload and rethrows.
+
+### Header File Layout (`.hpp`)
+
+The access specifier order is always **`private` → `protected` → `public`**. The `protected` section is optional and only present when the class is designed for inheritance. Within each section the order is: member variables first, then methods.
+
+```cpp
+class MyClass
+{
+    // ── private ────────────────────────────────────────────────────────────────
+    // 1. Member variables
+    std::string      m_host;
+    int              m_port{0};
+
+    // 2. Private nothrow constructor (std::nothrow_t makes the intent explicit)
+    explicit MyClass(std::nothrow_t, std::string host, int port) noexcept;
+
+    // 3. Private helper functions (noexcept, return std::expected)
+    //    initialize() is optional — only present when construction requires fallible steps
+    std::expected<void, DBException> initialize(std::nothrow_t) noexcept;
+    std::expected<void, DBException> helperFoo(std::nothrow_t) noexcept;
+
+protected:
+    // ── protected (optional — only when the class is designed for inheritance) ─
+    // 4. Protected member variables (if any)
+    int m_retryCount{3};
+
+    // 5. Protected nothrow helper methods (noexcept, return std::expected)
+    std::expected<void, DBException> retryInternal(std::nothrow_t) noexcept;
+
+public:
+    // ── public ─────────────────────────────────────────────────────────────────
+    // 6. Destructor (override when inheriting from an interface)
+    ~MyClass() override;
+
+    // 7. Deleted copy/move operators (when the class is non-copyable/non-movable)
+    MyClass(const MyClass &)            = delete;
+    MyClass &operator=(const MyClass &) = delete;
+
+#ifdef __cpp_exceptions
+    // 8. Throwing static factory (only compiled when exceptions are enabled)
+    static std::shared_ptr<MyClass> create(std::string host, int port);
+
+    // 9. Throwing public methods
+    void   connect();
+    Result query(const std::string &sql);
+#endif
+
+    // 10. Nothrow static factory (always compiled)
+    static std::expected<std::shared_ptr<MyClass>, DBException>
+    create(std::nothrow_t, std::string host, int port) noexcept;
+
+    // 11. Nothrow public methods (always compiled)
+    std::expected<void,   DBException> connect(std::nothrow_t) noexcept;
+    std::expected<Result, DBException> query(std::nothrow_t, const std::string &sql) noexcept;
+};
+```
+
+The `protected` section follows the same internal pattern as `private`: **members first, then nothrow methods**. There is no throwing API in `protected` — protected methods are internal implementation helpers and must be `noexcept`, returning `std::expected<T, DBException>` with `std::nothrow_t` as their first parameter, identical to private helpers.
+
+### Source File Distribution
+
+Implementations are split across multiple `.cpp` files to keep compilation units focused and to cleanly separate exception-dependent code from exception-free code. The distribution follows this fixed pattern:
+
+**`myclass_01.cpp`** — Private constructor + private helpers + destructor + first `#ifdef __cpp_exceptions` group:
+
+```cpp
+// ── Private nothrow constructor ───────────────────────────────────────────────
+MyClass::MyClass(std::nothrow_t, std::string host, int port) noexcept
+    : m_host(std::move(host)), m_port(port)
+{
+}
+
+// ── Private helpers ───────────────────────────────────────────────────────────
+std::expected<void, DBException> MyClass::initialize(std::nothrow_t) noexcept
+{
+    // ...
+}
+
+std::expected<void, DBException> MyClass::helperFoo(std::nothrow_t) noexcept
+{
+    // ...
+}
+
+// ── Destructor ────────────────────────────────────────────────────────────────
+MyClass::~MyClass()
+{
+    // ...
+}
+
+// ── Throwing API (first group) ────────────────────────────────────────────────
+#ifdef __cpp_exceptions
+
+std::shared_ptr<MyClass> MyClass::create(std::string host, int port)
+{
+    auto result = MyClass::create(std::nothrow, std::move(host), port);
+    if (!result.has_value())
+    {
+        throw result.error();
+    }
+    return result.value();
+}
+
+void MyClass::connect()
+{
+    auto result = connect(std::nothrow);
+    if (!result.has_value())
+    {
+        throw result.error();
+    }
+}
+
+#endif
+```
+
+**`myclass_02.cpp`** — Remaining throwing methods + nothrow factory + first nothrow group:
+
+```cpp
+// ── Throwing API (continuation) ───────────────────────────────────────────────
+#ifdef __cpp_exceptions
+
+Result MyClass::query(const std::string &sql)
+{
+    auto result = query(std::nothrow, sql);
+    if (!result.has_value())
+    {
+        throw result.error();
+    }
+    return result.value();
+}
+
+#endif
+
+// ── Nothrow static factory ────────────────────────────────────────────────────
+std::expected<std::shared_ptr<MyClass>, DBException>
+MyClass::create(std::nothrow_t, std::string host, int port) noexcept
+{
+    auto obj  = std::make_shared<MyClass>(std::nothrow, std::move(host), port);
+    auto init = obj->initialize(std::nothrow);
+    if (!init.has_value())
+    {
+        return std::unexpected(init.error());
+    }
+    return obj;
+}
+
+// ── Nothrow public methods (first group) ─────────────────────────────────────
+std::expected<void, DBException> MyClass::connect(std::nothrow_t) noexcept
+{
+    // ...
+}
+```
+
+**`myclass_03.cpp`** — Remaining nothrow methods:
+
+```cpp
+// ── Nothrow public methods (continuation) ────────────────────────────────────
+std::expected<Result, DBException> MyClass::query(std::nothrow_t, const std::string &sql) noexcept
+{
+    // ...
+}
+```
+
+### Rules and Constraints
+
+1. **No `throw` in the class body**: The class itself never uses `throw` directly. All error paths return `std::unexpected`. The throwing API is a thin wrapper that delegates to the nothrow overload and rethrows on error:
+   ```cpp
+   void MyClass::connect()          // throwing wrapper — no logic of its own
+   {
+       auto result = connect(std::nothrow);
+       if (!result.has_value())
+       {
+           throw result.error();
+       }
+   }
+   ```
+
+2. **`#ifdef __cpp_exceptions` scope**: Every throwing declaration in the header and every throwing definition in `.cpp` files must sit inside `#ifdef __cpp_exceptions` / `#endif`. This applies to the throwing `create` and to every throwing public method.
+
+3. **Ordering within a `.cpp` file**: When a `.cpp` file contains both throwing and nothrow methods, the `#ifdef __cpp_exceptions` block always comes first, followed by the nothrow implementations. This mirrors the declaration order in the header.
+
+4. **Nothrow factory uses the private nothrow constructor**: `create(std::nothrow_t, ...)` allocates the object through the private constructor — which performs only trivially safe initialization — and then calls `initialize(std::nothrow)` for all fallible setup. This keeps the constructor itself safe under all conditions.
+
+5. **Sections absent when there is nothing to put in them**: If the class has no throwing methods at all, the `#ifdef __cpp_exceptions` block is omitted entirely from every file. If all methods fit in two `.cpp` files, a third file is not created.
+
+6. **Split-point heuristic**: Each `.cpp` file should contain a logically coherent group. Prefer grouping by (a) lifecycle (constructor / helpers / destructor), (b) data-path operations, (c) administrative or introspection methods. Avoid splitting a single conceptual operation across two files.
+
+### DBDriver Variant — C Library Initialization with Double-Checked Locking
+
+`DBDriver` subclasses (e.g. `MongoDBDriver`, `RedisDBDriver`, `ScyllaDBDriver`) that wrap a C library requiring one-time global initialization use a specific `initialize` pattern. This variant is **only used in `DBDriver` classes** and is **different from the general `initialize` helper** described above.
+
+**Why not `std::once_flag` / `std::call_once`?**
+1. `std::once_flag` cannot be reset — but `cleanup()` must allow re-initialization after driver destruction.
+2. `std::call_once` may throw `std::system_error`, which is incompatible with `-fno-exceptions` builds.
+
+**Pattern**:
+
+```cpp
+// ── Header (driver.hpp, inside #if USE_<DRIVER>) ──────────────────────────────
+class MyDriver final : public SomeFamilyDBDriver
+{
+    // Note: atomic<bool> + mutex instead of std::once_flag because
+    // std::once_flag cannot be reset, but we need cleanup() to allow
+    // re-initialization on subsequent driver construction.
+    // Also, std::call_once can throw std::system_error, which is incompatible
+    // with -fno-exceptions builds.
+    static std::atomic<bool> s_initialized;
+    static std::mutex        s_initMutex;
+
+    static cpp_dbc::expected<bool, DBException> initialize(std::nothrow_t) noexcept;
+
+public:
+    MyDriver();   // calls initialize(std::nothrow) internally — throwing constructor is fine here
+    ~MyDriver() override;
+    // ...
+    static void cleanup();   // resets s_initialized so a new driver can re-init
+};
+```
+
+```cpp
+// ── Implementation (driver_01.cpp) ────────────────────────────────────────────
+std::atomic<bool> MyDriver::s_initialized{false};
+std::mutex        MyDriver::s_initMutex;
+
+cpp_dbc::expected<bool, DBException> MyDriver::initialize(std::nothrow_t) noexcept
+{
+    // Fast path: already initialized (acquire load for visibility)
+    if (s_initialized.load(std::memory_order_acquire))
+    {
+        return true;
+    }
+
+    // Slow path: take lock and check again (double-checked locking)
+    std::lock_guard<std::mutex> lock(s_initMutex);
+    if (s_initialized.load(std::memory_order_acquire))
+    {
+        return true;
+    }
+
+    try
+    {
+        c_library_init();  // one-time C library global init
+    }
+    catch (const std::exception &ex)
+    {
+        return std::unexpected(DBException("XXXXXXXXXXXX", ex.what(), system_utils::captureCallStack()));
+    }
+    catch (...)
+    {
+        return std::unexpected(DBException("XXXXXXXXXXXX", "Unknown error during library init", system_utils::captureCallStack()));
+    }
+
+    s_initialized.store(true, std::memory_order_release);
+    return true;
+}
+
+MyDriver::MyDriver()
+{
+    auto result = initialize(std::nothrow);
+    if (!result.has_value())
+    {
+        throw result.error();  // constructor may throw; that is acceptable here
+    }
+}
+
+void MyDriver::cleanup()
+{
+    std::lock_guard<std::mutex> lock(s_initMutex);
+    c_library_cleanup();
+    s_initialized.store(false, std::memory_order_release);
+}
+```
+
+**Key constraints for this variant**:
+- `s_initialized` and `s_initMutex` are **`static` members** — shared across all instances of the driver class.
+- `cleanup()` **must reset** `s_initialized` to `false` so that a new driver instance can re-initialize the library after cleanup.
+- The `MyDriver` constructor **may throw** in this pattern (it is not a `std::nothrow_t` constructor) — the factory pattern does not apply to `DBDriver` classes because they are typically constructed directly via `std::make_shared<MyDriver>()`.
+- The static `initialize` helper is **always private** and takes `std::nothrow_t` as its first parameter, following the same nothrow contract as all other private helpers.
+
 ## Adding New Database Drivers
 
 When adding support for a new database driver, follow the comprehensive guide at:
 
 **`libs/cpp_dbc/docs/how_add_new_db_drivers.md`**
+
+### Class and File Naming Conventions
+
+#### Namespace
+
+Each driver lives in its own nested namespace under `cpp_dbc`, using the brand's official casing:
+
+```cpp
+namespace cpp_dbc::MySQL      { }   // relational
+namespace cpp_dbc::PostgreSQL { }   // relational
+namespace cpp_dbc::SQLite     { }   // relational
+namespace cpp_dbc::Firebird   { }   // relational
+namespace cpp_dbc::Redis      { }   // kv
+namespace cpp_dbc::MongoDB    { }   // document
+namespace cpp_dbc::ScyllaDB   { }   // columnar
+```
+
+#### Class Names by Family
+
+Class names are formed as `<BrandName><RoleSuffix>`. The role suffix follows the abstract base class name with the family prefix stripped:
+
+| Role | Relational (`<Name>` = MySQL, PostgreSQL, SQLite, Firebird) | KV (Redis) | Document (MongoDB) | Columnar (ScyllaDB) |
+|------|--------------------------------------------------------------|------------|---------------------|----------------------|
+| Driver | `<Name>DBDriver` | `RedisDBDriver` | `MongoDBDriver` | `ScyllaDBDriver` |
+| Connection | `<Name>DBConnection` | `RedisDBConnection` | `MongoDBConnection` | `ScyllaDBConnection` |
+| PreparedStatement | `<Name>DBPreparedStatement` | — | — | `ScyllaDBPreparedStatement` |
+| ResultSet | `<Name>DBResultSet` | — | — | `ScyllaDBResultSet` |
+| Blob | `<Name>Blob` | — | — | — |
+| InputStream | `<Name>InputStream` | — | — | — |
+| Cursor | — | — | `MongoDBCursor` | — |
+| Collection | — | — | `MongoDBCollection` | — |
+| Document data | — | — | `MongoDBDocument` | — |
+
+**Rule**: When the brand name already contains "DB" (MongoDB, ScyllaDB), the role suffix does **not** add another "DB" — the brand name itself provides it (`MongoDB` + `Driver` = `MongoDBDriver`). When the brand name does not contain "DB" (MySQL, PostgreSQL, SQLite, Firebird, Redis), "DB" is inserted between the brand name and the role (`MySQL` + `DBDriver` = `MySQLDBDriver`, `Redis` + `DBDriver` = `RedisDBDriver`).
+
+#### Header File Names
+
+All header files use lowercase names inside the driver subdirectory:
+
+| File | Contents |
+|------|----------|
+| `handles.hpp` | RAII handles for native C library resources |
+| `driver.hpp` | `<Name>Driver` class (real + stub implementations) |
+| `connection.hpp` | `<Name>Connection` class |
+| `prepared_statement.hpp` | `<Name>PreparedStatement` class (relational, columnar) |
+| `result_set.hpp` | `<Name>ResultSet` class (relational, columnar) |
+| `blob.hpp` | `<Name>Blob` class (relational, when BLOB support is needed) |
+| `input_stream.hpp` | `<Name>InputStream` class (relational, when streaming BLOBs) |
+| `cursor.hpp` | `<Name>Cursor` class (document) |
+| `collection.hpp` | `<Name>Collection` class (document) |
+| `document.hpp` | `<Name>Document` class (document) |
+
+#### Umbrella Header
+
+Each driver family directory also has an **umbrella header** that includes all driver components. Its name is `driver_<lowercase_name>.hpp` and it lives one level above the driver subdirectory:
+
+```
+drivers/relational/driver_mysql.hpp       → includes mysql/
+drivers/document/driver_mongodb.hpp       → includes mongodb/
+drivers/kv/driver_redis.hpp               → includes redis/
+drivers/columnar/driver_scylladb.hpp      → includes scylladb/
+```
+
+The umbrella header uses an `#ifndef` include guard (not `#pragma once`) because it conditionally includes the full or stub implementation via `#if USE_<DRIVER>` / `#else`.
+
+### Guide Phases
 
 This guide covers all 5 phases of driver implementation:
 1. **Phase 1**: Creating driver files (.hpp/.cpp) and updating `cpp_dbc.hpp`

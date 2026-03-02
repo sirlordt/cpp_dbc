@@ -567,7 +567,7 @@ Recent changes to the codebase include:
        - `KVDBConnection`: Base interface for key-value database connections
        - `KVDBDriver`: Base interface for key-value database drivers
      - **Redis Driver Implementation:**
-       - `RedisDriver`: Driver class for Redis connections
+       - `RedisDBDriver`: Driver class for Redis connections
        - `RedisDBConnection`: Connection management with proper resource cleanup
      - **Features:**
        - String operations with TTL support

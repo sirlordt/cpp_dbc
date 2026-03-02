@@ -35,11 +35,11 @@
 namespace cpp_dbc::Firebird
 {
 
-    #ifdef __cpp_exceptions
+#ifdef __cpp_exceptions
     bool FirebirdDBResultSet::next()
     {
         auto result = next(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -49,7 +49,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBResultSet::isBeforeFirst()
     {
         auto result = isBeforeFirst(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -59,7 +59,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBResultSet::isAfterLast()
     {
         auto result = isAfterLast(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -69,7 +69,7 @@ namespace cpp_dbc::Firebird
     uint64_t FirebirdDBResultSet::getRow()
     {
         auto result = getRow(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -79,7 +79,7 @@ namespace cpp_dbc::Firebird
     int FirebirdDBResultSet::getInt(size_t columnIndex)
     {
         auto result = getInt(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -99,7 +99,7 @@ namespace cpp_dbc::Firebird
     int64_t FirebirdDBResultSet::getLong(size_t columnIndex)
     {
         auto result = getLong(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -119,7 +119,7 @@ namespace cpp_dbc::Firebird
     double FirebirdDBResultSet::getDouble(size_t columnIndex)
     {
         auto result = getDouble(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -139,7 +139,7 @@ namespace cpp_dbc::Firebird
     std::string FirebirdDBResultSet::getString(size_t columnIndex)
     {
         auto result = getString(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -159,7 +159,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBResultSet::getBoolean(size_t columnIndex)
     {
         auto result = getBoolean(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -179,7 +179,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBResultSet::isNull(size_t columnIndex)
     {
         auto result = isNull(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -199,7 +199,7 @@ namespace cpp_dbc::Firebird
     std::string FirebirdDBResultSet::getDate(size_t columnIndex)
     {
         auto result = getDate(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -219,7 +219,7 @@ namespace cpp_dbc::Firebird
     std::string FirebirdDBResultSet::getTimestamp(size_t columnIndex)
     {
         auto result = getTimestamp(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -239,7 +239,7 @@ namespace cpp_dbc::Firebird
     std::string FirebirdDBResultSet::getTime(size_t columnIndex)
     {
         auto result = getTime(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -259,7 +259,7 @@ namespace cpp_dbc::Firebird
     std::vector<std::string> FirebirdDBResultSet::getColumnNames()
     {
         auto result = getColumnNames(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -269,7 +269,7 @@ namespace cpp_dbc::Firebird
     size_t FirebirdDBResultSet::getColumnCount()
     {
         auto result = getColumnCount(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -279,7 +279,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBResultSet::close()
     {
         auto result = close(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -288,7 +288,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBResultSet::isEmpty()
     {
         auto result = isEmpty(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -354,7 +354,7 @@ namespace cpp_dbc::Firebird
         }
         return result.value();
     }
-    #endif // __cpp_exceptions
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::Firebird
 

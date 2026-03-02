@@ -383,7 +383,7 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 ### Key-Value Driver Components
 - `KVDBDriver` → Creates → `KVDBConnection`
 - `KVDBConnection` → Performs → Key-Value Operations (get, set, list, hash, etc.)
-- `RedisDriver` → Implements → `KVDBDriver`
+- `RedisDBDriver` → Implements → `KVDBDriver`
 - `RedisDBConnection` → Implements → `KVDBConnection`
 - `KVDBConnectionPool` → Manages → `KVPooledDBConnection`
 - `KVPooledDBConnection` → Wraps → `KVDBConnection`

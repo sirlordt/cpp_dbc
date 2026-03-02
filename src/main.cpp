@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
 
 #if USE_REDIS
         std::cout << "Registering Redis driver..." << std::endl;
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDriver>());
+        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDBDriver>());
 #endif
 
         std::cout << "Driver registration complete." << std::endl;

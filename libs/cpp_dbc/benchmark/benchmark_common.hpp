@@ -215,7 +215,7 @@ namespace redis_benchmark_helpers
     bool canConnectToRedis();
 
     // Helper function to get a Redis driver instance
-    std::shared_ptr<cpp_dbc::Redis::RedisDriver> getRedisDriver();
+    std::shared_ptr<cpp_dbc::Redis::RedisDBDriver> getRedisDBDriver();
 
     // Helper function to setup Redis connection
     std::shared_ptr<cpp_dbc::KVDBConnection> setupRedisDBConnection(const std::string &keyPrefix, int itemCount = 0);

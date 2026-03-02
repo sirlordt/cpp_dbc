@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file result_set_01.cpp
- @brief Firebird database driver - FirebirdDBResultSet (constructor, destructor, init, getColumnValue)
+ @brief Firebird database driver - FirebirdDBResultSet (private nothrow constructor, helpers, destructor, create factories)
 
 */
 
@@ -47,10 +47,13 @@ namespace cpp_dbc::Firebird
     // (e.g., one thread iterating results while another does pool validation).
     // ============================================================================
 
-    FirebirdDBResultSet::FirebirdDBResultSet(FirebirdStmtHandle stmt,
+    // ── Private nothrow constructor ───────────────────────────────────────────
+
+    FirebirdDBResultSet::FirebirdDBResultSet(std::nothrow_t,
+                                             FirebirdStmtHandle stmt,
                                              XSQLDAHandle sqlda,
                                              bool ownStatement,
-                                             std::shared_ptr<FirebirdDBConnection> conn)
+                                             std::shared_ptr<FirebirdDBConnection> conn) noexcept
         : m_stmt(std::move(stmt)), m_sqlda(std::move(sqlda)), m_ownStatement(ownStatement), m_connection(conn)
     {
         FIREBIRD_DEBUG("FirebirdResultSet::constructor - Creating ResultSet");
@@ -66,36 +69,28 @@ namespace cpp_dbc::Firebird
         {
             m_fieldCount = static_cast<size_t>(m_sqlda->sqld);
             FIREBIRD_DEBUG("  Field count: %zu", m_fieldCount);
-            initializeColumns();
+            auto initResult = initializeColumns(std::nothrow);
+            if (!initResult.has_value())
+            {
+                m_initFailed = true;
+                m_initError = initResult.error();
+                FIREBIRD_DEBUG("  initializeColumns failed: %s", initResult.error().what_s().data());
+                return;
+            }
         }
         m_closed.store(false, std::memory_order_release);
         FIREBIRD_DEBUG("FirebirdResultSet::constructor - Done");
     }
 
-    FirebirdDBResultSet::~FirebirdDBResultSet()
-    {
-        FIREBIRD_DEBUG("FirebirdResultSet::destructor - Destroying ResultSet");
+    // ── Private helpers ───────────────────────────────────────────────────────
 
-        // Note: We don't need to unregister here. The weak_ptr in m_activeResultSets
-        // will automatically expire when this object is destroyed, and
-        // closeAllActiveResultSets() checks if weak_ptrs can be locked before using them.
-
-        // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
-        auto closeResult = close(std::nothrow);
-        if (!closeResult.has_value())
-        {
-            FIREBIRD_DEBUG("FirebirdResultSet::destructor - close() failed: %s", closeResult.error().what_s().data());
-        }
-        FIREBIRD_DEBUG("FirebirdResultSet::destructor - Done");
-    }
-
-    void FirebirdDBResultSet::initializeColumns()
+    cpp_dbc::expected<void, DBException> FirebirdDBResultSet::initializeColumns(std::nothrow_t) noexcept
     {
         FIREBIRD_DEBUG("FirebirdResultSet::initializeColumns - Starting");
         if (!m_sqlda)
         {
             FIREBIRD_DEBUG("FirebirdResultSet::initializeColumns - m_sqlda is null, returning");
-            return;
+            return {};
         }
 
         m_columnNames.clear();
@@ -142,6 +137,7 @@ namespace cpp_dbc::Firebird
                 i, bufferSize, (void*)var->sqldata, (void*)var->sqlind, (int)*var->sqlind);
         }
         FIREBIRD_DEBUG("FirebirdResultSet::initializeColumns - Done");
+        return {};
     }
 
     cpp_dbc::expected<std::string, DBException> FirebirdDBResultSet::getColumnValue(std::nothrow_t, size_t columnIndex) const noexcept
@@ -281,13 +277,71 @@ namespace cpp_dbc::Firebird
         }
     }
 
-    void FirebirdDBResultSet::notifyConnClosing()
+    cpp_dbc::expected<void, DBException> FirebirdDBResultSet::notifyConnClosing(std::nothrow_t) noexcept
     {
         FIREBIRD_DEBUG("FirebirdResultSet::notifyConnClosing - Marking as closed due to connection closing");
-        // Don't actually free the statement since the connection is closing
-        // Just mark as closed to prevent further operations
-        // No lock needed - m_closed is atomic
+        // Don't actually free the statement since the connection is closing.
+        // Just mark as closed to prevent further operations.
+        // No lock needed — m_closed is atomic.
         m_closed.store(true, std::memory_order_release);
+        return {};
+    }
+
+    // ── Destructor ────────────────────────────────────────────────────────────
+
+    FirebirdDBResultSet::~FirebirdDBResultSet()
+    {
+        FIREBIRD_DEBUG("FirebirdResultSet::destructor - Destroying ResultSet");
+
+        // Note: We don't need to unregister here. The weak_ptr in m_activeResultSets
+        // will automatically expire when this object is destroyed, and
+        // closeAllActiveResultSets() checks if weak_ptrs can be locked before using them.
+
+        // CRITICAL: Use nothrow version - destructors must NEVER throw exceptions
+        auto closeResult = close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            FIREBIRD_DEBUG("FirebirdResultSet::destructor - close() failed: %s", closeResult.error().what_s().data());
+        }
+        FIREBIRD_DEBUG("FirebirdResultSet::destructor - Done");
+    }
+
+    // ── Create factories ──────────────────────────────────────────────────────
+
+#ifdef __cpp_exceptions
+    std::shared_ptr<FirebirdDBResultSet>
+    FirebirdDBResultSet::create(FirebirdStmtHandle stmt,
+                                XSQLDAHandle sqlda,
+                                bool ownStatement,
+                                std::shared_ptr<FirebirdDBConnection> conn)
+    {
+        auto r = create(std::nothrow, std::move(stmt), std::move(sqlda), ownStatement, conn);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+        return r.value();
+    }
+#endif // __cpp_exceptions
+
+    cpp_dbc::expected<std::shared_ptr<FirebirdDBResultSet>, DBException>
+    FirebirdDBResultSet::create(std::nothrow_t,
+                                FirebirdStmtHandle stmt,
+                                XSQLDAHandle sqlda,
+                                bool ownStatement,
+                                std::shared_ptr<FirebirdDBConnection> conn) noexcept
+    {
+        // NOTE: registerResultSet() is NOT called here because the caller is responsible
+        // for registering the ResultSet with the connection after create() returns,
+        // in the .cpp translation unit where the full FirebirdDBConnection definition
+        // is available.
+        auto ptr = std::shared_ptr<FirebirdDBResultSet>(
+            new FirebirdDBResultSet(std::nothrow, std::move(stmt), std::move(sqlda), ownStatement, conn));
+        if (ptr->m_initFailed)
+        {
+            return cpp_dbc::unexpected(ptr->m_initError);
+        }
+        return ptr;
     }
 
 } // namespace cpp_dbc::Firebird

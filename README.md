@@ -931,7 +931,7 @@ int main() {
 #endif
 
 #if USE_REDIS
-    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDriver>());
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDBDriver>());
 #endif
 
     // Get a relational database connection
@@ -981,7 +981,7 @@ int main() {
 
 #if USE_REDIS
     // Get a Redis key-value database connection
-    auto redisDriver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+    auto redisDriver = std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
     auto redisConn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(
         redisDriver->connectKV(
             "cpp_dbc:redis://localhost:6379",
