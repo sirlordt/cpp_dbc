@@ -113,12 +113,6 @@ namespace cpp_dbc
     public:
         virtual ~DocumentDBCollection() = default;
 
-        // ====================================================================
-        // THROWING API - Exception-based (requires __cpp_exceptions)
-        // ====================================================================
-
-        #ifdef __cpp_exceptions
-
         // Collection information
         /**
          * @brief Get the name of the collection
@@ -145,7 +139,47 @@ namespace cpp_dbc
          */
         virtual uint64_t countDocuments(const std::string &filter = "") = 0;
 
-        // Insert operations
+        // ====================================================================
+        // INSERT OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+        // ====================================================================
+
+        /**
+         * @brief Insert a single document (nothrow version)
+         * @param document The document to insert
+         * @param options Write options
+         * @return Expected with result or error
+         */
+        virtual expected<DocumentInsertResult, DBException> insertOne(
+            std::nothrow_t,
+            std::shared_ptr<DocumentDBData> document,
+            const DocumentWriteOptions &options = DocumentWriteOptions()) noexcept = 0;
+
+        /**
+         * @brief Insert a single document from JSON (nothrow version)
+         * @param jsonDocument The document as a JSON string
+         * @param options Write options
+         * @return Expected with result or error
+         */
+        virtual expected<DocumentInsertResult, DBException> insertOne(
+            std::nothrow_t,
+            const std::string &jsonDocument,
+            const DocumentWriteOptions &options = DocumentWriteOptions()) noexcept = 0;
+
+        /**
+         * @brief Insert multiple documents (nothrow version)
+         * @param documents The documents to insert
+         * @param options Write options
+         * @return Expected with result or error
+         */
+        virtual expected<DocumentInsertResult, DBException> insertMany(
+            std::nothrow_t,
+            const std::vector<std::shared_ptr<DocumentDBData>> &documents,
+            const DocumentWriteOptions &options = DocumentWriteOptions()) noexcept = 0;
+
+        // ====================================================================
+        // INSERT OPERATIONS - exception versions (WRAPPERS - implemented in derived classes)
+        // ====================================================================
+
         /**
          * @brief Insert a single document
          *
@@ -191,7 +225,26 @@ namespace cpp_dbc
             const std::vector<std::shared_ptr<DocumentDBData>> &documents,
             const DocumentWriteOptions &options = DocumentWriteOptions()) = 0;
 
-        // Find operations
+        // ====================================================================
+        // FIND OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+        // ====================================================================
+
+        virtual expected<std::shared_ptr<DocumentDBData>, DBException>
+        findOne(std::nothrow_t, const std::string &filter = "") noexcept = 0;
+
+        virtual expected<std::shared_ptr<DocumentDBData>, DBException>
+        findById(std::nothrow_t, const std::string &id) noexcept = 0;
+
+        virtual expected<std::shared_ptr<DocumentDBCursor>, DBException>
+        find(std::nothrow_t, const std::string &filter = "") noexcept = 0;
+
+        virtual expected<std::shared_ptr<DocumentDBCursor>, DBException>
+        find(std::nothrow_t, const std::string &filter, const std::string &projection) noexcept = 0;
+
+        // ====================================================================
+        // FIND OPERATIONS - exception versions (WRAPPERS)
+        // ====================================================================
+
         /**
          * @brief Find a single document matching the filter
          * @param filter The filter document (JSON string)
@@ -232,7 +285,31 @@ namespace cpp_dbc
             const std::string &filter,
             const std::string &projection) = 0;
 
-        // Update operations
+        // ====================================================================
+        // UPDATE OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+        // ====================================================================
+
+        virtual expected<DocumentUpdateResult, DBException> updateOne(
+            std::nothrow_t,
+            const std::string &filter,
+            const std::string &update,
+            const DocumentUpdateOptions &options = DocumentUpdateOptions()) noexcept = 0;
+
+        virtual expected<DocumentUpdateResult, DBException> updateMany(
+            std::nothrow_t,
+            const std::string &filter,
+            const std::string &update,
+            const DocumentUpdateOptions &options = DocumentUpdateOptions()) noexcept = 0;
+
+        virtual expected<DocumentUpdateResult, DBException> replaceOne(
+            std::nothrow_t,
+            const std::string &filter,
+            std::shared_ptr<DocumentDBData> replacement,
+            const DocumentUpdateOptions &options = DocumentUpdateOptions()) noexcept = 0;
+
+        // ====================================================================
+        // UPDATE OPERATIONS - exception versions (WRAPPERS)
+        // ====================================================================
         /**
          * @brief Update a single document matching the filter
          *
@@ -280,7 +357,26 @@ namespace cpp_dbc
             std::shared_ptr<DocumentDBData> replacement,
             const DocumentUpdateOptions &options = DocumentUpdateOptions()) = 0;
 
-        // Delete operations
+        // ====================================================================
+        // DELETE OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+        // ====================================================================
+
+        virtual expected<DocumentDeleteResult, DBException> deleteOne(
+            std::nothrow_t,
+            const std::string &filter) noexcept = 0;
+
+        virtual expected<DocumentDeleteResult, DBException> deleteMany(
+            std::nothrow_t,
+            const std::string &filter) noexcept = 0;
+
+        virtual expected<DocumentDeleteResult, DBException> deleteById(
+            std::nothrow_t,
+            const std::string &id) noexcept = 0;
+
+        // ====================================================================
+        // DELETE OPERATIONS - exception versions (WRAPPERS)
+        // ====================================================================
+
         /**
          * @brief Delete a single document matching the filter
          * @param filter The filter document (JSON string)
@@ -305,7 +401,45 @@ namespace cpp_dbc
          */
         virtual DocumentDeleteResult deleteById(const std::string &id) = 0;
 
-        // Index & collection operations
+        // ====================================================================
+        // INDEX & COLLECTION OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+        // ====================================================================
+
+        virtual expected<std::string, DBException> createIndex(
+            std::nothrow_t,
+            const std::string &keys,
+            const std::string &options = "") noexcept = 0;
+
+        virtual expected<void, DBException> dropIndex(
+            std::nothrow_t,
+            const std::string &indexName) noexcept = 0;
+
+        virtual expected<void, DBException> dropAllIndexes(
+            std::nothrow_t) noexcept = 0;
+
+        virtual expected<std::vector<std::string>, DBException> listIndexes(
+            std::nothrow_t) noexcept = 0;
+
+        virtual expected<void, DBException> drop(
+            std::nothrow_t) noexcept = 0;
+
+        virtual expected<void, DBException> rename(
+            std::nothrow_t,
+            const std::string &newName,
+            bool dropTarget = false) noexcept = 0;
+
+        virtual expected<std::shared_ptr<DocumentDBCursor>, DBException> aggregate(
+            std::nothrow_t,
+            const std::string &pipeline) noexcept = 0;
+
+        virtual expected<std::vector<std::string>, DBException> distinct(
+            std::nothrow_t,
+            const std::string &fieldPath,
+            const std::string &filter = "") noexcept = 0;
+
+        // ====================================================================
+        // INDEX & COLLECTION OPERATIONS - exception versions (WRAPPERS)
+        // ====================================================================
         /**
          * @brief Create an index on the collection
          *
@@ -341,6 +475,7 @@ namespace cpp_dbc
          */
         virtual std::vector<std::string> listIndexes() = 0;
 
+        // Collection operations
         /**
          * @brief Drop (delete) the entire collection
          * @throws DBException if the drop fails
@@ -355,6 +490,7 @@ namespace cpp_dbc
          */
         virtual void rename(const std::string &newName, bool dropTarget = false) = 0;
 
+        // Aggregation
         /**
          * @brief Execute an aggregation pipeline
          *
@@ -380,109 +516,6 @@ namespace cpp_dbc
         virtual std::vector<std::string> distinct(
             const std::string &fieldPath,
             const std::string &filter = "") = 0;
-
-        #endif // __cpp_exceptions
-        // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
-        // ====================================================================
-
-        virtual expected<std::string, DBException> getName(std::nothrow_t) const noexcept = 0;
-
-        virtual expected<std::string, DBException> getNamespace(std::nothrow_t) const noexcept = 0;
-
-        virtual expected<uint64_t, DBException> estimatedDocumentCount(std::nothrow_t) noexcept = 0;
-
-        virtual expected<uint64_t, DBException> countDocuments(
-            std::nothrow_t, const std::string &filter = "") noexcept = 0;
-
-        virtual expected<DocumentInsertResult, DBException> insertOne(
-            std::nothrow_t,
-            std::shared_ptr<DocumentDBData> document,
-            const DocumentWriteOptions &options = DocumentWriteOptions()) noexcept = 0;
-
-        virtual expected<DocumentInsertResult, DBException> insertOne(
-            std::nothrow_t,
-            const std::string &jsonDocument,
-            const DocumentWriteOptions &options = DocumentWriteOptions()) noexcept = 0;
-
-        virtual expected<DocumentInsertResult, DBException> insertMany(
-            std::nothrow_t,
-            const std::vector<std::shared_ptr<DocumentDBData>> &documents,
-            const DocumentWriteOptions &options = DocumentWriteOptions()) noexcept = 0;
-
-        virtual expected<std::shared_ptr<DocumentDBData>, DBException>
-        findOne(std::nothrow_t, const std::string &filter = "") noexcept = 0;
-
-        virtual expected<std::shared_ptr<DocumentDBData>, DBException>
-        findById(std::nothrow_t, const std::string &id) noexcept = 0;
-
-        virtual expected<std::shared_ptr<DocumentDBCursor>, DBException>
-        find(std::nothrow_t, const std::string &filter = "") noexcept = 0;
-
-        virtual expected<std::shared_ptr<DocumentDBCursor>, DBException>
-        find(std::nothrow_t, const std::string &filter, const std::string &projection) noexcept = 0;
-
-        virtual expected<DocumentUpdateResult, DBException> updateOne(
-            std::nothrow_t,
-            const std::string &filter,
-            const std::string &update,
-            const DocumentUpdateOptions &options = DocumentUpdateOptions()) noexcept = 0;
-
-        virtual expected<DocumentUpdateResult, DBException> updateMany(
-            std::nothrow_t,
-            const std::string &filter,
-            const std::string &update,
-            const DocumentUpdateOptions &options = DocumentUpdateOptions()) noexcept = 0;
-
-        virtual expected<DocumentUpdateResult, DBException> replaceOne(
-            std::nothrow_t,
-            const std::string &filter,
-            std::shared_ptr<DocumentDBData> replacement,
-            const DocumentUpdateOptions &options = DocumentUpdateOptions()) noexcept = 0;
-
-        virtual expected<DocumentDeleteResult, DBException> deleteOne(
-            std::nothrow_t,
-            const std::string &filter) noexcept = 0;
-
-        virtual expected<DocumentDeleteResult, DBException> deleteMany(
-            std::nothrow_t,
-            const std::string &filter) noexcept = 0;
-
-        virtual expected<DocumentDeleteResult, DBException> deleteById(
-            std::nothrow_t,
-            const std::string &id) noexcept = 0;
-
-        virtual expected<std::string, DBException> createIndex(
-            std::nothrow_t,
-            const std::string &keys,
-            const std::string &options = "") noexcept = 0;
-
-        virtual expected<void, DBException> dropIndex(
-            std::nothrow_t,
-            const std::string &indexName) noexcept = 0;
-
-        virtual expected<void, DBException> dropAllIndexes(
-            std::nothrow_t) noexcept = 0;
-
-        virtual expected<std::vector<std::string>, DBException> listIndexes(
-            std::nothrow_t) noexcept = 0;
-
-        virtual expected<void, DBException> drop(
-            std::nothrow_t) noexcept = 0;
-
-        virtual expected<void, DBException> rename(
-            std::nothrow_t,
-            const std::string &newName,
-            bool dropTarget = false) noexcept = 0;
-
-        virtual expected<std::shared_ptr<DocumentDBCursor>, DBException> aggregate(
-            std::nothrow_t,
-            const std::string &pipeline) noexcept = 0;
-
-        virtual expected<std::vector<std::string>, DBException> distinct(
-            std::nothrow_t,
-            const std::string &fieldPath,
-            const std::string &filter = "") noexcept = 0;
     };
 
 } // namespace cpp_dbc

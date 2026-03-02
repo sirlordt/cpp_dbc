@@ -70,7 +70,6 @@ namespace cpp_dbc
          * @brief Get the name of the current database
          * @return The database name
          */
-        #ifdef __cpp_exceptions
         virtual std::string getDatabaseName() const = 0;
 
         /**
@@ -195,6 +194,12 @@ namespace cpp_dbc
          */
         virtual std::shared_ptr<DocumentDBData> getServerStatus() = 0;
 
+        /**
+         * @brief Ping the server to check connectivity
+         * @return true if the server responds
+         */
+        virtual bool ping() = 0;
+
         // Session/Transaction support (optional - not all document DBs support this)
         /**
          * @brief Start a session for multi-document transactions
@@ -245,7 +250,6 @@ namespace cpp_dbc
          */
         virtual void prepareForPoolReturn() = 0;
 
-        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -290,6 +294,8 @@ namespace cpp_dbc
         virtual expected<std::shared_ptr<DocumentDBData>, DBException> getServerInfo(std::nothrow_t) noexcept = 0;
 
         virtual expected<std::shared_ptr<DocumentDBData>, DBException> getServerStatus(std::nothrow_t) noexcept = 0;
+
+        virtual expected<bool, DBException> ping(std::nothrow_t) noexcept = 0;
 
         virtual expected<std::string, DBException> startSession(std::nothrow_t) noexcept = 0;
 

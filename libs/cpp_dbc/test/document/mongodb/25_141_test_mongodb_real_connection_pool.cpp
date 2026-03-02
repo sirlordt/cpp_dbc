@@ -158,7 +158,7 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         poolConfigLocal.setInitialSize(5);
         poolConfigLocal.setMaxSize(10);
         poolConfigLocal.setMinIdle(3);
-        poolConfigLocal.setConnectionTimeout(5000);
+        poolConfigLocal.setConnectionTimeout(3500);
         poolConfigLocal.setIdleTimeout(10000);
         poolConfigLocal.setMaxLifetimeMillis(30000);
         poolConfigLocal.setTestOnBorrow(true);
@@ -173,7 +173,6 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         }
         auto pool = poolResult.value();
 
-        /*
         // Test connection validation
         SECTION("Connection validation")
         {
@@ -340,7 +339,6 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
                 newConn->close();
             }
         }
-            */
 
         // Test concurrent connections under load
         SECTION("Connection pool under load")

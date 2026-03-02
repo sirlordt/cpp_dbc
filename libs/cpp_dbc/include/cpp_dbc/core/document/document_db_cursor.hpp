@@ -20,9 +20,7 @@
 #define CPP_DBC_DOCUMENT_DB_CURSOR_HPP
 
 #include <cstdint>
-#include <functional>
 #include <memory>
-#include <string>
 #include <vector>
 #include "cpp_dbc/core/db_result_set.hpp"
 #include "cpp_dbc/core/db_expected.hpp"
@@ -65,7 +63,6 @@ namespace cpp_dbc
          * @brief Move to the next document in the cursor
          * @return true if there is a next document, false if at end
          */
-        #ifdef __cpp_exceptions
         virtual bool next() = 0;
 
         /**
@@ -157,22 +154,9 @@ namespace cpp_dbc
          */
         virtual void rewind() = 0;
 
-        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
-
-        /**
-         * @brief Move to the next document in the cursor (nothrow version)
-         * @return expected containing true if there is a next document, or DBException on failure
-         */
-        virtual expected<bool, DBException> next(std::nothrow_t) noexcept = 0;
-
-        /**
-         * @brief Check if the cursor has more documents (nothrow version)
-         * @return expected containing true if there are more documents, or DBException on failure
-         */
-        virtual expected<bool, DBException> hasNext(std::nothrow_t) noexcept = 0;
 
         /**
          * @brief Get the current document (nothrow version)
@@ -199,55 +183,6 @@ namespace cpp_dbc
          */
         virtual expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> getBatch(
             std::nothrow_t, size_t batchSize) noexcept = 0;
-
-        /**
-         * @brief Get the number of documents in the cursor (nothrow version)
-         * @return expected containing count (or -1 if unknown), or DBException on failure
-         */
-        virtual expected<int64_t, DBException> count(std::nothrow_t) noexcept = 0;
-
-        /**
-         * @brief Get the current position in the cursor (nothrow version)
-         * @return expected containing current position (0-based), or DBException on failure
-         */
-        virtual expected<uint64_t, DBException> getPosition(std::nothrow_t) noexcept = 0;
-
-        /**
-         * @brief Skip a number of documents (nothrow version)
-         * @param n The number of documents to skip
-         * @return expected containing reference to this cursor, or DBException if iteration has begun
-         */
-        virtual expected<std::reference_wrapper<DocumentDBCursor>, DBException> skip(
-            std::nothrow_t, uint64_t n) noexcept = 0;
-
-        /**
-         * @brief Limit the number of documents returned (nothrow version)
-         * @param n The maximum number of documents to return
-         * @return expected containing reference to this cursor, or DBException if iteration has begun
-         */
-        virtual expected<std::reference_wrapper<DocumentDBCursor>, DBException> limit(
-            std::nothrow_t, uint64_t n) noexcept = 0;
-
-        /**
-         * @brief Sort the results by a field (nothrow version)
-         * @param fieldPath The field to sort by
-         * @param ascending true for ascending order, false for descending
-         * @return expected containing reference to this cursor, or DBException if iteration has begun
-         */
-        virtual expected<std::reference_wrapper<DocumentDBCursor>, DBException> sort(
-            std::nothrow_t, const std::string &fieldPath, bool ascending = true) noexcept = 0;
-
-        /**
-         * @brief Check if the cursor is exhausted (nothrow version)
-         * @return expected containing true if all documents have been consumed, or DBException on failure
-         */
-        virtual expected<bool, DBException> isExhausted(std::nothrow_t) noexcept = 0;
-
-        /**
-         * @brief Rewind the cursor to the beginning (nothrow version)
-         * @return unexpected(DBException) if the cursor does not support rewinding
-         */
-        virtual expected<void, DBException> rewind(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

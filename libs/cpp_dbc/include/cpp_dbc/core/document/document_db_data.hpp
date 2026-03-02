@@ -21,7 +21,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <new>
 #include <string>
 #include <vector>
 #include "cpp_dbc/core/db_expected.hpp"
@@ -58,7 +57,6 @@ namespace cpp_dbc
          * @brief Get the unique identifier of the document
          * @return The document ID as a string (e.g., MongoDB ObjectId as hex string)
          */
-        #ifdef __cpp_exceptions
         virtual std::string getId() const = 0;
 
         /**
@@ -248,46 +246,10 @@ namespace cpp_dbc
          */
         virtual bool isEmpty() const = 0;
 
-        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
 
-        // Document identification (nothrow)
-        /**
-         * @brief Get the unique identifier of the document (nothrow version)
-         * @return expected containing document ID string, or DBException on failure
-         */
-        virtual expected<std::string, DBException> getId(std::nothrow_t) const noexcept = 0;
-
-        /**
-         * @brief Set the document identifier (nothrow version)
-         * @param id The document ID
-         * @return expected<void> or DBException on failure
-         */
-        virtual expected<void, DBException> setId(std::nothrow_t, const std::string &id) noexcept = 0;
-
-        // JSON/BSON representation (nothrow)
-        /**
-         * @brief Get the document as a JSON string (nothrow version)
-         * @return expected containing JSON string, or DBException on failure
-         */
-        virtual expected<std::string, DBException> toJson(std::nothrow_t) const noexcept = 0;
-
-        /**
-         * @brief Get the document as a pretty-printed JSON string (nothrow version)
-         * @return expected containing formatted JSON string, or DBException on failure
-         */
-        virtual expected<std::string, DBException> toJsonPretty(std::nothrow_t) const noexcept = 0;
-
-        /**
-         * @brief Parse and set document content from a JSON string (nothrow version)
-         * @param json The JSON string to parse
-         * @return expected<void> or DBException if the JSON is invalid
-         */
-        virtual expected<void, DBException> fromJson(std::nothrow_t, const std::string &json) noexcept = 0;
-
-        // Field getters (nothrow)
         /**
          * @brief Get a string field value (nothrow version)
          * @return expected containing field value, or DBException on failure
@@ -336,92 +298,11 @@ namespace cpp_dbc
          */
         virtual expected<std::vector<std::string>, DBException> getStringArray(std::nothrow_t, const std::string &fieldPath) const noexcept = 0;
 
-        // Field setters (nothrow)
-        /**
-         * @brief Set a string field value (nothrow version)
-         * @return expected<void> or DBException on failure
-         */
-        virtual expected<void, DBException> setString(std::nothrow_t, const std::string &fieldPath, const std::string &value) noexcept = 0;
-
-        /**
-         * @brief Set an integer field value (nothrow version)
-         * @return expected<void> or DBException on failure
-         */
-        virtual expected<void, DBException> setInt(std::nothrow_t, const std::string &fieldPath, int64_t value) noexcept = 0;
-
-        /**
-         * @brief Set a double field value (nothrow version)
-         * @return expected<void> or DBException on failure
-         */
-        virtual expected<void, DBException> setDouble(std::nothrow_t, const std::string &fieldPath, double value) noexcept = 0;
-
-        /**
-         * @brief Set a boolean field value (nothrow version)
-         * @return expected<void> or DBException on failure
-         */
-        virtual expected<void, DBException> setBool(std::nothrow_t, const std::string &fieldPath, bool value) noexcept = 0;
-
-        /**
-         * @brief Set binary data in a field (nothrow version)
-         * @return expected<void> or DBException on failure
-         */
-        virtual expected<void, DBException> setBinary(std::nothrow_t, const std::string &fieldPath, const std::vector<uint8_t> &value) noexcept = 0;
-
-        /**
-         * @brief Set a nested document (nothrow version)
-         * @return expected<void> or DBException on failure
-         */
-        virtual expected<void, DBException> setDocument(std::nothrow_t, const std::string &fieldPath, std::shared_ptr<DocumentDBData> doc) noexcept = 0;
-
-        /**
-         * @brief Set a null value for a field (nothrow version)
-         * @return expected<void> or DBException on failure
-         */
-        virtual expected<void, DBException> setNull(std::nothrow_t, const std::string &fieldPath) noexcept = 0;
-
-        // Field existence and type checking (nothrow)
-        /**
-         * @brief Check if a field exists in the document (nothrow version)
-         * @return expected containing true if the field exists, or DBException on failure
-         */
-        virtual expected<bool, DBException> hasField(std::nothrow_t, const std::string &fieldPath) const noexcept = 0;
-
-        /**
-         * @brief Check if a field is null (nothrow version)
-         * @return expected containing true if the field is null or doesn't exist, or DBException on failure
-         */
-        virtual expected<bool, DBException> isNull(std::nothrow_t, const std::string &fieldPath) const noexcept = 0;
-
-        /**
-         * @brief Remove a field from the document (nothrow version)
-         * @return expected containing true if removed, false if it didn't exist, or DBException on failure
-         */
-        virtual expected<bool, DBException> removeField(std::nothrow_t, const std::string &fieldPath) noexcept = 0;
-
-        /**
-         * @brief Get all field names at the top level (nothrow version)
-         * @return expected containing vector of field names, or DBException on failure
-         */
-        virtual expected<std::vector<std::string>, DBException> getFieldNames(std::nothrow_t) const noexcept = 0;
-
-        // Document operations (nothrow)
         /**
          * @brief Create a deep copy of this document (nothrow version)
          * @return expected containing new document with same content, or DBException on failure
          */
         virtual expected<std::shared_ptr<DocumentDBData>, DBException> clone(std::nothrow_t) const noexcept = 0;
-
-        /**
-         * @brief Clear all fields from the document (nothrow version)
-         * @return expected<void> or DBException on failure
-         */
-        virtual expected<void, DBException> clear(std::nothrow_t) noexcept = 0;
-
-        /**
-         * @brief Check if the document is empty (nothrow version)
-         * @return expected containing true if the document has no fields, or DBException on failure
-         */
-        virtual expected<bool, DBException> isEmpty(std::nothrow_t) const noexcept = 0;
     };
 
 } // namespace cpp_dbc

@@ -284,7 +284,8 @@ if(USE_MONGODB)
         src/drivers/document/mongodb/document_04.cpp
         src/drivers/document/mongodb/document_05.cpp
         src/drivers/document/mongodb/document_06.cpp
-        src/drivers/document/mongodb/document_07.cpp
+
+        # src/drivers/document/mongodb/document_07.cpp
 
         # MongoDBCursor
         src/drivers/document/mongodb/cursor_01.cpp
@@ -498,7 +499,6 @@ if(CPP_DBC_BUILD_EXAMPLES)
     # ============================================================================
     # Common Examples (10_xxx) - Work with any relational database driver
     # ============================================================================
-
     add_executable(10_011_example_config examples/common/10_011_example_config.cpp)
     target_link_libraries(10_011_example_config PRIVATE cpp_dbc)
 
@@ -508,7 +508,6 @@ if(CPP_DBC_BUILD_EXAMPLES)
     # ============================================================================
     # MySQL Examples (20_xxx) - examples/relational/mysql/
     # ============================================================================
-
     if(USE_MYSQL)
         add_executable(20_001_example_mysql_basic examples/relational/mysql/20_001_example_mysql_basic.cpp)
         target_link_libraries(20_001_example_mysql_basic PRIVATE cpp_dbc)
@@ -541,7 +540,6 @@ if(CPP_DBC_BUILD_EXAMPLES)
     # ============================================================================
     # PostgreSQL Examples (21_xxx) - examples/relational/postgresql/
     # ============================================================================
-
     if(USE_POSTGRESQL)
         add_executable(21_001_example_postgresql_basic examples/relational/postgresql/21_001_example_postgresql_basic.cpp)
         target_link_libraries(21_001_example_postgresql_basic PRIVATE cpp_dbc)
@@ -574,7 +572,6 @@ if(CPP_DBC_BUILD_EXAMPLES)
     # ============================================================================
     # SQLite Examples (22_xxx) - examples/relational/sqlite/
     # ============================================================================
-
     if(USE_SQLITE)
         add_executable(22_001_example_sqlite_basic examples/relational/sqlite/22_001_example_sqlite_basic.cpp)
         target_link_libraries(22_001_example_sqlite_basic PRIVATE cpp_dbc)
@@ -607,7 +604,6 @@ if(CPP_DBC_BUILD_EXAMPLES)
     # ============================================================================
     # Firebird Examples (23_xxx) - examples/relational/firebird/
     # ============================================================================
-
     if(USE_FIREBIRD)
         add_executable(23_001_example_firebird_basic examples/relational/firebird/23_001_example_firebird_basic.cpp)
         target_link_libraries(23_001_example_firebird_basic PRIVATE cpp_dbc)
@@ -643,7 +639,6 @@ if(CPP_DBC_BUILD_EXAMPLES)
     # ============================================================================
     # Redis Examples (24_xxx) - examples/kv/redis/
     # ============================================================================
-
     if(USE_REDIS)
         add_executable(24_001_example_redis_basic examples/kv/redis/24_001_example_redis_basic.cpp)
         target_link_libraries(24_001_example_redis_basic PRIVATE cpp_dbc)
@@ -670,7 +665,6 @@ if(CPP_DBC_BUILD_EXAMPLES)
     # ============================================================================
     # MongoDB Examples (25_xxx) - examples/document/mongodb/
     # ============================================================================
-
     if(USE_MONGODB)
         add_executable(25_001_example_mongodb_basic examples/document/mongodb/25_001_example_mongodb_basic.cpp)
         target_link_libraries(25_001_example_mongodb_basic PRIVATE cpp_dbc)
@@ -691,7 +685,6 @@ if(CPP_DBC_BUILD_EXAMPLES)
     # ============================================================================
     # ScyllaDB Examples (26_xxx) - examples/columnar/scylladb/
     # ============================================================================
-
     if(USE_SCYLLADB)
         add_executable(26_001_example_scylladb_basic examples/columnar/scylladb/26_001_example_scylladb_basic.cpp)
         target_link_libraries(26_001_example_scylladb_basic PRIVATE cpp_dbc)
@@ -718,7 +711,6 @@ if(CPP_DBC_BUILD_EXAMPLES)
     # ============================================================================
     # Copy necessary files for examples
     # ============================================================================
-
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/examples/common/example_config.yml
         ${CMAKE_CURRENT_BINARY_DIR}/example_config.yml COPYONLY)
 
