@@ -288,6 +288,14 @@ namespace cpp_dbc
         return result.value();
     }
 
+    void DocumentDBConnectionPool::notifyFirstWaiter() noexcept
+    {
+        if (!m_waitQueue.empty())
+        {
+            m_waitQueue.front()->cv.notify_one();
+        }
+    }
+
     cpp_dbc::expected<void, DBException>
     DocumentDBConnectionPool::returnConnection(std::nothrow_t, std::shared_ptr<DocumentPooledDBConnection> conn) noexcept
     {
@@ -324,7 +332,7 @@ namespace cpp_dbc
                 conn->setActive(std::nothrow, false);
                 m_activeConnections--;
                 CP_DEBUG("DocumentDBConnectionPool::returnConnection - Connection not found in pool, SKIPPED");
-                m_connectionAvailable.notify_one();
+                notifyFirstWaiter();
                 return cpp_dbc::unexpected(DBException("AX95P6TXEL5I", "returnConnection called with a connection not belonging to this pool (orphan)", system_utils::captureCallStack()));
             }
         }
@@ -368,14 +376,15 @@ namespace cpp_dbc
                 m_activeConnections++;
                 CP_DEBUG("returnConnection - HANDOFF: direct to waiter, active=%d, waiters=%zu, total=%zu",
                          m_activeConnections.load(std::memory_order_acquire), m_waitQueue.size(), m_allConnections.size());
-                m_connectionAvailable.notify_all(); // Wake all so fulfilled waiter checks its flag
+                request->cv.notify_one(); // Per-waiter: only the fulfilled waiter is woken
             }
             else
             {
                 m_idleConnections.push(conn);
                 CP_DEBUG("returnConnection - VALID: pushed to idle, active=%d, idle=%zu, total=%zu",
                          m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
-                m_connectionAvailable.notify_one();
+                // No notification needed: waitQueue is guaranteed empty here (checked at line 366).
+                // The next borrower will find this idle connection directly in Step 1.
             }
         }
         else
@@ -408,8 +417,8 @@ namespace cpp_dbc
                 }
                 m_idleConnections = tempQueue;
 
-                // Notify inside lock: freed slot allows waiting threads to create
-                m_connectionAvailable.notify_one();
+                // Notify first waiter: freed slot allows re-check of deadline or idle
+                notifyFirstWaiter();
             }
 
             // Close outside lock
@@ -419,65 +428,17 @@ namespace cpp_dbc
                 CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() on invalid connection failed: %s", closeResult.error().what_s().data());
             }
 
-            // Replenish: create outside lock
+            // Signal maintenance thread to create replacement asynchronously.
+            // The returning thread is NOT blocked by connection creation I/O
+            // (which takes 1.3-1.5s+ under Valgrind). Borrowers self-heal via
+            // Step 2 in getDocumentDBConnection() if the pool is temporarily short.
             if (m_running.load(std::memory_order_acquire))
             {
-                auto replacementResult = createPooledDBConnection(std::nothrow);
-                if (!replacementResult.has_value())
                 {
-                    CP_DEBUG("DocumentDBConnectionPool::returnConnection - Failed to create replacement: %s", replacementResult.error().what_s().data());
+                    std::scoped_lock lockPool(m_mutexPool);
+                    m_replenishNeeded++;
                 }
-
-                if (replacementResult.has_value())
-                {
-                    auto replacement = replacementResult.value();
-                    std::shared_ptr<DocumentPooledDBConnection> discardReplacement;
-                    {
-                        std::scoped_lock lockPool(m_mutexPool);
-                        if (m_running.load(std::memory_order_acquire) && m_allConnections.size() < m_maxSize)
-                        {
-                            m_allConnections.push_back(replacement);
-
-                            if (!m_waitQueue.empty())
-                            {
-                                // Direct handoff to first waiter
-                                ConnectionRequest *req = m_waitQueue.front();
-                                m_waitQueue.pop_front();
-                                replacement->setActive(std::nothrow, true);
-                                m_activeConnections++;
-                                replacement->m_closed.store(false);
-                                req->conn = replacement;
-                                req->fulfilled = true;
-                                CP_DEBUG("returnConnection - REPLACEMENT HANDOFF: active=%d, waiters=%zu, total=%zu",
-                                         m_activeConnections.load(std::memory_order_acquire), m_waitQueue.size(), m_allConnections.size());
-                                m_connectionAvailable.notify_all();
-                            }
-                            else
-                            {
-                                m_idleConnections.push(replacement);
-                                CP_DEBUG("returnConnection - REPLACEMENT: pushed to idle, active=%d, idle=%zu, total=%zu",
-                                         m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
-                                m_connectionAvailable.notify_one();
-                            }
-                        }
-                        else
-                        {
-                            // Pool full or closing — discard replacement
-                            replacement->m_closed.store(true);
-                            discardReplacement = replacement;
-                        }
-                    }
-
-                    // Close discarded replacement outside lock
-                    if (discardReplacement)
-                    {
-                        auto discardCloseResult = discardReplacement->getUnderlyingDocumentConnection()->close(std::nothrow);
-                        if (!discardCloseResult.has_value())
-                        {
-                            CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() on discarded replacement failed: %s", discardCloseResult.error().what_s().data());
-                        }
-                    }
-                }
+                m_maintenanceCondition.notify_one();
             }
         }
 
@@ -608,7 +569,7 @@ namespace cpp_dbc
                             std::cv_status status;
                             try
                             {
-                                status = m_connectionAvailable.wait_until(lockPool, deadline);
+                                status = req.cv.wait_until(lockPool, deadline);
                             }
                             catch (const std::exception &ex)
                             {
@@ -719,8 +680,8 @@ namespace cpp_dbc
                             {
                                 m_allConnections.erase(it);
                             }
-                            // Notify inside lock: freed slot allows waiting threads to create a new connection.
-                            m_connectionAvailable.notify_one();
+                            // Notify first waiter: freed slot allows re-check of deadline or idle
+                            notifyFirstWaiter();
                         }
 
                         auto closeResult = result->getUnderlyingDocumentConnection()->close(std::nothrow);
@@ -784,10 +745,10 @@ namespace cpp_dbc
         do
         {
             {
-                // Wait 30 seconds or until notified by close()
+                // Wait 30 seconds, or wake early on close() or replenish request
                 std::unique_lock lock(m_mutexPool);
                 m_maintenanceCondition.wait_for(lock, std::chrono::seconds(30), [this]
-                                                { return !m_running.load(std::memory_order_acquire); });
+                                                { return !m_running.load(std::memory_order_acquire) || m_replenishNeeded > 0; });
             }
 
             if (!m_running.load(std::memory_order_acquire))
@@ -847,28 +808,102 @@ namespace cpp_dbc
                 }
             }
 
-            // Replenish minIdle connections OUTSIDE lock
-            // (createPooledDBConnection may acquire driver-internal locks)
-            size_t currentTotal;
+            // Replenish connections that were invalidated in returnConnection().
+            // Created here asynchronously so the returning thread is not blocked
+            // by connection-creation I/O (1.3s+ under Valgrind).
+            while (m_running.load(std::memory_order_acquire))
             {
-                std::scoped_lock lock(m_mutexPool);
-                currentTotal = m_allConnections.size() + m_pendingCreations;
-            }
-            while (m_running.load(std::memory_order_acquire) && currentTotal < m_minIdle)
-            {
-                auto pooledResult = createPooledDBConnection(std::nothrow);
-                if (!pooledResult.has_value())
                 {
-                    CP_DEBUG("DocumentDBConnectionPool::maintenanceTask - Failed to create minIdle connection: %s", pooledResult.error().what_s().data());
-                    break;
+                    std::scoped_lock lock(m_mutexPool);
+                    if (m_replenishNeeded == 0 || m_allConnections.size() + m_pendingCreations >= m_maxSize)
+                    {
+                        m_replenishNeeded = 0; // Clear if pool already at max
+                        break;
+                    }
+                    m_pendingCreations++;
+                    m_replenishNeeded--;
                 }
+
+                auto pooledResult = createPooledDBConnection(std::nothrow);
 
                 {
                     std::scoped_lock lock(m_mutexPool);
-                    m_idleConnections.push(pooledResult.value());
+                    m_pendingCreations--;
+
+                    if (!pooledResult.has_value())
+                    {
+                        CP_DEBUG("DocumentDBConnectionPool::maintenanceTask - Failed to create replacement: %s",
+                                 pooledResult.error().what_s().data());
+                        break; // Stop retrying — DB might be down
+                    }
+
                     m_allConnections.push_back(pooledResult.value());
-                    currentTotal = m_allConnections.size() + m_pendingCreations;
-                    m_connectionAvailable.notify_one();
+
+                    if (!m_waitQueue.empty())
+                    {
+                        // Direct handoff to first waiter
+                        auto *req = m_waitQueue.front();
+                        m_waitQueue.pop_front();
+                        pooledResult.value()->setActive(std::nothrow, true);
+                        m_activeConnections++;
+                        req->conn = pooledResult.value();
+                        req->fulfilled = true;
+                        CP_DEBUG("maintenanceTask - REPLACEMENT HANDOFF: active=%d, waiters=%zu, total=%zu",
+                                 m_activeConnections.load(std::memory_order_acquire), m_waitQueue.size(), m_allConnections.size());
+                        req->cv.notify_one();
+                    }
+                    else
+                    {
+                        m_idleConnections.push(pooledResult.value());
+                        CP_DEBUG("maintenanceTask - REPLACEMENT: pushed to idle, active=%d, idle=%zu, total=%zu",
+                                 m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
+                    }
+                }
+            }
+
+            // Replenish minIdle connections OUTSIDE lock
+            // (createPooledDBConnection may acquire driver-internal locks)
+            while (m_running.load(std::memory_order_acquire))
+            {
+                {
+                    std::scoped_lock lock(m_mutexPool);
+                    if (m_allConnections.size() + m_pendingCreations >= m_minIdle)
+                    {
+                        break;
+                    }
+                    m_pendingCreations++;
+                }
+
+                auto pooledResult = createPooledDBConnection(std::nothrow);
+
+                {
+                    std::scoped_lock lock(m_mutexPool);
+                    m_pendingCreations--;
+
+                    if (!pooledResult.has_value())
+                    {
+                        CP_DEBUG("DocumentDBConnectionPool::maintenanceTask - Failed to create minIdle connection: %s",
+                                 pooledResult.error().what_s().data());
+                        break;
+                    }
+
+                    m_allConnections.push_back(pooledResult.value());
+
+                    if (!m_waitQueue.empty())
+                    {
+                        // Direct handoff to first waiter
+                        auto *req = m_waitQueue.front();
+                        m_waitQueue.pop_front();
+                        pooledResult.value()->setActive(std::nothrow, true);
+                        m_activeConnections++;
+                        req->conn = pooledResult.value();
+                        req->fulfilled = true;
+                        req->cv.notify_one();
+                    }
+                    else
+                    {
+                        m_idleConnections.push(pooledResult.value());
+                    }
                 }
             }
         } while (m_running.load(std::memory_order_acquire));
@@ -972,7 +1007,11 @@ namespace cpp_dbc
         {
             std::scoped_lock lock(m_mutexPool);
             m_maintenanceCondition.notify_all();
-            m_connectionAvailable.notify_all();
+            // Wake every waiter individually so they see m_running == false and exit.
+            for (auto *r : m_waitQueue)
+            {
+                r->cv.notify_one();
+            }
         }
 
         // Join maintenance thread
