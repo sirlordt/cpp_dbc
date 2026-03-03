@@ -47,7 +47,7 @@ namespace cpp_dbc::MongoDB
     {
         MONGODB_DEBUG("MongoDBDriver::initializeMongoc - Initializing MongoDB C driver");
         mongoc_init();
-        s_initialized.store(true, std::memory_order_release);
+        s_initialized = true;
         MONGODB_DEBUG("MongoDBDriver::initializeMongoc - Done");
     }
 
@@ -77,6 +77,21 @@ namespace cpp_dbc::MongoDB
         return url.starts_with("cpp_dbc:mongodb://");
     }
 
+    expected<std::shared_ptr<DBConnection>, DBException> MongoDBDriver::connect(
+        std::nothrow_t,
+        const std::string &url,
+        const std::string &user,
+        const std::string &password,
+        const std::map<std::string, std::string> &options) noexcept
+    {
+        auto result = connectDocument(std::nothrow, url, user, password, options);
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        return std::static_pointer_cast<DBConnection>(result.value());
+    }
+
     std::shared_ptr<DocumentDBConnection> MongoDBDriver::connectDocument(
         const std::string &url,
         const std::string &user,
@@ -98,12 +113,17 @@ namespace cpp_dbc::MongoDB
             mongoUrl = url.substr(8); // Remove "cpp_dbc:" prefix
         }
 
-        auto conn = MongoDBConnection::create(mongoUrl, user, password, options);
+        auto conn = std::make_shared<MongoDBConnection>(mongoUrl, user, password, options);
         MONGODB_DEBUG("MongoDBDriver::connectDocument - Connection established");
         return conn;
     }
 
-    std::string MongoDBDriver::getURIScheme() const noexcept
+    int MongoDBDriver::getDefaultPort() const
+    {
+        return 27017;
+    }
+
+    std::string MongoDBDriver::getURIScheme() const
     {
         return "mongodb";
     }
@@ -185,17 +205,17 @@ namespace cpp_dbc::MongoDB
         return uri.str();
     }
 
-    bool MongoDBDriver::supportsReplicaSets() const noexcept
+    bool MongoDBDriver::supportsReplicaSets() const
     {
         return true;
     }
 
-    bool MongoDBDriver::supportsSharding() const noexcept
+    bool MongoDBDriver::supportsSharding() const
     {
         return true;
     }
 
-    std::string MongoDBDriver::getDriverVersion() const noexcept
+    std::string MongoDBDriver::getDriverVersion() const
     {
         return MONGOC_VERSION_S;
     }
@@ -203,17 +223,17 @@ namespace cpp_dbc::MongoDB
     void MongoDBDriver::cleanup()
     {
         MONGODB_DEBUG("MongoDBDriver::cleanup - Cleaning up MongoDB C driver");
-        if (s_initialized.load(std::memory_order_acquire))
+        if (s_initialized)
         {
             mongoc_cleanup();
-            s_initialized.store(false, std::memory_order_release);
+            s_initialized = false;
             MONGODB_DEBUG("MongoDBDriver::cleanup - Done");
         }
     }
 
     bool MongoDBDriver::isInitialized()
     {
-        return s_initialized.load(std::memory_order_acquire);
+        return s_initialized;
     }
 
     bool MongoDBDriver::validateURI(const std::string &uri)
@@ -260,13 +280,9 @@ namespace cpp_dbc::MongoDB
                 mongoUrl = url.substr(8);
             }
 
-            auto connResult = MongoDBConnection::create(std::nothrow, mongoUrl, user, password, options);
-            if (!connResult.has_value())
-            {
-                return unexpected<DBException>(connResult.error());
-            }
+            auto conn = std::make_shared<MongoDBConnection>(mongoUrl, user, password, options);
             MONGODB_DEBUG("MongoDBDriver::connectDocument(nothrow) - Connection established");
-            return std::static_pointer_cast<DocumentDBConnection>(connResult.value());
+            return std::static_pointer_cast<DocumentDBConnection>(conn);
         }
         catch (const DBException &ex)
         {

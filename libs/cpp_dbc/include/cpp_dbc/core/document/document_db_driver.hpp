@@ -21,10 +21,8 @@
 
 #include <map>
 #include <memory>
-#include <new>
 #include <string>
 #include "cpp_dbc/core/db_driver.hpp"
-#include "cpp_dbc/core/db_exception.hpp"
 #include "cpp_dbc/core/db_expected.hpp"
 #include "document_db_connection.hpp"
 
@@ -54,11 +52,15 @@ namespace cpp_dbc
     public:
         ~DocumentDBDriver() override = default;
 
-        // ====================================================================
-        // THROWING API — requires exception support
-        // ====================================================================
+        /**
+         * @brief Get the database type
+         * @return Always returns DBType::DOCUMENT
+         */
+        DBType getDBType() const noexcept override
+        {
+            return DBType::DOCUMENT;
+        }
 
-#ifdef __cpp_exceptions
         /**
          * @brief Connect to a document database
          *
@@ -80,7 +82,8 @@ namespace cpp_dbc
         /**
          * @brief Connect to a database (base class implementation)
          *
-         * This method delegates to connectDocument(nothrow) and rethrows on error.
+         * This method delegates to connectDocument() and returns the result
+         * as a DBConnection pointer.
          */
         std::shared_ptr<DBConnection> connect(
             const std::string &url,
@@ -88,13 +91,22 @@ namespace cpp_dbc
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            auto result = connectDocument(std::nothrow, url, user, password, options);
-            if (!result.has_value())
-            {
-                throw result.error();
-            }
-            return std::static_pointer_cast<DBConnection>(result.value());
+            return connectDocument(url, user, password, options);
         }
+
+        // Document database specific driver methods
+
+        /**
+         * @brief Get the default port for this database type
+         * @return The default port number (e.g., 27017 for MongoDB)
+         */
+        virtual int getDefaultPort() const = 0;
+
+        /**
+         * @brief Get the URI scheme for this database type
+         * @return The URI scheme (e.g., "mongodb", "mongodb+srv", "couchdb")
+         */
+        virtual std::string getURIScheme() const = 0;
 
         /**
          * @brief Parse a connection URI and extract components
@@ -118,24 +130,30 @@ namespace cpp_dbc
             const std::string &database,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
 
-#endif // __cpp_exceptions
-
-        // ====================================================================
-        // NOTHROW API — exception-free, always available
-        // ====================================================================
+        /**
+         * @brief Check if the driver supports replica sets
+         * @return true if replica sets are supported
+         */
+        virtual bool supportsReplicaSets() const = 0;
 
         /**
-         * @brief Get the database type
-         * @return Always returns DBType::DOCUMENT
+         * @brief Check if the driver supports sharding
+         * @return true if sharding is supported
          */
-        DBType getDBType() const noexcept override
-        {
-            return DBType::DOCUMENT;
-        }
+        virtual bool supportsSharding() const = 0;
+
+        /**
+         * @brief Get the driver version
+         * @return The driver version string
+         */
+        virtual std::string getDriverVersion() const = 0;
+
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
 
         /**
          * @brief Connect to a document database (nothrow version)
-         * @param nothrow std::nothrow tag to indicate exception-free operation
          * @return expected containing connection to the database, or DBException on failure
          */
         virtual expected<std::shared_ptr<DocumentDBConnection>, DBException> connectDocument(
@@ -146,65 +164,11 @@ namespace cpp_dbc
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept = 0;
 
         /**
-         * @brief Connect to a database (base class nothrow implementation)
-         *
-         * This method delegates to connectDocument(nothrow) and returns the result.
-         */
-        expected<std::shared_ptr<DBConnection>, DBException> connect(
-            std::nothrow_t,
-            const std::string &url,
-            const std::string &user,
-            const std::string &password,
-            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override
-        {
-            auto result = connectDocument(std::nothrow, url, user, password, options);
-            if (!result.has_value())
-            {
-                return cpp_dbc::unexpected(result.error());
-            }
-            return std::static_pointer_cast<DBConnection>(result.value());
-        }
-
-        /**
          * @brief Parse a connection URI and extract components (nothrow version)
-         * @param nothrow std::nothrow tag to indicate exception-free operation
          * @return expected containing map of parsed components, or DBException on failure
          */
         virtual expected<std::map<std::string, std::string>, DBException> parseURI(
             std::nothrow_t, const std::string &uri) noexcept = 0;
-
-        // Document database specific driver methods (trivial — cannot fail)
-
-        /**
-         * @brief Get the URL prefix accepted by this driver
-         *
-         * Returns the full connection URL prefix that this driver handles,
-         * e.g. `"cpp_dbc:mongodb://"`. This value is also the prefix that
-         * `acceptsURL()` checks against.
-         *
-         * Example format: `cpp_dbc:<engine>://host:port/database`
-         *
-         * @return The URL prefix string (e.g., "cpp_dbc:mongodb://")
-         */
-        virtual std::string getURIScheme() const noexcept = 0;
-
-        /**
-         * @brief Check if the driver supports replica sets
-         * @return true if replica sets are supported
-         */
-        virtual bool supportsReplicaSets() const noexcept = 0;
-
-        /**
-         * @brief Check if the driver supports sharding
-         * @return true if sharding is supported
-         */
-        virtual bool supportsSharding() const noexcept = 0;
-
-        /**
-         * @brief Get the driver version
-         * @return The driver version string
-         */
-        virtual std::string getDriverVersion() const noexcept = 0;
     };
 
 } // namespace cpp_dbc

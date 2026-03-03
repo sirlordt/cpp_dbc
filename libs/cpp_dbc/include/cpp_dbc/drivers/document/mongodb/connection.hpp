@@ -86,9 +86,6 @@ namespace cpp_dbc::MongoDB
              */
             std::atomic<uint64_t> m_sessionCounter{0};
 
-            bool m_initFailed{false};
-            DBException m_initError{"MDBINITERR0A", "", {}};
-
             /**
              * @brief Active collections (weak references for cleanup tracking)
              */
@@ -122,21 +119,15 @@ namespace cpp_dbc::MongoDB
 
             /**
              * @brief Validates that the connection is open
-             * @return expected<void> or DBException if the connection is closed
+             * @throws DBException if the connection is closed
              */
-            expected<void, DBException> validateConnection(std::nothrow_t) const noexcept;
+            void validateConnection() const;
 
             /**
              * @brief Generate a unique session ID
-             * @return expected with a unique session ID string, or DBException on error
+             * @return A unique session ID string
              */
-            expected<std::string, DBException> generateSessionId(std::nothrow_t) noexcept;
-
-            MongoDBConnection(std::nothrow_t,
-                              const std::string &uri,
-                              const std::string &user,
-                              const std::string &password,
-                              const std::map<std::string, std::string> &options) noexcept;
+            std::string generateSessionId();
 
         public:
             /**
@@ -163,37 +154,18 @@ namespace cpp_dbc::MongoDB
              */
             void unregisterCursor(std::weak_ptr<MongoDBCursor> cursor);
 
-#ifdef __cpp_exceptions
-            static std::shared_ptr<MongoDBConnection>
-            create(const std::string &uri,
-                   const std::string &user,
-                   const std::string &password,
-                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
-            {
-                auto r = create(std::nothrow, uri, user, password, options);
-                if (!r.has_value())
-                {
-                    throw r.error();
-                }
-                return r.value();
-            }
-#endif
-
-            static expected<std::shared_ptr<MongoDBConnection>, DBException>
-            create(std::nothrow_t,
-                   const std::string &uri,
-                   const std::string &user,
-                   const std::string &password,
-                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
-            {
-                auto obj = std::shared_ptr<MongoDBConnection>(
-                    new MongoDBConnection(std::nothrow, uri, user, password, options));
-                if (obj->m_initFailed)
-                {
-                    return cpp_dbc::unexpected(obj->m_initError);
-                }
-                return obj;
-            }
+            /**
+             * @brief Construct a MongoDB connection
+             * @param uri The MongoDB connection URI
+             * @param user The username (may be empty if auth is in URI)
+             * @param password The password (may be empty if auth is in URI)
+             * @param options Additional connection options
+             * @throws DBException if the connection fails
+             */
+            MongoDBConnection(const std::string &uri,
+                              const std::string &user,
+                              const std::string &password,
+                              const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
 
             ~MongoDBConnection() override;
 
@@ -201,9 +173,9 @@ namespace cpp_dbc::MongoDB
             MongoDBConnection(const MongoDBConnection &) = delete;
             MongoDBConnection &operator=(const MongoDBConnection &) = delete;
 
-            // Prevent moving
-            MongoDBConnection(MongoDBConnection &&other) = delete;
-            MongoDBConnection &operator=(MongoDBConnection &&other) = delete;
+            // Allow moving
+            MongoDBConnection(MongoDBConnection &&other) noexcept;
+            MongoDBConnection &operator=(MongoDBConnection &&other) noexcept;
 
             // DBConnection interface
             void close() override;
@@ -244,6 +216,7 @@ namespace cpp_dbc::MongoDB
             void abortTransaction(const std::string &sessionId) override;
             bool supportsTransactions() override;
             void prepareForPoolReturn() override;
+            void prepareForBorrow() override;
 
             // MongoDB-specific methods
 
@@ -318,6 +291,7 @@ namespace cpp_dbc::MongoDB
                 std::nothrow_t, const std::string &sessionId) noexcept override;
             expected<bool, DBException> supportsTransactions(std::nothrow_t) noexcept override;
             expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+            expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
         };
 
 } // namespace cpp_dbc::MongoDB

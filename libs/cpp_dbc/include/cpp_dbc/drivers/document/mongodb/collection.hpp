@@ -73,9 +73,6 @@ namespace cpp_dbc::MongoDB
             SharedConnMutex m_connMutex;
 #endif
 
-            bool m_initFailed{false};
-            DBException m_initError{"MG1C0L0INIT0", "", {}};
-
             /**
              * @brief Validates that the connection is still valid
              * @throws DBException if the connection has been closed
@@ -105,94 +102,40 @@ namespace cpp_dbc::MongoDB
              */
             [[noreturn]] void throwMongoError(const bson_error_t &error, const std::string &operation) const;
 
+        public:
+            /**
+             * @brief Construct a collection wrapper
+             * @param client Weak reference to the MongoDB client
+             * @param collection The MongoDB collection (ownership is transferred)
+             * @param name The collection name
+             * @param databaseName The database name
+             * @param connection Weak pointer to the connection for cursor registration (optional)
+             * @param connMutex Shared mutex from the parent connection for thread safety
+             */
 #if DB_DRIVER_THREAD_SAFE
-            MongoDBCollection(std::nothrow_t,
-                              std::weak_ptr<mongoc_client_t> client,
+            MongoDBCollection(std::weak_ptr<mongoc_client_t> client,
                               mongoc_collection_t *collection,
                               const std::string &name,
                               const std::string &databaseName,
                               std::weak_ptr<MongoDBConnection> connection,
-                              SharedConnMutex connMutex) noexcept;
+                              SharedConnMutex connMutex);
 #else
-            MongoDBCollection(std::nothrow_t,
-                              std::weak_ptr<mongoc_client_t> client,
+            MongoDBCollection(std::weak_ptr<mongoc_client_t> client,
                               mongoc_collection_t *collection,
                               const std::string &name,
                               const std::string &databaseName,
-                              std::weak_ptr<MongoDBConnection> connection) noexcept;
+                              std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>());
 #endif
 
-        public:
             ~MongoDBCollection() override = default;
 
-            MongoDBCollection(const MongoDBCollection &)            = delete;
+            // Prevent copying
+            MongoDBCollection(const MongoDBCollection &) = delete;
             MongoDBCollection &operator=(const MongoDBCollection &) = delete;
-            MongoDBCollection(MongoDBCollection &&)                 = delete;
-            MongoDBCollection &operator=(MongoDBCollection &&)      = delete;
 
-#ifdef __cpp_exceptions
-#if DB_DRIVER_THREAD_SAFE
-            static std::shared_ptr<MongoDBCollection> create(
-                std::weak_ptr<mongoc_client_t> client,
-                mongoc_collection_t *collection,
-                const std::string &name,
-                const std::string &databaseName,
-                std::weak_ptr<MongoDBConnection> connection,
-                SharedConnMutex connMutex)
-            {
-                auto r = create(std::nothrow, std::move(client), collection, name, databaseName,
-                                std::move(connection), std::move(connMutex));
-                if (!r.has_value()) { throw r.error(); }
-                return r.value();
-            }
-#else
-            static std::shared_ptr<MongoDBCollection> create(
-                std::weak_ptr<mongoc_client_t> client,
-                mongoc_collection_t *collection,
-                const std::string &name,
-                const std::string &databaseName,
-                std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>())
-            {
-                auto r = create(std::nothrow, std::move(client), collection, name, databaseName,
-                                std::move(connection));
-                if (!r.has_value()) { throw r.error(); }
-                return r.value();
-            }
-#endif
-#endif // __cpp_exceptions
-
-#if DB_DRIVER_THREAD_SAFE
-            static cpp_dbc::expected<std::shared_ptr<MongoDBCollection>, DBException> create(
-                std::nothrow_t,
-                std::weak_ptr<mongoc_client_t> client,
-                mongoc_collection_t *collection,
-                const std::string &name,
-                const std::string &databaseName,
-                std::weak_ptr<MongoDBConnection> connection,
-                SharedConnMutex connMutex) noexcept
-            {
-                auto obj = std::shared_ptr<MongoDBCollection>(
-                    new MongoDBCollection(std::nothrow, std::move(client), collection, name,
-                                         databaseName, std::move(connection), std::move(connMutex)));
-                if (obj->m_initFailed) { return cpp_dbc::unexpected(obj->m_initError); }
-                return obj;
-            }
-#else
-            static cpp_dbc::expected<std::shared_ptr<MongoDBCollection>, DBException> create(
-                std::nothrow_t,
-                std::weak_ptr<mongoc_client_t> client,
-                mongoc_collection_t *collection,
-                const std::string &name,
-                const std::string &databaseName,
-                std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>()) noexcept
-            {
-                auto obj = std::shared_ptr<MongoDBCollection>(
-                    new MongoDBCollection(std::nothrow, std::move(client), collection, name,
-                                         databaseName, std::move(connection)));
-                if (obj->m_initFailed) { return cpp_dbc::unexpected(obj->m_initError); }
-                return obj;
-            }
-#endif
+            // Allow moving
+            MongoDBCollection(MongoDBCollection &&other) noexcept;
+            MongoDBCollection &operator=(MongoDBCollection &&other) noexcept;
 
             // DocumentDBCollection interface
             std::string getName() const override;

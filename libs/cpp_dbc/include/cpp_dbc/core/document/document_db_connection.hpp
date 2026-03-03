@@ -250,6 +250,14 @@ namespace cpp_dbc
          */
         virtual void prepareForPoolReturn() = 0;
 
+        /**
+         * @brief Prepare the connection for borrowing from pool
+         *
+         * Called when a connection is borrowed from the pool.
+         * Implementations can override this to refresh internal state.
+         */
+        virtual void prepareForBorrow() = 0;
+
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -314,6 +322,8 @@ namespace cpp_dbc
         virtual expected<bool, DBException> supportsTransactions(std::nothrow_t) noexcept = 0;
 
         virtual expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept = 0;
+
+        virtual expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

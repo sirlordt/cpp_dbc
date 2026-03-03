@@ -209,6 +209,15 @@ namespace cpp_dbc::MongoDB
         }
     }
 
+    void MongoDBConnection::prepareForBorrow()
+    {
+        auto result = prepareForBorrow(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
 } // namespace cpp_dbc::MongoDB
 
 #endif // USE_MONGODB

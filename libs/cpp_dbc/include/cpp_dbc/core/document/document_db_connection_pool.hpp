@@ -220,7 +220,7 @@ namespace cpp_dbc
      * pooling functionality, returning the connection to the pool when closed
      * rather than actually closing the physical connection.
      */
-    class DocumentPooledDBConnection : public DBConnectionPooled, public DocumentDBConnection, public std::enable_shared_from_this<DocumentPooledDBConnection>
+    class DocumentPooledDBConnection final : public DBConnectionPooled, public DocumentDBConnection, public std::enable_shared_from_this<DocumentPooledDBConnection>
     {
     private:
         std::shared_ptr<DocumentDBConnection> m_conn;
@@ -289,9 +289,7 @@ namespace cpp_dbc
         void abortTransaction(const std::string &sessionId) override;
         bool supportsTransactions() override;
         void prepareForPoolReturn() override;
-
-        // DocumentPooledDBConnection specific method
-        std::shared_ptr<DocumentDBConnection> getUnderlyingDocumentConnection();
+        void prepareForBorrow() override;
 
         #endif // __cpp_exceptions
         // ====================================================================
@@ -338,6 +336,7 @@ namespace cpp_dbc
         expected<void, DBException> abortTransaction(std::nothrow_t, const std::string &sessionId) noexcept override;
         expected<bool, DBException> supportsTransactions(std::nothrow_t) noexcept override;
         expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
         // DBConnectionPooled interface methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime(std::nothrow_t) const noexcept override;
@@ -347,6 +346,11 @@ namespace cpp_dbc
 
         // Implementation of DBConnectionPooled interface
         std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
+
+        #ifdef __cpp_exceptions
+        // DocumentPooledDBConnection specific method
+        std::shared_ptr<DocumentDBConnection> getUnderlyingDocumentConnection();
+        #endif // __cpp_exceptions
     };
 
     // Specialized connection pool for MongoDB

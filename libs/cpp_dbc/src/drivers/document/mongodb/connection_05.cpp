@@ -206,6 +206,13 @@ namespace cpp_dbc::MongoDB
         }
     }
 
+    expected<void, DBException> MongoDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        // No-op for MongoDB: unlike relational databases (e.g. Firebird MVCC),
+        // MongoDB does not require any state refresh when borrowing from the pool.
+        return {};
+    }
+
     expected<std::string, DBException> MongoDBConnection::getDatabaseName(std::nothrow_t) const noexcept
     {
         try
@@ -262,11 +269,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
-            auto validateResult = validateConnection(std::nothrow);
-            if (!validateResult.has_value())
-            {
-                return cpp_dbc::unexpected(validateResult.error());
-            }
+            validateConnection();
             m_databaseName = databaseName;
             return {};
         }
@@ -360,11 +363,7 @@ namespace cpp_dbc::MongoDB
         try
         {
             MONGODB_LOCK_GUARD(*m_connMutex);
-            auto validateResult = validateConnection(std::nothrow);
-            if (!validateResult.has_value())
-            {
-                return cpp_dbc::unexpected(validateResult.error());
-            }
+            validateConnection();
 
             mongoc_session_opt_t *opts = mongoc_session_opts_new();
             mongoc_session_opts_set_causal_consistency(opts, true);
@@ -381,12 +380,7 @@ namespace cpp_dbc::MongoDB
                     system_utils::captureCallStack()));
             }
 
-            auto sessionIdResult = generateSessionId(std::nothrow);
-            if (!sessionIdResult.has_value())
-            {
-                return cpp_dbc::unexpected(sessionIdResult.error());
-            }
-            std::string sessionId = sessionIdResult.value();
+            std::string sessionId = generateSessionId();
 
             {
                 std::scoped_lock sessionsLock(m_sessionsMutex);

@@ -72,13 +72,12 @@ namespace cpp_dbc::MongoDB
     // ============================================================================
 
 #if DB_DRIVER_THREAD_SAFE
-    MongoDBCollection::MongoDBCollection(std::nothrow_t,
-                                         std::weak_ptr<mongoc_client_t> client,
+    MongoDBCollection::MongoDBCollection(std::weak_ptr<mongoc_client_t> client,
                                          mongoc_collection_t *collection,
                                          const std::string &name,
                                          const std::string &databaseName,
                                          std::weak_ptr<MongoDBConnection> connection,
-                                         SharedConnMutex connMutex) noexcept
+                                         SharedConnMutex connMutex)
         : m_client(std::move(client)),
           m_connection(std::move(connection)),
           m_collection(collection),
@@ -89,19 +88,16 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBCollection::constructor - Creating collection: " << name << " in database: " << databaseName);
         if (!m_collection)
         {
-            m_initFailed = true;
-            m_initError = DBException("E3F9A8B7C2D1", "Cannot create collection from null pointer", system_utils::captureCallStack());
-            return;
+            throw DBException("E3F9A8B7C2D1", "Cannot create collection from null pointer", system_utils::captureCallStack());
         }
         MONGODB_DEBUG("MongoDBCollection::constructor - Done");
     }
 #else
-    MongoDBCollection::MongoDBCollection(std::nothrow_t,
-                                         std::weak_ptr<mongoc_client_t> client,
+    MongoDBCollection::MongoDBCollection(std::weak_ptr<mongoc_client_t> client,
                                          mongoc_collection_t *collection,
                                          const std::string &name,
                                          const std::string &databaseName,
-                                         std::weak_ptr<MongoDBConnection> connection) noexcept
+                                         std::weak_ptr<MongoDBConnection> connection)
         : m_client(std::move(client)),
           m_connection(std::move(connection)),
           m_collection(collection),
@@ -111,13 +107,38 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBCollection::constructor - Creating collection: " << name << " in database: " << databaseName);
         if (!m_collection)
         {
-            m_initFailed = true;
-            m_initError = DBException("E3F9A8B7C2D1", "Cannot create collection from null pointer", system_utils::captureCallStack());
-            return;
+            throw DBException("E3F9A8B7C2D1", "Cannot create collection from null pointer", system_utils::captureCallStack());
         }
         MONGODB_DEBUG("MongoDBCollection::constructor - Done");
     }
 #endif
+
+    MongoDBCollection::MongoDBCollection(MongoDBCollection &&other) noexcept
+        : m_client(std::move(other.m_client)),
+          m_connection(std::move(other.m_connection)),
+          m_collection(std::move(other.m_collection)),
+          m_name(std::move(other.m_name)),
+          m_databaseName(std::move(other.m_databaseName))
+#if DB_DRIVER_THREAD_SAFE
+          , m_connMutex(std::move(other.m_connMutex))
+#endif
+    {}
+
+    MongoDBCollection &MongoDBCollection::operator=(MongoDBCollection &&other) noexcept
+    {
+        if (this != &other)
+        {
+            m_client = std::move(other.m_client);
+            m_connection = std::move(other.m_connection);
+            m_collection = std::move(other.m_collection);
+            m_name = std::move(other.m_name);
+            m_databaseName = std::move(other.m_databaseName);
+#if DB_DRIVER_THREAD_SAFE
+            m_connMutex = std::move(other.m_connMutex);
+#endif
+        }
+        return *this;
+    }
 
     // ============================================================================
     // MongoDBCollection Implementation - DocumentDBCollection Interface (Name, Count)

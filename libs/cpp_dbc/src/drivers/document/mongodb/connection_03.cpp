@@ -126,8 +126,7 @@ namespace cpp_dbc::MongoDB
                     "Failed to get collection: " + collectionName));
             }
 
-            auto collResult = MongoDBCollection::create(
-                std::nothrow,
+            auto collectionPtr = std::make_shared<MongoDBCollection>(
                 m_client,
                 collection,
                 collectionName,
@@ -137,11 +136,6 @@ namespace cpp_dbc::MongoDB
                 , m_connMutex
 #endif
             );
-            if (!collResult.has_value())
-            {
-                return unexpected<DBException>(collResult.error());
-            }
-            auto collectionPtr = collResult.value();
 
             registerCollection(collectionPtr);
 
@@ -291,8 +285,7 @@ namespace cpp_dbc::MongoDB
                     std::string("Failed to create collection: ") + error.message));
             }
 
-            auto collResult = MongoDBCollection::create(
-                std::nothrow,
+            auto collectionPtr = std::make_shared<MongoDBCollection>(
                 m_client,
                 coll,
                 collectionName,
@@ -302,11 +295,6 @@ namespace cpp_dbc::MongoDB
                 , m_connMutex
 #endif
             );
-            if (!collResult.has_value())
-            {
-                return unexpected<DBException>(collResult.error());
-            }
-            auto collectionPtr = collResult.value();
 
             registerCollection(collectionPtr);
 
