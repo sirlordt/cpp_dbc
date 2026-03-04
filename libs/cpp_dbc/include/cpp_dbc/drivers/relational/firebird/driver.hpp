@@ -223,7 +223,7 @@ namespace cpp_dbc::Firebird
         bool createDatabase(const std::string &,
                             const std::string &,
                             const std::string &,
-                            const std::map<std::string, std::string> & = std::map<std::string, std::string>())
+                            const std::map<std::string, std::string> & = std::map<std::string, std::string>()) const
         {
             return false;
         }
@@ -241,7 +241,7 @@ namespace cpp_dbc::Firebird
         bool parseURL(const std::string & /*url*/,
                       std::string & /*host*/,
                       int & /*port*/,
-                      std::string & /*database*/) noexcept
+                      std::string & /*database*/) const noexcept
         {
             return false;
         }
@@ -257,7 +257,7 @@ namespace cpp_dbc::Firebird
         }
 
         [[nodiscard]] cpp_dbc::expected<int, DBException>
-        command(std::nothrow_t, const std::map<std::string, std::any> &) noexcept
+        command(std::nothrow_t, const std::map<std::string, std::any> &) noexcept override
         {
             return 0;
         }
@@ -267,7 +267,7 @@ namespace cpp_dbc::Firebird
                        const std::string &,
                        const std::string &,
                        const std::string &,
-                       const std::map<std::string, std::string> & = std::map<std::string, std::string>()) noexcept
+                       const std::map<std::string, std::string> & = std::map<std::string, std::string>()) const noexcept
         {
             return false;
         }

@@ -285,7 +285,7 @@ if(USE_MONGODB)
         src/drivers/document/mongodb/document_05.cpp
         src/drivers/document/mongodb/document_06.cpp
 
-        # src/drivers/document/mongodb/document_07.cpp
+        src/drivers/document/mongodb/document_07.cpp
 
         # MongoDBCursor
         src/drivers/document/mongodb/cursor_01.cpp

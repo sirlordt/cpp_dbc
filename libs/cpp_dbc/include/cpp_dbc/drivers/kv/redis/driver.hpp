@@ -75,7 +75,7 @@ namespace cpp_dbc::Redis
         std::string buildURI(
             const std::string &host,
             int port,
-            const std::string &db = "",
+            const std::string &db = std::string{},
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
 
 #endif // __cpp_exceptions

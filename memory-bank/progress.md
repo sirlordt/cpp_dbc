@@ -2,7 +2,41 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. `DBException` is now a fixed-size, `noexcept`-constructible value type (~560 bytes). `ping()` is unified under the base `DBConnection` interface with a `bool` return type. All `what_s()` and `getMark()` return `std::string_view`. All four connection pool families share a unified single-mutex + direct-handoff architecture with a complete nothrow API.
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. MongoDB was the last driver to adopt this architecture (2026-03-04). `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). All four connection pool families share a unified single-mutex + direct-handoff architecture with a complete nothrow API.
+
+### Recent Improvements (2026-03-04 14:29 PST)
+
+**MongoDB Driver — Full Nothrow-First Refactor, Static Factory Pattern, `-fno-exceptions` Compatibility:**
+
+1. **Core Abstract Interfaces — `#ifdef __cpp_exceptions` Guard:**
+   - All 5 document interfaces (`DocumentDBCollection`, `DocumentDBConnection`, `DocumentDBCursor`, `DocumentDBData`, `DocumentDBDriver`) wrap throwing methods in `#ifdef __cpp_exceptions`
+   - `DocumentDBCursor`: +9 nothrow pure-virtuals (`next`, `hasNext`, `count`, `getPosition`, `skip`, `limit`, `sort`, `isExhausted`, `rewind`)
+   - `DocumentDBData`: +17 nothrow pure-virtuals (getters, setters, field ops)
+   - `DocumentDBCollection`: +4 nothrow pure-virtuals (`getName`, `getNamespace`, `estimatedDocumentCount`, `countDocuments`)
+   - `ping()` removed from `DocumentDBConnection`; `getDefaultPort()` removed from `DocumentDBDriver`
+   - `getURIScheme()` now `noexcept`, returns full URL prefix; `supportsReplicaSets()`/`supportsSharding()`/`getDriverVersion()` all `noexcept`
+
+2. **MongoDBDriver — Double-Checked Locking:**
+   - `std::once_flag` → `std::atomic<bool>` + `std::mutex` (compatible with `-fno-exceptions`; allows re-init after `cleanup()`)
+   - Instance `m_mutex` removed; `connectDocument(std::nothrow_t)` calls `MongoDBConnection::create(std::nothrow)`
+
+3. **MongoDBConnection — Static Factory:**
+   - `create(std::nothrow_t, ...)` + private nothrow constructor + `initialize(std::nothrow_t)` helper
+   - Old public throwing constructor removed; all private helpers converted to nothrow
+
+4. **MongoDBDocument — Static Factory + ID Caching:**
+   - `create(std::nothrow_t)` and `create(std::nothrow_t, bson_t*)` static factories
+   - `m_idCached`/`m_cachedId` for BSON `_id` field caching (avoid repeated traversal)
+   - New `document_07.cpp` (776 lines): nothrow setters, field ops, clone/clear/isEmpty
+
+5. **MongoDBCursor/Collection — Full Nothrow:**
+   - Cursor constructor + helpers nothrow; `skip`/`limit`/`sort` use `std::reference_wrapper<DocumentDBCursor>`
+   - Collection: new `getCollectionHandle(std::nothrow_t)` helper
+
+6. **Dead try/catch Elimination:**
+   - Nothrow methods calling only nothrow methods no longer have try/catch blocks (across all MongoDB `.cpp` files)
+
+7. **Other:** `handles.hpp` `makeBsonHandleFromJson()` → nothrow; KV `""` → `std::string{}`; Firebird stub fixes; MySQL/PostgreSQL blob `using MemoryBlob::copyFrom`; 41 files, +5956/-5321 lines
 
 ### Recent Improvements (2026-02-26 18:27 PST)
 

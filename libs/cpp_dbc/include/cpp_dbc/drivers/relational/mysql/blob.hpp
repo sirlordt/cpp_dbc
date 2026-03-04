@@ -20,6 +20,8 @@ namespace cpp_dbc::MySQL
      */
     class MySQLBlob : public MemoryBlob
     {
+        using MemoryBlob::copyFrom; // Unhide base-class copyFrom overloads (cpp:S1242)
+
     private:
         /**
          * @brief Weak reference to the MySQL connection handle

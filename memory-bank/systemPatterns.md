@@ -184,6 +184,15 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - `virtual bool ping() = 0` and `virtual expected<bool, DBException> ping(std::nothrow_t) noexcept = 0` in `DBConnection` base
   - All database families use the same signature; return type is uniformly `bool`
   - Removed family-specific `ping()` from `KVDBConnection` (returned `std::string "PONG"`) and `DocumentDBConnection`
+  - `ping()` also removed from `DocumentDBConnection` abstract interface (2026-03-04) — no longer part of the document connection contract
+- **Nothrow-First Dual-API Architecture — All 7 Drivers:**
+  - All drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) implement the nothrow-first dual-API pattern
+  - `#ifdef __cpp_exceptions` guards: all throwing methods guarded; nothrow methods always compile under `-fno-exceptions`
+  - Static factory pattern: all connection classes use `create(std::nothrow_t, ...)` factories with private nothrow constructors
+  - DBDriver init: all drivers use `std::atomic<bool>` + `std::mutex` double-checked locking (not `std::once_flag`) — re-initializable after `cleanup()`, no `std::system_error` under `-fno-exceptions`
+  - Nothrow methods that call only nothrow methods have no try/catch blocks (dead code elimination per conventions)
+  - Error deferral pattern: private constructors store errors in `m_initFailed` / `m_initError` members; factory checks and propagates via `unexpected`
+  - MongoDB-specific (2026-03-04): `DocumentDBCursor` chaining methods (`skip`, `limit`, `sort`) return `expected<std::reference_wrapper<DocumentDBCursor>, DBException>`; `DocumentDBDriver::getURIScheme()` `noexcept` returning full URL prefix; `getDefaultPort()` removed; `MongoDBDocument` ID caching
 - Member variables prefixed with `m_` to avoid shadowing issues in exception handling
 
 ### Connection Pooling
@@ -343,11 +352,11 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
 - `DocumentDBConnection` → Creates → `DocumentDBCollection`
 - `DocumentDBCollection` → Creates → `DocumentDBCursor` (via find operations)
 - `DocumentDBCursor` → Returns → `DocumentDBData` (via iteration)
-- `MongoDBDriver` → Implements → `DocumentDBDriver`
-- `MongoDBConnection` → Implements → `DocumentDBConnection`
-- `MongoDBCollection` → Implements → `DocumentDBCollection`
-- `MongoDBCursor` → Implements → `DocumentDBCursor`
-- `MongoDBData` → Implements → `DocumentDBData`
+- `MongoDBDriver` → Implements → `DocumentDBDriver` (double-checked locking for C library init)
+- `MongoDBConnection` → Implements → `DocumentDBConnection` (static factory: `create(std::nothrow_t)`)
+- `MongoDBCollection` → Implements → `DocumentDBCollection` (`getCollectionHandle(std::nothrow_t)` helper)
+- `MongoDBCursor` → Implements → `DocumentDBCursor` (nothrow constructor, `std::reference_wrapper` chaining)
+- `MongoDBDocument` → Implements → `DocumentDBData` (static factory, ID caching with `m_idCached`/`m_cachedId`)
 
 ### Connection Pool Components
 - `RelationalDBConnectionPool` → Manages → `PooledRelationalDBConnection`

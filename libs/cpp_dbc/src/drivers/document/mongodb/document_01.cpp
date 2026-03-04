@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file document_01.cpp
- * @brief MongoDB MongoDBDocument - Part 1 (private helpers, constructors, operators)
+ * @brief MongoDB MongoDBDocument - Part 1 (private nothrow constructors, private helpers, throwing wrappers: getId, setId, toJson, toJsonPretty, fromJson)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
@@ -34,13 +34,58 @@ namespace cpp_dbc::MongoDB
 {
 
     // ============================================================================
-    // MongoDBDocument Implementation - Private Helpers
+    // MongoDBDocument Implementation - Private nothrow constructors (always available)
     // ============================================================================
 
-    bool MongoDBDocument::navigateToField(const std::string &fieldPath, bson_iter_t &outIter) const
+    MongoDBDocument::MongoDBDocument(std::nothrow_t) noexcept
+    {
+        // Intentionally empty — m_bson is default-initialized to nullptr via BsonHandle.
+        // Used by create(std::nothrow_t, bson_t*) as a base to assign a handle after construction.
+    }
+
+    MongoDBDocument::MongoDBDocument(std::nothrow_t, bson_t *bson) noexcept
+        : m_bson(bson)
+    {
+        if (!m_bson)
+        {
+            m_initFailed = true;
+            m_initError = DBException("FD8E3A3DQYXQ", "Cannot create document from null BSON pointer", system_utils::captureCallStack());
+        }
+    }
+
+    MongoDBDocument::MongoDBDocument(std::nothrow_t, const std::string &json) noexcept
     {
         MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
+
+        bson_error_t error;
+        bson_t *bson = bson_new_from_json(
+            reinterpret_cast<const uint8_t *>(json.c_str()),
+            static_cast<ssize_t>(json.length()),
+            &error);
+
+        if (!bson)
+        {
+            m_initFailed = true;
+            m_initError = DBException("QSA3OO6XGI66", std::string("Failed to parse JSON: ") + error.message, system_utils::captureCallStack());
+            return;
+        }
+
+        m_bson.reset(bson);
+    }
+
+    // ============================================================================
+    // MongoDBDocument Implementation - Private Helpers (nothrow)
+    // ============================================================================
+
+    expected<bool, DBException> MongoDBDocument::navigateToField(std::nothrow_t, const std::string &fieldPath, bson_iter_t &outIter) const noexcept
+    {
+        MONGODB_LOCK_GUARD(m_mutex);
+
+        auto v = validateDocument(std::nothrow);
+        if (!v.has_value())
+        {
+            return unexpected(v.error());
+        }
 
         bson_iter_t iter;
         if (!bson_iter_init(&iter, m_bson.get()))
@@ -51,7 +96,7 @@ namespace cpp_dbc::MongoDB
         // Handle dot notation for nested fields
         if (fieldPath.contains('.'))
         {
-            return bson_iter_find_descendant(&iter, fieldPath.c_str(), &outIter);
+            return static_cast<bool>(bson_iter_find_descendant(&iter, fieldPath.c_str(), &outIter));
         }
         else
         {
@@ -64,252 +109,142 @@ namespace cpp_dbc::MongoDB
         }
     }
 
-    void MongoDBDocument::validateDocument() const
+    expected<void, DBException> MongoDBDocument::validateDocument(std::nothrow_t) const noexcept
     {
         if (!m_bson)
         {
-            throw DBException("DBA6A185E250", "Document is not initialized", system_utils::captureCallStack());
+            return unexpected(DBException("DBA6A185E250", "Document is not initialized", system_utils::captureCallStack()));
         }
+        return {};
     }
 
     // ============================================================================
-    // MongoDBDocument Implementation - Constructors and Operators
+    // MongoDBDocument Implementation - Throwing API wrappers
+    //                                  (only when exceptions are enabled)
     // ============================================================================
 
-    MongoDBDocument::MongoDBDocument()
-        : m_bson(bson_new())
-    {
-        MONGODB_DEBUG("MongoDBDocument::constructor - Creating empty document");
-        if (!m_bson)
-        {
-            throw DBException("17026ED8C0C9", "Failed to create empty BSON document", system_utils::captureCallStack());
-        }
-        MONGODB_DEBUG("MongoDBDocument::constructor - Done");
-    }
-
-    MongoDBDocument::MongoDBDocument(bson_t *bson)
-        : m_bson(bson)
-    {
-        if (!m_bson)
-        {
-            throw DBException("FA158BABA852", "Cannot create document from null BSON pointer", system_utils::captureCallStack());
-        }
-    }
-
-    MongoDBDocument::MongoDBDocument(const std::string &json)
-    {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        bson_error_t error;
-        bson_t *bson = bson_new_from_json(
-            reinterpret_cast<const uint8_t *>(json.c_str()),
-            static_cast<ssize_t>(json.length()),
-            &error);
-
-        if (!bson)
-        {
-            throw DBException("BA3DA9E3544A", std::string("Failed to parse JSON: ") + error.message, system_utils::captureCallStack());
-        }
-
-        m_bson.reset(bson);
-    }
-
-    MongoDBDocument::MongoDBDocument(const MongoDBDocument &other)
-    {
-        MONGODB_LOCK_GUARD(m_mutex);
-
-        if (other.m_bson)
-        {
-            m_bson.reset(bson_copy(other.m_bson.get()));
-            if (!m_bson)
-            {
-                throw DBException("EE84E381BAF4", "Failed to copy BSON document", system_utils::captureCallStack());
-            }
-        }
-    }
-
-    MongoDBDocument::MongoDBDocument(MongoDBDocument &&other) noexcept
-        : m_bson(std::move(other.m_bson)),
-          m_cachedId(std::move(other.m_cachedId)),
-          m_idCached(other.m_idCached)
-    {
-        other.m_idCached = false;
-    }
-
-    MongoDBDocument &MongoDBDocument::operator=(const MongoDBDocument &other)
-    {
-        if (this != &other)
-        {
-            MONGODB_LOCK_GUARD(m_mutex);
-
-            if (other.m_bson)
-            {
-                m_bson.reset(bson_copy(other.m_bson.get()));
-                if (!m_bson)
-                {
-                    throw DBException("EA9E28036A09", "Failed to copy BSON document", system_utils::captureCallStack());
-                }
-            }
-            else
-            {
-                m_bson.reset();
-            }
-            m_idCached = false;
-            m_cachedId.clear();
-        }
-        return *this;
-    }
-
-    MongoDBDocument &MongoDBDocument::operator=(MongoDBDocument &&other) noexcept
-    {
-        if (this != &other)
-        {
-            m_bson = std::move(other.m_bson);
-            m_cachedId = std::move(other.m_cachedId);
-            m_idCached = other.m_idCached;
-            other.m_idCached = false;
-        }
-        return *this;
-    }
-
-    // ============================================================================
-    // MongoDBDocument Implementation - getId, setId
-    // ============================================================================
+#ifdef __cpp_exceptions
 
     std::string MongoDBDocument::getId() const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
-
-        if (m_idCached)
+        auto r = getId(std::nothrow);
+        if (!r.has_value())
         {
-            return m_cachedId;
+            throw r.error();
         }
-
-        bson_iter_t iter;
-        if (bson_iter_init_find(&iter, m_bson.get(), "_id"))
-        {
-            if (BSON_ITER_HOLDS_OID(&iter))
-            {
-                const bson_oid_t *oid = bson_iter_oid(&iter);
-                std::array<char, 25> oidStr{};
-                bson_oid_to_string(oid, oidStr.data());
-                m_cachedId = oidStr.data();
-                m_idCached = true;
-                return m_cachedId;
-            }
-            else if (BSON_ITER_HOLDS_UTF8(&iter))
-            {
-                uint32_t length = 0;
-                const char *str = bson_iter_utf8(&iter, &length);
-                m_cachedId = std::string(str, length);
-                m_idCached = true;
-                return m_cachedId;
-            }
-        }
-
-        return "";
+        return *r;
     }
 
     void MongoDBDocument::setId(const std::string &id)
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
-
-        // Remove existing _id if present
-        bson_t *newBson = bson_new();
-        if (!newBson)
+        auto r = setId(std::nothrow, id);
+        if (!r.has_value())
         {
-            throw DBException("F842E89C6432", "Failed to create new BSON document", system_utils::captureCallStack());
+            throw r.error();
         }
-
-        // Add the new _id first
-        bson_oid_t oid;
-        if (bson_oid_is_valid(id.c_str(), id.length()))
-        {
-            bson_oid_init_from_string(&oid, id.c_str());
-            BSON_APPEND_OID(newBson, "_id", &oid);
-        }
-        else
-        {
-            BSON_APPEND_UTF8(newBson, "_id", id.c_str());
-        }
-
-        // Copy all other fields
-        bson_iter_t iter;
-        if (bson_iter_init(&iter, m_bson.get()))
-        {
-            while (bson_iter_next(&iter))
-            {
-                const char *key = bson_iter_key(&iter);
-                if (std::string_view(key) != "_id")
-                {
-                    bson_append_iter(newBson, key, -1, &iter);
-                }
-            }
-        }
-
-        m_bson.reset(newBson);
-        m_cachedId = id;
-        m_idCached = true;
     }
-
-    // ============================================================================
-    // MongoDBDocument Implementation - toJson, toJsonPretty, fromJson
-    // ============================================================================
 
     std::string MongoDBDocument::toJson() const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
-
-        size_t length = 0;
-        char *json = bson_as_relaxed_extended_json(m_bson.get(), &length);
-        if (!json)
+        auto r = toJson(std::nothrow);
+        if (!r.has_value())
         {
-            throw DBException("B41282C21719", "Failed to convert document to JSON", system_utils::captureCallStack());
+            throw r.error();
         }
-
-        std::string result(json, length);
-        bson_free(json);
-        return result;
+        return *r;
     }
 
     std::string MongoDBDocument::toJsonPretty() const
     {
-        MONGODB_LOCK_GUARD(m_mutex);
-        validateDocument();
-
-        size_t length = 0;
-        char *json = bson_as_canonical_extended_json(m_bson.get(), &length);
-        if (!json)
+        auto r = toJsonPretty(std::nothrow);
+        if (!r.has_value())
         {
-            throw DBException("9D9EA6A742A4", "Failed to convert document to JSON", system_utils::captureCallStack());
+            throw r.error();
         }
-
-        std::string result(json, length);
-        bson_free(json);
-        return result;
+        return *r;
     }
 
     void MongoDBDocument::fromJson(const std::string &json)
     {
-        MONGODB_LOCK_GUARD(m_mutex);
+        auto r = fromJson(std::nothrow, json);
+        if (!r.has_value())
+        {
+            throw r.error();
+        }
+    }
 
-        bson_error_t error;
-        bson_t *bson = bson_new_from_json(
-            reinterpret_cast<const uint8_t *>(json.c_str()),
-            static_cast<ssize_t>(json.length()),
-            &error);
+#endif // __cpp_exceptions
 
+    // ============================================================================
+    // MongoDBDocument Implementation - Nothrow factories (public, always available)
+    // ============================================================================
+
+    expected<std::shared_ptr<MongoDBDocument>, DBException>
+    MongoDBDocument::create(std::nothrow_t) noexcept
+    {
+        // Use new directly — constructor is private, so std::make_shared cannot access it.
+        // No try/catch: std::bad_alloc from new is treated as unrecoverable (noexcept → terminate).
+        auto obj = std::shared_ptr<MongoDBDocument>(new MongoDBDocument(std::nothrow));
+        obj->m_bson.reset(bson_new());
+        if (!obj->m_bson)
+        {
+            return unexpected<DBException>(DBException(
+                "LPLGD9BE9NM0",
+                "Failed to create empty BSON document",
+                system_utils::captureCallStack()));
+        }
+        return obj;
+    }
+
+    expected<std::shared_ptr<MongoDBDocument>, DBException>
+    MongoDBDocument::create(std::nothrow_t, bson_t *bson) noexcept
+    {
+        // Use new directly — constructor is private, so std::make_shared cannot access it.
+        // The nothrow constructor stores init errors in m_initFailed/m_initError rather than
+        // throwing. No try/catch: std::bad_alloc is unrecoverable (noexcept → terminate).
+        auto obj = std::shared_ptr<MongoDBDocument>(new MongoDBDocument(std::nothrow, bson));
+        if (obj->m_initFailed)
+        {
+            return unexpected<DBException>(obj->m_initError);
+        }
+        return obj;
+    }
+
+    expected<std::shared_ptr<MongoDBDocument>, DBException>
+    MongoDBDocument::create(std::nothrow_t, const std::string &json) noexcept
+    {
+        // Use new directly — constructor is private, so std::make_shared cannot access it.
+        // The nothrow constructor stores init errors in m_initFailed/m_initError rather than
+        // throwing. No try/catch: std::bad_alloc is unrecoverable (noexcept → terminate).
+        auto obj = std::shared_ptr<MongoDBDocument>(new MongoDBDocument(std::nothrow, json));
+        if (obj->m_initFailed)
+        {
+            return unexpected<DBException>(obj->m_initError);
+        }
+        return obj;
+    }
+
+    expected<std::shared_ptr<MongoDBDocument>, DBException>
+    MongoDBDocument::copyFrom(std::nothrow_t, const bson_t *bson) noexcept
+    {
         if (!bson)
         {
-            throw DBException("671F94F63F3D", std::string("Failed to parse JSON: ") + error.message, system_utils::captureCallStack());
+            return unexpected<DBException>(DBException(
+                "Z99M25OOHIBD",
+                "Cannot copy from null BSON pointer",
+                system_utils::captureCallStack()));
         }
 
-        m_bson.reset(bson);
-        m_idCached = false;
-        m_cachedId.clear();
+        bson_t *copy = bson_copy(bson);
+        if (!copy)
+        {
+            return unexpected<DBException>(DBException(
+                "UYBXP3TMVRMC",
+                "Failed to copy BSON document",
+                system_utils::captureCallStack()));
+        }
+
+        return create(std::nothrow, copy);
     }
 
 } // namespace cpp_dbc::MongoDB

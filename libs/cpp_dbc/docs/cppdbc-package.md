@@ -79,10 +79,10 @@ Each database driver implementation is split into multiple focused files within 
 **MongoDB Driver** (`src/drivers/document/mongodb/`):
 - `mongodb_internal.hpp` - Internal declarations and shared definitions
 - `driver_01.cpp` - MongoDBDriver implementation
-- `connection_01.cpp` to `connection_04.cpp` - MongoDBConnection implementation
+- `connection_01.cpp` to `connection_05.cpp` - MongoDBConnection implementation
 - `collection_01.cpp` to `collection_07.cpp` - MongoDBCollection implementation
 - `cursor_01.cpp`, `cursor_02.cpp` - MongoDBCursor implementation
-- `document_01.cpp` to `document_06.cpp` - MongoDBData implementation
+- `document_01.cpp` to `document_07.cpp` - MongoDBDocument implementation
 
 **Redis Driver** (`src/drivers/kv/redis/`):
 - `redis_internal.hpp` - Internal declarations and shared definitions

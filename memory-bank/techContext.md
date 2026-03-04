@@ -20,14 +20,17 @@
 - **MySQL Client Library**: For MySQL database connectivity
   - Uses the C API (`mysql.h`)
   - Requires libmysqlclient development package
-  
+  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory, double-checked locking for driver init, `-fno-exceptions` compatible
+
 - **PostgreSQL Client Library**: For PostgreSQL database connectivity
   - Uses the C API (`libpq-fe.h`)
   - Requires libpq development package
+  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory, double-checked locking for driver init, `-fno-exceptions` compatible
 
 - **SQLite Library**: For SQLite database connectivity
   - Uses the C API (`sqlite3.h`)
   - Requires libsqlite3 development package
+  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory, double-checked locking for driver init, `-fno-exceptions` compatible
 
 - **Firebird Client Library**: For Firebird SQL database connectivity
   - Uses the C API (`ibase.h`)
@@ -37,17 +40,23 @@
   - URL format: `cpp_dbc:firebird://host:port/path/to/database.fdb`
   - Database creation support via `createDatabase()` method
   - Driver-specific commands via `command()` method
+  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory `FirebirdDBConnection::create(std::nothrow_t)`, double-checked locking for driver init, `-fno-exceptions` compatible
 
 - **MongoDB C++ Driver**: For MongoDB document database connectivity
-  - Uses the MongoDB C++ driver API (`mongocxx/client.hpp`, `bsoncxx/json.hpp`)
-  - Requires libmongoc-dev, libbson-dev, libmongocxx-dev, libbsoncxx-dev packages (Debian/Ubuntu)
-  - Requires mongo-c-driver-devel, libbson-devel, mongo-cxx-driver-devel packages (RHEL/Fedora)
+  - Uses the MongoDB C driver API (`mongoc.h`, `bson.h`) via RAII handle wrappers
+  - Requires libmongoc-dev, libbson-dev packages (Debian/Ubuntu)
+  - Requires mongo-c-driver-devel, libbson-devel packages (RHEL/Fedora)
   - Default port: 27017
-  - URL format: `mongodb://host:port/database` or `mongodb://username:password@host:port/database?authSource=admin`
+  - URL format: `cpp_dbc:mongodb://host:port/database` or `cpp_dbc:mongodb://username:password@host:port/database?authSource=admin`
   - Document database operations: insertOne, insertMany, findOne, find, updateOne, updateMany, replaceOne, deleteOne, deleteMany
   - Aggregation pipeline support
   - Index management: createIndex, dropIndex, listIndexes
   - Collection management: createCollection, dropCollection, listCollections
+  - Full nothrow-first dual API: all real logic in nothrow methods, throwing API is thin wrappers (since 2026-03-04)
+  - Static factory pattern: `MongoDBConnection::create(std::nothrow_t)`, `MongoDBDocument::create(std::nothrow_t)`
+  - `-fno-exceptions` compatible: all abstract interfaces guard throwing methods with `#ifdef __cpp_exceptions`
+  - Driver initialization: double-checked locking with `std::atomic<bool>` + `std::mutex` (replaces `std::once_flag`)
+  - ID caching in `MongoDBDocument`: avoids repeated BSON traversal for `_id` field
 
 - **Cassandra/ScyllaDB Client Library**: For ScyllaDB columnar database connectivity
   - Uses the DataStax C++ driver for Apache Cassandra API (`cassandra.h`)
@@ -69,6 +78,8 @@
     - Connection validation with CQL query (`SELECT now() FROM system.local`)
     - Configurable pool parameters (initial size, max size, min idle, etc.)
   - Exception-free API with nothrow variants returning `expected<T, DBException>`
+  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory `ScyllaDBConnection::create(std::nothrow_t)`, double-checked locking for driver init
+  - `-fno-exceptions` compatible: all abstract interfaces guard throwing methods; nothrow API always compiles
   - Build system: `USE_SCYLLADB` option (renamed from `USE_SCYLLA`)
 
 - **Redis Client Library**: For Redis key-value database connectivity
@@ -86,6 +97,8 @@
   - Counter operations: increment, decrement
   - Scan operations for pattern-based key discovery
   - Server operations: `ping()` returns `bool` (true = server alive), `getServerInfo()`, `flushDB()`
+  - Full nothrow-first dual API: `#ifdef __cpp_exceptions` guards, static factory `RedisDBConnection::create(std::nothrow_t)`, double-checked locking for driver init
+  - `-fno-exceptions` compatible: all abstract interfaces guard throwing methods; nothrow API always compiles
 
 - **YAML-CPP Library**: For YAML configuration support (optional)
   - Used for parsing YAML configuration files
@@ -137,7 +150,7 @@ The project uses:
   - Each database driver .cpp implementation is split into multiple focused files within dedicated subdirectories
   - Internal headers (`*_internal.hpp`) contain shared declarations and definitions
   - Split files: `driver_*.cpp`, `connection_*.cpp`, `prepared_statement_*.cpp`, `result_set_*.cpp`
-  - MongoDB-specific: `collection_*.cpp`, `cursor_*.cpp`, `document_*.cpp`
+  - MongoDB-specific: `collection_*.cpp` (7 files), `cursor_*.cpp` (2 files), `document_*.cpp` (7 files)
   - File counts per relational driver: MySQL (4 result_set, 3 prepared_statement, 3 connection), PostgreSQL (4 result_set), SQLite (5 result_set), Firebird (5 result_set, 4 prepared_statement, 4 connection)
   - Canonical method ordering across all result sets: `close` → `isEmpty` → `next` → navigation → type accessors (by-index/by-name interleaved) → metadata → blob/binary (separate file)
   - Benefits: faster incremental compilation, better code organization, easier navigation, consistent structure across drivers

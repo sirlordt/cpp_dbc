@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file collection_06.cpp
- * @brief MongoDB MongoDBCollection - Part 6 (COLLECTION nothrow versions: drop, rename, aggregate, distinct)
+ * @brief MongoDB MongoDBCollection - Part 6 (nothrow API: createIndex, dropIndex, dropAllIndexes, listIndexes)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
@@ -34,271 +34,114 @@ namespace cpp_dbc::MongoDB
 {
 
     // ====================================================================
-    // COLLECTION OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
+    // NOTHROW API - createIndex, dropIndex, dropAllIndexes, listIndexes (implementations)
     // ====================================================================
 
-    expected<void, DBException> MongoDBCollection::drop(
-        std::nothrow_t) noexcept
-    {
-        try
-        {
-            MONGODB_DEBUG("MongoDBCollection::drop(nothrow)");
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "A2B3C4D5E6F7",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
-
-            bson_error_t error;
-            bool success = mongoc_collection_drop(m_collection.get(), &error);
-
-            if (!success)
-            {
-                return unexpected<DBException>(DBException(
-                    "B3C4D5E6F7A8",
-                    std::string("drop failed: ") + error.message,
-                    system_utils::captureCallStack()));
-            }
-
-            return {};
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "C4D5E6F7A8B9",
-                std::string("Unexpected error in drop: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "D5E6F7A8B9C0",
-                "Unknown error in drop",
-                system_utils::captureCallStack()));
-        }
-    }
-
-    expected<void, DBException> MongoDBCollection::rename(
+    expected<std::string, DBException> MongoDBCollection::createIndex(
         std::nothrow_t,
-        const std::string &newName,
-        bool dropTarget) noexcept
+        const std::string &keys,
+        const std::string &options) noexcept
     {
         try
         {
-            MONGODB_DEBUG("MongoDBCollection::rename(nothrow) to: " << newName);
+            MONGODB_DEBUG("MongoDBCollection::createIndex(nothrow) - Creating index in: " << m_name);
             MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "E6F7A8B9C0D1",
+                    "0YQZ6L3A2KIT",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
 
-            bson_error_t error;
-            bool success = mongoc_collection_rename(
-                m_collection.get(), m_databaseName.c_str(), newName.c_str(), dropTarget, &error);
-
-            if (!success)
+            auto keysBsonResult = makeBsonHandleFromJson(std::nothrow, keys);
+            if (!keysBsonResult.has_value())
             {
-                return unexpected<DBException>(DBException(
-                    "F7A8B9C0D1E2",
-                    std::string("rename failed: ") + error.message,
-                    system_utils::captureCallStack()));
+                return unexpected<DBException>(keysBsonResult.error());
             }
+            BsonHandle keysBson = std::move(keysBsonResult.value());
 
-            m_name = newName;
-            return {};
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "A8B9C0D1E2F3",
-                std::string("Unexpected error in rename: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "B9C0D1E2F3A4",
-                "Unknown error in rename",
-                system_utils::captureCallStack()));
-        }
-    }
+            mongoc_index_opt_t indexOpts;
+            mongoc_index_opt_init(&indexOpts);
 
-    expected<std::shared_ptr<DocumentDBCursor>, DBException> MongoDBCollection::aggregate(
-        std::nothrow_t,
-        const std::string &pipeline) noexcept
-    {
-        try
-        {
-            MONGODB_DEBUG("MongoDBCollection::aggregate(nothrow)");
-            MONGODB_LOCK_GUARD(*m_connMutex);
+            bool isUnique = false;
+            bool isSparse = false;
+            std::string indexName;
 
-            if (m_client.expired())
+            if (!options.empty())
             {
-                return unexpected<DBException>(DBException(
-                    "C0D1E2F3A4B5",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
+                bson_error_t parseError;
+                bson_t *optsBson = bson_new_from_json(
+                    reinterpret_cast<const uint8_t *>(options.c_str()),
+                    static_cast<ssize_t>(options.length()),
+                    &parseError);
 
-            BsonHandle pipelineBson = makeBsonHandleFromJson(pipeline);
-
-            mongoc_cursor_t *cursor = mongoc_collection_aggregate(
-                m_collection.get(), MONGOC_QUERY_NONE, pipelineBson.get(), nullptr, nullptr);
-
-            if (!cursor)
-            {
-                return unexpected<DBException>(DBException(
-                    "I3J4K5L6M7N8",
-                    "Failed to create cursor for aggregate",
-                    system_utils::captureCallStack()));
-            }
-
-            auto mongoCursor = std::make_shared<MongoDBCursor>(m_client, cursor, m_connection
-#if DB_DRIVER_THREAD_SAFE
-                , m_connMutex
-#endif
-            );
-
-            // Register cursor with connection for cleanup tracking
-            if (auto conn = m_connection.lock())
-            {
-                conn->registerCursor(mongoCursor);
-            }
-
-            return std::shared_ptr<DocumentDBCursor>(mongoCursor);
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "D1E2F3A4B5C6",
-                "Memory allocation failed in aggregate",
-                system_utils::captureCallStack()));
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "E2F3A4B5C6D7",
-                std::string("Unexpected error in aggregate: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "F3A4B5C6D7E8",
-                "Unknown error in aggregate",
-                system_utils::captureCallStack()));
-        }
-    }
-
-    expected<std::vector<std::string>, DBException> MongoDBCollection::distinct(
-        std::nothrow_t,
-        const std::string &fieldPath,
-        const std::string &filter) noexcept
-    {
-        try
-        {
-            MONGODB_DEBUG("MongoDBCollection::distinct(nothrow)");
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "A4B5C6D7E8F9",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
-
-            std::vector<std::string> result;
-
-            bson_t cmd = BSON_INITIALIZER;
-            BSON_APPEND_UTF8(&cmd, "distinct", m_name.c_str());
-            BSON_APPEND_UTF8(&cmd, "key", fieldPath.c_str());
-
-            if (!filter.empty())
-            {
-                BsonHandle filterBson = parseFilter(filter);
-                BSON_APPEND_DOCUMENT(&cmd, "query", filterBson.get());
-            }
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            auto client = getClient();
-            MongoDatabaseHandle db(mongoc_client_get_database(client, m_databaseName.c_str()));
-
-            bool success = mongoc_database_command_simple(db.get(), &cmd, nullptr, &reply, &error);
-
-            bson_destroy(&cmd);
-
-            if (!success)
-            {
-                bson_destroy(&reply);
-                return unexpected<DBException>(DBException(
-                    "B5C6D7E8F9A0",
-                    std::string("distinct failed: ") + error.message,
-                    system_utils::captureCallStack()));
-            }
-
-            // Extract values from reply
-            bson_iter_t iter;
-            if (bson_iter_init_find(&iter, &reply, "values") && BSON_ITER_HOLDS_ARRAY(&iter))
-            {
-                bson_iter_t arrayIter;
-                const uint8_t *data = nullptr;
-                uint32_t length = 0;
-                bson_iter_array(&iter, &length, &data);
-
-                bson_t arrayBson;
-                if (bson_init_static(&arrayBson, data, length) && bson_iter_init(&arrayIter, &arrayBson))
+                if (!optsBson)
                 {
-                    while (bson_iter_next(&arrayIter))
-                    {
-                        if (BSON_ITER_HOLDS_UTF8(&arrayIter))
-                        {
-                            uint32_t strLen = 0;
-                            const char *str = bson_iter_utf8(&arrayIter, &strLen);
-                            result.emplace_back(str, strLen);
-                        }
-                        else
-                        {
-                            // Convert other types to JSON string
-                            bson_t tempDoc = BSON_INITIALIZER;
-                            bson_append_iter(&tempDoc, "v", 1, &arrayIter);
-                            size_t jsonLen = 0;
-                            char *json = bson_as_relaxed_extended_json(&tempDoc, &jsonLen);
-                            if (json)
-                            {
-                                result.emplace_back(json, jsonLen);
-                                bson_free(json);
-                            }
-                            bson_destroy(&tempDoc);
-                        }
-                    }
+                    return unexpected<DBException>(DBException(
+                        "B5C6D7E8F9A1",
+                        std::string("Failed to parse index options JSON: ") + parseError.message,
+                        system_utils::captureCallStack()));
                 }
+
+                bson_iter_t iter;
+                if (bson_iter_init_find(&iter, optsBson, "unique") && BSON_ITER_HOLDS_BOOL(&iter))
+                {
+                    isUnique = bson_iter_bool(&iter);
+                }
+                if (bson_iter_init_find(&iter, optsBson, "sparse") && BSON_ITER_HOLDS_BOOL(&iter))
+                {
+                    isSparse = bson_iter_bool(&iter);
+                }
+                if (bson_iter_init_find(&iter, optsBson, "name") && BSON_ITER_HOLDS_UTF8(&iter))
+                {
+                    uint32_t len = 0;
+                    const char *name = bson_iter_utf8(&iter, &len);
+                    indexName = std::string(name, len);
+                }
+                bson_destroy(optsBson);
             }
 
-            bson_destroy(&reply);
+            indexOpts.unique = isUnique;
+            indexOpts.sparse = isSparse;
+            if (!indexName.empty())
+            {
+                indexOpts.name = indexName.c_str();
+            }
+
+            char *generatedName = mongoc_collection_keys_to_index_string(keysBson.get());
+            std::string result;
+            if (indexName.empty())
+            {
+                result = generatedName ? generatedName : "";
+            }
+            else
+            {
+                result = indexName;
+            }
+            bson_free(generatedName);
+
+            bson_error_t error;
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+            bool success = mongoc_collection_create_index(
+                m_collection.get(), keysBson.get(), &indexOpts, &error);
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
+            if (!success)
+            {
+                return unexpected<DBException>(DBException(
+                    "7XT99XJD1MTY",
+                    std::string("createIndex failed: ") + error.message,
+                    system_utils::captureCallStack()));
+            }
+
             return result;
         }
         catch (const DBException &ex)
@@ -308,22 +151,219 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "C6D7E8F9A0B1",
-                "Memory allocation failed in distinct",
+                "9LPAK5FMMYYG",
+                "Memory allocation failed in createIndex",
                 system_utils::captureCallStack()));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "D7E8F9A0B1C2",
-                std::string("Unexpected error in distinct: ") + ex.what(),
+                "6S4ZDEJIWD46",
+                std::string("Unexpected error in createIndex: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "E8F9A0B1C2D3",
-                "Unknown error in distinct",
+                "2X6F38U6BCGB",
+                "Unknown error in createIndex",
+                system_utils::captureCallStack()));
+        }
+    }
+
+    expected<void, DBException> MongoDBCollection::dropIndex(
+        std::nothrow_t,
+        const std::string &indexName) noexcept
+    {
+        try
+        {
+            MONGODB_DEBUG("MongoDBCollection::dropIndex(nothrow) - Dropping index: " << indexName);
+            MONGODB_LOCK_GUARD(*m_connMutex);
+
+            if (m_client.expired())
+            {
+                return unexpected<DBException>(DBException(
+                    "VEL150XDHYR0",
+                    "Connection has been closed",
+                    system_utils::captureCallStack()));
+            }
+
+            bson_error_t error;
+            bool success = mongoc_collection_drop_index(m_collection.get(), indexName.c_str(), &error);
+
+            if (!success)
+            {
+                return unexpected<DBException>(DBException(
+                    "FJBVW4E7VW6I",
+                    std::string("dropIndex failed: ") + error.message,
+                    system_utils::captureCallStack()));
+            }
+
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "2RZ9WXVWKBYD",
+                std::string("Unexpected error in dropIndex: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return unexpected<DBException>(DBException(
+                "530EXDK9GE03",
+                "Unknown error in dropIndex",
+                system_utils::captureCallStack()));
+        }
+    }
+
+    expected<void, DBException> MongoDBCollection::dropAllIndexes(
+        std::nothrow_t) noexcept
+    {
+        try
+        {
+            MONGODB_DEBUG("MongoDBCollection::dropAllIndexes(nothrow)");
+            MONGODB_LOCK_GUARD(*m_connMutex);
+
+            if (m_client.expired())
+            {
+                return unexpected<DBException>(DBException(
+                    "N0T9W636KMQL",
+                    "Connection has been closed",
+                    system_utils::captureCallStack()));
+            }
+
+            bson_t cmd = BSON_INITIALIZER;
+            BSON_APPEND_UTF8(&cmd, "dropIndexes", m_name.c_str());
+            BSON_APPEND_UTF8(&cmd, "index", "*");
+
+            bson_error_t error;
+            bson_t reply;
+            bson_init(&reply);
+
+            auto clientResult = getClient(std::nothrow);
+            if (!clientResult.has_value())
+            {
+                return unexpected<DBException>(clientResult.error());
+            }
+            MongoDatabaseHandle db(mongoc_client_get_database(clientResult.value(), m_databaseName.c_str()));
+
+            bool success = mongoc_database_command_simple(db.get(), &cmd, nullptr, &reply, &error);
+
+            bson_destroy(&cmd);
+            bson_destroy(&reply);
+
+            if (!success)
+            {
+                return unexpected<DBException>(DBException(
+                    "SOKCW51FVEH5",
+                    std::string("dropAllIndexes failed: ") + error.message,
+                    system_utils::captureCallStack()));
+            }
+
+            return {};
+        }
+        catch (const DBException &ex)
+        {
+            return unexpected<DBException>(ex);
+        }
+        catch (const std::exception &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "FA4WVLT3XAI7",
+                std::string("Unexpected error in dropAllIndexes: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return unexpected<DBException>(DBException(
+                "HJSHBTM33109",
+                "Unknown error in dropAllIndexes",
+                system_utils::captureCallStack()));
+        }
+    }
+
+    expected<std::vector<std::string>, DBException> MongoDBCollection::listIndexes(
+        std::nothrow_t) noexcept
+    {
+        try
+        {
+            MONGODB_DEBUG("MongoDBCollection::listIndexes(nothrow)");
+            MONGODB_LOCK_GUARD(*m_connMutex);
+
+            if (m_client.expired())
+            {
+                return unexpected<DBException>(DBException(
+                    "UUX8YNHN90X5",
+                    "Connection has been closed",
+                    system_utils::captureCallStack()));
+            }
+
+            std::vector<std::string> result;
+
+            mongoc_cursor_t *cursor = mongoc_collection_find_indexes_with_opts(
+                m_collection.get(), nullptr);
+
+            if (!cursor)
+            {
+                return unexpected<DBException>(DBException(
+                    "G1H2I3J4K5L6",
+                    "Failed to list indexes",
+                    system_utils::captureCallStack()));
+            }
+
+            const bson_t *doc = nullptr;
+            while (mongoc_cursor_next(cursor, &doc))
+            {
+                size_t length = 0;
+                char *json = bson_as_relaxed_extended_json(doc, &length);
+                if (json)
+                {
+                    result.emplace_back(json, length);
+                    bson_free(json);
+                }
+            }
+
+            bson_error_t error;
+            if (mongoc_cursor_error(cursor, &error))
+            {
+                mongoc_cursor_destroy(cursor);
+                return unexpected<DBException>(DBException(
+                    "H2I3J4K5L6M7",
+                    std::string("listIndexes error: ") + error.message,
+                    system_utils::captureCallStack()));
+            }
+
+            mongoc_cursor_destroy(cursor);
+            return result;
+        }
+        catch (const DBException &ex)
+        {
+            return unexpected<DBException>(ex);
+        }
+        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "SEBH3RD25UXD",
+                "Memory allocation failed in listIndexes",
+                system_utils::captureCallStack()));
+        }
+        catch (const std::exception &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "UXFKWGMA9P3P",
+                std::string("Unexpected error in listIndexes: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return unexpected<DBException>(DBException(
+                "J6QVBK077HHA",
+                "Unknown error in listIndexes",
                 system_utils::captureCallStack()));
         }
     }

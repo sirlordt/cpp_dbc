@@ -1,6 +1,76 @@
 # Changelog
 
-## 2026-02-26 18:27:31 PST [Current]
+## 2026-03-04 14:29:42 PST [Current]
+
+### MongoDB Driver — Full Nothrow-First Refactor, Static Factory Pattern, `-fno-exceptions` Compatibility, and Dead try/catch Elimination
+
+This release systematically migrates the entire MongoDB document driver layer to the project's dual-API (throwing + nothrow) pattern with `-fno-exceptions` compatibility — the same architecture already established in MySQL, PostgreSQL, SQLite, Firebird, ScyllaDB, and Redis drivers. MongoDB was the last driver to adopt this pattern. The nothrow API now contains all real implementations, and the throwing API is reduced to thin wrappers. Dead try/catch blocks around nothrow-only call chains are removed throughout. All 7 drivers now share the same nothrow-first, static factory, double-checked locking architecture. 41 files changed, +5956/-5321 lines.
+
+#### Core Abstract Interfaces — `#ifdef __cpp_exceptions` Guard Separation
+
+All five document abstract interfaces (`DocumentDBCollection`, `DocumentDBConnection`, `DocumentDBCursor`, `DocumentDBData`, `DocumentDBDriver`) now wrap throwing virtual methods inside `#ifdef __cpp_exceptions` / `#endif`. Nothrow methods sit outside this guard, ensuring they always compile even under `-fno-exceptions`.
+
+- **`DocumentDBCollection`**: New nothrow pure-virtuals added: `getName(std::nothrow_t)`, `getNamespace(std::nothrow_t)`, `estimatedDocumentCount(std::nothrow_t)`, `countDocuments(std::nothrow_t)`
+- **`DocumentDBConnection`**: `ping()` and `ping(std::nothrow_t)` removed from abstract interface (no longer part of the document connection contract)
+- **`DocumentDBCursor`**: 9 new nothrow pure-virtuals: `next`, `hasNext`, `count`, `getPosition`, `skip`, `limit`, `sort`, `isExhausted`, `rewind` (with `std::reference_wrapper<DocumentDBCursor>` return type for chaining methods)
+- **`DocumentDBData`**: Largest expansion — new nothrow pure-virtuals for: `getId`, `setId`, `toJson`, `toJsonPretty`, `fromJson`, all setters (`setString`, `setInt`, `setDouble`, `setBool`, `setBinary`, `setDocument`, `setNull`), `hasField`, `isNull`, `removeField`, `getFieldNames`, `clear`, `isEmpty`
+- **`DocumentDBDriver`**: `getDefaultPort()` removed; `getURIScheme()` gains `noexcept` and now returns full URL prefix (e.g., `"cpp_dbc:mongodb://"`); `supportsReplicaSets()`, `supportsSharding()`, `getDriverVersion()` all marked `noexcept`; inline `connect(std::nothrow_t)` override added
+
+#### MongoDBDriver — Double-Checked Locking + Nothrow Init
+
+- `std::once_flag s_initFlag` replaced with `std::atomic<bool> s_initialized` + `std::mutex s_initMutex` — enables re-initialization after `cleanup()` (`once_flag` cannot be reset) and avoids `std::system_error` from `std::call_once` under `-fno-exceptions`
+- New `initialize(std::nothrow_t) noexcept` returning `expected<bool, DBException>` — follows the DBDriver double-checked locking pattern
+- Instance-level `m_mutex` removed — thread safety handled at connection level
+- `connectDocument(std::nothrow_t)` now calls `MongoDBConnection::create(std::nothrow, ...)` static factory
+- `parseURI(std::nothrow_t)` — dead try/catch removed (all `mongoc_uri_get_*` are C functions that cannot throw)
+
+#### MongoDBConnection — Static Factory Pattern
+
+- New private nothrow constructor: `MongoDBConnection(std::nothrow_t, ...) noexcept`
+- New `initialize(std::nothrow_t)` private helper — performs URI parsing, client creation, database selection
+- New static factory: `create(std::nothrow_t, ...) noexcept` returning `expected<shared_ptr<MongoDBConnection>, DBException>`
+- Old public throwing constructor removed
+- Private helpers converted: `validateConnection()`, `getClient()`, `getCollection()` → nothrow with `std::nothrow_t` + `expected` return
+
+#### MongoDBCollection — Nothrow Helpers
+
+- Private helpers converted: `validateConnection()`, `getClient()`, `getCollection()` → nothrow
+- New `getCollectionHandle(std::nothrow_t) noexcept` — combines client + collection retrieval into a single operation
+
+#### MongoDBCursor — Full Nothrow API
+
+- Constructor converted to nothrow: `MongoDBCursor(std::nothrow_t, ...) noexcept`
+- Private helpers `validateConnection`, `initializeCursor`, `parseDocument` all converted to nothrow
+- `skip`, `limit`, `sort` return `expected<std::reference_wrapper<DocumentDBCursor>, DBException>`
+- `rewind(std::nothrow_t)` always returns `unexpected` (MongoDB cursors do not support rewinding)
+
+#### MongoDBDocument — Static Factory + ID Caching
+
+- Constructors converted to nothrow: `MongoDBDocument(std::nothrow_t)` and `MongoDBDocument(std::nothrow_t, bson_t*)`
+- Static factories: `create(std::nothrow_t)` and `create(std::nothrow_t, bson_t*)`
+- ID caching: `m_idCached` / `m_cachedId` members avoid repeated BSON traversal for the `_id` field
+- New `document_07.cpp` (776 lines) — nothrow implementations for: `getDocumentArray`, `getStringArray`, all setters, `hasField`, `isNull`, `removeField`, `getFieldNames`, `clone`, `clear`, `isEmpty`, `getBson`, `getBsonMutable`
+
+#### `handles.hpp` — `makeBsonHandleFromJson()` Nothrow
+
+- Throwing version removed; replaced by `expected<BsonHandle, DBException> makeBsonHandleFromJson(std::nothrow_t, ...) noexcept`
+
+#### Dead try/catch Elimination
+
+Nothrow methods that call only other nothrow methods no longer have try/catch blocks. This follows the project convention "No Redundant try/catch in Nothrow Methods" and the "Diagnostic Checklist" for detecting dead code. Applied across all MongoDB `.cpp` files.
+
+#### Other Changes
+
+- **CMakeLists.txt**: `document_07.cpp` uncommented in MongoDB source list
+- **KV driver**: `""` → `std::string{}` for default parameter in `buildURI()` (kv_db_driver.hpp, redis/driver.hpp)
+- **Redis connection.hpp**: Added `NOSONAR(cpp:S5950)` suppression for intentional raw `new` in static factory
+- **Firebird driver.hpp stub**: Added missing `const` qualifiers and `override` keyword
+- **MySQL/PostgreSQL blob.hpp**: Added `using MemoryBlob::copyFrom;` to unhide base-class overloads (SonarQube cpp:S1242)
+- **Document connection pool**: Added `NOSONAR(cpp:S924)` comments on intentional `break` statements in maintenance loops
+
+---
+
+## 2026-02-26 18:27:31 PST
 
 ### DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations
 

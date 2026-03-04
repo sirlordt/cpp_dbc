@@ -37,7 +37,33 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations** (2026-02-26 18:27 PST):
+1. **MongoDB Driver — Full Nothrow-First Refactor, Static Factory Pattern, `-fno-exceptions` Compatibility** (2026-03-04 14:29 PST):
+   - **Core Abstract Interfaces — `#ifdef __cpp_exceptions` Guard Separation:**
+     - All 5 document interfaces guard throwing methods with `#ifdef __cpp_exceptions`; nothrow methods always compile under `-fno-exceptions`
+     - `DocumentDBCursor`: +9 new nothrow pure-virtuals (`next`, `hasNext`, `count`, `getPosition`, `skip`, `limit`, `sort`, `isExhausted`, `rewind`)
+     - `DocumentDBData`: +17 nothrow pure-virtuals (all getters, setters, field ops)
+     - `DocumentDBCollection`: +4 nothrow pure-virtuals (`getName`, `getNamespace`, `estimatedDocumentCount`, `countDocuments`)
+     - `DocumentDBConnection`: `ping()` removed from abstract interface
+     - `DocumentDBDriver`: `getDefaultPort()` removed; `getURIScheme()` now `noexcept` returning full URL prefix; `supportsReplicaSets()`/`supportsSharding()`/`getDriverVersion()` all `noexcept`
+   - **MongoDBDriver — Double-Checked Locking:**
+     - `std::once_flag` → `std::atomic<bool>` + `std::mutex` (compatible with `-fno-exceptions`; allows re-init after `cleanup()`)
+     - Instance-level `m_mutex` removed; `connectDocument(std::nothrow_t)` calls `MongoDBConnection::create(std::nothrow)`
+   - **MongoDBConnection — Static Factory:**
+     - `create(std::nothrow_t, ...)` + private nothrow constructor + `initialize(std::nothrow_t)` helper
+     - Old public throwing constructor removed; all helpers converted to nothrow
+   - **MongoDBDocument — Static Factory + ID Caching:**
+     - `create(std::nothrow_t)` and `create(std::nothrow_t, bson_t*)` static factories
+     - `m_idCached`/`m_cachedId` for BSON `_id` field caching
+     - New `document_07.cpp` (776 lines): nothrow setters, field ops, clone/clear/isEmpty, getBson/getBsonMutable
+   - **MongoDBCursor/Collection — Full Nothrow:**
+     - Cursor constructor and helpers converted to nothrow; `skip`/`limit`/`sort` use `std::reference_wrapper<DocumentDBCursor>`
+     - Collection: new `getCollectionHandle(std::nothrow_t)` helper
+   - **Dead try/catch elimination** across all MongoDB `.cpp` files
+   - **Note:** MongoDB was the last driver to adopt these patterns — MySQL, PostgreSQL, SQLite, Firebird, ScyllaDB, and Redis already implement them. All 7 drivers now share the same nothrow-first, static factory, double-checked locking, and `-fno-exceptions` compatible architecture.
+   - **Other:** KV `""` → `std::string{}`; Firebird stub fixes; MySQL/PostgreSQL blob `using MemoryBlob::copyFrom`
+   - 41 files changed, +5956/-5321 lines
+
+2. **DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations** (2026-02-26 18:27 PST):
    - **`DBException` — Fixed-Size Memory Layout:**
      - Now inherits from `std::exception` (was `std::runtime_error`); constructor is `noexcept`
      - `m_mark[13]`, `m_message[257]`, `m_full_message[271]` — fixed-size char arrays (no heap allocation)

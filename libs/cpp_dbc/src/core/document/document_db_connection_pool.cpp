@@ -811,7 +811,7 @@ namespace cpp_dbc
             // Replenish connections that were invalidated in returnConnection().
             // Created here asynchronously so the returning thread is not blocked
             // by connection-creation I/O (1.3s+ under Valgrind).
-            while (m_running.load(std::memory_order_acquire))
+            while (m_running.load(std::memory_order_acquire)) // NOSONAR(cpp:S924) — two breaks needed: one for "nothing to replenish", one for creation failure
             {
                 {
                     std::scoped_lock lock(m_mutexPool);
@@ -863,7 +863,7 @@ namespace cpp_dbc
 
             // Replenish minIdle connections OUTSIDE lock
             // (createPooledDBConnection may acquire driver-internal locks)
-            while (m_running.load(std::memory_order_acquire))
+            while (m_running.load(std::memory_order_acquire)) // NOSONAR(cpp:S924) — two breaks needed: one for "minIdle reached", one for creation failure
             {
                 {
                     std::scoped_lock lock(m_mutexPool);

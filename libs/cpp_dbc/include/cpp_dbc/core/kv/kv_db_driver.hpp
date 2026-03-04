@@ -115,7 +115,7 @@ namespace cpp_dbc
         virtual std::string buildURI(
             const std::string &host,
             int port,
-            const std::string &db = "",
+            const std::string &db = std::string{},
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
 
 #endif // __cpp_exceptions

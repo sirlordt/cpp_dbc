@@ -236,7 +236,7 @@ namespace cpp_dbc::Redis
             {
                 // Use the private nothrow constructor directly (static member has access).
                 // Avoid std::make_shared here because it cannot call private constructors.
-                auto conn = std::shared_ptr<RedisDBConnection>(
+                auto conn = std::shared_ptr<RedisDBConnection>( // NOSONAR(cpp:S5950) — private ctor
                     new RedisDBConnection(std::nothrow, uri, user, password, options));
                 if (conn->m_initFailed)
                 {
