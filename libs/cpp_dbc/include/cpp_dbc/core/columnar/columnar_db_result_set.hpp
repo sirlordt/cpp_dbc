@@ -70,6 +70,7 @@ namespace cpp_dbc
          * @brief Move to the next row in the result set
          * @return true if there is a next row, false if at end
          */
+        #ifdef __cpp_exceptions
         virtual bool next() = 0;
 
         /** @brief Check if cursor is before the first row */
@@ -155,6 +156,7 @@ namespace cpp_dbc
         /** @brief Get a binary column as a byte vector by name */
         virtual std::vector<uint8_t> getBytes(const std::string &columnName) = 0;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

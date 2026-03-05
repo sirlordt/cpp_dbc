@@ -94,21 +94,31 @@ namespace cpp_dbc
         TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
         std::vector<std::shared_ptr<DocumentPooledDBConnection>> m_allConnections;
         std::queue<std::shared_ptr<DocumentPooledDBConnection>> m_idleConnections;
-        mutable std::mutex m_mutexPool;                 // Protects m_allConnections + m_idleConnections + CVs + m_waitQueue
-        std::condition_variable m_maintenanceCondition; // Wakes maintenance thread on close()
-        std::condition_variable m_connectionAvailable;  // Wakes borrowers (direct handoff or state change)
+        mutable std::mutex m_mutexPool;                 // Protects m_allConnections + m_idleConnections + m_waitQueue + m_pendingCreations + m_replenishNeeded
+        std::condition_variable m_maintenanceCondition; // Wakes maintenance thread on close() or replenish needed
         std::atomic<bool> m_running{true};
         std::atomic<int> m_activeConnections{0};
-        size_t m_pendingCreations{0}; // Connections being created outside lock (guarded by m_mutexPool)
+        size_t m_pendingCreations{0};  // Connections being created outside lock (guarded by m_mutexPool)
+        size_t m_replenishNeeded{0};   // Replacement connections requested by returnConnection() (guarded by m_mutexPool)
         std::jthread m_maintenanceThread;
 
         // Direct handoff mechanism: eliminates "stolen wakeup" race condition.
+        // Each waiter has its own condition_variable so that handoffs wake only the
+        // targeted waiter — not every sleeping thread (eliminates thundering herd).
+        // Multiple std::condition_variable instances sharing the same std::mutex is
+        // explicitly safe per the C++ standard; the CV-mutex association exists only
+        // for the duration of a single wait() call.
         struct ConnectionRequest
         {
             std::shared_ptr<DocumentPooledDBConnection> conn;
             bool fulfilled{false};
+            std::condition_variable cv; // Per-waiter: only this waiter is woken on handoff
         };
         std::deque<ConnectionRequest *> m_waitQueue;
+
+        // Notifies the first waiter in the queue, or no-op if the queue is empty.
+        // PRECONDITION: m_mutexPool must be held by the caller.
+        void notifyFirstWaiter() noexcept;
 
         // Creates a new physical connection
         cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException> createDBConnection(std::nothrow_t) noexcept;
@@ -127,7 +137,7 @@ namespace cpp_dbc
 
     protected:
         // Sets the transaction isolation level for the pool
-        void setPoolTransactionIsolation(TransactionIsolationLevel level) override
+        void setPoolTransactionIsolation(TransactionIsolationLevel level) noexcept override
         {
             m_transactionIsolation = level;
         }
@@ -181,6 +191,7 @@ namespace cpp_dbc
 
         ~DocumentDBConnectionPool() override;
 
+        #ifdef __cpp_exceptions
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
 
@@ -198,6 +209,7 @@ namespace cpp_dbc
         // Check if pool is running
         bool isRunning() const override;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -218,7 +230,7 @@ namespace cpp_dbc
      * pooling functionality, returning the connection to the pool when closed
      * rather than actually closing the physical connection.
      */
-    class DocumentPooledDBConnection : public DBConnectionPooled, public DocumentDBConnection, public std::enable_shared_from_this<DocumentPooledDBConnection>
+    class DocumentPooledDBConnection final : public DBConnectionPooled, public DocumentDBConnection, public std::enable_shared_from_this<DocumentPooledDBConnection>
     {
     private:
         std::shared_ptr<DocumentDBConnection> m_conn;
@@ -251,6 +263,7 @@ namespace cpp_dbc
                                    std::shared_ptr<std::atomic<bool>> poolAlive);
         ~DocumentPooledDBConnection() override;
 
+        #ifdef __cpp_exceptions
         // Overridden DBConnection interface methods
         void close() override;
         bool isClosed() const override;
@@ -286,7 +299,9 @@ namespace cpp_dbc
         void abortTransaction(const std::string &sessionId) override;
         bool supportsTransactions() override;
         void prepareForPoolReturn() override;
+        void prepareForBorrow() override;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -331,6 +346,7 @@ namespace cpp_dbc
         expected<void, DBException> abortTransaction(std::nothrow_t, const std::string &sessionId) noexcept override;
         expected<bool, DBException> supportsTransactions(std::nothrow_t) noexcept override;
         expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
         // DBConnectionPooled interface methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime(std::nothrow_t) const noexcept override;
@@ -341,8 +357,10 @@ namespace cpp_dbc
         // Implementation of DBConnectionPooled interface
         std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
 
+        #ifdef __cpp_exceptions
         // DocumentPooledDBConnection specific method
         std::shared_ptr<DocumentDBConnection> getUnderlyingDocumentConnection();
+        #endif // __cpp_exceptions
     };
 
     // Specialized connection pool for MongoDB

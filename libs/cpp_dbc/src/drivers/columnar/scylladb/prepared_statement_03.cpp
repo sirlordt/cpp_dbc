@@ -47,7 +47,7 @@ namespace cpp_dbc::ScyllaDB
         if (!m_statement)
         {
             SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Statement closed");
-            return cpp_dbc::unexpected(DBException("10AA8966C506", "Statement closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("GFLIBY0YE8KG", "Statement closed", system_utils::captureCallStack()));
         }
 
         SCYLLADB_DEBUG("ScyllaDBPreparedStatement::executeQuery - Submitting statement to Scylla session");
@@ -91,7 +91,7 @@ namespace cpp_dbc::ScyllaDB
 
         // For Cassandra/Scylla, everything is execute.
         auto res = executeQuery(std::nothrow);
-        if (!res)
+        if (!res.has_value())
         {
             return cpp_dbc::unexpected(res.error());
         }
@@ -106,7 +106,7 @@ namespace cpp_dbc::ScyllaDB
     {
         SCYLLADB_DEBUG("ScyllaDBPreparedStatement::execute - Executing statement");
         auto res = executeQuery(std::nothrow);
-        if (!res)
+        if (!res.has_value())
         {
             return cpp_dbc::unexpected(res.error());
         }
@@ -190,42 +190,42 @@ namespace cpp_dbc::ScyllaDB
             {
                 if (cass_statement_bind_int32(stmt, idx, val) != CASS_OK)
                 {
-                    return cpp_dbc::unexpected(DBException("B7349823A001", "Failed to bind int32 at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected(DBException("B3U8B66XEB26", "Failed to bind int32 at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
                 }
             }
             for (const auto &[idx, val] : entry.longParams)
             {
                 if (cass_statement_bind_int64(stmt, idx, val) != CASS_OK)
                 {
-                    return cpp_dbc::unexpected(DBException("B7349823A002", "Failed to bind int64 at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected(DBException("3DLDE38RIT8Z", "Failed to bind int64 at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
                 }
             }
             for (const auto &[idx, val] : entry.doubleParams)
             {
                 if (cass_statement_bind_double(stmt, idx, val) != CASS_OK)
                 {
-                    return cpp_dbc::unexpected(DBException("B7349823A003", "Failed to bind double at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected(DBException("B2XYVP9Y0I9B", "Failed to bind double at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
                 }
             }
             for (const auto &[idx, val] : entry.stringParams)
             {
                 if (cass_statement_bind_string(stmt, idx, val.c_str()) != CASS_OK)
                 {
-                    return cpp_dbc::unexpected(DBException("B7349823A004", "Failed to bind string at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected(DBException("IASOTF1GE3AS", "Failed to bind string at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
                 }
             }
             for (const auto &[idx, val] : entry.boolParams)
             {
                 if (cass_statement_bind_bool(stmt, idx, val ? cass_true : cass_false) != CASS_OK)
                 {
-                    return cpp_dbc::unexpected(DBException("B7349823A005", "Failed to bind bool at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected(DBException("PRPU3VX8P4K6", "Failed to bind bool at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
                 }
             }
             for (const auto &[idx, val] : entry.bytesParams)
             {
                 if (cass_statement_bind_bytes(stmt, idx, val.data(), val.size()) != CASS_OK)
                 {
-                    return cpp_dbc::unexpected(DBException("B7349823A006", "Failed to bind bytes at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected(DBException("UMTJYD4SYC1J", "Failed to bind bytes at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
                 }
             }
             for (const auto &[idx, unused] : entry.nullParams)
@@ -233,7 +233,7 @@ namespace cpp_dbc::ScyllaDB
                 (void)unused;
                 if (cass_statement_bind_null(stmt, idx) != CASS_OK)
                 {
-                    return cpp_dbc::unexpected(DBException("B7349823A007", "Failed to bind null at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
+                    return cpp_dbc::unexpected(DBException("UK2OCW8DCSIX", "Failed to bind null at index " + std::to_string(idx) + " in batch entry " + std::to_string(i), system_utils::captureCallStack()));
                 }
             }
 

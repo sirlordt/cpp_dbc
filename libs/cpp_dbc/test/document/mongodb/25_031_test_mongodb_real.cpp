@@ -671,7 +671,7 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
             }
             catch (const cpp_dbc::DBException &e)
             {
-                std::string error = e.what_s();
+                std::string error = std::string(e.what_s());
                 if (!sessionId.empty())
                 {
                     try
@@ -694,103 +694,12 @@ TEST_CASE("Real MongoDB connection tests", "[25_031_01_mongodb_real]")
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::string error = e.what_s();
+            std::string error = std::string(e.what_s());
             WARN("MongoDB transaction test skipped: " + error);
             SKIP("MongoDB transactions not supported: " + error);
         }
     }
-    SECTION("MongoDB connection pool")
-    {
-        // Get a MongoDB driver and register it with the DriverManager
-        auto driver = mongodb_test_helpers::getMongoDBDriver();
-        cpp_dbc::DriverManager::registerDriver(driver);
-
-        // Create a connection pool configuration with shorter timeouts for tests
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        poolConfig.setUsername(username);
-        poolConfig.setPassword(password);
-        poolConfig.setInitialSize(3);
-        poolConfig.setMaxSize(5);
-        poolConfig.setMinIdle(1);
-        poolConfig.setConnectionTimeout(10000);
-        poolConfig.setValidationInterval(500);
-        poolConfig.setIdleTimeout(5000);
-        poolConfig.setMaxLifetimeMillis(10000);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setTestOnReturn(true);
-        poolConfig.setValidationQuery("{\"ping\": 1}");
-
-        // Create a connection pool using factory method
-        auto poolResult = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfig);
-        if (!poolResult.has_value())
-        {
-            throw poolResult.error();
-        }
-        auto pool = poolResult.value();
-
-        // Create a collection for pool tests
-        const std::string poolCollectionName = testCollectionName + "_pool_031";
-        auto setupConn = pool->getDocumentDBConnection();
-        if (setupConn->collectionExists(poolCollectionName))
-        {
-            setupConn->dropCollection(poolCollectionName);
-        }
-        setupConn->createCollection(poolCollectionName);
-        setupConn->returnToPool();
-
-        // Test multiple connections in parallel
-        const int numThreads = 10;
-        const int opsPerThread = 5;
-
-        std::atomic<int> successCount(0);
-        std::vector<std::thread> threads;
-
-        for (int i = 0; i < numThreads; i++)
-        {
-            threads.push_back(std::thread([&pool, i, opsPerThread, poolCollectionName, &successCount]()
-                                          {
-                for (int j = 0; j < opsPerThread; j++) {
-                    try {
-                        auto conn_thread = pool->getDocumentDBConnection();
-
-                        int id = i * 100 + j;
-                        std::string docJson = mongodb_test_helpers::generateTestDocument(
-                            id,
-                            "Thread " + std::to_string(i) + " Op " + std::to_string(j),
-                            id * 1.5);
-                        auto collection = conn_thread->getCollection(poolCollectionName);
-                        collection->insertOne(docJson);
-
-                        conn_thread->returnToPool();
-                        successCount++;
-                    }
-                    catch (const std::exception& e) {
-                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
-                    }
-                } }));
-        }
-
-        for (auto &t : threads)
-        {
-            t.join();
-        }
-
-        REQUIRE(successCount == numThreads * opsPerThread);
-
-        // Verify the document count
-        auto verifyConn = pool->getDocumentDBConnection();
-        auto verifyCollection = verifyConn->getCollection(poolCollectionName);
-        auto count = verifyCollection->countDocuments("{}");
-        REQUIRE(count == static_cast<uint64_t>(numThreads * opsPerThread));
-
-        // Clean up
-        verifyConn->dropCollection(poolCollectionName);
-        verifyConn->returnToPool();
-
-        // Close the pool
-        pool->close();
-    }
+    // Connection pool tests moved to 25_141_test_mongodb_real_connection_pool.cpp
 }
 #else
 // Skip tests if MongoDB support is not enabled

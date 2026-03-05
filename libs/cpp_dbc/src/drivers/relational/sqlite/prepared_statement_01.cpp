@@ -47,17 +47,17 @@ namespace cpp_dbc::SQLite
         m_closed = true;
     }
 
-    sqlite3 *SQLiteDBPreparedStatement::getSQLiteConnection() const
+    cpp_dbc::expected<sqlite3 *, DBException> SQLiteDBPreparedStatement::getSQLiteConnection(std::nothrow_t) const noexcept
     {
         auto conn = m_db.lock();
         if (!conn)
         {
-            throw DBException("471F2E35F962", "SQLite connection has been closed", system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("QQI768O7OI0F", "SQLite connection has been closed", system_utils::captureCallStack()));
         }
         return conn.get();
     }
 
-    void SQLiteDBPreparedStatement::registerResultSet(std::weak_ptr<SQLiteDBResultSet> rs)
+    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::registerResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
     {
         // LOCK CONSISTENCY FIX (2026-02-15): Changed from m_resultSetsMutex to
         // m_globalFileMutex to ensure ALL accesses to m_activeResultSets use the
@@ -74,9 +74,10 @@ namespace cpp_dbc::SQLite
             std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
         }
         m_activeResultSets.insert(rs);
+        return {};
     }
 
-    void SQLiteDBPreparedStatement::unregisterResultSet(std::weak_ptr<SQLiteDBResultSet> rs)
+    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::unregisterResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
     {
         // LOCK CONSISTENCY FIX (2026-02-15): Changed from m_resultSetsMutex to
         // m_globalFileMutex for consistency with closeAllResultSets() and
@@ -97,9 +98,10 @@ namespace cpp_dbc::SQLite
                 ++it;
             }
         }
+        return {};
     }
 
-    void SQLiteDBPreparedStatement::closeAllResultSets()
+    cpp_dbc::expected<void, DBException> SQLiteDBPreparedStatement::closeAllResultSets(std::nothrow_t) noexcept
     {
         // LOCK ORDER FIX (2026-02-15): Previously, this method acquired both
         // m_globalFileMutex and then m_resultSetsMutex (nested lock). This caused
@@ -152,24 +154,25 @@ namespace cpp_dbc::SQLite
             auto rs = weak_rs.lock();
             if (rs)
             {
-                try
-                {
-                    rs->close();
-                }
-                catch (...)
-                {
-                    // Ignore errors during shutdown
-                }
+                // Use nothrow close — we are in a noexcept method
+                [[maybe_unused]] auto closeResult = rs->close(std::nothrow);
             }
         }
+        return {};
     }
 
     // Public methods - Constructor and destructor
+    #ifdef __cpp_exceptions
     SQLiteDBPreparedStatement::SQLiteDBPreparedStatement(std::weak_ptr<sqlite3> db, std::weak_ptr<SQLiteDBConnection> conn, std::shared_ptr<std::recursive_mutex> globalFileMutex, const std::string &sql)
         : m_db(db), m_connection(std::move(conn)), m_sql(sql), m_stmt(nullptr), m_closed(false), m_blobValues(), m_blobObjects(), m_streamObjects(),
           m_globalFileMutex(std::move(globalFileMutex))
     {
-        sqlite3 *dbPtr = getSQLiteConnection();
+        auto dbResult = getSQLiteConnection(std::nothrow);
+        if (!dbResult.has_value())
+        {
+            throw dbResult.error();
+        }
+        sqlite3 *dbPtr = dbResult.value();
 
         sqlite3_stmt *rawStmt = nullptr;
         int result = sqlite3_prepare_v2(dbPtr, m_sql.c_str(), -1, &rawStmt, nullptr);
@@ -370,11 +373,12 @@ namespace cpp_dbc::SQLite
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
     void SQLiteDBPreparedStatement::close()
     {
         // Close all result sets FIRST (before closing statement)
-        closeAllResultSets();
+        [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
 
         if (!m_closed && m_stmt)
         {

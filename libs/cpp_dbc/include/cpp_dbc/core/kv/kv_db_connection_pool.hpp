@@ -56,7 +56,7 @@ namespace cpp_dbc
      * `create()` factory method.
      *
      * ```cpp
-     * auto pool = cpp_dbc::Redis::RedisConnectionPool::create(
+     * auto pool = cpp_dbc::Redis::RedisDBConnectionPool::create(
      *     "redis://localhost:6379", "", "");
      * auto conn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(
      *     pool->getDBConnection());
@@ -126,7 +126,7 @@ namespace cpp_dbc
 
     protected:
         // Sets the transaction isolation level for the pool
-        void setPoolTransactionIsolation(TransactionIsolationLevel level) override
+        void setPoolTransactionIsolation(TransactionIsolationLevel level) noexcept override
         {
             m_transactionIsolation = level;
         }
@@ -178,6 +178,7 @@ namespace cpp_dbc
 
         ~KVDBConnectionPool() override;
 
+        #ifdef __cpp_exceptions
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
 
@@ -195,6 +196,7 @@ namespace cpp_dbc
         // Check if pool is running
         bool isRunning() const override;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -248,6 +250,7 @@ namespace cpp_dbc
                              std::shared_ptr<std::atomic<bool>> poolAlive);
         ~KVPooledDBConnection() override;
 
+        #ifdef __cpp_exceptions
         // Overridden DBConnection interface methods
         void close() override;
         bool isClosed() const override;
@@ -292,9 +295,17 @@ namespace cpp_dbc
         std::vector<std::string> scanKeys(const std::string &pattern, int64_t count = 10) override;
         std::string executeCommand(const std::string &command, const std::vector<std::string> &args = {}) override;
         bool flushDB(bool async = false) override;
-        std::string ping() override;
+        bool ping() override;
         std::map<std::string, std::string> getServerInfo() override;
         void prepareForPoolReturn() override;
+
+        // KVPooledDBConnection specific method
+        std::shared_ptr<KVDBConnection> getUnderlyingKVConnection();
+
+        #endif // __cpp_exceptions
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API (delegated to underlying connection)
+        // ====================================================================
 
         // DBConnectionPooled interface methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime(std::nothrow_t) const noexcept override;
@@ -304,13 +315,6 @@ namespace cpp_dbc
 
         // Implementation of DBConnectionPooled interface
         std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
-
-        // KVPooledDBConnection specific method
-        std::shared_ptr<KVDBConnection> getUnderlyingKVConnection();
-
-        // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API (delegated to underlying connection)
-        // ====================================================================
 
         cpp_dbc::expected<bool, DBException> setString(
             std::nothrow_t,
@@ -422,7 +426,7 @@ namespace cpp_dbc
         cpp_dbc::expected<bool, DBException> flushDB(
             std::nothrow_t, bool async = false) noexcept override;
 
-        cpp_dbc::expected<std::string, DBException> ping(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
 
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(
             std::nothrow_t) noexcept override;
@@ -446,23 +450,23 @@ namespace cpp_dbc
          * This class extends the generic KVDBConnectionPool with Redis-specific
          * configuration and behaviors.
          */
-        class RedisConnectionPool : public KVDBConnectionPool
+        class RedisDBConnectionPool : public KVDBConnectionPool
         {
         public:
             // Public constructors with ConstructorTag - enables std::make_shared while enforcing factory pattern
-            RedisConnectionPool(DBConnectionPool::ConstructorTag,
+            RedisDBConnectionPool(DBConnectionPool::ConstructorTag,
                                 const std::string &url,
                                 const std::string &username,
                                 const std::string &password);
 
-            explicit RedisConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
+            explicit RedisDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config);
 
-            static cpp_dbc::expected<std::shared_ptr<RedisConnectionPool>, DBException> create(std::nothrow_t,
+            static cpp_dbc::expected<std::shared_ptr<RedisDBConnectionPool>, DBException> create(std::nothrow_t,
                                                                                                const std::string &url,
                                                                                                const std::string &username,
                                                                                                const std::string &password) noexcept;
 
-            static cpp_dbc::expected<std::shared_ptr<RedisConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
+            static cpp_dbc::expected<std::shared_ptr<RedisDBConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
         };
     }
 

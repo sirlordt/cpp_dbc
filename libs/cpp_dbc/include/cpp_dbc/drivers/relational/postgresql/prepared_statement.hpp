@@ -63,10 +63,10 @@ namespace cpp_dbc::PostgreSQL
         void notifyConnClosing();
 
         // Helper method to process SQL and count parameters
-        int processSQL(std::string &sqlQuery) const;
+        cpp_dbc::expected<int, DBException> processSQL(std::nothrow_t, std::string &sqlQuery) const noexcept;
 
-        // Helper method to get PGconn* safely, throws if connection is closed
-        PGconn *getPGConnection() const;
+        // Helper method to get PGconn* safely, returns unexpected if connection is closed
+        cpp_dbc::expected<PGconn *, DBException> getPGConnection(std::nothrow_t) const noexcept;
 
     public:
 #if DB_DRIVER_THREAD_SAFE
@@ -82,6 +82,80 @@ namespace cpp_dbc::PostgreSQL
         PostgreSQLDBPreparedStatement(PostgreSQLDBPreparedStatement &&) = delete;
         PostgreSQLDBPreparedStatement &operator=(PostgreSQLDBPreparedStatement &&) = delete;
 
+#if DB_DRIVER_THREAD_SAFE
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBPreparedStatement>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<PGconn> conn,
+               SharedConnMutex connMutex,
+               const std::string &sql,
+               const std::string &stmt_name) noexcept
+        {
+            try
+            {
+                return std::make_shared<PostgreSQLDBPreparedStatement>(conn, connMutex, sql, stmt_name);
+            }
+            catch (const DBException &ex)
+            {
+                return cpp_dbc::unexpected(ex);
+            }
+            catch (const std::exception &ex)
+            {
+                return cpp_dbc::unexpected(DBException("FRBOTGL3W5V4", ex.what(), system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return cpp_dbc::unexpected(DBException("6A43HAITJ9C5", "Unknown error creating PostgreSQLDBPreparedStatement", system_utils::captureCallStack()));
+            }
+        }
+
+        static std::shared_ptr<PostgreSQLDBPreparedStatement>
+        create(std::weak_ptr<PGconn> conn, SharedConnMutex connMutex, const std::string &sql, const std::string &stmt_name)
+        {
+            auto r = create(std::nothrow, conn, connMutex, sql, stmt_name);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
+        }
+#else
+        static cpp_dbc::expected<std::shared_ptr<PostgreSQLDBPreparedStatement>, DBException>
+        create(std::nothrow_t,
+               std::weak_ptr<PGconn> conn,
+               const std::string &sql,
+               const std::string &stmt_name) noexcept
+        {
+            try
+            {
+                return std::make_shared<PostgreSQLDBPreparedStatement>(conn, sql, stmt_name);
+            }
+            catch (const DBException &ex)
+            {
+                return cpp_dbc::unexpected(ex);
+            }
+            catch (const std::exception &ex)
+            {
+                return cpp_dbc::unexpected(DBException("FRBOTGL3W5V4", ex.what(), system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return cpp_dbc::unexpected(DBException("6A43HAITJ9C5", "Unknown error creating PostgreSQLDBPreparedStatement", system_utils::captureCallStack()));
+            }
+        }
+
+        static std::shared_ptr<PostgreSQLDBPreparedStatement>
+        create(std::weak_ptr<PGconn> conn, const std::string &sql, const std::string &stmt_name)
+        {
+            auto r = create(std::nothrow, conn, sql, stmt_name);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
+        }
+#endif
+
+#ifdef __cpp_exceptions
         void setInt(int parameterIndex, int value) override;
         void setLong(int parameterIndex, int64_t value) override;
         void setDouble(int parameterIndex, double value) override;
@@ -104,7 +178,11 @@ namespace cpp_dbc::PostgreSQL
         bool execute() override;
         void close() override;
 
-        // Nothrow API
+#endif // __cpp_exceptions
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+
         [[nodiscard]] cpp_dbc::expected<void, DBException> setInt(std::nothrow_t, int parameterIndex, int value) noexcept override;
         [[nodiscard]] cpp_dbc::expected<void, DBException> setLong(std::nothrow_t, int parameterIndex, int64_t value) noexcept override;
         [[nodiscard]] cpp_dbc::expected<void, DBException> setDouble(std::nothrow_t, int parameterIndex, double value) noexcept override;

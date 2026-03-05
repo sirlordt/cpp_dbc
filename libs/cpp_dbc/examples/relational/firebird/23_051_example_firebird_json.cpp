@@ -263,7 +263,7 @@ void demonstrateFirebirdJson(std::shared_ptr<cpp_dbc::RelationalDBConnection> co
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Firebird JSON operation error: " + e.what_s());
+        logError("Firebird JSON operation error: " + std::string(e.what_s()));
         throw;
     }
 }
@@ -298,7 +298,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -317,7 +317,7 @@ int main(int argc, char *argv[])
 
     if (!firebirdResult)
     {
-        logError("Failed to get Firebird config: " + firebirdResult.error().what_s());
+        logError("Failed to get Firebird config: " + std::string(firebirdResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Firebird error: " + e.what_s());
+        logError("Firebird error: " + std::string(e.what_s()));
         return EXIT_ERROR_;
     }
 

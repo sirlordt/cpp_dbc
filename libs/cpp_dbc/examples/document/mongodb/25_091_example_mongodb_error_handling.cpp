@@ -64,7 +64,7 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error in " + operationName + ": " + e.what_s());
+        logError("Database error in " + operationName + ": " + std::string(e.what_s()));
         e.printCallStack();
     }
     catch (const AppException &e)
@@ -269,7 +269,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
     }
     else
     {
-        logError("insertOne failed: " + insertResult.error().what_s());
+        logError("insertOne failed: " + std::string(insertResult.error().what_s()));
     }
 
     // Find using nothrow API
@@ -280,7 +280,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
     }
     else if (!findResult)
     {
-        logError("findOne failed: " + findResult.error().what_s());
+        logError("findOne failed: " + std::string(findResult.error().what_s()));
     }
     else
     {
@@ -298,7 +298,7 @@ void demonstrateNothrowAPI(std::shared_ptr<cpp_dbc::DocumentDBConnection> conn)
     }
     else
     {
-        logInfo("Operation failed safely (expected): " + badResult.error().what_s());
+        logInfo("Operation failed safely (expected): " + std::string(badResult.error().what_s()));
     }
 
     logOk("Nothrow API demonstration completed");
@@ -375,7 +375,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::DocumentDBConnection> con
         }
         catch (const cpp_dbc::DBException &e)
         {
-            logError("Attempt " + std::to_string(attempt) + " failed: " + e.what_s());
+            logError("Attempt " + std::to_string(attempt) + " failed: " + std::string(e.what_s()));
             if (attempt < maxRetries)
             {
                 logInfo("Retrying...");
@@ -445,7 +445,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -464,7 +464,7 @@ int main(int argc, char *argv[])
 
     if (!dbResult)
     {
-        logError("Failed to get database config: " + dbResult.error().what_s());
+        logError("Failed to get database config: " + std::string(dbResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -517,7 +517,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         return EXIT_ERROR_;
     }
     catch (const std::exception &e)

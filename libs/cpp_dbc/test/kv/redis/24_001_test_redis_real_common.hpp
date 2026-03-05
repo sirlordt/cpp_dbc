@@ -65,17 +65,17 @@ namespace redis_test_helpers
      * @param dbConfig The database configuration
      * @return std::string The Redis connection string
      */
-    std::string buildRedisConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig);
+    std::string buildRedisDBConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig);
 
     /**
      * @brief Helper function to get a Redis driver instance
      */
-    std::shared_ptr<cpp_dbc::Redis::RedisDriver> getRedisDriver();
+    std::shared_ptr<cpp_dbc::Redis::RedisDBDriver> getRedisDBDriver();
 
     /**
      * @brief Helper function to get a Redis connection
      */
-    std::shared_ptr<cpp_dbc::KVDBConnection> getRedisConnection();
+    std::shared_ptr<cpp_dbc::KVDBConnection> getRedisDBConnection();
 
 #endif
 

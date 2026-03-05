@@ -46,7 +46,7 @@ namespace cpp_dbc::PostgreSQL
 
             if (!m_result || columnIndex < 1 || columnIndex > static_cast<size_t>(m_fieldCount) || m_rowPosition < 1 || m_rowPosition > m_rowCount)
             {
-                return cpp_dbc::unexpected<DBException>(DBException("1A2B3C4D5E6F", "Invalid column index or row position", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("UBNZW9NY218W", "Invalid column index or row position", system_utils::captureCallStack()));
             }
 
             auto idx = static_cast<int>(columnIndex - 1);
@@ -80,7 +80,7 @@ namespace cpp_dbc::PostgreSQL
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
             {
-                return cpp_dbc::unexpected<DBException>(DBException("32DF0933F6D5", "Column not found: " + columnName, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("01ROBDP3R86H", "Column not found: " + columnName, system_utils::captureCallStack()));
             }
 
             return getString(std::nothrow, it->second + 1);

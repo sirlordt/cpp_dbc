@@ -54,14 +54,19 @@ namespace cpp_dbc::PostgreSQL
             // so it can safely detect when connection is closed
             std::string stmtName = generateStatementName();
 #if DB_DRIVER_THREAD_SAFE
-            auto stmt = std::make_shared<PostgreSQLDBPreparedStatement>(std::weak_ptr<PGconn>(m_conn), m_connMutex, sql, stmtName);
+            auto stmtResult = PostgreSQLDBPreparedStatement::create(std::nothrow, std::weak_ptr<PGconn>(m_conn), m_connMutex, sql, stmtName);
 #else
-            auto stmt = std::make_shared<PostgreSQLDBPreparedStatement>(std::weak_ptr<PGconn>(m_conn), sql, stmtName);
+            auto stmtResult = PostgreSQLDBPreparedStatement::create(std::nothrow, std::weak_ptr<PGconn>(m_conn), sql, stmtName);
 #endif
+            if (!stmtResult.has_value())
+            {
+                return cpp_dbc::unexpected<DBException>(stmtResult.error());
+            }
+            auto stmt = stmtResult.value();
 
             // Register the statement as weak_ptr - allows natural destruction when user releases reference
             // Statements will be explicitly closed in returnToPool() or close() before connection reuse
-            registerStatement(std::weak_ptr<PostgreSQLDBPreparedStatement>(stmt));
+            [[maybe_unused]] auto regResult = registerStatement(std::nothrow, std::weak_ptr<PostgreSQLDBPreparedStatement>(stmt));
 
             return cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException>(std::static_pointer_cast<RelationalDBPreparedStatement>(stmt));
         }
@@ -98,8 +103,12 @@ namespace cpp_dbc::PostgreSQL
                 return cpp_dbc::unexpected<DBException>(DBException("9I0J1K2L3M4N", "Query failed: " + error, system_utils::captureCallStack()));
             }
 
-            auto resultSet = std::make_shared<PostgreSQLDBResultSet>(result);
-            return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>(std::static_pointer_cast<RelationalDBResultSet>(resultSet));
+            auto rsResult = PostgreSQLDBResultSet::create(std::nothrow, result);
+            if (!rsResult.has_value())
+            {
+                return cpp_dbc::unexpected(rsResult.error());
+            }
+            return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>(std::static_pointer_cast<RelationalDBResultSet>(rsResult.value()));
         }
         catch (const DBException &ex)
         {

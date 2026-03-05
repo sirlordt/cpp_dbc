@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
 
         if (!scyllaResult)
         {
-            logError("Failed to get ScyllaDB config: " + scyllaResult.error().what_s());
+            logError("Failed to get ScyllaDB config: " + std::string(scyllaResult.error().what_s()));
             return EXIT_ERROR_;
         }
 
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
             }
             catch (const cpp_dbc::DBException &e)
             {
-                logInfo("Could not get local info: " + e.what_s());
+                logInfo("Could not get local info: " + std::string(e.what_s()));
             }
 
             // Get server version
@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
             }
             catch (const cpp_dbc::DBException &e)
             {
-                logInfo("Could not get version: " + e.what_s());
+                logInfo("Could not get version: " + std::string(e.what_s()));
             }
 
             // List keyspaces
@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
             }
             catch (const cpp_dbc::DBException &e)
             {
-                logInfo("Could not list keyspaces: " + e.what_s());
+                logInfo("Could not list keyspaces: " + std::string(e.what_s()));
             }
 
             // List nodes in cluster
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
             }
             catch (const cpp_dbc::DBException &e)
             {
-                logInfo("Could not list peers: " + e.what_s());
+                logInfo("Could not list peers: " + std::string(e.what_s()));
             }
         }
 
@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         e.printCallStack();
         return EXIT_ERROR_;
     }

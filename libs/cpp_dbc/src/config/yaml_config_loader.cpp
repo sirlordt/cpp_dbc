@@ -65,7 +65,7 @@ namespace cpp_dbc::config
 
                         if (!dbNode["database"] || !dbNode["database"].IsDefined())
                         {
-                            throw cpp_dbc::DBException("77398F244B5D", "Missing required field 'database' in database configuration",
+                            throw cpp_dbc::DBException("0731ET7A4PSO", "Missing required field 'database' in database configuration",
                                                        cpp_dbc::system_utils::captureCallStack());
                         }
                         dbConfig.setDatabase(dbNode["database"].as<std::string>());

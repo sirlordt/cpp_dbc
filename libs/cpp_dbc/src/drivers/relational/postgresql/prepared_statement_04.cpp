@@ -91,16 +91,20 @@ namespace cpp_dbc::PostgreSQL
             {
                 std::string error = PQresultErrorMessage(result);
                 PQclear(result);
-                return cpp_dbc::unexpected<DBException>(DBException("9A0B1C2D3E4F", "Failed to execute query: " + error, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("7ZYR9G76KRKT", "Failed to execute query: " + error, system_utils::captureCallStack()));
             }
 
-            auto resultSet = std::make_shared<PostgreSQLDBResultSet>(result);
+            auto rsResult = PostgreSQLDBResultSet::create(std::nothrow, result);
+            if (!rsResult.has_value())
+            {
+                return cpp_dbc::unexpected(rsResult.error());
+            }
 
             // Close the statement after execution (single-use)
             // This is safe because PQexecPrepared() copies all data to the PGresult
             close();
 
-            return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>{resultSet};
+            return cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException>{rsResult.value()};
         }
         catch (const DBException &ex)
         {

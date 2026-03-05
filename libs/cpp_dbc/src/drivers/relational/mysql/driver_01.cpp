@@ -20,8 +20,6 @@
 
 #include "cpp_dbc/drivers/relational/driver_mysql.hpp"
 
-#if USE_MYSQL
-
 #include <array>
 #include <cstring>
 #include <sstream>
@@ -30,6 +28,8 @@
 #include <chrono>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mysql_internal.hpp"
+
+#if USE_MYSQL
 
 namespace cpp_dbc::MySQL
 {
@@ -47,6 +47,7 @@ namespace cpp_dbc::MySQL
         mysql_library_end();
     }
 
+    #ifdef __cpp_exceptions
     std::shared_ptr<RelationalDBConnection> MySQLDBDriver::connectRelational(const std::string &url,
                                                                              const std::string &user,
                                                                              const std::string &password,
@@ -59,8 +60,9 @@ namespace cpp_dbc::MySQL
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
-    bool MySQLDBDriver::acceptsURL(const std::string &url)
+    bool MySQLDBDriver::acceptsURL(const std::string &url) noexcept
     {
         return url.starts_with("cpp_dbc:mysql://");
     }

@@ -129,7 +129,7 @@ void demonstrateBasicBatchInsert(std::shared_ptr<cpp_dbc::RelationalDBConnection
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
     }
 }
 
@@ -207,7 +207,7 @@ void demonstrateBatchWithTransaction(std::shared_ptr<cpp_dbc::RelationalDBConnec
         {
         }
         conn->setAutoCommit(true);
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
     }
 }
 
@@ -262,7 +262,7 @@ void demonstrateBatchUpdate(std::shared_ptr<cpp_dbc::RelationalDBConnection> con
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
     }
 }
 
@@ -316,7 +316,7 @@ void demonstrateBatchDelete(std::shared_ptr<cpp_dbc::RelationalDBConnection> con
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
     }
 }
 
@@ -422,7 +422,7 @@ void demonstrateBatchPerformanceComparison(std::shared_ptr<cpp_dbc::RelationalDB
         {
         }
         conn->setAutoCommit(true);
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
     }
 }
 
@@ -472,7 +472,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -497,7 +497,7 @@ int main(int argc, char *argv[])
 
         if (!mysqlResult)
         {
-            logError("Failed to get MySQL config: " + mysqlResult.error().what_s());
+            logError("Failed to get MySQL config: " + std::string(mysqlResult.error().what_s()));
             return EXIT_ERROR_;
         }
 
@@ -523,7 +523,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         return EXIT_ERROR_;
     }
 

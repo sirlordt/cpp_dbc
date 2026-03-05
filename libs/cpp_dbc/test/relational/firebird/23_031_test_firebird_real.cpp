@@ -159,7 +159,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         conn->close();
     }
 
-    SECTION("Firebird connection pool")
+    /* SECTION("Firebird connection pool") - moved to 23_141_test_firebird_real_connection_pool.cpp
     {
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -243,9 +243,9 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
 
         // Close the pool
         pool->close();
-    }
+    } */
 
-    SECTION("Firebird transaction management")
+    /* SECTION("Firebird transaction management") - moved to 23_141_test_firebird_real_connection_pool.cpp
     {
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -343,7 +343,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         auto directConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         directConn->executeUpdate(dropTableQuery);
         directConn->close();
-    }
+    } */
 
     SECTION("Firebird metadata retrieval")
     {
@@ -487,7 +487,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         conn->close();
     }
 
-    SECTION("Firebird stress test")
+    /* SECTION("Firebird stress test") - moved to 23_141_test_firebird_real_connection_pool.cpp
     {
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -601,7 +601,7 @@ TEST_CASE("Real Firebird connection tests", "[23_031_01_firebird_real]")
         auto directConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
         directConn->executeUpdate(dropTableQuery);
         directConn->close();
-    }
+    } */
 }
 #else
 // Skip tests if Firebird support is not enabled

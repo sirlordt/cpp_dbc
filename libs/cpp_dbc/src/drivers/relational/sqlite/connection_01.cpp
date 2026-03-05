@@ -39,7 +39,7 @@ namespace cpp_dbc::SQLite
 
     // SQLiteDBConnection implementation - Private methods
 
-    void SQLiteDBConnection::registerStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt)
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::registerStatement(std::nothrow_t, std::weak_ptr<SQLiteDBPreparedStatement> stmt) noexcept
     {
         // LOCK CONSISTENCY FIX (2026-02-15): Changed from m_statementsMutex to
         // m_globalFileMutex to ensure ALL accesses to m_activeStatements use the
@@ -56,9 +56,10 @@ namespace cpp_dbc::SQLite
             std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
         }
         m_activeStatements.insert(stmt);
+        return {};
     }
 
-    void SQLiteDBConnection::unregisterStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt)
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::unregisterStatement(std::nothrow_t, std::weak_ptr<SQLiteDBPreparedStatement> stmt) noexcept
     {
         // LOCK CONSISTENCY FIX (2026-02-15): Changed from m_statementsMutex to
         // m_globalFileMutex for consistency with closeAllStatements() and
@@ -79,9 +80,11 @@ namespace cpp_dbc::SQLite
                 ++it;
             }
         }
+        return {};
     }
 
-    void SQLiteDBConnection::closeAllStatements()
+    #ifdef __cpp_exceptions
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::closeAllStatements(std::nothrow_t) noexcept
     {
         // CRITICAL: Must hold global file mutex to prevent other threads from using
         // the sqlite3* connection while we close statements.
@@ -131,7 +134,7 @@ namespace cpp_dbc::SQLite
                 if (!result.has_value())
                 {
                     // Log the error but don't throw - connection is already closing
-                    SQLITE_DEBUG("Failed to close prepared statement: %s", result.error().what_s().c_str());
+                    SQLITE_DEBUG("Failed to close prepared statement: %s", result.error().what_s().data());
                 }
             }
         }
@@ -149,9 +152,10 @@ namespace cpp_dbc::SQLite
                              sqlite3_errstr(result));
             }
         }
+        return {};
     }
 
-    void SQLiteDBConnection::registerResultSet(std::weak_ptr<SQLiteDBResultSet> rs)
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::registerResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
     {
         // LOCK CONSISTENCY FIX (2026-02-15): Changed from m_resultSetsMutex to
         // m_globalFileMutex to ensure ALL accesses to m_activeResultSets use the
@@ -168,9 +172,10 @@ namespace cpp_dbc::SQLite
             std::erase_if(m_activeResultSets, [](const auto &w) { return w.expired(); });
         }
         m_activeResultSets.insert(rs);
+        return {};
     }
 
-    void SQLiteDBConnection::unregisterResultSet(std::weak_ptr<SQLiteDBResultSet> rs)
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::unregisterResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept
     {
         // LOCK CONSISTENCY FIX (2026-02-15): Changed from m_resultSetsMutex to
         // m_globalFileMutex for consistency with closeAllResultSets() and
@@ -191,9 +196,10 @@ namespace cpp_dbc::SQLite
                 ++it;
             }
         }
+        return {};
     }
 
-    void SQLiteDBConnection::closeAllResultSets()
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::closeAllResultSets(std::nothrow_t) noexcept
     {
         // CRITICAL: Must hold global file mutex to prevent other threads from using
         // the sqlite3* connection while we close result sets.
@@ -240,16 +246,11 @@ namespace cpp_dbc::SQLite
             auto rs = weak_rs.lock();
             if (rs)
             {
-                try
-                {
-                    rs->close();
-                }
-                catch (...)
-                {
-                    // Ignore errors during shutdown
-                }
+                // Use nothrow close — we are in a noexcept method
+                [[maybe_unused]] auto closeResult = rs->close(std::nothrow);
             }
         }
+        return {};
     }
 
     cpp_dbc::expected<void, cpp_dbc::DBException> SQLiteDBConnection::reset(std::nothrow_t) noexcept
@@ -286,8 +287,8 @@ namespace cpp_dbc::SQLite
             // try to acquire it again.
 
             // Close all result sets first, then statements
-            closeAllResultSets();
-            closeAllStatements();
+            [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
+            [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
             // Rollback any active transaction
             auto txActive = transactionActive(std::nothrow);
@@ -427,19 +428,19 @@ namespace cpp_dbc::SQLite
         }
         catch (const DBException &e)
         {
-            SQLITE_DEBUG("3U4V5W6X7Y8Z: DBException: %s", e.what_s().c_str());
+            SQLITE_DEBUG("3U4V5W6X7Y8Z: DBException: %s", e.what_s().data());
             throw;
         }
         catch (const std::exception &e)
         {
             SQLITE_DEBUG("9A0B1C2D3E4F: std::exception: %s", e.what());
-            throw DBException("F1262039BA12", "SQLiteConnection constructor exception: " + std::string(e.what()),
+            throw DBException("7CA6S7EGU0CY", "SQLiteConnection constructor exception: " + std::string(e.what()),
                               system_utils::captureCallStack());
         }
         catch (...)
         {
             SQLITE_DEBUG("5G6H7I8J9K0L: Unknown exception");
-            throw DBException("D68199523A23", "SQLiteConnection constructor unknown exception",
+            throw DBException("4BDW1TTDMCYR", "SQLiteConnection constructor unknown exception",
                               system_utils::captureCallStack());
         }
     }
@@ -629,6 +630,32 @@ namespace cpp_dbc::SQLite
             throw result.error();
         }
         return result.value();
+    }
+
+    bool SQLiteDBConnection::ping()
+    {
+        auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+    #endif // __cpp_exceptions
+
+    cpp_dbc::expected<bool, DBException> SQLiteDBConnection::ping(std::nothrow_t) noexcept
+    {
+        auto result = executeQuery(std::nothrow, "SELECT 1");
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        auto closeResult = result.value()->close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            return cpp_dbc::unexpected(closeResult.error());
+        }
+        return true;
     }
 
 } // namespace cpp_dbc::SQLite

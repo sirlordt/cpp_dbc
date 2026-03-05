@@ -27,54 +27,67 @@
 
 #include "25_001_test_mongodb_real_common.hpp"
 
+#if USE_MONGODB
 // Test case to verify MongoDB connection
 TEST_CASE("MongoDB connection test", "[25_041_01_mongodb_real_connection]")
 {
-#if USE_MONGODB
-    // Skip this test if MongoDB support is not enabled
+    // Get MongoDB configuration
+    auto dbConfig = mongodb_test_helpers::getMongoDBConfig("dev_mongodb");
+
+    // Extract connection parameters
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+
+    // Create connection string using helper
+    std::string connStr = mongodb_test_helpers::buildMongoDBConnectionString(dbConfig);
+
+    // Get a MongoDB driver
+    auto driver = mongodb_test_helpers::getMongoDBDriver();
+
+    // Skip if MongoDB is not reachable — availability was already checked by canConnectToMongoDB()
+    // called in the TEST_CASE guard above; any DBException here is an unexpected regression.
+    if (!mongodb_test_helpers::canConnectToMongoDB())
+    {
+        SKIP("Cannot connect to MongoDB database");
+        return;
+    }
+
     SECTION("Test MongoDB connection")
     {
-        // Get MongoDB configuration with empty database name
-        auto dbConfig = mongodb_test_helpers::getMongoDBConfig("dev_mongodb", true);
+        // Attempt to connect to MongoDB
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to MongoDB with connection string: " + connStr);
 
-        // Extract connection parameters
-        std::string username = dbConfig.getUsername();
-        std::string password = dbConfig.getPassword();
+        auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
+            driver->connectDocument(connStr, username, password));
+        REQUIRE(conn != nullptr);
 
-        // Create connection string without database name using helper
-        std::string connStr = mongodb_test_helpers::buildMongoDBConnectionString(dbConfig);
+        // Execute a ping to verify the connection
+        REQUIRE(conn->ping() == true);
 
-        // Get a MongoDB driver
-        auto driver = mongodb_test_helpers::getMongoDBDriver();
+        // Verify connection state and URL
+        CHECK_FALSE(conn->isClosed());
 
-        try
+        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+
+        // The driver strips the "cpp_dbc:" prefix when storing the URL
+        if (connStr.substr(0, 8) == "cpp_dbc:")
         {
-            // Attempt to connect to MongoDB
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to MongoDB with connection string: " + connStr);
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
-
-            auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(
-                driver->connectDocument(connStr, username, password));
-            REQUIRE(conn != nullptr);
-
-            // If we get here, the connection was successful
-            // Execute a simple command to verify the connection
-            auto result = conn->runCommand("{\"ping\": 1}");
-            REQUIRE(result != nullptr);
-            REQUIRE(result->getBool("ok") == true);
-
-            // Close the connection
-            conn->close();
+            CHECK(conn->getURL() == connStr.substr(8));
         }
-        catch (const cpp_dbc::DBException &e)
+        else
         {
-            // We'll warn instead of requiring, to make the test more robust
-            WARN("MongoDB connection failed: " + std::string(e.what_s()));
-            WARN("This test is still considered successful for CI purposes");
+            CHECK(conn->getURL() == connStr);
         }
+
+        // Close the connection
+        conn->close();
+        CHECK(conn->isClosed());
     }
-#else
-    // Skip this test if MongoDB support is not enabled
-    SKIP("MongoDB support is not enabled");
-#endif
 }
+#else
+// Skip this test if MongoDB support is not enabled
+TEST_CASE("MongoDB connection test (skipped)", "[25_041_02_mongodb_real_connection]")
+{
+    SKIP("MongoDB support is not enabled");
+}
+#endif

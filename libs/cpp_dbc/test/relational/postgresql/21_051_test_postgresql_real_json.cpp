@@ -537,7 +537,7 @@ TEST_CASE("PostgreSQL JSON and JSONB data types", "[21_051_01_postgresql_real_js
         catch (const cpp_dbc::DBException &e)
         {
             // JSON schema validation might not be available in older PostgreSQL versions
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "JSON schema validation test skipped: " + e.what_s());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "JSON schema validation test skipped: " + std::string(e.what_s()));
         }
 
         // Test error handling with JSON path expressions

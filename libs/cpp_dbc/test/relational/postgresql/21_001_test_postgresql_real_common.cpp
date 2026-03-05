@@ -115,6 +115,28 @@ namespace postgresql_test_helpers
         return dbConfig;
     }
 
+    std::shared_ptr<cpp_dbc::PostgreSQL::PostgreSQLDBDriver> getPostgreSQLDriver()
+    {
+        static std::shared_ptr<cpp_dbc::PostgreSQL::PostgreSQLDBDriver> driver =
+            std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>();
+        return driver;
+    }
+
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> getPostgreSQLConnection()
+    {
+        auto dbConfig = getPostgreSQLConfig("dev_postgresql");
+
+        std::string connStr = dbConfig.createConnectionString();
+        std::string username = dbConfig.getUsername();
+        std::string password = dbConfig.getPassword();
+
+        auto driver = getPostgreSQLDriver();
+        cpp_dbc::DriverManager::registerDriver(driver);
+        auto conn = cpp_dbc::DriverManager::getDBConnection(connStr, username, password);
+
+        return std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(conn);
+    }
+
     bool tryCreateDatabase()
     {
         try
@@ -130,16 +152,17 @@ namespace postgresql_test_helpers
             std::string password = dbConfig.getPassword();
 
             // Get database name to create (default: Test01DB)
-            std::string dbName = dbConfig.getDatabase(); //  .getOption("database_name", "Test01DB");
+            std::string dbName = dbConfig.getDatabase();
 
             // Create connection string with postgres database name to connect to PostgreSQL server
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/postgres";
 
-            // Register the PostgreSQL driver
-            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+            // Register the PostgreSQL driver singleton
+            auto driver = getPostgreSQLDriver();
+            cpp_dbc::DriverManager::registerDriver(driver);
 
             // Attempt to connect to PostgreSQL server
-            // cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to PostgreSQL server to create database...");
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to PostgreSQL server to create database...");
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // First check if the database already exists
@@ -153,14 +176,14 @@ namespace postgresql_test_helpers
                                                                      "CREATE DATABASE " + dbName);
                 try
                 {
-                    // cpp_dbc::system_utils::logWithTimesMillis("TEST", "Executing: " + createDatabaseQuery);
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Executing: " + createDatabaseQuery);
                     conn->executeUpdate(createDatabaseQuery);
-                    // cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database creation successful!");
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database creation successful!");
                 }
-                catch (const std::exception &e)
+                catch (const std::exception &ex)
                 {
                     // Check if error contains "already exists" message (race condition)
-                    std::string error = e.what();
+                    std::string error = ex.what();
                     if (error.find("already exists") != std::string::npos)
                     {
                         cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database already exists, continuing...");
@@ -174,7 +197,7 @@ namespace postgresql_test_helpers
             }
             else
             {
-                // cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database '" + dbName + "' already exists.");
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database '" + dbName + "' already exists.");
             }
 
             // Close the connection
@@ -182,9 +205,9 @@ namespace postgresql_test_helpers
 
             return true;
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database creation error: " + std::string(e.what()));
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database creation error: " + std::string(ex.what()));
             return false;
         }
     }
@@ -196,7 +219,7 @@ namespace postgresql_test_helpers
             // First, try to create the database if it doesn't exist
             if (!postgresql_test_helpers::tryCreateDatabase())
             {
-                // cpp_dbc::system_utils::logWithTimesMillis("TEST", "Failed to create database, but continuing with connection test...");
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Failed to create database, but continuing with connection test...");
             }
 
             // Get database configuration
@@ -207,30 +230,31 @@ namespace postgresql_test_helpers
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
 
-            // Register the PostgreSQL driver
-            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+            // Register the PostgreSQL driver singleton
+            auto driver = getPostgreSQLDriver();
+            cpp_dbc::DriverManager::registerDriver(driver);
 
             // Attempt to connect to PostgreSQL
-            // cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to PostgreSQL with connection string: " + connStr);
-            // cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to PostgreSQL with connection string: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             // If we get here, the connection was successful
-            // cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL connection successful!");
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL connection successful!");
 
-            // Execute a simple query to verify the connection
-            auto resultSet = conn->executeQuery("SELECT 1 as test_value");
-            bool success = resultSet->next() && resultSet->getInt("test_value") == 1;
+            // Verify the connection with ping()
+            bool success = conn->ping();
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", std::string("PostgreSQL ping ") + (success ? "successful!" : "returned false"));
 
             // Close the connection
             conn->close();
 
             return success;
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL connection error: " + std::string(e.what()));
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL connection error: " + std::string(ex.what()));
             return false;
         }
     }

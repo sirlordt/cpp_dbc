@@ -23,7 +23,10 @@
 
 #include <cstdint>
 #include <memory>
+#include <new>
 #include <vector>
+#include "cpp_dbc/core/db_expected.hpp"
+#include "cpp_dbc/core/db_exception.hpp"
 
 namespace cpp_dbc
 {
@@ -57,6 +60,7 @@ namespace cpp_dbc
          * @param length Maximum number of bytes to read
          * @return Number of bytes actually read, or -1 if end of stream
          */
+        #ifdef __cpp_exceptions
         virtual int read(uint8_t *buffer, size_t length) = 0;
 
         /**
@@ -69,6 +73,14 @@ namespace cpp_dbc
          * @brief Close the stream and release resources
          */
         virtual void close() = 0;
+
+        #endif // __cpp_exceptions
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+        virtual cpp_dbc::expected<int, DBException> read(std::nothrow_t, uint8_t *buffer, size_t length) noexcept = 0;
+        virtual cpp_dbc::expected<void, DBException> skip(std::nothrow_t, size_t n) noexcept = 0;
+        virtual cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept = 0;
     };
 
     /**
@@ -97,6 +109,7 @@ namespace cpp_dbc
          * @param buffer Pointer to the data to write
          * @param length Number of bytes to write
          */
+        #ifdef __cpp_exceptions
         virtual void write(const uint8_t *buffer, size_t length) = 0;
 
         /**
@@ -108,6 +121,14 @@ namespace cpp_dbc
          * @brief Close the stream and release resources
          */
         virtual void close() = 0;
+
+        #endif // __cpp_exceptions
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+        virtual cpp_dbc::expected<void, DBException> write(std::nothrow_t, const uint8_t *buffer, size_t length) noexcept = 0;
+        virtual cpp_dbc::expected<void, DBException> flush(std::nothrow_t) noexcept = 0;
+        virtual cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept = 0;
     };
 
     /**
@@ -142,6 +163,7 @@ namespace cpp_dbc
          * @brief Get the length of the BLOB in bytes
          * @return The number of bytes in the BLOB
          */
+        #ifdef __cpp_exceptions
         virtual size_t length() const = 0;
 
         /**
@@ -194,6 +216,19 @@ namespace cpp_dbc
          * @brief Free resources associated with the BLOB
          */
         virtual void free() = 0;
+
+        #endif // __cpp_exceptions
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
+        virtual cpp_dbc::expected<size_t, DBException> length(std::nothrow_t) const noexcept = 0;
+        virtual cpp_dbc::expected<std::vector<uint8_t>, DBException> getBytes(std::nothrow_t, size_t pos, size_t length) const noexcept = 0;
+        virtual cpp_dbc::expected<std::shared_ptr<InputStream>, DBException> getBinaryStream(std::nothrow_t) const noexcept = 0;
+        virtual cpp_dbc::expected<std::shared_ptr<OutputStream>, DBException> setBinaryStream(std::nothrow_t, size_t pos) noexcept = 0;
+        virtual cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, size_t pos, const std::vector<uint8_t> &bytes) noexcept = 0;
+        virtual cpp_dbc::expected<void, DBException> setBytes(std::nothrow_t, size_t pos, const uint8_t *bytes, size_t length) noexcept = 0;
+        virtual cpp_dbc::expected<void, DBException> truncate(std::nothrow_t, size_t len) noexcept = 0;
+        virtual cpp_dbc::expected<void, DBException> free(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

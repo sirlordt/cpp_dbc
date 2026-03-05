@@ -60,9 +60,7 @@ namespace cpp_dbc
           m_validationQuery(validationQuery),
           m_transactionIsolation(transactionIsolation)
     {
-        m_allConnections.reserve(m_maxSize);
-        // Note: Initial connections are created in the factory method after construction
-        // to ensure shared_from_this() works correctly
+        // Pool initialization will be done in the factory method
     }
 
     DocumentDBConnectionPool::DocumentDBConnectionPool(DBConnectionPool::ConstructorTag, const config::DBConnectionPoolConfig &config)
@@ -83,15 +81,17 @@ namespace cpp_dbc
           m_validationQuery(config.getValidationQuery()),
           m_transactionIsolation(config.getTransactionIsolation())
     {
-        m_allConnections.reserve(m_maxSize);
-        // Note: Initial connections are created in the factory method after construction
-        // to ensure shared_from_this() works correctly
+        // Pool initialization will be done in the factory method
     }
 
+    #ifdef __cpp_exceptions
     cpp_dbc::expected<void, DBException> DocumentDBConnectionPool::initializePool(std::nothrow_t) noexcept
     {
         try
         {
+            // Reserve space for connections — can throw std::bad_alloc (no nothrow overload)
+            m_allConnections.reserve(m_maxSize);
+
             // Create initial connections
             for (int i = 0; i < m_initialSize; i++)
             {
@@ -111,8 +111,9 @@ namespace cpp_dbc
                 }
             }
 
-            // Start maintenance thread — can throw std::system_error
-            m_maintenanceThread = std::jthread(&DocumentDBConnectionPool::maintenanceTask, this);
+            // Start maintenance thread — std::jthread constructor can throw std::system_error
+            m_maintenanceThread = std::jthread([this]
+                                               { maintenanceTask(); });
         }
         catch (const std::exception &ex)
         {
@@ -203,7 +204,7 @@ namespace cpp_dbc
         auto result = DocumentDBConnectionPool::close(std::nothrow);
         if (!result.has_value())
         {
-            CP_DEBUG("DocumentDBConnectionPool::~DocumentDBConnectionPool - close failed: %s", result.error().what_s().c_str());
+            CP_DEBUG("DocumentDBConnectionPool::~DocumentDBConnectionPool - close failed: %s", result.error().what_s().data());
         }
 
         CP_DEBUG("DocumentDBConnectionPool::~DocumentDBConnectionPool - Destructor completed at %lld", (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
@@ -281,10 +282,18 @@ namespace cpp_dbc
         auto result = conn->ping(std::nothrow);
         if (!result.has_value())
         {
-            CP_DEBUG("DocumentDBConnectionPool::validateConnection - ping failed: %s", result.error().what_s().c_str());
+            CP_DEBUG("DocumentDBConnectionPool::validateConnection - ping failed: %s", result.error().what_s().data());
             return false;
         }
         return result.value();
+    }
+
+    void DocumentDBConnectionPool::notifyFirstWaiter() noexcept
+    {
+        if (!m_waitQueue.empty())
+        {
+            m_waitQueue.front()->cv.notify_one();
+        }
     }
 
     cpp_dbc::expected<void, DBException>
@@ -302,7 +311,7 @@ namespace cpp_dbc
             auto closeResult = conn->getUnderlyingDocumentConnection()->close(std::nothrow);
             if (!closeResult.has_value())
             {
-                CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() during shutdown failed: %s", closeResult.error().what_s().c_str());
+                CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() during shutdown failed: %s", closeResult.error().what_s().data());
             }
             return {};
         }
@@ -323,7 +332,7 @@ namespace cpp_dbc
                 conn->setActive(std::nothrow, false);
                 m_activeConnections--;
                 CP_DEBUG("DocumentDBConnectionPool::returnConnection - Connection not found in pool, SKIPPED");
-                m_connectionAvailable.notify_one();
+                notifyFirstWaiter();
                 return cpp_dbc::unexpected(DBException("AX95P6TXEL5I", "returnConnection called with a connection not belonging to this pool (orphan)", system_utils::captureCallStack()));
             }
         }
@@ -336,12 +345,12 @@ namespace cpp_dbc
             valid = validateConnection(std::nothrow, conn->getUnderlyingDocumentConnection()).value_or(false);
         }
 
-        if (valid)
+        if (valid && !conn->m_closed.load(std::memory_order_acquire))
         {
             auto result = conn->getUnderlyingDocumentConnection()->prepareForPoolReturn(std::nothrow);
             if (!result.has_value())
             {
-                CP_DEBUG("DocumentDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", result.error().what_s().c_str());
+                CP_DEBUG("DocumentDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", result.error().what_s().data());
                 valid = false;
             }
         }
@@ -356,25 +365,26 @@ namespace cpp_dbc
 
             if (!m_waitQueue.empty())
             {
-                // Direct handoff to first waiter.
-                // Restore active state: we decremented above unconditionally,
-                // but the borrower skips setActive(true)/m_activeConnections++
-                // when handedOff=true, so we must restore here.
-                ConnectionRequest *req = m_waitQueue.front();
+                auto *request = m_waitQueue.front();
                 m_waitQueue.pop_front();
+                request->conn = conn;
+                request->fulfilled = true;
                 // Restore active state before handoff: setActive(false) + m_activeConnections--
                 // were called unconditionally above, so they must be undone here when a waiter
                 // takes the connection directly.
                 conn->setActive(std::nothrow, true);
                 m_activeConnections++;
-                req->conn = conn;
-                req->fulfilled = true;
-                m_connectionAvailable.notify_all();
+                CP_DEBUG("returnConnection - HANDOFF: direct to waiter, active=%d, waiters=%zu, total=%zu",
+                         m_activeConnections.load(std::memory_order_acquire), m_waitQueue.size(), m_allConnections.size());
+                request->cv.notify_one(); // Per-waiter: only the fulfilled waiter is woken
             }
             else
             {
                 m_idleConnections.push(conn);
-                m_connectionAvailable.notify_one();
+                CP_DEBUG("returnConnection - VALID: pushed to idle, active=%d, idle=%zu, total=%zu",
+                         m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
+                // No notification needed: waitQueue is guaranteed empty here (checked at line 366).
+                // The next borrower will find this idle connection directly in Step 1.
             }
         }
         else
@@ -385,6 +395,7 @@ namespace cpp_dbc
                 conn->setActive(std::nothrow, false);
                 conn->m_closed.store(true); // prevent destructor double-decrement
                 m_activeConnections--;
+                CP_DEBUG("returnConnection - INVALID: active=%d", m_activeConnections.load(std::memory_order_acquire));
 
                 // Remove from allConnections
                 auto it = std::ranges::find(m_allConnections, conn);
@@ -404,74 +415,30 @@ namespace cpp_dbc
                         tempQueue.push(c);
                     }
                 }
-                m_idleConnections = std::move(tempQueue);
+                m_idleConnections = tempQueue;
 
-                // Notify inside lock: freed slot allows waiting threads to create
-                m_connectionAvailable.notify_one();
+                // Notify first waiter: freed slot allows re-check of deadline or idle
+                notifyFirstWaiter();
             }
 
             // Close outside lock
             auto closeResult = conn->getUnderlyingDocumentConnection()->close(std::nothrow);
             if (!closeResult.has_value())
             {
-                CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() on invalid connection failed: %s", closeResult.error().what_s().c_str());
+                CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() on invalid connection failed: %s", closeResult.error().what_s().data());
             }
 
-            // Replenish: create outside lock
+            // Signal maintenance thread to create replacement asynchronously.
+            // The returning thread is NOT blocked by connection creation I/O
+            // (which takes 1.3-1.5s+ under Valgrind). Borrowers self-heal via
+            // Step 2 in getDocumentDBConnection() if the pool is temporarily short.
             if (m_running.load(std::memory_order_acquire))
             {
-                auto replacementResult = createPooledDBConnection(std::nothrow);
-                if (!replacementResult.has_value())
                 {
-                    CP_DEBUG("DocumentDBConnectionPool::returnConnection - Failed to create replacement: %s", replacementResult.error().what_s().c_str());
+                    std::scoped_lock lockPool(m_mutexPool);
+                    m_replenishNeeded++;
                 }
-
-                if (replacementResult.has_value())
-                {
-                    auto replacement = replacementResult.value();
-                    std::shared_ptr<DocumentPooledDBConnection> discardReplacement;
-                    {
-                        std::scoped_lock lockPool(m_mutexPool);
-                        if (m_running.load(std::memory_order_acquire) && m_allConnections.size() < m_maxSize)
-                        {
-                            m_allConnections.push_back(replacement);
-
-                            if (!m_waitQueue.empty())
-                            {
-                                // Direct handoff to first waiter
-                                ConnectionRequest *req = m_waitQueue.front();
-                                m_waitQueue.pop_front();
-                                replacement->setActive(std::nothrow, true);
-                                m_activeConnections++;
-                                replacement->m_closed.store(false);
-                                req->conn = replacement;
-                                req->fulfilled = true;
-                                m_connectionAvailable.notify_all();
-                            }
-                            else
-                            {
-                                m_idleConnections.push(replacement);
-                                m_connectionAvailable.notify_one();
-                            }
-                        }
-                        else
-                        {
-                            // Pool full or closing — discard replacement
-                            replacement->m_closed.store(true);
-                            discardReplacement = replacement;
-                        }
-                    }
-
-                    // Close discarded replacement outside lock
-                    if (discardReplacement)
-                    {
-                        auto discardCloseResult = discardReplacement->getUnderlyingDocumentConnection()->close(std::nothrow);
-                        if (!discardCloseResult.has_value())
-                        {
-                            CP_DEBUG("DocumentDBConnectionPool::returnConnection - close() on discarded replacement failed: %s", discardCloseResult.error().what_s().c_str());
-                        }
-                    }
-                }
+                m_maintenanceCondition.notify_one();
             }
         }
 
@@ -515,7 +482,7 @@ namespace cpp_dbc
 
                     if (!m_running.load(std::memory_order_acquire))
                     {
-                        return cpp_dbc::unexpected(DBException("26405F5CF154", "Connection pool is closed", system_utils::captureCallStack()));
+                        return cpp_dbc::unexpected(DBException("LJVQ3CEDEYL7", "Connection pool is closed", system_utils::captureCallStack()));
                     }
 
                     // Multiple break statements required to express mutually exclusive exit conditions
@@ -528,6 +495,8 @@ namespace cpp_dbc
                         {
                             result = m_idleConnections.front();
                             m_idleConnections.pop();
+                            CP_DEBUG("borrow - GOT IDLE: active=%d, idle=%zu, total=%zu",
+                                     m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
                             break;
                         }
 
@@ -535,6 +504,8 @@ namespace cpp_dbc
                         size_t totalPlusCreating = m_allConnections.size() + m_pendingCreations;
                         if (totalPlusCreating < m_maxSize)
                         {
+                            CP_DEBUG("borrow - CREATING: total=%zu, pending=%zu, max=%zu",
+                                     m_allConnections.size(), m_pendingCreations, m_maxSize);
                             m_pendingCreations++;
                             lockPool.unlock();
 
@@ -547,7 +518,7 @@ namespace cpp_dbc
 
                                 if (!newConnResult.has_value())
                                 {
-                                    CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - Failed to create connection: %s", newConnResult.error().what_s().c_str());
+                                    CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - Failed to create connection: %s", newConnResult.error().what_s().data());
                                 }
                                 else
                                 {
@@ -562,12 +533,13 @@ namespace cpp_dbc
                                     else
                                     {
                                         // Pool became full — discard candidate
+                                        CP_DEBUG("borrow - DISCARD candidate: total=%zu >= max=%zu", m_allConnections.size(), m_maxSize);
                                         newConn->m_closed.store(true); // Prevent destructor returnToPool()
                                         lockPool.unlock();
                                         auto closeResult = newConn->getUnderlyingDocumentConnection()->close(std::nothrow);
                                         if (!closeResult.has_value())
                                         {
-                                            CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - close() on discarded candidate failed: %s", closeResult.error().what_s().c_str());
+                                            CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - close() on discarded candidate failed: %s", closeResult.error().what_s().data());
                                         }
                                         lockPool.lock();
                                     }
@@ -585,6 +557,9 @@ namespace cpp_dbc
                         // would push the thread to the back, causing deadline starvation.
                         ConnectionRequest req;
                         m_waitQueue.push_back(&req);
+                        CP_DEBUG("borrow - WAITING on CV: active=%d, idle=%zu, total=%zu, pending=%zu, waiters=%zu",
+                                 m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size(),
+                                 m_pendingCreations, m_waitQueue.size());
 
                         // Multiple break statements required for mutually exclusive CV exit conditions
                         // (handoff, idle-after-timeout, idle-after-wakeup). Refactoring would break
@@ -594,7 +569,7 @@ namespace cpp_dbc
                             std::cv_status status;
                             try
                             {
-                                status = m_connectionAvailable.wait_until(lockPool, deadline);
+                                status = req.cv.wait_until(lockPool, deadline);
                             }
                             catch (const std::exception &ex)
                             {
@@ -615,13 +590,15 @@ namespace cpp_dbc
                             {
                                 result = req.conn;
                                 handedOff = true;
+                                CP_DEBUG("borrow - HANDOFF received: active=%d, idle=%zu, total=%zu",
+                                         m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
                                 break;
                             }
 
                             if (!m_running.load(std::memory_order_acquire))
                             {
                                 std::erase(m_waitQueue, &req);
-                                return cpp_dbc::unexpected(DBException("04E13757D18B", "Connection pool is closed", system_utils::captureCallStack()));
+                                return cpp_dbc::unexpected(DBException("U9ZUMJ9SDFTN", "Connection pool is closed", system_utils::captureCallStack()));
                             }
 
                             if (status == std::cv_status::timeout)
@@ -635,10 +612,13 @@ namespace cpp_dbc
                                 {
                                     result = m_idleConnections.front();
                                     m_idleConnections.pop();
+                                    CP_DEBUG("borrow - GOT IDLE after timeout: active=%d, idle=%zu",
+                                             m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size());
                                     break;
                                 }
-
-                                return cpp_dbc::unexpected(DBException("D2472D7067A8", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
+                                CP_DEBUG("borrow - TIMEOUT: active=%d, idle=%zu, total=%zu, pending=%zu",
+                                         m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size(), m_pendingCreations);
+                                return cpp_dbc::unexpected(DBException("HF3V83PS83LA", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
                             }
 
                             // Spurious wakeup: check idle again
@@ -647,10 +627,14 @@ namespace cpp_dbc
                                 std::erase(m_waitQueue, &req);
                                 result = m_idleConnections.front();
                                 m_idleConnections.pop();
+                                CP_DEBUG("borrow - GOT IDLE after wakeup: active=%d, idle=%zu",
+                                         m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size());
                                 break;
                             }
 
                             // Nothing available — stay in queue at same FIFO position, re-wait.
+                            CP_DEBUG("borrow - CV WAKEUP (re-waiting): idle=%zu, total=%zu",
+                                     m_idleConnections.size(), m_allConnections.size());
                         }
 
                         if (result)
@@ -674,26 +658,36 @@ namespace cpp_dbc
                     auto now = steady_clock::now();
                     auto timeSinceLastUse = duration_cast<milliseconds>(now - lastUsed).count();
 
+                    if (timeSinceLastUse > m_validationTimeoutMillis)
+                    {
+                        CP_DEBUG("borrow - VALIDATING (timeSinceLastUse=%lld ms > %ld ms)", (long long)timeSinceLastUse, m_validationTimeoutMillis);
+                    }
+
                     if (timeSinceLastUse > m_validationTimeoutMillis &&
                         !validateConnection(std::nothrow, result->getUnderlyingDocumentConnection()).value_or(false))
                     {
-                        CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - Validation failed, removing connection");
+                        CP_DEBUG("borrow - VALIDATION FAILED: removing connection, active=%d", m_activeConnections.load(std::memory_order_acquire));
 
                         {
                             std::scoped_lock lockPool(m_mutexPool);
                             result->setActive(std::nothrow, false);
+                            // Prevent destructor from attempting to return this already-removed
+                            // connection to the pool (would fire shared_from_this in destructor context).
+                            result->m_closed.store(true);
                             m_activeConnections--;
                             auto it = std::ranges::find(m_allConnections, result);
                             if (it != m_allConnections.end())
                             {
                                 m_allConnections.erase(it);
                             }
+                            // Notify first waiter: freed slot allows re-check of deadline or idle
+                            notifyFirstWaiter();
                         }
 
                         auto closeResult = result->getUnderlyingDocumentConnection()->close(std::nothrow);
                         if (!closeResult.has_value())
                         {
-                            CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - close() on invalid connection failed: %s", closeResult.error().what_s().c_str());
+                            CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - close() on invalid connection failed: %s", closeResult.error().what_s().data());
                         }
 
                         // Check deadline before retrying
@@ -704,6 +698,18 @@ namespace cpp_dbc
 
                         continue; // Retry
                     }
+                }
+
+                // ========================================
+                // Phase 3: prepareForBorrow (outside lock)
+                // ========================================
+                try
+                {
+                    result->getUnderlyingDocumentConnection()->prepareForBorrow();
+                }
+                catch ([[maybe_unused]] const std::exception &ex)
+                {
+                    CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - Exception in prepareForBorrow: %s", ex.what());
                 }
 
                 return cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException>{
@@ -739,10 +745,10 @@ namespace cpp_dbc
         do
         {
             {
-                // Wait 30 seconds or until notified by close()
+                // Wait 30 seconds, or wake early on close() or replenish request
                 std::unique_lock lock(m_mutexPool);
                 m_maintenanceCondition.wait_for(lock, std::chrono::seconds(30), [this]
-                                                { return !m_running.load(std::memory_order_acquire); });
+                                                { return !m_running.load(std::memory_order_acquire) || m_replenishNeeded > 0; });
             }
 
             if (!m_running.load(std::memory_order_acquire))
@@ -791,7 +797,7 @@ namespace cpp_dbc
                                 tempQueue.push(conn);
                             }
                         }
-                        m_idleConnections = std::move(tempQueue);
+                        m_idleConnections = tempQueue;
 
                         it = m_allConnections.erase(it);
                     }
@@ -802,28 +808,102 @@ namespace cpp_dbc
                 }
             }
 
-            // Replenish minIdle connections OUTSIDE lock
-            // (createPooledDBConnection may acquire driver-internal locks)
-            size_t currentTotal;
+            // Replenish connections that were invalidated in returnConnection().
+            // Created here asynchronously so the returning thread is not blocked
+            // by connection-creation I/O (1.3s+ under Valgrind).
+            while (m_running.load(std::memory_order_acquire)) // NOSONAR(cpp:S924) — two breaks needed: one for "nothing to replenish", one for creation failure
             {
-                std::scoped_lock lock(m_mutexPool);
-                currentTotal = m_allConnections.size() + m_pendingCreations;
-            }
-            while (m_running.load(std::memory_order_acquire) && currentTotal < m_minIdle)
-            {
-                auto pooledResult = createPooledDBConnection(std::nothrow);
-                if (!pooledResult.has_value())
                 {
-                    CP_DEBUG("DocumentDBConnectionPool::maintenanceTask - Failed to create minIdle connection: %s", pooledResult.error().what_s().c_str());
-                    break;
+                    std::scoped_lock lock(m_mutexPool);
+                    if (m_replenishNeeded == 0 || m_allConnections.size() + m_pendingCreations >= m_maxSize)
+                    {
+                        m_replenishNeeded = 0; // Clear if pool already at max
+                        break;
+                    }
+                    m_pendingCreations++;
+                    m_replenishNeeded--;
                 }
+
+                auto pooledResult = createPooledDBConnection(std::nothrow);
 
                 {
                     std::scoped_lock lock(m_mutexPool);
-                    m_idleConnections.push(pooledResult.value());
+                    m_pendingCreations--;
+
+                    if (!pooledResult.has_value())
+                    {
+                        CP_DEBUG("DocumentDBConnectionPool::maintenanceTask - Failed to create replacement: %s",
+                                 pooledResult.error().what_s().data());
+                        break; // Stop retrying — DB might be down
+                    }
+
                     m_allConnections.push_back(pooledResult.value());
-                    currentTotal = m_allConnections.size() + m_pendingCreations;
-                    m_connectionAvailable.notify_one();
+
+                    if (!m_waitQueue.empty())
+                    {
+                        // Direct handoff to first waiter
+                        auto *req = m_waitQueue.front();
+                        m_waitQueue.pop_front();
+                        pooledResult.value()->setActive(std::nothrow, true);
+                        m_activeConnections++;
+                        req->conn = pooledResult.value();
+                        req->fulfilled = true;
+                        CP_DEBUG("maintenanceTask - REPLACEMENT HANDOFF: active=%d, waiters=%zu, total=%zu",
+                                 m_activeConnections.load(std::memory_order_acquire), m_waitQueue.size(), m_allConnections.size());
+                        req->cv.notify_one();
+                    }
+                    else
+                    {
+                        m_idleConnections.push(pooledResult.value());
+                        CP_DEBUG("maintenanceTask - REPLACEMENT: pushed to idle, active=%d, idle=%zu, total=%zu",
+                                 m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
+                    }
+                }
+            }
+
+            // Replenish minIdle connections OUTSIDE lock
+            // (createPooledDBConnection may acquire driver-internal locks)
+            while (m_running.load(std::memory_order_acquire)) // NOSONAR(cpp:S924) — two breaks needed: one for "minIdle reached", one for creation failure
+            {
+                {
+                    std::scoped_lock lock(m_mutexPool);
+                    if (m_allConnections.size() + m_pendingCreations >= m_minIdle)
+                    {
+                        break;
+                    }
+                    m_pendingCreations++;
+                }
+
+                auto pooledResult = createPooledDBConnection(std::nothrow);
+
+                {
+                    std::scoped_lock lock(m_mutexPool);
+                    m_pendingCreations--;
+
+                    if (!pooledResult.has_value())
+                    {
+                        CP_DEBUG("DocumentDBConnectionPool::maintenanceTask - Failed to create minIdle connection: %s",
+                                 pooledResult.error().what_s().data());
+                        break;
+                    }
+
+                    m_allConnections.push_back(pooledResult.value());
+
+                    if (!m_waitQueue.empty())
+                    {
+                        // Direct handoff to first waiter
+                        auto *req = m_waitQueue.front();
+                        m_waitQueue.pop_front();
+                        pooledResult.value()->setActive(std::nothrow, true);
+                        m_activeConnections++;
+                        req->conn = pooledResult.value();
+                        req->fulfilled = true;
+                        req->cv.notify_one();
+                    }
+                    else
+                    {
+                        m_idleConnections.push(pooledResult.value());
+                    }
                 }
             }
         } while (m_running.load(std::memory_order_acquire));
@@ -927,7 +1007,11 @@ namespace cpp_dbc
         {
             std::scoped_lock lock(m_mutexPool);
             m_maintenanceCondition.notify_all();
-            m_connectionAvailable.notify_all();
+            // Wake every waiter individually so they see m_running == false and exit.
+            for (auto *r : m_waitQueue)
+            {
+                r->cv.notify_one();
+            }
         }
 
         // Join maintenance thread
@@ -962,7 +1046,7 @@ namespace cpp_dbc
                 auto r = conn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
                 if (!r.has_value())
                 {
-                    CP_DEBUG("DocumentDBConnectionPool::close - connection close failed: %s", r.error().what_s().c_str());
+                    CP_DEBUG("DocumentDBConnectionPool::close - connection close failed: %s", r.error().what_s().data());
                     lastError = r;
                 }
             }
@@ -1016,20 +1100,24 @@ namespace cpp_dbc
         {
             try
             {
-                // If the pool is no longer alive, close the physical connection.
-                // Use qualified call to avoid virtual dispatch in destructor.
-                // NOSONAR(cpp:S1699) - intentional qualified call in destructor to avoid virtual dispatch
-                if (!DocumentPooledDBConnection::isPoolValid(std::nothrow))
+                // CRITICAL: Never call returnToPool() or shared_from_this() from destructor.
+                // When the destructor runs, refcount is already 0, so shared_from_this()
+                // throws bad_weak_ptr. Instead, do direct cleanup:
+                // 1. Decrement active counter if this connection was active
+                // 2. Close the underlying physical connection
+                if (m_active.load(std::memory_order_acquire))
                 {
-                    auto closeResult = m_conn->close(std::nothrow);
-                    if (!closeResult.has_value())
+                    if (auto pool = m_pool.lock())
                     {
-                        CP_DEBUG("DocumentPooledDBConnection::~DocumentPooledDBConnection - close failed: %s", closeResult.error().what_s().c_str());
+                        pool->m_activeConnections--;
                     }
+                    m_active.store(false);
                 }
-                else
+
+                auto closeResult = m_conn->close(std::nothrow);
+                if (!closeResult.has_value())
                 {
-                    DocumentPooledDBConnection::returnToPool(); // NOSONAR(cpp:S1699) — qualified call in destructor intentional to avoid virtual dispatch
+                    CP_DEBUG("DocumentPooledDBConnection::~DocumentPooledDBConnection - close failed: %s", closeResult.error().what_s().data());
                 }
             }
             catch ([[maybe_unused]] const std::exception &ex)
@@ -1043,83 +1131,130 @@ namespace cpp_dbc
     {
         // Use atomic exchange to ensure only one thread processes the close
         bool expected = false;
-        if (!m_closed.compare_exchange_strong(expected, true))
+        if (m_closed.compare_exchange_strong(expected, true))
         {
-            return {};
-        }
-
-        try
-        {
-            // Return to pool instead of actually closing
-            updateLastUsedTime(std::nothrow);
-
-            // Check if pool is still alive using the shared atomic flag
-            if (isPoolValid(std::nothrow))
+            try
             {
-                // Try to obtain a shared_ptr from the weak_ptr
-                if (auto poolShared = m_pool.lock())
+                // Return to pool instead of actually closing
+                updateLastUsedTime(std::nothrow);
+
+                // Check if pool is still alive using the shared atomic flag
+                if (isPoolValid(std::nothrow))
                 {
-                    // ============================================================================
-                    // CRITICAL FIX: Race Condition in Connection Pool Return Flow
-                    // ============================================================================
-                    //
-                    // BUG DESCRIPTION:
-                    // ----------------
-                    // A race condition existed where m_closed was reset to false AFTER
-                    // returnConnection() completed. This created a window where another thread
-                    // could obtain the connection from the idle queue while m_closed was still
-                    // true, causing spurious "Connection is closed" errors.
-                    //
-                    // SEQUENCE OF EVENTS (BUG):
-                    // -------------------------
-                    // Thread A (returning connection):
-                    //   1. close() sets m_closed = true (compare_exchange)
-                    //   2. returnConnection() is called
-                    //   3. Inside returnConnection():
-                    //      - LOCK(m_mutexIdleConnections)
-                    //      - m_idleConnections.push(conn)  <-- Connection available with m_closed=TRUE
-                    //      - UNLOCK(m_mutexIdleConnections) <-- Race window opens here
-                    //   4. m_closed.store(false)  <-- Too late if Thread B already got the connection
-                    //
-                    // Thread B (acquiring connection) - executes between steps 3 and 4:
-                    //   1. getIdleDBConnection() acquires m_mutexIdleConnections
-                    //   2. Pops connection from idle queue (m_closed is still TRUE)
-                    //   3. Returns connection to caller
-                    //   4. Caller calls ping() -> sees m_closed=true -> throws "Connection is closed"
-                    //
-                    // FIX:
-                    // ----
-                    // Reset m_closed to false BEFORE calling returnConnection(). This ensures
-                    // that when the connection becomes available in the idle queue, m_closed
-                    // is already false and any thread that obtains it will see the correct state.
-                    //
-                    // If returnConnection() fails or throws an exception, the catch blocks below
-                    // will set m_closed back to true, maintaining correct error handling semantics.
-                    // ============================================================================
-                    m_closed.store(false);
-                    auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<DocumentPooledDBConnection>(this->shared_from_this()));
-                    if (!returnResult.has_value())
+                    // Try to obtain a shared_ptr from the weak_ptr
+                    if (auto poolShared = m_pool.lock())
                     {
-                        CP_DEBUG("DocumentPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().c_str());
+                        // ============================================================================
+                        // CRITICAL FIX: Race Condition in Connection Pool Return Flow
+                        // ============================================================================
+                        //
+                        // BUG DESCRIPTION:
+                        // ----------------
+                        // A race condition existed where m_closed was reset to false AFTER
+                        // returnConnection() completed. This created a window where another thread
+                        // could obtain the connection from the idle queue while m_closed was still
+                        // true, causing spurious "Connection is closed" errors.
+                        //
+                        // SEQUENCE OF EVENTS (BUG):
+                        // -------------------------
+                        // Thread A (returning connection):
+                        //   1. close() sets m_closed = true (compare_exchange)
+                        //   2. returnConnection() is called
+                        //   3. Inside returnConnection():
+                        //      - LOCK(m_mutexPool)
+                        //      - m_idleConnections.push(conn)  <-- Connection available with m_closed=TRUE
+                        //      - UNLOCK(m_mutexPool) <-- Race window opens here
+                        //   4. m_closed.store(false)  <-- Too late if Thread B already got the connection
+                        //
+                        // Thread B (acquiring connection) - executes between steps 3 and 4:
+                        //   1. getDocumentDBConnection() acquires m_mutexPool
+                        //   2. Pops connection from idle queue (m_closed is still TRUE)
+                        //   3. Returns connection to caller
+                        //   4. Caller calls ping() -> sees m_closed=true -> throws "Connection is closed"
+                        //
+                        // FIX:
+                        // ----
+                        // Reset m_closed to false BEFORE calling returnConnection(). This ensures
+                        // that when the connection becomes available in the idle queue, m_closed
+                        // is already false and any thread that obtains it will see the correct state.
+                        //
+                        // If returnConnection() fails or throws an exception, the catch blocks below
+                        // will close the underlying connection, maintaining correct error handling.
+                        // ============================================================================
+                        m_closed.store(false);
+                        auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<DocumentPooledDBConnection>(shared_from_this()));
+                        if (!returnResult.has_value())
+                        {
+                            CP_DEBUG("DocumentPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().data());
+                            return returnResult;
+                        }
                     }
                 }
+                else if (m_conn)
+                {
+                    // If pool is invalid, actually close the connection
+                    auto result = m_conn->close(std::nothrow);
+                    if (!result.has_value())
+                    {
+                        CP_DEBUG("DocumentPooledDBConnection::close - Failed to close underlying connection: %s", result.error().what_s().data());
+                        return result;
+                    }
+                }
+
+                return {};
+            }
+            catch (const std::bad_weak_ptr &ex)
+            {
+                // shared_from_this failed, just close the connection
+                m_closed.store(true);
+                if (m_conn)
+                {
+                    auto result = m_conn->close(std::nothrow);
+                    if (!result.has_value())
+                    {
+                        return result;
+                    }
+                }
+                return cpp_dbc::unexpected(DBException("B6ZEXDIEMWV7",
+                                                        std::string("Failed to obtain shared_from_this: ") + ex.what(),
+                                                        system_utils::captureCallStack()));
+            }
+            catch (const DBException &ex)
+            {
+                // DBException from underlying connection, just return it
+                m_closed.store(true);
+                if (m_conn)
+                {
+                    m_conn->close(std::nothrow);
+                }
+                return cpp_dbc::unexpected(ex);
+            }
+            catch (const std::exception &ex)
+            {
+                // Any other exception, close the connection and return error
+                m_closed.store(true);
+                if (m_conn)
+                {
+                    m_conn->close(std::nothrow);
+                }
+                return cpp_dbc::unexpected(DBException("8XN84Y8GGSQU",
+                                                        std::string("Exception in close: ") + ex.what(),
+                                                        system_utils::captureCallStack()));
+            }
+            catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
+            {
+                CP_DEBUG("DocumentPooledDBConnection::close - Unknown exception caught");
+                m_closed.store(true);
+                if (m_conn)
+                {
+                    m_conn->close(std::nothrow);
+                }
+                return cpp_dbc::unexpected(DBException("KK3USJBXJPR1",
+                                                        "Unknown exception in close",
+                                                        system_utils::captureCallStack()));
             }
         }
-        catch ([[maybe_unused]] const std::bad_weak_ptr &ex)
-        {
-            CP_DEBUG("DocumentPooledDBConnection::close - shared_from_this failed: %s", ex.what());
-            m_closed.store(true);
-        }
-        catch ([[maybe_unused]] const std::exception &ex)
-        {
-            CP_DEBUG("DocumentPooledDBConnection::close - Exception: %s", ex.what());
-            m_closed.store(true);
-        }
-        catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
-        {
-            CP_DEBUG("DocumentPooledDBConnection::close - Unknown exception caught");
-            m_closed.store(true);
-        }
+
         return {};
     }
 
@@ -1254,6 +1389,26 @@ namespace cpp_dbc
         return m_conn->prepareForPoolReturn(std::nothrow);
     }
 
+    void DocumentPooledDBConnection::prepareForBorrow()
+    {
+        auto result = prepareForBorrow(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    expected<void, DBException> DocumentPooledDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("LRG1PLMORCRX",
+                                                   "Connection is closed",
+                                                   system_utils::captureCallStack()));
+        }
+        return m_conn->prepareForBorrow(std::nothrow);
+    }
+
     std::shared_ptr<DBConnection> DocumentPooledDBConnection::getUnderlyingConnection(std::nothrow_t) noexcept
     {
         return std::static_pointer_cast<DBConnection>(m_conn);
@@ -1269,7 +1424,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("D16CD1398113", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("L8G1QT50UXIA", "Connection is closed", system_utils::captureCallStack());
         }
         return m_conn->getDatabaseName();
     }
@@ -1288,7 +1443,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("AEF208932857", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("OQ3AKT1GWEFX", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->databaseExists(databaseName);
@@ -1308,7 +1463,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("33ABD0122921", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("4WJIPC98HTAS", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         m_conn->dropDatabase(databaseName);
@@ -1318,7 +1473,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("8781A8112718", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("W77JNUYM7UNB", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->getCollection(collectionName);
@@ -1328,7 +1483,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("4B1920591BBF", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("1C1ZHI36YMBN", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->listCollections();
@@ -1338,7 +1493,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("8074225964F3", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("LB8AQEYQ8W79", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->collectionExists(collectionName);
@@ -1359,7 +1514,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("B948C3233D2E", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("BBTF7NNNRUGA", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         m_conn->dropCollection(collectionName);
@@ -1369,7 +1524,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("A551087D0C0F", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("FGUY2RG1U7TL", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->createDocument();
@@ -1379,7 +1534,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("57A932F74BC9", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("QP1HG80G6YXD", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->createDocument(json);
@@ -1429,7 +1584,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("12B829E08231", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("NQGFYKY2EI6L", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->startSession();
@@ -1459,7 +1614,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("1AF497A444D9", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("NL6LRD2YUH7O", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         m_conn->commitTransaction(sessionId);
@@ -1469,7 +1624,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("4A713C729CE4", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("T8VY0CZRCSD1", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         m_conn->abortTransaction(sessionId);
@@ -1484,6 +1639,7 @@ namespace cpp_dbc
         updateLastUsedTime(std::nothrow);
         return m_conn->supportsTransactions();
     }
+    #endif // __cpp_exceptions
 
     // ====================================================================
     // NOTHROW VERSIONS - delegate to underlying connection

@@ -58,7 +58,7 @@ void executeWithErrorHandling(const std::string &operationName, std::function<vo
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error in " + operationName + ": " + e.what_s());
+        logError("Database error in " + operationName + ": " + std::string(e.what_s()));
         e.printCallStack();
     }
     catch (const AppException &e)
@@ -298,7 +298,7 @@ void demonstrateTransactionErrors(std::shared_ptr<cpp_dbc::RelationalDBConnectio
             conn->commit();
         }
         catch (const cpp_dbc::DBException& e) {
-            logError("Error in transaction: " + e.what_s());
+            logError("Error in transaction: " + std::string(e.what_s()));
             logStep("Rolling back transaction...");
             conn->rollback();
 
@@ -416,7 +416,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::RelationalDBConnection> c
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logData("Expected error occurred: " + e.what_s());
+        logData("Expected error occurred: " + std::string(e.what_s()));
         logStep("Recovering by performing a valid operation...");
 
         try
@@ -447,7 +447,7 @@ void demonstrateErrorRecovery(std::shared_ptr<cpp_dbc::RelationalDBConnection> c
         }
         catch (const cpp_dbc::DBException &recoverError)
         {
-            logError("Recovery failed: " + recoverError.what_s());
+            logError("Recovery failed: " + std::string(recoverError.what_s()));
         }
     }
 }
@@ -475,7 +475,7 @@ void demonstrateCustomErrorHandling(std::shared_ptr<cpp_dbc::RelationalDBConnect
         {
             customLogError(operation, e);
 
-            std::string errorMsg = e.what_s();
+            std::string errorMsg = std::string(e.what_s());
             if (errorMsg.find("constraint") != std::string::npos ||
                 errorMsg.find("CONSTRAINT") != std::string::npos ||
                 errorMsg.find("duplicate") != std::string::npos ||
@@ -608,7 +608,7 @@ int main(int argc, char *argv[])
     // Check for real error (DBException)
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return 1;
     }
 
@@ -634,7 +634,7 @@ int main(int argc, char *argv[])
 
         if (!pgResult)
         {
-            logError("Failed to get PostgreSQL config: " + pgResult.error().what_s());
+            logError("Failed to get PostgreSQL config: " + std::string(pgResult.error().what_s()));
             return 1;
         }
 

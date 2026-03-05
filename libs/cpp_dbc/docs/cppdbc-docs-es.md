@@ -1,6 +1,6 @@
 # Documentación de la Biblioteca CPP_DBC
 
-Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB y Redis. Todos los archivos de encabezado públicos incluyen documentación compatible con Doxygen (`/** @brief ... */`) con ejemplos de código en línea, etiquetas `@param`/`@return`/`@see`, y están listos para la generación de referencias de API en HTML/PDF.
+Este documento proporciona una guía completa de la biblioteca CPP_DBC, una biblioteca de Conectividad de Bases de Datos para C++ inspirada en JDBC, con soporte para bases de datos MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB y Redis. Los 7 controladores implementan el patrón dual-API nothrow-first: la lógica real en métodos `noexcept` que retornan `expected<T, DBException>`, la API con excepciones como wrappers delgados protegidos por `#ifdef __cpp_exceptions`, construcción mediante fábrica estática, e inicialización del controlador con double-checked locking. La biblioteca es totalmente compatible con builds `-fno-exceptions`. Todos los archivos de encabezado públicos incluyen documentación compatible con Doxygen (`/** @brief ... */`) con ejemplos de código en línea, etiquetas `@param`/`@return`/`@see`, y están listos para la generación de referencias de API en HTML/PDF.
 
 ## Tabla de Contenidos
 - [Componentes Principales](#componentes-principales)
@@ -271,6 +271,18 @@ Para trabajar con BLOB en CPP_DBC, se pueden utilizar los siguientes patrones:
    
    stmt->executeUpdate();
    ```
+
+---
+
+## Arquitectura — Dual-API Nothrow-First (Todos los Controladores)
+
+Los 7 controladores de base de datos comparten una arquitectura consistente:
+
+- **Guardas `#ifdef __cpp_exceptions`**: Los métodos con excepciones se compilan condicionalmente; los métodos nothrow siempre se compilan, habilitando builds `-fno-exceptions`
+- **Nothrow-first**: La lógica real reside en métodos `noexcept` que retornan `expected<T, DBException>`. Los métodos con excepciones son wrappers delgados que llaman la versión nothrow y re-lanzan en caso de error
+- **Patrón de fábrica estática**: Las clases de conexión proveen fábricas `create(std::nothrow_t, ...)` con constructores privados nothrow. Diferimiento de errores vía miembros `m_initFailed`/`m_initError`
+- **Double-checked locking**: Todos los controladores usan `std::atomic<bool>` + `std::mutex` para inicialización única de la biblioteca C (no `std::once_flag` — permite re-inicialización después de `cleanup()`, evita `std::system_error` bajo `-fno-exceptions`)
+- **Eliminación de try/catch muerto**: Los métodos nothrow que solo llaman otros métodos nothrow no tienen bloques try/catch (según convenciones del proyecto)
 
 ---
 
@@ -574,7 +586,7 @@ conn->close();
 ## Implementación MongoDB
 *Componentes definidos en drivers/document/driver_mongodb.hpp y src/drivers/document/driver_mongodb.cpp*
 
-MongoDB es una base de datos de documentos que almacena datos en documentos flexibles similares a JSON. La biblioteca CPP_DBC proporciona una implementación completa del controlador MongoDB con soporte para operaciones CRUD, gestión de colecciones e iteración basada en cursores.
+MongoDB es una base de datos de documentos que almacena datos en documentos flexibles similares a JSON. La biblioteca CPP_DBC proporciona una implementación completa del controlador MongoDB con soporte para operaciones CRUD, gestión de colecciones e iteración basada en cursores. El controlador MongoDB sigue el patrón dual-API nothrow-first: toda la lógica real reside en métodos `noexcept` que retornan `expected<T, DBException>`, y la API con excepciones es una capa delgada de wrappers. Todas las interfaces abstractas protegen los métodos con excepciones usando `#ifdef __cpp_exceptions` para compatibilidad con `-fno-exceptions`.
 
 ### DocumentDBData
 Una clase base abstracta que representa datos de documentos.
@@ -629,34 +641,44 @@ Una clase base abstracta que representa un controlador de base de datos de docum
 - `connectDocument(string, string, string, map<string, string>)`: Establece una conexión a la base de datos de documentos.
 - `acceptsURL(string)`: Devuelve true si el controlador puede conectarse a la URL dada.
 
-### MongoDBData
-Implementación de DocumentDBData para MongoDB.
+### MongoDBDocument (anteriormente MongoDBData)
+Implementación de DocumentDBData para MongoDB. Usa patrón de fábrica estática para construcción.
+
+**Construcción:**
+- `MongoDBDocument::create(std::nothrow_t)`: Crea un documento vacío (fábrica estática, noexcept).
+- `MongoDBDocument::create(std::nothrow_t, bson_t*)`: Crea desde un documento BSON (fábrica estática, noexcept).
 
 **Métodos:**
 Los mismos que DocumentDBData, más:
-- `MongoDBData(bsoncxx::document::value)`: Constructor que toma un documento BSON.
-- `getDocument()`: Devuelve el documento BSON subyacente.
+- `getBson()`: Devuelve el documento BSON subyacente.
+- `getBsonMutable()`: Devuelve una referencia mutable al documento BSON.
+- Caché de ID: `getId()` almacena en caché el valor `_id` internamente para evitar recorridos BSON repetidos.
 
 ### MongoDBCursor
 Implementación de DocumentDBCursor para MongoDB.
 
+**Construcción:**
+- `MongoDBCursor(std::nothrow_t, ...)`: Constructor nothrow.
+
 **Métodos:**
-Los mismos que DocumentDBCursor, más:
-- `MongoDBCursor(mongocxx::cursor)`: Constructor que toma un cursor MongoDB.
+Los mismos que DocumentDBCursor. Los métodos de encadenamiento (`skip`, `limit`, `sort`) retornan `std::reference_wrapper<DocumentDBCursor>` en la API nothrow.
 
 ### MongoDBCollection
 Implementación de DocumentDBCollection para MongoDB.
 
 **Métodos:**
 Los mismos que DocumentDBCollection, más:
-- `MongoDBCollection(mongocxx::collection)`: Constructor que toma una colección MongoDB.
+- Helper interno `getCollectionHandle(std::nothrow_t)` que combina obtención de cliente + colección.
 
 ### MongoDBConnection
-Implementación de DocumentDBConnection para MongoDB.
+Implementación de DocumentDBConnection para MongoDB. Usa patrón de fábrica estática.
+
+**Construcción:**
+- `MongoDBConnection::create(std::nothrow_t, url, user, password, options)`: Fábrica estática (noexcept), retorna `expected<shared_ptr<MongoDBConnection>, DBException>`.
+- Constructor privado nothrow + helper `initialize(std::nothrow_t)` para inicialización falible.
 
 **Métodos:**
 Los mismos que DocumentDBConnection, más:
-- `MongoDBConnection(string, int, string, string, string, map<string, string>)`: Constructor que toma host, puerto, base de datos, usuario, contraseña y opciones de conexión opcionales.
 - `getURL()`: Devuelve la URL de conexión.
 
 **Uso de Punteros Inteligentes:**
@@ -666,16 +688,19 @@ Los mismos que DocumentDBConnection, más:
 ### MongoDBDriver
 Implementación de DocumentDBDriver para MongoDB.
 
+**Construcción:**
+- `MongoDBDriver()`: Constructor que usa double-checked locking (`std::atomic<bool>` + `std::mutex`) para inicialización única de la biblioteca C. Compatible con `-fno-exceptions` (reemplaza `std::call_once`).
+
 **Métodos:**
 Los mismos que DocumentDBDriver, más:
-- `MongoDBDriver()`: Constructor.
-- `parseURL(string, string&, int&, string&)`: Analiza una URL de conexión.
-- `acceptsURL(string)`: Devuelve true solo para URLs `mongodb://`.
+- `acceptsURL(string)`: Devuelve true solo para URLs `cpp_dbc:mongodb://`.
+- `cleanup()`: Reinicia el estado de inicialización, permitiendo re-inicialización.
+- `isInitialized()`: Verifica si la biblioteca C está inicializada.
 
 **Formato de URL de Conexión:**
 ```
-mongodb://host:puerto/base_de_datos
-mongodb://usuario:contraseña@host:puerto/base_de_datos?authSource=admin
+cpp_dbc:mongodb://host:puerto/base_de_datos
+cpp_dbc:mongodb://usuario:contraseña@host:puerto/base_de_datos?authSource=admin
 ```
 
 **Ejemplo de Uso:**

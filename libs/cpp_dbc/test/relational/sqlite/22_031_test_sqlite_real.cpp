@@ -40,9 +40,9 @@
 // Using common_test_helpers namespace for helper functions
 
 // Test case for SQLite real database operations
+#if USE_SQLITE
 TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
 {
-#if USE_SQLITE
     // Get SQLite configuration to check if cleanup is needed
     auto dbConfig = sqlite_test_helpers::getSQLiteConfig("test_sqlite");
 
@@ -195,7 +195,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::string errorMsg = e.what_s();
+            std::string errorMsg = std::string(e.what_s());
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite real database error: " + errorMsg);
             FAIL("SQLite real database test failed: " + std::string(e.what_s()));
         }
@@ -329,13 +329,16 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         }
         catch (const cpp_dbc::DBException &e)
         {
-            std::string errorMsg = e.what_s();
+            std::string errorMsg = std::string(e.what_s());
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite date/time test error: " + errorMsg);
             FAIL("SQLite date/time test failed: " + std::string(e.what_s()));
         }
     }
-    SECTION("SQLite connection pool")
+
+    /* SECTION("SQLite connection pool") - moved to 22_141_test_sqlite_real_connection_pool.cpp
     {
+        cpp_dbc::system_utils::logWithTimesMillis("SECTION", "SQLite connection pool");
+
         // Create a connection pool configuration with shorter timeouts for tests
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
         poolConfig.setUrl(connStr);
@@ -367,8 +370,8 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         conn->returnToPool();
 
         // Test multiple connections in parallel
-        const int numThreads = 10;
-        const int opsPerThread = 5;
+        const int numThreads = 20;
+        const int opsPerThread = 50;
 
         std::atomic<int> successCount(0);
         std::vector<std::thread> threads;
@@ -404,7 +407,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
             t.join();
         }
 
-        REQUIRE(successCount == numThreads * opsPerThread);
+        REQUIRE(successCount >= (numThreads * opsPerThread * 0.95));
 
         // Verify the data
         conn = pool->getRelationalDBConnection();
@@ -419,7 +422,7 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
 
         // Close the pool
         pool->close();
-    }
+    } */
 
     SECTION("SQLite metadata retrieval")
     {
@@ -485,122 +488,13 @@ TEST_CASE("SQLite real database operations", "[22_031_01_sqlite_real]")
         conn->close();
     }
 
-    SECTION("SQLite stress test")
-    {
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        poolConfig.setUsername("");
-        poolConfig.setPassword("");
-        poolConfig.setInitialSize(3);
-        poolConfig.setMaxSize(10);
-        poolConfig.setMinIdle(1);
-        poolConfig.setConnectionTimeout(10000);
-        poolConfig.setValidationInterval(500);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setValidationQuery("SELECT 1");
-        poolConfig.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
-
-        auto poolResult2 = cpp_dbc::SQLite::SQLiteConnectionPool::create(std::nothrow, poolConfig);
-        if (!poolResult2.has_value())
-        {
-            throw poolResult2.error();
-        }
-        auto pool = poolResult2.value();
-
-        auto conn = pool->getRelationalDBConnection();
-        conn->executeUpdate("DROP TABLE IF EXISTS test_table");
-        conn->executeUpdate("CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT, value REAL)");
-        conn->returnToPool();
-
-        const int numThreads = 20;
-        const int opsPerThread = 50;
-        std::atomic<int> successCount(0);
-        std::vector<std::thread> threads;
-
-        const std::string insertQuery = "INSERT INTO test_table (id, name, value) VALUES (?, ?, ?)";
-        const std::string selectQuery = "SELECT * FROM test_table WHERE id = ?";
-
-        auto startTime = std::chrono::steady_clock::now();
-
-        for (int i = 0; i < numThreads; i++)
-        {
-            threads.push_back(std::thread([&pool, i, opsPerThread, insertQuery, selectQuery, &successCount]()
-            {
-                for (int j = 0; j < opsPerThread; j++)
-                {
-                    try
-                    {
-                        auto conn_thread = pool->getRelationalDBConnection();
-                        int id = i * 100 + j;
-
-                        // Insert with retry for SQLITE_BUSY
-                        bool inserted = false;
-                        for (int retry = 0; retry < 5 && !inserted; retry++)
-                        {
-                            try
-                            {
-                                auto pstmt = conn_thread->prepareStatement(insertQuery);
-                                pstmt->setInt(1, id);
-                                pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
-                                pstmt->setDouble(3, id * 1.5);
-                                pstmt->executeUpdate();
-                                pstmt->close();
-                                inserted = true;
-                            }
-                            catch (const std::exception &)
-                            {
-                                std::this_thread::sleep_for(std::chrono::milliseconds(10 * (retry + 1)));
-                            }
-                        }
-
-                        if (inserted)
-                        {
-                            auto selectStmt = conn_thread->prepareStatement(selectQuery);
-                            selectStmt->setInt(1, id);
-                            auto rs = selectStmt->executeQuery();
-                            if (rs->next())
-                            {
-                                successCount++;
-                            }
-                            rs->close();
-                            selectStmt->close();
-                        }
-
-                        conn_thread->returnToPool();
-                    }
-                    catch (const std::exception &e)
-                    {
-                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string(e.what()));
-                    }
-                }
-            }));
-        }
-
-        for (auto &t : threads)
-        {
-            t.join();
-        }
-
-        auto endTime = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite stress test completed in " + std::to_string(duration) + " ms, " + std::to_string(successCount.load()) + " successful ops");
-
-        // Verify count
-        conn = pool->getRelationalDBConnection();
-        auto rs = conn->executeQuery("SELECT COUNT(*) as count FROM test_table");
-        REQUIRE(rs->next());
-        int totalRows = rs->getInt("count");
-        rs->close();
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Total rows inserted: " + std::to_string(totalRows));
-        conn->executeUpdate("DROP TABLE IF EXISTS test_table");
-        conn->returnToPool();
-
-        pool->close();
-
-        REQUIRE(successCount > numThreads * opsPerThread * 0.95); // At least 95% success rate
-    }
-#else
-    // Skip this test if SQLite support is not enabled
-    SKIP("SQLite support is not enabled");
-#endif
+    // Stress test (concurrent pool load) moved to 22_141_test_sqlite_real_connection_pool.cpp
+    // ("Connection pool under load" SECTION).
 }
+#else
+// Skip tests if SQLite support is not enabled
+TEST_CASE("SQLite real database operations (skipped)", "[22_031_02_sqlite_real]")
+{
+    SKIP("SQLite support is not enabled");
+}
+#endif

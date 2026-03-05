@@ -19,7 +19,8 @@ RUN_COUNT=1
 TIMESTAMP=$(date '+%Y-%m-%d-%H-%M-%S')
 BUILD_DONE=false
 SHOW_TUI=false
-TUI_ACTIVE=false  # Track if TUI has been initialized (for cleanup)
+TUI_ACTIVE=false        # Track if TUI has been initialized (for cleanup)
+CLEANUP_SIGNAL=""       # Set by signal traps before calling cleanup() to identify the source
 GLOBAL_START_TIME=0
 SUMMARIZE_MODE=false
 SUMMARIZE_FOLDER=""
@@ -1183,6 +1184,11 @@ find_failure_lines() {
     done
 }
 
+# Catch2 result-line pattern: matches "All tests passed", "N test case(s) failed",
+# or "test cases: N | N passed" (the last form appears when assertions: - none -).
+# Defined once here and reused by count_total_tests_in_log and callers below.
+readonly CATCH2_RESULT_PATTERN="All tests passed|[0-9]+ test case(s)? failed|^test cases: [0-9]+ \| [0-9]+ passed"
+
 # Count total tests completed in a log file
 # Returns the count of completed test cases
 count_total_tests_in_log() {
@@ -1193,10 +1199,11 @@ count_total_tests_in_log() {
         return
     fi
 
-    # Count "All tests passed" or "test case(s) failed" result lines
+    # Count "All tests passed", "test case(s) failed", or "test cases: N | N passed" result lines
+    # The third pattern covers Catch2 output when assertions: - none - (e.g. skipped/empty test cases)
     local count
-    count=$(grep -cE "All tests passed|[0-9]+ test case(s)? failed" "$log_file" 2>/dev/null) || true
-    echo "$count"
+    count=$(grep -cE "$CATCH2_RESULT_PATTERN" "$log_file" 2>/dev/null) || true
+    echo "${count:-0}"
 }
 
 # ============================================================================
@@ -2597,8 +2604,9 @@ get_test_progress_info() {
         test_name=$(echo "$running_line" | grep -oP '\[\K[^\]]+' | head -1 | tr -d '\n\r')
     fi
 
-    # Count completed tests by counting "All tests passed" or "test case(s) failed" result lines
-    completed_tests=$(grep -cE "All tests passed|[0-9]+ test case(s)? failed" "$log_file" 2>/dev/null) || true
+    # Count completed tests by counting "All tests passed", "test case(s) failed", or "test cases: N | N passed" result lines
+    # The third pattern covers Catch2 output when assertions: - none - (e.g. skipped/empty test cases)
+    completed_tests=$(grep -cE "$CATCH2_RESULT_PATTERN" "$log_file" 2>/dev/null) || true
     completed_tests=$(echo "$completed_tests" | tr -d '\n\r')
     completed_tests="${completed_tests:-0}"
 
@@ -2810,7 +2818,10 @@ run_parallel_tests_simple() {
                             fi
 
                             # Show final progress before changing status
-                            local final_count=$(grep -cE "All tests passed|[0-9]+ test case(s)? failed" "$log_file" 2>/dev/null || echo "0")
+                            # Third pattern covers Catch2 output when assertions: - none - (e.g. skipped/empty test cases)
+                            local final_count
+                            final_count=$(grep -cE "$CATCH2_RESULT_PATTERN" "$log_file" 2>/dev/null) || true
+                            final_count="${final_count:-0}"
                             local total_tests="${PREFIX_TOTAL_TESTS[$prefix]}"
                             if [ -n "$total_tests" ] && [ "$total_tests" -gt 0 ]; then
                                 echo -e "${GREEN}[PASSED]${NC} ${prefix}_ Run $current_run completed - ${final_count}/${total_tests} tests"
@@ -2905,7 +2916,7 @@ run_parallel_tests_simple() {
 # Cleanup and Main
 # ============================================================================
 
-# Cleanup function for Ctrl+C
+# Cleanup function for Ctrl+C / SIGTERM / unexpected exits
 cleanup() {
     # Restore TUI only if it was actually initialized
     if [ "$TUI_ACTIVE" = true ]; then
@@ -2913,7 +2924,57 @@ cleanup() {
     fi
 
     echo ""
-    echo -e "${YELLOW}Interrupted! Stopping all running tests...${NC}"
+
+    # Distinguish user-initiated interruption (Ctrl+C / q) from unexpected termination
+    # (crashed child propagating a signal to the parent via set -e or direct signal delivery).
+    # CLEANUP_SIGNAL is set by the individual trap handlers below before calling cleanup().
+    if [ "$CLEANUP_SIGNAL" = "INT" ]; then
+        echo -e "${YELLOW}Interrupted by user (Ctrl+C). Stopping all running tests...${NC}"
+    elif [ "$CLEANUP_SIGNAL" = "TERM" ]; then
+        # SIGTERM can arrive from an external kill, but also when a child in the pipeline
+        # (tee | sed) dies by signal and bash propagates it to the parent under set -e.
+        # Report every prefix that was still running so the user knows which test crashed.
+        echo -e "${RED}Terminated unexpectedly. Reporting running tests at time of termination:${NC}"
+        local any_running=false
+        for prefix in "${ALL_PREFIXES[@]}"; do
+            if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
+                any_running=true
+                local pid="${PREFIX_PIDS[$prefix]}"
+                local log_file="${PREFIX_LOG_FILE[$prefix]:-}"
+                local run_num="${PREFIX_CURRENT_RUN[$prefix]:-?}"
+                # Check if the child process is actually dead (crashed) or still alive (we are stopping it)
+                if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+                    # Child already dead — it likely crashed and that crash propagated to us
+                    local rc=0
+                    wait "$pid" 2>/dev/null || rc=$?
+                    local signal_info=""
+                    if [ "$rc" -gt 128 ]; then
+                        signal_info=" (killed by signal $((rc - 128)), exit code $rc)"
+                    fi
+                    echo -e "  ${RED}[CRASHED?]${NC} ${prefix}_ Run $run_num — child already dead${signal_info}"
+                else
+                    echo -e "  ${YELLOW}[RUNNING]${NC} ${prefix}_ Run $run_num — was still running"
+                fi
+                if [ -n "$log_file" ]; then
+                    echo "    Log: $log_file"
+                    # Print the last few lines of the log to give context about where it was
+                    local last_lines
+                    last_lines=$(tail -5 "$log_file" 2>/dev/null | grep -v "^--[0-9]*--" | tail -3)
+                    if [ -n "$last_lines" ]; then
+                        echo "    Last output:"
+                        echo "$last_lines" | while IFS= read -r line; do
+                            echo "      $line"
+                        done
+                    fi
+                fi
+            fi
+        done
+        if [ "$any_running" = false ]; then
+            echo -e "  ${YELLOW}No tests were running at the time of termination.${NC}"
+        fi
+    else
+        echo -e "${YELLOW}Interrupted! Stopping all running tests...${NC}"
+    fi
 
     for prefix in "${ALL_PREFIXES[@]}"; do
         if [ "${PREFIX_STATUS[$prefix]}" = "running" ]; then
@@ -2934,11 +2995,16 @@ cleanup() {
     done
 
     echo "All tests stopped."
-    exit 130
+    if [ "$CLEANUP_SIGNAL" = "TERM" ]; then
+        exit 143  # 128 + 15 (SIGTERM)
+    else
+        exit 130  # 128 + 2 (SIGINT), also default for unknown signals
+    fi
 }
 
-# Set up trap for cleanup
-trap cleanup INT TERM
+# Set up trap for cleanup — separate handlers so cleanup() knows the signal source
+trap 'CLEANUP_SIGNAL="INT";  cleanup' INT
+trap 'CLEANUP_SIGNAL="TERM"; cleanup' TERM
 
 # Main
 parse_arguments "$@"

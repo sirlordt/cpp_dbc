@@ -224,7 +224,11 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            validateCurrentRow();
+            auto validateResult = validateCurrentRow(std::nothrow);
+            if (!validateResult.has_value())
+            {
+                return cpp_dbc::unexpected(validateResult.error());
+            }
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -294,7 +298,11 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            validateCurrentRow();
+            auto validateResult = validateCurrentRow(std::nothrow);
+            if (!validateResult.has_value())
+            {
+                return cpp_dbc::unexpected(validateResult.error());
+            }
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -363,7 +371,11 @@ namespace cpp_dbc::MySQL
 
             DB_DRIVER_LOCK_GUARD(m_mutex);
 
-            validateCurrentRow();
+            auto validateResult = validateCurrentRow(std::nothrow);
+            if (!validateResult.has_value())
+            {
+                return cpp_dbc::unexpected(validateResult.error());
+            }
 
             if (columnIndex < 1 || columnIndex > m_fieldCount)
             {
@@ -403,7 +415,7 @@ namespace cpp_dbc::MySQL
             auto it = m_columnMap.find(columnName);
             if (it == m_columnMap.end())
             {
-                return cpp_dbc::unexpected(DBException("71685784D1EB", "Column not found: " + columnName, system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("FA0HK6HTPRIP", "Column not found: " + columnName, system_utils::captureCallStack()));
             }
             return getDouble(std::nothrow, it->second + 1);
         }

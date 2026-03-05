@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file connection_02.cpp
- * @brief Redis connection implementation - hash, set, sorted set, scan, server throwing + executeRaw, getDatabaseIndex, selectDatabase
+ * @brief Redis connection implementation - hash, set, sorted set, scan, server throwing + executeRaw, selectDatabase
  */
 
 #include "cpp_dbc/drivers/kv/driver_redis.hpp"
@@ -39,7 +39,8 @@ namespace cpp_dbc::Redis
 
     // Hash operations
 
-    bool RedisConnection::hashSet(
+#ifdef __cpp_exceptions
+    bool RedisDBConnection::hashSet(
         const std::string &key, const std::string &field, const std::string &value)
     {
         auto result = hashSet(std::nothrow, key, field, value);
@@ -50,7 +51,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::string RedisConnection::hashGet(const std::string &key, const std::string &field)
+    std::string RedisDBConnection::hashGet(const std::string &key, const std::string &field)
     {
         auto result = hashGet(std::nothrow, key, field);
         if (!result.has_value())
@@ -60,7 +61,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    bool RedisConnection::hashDelete(const std::string &key, const std::string &field)
+    bool RedisDBConnection::hashDelete(const std::string &key, const std::string &field)
     {
         auto result = hashDelete(std::nothrow, key, field);
         if (!result.has_value())
@@ -70,7 +71,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    bool RedisConnection::hashExists(const std::string &key, const std::string &field)
+    bool RedisDBConnection::hashExists(const std::string &key, const std::string &field)
     {
         auto result = hashExists(std::nothrow, key, field);
         if (!result.has_value())
@@ -80,7 +81,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::map<std::string, std::string> RedisConnection::hashGetAll(const std::string &key)
+    std::map<std::string, std::string> RedisDBConnection::hashGetAll(const std::string &key)
     {
         auto result = hashGetAll(std::nothrow, key);
         if (!result.has_value())
@@ -90,7 +91,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    int64_t RedisConnection::hashLength(const std::string &key)
+    int64_t RedisDBConnection::hashLength(const std::string &key)
     {
         auto result = hashLength(std::nothrow, key);
         if (!result.has_value())
@@ -102,7 +103,7 @@ namespace cpp_dbc::Redis
 
     // Set operations
 
-    bool RedisConnection::setAdd(const std::string &key, const std::string &member)
+    bool RedisDBConnection::setAdd(const std::string &key, const std::string &member)
     {
         auto result = setAdd(std::nothrow, key, member);
         if (!result.has_value())
@@ -112,7 +113,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    bool RedisConnection::setRemove(const std::string &key, const std::string &member)
+    bool RedisDBConnection::setRemove(const std::string &key, const std::string &member)
     {
         auto result = setRemove(std::nothrow, key, member);
         if (!result.has_value())
@@ -122,7 +123,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    bool RedisConnection::setIsMember(const std::string &key, const std::string &member)
+    bool RedisDBConnection::setIsMember(const std::string &key, const std::string &member)
     {
         auto result = setIsMember(std::nothrow, key, member);
         if (!result.has_value())
@@ -132,7 +133,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::vector<std::string> RedisConnection::setMembers(const std::string &key)
+    std::vector<std::string> RedisDBConnection::setMembers(const std::string &key)
     {
         auto result = setMembers(std::nothrow, key);
         if (!result.has_value())
@@ -142,7 +143,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    int64_t RedisConnection::setSize(const std::string &key)
+    int64_t RedisDBConnection::setSize(const std::string &key)
     {
         auto result = setSize(std::nothrow, key);
         if (!result.has_value())
@@ -154,7 +155,7 @@ namespace cpp_dbc::Redis
 
     // Sorted set operations
 
-    bool RedisConnection::sortedSetAdd(
+    bool RedisDBConnection::sortedSetAdd(
         const std::string &key, double score, const std::string &member)
     {
         auto result = sortedSetAdd(std::nothrow, key, score, member);
@@ -165,7 +166,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    bool RedisConnection::sortedSetRemove(const std::string &key, const std::string &member)
+    bool RedisDBConnection::sortedSetRemove(const std::string &key, const std::string &member)
     {
         auto result = sortedSetRemove(std::nothrow, key, member);
         if (!result.has_value())
@@ -175,7 +176,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::optional<double> RedisConnection::sortedSetScore(
+    std::optional<double> RedisDBConnection::sortedSetScore(
         const std::string &key, const std::string &member)
     {
         auto result = sortedSetScore(std::nothrow, key, member);
@@ -186,7 +187,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::vector<std::string> RedisConnection::sortedSetRange(
+    std::vector<std::string> RedisDBConnection::sortedSetRange(
         const std::string &key, int64_t start, int64_t stop)
     {
         auto result = sortedSetRange(std::nothrow, key, start, stop);
@@ -197,7 +198,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    int64_t RedisConnection::sortedSetSize(const std::string &key)
+    int64_t RedisDBConnection::sortedSetSize(const std::string &key)
     {
         auto result = sortedSetSize(std::nothrow, key);
         if (!result.has_value())
@@ -209,7 +210,7 @@ namespace cpp_dbc::Redis
 
     // Key scan operations
 
-    std::vector<std::string> RedisConnection::scanKeys(const std::string &pattern, int64_t count)
+    std::vector<std::string> RedisDBConnection::scanKeys(const std::string &pattern, int64_t count)
     {
         auto result = scanKeys(std::nothrow, pattern, count);
         if (!result.has_value())
@@ -221,7 +222,7 @@ namespace cpp_dbc::Redis
 
     // Server operations
 
-    std::string RedisConnection::executeCommand(
+    std::string RedisDBConnection::executeCommand(
         const std::string &command, const std::vector<std::string> &args)
     {
         auto result = executeCommand(std::nothrow, command, args);
@@ -232,7 +233,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    bool RedisConnection::flushDB(bool async)
+    bool RedisDBConnection::flushDB(bool async)
     {
         auto result = flushDB(std::nothrow, async);
         if (!result.has_value())
@@ -242,7 +243,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::string RedisConnection::ping()
+    bool RedisDBConnection::ping()
     {
         auto result = ping(std::nothrow);
         if (!result.has_value())
@@ -252,7 +253,7 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    std::map<std::string, std::string> RedisConnection::getServerInfo()
+    std::map<std::string, std::string> RedisDBConnection::getServerInfo()
     {
         auto result = getServerInfo(std::nothrow);
         if (!result.has_value())
@@ -262,64 +263,35 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    RedisReplyHandle RedisConnection::executeRaw(
+    void RedisDBConnection::prepareForPoolReturn()
+    {
+        auto result = prepareForPoolReturn(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    RedisReplyHandle RedisDBConnection::executeRaw(
         const std::string &command, const std::vector<std::string> &args)
     {
-        REDIS_LOCK_GUARD(m_mutex);
-        validateConnection();
-
-        // Prepare the command and arguments
-        std::vector<const char *> argv;
-        std::vector<size_t> argvlen;
-
-        argv.push_back(command.c_str());
-        argvlen.push_back(command.length());
-
-        for (const auto &arg : args)
+        auto r = executeRaw(std::nothrow, command, args);
+        if (!r.has_value())
         {
-            argv.push_back(arg.c_str());
-            argvlen.push_back(arg.length());
+            throw r.error();
         }
-
-        auto *reply = static_cast<redisReply *>(redisCommandArgv(
-            m_context.get(), static_cast<int>(argv.size()), argv.data(), argvlen.data()));
-
-        if (!reply)
-        {
-            throw DBException("E8B7F2C9A0D3", "Redis command execution failed: " + command,
-                              system_utils::captureCallStack());
-        }
-
-        if (reply->type == REDIS_REPLY_ERROR)
-        {
-            std::string errorMsg = reply->str ? reply->str : "Unknown error";
-            freeReplyObject(reply);
-            throw DBException("E1B9C4A6D0F2", "Redis command error: " + errorMsg,
-                              system_utils::captureCallStack());
-        }
-
-        return RedisReplyHandle(reply);
+        return std::move(r.value());
     }
 
-    int RedisConnection::getDatabaseIndex() const
+    void RedisDBConnection::selectDatabase(int index)
     {
-        return m_dbIndex;
-    }
-
-    void RedisConnection::selectDatabase(int index)
-    {
-        auto reply = executeRaw("SELECT", {std::to_string(index)});
-
-        if (reply.get()->type == REDIS_REPLY_STATUS &&
-            std::string(reply.get()->str, reply.get()->len) == "OK")
+        auto r = selectDatabase(std::nothrow, index);
+        if (!r.has_value())
         {
-            m_dbIndex = index;
-        }
-        else
-        {
-            throw DBException("B2E7F1C9A0D3", "Failed to select Redis database: " + std::to_string(index), system_utils::captureCallStack());
+            throw r.error();
         }
     }
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::Redis
 

@@ -20,86 +20,78 @@
 
 #include <string>
 #include <fstream>
-#include <iostream>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <cpp_dbc/cpp_dbc.hpp>
+#include <cpp_dbc/common/system_utils.hpp>
 
 #include "23_001_test_firebird_real_common.hpp"
 
+#if USE_FIREBIRD
 // Test case to verify Firebird connection
 TEST_CASE("Firebird connection test", "[23_041_01_firebird_real_connection]")
 {
-#if USE_FIREBIRD
-    // Skip this test if Firebird support is not enabled
+    // Get Firebird configuration
+    auto dbConfig = firebird_test_helpers::getFirebirdConfig("dev_firebird");
+
+    // Extract connection parameters
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+
+    // Create connection string
+    std::string type = dbConfig.getType();
+    std::string host = dbConfig.getHost();
+    int port = dbConfig.getPort();
+    std::string database = dbConfig.getDatabase();
+    std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
+
+    // Register the Firebird driver
+    cpp_dbc::DriverManager::registerDriver(firebird_test_helpers::getFirebirdDriver());
+
     SECTION("Test Firebird connection")
     {
-        // Get Firebird configuration
-        auto dbConfig = firebird_test_helpers::getFirebirdConfig("dev_firebird");
-
-        // Extract connection parameters
-        std::string username = dbConfig.getUsername();
-        std::string password = dbConfig.getPassword();
-
-        // Create connection string without database name for testing
-        std::string type = dbConfig.getType();
-        std::string host = dbConfig.getHost();
-        int port = dbConfig.getPort();
-        std::string database = dbConfig.getDatabase();
-        std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
-
-        // Register the Firebird driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
-
         try
         {
             // Attempt to connect to Firebird
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to Firebird with connection string: " + connStr);
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
 
-            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
-
-            // If we get here, the connection was successful
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Firebird connection succeeded!");
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+            REQUIRE(conn != nullptr);
 
             // Execute a simple query to verify the connection
             // Firebird uses RDB$DATABASE for simple queries
             auto resultSet = conn->executeQuery("SELECT 1 AS TEST_VALUE FROM RDB$DATABASE");
             REQUIRE(resultSet->next());
-            // Note: Firebird may return column as index 0 instead of by name for constants
+            // Firebird returns column constants by index
             REQUIRE(resultSet->getInt(0) == 1);
+
+            // Verify connection state and URL
+            CHECK_FALSE(conn->isClosed());
+
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+
+            CHECK(conn->getURL() == connStr);
 
             // Close the connection
             conn->close();
+            CHECK(conn->isClosed());
         }
-        catch (const cpp_dbc::DBException &e)
+        catch (const cpp_dbc::DBException &ex)
         {
-            // We expect an exception if the database doesn't exist
-            std::string errorMsg = e.what_s();
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Firebird connection error: " + errorMsg);
-
-            // Since we're just testing connectivity and driver registration,
-            // we'll consider this a success if we get an error that indicates
-            // the driver was found but the database doesn't exist
-
-            // This is a bit of a loose check, but it's the best we can do without knowing the exact error message
-            // Check if this is an expected error (unused in this test but kept for documentation)
-            [[maybe_unused]] bool isExpectedError =
-                errorMsg.find("database") != std::string::npos ||
-                errorMsg.find("Database") != std::string::npos ||
-                errorMsg.find("file") != std::string::npos ||
-                errorMsg.find("File") != std::string::npos ||
-                errorMsg.find("No suitable driver") != std::string::npos;
-
-            // We'll warn instead of requiring, to make the test more robust
-            WARN("Firebird connection failed as expected: " + std::string(e.what_s()));
-            WARN("This is expected if the database doesn't exist");
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Firebird connection error: " + std::string(ex.what_s()));
+            WARN("Firebird connection failed: " + std::string(ex.what_s()));
+            WARN("This is expected if Firebird is not installed or the database doesn't exist");
             WARN("The test is still considered successful for CI purposes");
         }
     }
-#else
-    // Skip this test if Firebird support is not enabled
-    SKIP("Firebird support is not enabled");
-#endif
 }
+#else
+// Skip this test if Firebird support is not enabled
+TEST_CASE("Firebird connection test (skipped)", "[23_041_02_firebird_real_connection]")
+{
+    SKIP("Firebird support is not enabled");
+}
+#endif

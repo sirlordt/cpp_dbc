@@ -12,6 +12,37 @@
 
 ## Completed Tasks
 
+- MongoDB Driver — Full Nothrow-First Refactor, Static Factory Pattern, `-fno-exceptions` Compatibility, and Dead try/catch Elimination (2026-03-04):
+  - All 5 document abstract interfaces (`DocumentDBCollection`, `DocumentDBConnection`, `DocumentDBCursor`, `DocumentDBData`, `DocumentDBDriver`) now guard throwing methods with `#ifdef __cpp_exceptions`; nothrow methods always compile under `-fno-exceptions`
+  - New nothrow pure-virtuals: `DocumentDBCursor` (+9 methods), `DocumentDBData` (+17 methods), `DocumentDBCollection` (+4 methods)
+  - `ping()` removed from `DocumentDBConnection` abstract interface; `getDefaultPort()` removed from `DocumentDBDriver`
+  - `DocumentDBDriver::getURIScheme()` now `noexcept`, returns full URL prefix (e.g., `"cpp_dbc:mongodb://"`); `supportsReplicaSets()`, `supportsSharding()`, `getDriverVersion()` all `noexcept`
+  - `MongoDBDriver`: `std::once_flag` replaced with `std::atomic<bool>` + `std::mutex` double-checked locking for `-fno-exceptions` compatibility; instance-level `m_mutex` removed
+  - `MongoDBConnection`: static factory `create(std::nothrow_t, ...)` + private nothrow constructor + `initialize(std::nothrow_t)` helper
+  - `MongoDBDocument`: static factories `create(std::nothrow_t)` and `create(std::nothrow_t, bson_t*)`; ID caching (`m_idCached`/`m_cachedId`); new `document_07.cpp` (776 lines)
+  - `MongoDBCursor`: constructor and all helpers converted to nothrow; `skip`/`limit`/`sort` use `std::reference_wrapper<DocumentDBCursor>` return
+  - `MongoDBCollection`: new `getCollectionHandle(std::nothrow_t)` combines client + collection retrieval
+  - `handles.hpp`: throwing `makeBsonHandleFromJson()` replaced with nothrow `expected` version
+  - Dead try/catch elimination across all MongoDB `.cpp` files (nothrow methods calling only nothrow methods)
+  - KV: `""` → `std::string{}` default parameter in `buildURI()`; Redis `NOSONAR(cpp:S5950)` for static factory
+  - Firebird stub: added missing `const`/`override`; MySQL/PostgreSQL blob: `using MemoryBlob::copyFrom;` (SonarQube cpp:S1242)
+  - 41 files changed, +5956/-5321 lines
+
+- DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations (2026-02-26):
+  - `DBException` now inherits `std::exception`; constructor is `noexcept`; fields are fixed char arrays (`m_mark[13]`, `m_message[257]`, `m_full_message[271]`)
+  - `DBException::what_s()` and `getMark()` now return `std::string_view` (was `const std::string&`)
+  - `DBException::getCallStack()` returns `std::span<const system_utils::StackFrame>` (was `const std::vector<StackFrame>&`)
+  - `system_utils::StackFrame` uses fixed `char file[150]`, `char function[150]` arrays (was `std::string`)
+  - New `system_utils::CallStackCapture` struct: `StackFrame frames[10]`, `int count`; `captureCallStack()` returns `std::shared_ptr<CallStackCapture>`
+  - `ping()` promoted to pure virtual in base `DBConnection` with `bool` return type (both throwing and nothrow variants)
+  - Removed family-specific `ping()` overloads from `KVDBConnection` (`std::string` return) and `DocumentDBConnection`
+  - All pool wrappers (relational, KV, document, columnar) and pooled connections updated for `bool ping()`
+  - 50+ example files updated: `+ ex.what_s()` → `+ std::string(ex.what_s())`
+  - `example_common.hpp` logging functions: `const std::string&` → `std::string_view` parameters
+  - Redis examples: `std::string pong = conn->ping()` → `bool pong = conn->ping()` with `"PONG"/"FAILED"` display
+  - `helper.sh`: deferred libdw flag processing — `dw-off` can now cancel a preceding `dw-on` in same option list
+  - `build_test_cpp_dbc.sh`: added `-DCPP_DBC_BUILD_EXAMPLES=OFF -DCPP_DBC_BUILD_BENCHMARKS=OFF` for faster test-only builds
+
 - Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection (2026-02-24):
   - Pool `create()` factory now returns `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` param (all families + all concrete subclasses)
   - All internal pool methods (createDBConnection, createPooledDBConnection, validateConnection, returnConnection, initializePool) now return `expected<T, DBException>` noexcept

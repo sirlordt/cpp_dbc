@@ -37,12 +37,22 @@ namespace cpp_dbc::PostgreSQL
         PostgreSQLDBDriver(PostgreSQLDBDriver &&) = delete;
         PostgreSQLDBDriver &operator=(PostgreSQLDBDriver &&) = delete;
 
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
+
+#ifdef __cpp_exceptions
         std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &url,
                                                                   const std::string &user,
                                                                   const std::string &password,
                                                                   const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override;
+#endif // __cpp_exceptions
 
-        bool acceptsURL(const std::string &url) override;
+        // ====================================================================
+        // NOTHROW API — exception-free, always available
+        // ====================================================================
+
+        bool acceptsURL(const std::string &url) noexcept override;
 
         /**
          * @brief Parse a JDBC-like URL into host, port, and database components
@@ -57,7 +67,6 @@ namespace cpp_dbc::PostgreSQL
                       int &port,
                       std::string &database) const;
 
-        // Nothrow API
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(
             std::nothrow_t,
             const std::string &url,
@@ -79,10 +88,7 @@ namespace cpp_dbc::PostgreSQL
     class PostgreSQLDBDriver final : public RelationalDBDriver
     {
     public:
-        PostgreSQLDBDriver()
-        {
-            throw DBException("3FE734D0BDE9", "PostgreSQL support is not enabled in this build");
-        }
+        PostgreSQLDBDriver() = default;
         ~PostgreSQLDBDriver() override = default;
 
         PostgreSQLDBDriver(const PostgreSQLDBDriver &) = delete;
@@ -90,17 +96,27 @@ namespace cpp_dbc::PostgreSQL
         PostgreSQLDBDriver(PostgreSQLDBDriver &&) = delete;
         PostgreSQLDBDriver &operator=(PostgreSQLDBDriver &&) = delete;
 
-        [[noreturn]] std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
-                                                                               const std::string &,
-                                                                               const std::string &,
-                                                                               const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
-        {
-            throw DBException("E39F6F23D06B", "PostgreSQL support is not enabled in this build");
-        }
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
-        bool acceptsURL(const std::string & /*url*/) override
+#ifdef __cpp_exceptions
+        std::shared_ptr<RelationalDBConnection> connectRelational(const std::string &,
+                                                                  const std::string &,
+                                                                  const std::string &,
+                                                                  const std::map<std::string, std::string> & = std::map<std::string, std::string>()) override
         {
-            return false;
+            return nullptr;
+        }
+#endif // __cpp_exceptions
+
+        // ====================================================================
+        // NOTHROW API — exception-free, always available
+        // ====================================================================
+
+        bool acceptsURL(const std::string &url) noexcept override
+        {
+            return url.starts_with("cpp_dbc:postgresql://");
         }
 
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> connectRelational(

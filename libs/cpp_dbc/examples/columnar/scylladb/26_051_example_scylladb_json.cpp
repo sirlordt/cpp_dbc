@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
     // Check for real error (DBException)
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return 1;
     }
 
@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
     // Check for real error
     if (!dbResult)
     {
-        logError("Failed to get database config: " + dbResult.error().what_s());
+        logError("Failed to get database config: " + std::string(dbResult.error().what_s()));
         return 1;
     }
 
@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         return 1;
     }
     catch (const std::exception &e)

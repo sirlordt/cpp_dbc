@@ -18,9 +18,6 @@
 
 */
 
-// Only compile these tests if DB_DRIVER_THREAD_SAFE is enabled
-#if DB_DRIVER_THREAD_SAFE
-
 #include <string>
 #include <memory>
 #include <thread>
@@ -40,7 +37,7 @@
 
 #include "20_001_test_mysql_real_common.hpp"
 
-#if USE_MYSQL
+#if DB_DRIVER_THREAD_SAFE && USE_MYSQL
 
 /**
  * @brief Thread-safety stress tests for MySQL driver
@@ -104,46 +101,70 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
                     startCv.wait(lock, [&]() { return startFlag; });
                 }
 
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " started");
+
                 try
                 {
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " opening connection...");
+
                     // Each thread gets its own connection
                     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
-                    
+
+                    if (!conn)
+                    {
+                        errorCount += opsPerThread;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " FAILED: dynamic_pointer_cast returned nullptr");
+                        return;
+                    }
+
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection opened");
+
                     for (int j = 0; j < opsPerThread; j++)
                     {
+                        //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " inserting...");
                         try
                         {
                             int id = i * 1000 + j;
-                            
+
                             // Insert operation
                             auto pstmt = conn->prepareStatement("INSERT INTO thread_test (id, value) VALUES (?, ?)");
                             pstmt->setInt(1, id);
                             pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
                             pstmt->executeUpdate();
 
+                            //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " selecting...");
+
                             // Select operation
                             auto selectStmt = conn->prepareStatement("SELECT * FROM thread_test WHERE id = ?");
                             selectStmt->setInt(1, id);
                             auto rs = selectStmt->executeQuery();
-                            
+
                             if (rs->next())
                             {
                                 successCount++;
+                                //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " OK");
+                            }
+                            else
+                            {
+                                errorCount++;
+                                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " FAILED: row not found after insert");
                             }
                         }
-                        catch (const std::exception& e)
+                        catch (const std::exception &ex)
                         {
                             errorCount++;
-                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(e.what()));
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(ex.what()));
                         }
                     }
 
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " closing connection...");
                     conn->close();
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " finished");
                 }
-                catch (const std::exception& e)
+                catch (const std::exception &ex)
                 {
                     errorCount += opsPerThread;
-                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection error: " + std::string(e.what()));
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection error: " + std::string(ex.what()));
                 } });
         }
 
@@ -171,7 +192,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         REQUIRE(successCount > 0);
     }
 
-    SECTION("Connection pool concurrent access")
+    /* SECTION("Connection pool concurrent access") - moved to 20_141_test_mysql_real_connection_pool.cpp
     {
         // Create connection pool
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -248,9 +269,9 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         cleanupConn->returnToPool();
 
         REQUIRE(successCount > 0);
-    }
+    } */
 
-    SECTION("Concurrent read operations with connection pool")
+    /* SECTION("Concurrent read operations with connection pool") - moved to 20_141_test_mysql_real_connection_pool.cpp
     {
         // Create connection pool
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -346,9 +367,9 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
 
         // Most reads should succeed
         REQUIRE(readCount > numThreads * readsPerThread * 0.95); // At least 95% success rate
-    }
+    } */
 
-    SECTION("High concurrency stress test")
+    /* SECTION("High concurrency stress test") - moved to 20_141_test_mysql_real_connection_pool.cpp
     {
         // Create connection pool for stress test
         cpp_dbc::config::DBConnectionPoolConfig poolConfig;
@@ -467,7 +488,7 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
         // Most operations should succeed
         int totalOps = insertCount + selectCount + updateCount;
         REQUIRE(totalOps > numThreads * opsPerThread * 0.95); // At least 95% success rate
-    }
+    } */
 
     SECTION("Rapid connection open/close stress test")
     {
@@ -519,15 +540,6 @@ TEST_CASE("MySQL Thread-Safety Tests", "[20_111_01_mysql_real_thread_safe]")
 #else
 TEST_CASE("MySQL Thread-Safety Tests (skipped)", "[20_111_02_mysql_real_thread_safe]")
 {
-    SKIP("MySQL support is not enabled");
+    SKIP("MySQL support is not enabled or thread-safety is disabled");
 }
-#endif // USE_MYSQL
-
-#else // DB_DRIVER_THREAD_SAFE
-// Empty test case when thread safety is disabled
-#include <catch2/catch_test_macros.hpp>
-TEST_CASE("MySQL Thread-Safety Tests (disabled)", "[20_111_03_mysql_real_thread_safe]")
-{
-    SKIP("Thread-safety tests are disabled when DB_DRIVER_THREAD_SAFE=0");
-}
-#endif // DB_DRIVER_THREAD_SAFE
+#endif // DB_DRIVER_THREAD_SAFE && USE_MYSQL

@@ -363,7 +363,7 @@ int main(int argc, char *argv[])
 
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -382,7 +382,7 @@ int main(int argc, char *argv[])
 
     if (!dbResult)
     {
-        logError("Failed to get database config: " + dbResult.error().what_s());
+        logError("Failed to get database config: " + std::string(dbResult.error().what_s()));
         return EXIT_ERROR_;
     }
 
@@ -405,7 +405,7 @@ int main(int argc, char *argv[])
     {
         logStep("Connecting to Redis...");
 
-        auto driver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+        auto driver = std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
         std::string url = "cpp_dbc:redis://" + dbConfig.getHost() + ":" + std::to_string(dbConfig.getPort()) + "/" + dbConfig.getDatabase();
         auto conn = driver->connectKV(url, dbConfig.getUsername(), dbConfig.getPassword());
 
@@ -425,7 +425,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         return EXIT_ERROR_;
     }
     catch (const std::exception &e)

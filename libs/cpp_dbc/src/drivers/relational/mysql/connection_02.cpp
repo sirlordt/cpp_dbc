@@ -51,14 +51,19 @@ namespace cpp_dbc::MySQL
             // Pass weak_ptr and shared mutex to the PreparedStatement
             // The shared mutex ensures all operations (including destructor) are serialized
 #if DB_DRIVER_THREAD_SAFE
-            auto stmt = std::make_shared<MySQLDBPreparedStatement>(std::weak_ptr<MYSQL>(m_mysql), m_connMutex, sql);
+            auto stmtResult = MySQLDBPreparedStatement::create(std::nothrow, std::weak_ptr<MYSQL>(m_mysql), m_connMutex, sql);
 #else
-            auto stmt = std::make_shared<MySQLDBPreparedStatement>(std::weak_ptr<MYSQL>(m_mysql), sql);
+            auto stmtResult = MySQLDBPreparedStatement::create(std::nothrow, std::weak_ptr<MYSQL>(m_mysql), sql);
 #endif
+            if (!stmtResult.has_value())
+            {
+                return cpp_dbc::unexpected(stmtResult.error());
+            }
+            auto stmt = stmtResult.value();
 
             // Register the statement as weak_ptr - allows natural destruction when user releases reference
             // Statements will be explicitly closed in returnToPool() or close() before connection reuse
-            registerStatement(std::weak_ptr<MySQLDBPreparedStatement>(stmt));
+            [[maybe_unused]] auto regResult = registerStatement(std::nothrow, std::weak_ptr<MySQLDBPreparedStatement>(stmt));
 
             return std::shared_ptr<RelationalDBPreparedStatement>(stmt);
         }
@@ -103,7 +108,12 @@ namespace cpp_dbc::MySQL
                 return cpp_dbc::unexpected(DBException("M3Y4S5Q6L7C8", std::string("Failed to get result set: ") + mysql_error(m_mysql.get()), system_utils::captureCallStack()));
             }
 
-            return std::shared_ptr<RelationalDBResultSet>(std::make_shared<MySQLDBResultSet>(result));
+            auto rsResult = MySQLDBResultSet::create(std::nothrow, result);
+            if (!rsResult.has_value())
+            {
+                return cpp_dbc::unexpected(rsResult.error());
+            }
+            return std::shared_ptr<RelationalDBResultSet>(rsResult.value());
         }
         catch (const DBException &ex)
         {

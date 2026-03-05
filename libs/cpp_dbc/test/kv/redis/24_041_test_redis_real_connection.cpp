@@ -45,10 +45,10 @@ TEST_CASE("Redis connection test", "[24_041_01_redis_real_connection]")
         std::string password = dbConfig.getPassword();
 
         // Create connection string using helper
-        std::string connStr = redis_test_helpers::buildRedisConnectionString(dbConfig);
+        std::string connStr = redis_test_helpers::buildRedisDBConnectionString(dbConfig);
 
         // Get a Redis driver
-        auto driver = redis_test_helpers::getRedisDriver();
+        auto driver = redis_test_helpers::getRedisDBDriver();
 
         try
         {
@@ -60,8 +60,7 @@ TEST_CASE("Redis connection test", "[24_041_01_redis_real_connection]")
 
             // If we get here, the connection was successful
             // Execute a ping command to verify the connection
-            std::string pingResult = conn->ping();
-            REQUIRE(pingResult == "PONG");
+            REQUIRE(conn->ping());
 
             // Test basic connection functions
             CHECK_FALSE(conn->isClosed());
@@ -70,8 +69,8 @@ TEST_CASE("Redis connection test", "[24_041_01_redis_real_connection]")
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Original URL: " + connStr);
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
 
-            // In the RedisDriver::connectKV method, the URL gets the "cpp_dbc:" prefix stripped
-            // before being passed to the RedisConnection constructor
+            // In the RedisDBDriver::connectKV method, the URL gets the "cpp_dbc:" prefix stripped
+            // before being passed to the RedisDBConnection constructor
             if (connStr.substr(0, 8) == "cpp_dbc:")
             {
                 CHECK(conn->getURL() == connStr.substr(8)); // Compare with stripped prefix
@@ -101,7 +100,7 @@ TEST_CASE("Redis connection test", "[24_041_01_redis_real_connection]")
 TEST_CASE("Redis string operations", "[24_041_02_redis_real_connection]")
 {
 #if USE_REDIS
-    auto conn = redis_test_helpers::getRedisConnection();
+    auto conn = redis_test_helpers::getRedisDBConnection();
     if (!conn)
     {
         SKIP("Redis connection failed");
@@ -141,7 +140,7 @@ TEST_CASE("Redis string operations", "[24_041_02_redis_real_connection]")
 TEST_CASE("Redis counter operations", "[24_041_03_redis_real_connection]")
 {
 #if USE_REDIS
-    auto conn = redis_test_helpers::getRedisConnection();
+    auto conn = redis_test_helpers::getRedisDBConnection();
     if (!conn)
     {
         SKIP("Redis connection failed");
@@ -173,7 +172,7 @@ TEST_CASE("Redis counter operations", "[24_041_03_redis_real_connection]")
 TEST_CASE("Redis list operations", "[24_041_04_redis_real_connection]")
 {
 #if USE_REDIS
-    auto conn = redis_test_helpers::getRedisConnection();
+    auto conn = redis_test_helpers::getRedisDBConnection();
     if (!conn)
     {
         SKIP("Redis connection failed");
@@ -214,7 +213,7 @@ TEST_CASE("Redis list operations", "[24_041_04_redis_real_connection]")
 TEST_CASE("Redis hash operations", "[24_041_05_redis_real_connection]")
 {
 #if USE_REDIS
-    auto conn = redis_test_helpers::getRedisConnection();
+    auto conn = redis_test_helpers::getRedisDBConnection();
     if (!conn)
     {
         SKIP("Redis connection failed");
@@ -259,7 +258,7 @@ TEST_CASE("Redis hash operations", "[24_041_05_redis_real_connection]")
 TEST_CASE("Redis set operations", "[24_041_06_redis_real_connection]")
 {
 #if USE_REDIS
-    auto conn = redis_test_helpers::getRedisConnection();
+    auto conn = redis_test_helpers::getRedisDBConnection();
     if (!conn)
     {
         SKIP("Redis connection failed");
@@ -305,7 +304,7 @@ TEST_CASE("Redis set operations", "[24_041_06_redis_real_connection]")
 TEST_CASE("Redis sorted set operations", "[24_041_07_redis_real_connection]")
 {
 #if USE_REDIS
-    auto conn = redis_test_helpers::getRedisConnection();
+    auto conn = redis_test_helpers::getRedisDBConnection();
     if (!conn)
     {
         SKIP("Redis connection failed");
@@ -350,7 +349,7 @@ TEST_CASE("Redis sorted set operations", "[24_041_07_redis_real_connection]")
 TEST_CASE("Redis scan operations", "[24_041_08_redis_real_connection]")
 {
 #if USE_REDIS
-    auto conn = redis_test_helpers::getRedisConnection();
+    auto conn = redis_test_helpers::getRedisDBConnection();
     if (!conn)
     {
         SKIP("Redis connection failed");
@@ -390,7 +389,7 @@ TEST_CASE("Redis scan operations", "[24_041_08_redis_real_connection]")
 TEST_CASE("Redis server operations", "[24_041_09_redis_real_connection]")
 {
 #if USE_REDIS
-    auto conn = redis_test_helpers::getRedisConnection();
+    auto conn = redis_test_helpers::getRedisDBConnection();
     if (!conn)
     {
         SKIP("Redis connection failed");

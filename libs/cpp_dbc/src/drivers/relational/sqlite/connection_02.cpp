@@ -50,8 +50,13 @@ namespace cpp_dbc::SQLite
                                                        system_utils::captureCallStack()));
             }
 
-            auto stmt = std::make_shared<SQLiteDBPreparedStatement>(std::weak_ptr<sqlite3>(m_db), weak_from_this(), m_globalFileMutex, sql);
-            registerStatement(std::weak_ptr<SQLiteDBPreparedStatement>(stmt));
+            auto stmtResult = SQLiteDBPreparedStatement::create(std::nothrow, std::weak_ptr<sqlite3>(m_db), weak_from_this(), m_globalFileMutex, sql);
+            if (!stmtResult.has_value())
+            {
+                return cpp_dbc::unexpected(stmtResult.error());
+            }
+            auto stmt = stmtResult.value();
+            [[maybe_unused]] auto regResult = registerStatement(std::nothrow, std::weak_ptr<SQLiteDBPreparedStatement>(stmt));
             return std::shared_ptr<RelationalDBPreparedStatement>(stmt);
         }
         catch (const DBException &ex)
@@ -104,9 +109,12 @@ namespace cpp_dbc::SQLite
             // Pass global file mutex to ResultSet - required because SQLite uses cursor-based iteration
             // where sqlite3_step() and sqlite3_column_*() access the connection handle on every call.
             // Unlike MySQL/PostgreSQL where results are fully loaded into client memory.
-            auto resultSet = std::make_shared<SQLiteDBResultSet>(stmt, true, self, nullptr, m_globalFileMutex);
-            resultSet->initialize(); // CRITICAL: Must be called after shared_ptr exists
-            return std::shared_ptr<RelationalDBResultSet>(resultSet);
+            auto rsResult = SQLiteDBResultSet::create(std::nothrow, stmt, true, self, nullptr, m_globalFileMutex);
+            if (!rsResult.has_value())
+            {
+                return cpp_dbc::unexpected(rsResult.error());
+            }
+            return std::shared_ptr<RelationalDBResultSet>(rsResult.value());
         }
         catch (const DBException &ex)
         {
@@ -478,11 +486,11 @@ namespace cpp_dbc::SQLite
             {
                 // Close all result sets FIRST (before statements)
                 // closeAllResultSets() acquires m_globalFileMutex internally
-                closeAllResultSets();
+                [[maybe_unused]] auto closeRsResult = closeAllResultSets(std::nothrow);
 
                 // Close all prepared statements properly
                 // closeAllStatements() includes safety net for leaked statements
-                closeAllStatements();
+                [[maybe_unused]] auto closeStmtsResult = closeAllStatements(std::nothrow);
 
                 // Call sqlite3_release_memory to free up caches and unused memory
                 [[maybe_unused]]
@@ -539,7 +547,7 @@ namespace cpp_dbc::SQLite
             if (!resetResult)
             {
                 SQLITE_DEBUG("returnToPool(nothrow): reset failed: %s",
-                             resetResult.error().what_s().c_str());
+                             resetResult.error().what_s().data());
                 // Continue - try to at least restore autocommit
             }
 

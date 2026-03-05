@@ -18,9 +18,6 @@
 
 */
 
-// Only compile these tests if DB_DRIVER_THREAD_SAFE is enabled
-#if DB_DRIVER_THREAD_SAFE
-
 #include <string>
 #include <memory>
 #include <thread>
@@ -40,7 +37,7 @@
 
 #include "21_001_test_postgresql_real_common.hpp"
 
-#if USE_POSTGRESQL
+#if DB_DRIVER_THREAD_SAFE && USE_POSTGRESQL
 
 /**
  * @brief Thread-safety stress tests for PostgreSQL driver
@@ -104,46 +101,70 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
                     startCv.wait(lock, [&]() { return startFlag; });
                 }
 
+                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " started");
+
                 try
                 {
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " opening connection...");
+
                     // Each thread gets its own connection
                     auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
-                    
+
+                    if (!conn)
+                    {
+                        errorCount += opsPerThread;
+                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " FAILED: dynamic_pointer_cast returned nullptr");
+                        return;
+                    }
+
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection opened");
+
                     for (int j = 0; j < opsPerThread; j++)
                     {
+                        //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " inserting...");
                         try
                         {
                             int id = i * 1000 + j;
-                            
+
                             // Insert operation
                             auto pstmt = conn->prepareStatement("INSERT INTO thread_test (id, value) VALUES ($1, $2)");
                             pstmt->setInt(1, id);
                             pstmt->setString(2, "Thread " + std::to_string(i) + " Op " + std::to_string(j));
                             pstmt->executeUpdate();
 
+                            //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " selecting...");
+
                             // Select operation
                             auto selectStmt = conn->prepareStatement("SELECT * FROM thread_test WHERE id = $1");
                             selectStmt->setInt(1, id);
                             auto rs = selectStmt->executeQuery();
-                            
+
                             if (rs->next())
                             {
                                 successCount++;
+                                //cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " OK");
+                            }
+                            else
+                            {
+                                errorCount++;
+                                cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " FAILED: row not found after insert");
                             }
                         }
-                        catch (const std::exception& e)
+                        catch (const std::exception &ex)
                         {
                             errorCount++;
-                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(e.what()));
+                            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " op " + std::to_string(j) + " error: " + std::string(ex.what()));
                         }
                     }
 
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " closing connection...");
                     conn->close();
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " finished");
                 }
-                catch (const std::exception& e)
+                catch (const std::exception &ex)
                 {
                     errorCount += opsPerThread;
-                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection error: " + std::string(e.what()));
+                    cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " connection error: " + std::string(ex.what()));
                 } });
         }
 
@@ -166,289 +187,8 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
         REQUIRE(successCount > 0);
     }
 
-    SECTION("Connection pool concurrent access")
-    {
-        // Create connection pool
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        poolConfig.setUsername(username);
-        poolConfig.setPassword(password);
-        poolConfig.setInitialSize(5);
-        poolConfig.setMaxSize(20);
-        poolConfig.setMinIdle(2);
-        poolConfig.setConnectionTimeout(10000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setValidationQuery("SELECT 1");
-
-        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
-        if (!poolResult.has_value())
-        {
-            throw poolResult.error();
-        }
-        auto pool = poolResult.value();
-
-        // Setup: create test table
-        auto setupConn = pool->getRelationalDBConnection();
-        setupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        setupConn->executeUpdate("CREATE TABLE thread_test (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE PRECISION)");
-        setupConn->returnToPool();
-
-        const int numThreads = 10;
-        const int opsPerThread = 20;
-        std::atomic<int> successCount(0);
-        std::atomic<int> errorCount(0);
-        std::vector<std::thread> threads;
-        std::atomic<int> idCounter(0);
-
-        for (int i = 0; i < numThreads; i++)
-        {
-            threads.emplace_back([&, i]()
-                                 {
-                for (int j = 0; j < opsPerThread; j++)
-                {
-                    try
-                    {
-                        auto conn = pool->getRelationalDBConnection();
-                        int id = idCounter.fetch_add(1);
-                        
-                        // Insert with prepared statement
-                        auto pstmt = conn->prepareStatement("INSERT INTO thread_test (id, name, value) VALUES ($1, $2, $3)");
-                        pstmt->setInt(1, id);
-                        pstmt->setString(2, "Name " + std::to_string(id));
-                        pstmt->setDouble(3, id * 1.5);
-                        pstmt->executeUpdate();
-                        
-                        conn->returnToPool();
-                        successCount++;
-                    }
-                    catch (const std::exception& e)
-                    {
-                        errorCount++;
-                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread " + std::to_string(i) + " error: " + std::string(e.what()));
-                    }
-                } });
-        }
-
-        for (auto &t : threads)
-        {
-            t.join();
-        }
-
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection pool concurrent access: " + std::to_string(successCount) + " successes, " + std::to_string(errorCount) + " errors");
-
-        REQUIRE(successCount > 0);
-    }
-
-    SECTION("Concurrent read operations with connection pool")
-    {
-        // Create connection pool
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        poolConfig.setUsername(username);
-        poolConfig.setPassword(password);
-        poolConfig.setInitialSize(5);
-        poolConfig.setMaxSize(20);
-        poolConfig.setMinIdle(2);
-        poolConfig.setConnectionTimeout(10000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setValidationQuery("SELECT 1");
-
-        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
-        if (!poolResult.has_value())
-        {
-            throw poolResult.error();
-        }
-        auto pool = poolResult.value();
-
-        // Setup: create and populate test table
-        auto setupConn = pool->getRelationalDBConnection();
-        setupConn->executeUpdate("DROP TABLE IF EXISTS thread_test");
-        setupConn->executeUpdate("CREATE TABLE thread_test (id INT PRIMARY KEY, name VARCHAR(100), value DOUBLE PRECISION)");
-
-        // Insert test data
-        for (int i = 0; i < 100; i++)
-        {
-            auto pstmt = setupConn->prepareStatement("INSERT INTO thread_test (id, name, value) VALUES ($1, $2, $3)");
-            pstmt->setInt(1, i);
-            pstmt->setString(2, "Name " + std::to_string(i));
-            pstmt->setDouble(3, i * 1.5);
-            pstmt->executeUpdate();
-        }
-        setupConn->returnToPool();
-
-        const int numThreads = 10;
-        const int readsPerThread = 50;
-        std::atomic<int> readCount(0);
-        std::atomic<int> errorCount(0);
-        std::vector<std::thread> threads;
-
-        for (int i = 0; i < numThreads; i++)
-        {
-            threads.emplace_back([&, i]()
-                                 {
-                std::random_device rd;
-                std::mt19937 gen(rd());
-                std::uniform_int_distribution<> idDist(0, 99);
-
-                for (int j = 0; j < readsPerThread; j++)
-                {
-                    try
-                    {
-                        auto conn = pool->getRelationalDBConnection();
-                        int targetId = idDist(gen);
-                        
-                        auto pstmt = conn->prepareStatement("SELECT * FROM thread_test WHERE id = $1");
-                        pstmt->setInt(1, targetId);
-                        auto rs = pstmt->executeQuery();
-                        
-                        if (rs->next())
-                        {
-                            // Read all columns
-                            int id = rs->getInt("id");
-                            std::string name = rs->getString("name");
-                            double value = rs->getDouble("value");
-                            (void)id; (void)name; (void)value;
-                            readCount++;
-                        }
-                        
-                        conn->returnToPool();
-                    }
-                    catch (const std::exception& e)
-                    {
-                        errorCount++;
-                    }
-                } });
-        }
-
-        for (auto &t : threads)
-        {
-            t.join();
-        }
-
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Concurrent read operations: " + std::to_string(readCount) + " reads, " + std::to_string(errorCount) + " errors");
-
-        // Most reads should succeed
-        REQUIRE(readCount > numThreads * readsPerThread * 0.95); // At least 95% success rate
-    }
-
-    SECTION("High concurrency stress test")
-    {
-        // Create connection pool for stress test
-        cpp_dbc::config::DBConnectionPoolConfig poolConfig;
-        poolConfig.setUrl(connStr);
-        poolConfig.setUsername(username);
-        poolConfig.setPassword(password);
-        poolConfig.setInitialSize(5);
-        poolConfig.setMaxSize(20);
-        poolConfig.setMinIdle(2);
-        poolConfig.setConnectionTimeout(10000);
-        poolConfig.setValidationInterval(1000);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setValidationQuery("SELECT 1");
-
-        auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
-        if (!poolResult.has_value())
-        {
-            throw poolResult.error();
-        }
-        auto pool = poolResult.value();
-
-        // Create test table
-        auto setupConn = pool->getRelationalDBConnection();
-        setupConn->executeUpdate("DROP TABLE IF EXISTS thread_stress_test");
-        setupConn->executeUpdate("CREATE TABLE thread_stress_test (id SERIAL PRIMARY KEY, thread_id INT, op_id INT, data VARCHAR(255))");
-        setupConn->returnToPool();
-
-        const int numThreads = 30;
-        const int opsPerThread = 50;
-        std::atomic<int> insertCount(0);
-        std::atomic<int> selectCount(0);
-        std::atomic<int> updateCount(0);
-        std::atomic<int> errorCount(0);
-        std::vector<std::thread> threads;
-
-        auto startTime = std::chrono::steady_clock::now();
-
-        for (int i = 0; i < numThreads; i++)
-        {
-            threads.emplace_back([&, i]()
-                                 {
-                std::random_device rd;
-                std::mt19937 gen(rd());
-                std::uniform_int_distribution<> opDist(0, 2);
-
-                for (int j = 0; j < opsPerThread; j++)
-                {
-                    try
-                    {
-                        auto conn = pool->getRelationalDBConnection();
-                        int op = opDist(gen);
-
-                        switch (op)
-                        {
-                            case 0: // Insert
-                            {
-                                auto pstmt = conn->prepareStatement(
-                                    "INSERT INTO thread_stress_test (thread_id, op_id, data) VALUES ($1, $2, $3)");
-                                pstmt->setInt(1, i);
-                                pstmt->setInt(2, j);
-                                pstmt->setString(3, "Data from thread " + std::to_string(i) + " op " + std::to_string(j));
-                                pstmt->executeUpdate();
-                                insertCount++;
-                                break;
-                            }
-                            case 1: // Select
-                            {
-                                auto rs = conn->executeQuery("SELECT COUNT(*) as cnt FROM thread_stress_test");
-                                if (rs->next())
-                                {
-                                    rs->getInt("cnt");
-                                }
-                                selectCount++;
-                                break;
-                            }
-                            case 2: // Update
-                            {
-                                conn->executeUpdate("UPDATE thread_stress_test SET data = 'updated' WHERE ctid = (SELECT ctid FROM thread_stress_test WHERE thread_id = " + std::to_string(i) + " LIMIT 1)");
-                                updateCount++;
-                                break;
-                            }
-                        }
-
-                        conn->returnToPool();
-                    }
-                    catch (const std::exception& e)
-                    {
-                        cpp_dbc::system_utils::logWithTimesMillis("TEST", "Thread operation failed: " + std::string( e.what() ) );
-                        errorCount++;
-                    }
-                } });
-        }
-
-        for (auto &t : threads)
-        {
-            t.join();
-        }
-
-        auto endTime = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "High concurrency stress test completed in " + std::to_string(duration) + " ms");
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Inserts: " + std::to_string(insertCount.load()));
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Selects: " + std::to_string(selectCount.load()));
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Updates: " + std::to_string(updateCount.load()));
-        cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Errors: " + std::to_string(errorCount.load()));
-        if (duration > 0)
-        {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "  Operations per second: " + std::to_string((insertCount + selectCount + updateCount) * 1000.0 / static_cast<double>(duration)));
-        }
-
-        // Most operations should succeed
-        int totalOps = insertCount + selectCount + updateCount;
-        REQUIRE(totalOps > numThreads * opsPerThread * 0.95); // At least 95% success rate
-    }
+    // Pool-based concurrent access, concurrent reads, and high-concurrency stress tests
+    // were moved to 21_141_test_postgresql_real_connection_pool.cpp
 
     /**
      * @warning HELGRIND / VALGRIND PERFORMANCE NOTE
@@ -523,15 +263,6 @@ TEST_CASE("PostgreSQL Thread-Safety Tests", "[21_111_01_postgresql_real_thread_s
 #else
 TEST_CASE("PostgreSQL Thread-Safety Tests (skipped)", "[21_111_02_postgresql_real_thread_safe]")
 {
-    SKIP("PostgreSQL support is not enabled");
+    SKIP("PostgreSQL support is not enabled or thread-safety is disabled");
 }
-#endif // USE_POSTGRESQL
-
-#else // DB_DRIVER_THREAD_SAFE
-// Empty test case when thread safety is disabled
-#include <catch2/catch_test_macros.hpp>
-TEST_CASE("PostgreSQL Thread-Safety Tests (disabled)", "[21_111_03_postgresql_real_thread_safe]")
-{
-    SKIP("Thread-safety tests are disabled when DB_DRIVER_THREAD_SAFE=0");
-}
-#endif // DB_DRIVER_THREAD_SAFE
+#endif // DB_DRIVER_THREAD_SAFE && USE_POSTGRESQL

@@ -83,11 +83,11 @@ TEST_CASE("expected<T, E> - Construction with error", "[10_041_02_expected]")
 
     SECTION("Construct with DBException")
     {
-        auto unex = unexpected<DBException>(DBException("TEST_ERROR", "Test error message"));
+        auto unex = unexpected<DBException>(DBException("8RR0AIFI2W4R", "Test error message"));
         expected<int, DBException> ex = unex;
 
         REQUIRE_FALSE(ex.has_value());
-        REQUIRE(ex.error().getMark() == "TEST_ERROR");
+        REQUIRE(ex.error().getMark() == "8RR0AIFI2W4R");
     }
 }
 
@@ -298,7 +298,7 @@ TEST_CASE("expected with DBException - Typical usage", "[10_041_11_expected]")
         {
             if (b == 0)
             {
-                return unexpected<DBException>(DBException("DIV_BY_ZERO", "Division by zero"));
+                return unexpected<DBException>(DBException("B7PN2ULTI9J4", "Division by zero"));
             }
             return a / b;
         };
@@ -314,14 +314,14 @@ TEST_CASE("expected with DBException - Typical usage", "[10_041_11_expected]")
         {
             if (b == 0)
             {
-                return unexpected<DBException>(DBException("DIV_BY_ZERO", "Division by zero"));
+                return unexpected<DBException>(DBException("B7PN2ULTI9J4", "Division by zero"));
             }
             return a / b;
         };
 
         auto result = divide(10, 0);
         REQUIRE_FALSE(result.has_value());
-        REQUIRE(result.error().getMark() == "DIV_BY_ZERO");
+        REQUIRE(result.error().getMark() == "B7PN2ULTI9J4");
     }
 
     SECTION("Throw error if needed")
@@ -330,7 +330,7 @@ TEST_CASE("expected with DBException - Typical usage", "[10_041_11_expected]")
         {
             if (b == 0)
             {
-                return unexpected<DBException>(DBException("DIV_BY_ZERO", "Division by zero"));
+                return unexpected<DBException>(DBException("B7PN2ULTI9J4", "Division by zero"));
             }
             return a / b;
         };
@@ -351,7 +351,7 @@ TEST_CASE("expected<void, DBException> - Typical usage", "[10_041_12_expected]")
         {
             if (value < 0)
             {
-                return unexpected<DBException>(DBException("INVALID_VALUE", "Value must be non-negative"));
+                return unexpected<DBException>(DBException("1WZPX3SX636U", "Value must be non-negative"));
             }
             return {};
         };
@@ -367,14 +367,14 @@ TEST_CASE("expected<void, DBException> - Typical usage", "[10_041_12_expected]")
         {
             if (value < 0)
             {
-                return unexpected<DBException>(DBException("INVALID_VALUE", "Value must be non-negative"));
+                return unexpected<DBException>(DBException("8P2Q3R4S5T6U", "Value must be non-negative"));
             }
             return {};
         };
 
         auto result = validate(-1);
         REQUIRE_FALSE(result.has_value());
-        REQUIRE(result.error().getMark() == "INVALID_VALUE");
+        REQUIRE(result.error().getMark() == "8P2Q3R4S5T6U");
     }
 }
 
@@ -429,11 +429,11 @@ TEST_CASE("expected - Database simulation", "[10_041_14_expected]")
     {
         if (url.empty())
         {
-            return unexpected<DBException>(DBException("EMPTY_URL", "URL cannot be empty"));
+            return unexpected<DBException>(DBException("RWV8K036776H", "URL cannot be empty"));
         }
         if (url == "invalid")
         {
-            return unexpected<DBException>(DBException("INVALID_URL", "Invalid URL"));
+            return unexpected<DBException>(DBException("4KOC988NR6DV", "Invalid URL"));
         }
         return Connection{1, "test_connection"};
     };
@@ -449,14 +449,14 @@ TEST_CASE("expected - Database simulation", "[10_041_14_expected]")
     {
         auto result = connect("");
         REQUIRE_FALSE(result.has_value());
-        REQUIRE(result.error().getMark() == "EMPTY_URL");
+        REQUIRE(result.error().getMark() == "RWV8K036776H");
     }
 
     SECTION("Invalid URL error")
     {
         auto result = connect("invalid");
         REQUIRE_FALSE(result.has_value());
-        REQUIRE(result.error().getMark() == "INVALID_URL");
+        REQUIRE(result.error().getMark() == "4KOC988NR6DV");
     }
 }
 

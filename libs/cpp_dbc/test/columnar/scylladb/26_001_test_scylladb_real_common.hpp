@@ -55,6 +55,21 @@ namespace scylla_test_helpers
     cpp_dbc::config::DatabaseConfig getScyllaConfig(const std::string &databaseName = "dev_scylla");
 
     /**
+     * @brief Helper function to get a ScyllaDB driver instance (singleton)
+     */
+    std::shared_ptr<cpp_dbc::ScyllaDB::ScyllaDBDriver> getScyllaDriver();
+
+    /**
+     * @brief Helper function to get a ScyllaDB connection
+     */
+    std::shared_ptr<cpp_dbc::ColumnarDBConnection> getScyllaConnection();
+
+    /**
+     * @brief Helper function to try to create the keyspace if it doesn't exist
+     */
+    bool tryCreateKeyspace();
+
+    /**
      * @brief Helper function to check if we can connect to ScyllaDB
      */
     bool canConnectToScylla();

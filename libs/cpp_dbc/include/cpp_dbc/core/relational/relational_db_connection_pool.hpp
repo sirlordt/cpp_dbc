@@ -115,7 +115,7 @@ namespace cpp_dbc
 
     protected:
         // Sets the transaction isolation level for the pool
-        void setPoolTransactionIsolation(TransactionIsolationLevel level) override
+        void setPoolTransactionIsolation(TransactionIsolationLevel level) noexcept override
         {
             m_transactionIsolation = level;
         }
@@ -169,6 +169,7 @@ namespace cpp_dbc
 
         ~RelationalDBConnectionPool() override;
 
+        #ifdef __cpp_exceptions
         // DBConnectionPool interface implementation
         std::shared_ptr<DBConnection> getDBConnection() override;
 
@@ -186,6 +187,7 @@ namespace cpp_dbc
         // Check if pool is running
         bool isRunning() const override;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -242,6 +244,7 @@ namespace cpp_dbc
                                      std::shared_ptr<std::atomic<bool>> poolAlive);
         ~RelationalPooledDBConnection() override;
 
+        #ifdef __cpp_exceptions
         // DBConnection interface methods
         void close() override;
         bool isClosed() const override;
@@ -249,6 +252,7 @@ namespace cpp_dbc
         bool isPooled() const override;
         std::string getURL() const override;
         void reset() override;
+        bool ping() override;
 
         // RelationalDBConnection interface methods
         std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
@@ -267,6 +271,7 @@ namespace cpp_dbc
         void setTransactionIsolation(TransactionIsolationLevel level) override;
         TransactionIsolationLevel getTransactionIsolation() override;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -278,6 +283,7 @@ namespace cpp_dbc
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
 
         // RelationalDBConnection nothrow interface
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
@@ -301,8 +307,10 @@ namespace cpp_dbc
         // Implementation of DBConnectionPooled interface
         std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
 
+        #ifdef __cpp_exceptions
         // RelationalPooledDBConnection specific method
         std::shared_ptr<RelationalDBConnection> getUnderlyingRelationalConnection();
+        #endif // __cpp_exceptions
     };
 
     // Specialized connection pools for MySQL, PostgreSQL, SQLite, and Firebird

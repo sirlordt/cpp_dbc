@@ -8,40 +8,48 @@ struct redisReply;
 
 namespace cpp_dbc::Redis
 {
+    /**
+     * @brief RAII wrapper for redisReply.
+     *
+     * Owns a `redisReply*` through a `std::unique_ptr` with
+     * RedisReplyDeleter, ensuring the reply is freed when the
+     * handle goes out of scope. Move-only (non-copyable).
+     *
+     * ### Example
+     *
+     * ```cpp
+     * RedisReplyHandle reply = connection->executeRaw("GET", {"mykey"});
+     * if (reply.get() != nullptr) {
+     *     // use reply.get()->str, reply.get()->integer, etc.
+     * }
+     * ```
+     */
+    class RedisReplyHandle // NOSONAR - Rule of 5 satisfied: destructor is = default because unique_ptr handles resource
+    {
+    public:
         /**
-         * @brief RAII wrapper for redisReply.
+         * @brief Nothrow constructor — takes ownership of a reply pointer without null-checking.
          *
-         * Owns a `redisReply*` through a `std::unique_ptr` with
-         * RedisReplyDeleter, ensuring the reply is freed when the
-         * handle goes out of scope. Move-only (non-copyable).
-         *
-         * ### Example
-         *
-         * ```cpp
-         * RedisReplyHandle reply = connection->executeRaw("GET", {"mykey"});
-         * if (reply.get() != nullptr) {
-         *     // use reply.get()->str, reply.get()->integer, etc.
-         * }
-         * ```
+         * Callers must validate the pointer before constructing. This variant is used in
+         * noexcept contexts (e.g., executeRaw(std::nothrow_t)) where the reply has already
+         * been validated as non-null and non-error before being handed off.
          */
-        class RedisReplyHandle // NOSONAR - Rule of 5 satisfied: destructor is = default because unique_ptr handles resource
-        {
-        public:
-            explicit RedisReplyHandle(redisReply *reply);
-            ~RedisReplyHandle();
+        RedisReplyHandle(std::nothrow_t, redisReply *reply) noexcept;
 
-            // Disable copy operations
-            RedisReplyHandle(const RedisReplyHandle &) = delete;
-            RedisReplyHandle &operator=(const RedisReplyHandle &) = delete;
+        ~RedisReplyHandle();
 
-            // Enable move operations
-            RedisReplyHandle(RedisReplyHandle &&other) noexcept;
-            RedisReplyHandle &operator=(RedisReplyHandle &&other) noexcept;
+        // Disable copy operations
+        RedisReplyHandle(const RedisReplyHandle &) = delete;
+        RedisReplyHandle &operator=(const RedisReplyHandle &) = delete;
 
-            redisReply *get() const;
+        // Enable move operations
+        RedisReplyHandle(RedisReplyHandle &&other) noexcept;
+        RedisReplyHandle &operator=(RedisReplyHandle &&other) noexcept;
 
-        private:
-            std::unique_ptr<redisReply, RedisReplyDeleter> m_reply;
-        };
+        redisReply *get() const;
+
+    private:
+        std::unique_ptr<redisReply, RedisReplyDeleter> m_reply;
+    };
 
 } // namespace cpp_dbc::Redis

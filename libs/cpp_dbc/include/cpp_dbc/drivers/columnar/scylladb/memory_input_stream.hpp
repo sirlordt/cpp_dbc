@@ -56,31 +56,102 @@ namespace cpp_dbc::ScyllaDB
         public:
             explicit ScyllaMemoryInputStream(std::vector<uint8_t> data) : m_data(std::move(data)) {}
 
+            static cpp_dbc::expected<std::shared_ptr<ScyllaMemoryInputStream>, DBException> create(std::nothrow_t, std::vector<uint8_t> data) noexcept
+            {
+                return std::make_shared<ScyllaMemoryInputStream>(std::move(data));
+            }
+
+            static std::shared_ptr<ScyllaMemoryInputStream> create(std::vector<uint8_t> data)
+            {
+                auto r = create(std::nothrow, std::move(data));
+                if (!r.has_value()) { throw r.error(); }
+                return r.value();
+            }
+
+            cpp_dbc::expected<void, DBException> copyFrom(std::nothrow_t, const ScyllaMemoryInputStream &other) noexcept
+            {
+                if (this == &other) { return {}; }
+                m_data = other.m_data;
+                m_position = 0;
+                return {};
+            }
+
+            void copyFrom(const ScyllaMemoryInputStream &other)
+            {
+                auto r = copyFrom(std::nothrow, other);
+                if (!r.has_value()) { throw r.error(); }
+            }
+
+            // ====================================================================
+            // THROWING API - Exception-based (requires __cpp_exceptions)
+            // ====================================================================
+
+            #ifdef __cpp_exceptions
+
             int read(uint8_t *buffer, size_t length) override
             {
+                auto r = read(std::nothrow, buffer, length);
+                if (!r.has_value())
+                {
+                    throw r.error();
+                }
+                return r.value();
+            }
+
+            void skip(size_t n) override
+            {
+                auto r = skip(std::nothrow, n);
+                if (!r.has_value())
+                {
+                    throw r.error();
+                }
+            }
+
+            void close() override
+            {
+                auto r = close(std::nothrow);
+                if (!r.has_value())
+                {
+                    throw r.error();
+                }
+            }
+
+            #endif // __cpp_exceptions
+            // ====================================================================
+            // NOTHROW VERSIONS - Exception-free API
+            // ====================================================================
+
+            cpp_dbc::expected<int, DBException> read(std::nothrow_t, uint8_t *buffer, size_t length) noexcept override
+            {
                 if (buffer == nullptr && length > 0)
+                {
                     return -1;
-
+                }
                 if (m_position >= m_data.size())
+                {
                     return -1; // EOF
-
+                }
                 size_t toRead = std::min({length, m_data.size() - m_position, static_cast<size_t>(INT_MAX)});
                 if (toRead == 0)
+                {
                     return 0;
+                }
                 std::memcpy(buffer, m_data.data() + m_position, toRead);
                 m_position += toRead;
                 return static_cast<int>(toRead);
             }
 
-            void skip(size_t n) override
+            cpp_dbc::expected<void, DBException> skip(std::nothrow_t, size_t n) noexcept override
             {
                 size_t remaining = m_data.size() - m_position;
                 m_position += std::min(n, remaining);
+                return {};
             }
 
-            void close() override
+            cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override
             {
                 // Nothing to close
+                return {};
             }
         };
 } // namespace cpp_dbc::ScyllaDB

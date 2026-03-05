@@ -58,6 +58,16 @@ namespace firebird_test_helpers
     cpp_dbc::config::DatabaseConfig getFirebirdConfig(const std::string &databaseName = "dev_firebird");
 
     /**
+     * @brief Helper function to get a Firebird driver instance (singleton)
+     */
+    std::shared_ptr<cpp_dbc::Firebird::FirebirdDBDriver> getFirebirdDriver();
+
+    /**
+     * @brief Helper function to get a Firebird connection
+     */
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> getFirebirdConnection();
+
+    /**
      * @brief Helper function to try to create the database if it doesn't exist
      */
     bool tryCreateDatabase();

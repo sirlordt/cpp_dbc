@@ -80,6 +80,7 @@ namespace cpp_dbc
         // ====================================================================
 
         /** @brief Bind an integer parameter (1-based index) */
+        #ifdef __cpp_exceptions
         virtual void setInt(int parameterIndex, int value) = 0;
         /** @brief Bind a long integer parameter (1-based index) */
         virtual void setLong(int parameterIndex, int64_t value) = 0;
@@ -162,6 +163,7 @@ namespace cpp_dbc
          */
         virtual void close() = 0;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

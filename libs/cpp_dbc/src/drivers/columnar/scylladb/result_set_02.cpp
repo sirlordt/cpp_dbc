@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file result_set_02.cpp
- * @brief ScyllaDB database driver implementation - ScyllaDBResultSet nothrow methods (part 1)
+ * @brief ScyllaDB database driver implementation - ScyllaDBResultSet nothrow methods (part 1: by-index getters)
  */
 
 #include "cpp_dbc/drivers/columnar/driver_scylladb.hpp"
@@ -34,68 +34,30 @@
 
 namespace cpp_dbc::ScyllaDB
 {
-    // Nothrow API - DBResultSet interface
+    // ====================================================================
+    // Nothrow API — DBResultSet interface
+    // ====================================================================
 
     cpp_dbc::expected<void, DBException> ScyllaDBResultSet::close(std::nothrow_t) noexcept
     {
-        try
-        {
-            SCYLLADB_DEBUG("ScyllaDBResultSet::close - Closing result set");
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-            m_iterator.reset();
-            m_result.reset();
-            m_currentRow = nullptr;
-            return {};
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException(
-                "MLVT1AF9ZP3W",
-                std::string("Error closing result set: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException(
-                "2GCPOH7KPUL4",
-                "Unknown error closing result set",
-                system_utils::captureCallStack()));
-        }
+        SCYLLADB_DEBUG("ScyllaDBResultSet::close - Closing result set");
+        DB_DRIVER_LOCK_GUARD(m_mutex);
+        m_iterator.reset();
+        m_result.reset();
+        m_currentRow = nullptr;
+        return {};
     }
 
     cpp_dbc::expected<bool, DBException> ScyllaDBResultSet::isEmpty(std::nothrow_t) noexcept
     {
-        try
-        {
-            DB_DRIVER_LOCK_GUARD(m_mutex);
-            SCYLLADB_DEBUG("ScyllaDBResultSet::isEmpty - Result is " << (m_rowCount == 0 ? "empty" : "not empty"));
-            return m_rowCount == 0;
-        }
-        catch (const DBException &ex)
-        {
-            return cpp_dbc::unexpected(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException(
-                "F512VQ5M0HV8",
-                std::string("Error checking if result set is empty: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException(
-                "U7F4FFY4KXMP",
-                "Unknown error checking if result set is empty",
-                system_utils::captureCallStack()));
-        }
+        DB_DRIVER_LOCK_GUARD(m_mutex);
+        SCYLLADB_DEBUG("ScyllaDBResultSet::isEmpty - Result is " << (m_rowCount == 0 ? "empty" : "not empty"));
+        return m_rowCount == 0;
     }
 
-    // Nothrow API - ColumnarDBResultSet interface
+    // ====================================================================
+    // Nothrow API — ColumnarDBResultSet interface
+    // ====================================================================
 
     cpp_dbc::expected<bool, DBException> ScyllaDBResultSet::next(std::nothrow_t) noexcept
     {
@@ -152,6 +114,10 @@ namespace cpp_dbc::ScyllaDB
         return m_rowPosition;
     }
 
+    // ====================================================================
+    // Nothrow API — by-index typed getters
+    // ====================================================================
+
     cpp_dbc::expected<int, DBException> ScyllaDBResultSet::getInt(std::nothrow_t, size_t columnIndex) noexcept
     {
         DB_DRIVER_LOCK_GUARD(m_mutex);
@@ -190,7 +156,7 @@ namespace cpp_dbc::ScyllaDB
         }
         if (columnIndex < 1 || columnIndex > m_columnCount)
         {
-            return cpp_dbc::unexpected(DBException("D7F6C2471F23", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("3UCDXAV6M9SQ", "Invalid column index", system_utils::captureCallStack()));
         }
 
         const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);
@@ -217,7 +183,7 @@ namespace cpp_dbc::ScyllaDB
         }
         if (columnIndex < 1 || columnIndex > m_columnCount)
         {
-            return cpp_dbc::unexpected(DBException("C6D5D1730470", "Invalid column index", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("GWVWIWXZA4VT", "Invalid column index", system_utils::captureCallStack()));
         }
 
         const CassValue *val = get_column_value(m_currentRow, columnIndex - 1, m_columnCount);

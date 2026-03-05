@@ -330,7 +330,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[21_121_01_postgresql_real_
                 }
                 catch (const cpp_dbc::DBException &e)
                 {
-                    std::string error = e.what_s();
+                    std::string error = std::string(e.what_s());
                     INFO("Got expected error: " << error);
 
                     // Verify it's a serialization error (40001)
@@ -406,7 +406,7 @@ TEST_CASE("PostgreSQL transaction isolation tests", "[21_121_01_postgresql_real_
                 catch (const cpp_dbc::DBException &e)
                 {
                     txn2Failed = true;
-                    std::string error = e.what_s();
+                    std::string error = std::string(e.what_s());
                     INFO("txn2 failed with: " << error);
 
                     REQUIRE((error.find("serialize") != std::string::npos ||

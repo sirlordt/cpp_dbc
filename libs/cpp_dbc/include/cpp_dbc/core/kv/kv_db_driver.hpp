@@ -38,14 +38,14 @@ namespace cpp_dbc
      * KVDBConnection. Also provides URI parsing/building helpers.
      *
      * ```cpp
-     * auto driver = std::make_shared<cpp_dbc::Redis::RedisDriver>();
+     * auto driver = std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
      * cpp_dbc::DriverManager::registerDriver(driver);
      * auto conn = driver->connectKV("redis://localhost:6379", "", "");
      * conn->setString("key", "value");
      * conn->close();
      * ```
      *
-     * Implementations: RedisDriver
+     * Implementations: RedisDBDriver
      *
      * @see KVDBConnection, DBDriver
      */
@@ -54,15 +54,11 @@ namespace cpp_dbc
     public:
         ~KVDBDriver() override = default;
 
-        /**
-         * @brief Get the database type
-         * @return Always returns DBType::KEY_VALUE
-         */
-        DBType getDBType() const override
-        {
-            return DBType::KEY_VALUE;
-        }
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
+#ifdef __cpp_exceptions
         /**
          * @brief Connect to a key-value database
          *
@@ -84,8 +80,7 @@ namespace cpp_dbc
         /**
          * @brief Connect to a database (base class implementation)
          *
-         * This method delegates to connectKV() and returns the result
-         * as a DBConnection pointer.
+         * This method delegates to connectKV(nothrow) and rethrows on error.
          */
         std::shared_ptr<DBConnection> connect(
             const std::string &url,
@@ -93,22 +88,13 @@ namespace cpp_dbc
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            return connectKV(url, user, password, options);
+            auto result = connectKV(std::nothrow, url, user, password, options);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return std::static_pointer_cast<DBConnection>(result.value());
         }
-
-        // Key-value database specific driver methods
-
-        /**
-         * @brief Get the default port for this database type
-         * @return The default port number (e.g., 6379 for Redis)
-         */
-        virtual int getDefaultPort() const = 0;
-
-        /**
-         * @brief Get the URI scheme for this database type
-         * @return The URI scheme (e.g., "redis", "memcached")
-         */
-        virtual std::string getURIScheme() const = 0;
 
         /**
          * @brief Parse a connection URI and extract components
@@ -129,30 +115,23 @@ namespace cpp_dbc
         virtual std::string buildURI(
             const std::string &host,
             int port,
-            const std::string &db = "",
+            const std::string &db = std::string{},
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
 
-        /**
-         * @brief Check if the driver supports clustering
-         * @return true if clustering is supported
-         */
-        virtual bool supportsClustering() const = 0;
-
-        /**
-         * @brief Check if the driver supports replication
-         * @return true if replication is supported
-         */
-        virtual bool supportsReplication() const = 0;
-
-        /**
-         * @brief Get the driver version
-         * @return The driver version string
-         */
-        virtual std::string getDriverVersion() const = 0;
+#endif // __cpp_exceptions
 
         // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
+        // NOTHROW API — exception-free, always available
         // ====================================================================
+
+        /**
+         * @brief Get the database type
+         * @return Always returns DBType::KEY_VALUE
+         */
+        DBType getDBType() const noexcept override
+        {
+            return DBType::KEY_VALUE;
+        }
 
         /**
          * @brief Connect to a key-value database (nothrow version)
@@ -171,6 +150,26 @@ namespace cpp_dbc
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept = 0;
 
         /**
+         * @brief Connect to a database (base class nothrow implementation)
+         *
+         * This method delegates to connectKV(nothrow) and returns the result.
+         */
+        expected<std::shared_ptr<DBConnection>, DBException> connect(
+            std::nothrow_t,
+            const std::string &url,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override
+        {
+            auto result = connectKV(std::nothrow, url, user, password, options);
+            if (!result.has_value())
+            {
+                return cpp_dbc::unexpected(result.error());
+            }
+            return std::static_pointer_cast<DBConnection>(result.value());
+        }
+
+        /**
          * @brief Parse a connection URI and extract components (nothrow version)
          * @param nothrow std::nothrow tag to indicate exception-free operation
          * @param uri The connection URI
@@ -178,6 +177,39 @@ namespace cpp_dbc
          */
         virtual expected<std::map<std::string, std::string>, DBException> parseURI(
             std::nothrow_t, const std::string &uri) noexcept = 0;
+
+        // Key-value database specific driver methods (trivial — cannot fail)
+
+        /**
+         * @brief Get the URL prefix accepted by this driver
+         *
+         * Returns the full connection URL prefix that this driver handles,
+         * e.g. `"cpp_dbc:redis://"`. This value is also the prefix that
+         * `acceptsURL()` checks against.
+         *
+         * Example format: `cpp_dbc:<engine>://host:port/db`
+         *
+         * @return The URL prefix string (e.g., "cpp_dbc:redis://")
+         */
+        virtual std::string getURIScheme() const noexcept = 0;
+
+        /**
+         * @brief Check if the driver supports clustering
+         * @return true if clustering is supported
+         */
+        virtual bool supportsClustering() const noexcept = 0;
+
+        /**
+         * @brief Check if the driver supports replication
+         * @return true if replication is supported
+         */
+        virtual bool supportsReplication() const noexcept = 0;
+
+        /**
+         * @brief Get the driver version
+         * @return The driver version string
+         */
+        virtual std::string getDriverVersion() const noexcept = 0;
     };
 
 } // namespace cpp_dbc

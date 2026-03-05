@@ -33,52 +33,30 @@ namespace cpp_dbc::ScyllaDB
 
     cpp_dbc::expected<void, DBException> ScyllaDBConnection::close(std::nothrow_t) noexcept
     {
-        try
+        DB_DRIVER_LOCK_GUARD(m_connMutex);
+        if (m_closed.load(std::memory_order_acquire))
         {
-            DB_DRIVER_LOCK_GUARD(m_connMutex);
-            if (m_closed)
-                return {};
-
-            SCYLLADB_DEBUG("ScyllaDBConnection::close(nothrow) - Closing connection");
-
-            if (m_session)
-            {
-                CassFutureHandle close_future(cass_session_close(m_session.get()));
-                cass_future_wait(close_future.get());
-                m_session.reset();
-            }
-            m_cluster.reset();
-            m_closed = true;
-
-            SCYLLADB_DEBUG("ScyllaDBConnection::close(nothrow) - Connection closed");
             return {};
         }
-        catch (const DBException &e)
-        {
-            return cpp_dbc::unexpected(e);
-        }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("AZH7UH2WMU6E",
-                std::string("Exception in close: ") + e.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("SXA9ZQ27CZ99",
-                "Unknown exception in close",
-                system_utils::captureCallStack()));
-        }
-    }
 
-    cpp_dbc::expected<void, DBException> ScyllaDBConnection::reset(std::nothrow_t) noexcept
-    {
-        return prepareForPoolReturn(std::nothrow);
+        SCYLLADB_DEBUG("ScyllaDBConnection::close(nothrow) - Closing connection");
+
+        if (m_session)
+        {
+            CassFutureHandle close_future(cass_session_close(m_session.get()));
+            cass_future_wait(close_future.get());
+            m_session.reset();
+        }
+        m_cluster.reset();
+        m_closed.store(true, std::memory_order_release);
+
+        SCYLLADB_DEBUG("ScyllaDBConnection::close(nothrow) - Connection closed");
+        return {};
     }
 
     cpp_dbc::expected<bool, DBException> ScyllaDBConnection::isClosed(std::nothrow_t) const noexcept
     {
-        return m_closed.load();
+        return m_closed.load(std::memory_order_acquire);
     }
 
     cpp_dbc::expected<void, DBException> ScyllaDBConnection::returnToPool(std::nothrow_t) noexcept
@@ -93,60 +71,39 @@ namespace cpp_dbc::ScyllaDB
 
     cpp_dbc::expected<std::string, DBException> ScyllaDBConnection::getURL(std::nothrow_t) const noexcept
     {
-        try
+        return m_url;
+    }
+
+    cpp_dbc::expected<void, DBException> ScyllaDBConnection::reset(std::nothrow_t) noexcept
+    {
+        return prepareForPoolReturn(std::nothrow);
+    }
+
+    cpp_dbc::expected<bool, DBException> ScyllaDBConnection::ping(std::nothrow_t) noexcept
+    {
+        auto result = executeQuery(std::nothrow, "SELECT release_version FROM system.local");
+        if (!result.has_value())
         {
-            return m_url;
+            return cpp_dbc::unexpected(result.error());
         }
-        catch (const std::exception &e)
+        auto closeResult = result.value()->close(std::nothrow);
+        if (!closeResult.has_value())
         {
-            return cpp_dbc::unexpected(DBException("N2U6KD1MSE3Q",
-                std::string("Exception in getURL: ") + e.what(),
-                system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(closeResult.error());
         }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("QCMMMUZZFXSW",
-                "Unknown exception in getURL",
-                system_utils::captureCallStack()));
-        }
+        return true;
     }
 
     // ============================================================================
     // ScyllaDBConnection - ColumnarDBConnection nothrow interface implementations
     // ============================================================================
 
-    cpp_dbc::expected<void, DBException> ScyllaDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
-    {
-        try
-        {
-            SCYLLADB_DEBUG("ScyllaDBConnection::prepareForPoolReturn(nothrow) - Rolling back any active transaction");
-            // ScyllaDB/Cassandra has no ACID transactions; this is a no-op
-            return {};
-        }
-        catch (const DBException &e)
-        {
-            return cpp_dbc::unexpected(e);
-        }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("R6R3IRVPGV67",
-                std::string("Exception in prepareForPoolReturn: ") + e.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("FMYJKW6TDEA7",
-                "Unknown exception in prepareForPoolReturn",
-                system_utils::captureCallStack()));
-        }
-    }
-
     cpp_dbc::expected<std::shared_ptr<ColumnarDBPreparedStatement>, DBException>
     ScyllaDBConnection::prepareStatement(std::nothrow_t, const std::string &query) noexcept
     {
         SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Preparing query: " << query);
         DB_DRIVER_LOCK_GUARD(m_connMutex);
-        if (m_closed || !m_session)
+        if (m_closed.load(std::memory_order_acquire) || !m_session)
         {
             SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Connection closed");
             return cpp_dbc::unexpected(DBException("S0T1U2V3W4X5", "Connection closed", system_utils::captureCallStack()));
@@ -166,7 +123,12 @@ namespace cpp_dbc::ScyllaDB
 
         const CassPrepared *prepared = cass_future_get_prepared(future.get());
         SCYLLADB_DEBUG("ScyllaDBConnection::prepareStatement - Query prepared successfully");
-        return std::shared_ptr<ColumnarDBPreparedStatement>(std::make_shared<ScyllaDBPreparedStatement>(m_session, query, prepared));
+        auto stmtResult = ScyllaDBPreparedStatement::create(std::nothrow, m_session, query, prepared);
+        if (!stmtResult.has_value())
+        {
+            return cpp_dbc::unexpected(stmtResult.error());
+        }
+        return std::shared_ptr<ColumnarDBPreparedStatement>(stmtResult.value());
     }
 
     cpp_dbc::expected<std::shared_ptr<ColumnarDBResultSet>, DBException>
@@ -174,10 +136,10 @@ namespace cpp_dbc::ScyllaDB
     {
         SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Executing query: " << query);
         DB_DRIVER_LOCK_GUARD(m_connMutex);
-        if (m_closed || !m_session)
+        if (m_closed.load(std::memory_order_acquire) || !m_session)
         {
             SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Connection closed");
-            return cpp_dbc::unexpected(DBException("8A350B08A3B3", "Connection closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("1KNEN1MHOTOA", "Connection closed", system_utils::captureCallStack()));
         }
 
         CassStatementHandle statement(cass_statement_new(query.c_str(), 0));
@@ -190,7 +152,7 @@ namespace cpp_dbc::ScyllaDB
             cass_future_error_message(future.get(), &message, &length);
             std::string errorMsg(message, length);
             SCYLLADB_DEBUG("ScyllaDBConnection::executeQuery - Execution failed: " << errorMsg);
-            return cpp_dbc::unexpected(DBException("772E10871903", errorMsg, system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("13JPWFTYAH1G", errorMsg, system_utils::captureCallStack()));
         }
 
         const CassResult *result = cass_future_get_result(future.get());
@@ -203,7 +165,7 @@ namespace cpp_dbc::ScyllaDB
     {
         SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - Executing update: " << query);
         auto res = executeQuery(std::nothrow, query);
-        if (!res)
+        if (!res.has_value())
         {
             SCYLLADB_DEBUG("ScyllaDBConnection::executeUpdate - Update failed");
             return cpp_dbc::unexpected(res.error());
@@ -229,6 +191,13 @@ namespace cpp_dbc::ScyllaDB
     cpp_dbc::expected<void, DBException> ScyllaDBConnection::rollback(std::nothrow_t) noexcept
     {
         SCYLLADB_DEBUG("ScyllaDBConnection::rollback - No-op");
+        return {};
+    }
+
+    cpp_dbc::expected<void, DBException> ScyllaDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    {
+        SCYLLADB_DEBUG("ScyllaDBConnection::prepareForPoolReturn(nothrow) - Rolling back any active transaction");
+        // ScyllaDB/Cassandra has no ACID transactions; this is a no-op
         return {};
     }
 

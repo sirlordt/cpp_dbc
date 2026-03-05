@@ -51,15 +51,11 @@ namespace cpp_dbc
     public:
         ~ColumnarDBDriver() override = default;
 
-        /**
-         * @brief Get the database type
-         * @return Always returns DBType::COLUMNAR
-         */
-        DBType getDBType() const override
-        {
-            return DBType::COLUMNAR;
-        }
+        // ====================================================================
+        // THROWING API — requires exception support
+        // ====================================================================
 
+#ifdef __cpp_exceptions
         /**
          * @brief Connect to a columnar database
          *
@@ -81,8 +77,7 @@ namespace cpp_dbc
         /**
          * @brief Connect to a database (base class implementation)
          *
-         * This method delegates to connectColumnar() and returns the result
-         * as a DBConnection pointer.
+         * This method delegates to connectColumnar(nothrow) and rethrows on error.
          */
         std::shared_ptr<DBConnection> connect(
             const std::string &url,
@@ -90,22 +85,13 @@ namespace cpp_dbc
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) override
         {
-            return connectColumnar(url, user, password, options);
+            auto result = connectColumnar(std::nothrow, url, user, password, options);
+            if (!result.has_value())
+            {
+                throw result.error();
+            }
+            return std::static_pointer_cast<DBConnection>(result.value());
         }
-
-        // Columnar database specific driver methods
-
-        /**
-         * @brief Get the default port for this database type
-         * @return The default port number (e.g., 8123 for ClickHouse HTTP, 9000 for TCP)
-         */
-        virtual int getDefaultPort() const = 0;
-
-        /**
-         * @brief Get the URI scheme for this database type
-         * @return The URI scheme (e.g., "clickhouse", "scylladb")
-         */
-        virtual std::string getURIScheme() const = 0;
 
         /**
          * @brief Parse a connection URI and extract components
@@ -129,30 +115,24 @@ namespace cpp_dbc
             const std::string &database,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) = 0;
 
-        /**
-         * @brief Check if the driver supports clustering/sharding
-         * @return true if clustering is supported and configured
-         */
-        virtual bool supportsClustering() const = 0;
-
-        /**
-         * @brief Check if the driver supports asynchronous operations
-         * @return true if async operations are supported
-         */
-        virtual bool supportsAsync() const = 0;
-
-        /**
-         * @brief Get the driver version
-         * @return The driver version string
-         */
-        virtual std::string getDriverVersion() const = 0;
+#endif // __cpp_exceptions
 
         // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
+        // NOTHROW API — exception-free, always available
         // ====================================================================
+
+        /**
+         * @brief Get the database type
+         * @return Always returns DBType::COLUMNAR
+         */
+        DBType getDBType() const noexcept override
+        {
+            return DBType::COLUMNAR;
+        }
 
         /**
          * @brief Connect to a columnar database (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
          * @return expected containing connection to the database, or DBException on failure
          */
         virtual cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException>
@@ -165,28 +145,64 @@ namespace cpp_dbc
 
         /**
          * @brief Connect to a database (base class nothrow implementation)
+         *
+         * This method delegates to connectColumnar(nothrow) and returns the result.
          */
         cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> connect(
             std::nothrow_t,
             const std::string &url,
             const std::string &user,
             const std::string &password,
-            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+            const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept override
         {
             auto result = connectColumnar(std::nothrow, url, user, password, options);
-            if (!result)
+            if (!result.has_value())
             {
                 return cpp_dbc::unexpected(result.error());
             }
-            return std::static_pointer_cast<DBConnection>(*result);
+            return std::static_pointer_cast<DBConnection>(result.value());
         }
 
         /**
          * @brief Parse a connection URI and extract components (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
          * @return expected containing map of parsed components, or DBException on failure
          */
         virtual cpp_dbc::expected<std::map<std::string, std::string>, DBException> parseURI(
             std::nothrow_t, const std::string &uri) noexcept = 0;
+
+        // Columnar database specific driver methods (trivial — cannot fail)
+
+        /**
+         * @brief Get the URL prefix accepted by this driver
+         *
+         * Returns the full connection URL prefix that this driver handles,
+         * e.g. `"cpp_dbc:scylladb://"`. This value is also the prefix that
+         * `acceptsURL()` checks against.
+         *
+         * Example format: `cpp_dbc:<engine>://host:port/keyspace`
+         *
+         * @return The URL prefix string (e.g., "cpp_dbc:scylladb://")
+         */
+        virtual std::string getURIScheme() const noexcept = 0;
+
+        /**
+         * @brief Check if the driver supports clustering/sharding
+         * @return true if clustering is supported and configured
+         */
+        virtual bool supportsClustering() const noexcept = 0;
+
+        /**
+         * @brief Check if the driver supports asynchronous operations
+         * @return true if async operations are supported
+         */
+        virtual bool supportsAsync() const noexcept = 0;
+
+        /**
+         * @brief Get the driver version
+         * @return The driver version string
+         */
+        virtual std::string getDriverVersion() const noexcept = 0;
     };
 
 } // namespace cpp_dbc

@@ -26,6 +26,7 @@ CPP_DBC solves these problems by providing:
 10. **Columnar Operations**: Support for ScyllaDB/Cassandra columnar database operations
 11. **Key-Value Operations**: Comprehensive support for Redis key-value storage operations
 12. **Code Quality**: Strict warning flags and compile-time checks to ensure robust, reliable code
+13. **`-fno-exceptions` Compatibility**: All 7 drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) guard throwing methods with `#ifdef __cpp_exceptions`; nothrow API always compiles and available
 
 ## Target Users
 

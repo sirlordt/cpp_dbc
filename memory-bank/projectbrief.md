@@ -40,6 +40,9 @@ CPP_DBC is a C++ Database Connectivity library inspired by Java's JDBC (Java Dat
 - Key-value operations for Redis (strings, lists, hashes, sets, sorted sets)
 - Support for MySQL, PostgreSQL, SQLite, Firebird SQL, MongoDB, ScyllaDB, and Redis databases
 - Exception-free API with nothrow variants returning `expected<T, DBException>`
+- `-fno-exceptions` compatibility: all 7 drivers guard throwing methods with `#ifdef __cpp_exceptions`; nothrow API always compiles
+- Static factory pattern for all connection classes (e.g., `MySQLDBConnection::create`, `FirebirdDBConnection::create`, `MongoDBConnection::create`, `ScyllaDBConnection::create`, `RedisDBConnection::create`)
+- Double-checked locking for driver initialization (all drivers use `std::atomic<bool>` + `std::mutex`, not `std::once_flag`)
 - Strict warning flags and compile-time checks for robust code
 - Doxygen-compatible API documentation with inline code examples across all public headers
 

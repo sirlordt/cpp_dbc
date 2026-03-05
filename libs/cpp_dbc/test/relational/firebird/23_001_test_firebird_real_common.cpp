@@ -119,6 +119,34 @@ namespace firebird_test_helpers
         return dbConfig;
     }
 
+    std::shared_ptr<cpp_dbc::Firebird::FirebirdDBDriver> getFirebirdDriver()
+    {
+        static std::shared_ptr<cpp_dbc::Firebird::FirebirdDBDriver> driver =
+            std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>();
+        return driver;
+    }
+
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> getFirebirdConnection()
+    {
+        auto dbConfig = getFirebirdConfig("dev_firebird");
+
+        std::string connStr = dbConfig.createConnectionString();
+        std::string username = dbConfig.getUsername();
+        std::string password = dbConfig.getPassword();
+
+        auto driver = getFirebirdDriver();
+        cpp_dbc::DriverManager::registerDriver(driver);
+        auto conn = cpp_dbc::DriverManager::getDBConnection(connStr, username, password);
+
+        auto relConn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(conn);
+        if (!relConn)
+        {
+            throw std::runtime_error("getFirebirdConnection: dynamic_pointer_cast to RelationalDBConnection returned nullptr"
+                                     " (connStr=" + connStr + ", username=" + username + ")");
+        }
+        return relConn;
+    }
+
     bool tryCreateDatabase()
     {
         try
@@ -134,8 +162,9 @@ namespace firebird_test_helpers
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
 
-            // Register the Firebird driver
-            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+            // Register the Firebird driver singleton
+            auto driver = getFirebirdDriver();
+            cpp_dbc::DriverManager::registerDriver(driver);
 
             // Build connection string for cpp_dbc
             std::string connStr = "cpp_dbc:" + type + "://" + host + ":" + std::to_string(port) + "/" + database;
@@ -215,9 +244,9 @@ namespace firebird_test_helpers
 
             return true;
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database creation error: " + std::string(e.what()));
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Database creation error: " + std::string(ex.what()));
             return false;
         }
     }
@@ -240,8 +269,9 @@ namespace firebird_test_helpers
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
 
-            // Register the Firebird driver
-            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Firebird::FirebirdDBDriver>());
+            // Register the Firebird driver singleton
+            auto driver = getFirebirdDriver();
+            cpp_dbc::DriverManager::registerDriver(driver);
 
             // Attempt to connect to Firebird
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to Firebird with connection string: " + connStr);
@@ -252,22 +282,18 @@ namespace firebird_test_helpers
             // If we get here, the connection was successful
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Firebird connection successful!");
 
-            // Execute a simple query to verify the connection
-            // Get the connection_test query from config
-            // Note: Firebird ignores aliases for constant expressions and returns "CONSTANT" as column name
-            // So we use column index (0) instead of column name
-            std::string connectionTestQuery = dbConfig.getOption("query__connection_test", "SELECT 1 FROM RDB$DATABASE");
-            auto resultSet = conn->executeQuery(connectionTestQuery);
-            bool success = resultSet->next() && resultSet->getInt(0) == 1;
+            // Verify the connection with ping()
+            bool success = conn->ping();
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", std::string("Firebird ping ") + (success ? "successful!" : "returned false"));
 
             // Close the connection
             conn->close();
 
             return success;
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Firebird connection error: " + std::string(e.what()));
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Firebird connection error: " + std::string(ex.what()));
             return false;
         }
     }

@@ -55,6 +55,7 @@ namespace cpp_dbc
          * After calling close(), the result set should not be used.
          * Implementations handle multiple calls to close() gracefully.
          */
+        #ifdef __cpp_exceptions
         virtual void close() = 0;
 
         /**
@@ -65,6 +66,7 @@ namespace cpp_dbc
          */
         virtual bool isEmpty() = 0;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

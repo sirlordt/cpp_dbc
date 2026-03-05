@@ -37,12 +37,13 @@ namespace cpp_dbc::MongoDB
     // MongoDBConnection Implementation - Private Helpers
     // ============================================================================
 
-    void MongoDBConnection::validateConnection() const
+    expected<void, DBException> MongoDBConnection::validateConnection(std::nothrow_t) const noexcept
     {
-        if (m_closed)
+        if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("M7N8O9P0Q1R2", "MongoDB connection is closed", system_utils::captureCallStack());
+            return unexpected(DBException("M7N8O9P0Q1R2", "MongoDB connection is closed", system_utils::captureCallStack()));
         }
+        return {};
     }
 
     std::string MongoDBConnection::generateSessionId()
@@ -54,63 +55,21 @@ namespace cpp_dbc::MongoDB
     }
 
     // ============================================================================
-    // MongoDBConnection Implementation - Collection Registration (Public)
-    // ============================================================================
-
-    void MongoDBConnection::registerCollection(std::weak_ptr<MongoDBCollection> collection)
-    {
-        std::scoped_lock lock(m_collectionsMutex);
-        if (m_activeCollections.size() > 50)
-        {
-            std::erase_if(m_activeCollections, [](const auto &w) { return w.expired(); });
-        }
-        m_activeCollections.insert(std::move(collection));
-        MONGODB_DEBUG("MongoDBConnection::registerCollection - Registered collection, total: " << m_activeCollections.size());
-    }
-
-    void MongoDBConnection::unregisterCollection(std::weak_ptr<MongoDBCollection> collection)
-    {
-        std::scoped_lock lock(m_collectionsMutex);
-        m_activeCollections.erase(collection);
-        MONGODB_DEBUG("MongoDBConnection::unregisterCollection - Unregistered collection, remaining: " << m_activeCollections.size());
-    }
-
-    // ============================================================================
-    // MongoDBConnection Implementation - Cursor Registration (Public)
-    // ============================================================================
-
-    void MongoDBConnection::registerCursor(std::weak_ptr<MongoDBCursor> cursor)
-    {
-        std::scoped_lock lock(m_cursorsMutex);
-        if (m_activeCursors.size() > 50)
-        {
-            std::erase_if(m_activeCursors, [](const auto &w) { return w.expired(); });
-        }
-        m_activeCursors.insert(std::move(cursor));
-        MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: " << m_activeCursors.size());
-    }
-
-    void MongoDBConnection::unregisterCursor(std::weak_ptr<MongoDBCursor> cursor)
-    {
-        std::scoped_lock lock(m_cursorsMutex);
-        m_activeCursors.erase(cursor);
-        MONGODB_DEBUG("MongoDBConnection::unregisterCursor - Unregistered cursor, remaining: " << m_activeCursors.size());
-    }
-
-    // ============================================================================
     // MongoDBConnection Implementation - Constructor, Destructor, Move
     // ============================================================================
 
-    MongoDBConnection::MongoDBConnection(const std::string &uri,
+    // Nothrow constructor — all connection logic lives here.
+    // On failure, sets m_initFailed/m_initError instead of throwing.
+    // Public for std::make_shared access, but effectively private via PrivateCtorTag.
+    MongoDBConnection::MongoDBConnection(MongoDBConnection::PrivateCtorTag,
+                                         std::nothrow_t,
+                                         const std::string &uri,
                                          const std::string &user,
                                          const std::string &password,
                                          const std::map<std::string, std::string> &options)
         : m_url(uri)
-#if DB_DRIVER_THREAD_SAFE
-        , m_connMutex(std::make_shared<std::recursive_mutex>())
-#endif
     {
-        MONGODB_DEBUG("MongoDBConnection::constructor - Connecting to: " << uri);
+        MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connecting to: " << uri);
         // Build the connection URI with credentials if provided
         std::string connectionUri = uri;
 
@@ -148,7 +107,9 @@ namespace cpp_dbc::MongoDB
 
         if (!mongoUri)
         {
-            throw DBException("J4K5L6M7N8O9", std::string("Invalid MongoDB URI: ") + error.message, system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = DBException("J4K5L6M7N8O9", std::string("Invalid MongoDB URI: ") + error.message, system_utils::captureCallStack());
+            return;
         }
 
         // Extract database name from URI
@@ -162,7 +123,9 @@ namespace cpp_dbc::MongoDB
         mongoc_client_t *rawClient = mongoc_client_new_from_uri(mongoUri.get());
         if (!rawClient)
         {
-            throw DBException("K5L6M7N8O9P0", "Failed to create MongoDB client", system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = DBException("K5L6M7N8O9P0", "Failed to create MongoDB client", system_utils::captureCallStack());
+            return;
         }
 
         // Set application name for monitoring
@@ -189,77 +152,27 @@ namespace cpp_dbc::MongoDB
         if (!pingSuccess)
         {
             m_client.reset();
-            throw DBException("L6M7N8O9P0Q1", std::string("Failed to connect to MongoDB: ") + error.message, system_utils::captureCallStack());
+            m_initFailed = true;
+            m_initError = DBException("L6M7N8O9P0Q1", std::string("Failed to connect to MongoDB: ") + error.message, system_utils::captureCallStack());
+            return;
         }
 
-        m_closed = false;
-        MONGODB_DEBUG("MongoDBConnection::constructor - Connected successfully");
+        m_closed.store(false, std::memory_order_release);
+        MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connected successfully");
     }
 
     MongoDBConnection::~MongoDBConnection()
     {
         MONGODB_DEBUG("MongoDBConnection::destructor - Destroying connection");
-        if (!m_closed)
+        if (!m_closed.load(std::memory_order_acquire))
         {
-            try
-            {
-                // Explicitly call our own close() since virtual dispatch doesn't work in destructors
-                MongoDBConnection::close();
-            }
-            catch (...)
-            {
-                // Suppress exceptions in destructor
-                MONGODB_DEBUG("MongoDBConnection::destructor - Exception suppressed during close");
-            }
+            // Explicitly call our own close(nothrow) since virtual dispatch doesn't work in destructors
+            MongoDBConnection::close(std::nothrow);
         }
         MONGODB_DEBUG("MongoDBConnection::destructor - Done");
     }
 
-    MongoDBConnection::MongoDBConnection(MongoDBConnection &&other) noexcept
-        : m_client(std::move(other.m_client)),
-          m_databaseName(std::move(other.m_databaseName)),
-          m_url(std::move(other.m_url)),
-          m_closed(other.m_closed.load()),
-          m_pooled(other.m_pooled),
-          m_sessions(std::move(other.m_sessions)),
-          m_sessionCounter(other.m_sessionCounter.load())
-    {
-        other.m_closed = true;
-    }
-
-    MongoDBConnection &MongoDBConnection::operator=(MongoDBConnection &&other) noexcept
-    {
-        if (this != &other)
-        {
-            // Guard close() call since it can throw and this function is noexcept.
-            // We must ensure the object is in a valid state even if close() fails.
-            if (!m_closed)
-            {
-                try
-                {
-                    close();
-                }
-                catch (...)
-                {
-                    // close() threw - mark as closed to maintain invariants
-                    m_closed = true;
-                    MONGODB_DEBUG("MongoDBConnection::operator= - close() threw during move assignment, marking as closed");
-                }
-            }
-
-            m_client = std::move(other.m_client);
-            m_databaseName = std::move(other.m_databaseName);
-            m_url = std::move(other.m_url);
-            m_closed = other.m_closed.load();
-            m_pooled = other.m_pooled;
-            m_sessions = std::move(other.m_sessions);
-            m_sessionCounter = other.m_sessionCounter.load();
-
-            other.m_closed = true;
-        }
-        return *this;
-    }
-
+    #ifdef __cpp_exceptions
     // ============================================================================
     // MongoDBConnection Implementation - DBConnection Interface
     // ============================================================================
@@ -275,7 +188,7 @@ namespace cpp_dbc::MongoDB
 
     bool MongoDBConnection::isClosed() const
     {
-        return m_closed;
+        return m_closed.load(std::memory_order_acquire);
     }
 
     void MongoDBConnection::returnToPool()
@@ -356,6 +269,51 @@ namespace cpp_dbc::MongoDB
         {
             throw result.error();
         }
+    }
+    #endif // __cpp_exceptions
+
+    // ============================================================================
+    // MongoDBConnection Implementation - Collection Registration (Public)
+    // ============================================================================
+
+    void MongoDBConnection::registerCollection(std::nothrow_t, std::weak_ptr<MongoDBCollection> collection) noexcept
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        if (m_activeCollections.size() > 50)
+        {
+            std::erase_if(m_activeCollections, [](const auto &w) { return w.expired(); });
+        }
+        m_activeCollections.insert(std::move(collection));
+        MONGODB_DEBUG("MongoDBConnection::registerCollection - Registered collection, total: " << m_activeCollections.size());
+    }
+
+    void MongoDBConnection::unregisterCollection(std::nothrow_t, std::weak_ptr<MongoDBCollection> collection) noexcept
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        m_activeCollections.erase(collection);
+        MONGODB_DEBUG("MongoDBConnection::unregisterCollection - Unregistered collection, remaining: " << m_activeCollections.size());
+    }
+
+    // ============================================================================
+    // MongoDBConnection Implementation - Cursor Registration (Public)
+    // ============================================================================
+
+    void MongoDBConnection::registerCursor(std::nothrow_t, std::weak_ptr<MongoDBCursor> cursor) noexcept
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        if (m_activeCursors.size() > 50)
+        {
+            std::erase_if(m_activeCursors, [](const auto &w) { return w.expired(); });
+        }
+        m_activeCursors.insert(std::move(cursor));
+        MONGODB_DEBUG("MongoDBConnection::registerCursor - Registered cursor, total: " << m_activeCursors.size());
+    }
+
+    void MongoDBConnection::unregisterCursor(std::nothrow_t, std::weak_ptr<MongoDBCursor> cursor) noexcept
+    {
+        MONGODB_LOCK_GUARD(*m_connMutex);
+        m_activeCursors.erase(cursor);
+        MONGODB_DEBUG("MongoDBConnection::unregisterCursor - Unregistered cursor, remaining: " << m_activeCursors.size());
     }
 
 } // namespace cpp_dbc::MongoDB

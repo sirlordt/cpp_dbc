@@ -36,6 +36,7 @@ namespace cpp_dbc::MySQL
 
     // MySQLDBPreparedStatement implementation
 
+    #ifdef __cpp_exceptions
     void MySQLDBPreparedStatement::notifyConnClosing()
     {
         // Connection is closing, invalidate the statement without calling mysql_stmt_close
@@ -48,12 +49,12 @@ namespace cpp_dbc::MySQL
         }
     }
 
-    MYSQL *MySQLDBPreparedStatement::getMySQLConnection() const
+    cpp_dbc::expected<MYSQL *, DBException> MySQLDBPreparedStatement::getMySQLConnection(std::nothrow_t) const noexcept
     {
         auto conn = m_mysql.lock();
         if (!conn)
         {
-            throw DBException("471F2E35F961", "MySQL connection has been closed", system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("I45CI2CYTVOT", "MySQL connection has been closed", system_utils::captureCallStack()));
         }
         return conn.get();
     }
@@ -67,7 +68,12 @@ namespace cpp_dbc::MySQL
         : m_mysql(mysql_conn), m_sql(sql_stmt)
     {
 #endif
-        MYSQL *mysqlPtr = getMySQLConnection();
+        auto mysqlResult = getMySQLConnection(std::nothrow);
+        if (!mysqlResult.has_value())
+        {
+            throw mysqlResult.error();
+        }
+        MYSQL *mysqlPtr = mysqlResult.value();
 
         m_stmt.reset(mysql_stmt_init(mysqlPtr));
         if (!m_stmt)
@@ -283,5 +289,6 @@ namespace cpp_dbc::MySQL
     }
 
 } // namespace cpp_dbc::MySQL
+    #endif // __cpp_exceptions
 
 #endif // USE_MYSQL

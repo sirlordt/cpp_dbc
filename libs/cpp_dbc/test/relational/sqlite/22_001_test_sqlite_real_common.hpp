@@ -55,6 +55,16 @@ namespace sqlite_test_helpers
                                                     bool useInMemory = false);
 
     /**
+     * @brief Helper function to get a SQLite driver instance (singleton)
+     */
+    std::shared_ptr<cpp_dbc::SQLite::SQLiteDBDriver> getSQLiteDriver();
+
+    /**
+     * @brief Helper function to get a SQLite connection
+     */
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> getSQLiteConnection();
+
+    /**
      * @brief Helper function to check if we can connect to SQLite
      */
     bool canConnectToSQLite();

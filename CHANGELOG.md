@@ -1,6 +1,199 @@
 # Changelog
 
-## 2026-02-24 18:25:00 PST [Current]
+## 2026-03-04 14:29:42 PST [Current]
+
+### MongoDB Driver — Full Nothrow-First Refactor, Static Factory Pattern, `-fno-exceptions` Compatibility, and Dead try/catch Elimination
+
+This release systematically migrates the entire MongoDB document driver layer to the project's dual-API (throwing + nothrow) pattern with `-fno-exceptions` compatibility — the same architecture already established in MySQL, PostgreSQL, SQLite, Firebird, ScyllaDB, and Redis drivers. MongoDB was the last driver to adopt this pattern. The nothrow API now contains all real implementations, and the throwing API is reduced to thin wrappers. Dead try/catch blocks around nothrow-only call chains are removed throughout. All 7 drivers now share the same nothrow-first, static factory, double-checked locking architecture. 41 files changed, +5956/-5321 lines.
+
+#### Core Abstract Interfaces — `#ifdef __cpp_exceptions` Guard Separation
+
+All five document abstract interfaces (`DocumentDBCollection`, `DocumentDBConnection`, `DocumentDBCursor`, `DocumentDBData`, `DocumentDBDriver`) now wrap throwing virtual methods inside `#ifdef __cpp_exceptions` / `#endif`. Nothrow methods sit outside this guard, ensuring they always compile even under `-fno-exceptions`.
+
+- **`DocumentDBCollection`**: New nothrow pure-virtuals added: `getName(std::nothrow_t)`, `getNamespace(std::nothrow_t)`, `estimatedDocumentCount(std::nothrow_t)`, `countDocuments(std::nothrow_t)`
+- **`DocumentDBConnection`**: `ping()` and `ping(std::nothrow_t)` removed from abstract interface (no longer part of the document connection contract)
+- **`DocumentDBCursor`**: 9 new nothrow pure-virtuals: `next`, `hasNext`, `count`, `getPosition`, `skip`, `limit`, `sort`, `isExhausted`, `rewind` (with `std::reference_wrapper<DocumentDBCursor>` return type for chaining methods)
+- **`DocumentDBData`**: Largest expansion — new nothrow pure-virtuals for: `getId`, `setId`, `toJson`, `toJsonPretty`, `fromJson`, all setters (`setString`, `setInt`, `setDouble`, `setBool`, `setBinary`, `setDocument`, `setNull`), `hasField`, `isNull`, `removeField`, `getFieldNames`, `clear`, `isEmpty`
+- **`DocumentDBDriver`**: `getDefaultPort()` removed; `getURIScheme()` gains `noexcept` and now returns full URL prefix (e.g., `"cpp_dbc:mongodb://"`); `supportsReplicaSets()`, `supportsSharding()`, `getDriverVersion()` all marked `noexcept`; inline `connect(std::nothrow_t)` override added
+
+#### MongoDBDriver — Double-Checked Locking + Nothrow Init
+
+- `std::once_flag s_initFlag` replaced with `std::atomic<bool> s_initialized` + `std::mutex s_initMutex` — enables re-initialization after `cleanup()` (`once_flag` cannot be reset) and avoids `std::system_error` from `std::call_once` under `-fno-exceptions`
+- New `initialize(std::nothrow_t) noexcept` returning `expected<bool, DBException>` — follows the DBDriver double-checked locking pattern
+- Instance-level `m_mutex` removed — thread safety handled at connection level
+- `connectDocument(std::nothrow_t)` now calls `MongoDBConnection::create(std::nothrow, ...)` static factory
+- `parseURI(std::nothrow_t)` — dead try/catch removed (all `mongoc_uri_get_*` are C functions that cannot throw)
+
+#### MongoDBConnection — Static Factory Pattern
+
+- New private nothrow constructor: `MongoDBConnection(std::nothrow_t, ...) noexcept`
+- New `initialize(std::nothrow_t)` private helper — performs URI parsing, client creation, database selection
+- New static factory: `create(std::nothrow_t, ...) noexcept` returning `expected<shared_ptr<MongoDBConnection>, DBException>`
+- Old public throwing constructor removed
+- Private helpers converted: `validateConnection()`, `getClient()`, `getCollection()` → nothrow with `std::nothrow_t` + `expected` return
+
+#### MongoDBCollection — Nothrow Helpers
+
+- Private helpers converted: `validateConnection()`, `getClient()`, `getCollection()` → nothrow
+- New `getCollectionHandle(std::nothrow_t) noexcept` — combines client + collection retrieval into a single operation
+
+#### MongoDBCursor — Full Nothrow API
+
+- Constructor converted to nothrow: `MongoDBCursor(std::nothrow_t, ...) noexcept`
+- Private helpers `validateConnection`, `initializeCursor`, `parseDocument` all converted to nothrow
+- `skip`, `limit`, `sort` return `expected<std::reference_wrapper<DocumentDBCursor>, DBException>`
+- `rewind(std::nothrow_t)` always returns `unexpected` (MongoDB cursors do not support rewinding)
+
+#### MongoDBDocument — Static Factory + ID Caching
+
+- Constructors converted to nothrow: `MongoDBDocument(std::nothrow_t)` and `MongoDBDocument(std::nothrow_t, bson_t*)`
+- Static factories: `create(std::nothrow_t)` and `create(std::nothrow_t, bson_t*)`
+- ID caching: `m_idCached` / `m_cachedId` members avoid repeated BSON traversal for the `_id` field
+- New `document_07.cpp` (776 lines) — nothrow implementations for: `getDocumentArray`, `getStringArray`, all setters, `hasField`, `isNull`, `removeField`, `getFieldNames`, `clone`, `clear`, `isEmpty`, `getBson`, `getBsonMutable`
+
+#### `handles.hpp` — `makeBsonHandleFromJson()` Nothrow
+
+- Throwing version removed; replaced by `expected<BsonHandle, DBException> makeBsonHandleFromJson(std::nothrow_t, ...) noexcept`
+
+#### Dead try/catch Elimination
+
+Nothrow methods that call only other nothrow methods no longer have try/catch blocks. This follows the project convention "No Redundant try/catch in Nothrow Methods" and the "Diagnostic Checklist" for detecting dead code. Applied across all MongoDB `.cpp` files.
+
+#### Other Changes
+
+- **CMakeLists.txt**: `document_07.cpp` uncommented in MongoDB source list
+- **KV driver**: `""` → `std::string{}` for default parameter in `buildURI()` (kv_db_driver.hpp, redis/driver.hpp)
+- **Redis connection.hpp**: Added `NOSONAR(cpp:S5950)` suppression for intentional raw `new` in static factory
+- **Firebird driver.hpp stub**: Added missing `const` qualifiers and `override` keyword
+- **MySQL/PostgreSQL blob.hpp**: Added `using MemoryBlob::copyFrom;` to unhide base-class overloads (SonarQube cpp:S1242)
+- **Document connection pool**: Added `NOSONAR(cpp:S924)` comments on intentional `break` statements in maintenance loops
+
+---
+
+## 2026-02-26 18:27:31 PST
+
+### DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations
+
+This release replaces dynamic-allocation internals of `DBException` and `system_utils::StackFrame` with fixed-size stack buffers, unifies the `ping()` method across all database families under the base `DBConnection` interface with a `bool` return type, migrates `what_s()` and `getMark()` return types to `std::string_view` for zero-copy semantics, and improves the build system with deferred libdw flag processing and faster test builds.
+
+#### `DBException` — Fixed-Size Memory Layout
+
+`DBException` now inherits from `std::exception` instead of `std::runtime_error` and stores all fields in fixed-size char arrays:
+
+```cpp
+// Before
+class DBException : public std::runtime_error
+{
+    std::string m_mark;
+    std::string m_message;
+    std::vector<system_utils::StackFrame> m_callStack;
+};
+
+// After
+class DBException : public std::exception
+{
+    char m_mark[13]{};
+    char m_message[257]{};
+    char m_full_message[271]{};
+    std::shared_ptr<system_utils::CallStackCapture> m_callStack;
+};
+```
+
+- Constructor is now `noexcept` — no heap allocations that can fail
+- `what()` returns pre-computed `m_full_message` (zero-cost, no concatenation on hot path)
+- `what_s()` return type changed from `const std::string&` to `std::string_view`
+- `getMark()` return type changed from `const std::string&` to `std::string_view`
+- `getCallStack()` return type changed from `const std::vector<StackFrame>&` to `std::span<const system_utils::StackFrame>`
+- Long messages/marks are left-truncated with `...[TRUNCATED]` marker
+- Total object size: ~560 bytes (fixed, stack-allocatable)
+
+#### `system_utils::CallStackCapture` — Fixed-Size Call Stack
+
+`system_utils::StackFrame` now uses fixed-size char arrays instead of `std::string`:
+
+```cpp
+// Before
+struct StackFrame { std::string file; std::string function; int line; };
+// captureCallStack() → std::vector<StackFrame>
+
+// After
+struct StackFrame { char file[150]; char function[150]; int line; };
+struct CallStackCapture { StackFrame frames[10]; int count; };
+// captureCallStack() → std::shared_ptr<CallStackCapture>
+```
+
+- Heap allocation for the `CallStackCapture` struct happens only once (shared across copies)
+- Maximum 10 frames captured — sufficient for most error paths
+- `printCallStack()` now also accepts `std::span<const StackFrame>`
+
+#### Unified `ping()` — Base `DBConnection` Interface
+
+`ping()` is now a pure virtual method in the base `DBConnection` class, replacing family-specific overloads:
+
+```cpp
+// Before: Redis-specific in KVDBConnection
+std::string ping();
+expected<std::string, DBException> ping(std::nothrow_t) noexcept;
+
+// Before: MongoDB-specific in DocumentDBConnection
+bool ping();
+expected<bool, DBException> ping(std::nothrow_t) noexcept;
+
+// After: unified in DBConnection base
+virtual bool ping() = 0;
+virtual cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept = 0;
+```
+
+Return type is now uniformly `bool` across all families (Redis, MongoDB, ScyllaDB, Relational). All pool wrappers and pooled connection classes updated accordingly.
+
+#### All Examples and Benchmarks — `std::string_view` Adaptation
+
+All example files (50+ across all 7 database families) updated for `what_s()` returning `std::string_view`:
+
+```cpp
+// Before
+"Error: " + ex.what_s()
+
+// After
+"Error: " + std::string(ex.what_s())
+```
+
+`example_common.hpp` logging functions updated to accept `std::string_view` parameters:
+
+```cpp
+// Before
+void logMsg(const std::string &message);
+
+// After
+void logMsg(std::string_view message);
+```
+
+Redis examples updated for `bool` ping return:
+
+```cpp
+// Before
+std::string pong = conn->ping();
+logData("PING = '" + pong + "'");
+
+// After
+bool pong = conn->ping();
+logData(std::string("PING = '") + (pong ? "PONG" : "FAILED") + "'");
+```
+
+#### Build System — Deferred libdw Flag and Faster Test Builds
+
+`helper.sh` now defers libdw flag processing so `dw-off` can cancel a preceding `dw-on` in the same option list:
+
+```bash
+# Now works correctly (dw-off wins over dw-on)
+./helper.sh --run-test=dw-on,dw-off,sqlite
+```
+
+`build_test_cpp_dbc.sh` adds `-DCPP_DBC_BUILD_EXAMPLES=OFF -DCPP_DBC_BUILD_BENCHMARKS=OFF` to skip building examples and benchmarks during test-only builds, reducing compile time.
+
+---
+
+## 2026-02-24 18:25:00 PST
 
 ### Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection
 
@@ -1226,8 +1419,8 @@ All throwing method variants (`close()`, `reset()`, `isClosed()`, etc.) in every
 
 * **Redis Driver Split:**
   * `src/drivers/kv/redis/redis_internal.hpp` - Internal declarations and shared definitions
-  * `src/drivers/kv/redis/driver_01.cpp` - RedisDriver implementation
-  * `src/drivers/kv/redis/connection_01.cpp` to `connection_06.cpp` - RedisConnection implementation
+  * `src/drivers/kv/redis/driver_01.cpp` - RedisDBDriver implementation
+  * `src/drivers/kv/redis/connection_01.cpp` to `connection_06.cpp` - RedisDBConnection implementation
 
 * **ScyllaDB Driver Split:**
   * `src/drivers/columnar/scylladb/scylladb_internal.hpp` - Internal declarations and shared definitions
@@ -1263,7 +1456,7 @@ All throwing method variants (`close()`, `reset()`, `isClosed()`, etc.) in every
   * Enables single memory allocation with `std::make_shared` instead of separate allocations with `new`
   * Removed NOSONAR comments that were needed for the previous `new` usage
   * Applied to: `ColumnarDBConnectionPool`, `DocumentDBConnectionPool`, `KVDBConnectionPool`, `RelationalDBConnectionPool`
-  * Applied to all derived pools: `ScyllaConnectionPool`, `MongoDBConnectionPool`, `RedisConnectionPool`, `MySQLConnectionPool`, `PostgreSQLConnectionPool`, `SQLiteConnectionPool`, `FirebirdConnectionPool`
+  * Applied to all derived pools: `ScyllaConnectionPool`, `MongoDBConnectionPool`, `RedisDBConnectionPool`, `MySQLConnectionPool`, `PostgreSQLConnectionPool`, `SQLiteConnectionPool`, `FirebirdConnectionPool`
 * **SonarCloud Code Quality Fixes:**
   * Added NOSONAR comments with explanations for intentional code patterns
   * Added `[[noreturn]]` attributes to stub methods that always throw exceptions (ScyllaDB disabled driver)

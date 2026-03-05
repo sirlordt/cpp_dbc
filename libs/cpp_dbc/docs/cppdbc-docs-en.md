@@ -1,6 +1,6 @@
 # CPP_DBC Library Documentation
 
-This document provides a comprehensive guide to the CPP_DBC library, a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, SQLite, Firebird SQL, MongoDB, ScyllaDB, and Redis databases. All public header files include Doxygen-compatible `/** @brief ... */` documentation with inline code examples, `@param`/`@return`/`@see` tags, and are ready for HTML/PDF API reference generation.
+This document provides a comprehensive guide to the CPP_DBC library, a C++ Database Connectivity library inspired by JDBC, with support for MySQL, PostgreSQL, SQLite, Firebird SQL, MongoDB, ScyllaDB, and Redis databases. All 7 drivers implement the nothrow-first dual-API pattern: real logic in `noexcept` methods returning `expected<T, DBException>`, throwing API as thin wrappers guarded by `#ifdef __cpp_exceptions`, static factory construction, and double-checked locking for driver initialization. The library is fully compatible with `-fno-exceptions` builds. All public header files include Doxygen-compatible `/** @brief ... */` documentation with inline code examples, `@param`/`@return`/`@see` tags, and are ready for HTML/PDF API reference generation.
 
 ## Table of Contents
 - [Core Components](#core-components)
@@ -27,14 +27,14 @@ This document provides a comprehensive guide to the CPP_DBC library, a C++ Datab
 *Components defined in cpp_dbc.hpp*
 
 ### DBException
-A custom exception class for database-related errors.
+A custom exception class for database-related errors. Fixed-size, `noexcept`-constructible value type (~560 bytes). Inherits from `std::exception`.
 
 **Methods:**
-- `DBException(const std::string& message)`: Constructor that takes an error message.
-- `DBException(const std::string& mark, const std::string& message, const std::vector<system_utils::StackFrame>& callStack)`: Constructor that takes an error mark, message, and call stack.
-- `what_s()`: Returns the error message as a std::string (safer than what()).
-- `getMark()`: Returns the unique error mark.
-- `getCallStack()`: Returns the call stack captured when the exception was created.
+- `DBException(const std::string& mark, const std::string& message, std::shared_ptr<system_utils::CallStackCapture> callStack)`: Constructor (noexcept) that takes an error mark (12-char code), message, and call stack.
+- `what()`: Returns pre-computed `const char*` message (zero-cost).
+- `what_s()`: Returns the error message as `std::string_view`.
+- `getMark()`: Returns the unique error mark as `std::string_view`.
+- `getCallStack()`: Returns the call stack as `std::span<const system_utils::StackFrame>`.
 - `printCallStack()`: Prints the call stack to standard error.
 
 ### Types Enum
@@ -133,6 +133,18 @@ A manager class to register and retrieve driver instances.
 - `registerDriver(string, Driver)`: Registers a driver with the given name.
 - `getDBConnection(string, string, string, map<string, string>)`: Gets a connection to the database specified by the URL with optional connection options.
 - `getDBConnection(DatabaseConfig)`: Gets a connection using a database configuration object.
+
+---
+
+## Architecture — Nothrow-First Dual-API (All Drivers)
+
+All 7 database drivers share a consistent architecture:
+
+- **`#ifdef __cpp_exceptions` guards**: Throwing methods are conditionally compiled; nothrow methods always compile, enabling `-fno-exceptions` builds
+- **Nothrow-first**: Real business logic lives in `noexcept` methods returning `expected<T, DBException>`. Throwing methods are thin wrappers that call the nothrow version and rethrow on error
+- **Static factory pattern**: Connection classes provide `create(std::nothrow_t, ...)` factories with private nothrow constructors. Error deferral via `m_initFailed`/`m_initError` members
+- **Double-checked locking**: All drivers use `std::atomic<bool>` + `std::mutex` for one-time C library initialization (not `std::once_flag` — allows re-initialization after `cleanup()`, avoids `std::system_error` under `-fno-exceptions`)
+- **Dead try/catch elimination**: Nothrow methods that call only nothrow methods have no try/catch blocks (per project conventions)
 
 ---
 
@@ -336,7 +348,7 @@ Implementation of ConnectionPool for Firebird SQL databases.
 ## MongoDB Implementation
 *Components defined in drivers/document/driver_mongodb.hpp and src/drivers/document/driver_mongodb.cpp*
 
-MongoDB is a document database that stores data in flexible, JSON-like documents. The CPP_DBC library provides a complete MongoDB driver implementation with support for CRUD operations, collection management, and cursor-based iteration.
+MongoDB is a document database that stores data in flexible, JSON-like documents. The CPP_DBC library provides a complete MongoDB driver implementation with support for CRUD operations, collection management, and cursor-based iteration. The MongoDB driver follows the nothrow-first dual-API pattern: all real logic lives in `noexcept` methods returning `expected<T, DBException>`, and the throwing API is a thin wrapper layer. All abstract interfaces guard throwing methods with `#ifdef __cpp_exceptions` for `-fno-exceptions` compatibility.
 
 ### DocumentDBData
 An abstract base class representing document data.
@@ -391,34 +403,44 @@ An abstract base class representing a document database driver.
 - `connectDocument(string, string, string, map<string, string>)`: Establishes a document database connection.
 - `acceptsURL(string)`: Returns true if the driver can connect to the given URL.
 
-### MongoDBData
-Implementation of DocumentDBData for MongoDB.
+### MongoDBDocument (formerly MongoDBData)
+Implementation of DocumentDBData for MongoDB. Uses static factory pattern for construction.
+
+**Construction:**
+- `MongoDBDocument::create(std::nothrow_t)`: Creates an empty document (static factory, noexcept).
+- `MongoDBDocument::create(std::nothrow_t, bson_t*)`: Creates from a BSON document (static factory, noexcept).
 
 **Methods:**
 Same as DocumentDBData, plus:
-- `MongoDBData(bsoncxx::document::value)`: Constructor that takes a BSON document.
-- `getDocument()`: Returns the underlying BSON document.
+- `getBson()`: Returns the underlying BSON document.
+- `getBsonMutable()`: Returns a mutable reference to the BSON document.
+- ID caching: `getId()` caches the `_id` value internally to avoid repeated BSON traversal.
 
 ### MongoDBCursor
 Implementation of DocumentDBCursor for MongoDB.
 
+**Construction:**
+- `MongoDBCursor(std::nothrow_t, ...)`: Nothrow constructor.
+
 **Methods:**
-Same as DocumentDBCursor, plus:
-- `MongoDBCursor(mongocxx::cursor)`: Constructor that takes a MongoDB cursor.
+Same as DocumentDBCursor. Chaining methods (`skip`, `limit`, `sort`) return `std::reference_wrapper<DocumentDBCursor>` in the nothrow API.
 
 ### MongoDBCollection
 Implementation of DocumentDBCollection for MongoDB.
 
 **Methods:**
 Same as DocumentDBCollection, plus:
-- `MongoDBCollection(mongocxx::collection)`: Constructor that takes a MongoDB collection.
+- Internal `getCollectionHandle(std::nothrow_t)` helper combines client + collection retrieval.
 
 ### MongoDBConnection
-Implementation of DocumentDBConnection for MongoDB.
+Implementation of DocumentDBConnection for MongoDB. Uses static factory pattern for construction.
+
+**Construction:**
+- `MongoDBConnection::create(std::nothrow_t, url, user, password, options)`: Static factory (noexcept), returns `expected<shared_ptr<MongoDBConnection>, DBException>`.
+- Private nothrow constructor + `initialize(std::nothrow_t)` helper for fallible setup.
 
 **Methods:**
 Same as DocumentDBConnection, plus:
-- `MongoDBConnection(string, int, string, string, string, map<string, string>)`: Constructor that takes host, port, database, user, password, and optional connection options.
 - `getURL()`: Returns the connection URL.
 
 **Smart Pointer Usage:**
@@ -428,16 +450,19 @@ Same as DocumentDBConnection, plus:
 ### MongoDBDriver
 Implementation of DocumentDBDriver for MongoDB.
 
+**Construction:**
+- `MongoDBDriver()`: Constructor uses double-checked locking (`std::atomic<bool>` + `std::mutex`) for one-time C library initialization. Compatible with `-fno-exceptions` (replaces `std::call_once`).
+
 **Methods:**
 Same as DocumentDBDriver, plus:
-- `MongoDBDriver()`: Constructor.
-- `parseURL(string, string&, int&, string&)`: Parses a connection URL.
-- `acceptsURL(string)`: Returns true only for `mongodb://` URLs.
+- `acceptsURL(string)`: Returns true only for `cpp_dbc:mongodb://` URLs.
+- `cleanup()`: Resets initialization state, allowing re-initialization.
+- `isInitialized()`: Checks if the C library is initialized.
 
 **Connection URL Format:**
 ```
-mongodb://host:port/database
-mongodb://username:password@host:port/database?authSource=admin
+cpp_dbc:mongodb://host:port/database
+cpp_dbc:mongodb://username:password@host:port/database?authSource=admin
 ```
 
 **Usage Example:**

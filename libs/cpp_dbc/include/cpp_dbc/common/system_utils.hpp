@@ -22,14 +22,17 @@
 #define SYSTEM_UTILS_HPP
 
 #include <charconv>
+#include <cstddef>
+#include <cstring>
+#include <memory>
 #include <mutex>
+#include <span>
 #include <thread>
 #include <iostream>
 #include <chrono>
 #include <ctime>
 #include <string>
 #include <string_view>
-#include <vector>
 
 // Platform-specific includes for write() syscall (eliminates Helgrind false positives)
 #ifdef _WIN32
@@ -45,17 +48,54 @@ namespace cpp_dbc::system_utils
     // Declare the mutex as external
     extern std::recursive_mutex global_cout_mutex; // NOSONAR - Mutex cannot be const as it needs to be locked/unlocked
 
+// #define used for array dimensions so IntelliSense sees a preprocessor literal rather
+// than a static constexpr member reference — which triggers a false-positive
+// "expression must be a modifiable lvalue" when writing to the arrays via strncpy.
+// The static constexpr members below remain the canonical, type-safe API for callers.
+// Each macro is #undef'd immediately after its struct to avoid namespace pollution.
+#define CPP_DBC_STACKFRAME_FILE_MAX     150
+#define CPP_DBC_STACKFRAME_FUNCTION_MAX 150
+
     /**
      * @brief Represents a single frame in a captured call stack
      *
-     * Used by DBException to store stack trace information for debugging.
+     * Fixed-size, allocation-free struct. All string fields are char arrays with
+     * defined maximum lengths. Values that exceed the limit are truncated on the
+     * LEFT side (keeping the suffix), preserving the method name and parameters
+     * which are more useful for debugging than the namespace/return type prefix.
+     * Used by DBException and CallStackCapture to store stack trace information.
      */
     struct StackFrame
     {
-        std::string file;
-        int line;
-        std::string function;
+        static constexpr std::size_t FILE_MAX     = CPP_DBC_STACKFRAME_FILE_MAX;     ///< Max bytes for source file path (incl. null); left-truncated if longer
+        static constexpr std::size_t FUNCTION_MAX = CPP_DBC_STACKFRAME_FUNCTION_MAX; ///< Max bytes for function name (incl. null); left-truncated if longer
+
+        char file[CPP_DBC_STACKFRAME_FILE_MAX]{};
+        char function[CPP_DBC_STACKFRAME_FUNCTION_MAX]{};
+        int  line{0};
     };
+
+#undef CPP_DBC_STACKFRAME_FILE_MAX
+#undef CPP_DBC_STACKFRAME_FUNCTION_MAX
+
+#define CPP_DBC_CALLSTACK_MAX_FRAMES 10
+
+    /**
+     * @brief Fixed-size container for up to 10 captured stack frames
+     *
+     * Returned as a heap-allocated shared_ptr by captureCallStack(), so DBException
+     * stores only a pointer (16 bytes) instead of the full struct inline.
+     * The frames themselves are fixed-size char arrays — no further allocation occurs.
+     */
+    struct CallStackCapture
+    {
+        static constexpr std::size_t MAX_FRAMES = CPP_DBC_CALLSTACK_MAX_FRAMES; ///< Maximum number of captured frames
+
+        StackFrame  frames[CPP_DBC_CALLSTACK_MAX_FRAMES]{};
+        std::size_t count{0};
+    };
+
+#undef CPP_DBC_CALLSTACK_MAX_FRAMES
 
     /**
      * @brief Result structure for parsing database connection URLs
@@ -439,22 +479,36 @@ namespace cpp_dbc::system_utils
     /**
      * @brief Capture the current call stack for debugging
      *
+     * Returns a heap-allocated shared_ptr<CallStackCapture>. The allocation is
+     * wrapped in try/catch so the function remains noexcept — on allocation failure
+     * it returns nullptr (no stack trace, but no crash or exception either).
+     *
+     * Storing the result in DBException costs only 16 bytes (the shared_ptr) instead
+     * of the full CallStackCapture struct inline. When no callstack is passed to
+     * DBException the pointer is nullptr and no heap memory is allocated at all.
+     *
      * ```cpp
-     * auto frames = cpp_dbc::system_utils::captureCallStack();
-     * cpp_dbc::system_utils::printCallStack(frames);
+     * auto capture = cpp_dbc::system_utils::captureCallStack();
+     * if (capture) { cpp_dbc::system_utils::printCallStack(*capture); }
      * ```
      *
      * @param captureAll If true, captures all frames; otherwise skips internal frames
      * @param skip Number of frames to skip from the top of the stack
-     * @return Vector of StackFrame objects representing the call stack
+     * @return shared_ptr to a CallStackCapture with up to MAX_FRAMES frames, or nullptr on failure
      */
-    std::vector<StackFrame> captureCallStack(bool captureAll = false, int skip = 1) noexcept;
+    std::shared_ptr<CallStackCapture> captureCallStack(bool captureAll = false, int skip = 1) noexcept;
 
     /**
      * @brief Print a captured call stack to stdout
-     * @param frames The stack frames to print
+     * @param capture The CallStackCapture to print (no-op if nullptr)
      */
-    void printCallStack(const std::vector<StackFrame> &frames);
+    void printCallStack(const std::shared_ptr<CallStackCapture> &capture);
+
+    /**
+     * @brief Print a span of stack frames to stdout
+     * @param frames Span of StackFrame objects to print
+     */
+    void printCallStack(std::span<const StackFrame> frames);
 
     /**
      * @brief Get the full path to the current executable including its name

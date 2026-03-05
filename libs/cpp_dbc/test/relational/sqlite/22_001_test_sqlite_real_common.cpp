@@ -111,6 +111,26 @@ namespace sqlite_test_helpers
         return dbConfig;
     }
 
+    std::shared_ptr<cpp_dbc::SQLite::SQLiteDBDriver> getSQLiteDriver()
+    {
+        static std::shared_ptr<cpp_dbc::SQLite::SQLiteDBDriver> driver =
+            std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>();
+        return driver;
+    }
+
+    std::shared_ptr<cpp_dbc::RelationalDBConnection> getSQLiteConnection()
+    {
+        auto dbConfig = getSQLiteConfig("dev_sqlite");
+
+        std::string connStr = dbConfig.createConnectionString();
+
+        auto driver = getSQLiteDriver();
+        cpp_dbc::DriverManager::registerDriver(driver);
+        auto conn = cpp_dbc::DriverManager::getDBConnection(connStr, "", "");
+
+        return std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(conn);
+    }
+
     bool canConnectToSQLite()
     {
         try
@@ -121,8 +141,9 @@ namespace sqlite_test_helpers
             // Get connection parameters
             std::string connStr = dbConfig.createConnectionString();
 
-            // Register the SQLite driver
-            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::SQLite::SQLiteDBDriver>());
+            // Register the SQLite driver singleton
+            auto driver = getSQLiteDriver();
+            cpp_dbc::DriverManager::registerDriver(driver);
 
             // Attempt to connect to SQLite
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to SQLite with connection string: " + connStr);
@@ -132,18 +153,18 @@ namespace sqlite_test_helpers
             // If we get here, the connection was successful
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "SQLite connection successful!");
 
-            // Execute a simple query to verify the connection
-            auto resultSet = conn->executeQuery("SELECT 1 as test_value");
-            bool success = resultSet->next() && resultSet->getInt("test_value") == 1;
+            // Verify the connection with ping()
+            bool success = conn->ping();
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", std::string("SQLite ping ") + (success ? "successful!" : "returned false"));
 
             // Close the connection
             conn->close();
 
             return success;
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", std::string("SQLite connection error: ") + e.what());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", std::string("SQLite connection error: ") + ex.what());
             return false;
         }
     }

@@ -18,8 +18,6 @@
 
 #include "cpp_dbc/drivers/columnar/driver_scylladb.hpp"
 
-#if USE_SCYLLADB
-
 #include <array>
 #include <cctype>
 #include <cstring>
@@ -32,20 +30,49 @@
 #include "cpp_dbc/common/system_utils.hpp"
 #include "scylladb_internal.hpp"
 
+#if USE_SCYLLADB
+
 namespace cpp_dbc::ScyllaDB
 {
     // ====================================================================
     // ScyllaDBDriver
     // ====================================================================
 
-    ScyllaDBDriver::ScyllaDBDriver()
+    // Static member initialization
+    std::atomic<bool> ScyllaDBDriver::s_initialized{false}; // NOSONAR - Explicit template arg for clarity in static member definition
+    std::mutex ScyllaDBDriver::s_initMutex;
+
+    cpp_dbc::expected<bool, DBException> ScyllaDBDriver::initialize(std::nothrow_t) noexcept
     {
-        SCYLLADB_DEBUG("ScyllaDBDriver::constructor - Initializing driver");
-        // Global init if needed
+        SCYLLADB_DEBUG("ScyllaDBDriver::initialize - Initializing Cassandra driver");
         // Suppress server-side warnings (like SimpleStrategy recommendations)
         cass_log_set_level(CASS_LOG_ERROR);
+        s_initialized.store(true, std::memory_order_release);
+        SCYLLADB_DEBUG("ScyllaDBDriver::initialize - Done");
+        return true;
     }
 
+    ScyllaDBDriver::ScyllaDBDriver()
+    {
+        SCYLLADB_DEBUG("ScyllaDBDriver::constructor - Creating driver");
+        // Double-checked locking: compatible with -fno-exceptions (std::call_once can throw
+        // std::system_error internally). Also allows re-initialization if needed.
+        if (!s_initialized.load(std::memory_order_acquire))
+        {
+            std::scoped_lock lock(s_initMutex);
+            if (!s_initialized.load(std::memory_order_relaxed))
+            {
+                auto initResult = initialize(std::nothrow);
+                if (!initResult.has_value())
+                {
+                    SCYLLADB_DEBUG("ScyllaDBDriver::constructor - Initialization failed: " << initResult.error().what());
+                }
+            }
+        }
+        SCYLLADB_DEBUG("ScyllaDBDriver::constructor - Done");
+    }
+
+#ifdef __cpp_exceptions
     std::shared_ptr<ColumnarDBConnection> ScyllaDBDriver::connectColumnar(
         const std::string &url,
         const std::string &user,
@@ -60,9 +87,6 @@ namespace cpp_dbc::ScyllaDB
         return *result;
     }
 
-    int ScyllaDBDriver::getDefaultPort() const { return 9042; }
-    std::string ScyllaDBDriver::getURIScheme() const { return "scylladb"; }
-
     std::map<std::string, std::string> ScyllaDBDriver::parseURI(const std::string &uri)
     {
         auto result = parseURI(std::nothrow, uri);
@@ -76,12 +100,29 @@ namespace cpp_dbc::ScyllaDB
     std::string ScyllaDBDriver::buildURI(const std::string &host, int port, const std::string &database, const std::map<std::string, std::string> &options)
     {
         (void)options;
-        return "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) + "/" + database;
+        // Append the database/keyspace only when non-empty to avoid a trailing slash
+        // on URLs without a keyspace (e.g. "cpp_dbc:scylladb://host:port").
+        return "cpp_dbc:scylladb://" + host + ":" + std::to_string(port) +
+               (database.empty() ? "" : "/" + database);
+    }
+#endif // __cpp_exceptions
+
+    std::string ScyllaDBDriver::getURIScheme() const noexcept
+    {
+        return "cpp_dbc:scylladb://";
     }
 
-    bool ScyllaDBDriver::supportsClustering() const { return true; }
-    bool ScyllaDBDriver::supportsAsync() const { return true; }
-    std::string ScyllaDBDriver::getDriverVersion() const
+    bool ScyllaDBDriver::supportsClustering() const noexcept
+    {
+        return true;
+    }
+
+    bool ScyllaDBDriver::supportsAsync() const noexcept
+    {
+        return true;
+    }
+
+    std::string ScyllaDBDriver::getDriverVersion() const noexcept
     {
 #if defined(CASS_VERSION_MAJOR) && defined(CASS_VERSION_MINOR) && defined(CASS_VERSION_PATCH)
         return std::to_string(CASS_VERSION_MAJOR) + "." +
@@ -90,6 +131,16 @@ namespace cpp_dbc::ScyllaDB
 #else
         return "unknown";
 #endif
+    }
+
+    bool ScyllaDBDriver::acceptsURL(const std::string &url) noexcept
+    {
+        return url.starts_with("cpp_dbc:scylladb://");
+    }
+
+    std::string ScyllaDBDriver::getName() const noexcept
+    {
+        return "scylladb";
     }
 
     // Nothrow API
@@ -104,36 +155,24 @@ namespace cpp_dbc::ScyllaDB
         SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Connecting to " << url);
 
         auto params = parseURI(std::nothrow, url);
-        if (!params)
+        if (!params.has_value())
         {
             SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Failed to parse URI");
             return cpp_dbc::unexpected(params.error());
         }
 
-        try
-        {
-            std::string host = (*params)["host"];
-            int port = std::stoi((*params)["port"]);
-            std::string keyspace = (*params)["database"];
+        std::string host = (*params)["host"];
+        int port = std::stoi((*params)["port"]);
+        std::string keyspace = (*params)["database"];
 
-            SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Creating connection object");
-            return std::shared_ptr<ColumnarDBConnection>(std::make_shared<ScyllaDBConnection>(host, port, keyspace, user, password, options));
-        }
-        catch (const DBException &ex)
+        SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Creating connection object");
+        auto connResult = ScyllaDBConnection::create(std::nothrow, host, port, keyspace, user, password, options);
+        if (!connResult.has_value())
         {
-            SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - DBException: " << ex.what());
-            return cpp_dbc::unexpected(ex);
+            SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Failed to create connection: " << connResult.error().what());
+            return cpp_dbc::unexpected(connResult.error());
         }
-        catch (const std::exception &ex)
-        {
-            SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Exception: " << ex.what());
-            return cpp_dbc::unexpected(DBException("O6P7Q8R9S0T1", ex.what(), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            SCYLLADB_DEBUG("ScyllaDBDriver::connectColumnar - Unknown exception");
-            return cpp_dbc::unexpected(DBException("A91238912C90", "Unknown error connecting to ScyllaDB", system_utils::captureCallStack()));
-        }
+        return std::shared_ptr<ColumnarDBConnection>(connResult.value());
     }
 
     cpp_dbc::expected<std::map<std::string, std::string>, DBException> ScyllaDBDriver::parseURI(std::nothrow_t, const std::string &uri) noexcept
@@ -147,7 +186,7 @@ namespace cpp_dbc::ScyllaDB
 
         system_utils::ParsedDBURL parsed;
         if (!system_utils::parseDBURL(uri, "cpp_dbc:scylladb://", DEFAULT_SCYLLADB_PORT, parsed,
-                                      false, // allowLocalConnection
+                                      false,  // allowLocalConnection
                                       false)) // requireDatabase (keyspace is optional)
         {
             SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Invalid scheme or failed to parse");
@@ -162,13 +201,6 @@ namespace cpp_dbc::ScyllaDB
         SCYLLADB_DEBUG("ScyllaDBDriver::parseURI - Parsed host: " << result["host"] << ", port: " << result["port"] << ", database: " << result["database"]);
         return result;
     }
-
-    bool ScyllaDBDriver::acceptsURL(const std::string &url)
-    {
-        return url.starts_with("cpp_dbc:scylladb://");
-    }
-
-    std::string ScyllaDBDriver::getName() const noexcept { return "scylladb"; }
 
 } // namespace cpp_dbc::ScyllaDB
 

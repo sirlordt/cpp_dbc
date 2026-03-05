@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file connection_06.cpp
- * @brief Redis connection implementation - private helper methods and DBConnection nothrow interface
+ * @brief Redis connection implementation - NOTHROW sorted set, scan, server operations, getDatabaseIndex, executeRaw, selectDatabase
  */
 
 #include "cpp_dbc/drivers/kv/driver_redis.hpp"
@@ -37,242 +37,333 @@
 namespace cpp_dbc::Redis
 {
 
-    // ============================================================================
-    // RedisConnection - Private helper methods
-    // ============================================================================
+    // Sorted set operations - nothrow versions
 
-    void RedisConnection::validateConnection() const
+    cpp_dbc::expected<bool, DBException> RedisDBConnection::sortedSetAdd(
+        std::nothrow_t, const std::string &key, double score, const std::string &member) noexcept
     {
-        if (m_closed || !m_context)
+        auto replyResult = executeRaw(std::nothrow, "ZADD", {key, std::to_string(score), member});
+        if (!replyResult.has_value())
         {
-            throw DBException("F92C4A6E7D10", "Redis connection is closed or invalid",
-                              system_utils::captureCallStack());
+            return cpp_dbc::unexpected(replyResult.error());
         }
+        return extractInteger(std::nothrow, replyResult.value()).value() > 0;
     }
 
-    std::string RedisConnection::extractString(const RedisReplyHandle &reply)
+    cpp_dbc::expected<bool, DBException> RedisDBConnection::sortedSetRemove(
+        std::nothrow_t, const std::string &key, const std::string &member) noexcept
     {
-        if (!reply.get())
+        auto replyResult = executeRaw(std::nothrow, "ZREM", {key, member});
+        if (!replyResult.has_value())
         {
-            return "";
+            return cpp_dbc::unexpected(replyResult.error());
         }
-
-        if (reply.get()->type == REDIS_REPLY_STRING || reply.get()->type == REDIS_REPLY_STATUS)
-        {
-            return std::string(reply.get()->str, reply.get()->len);
-        }
-        else if (reply.get()->type == REDIS_REPLY_NIL)
-        {
-            return "";
-        }
-        else if (reply.get()->type == REDIS_REPLY_INTEGER)
-        {
-            return std::to_string(reply.get()->integer);
-        }
-
-        return "";
+        return extractInteger(std::nothrow, replyResult.value()).value() > 0;
     }
 
-    int64_t RedisConnection::extractInteger(const RedisReplyHandle &reply)
+    cpp_dbc::expected<std::optional<double>, DBException> RedisDBConnection::sortedSetScore(
+        std::nothrow_t, const std::string &key, const std::string &member) noexcept
     {
-        if (!reply.get())
+        auto replyResult = executeRaw(std::nothrow, "ZSCORE", {key, member});
+        if (!replyResult.has_value())
         {
-            return 0;
+            return cpp_dbc::unexpected(replyResult.error());
+        }
+        const auto &reply = replyResult.value();
+
+        if (!reply.get() || reply.get()->type == REDIS_REPLY_NIL)
+        {
+            return std::optional<double>(std::nullopt);
         }
 
-        if (reply.get()->type == REDIS_REPLY_INTEGER)
+        if (reply.get()->type == REDIS_REPLY_STRING)
         {
-            return reply.get()->integer;
-        }
-        else if (reply.get()->type == REDIS_REPLY_STRING)
-        {
-            try
-            {
-                return std::stoll(std::string(reply.get()->str, reply.get()->len));
-            }
-            catch ([[maybe_unused]] const std::exception &ex)
-            {
-                REDIS_DEBUG("RedisConnection::extractInteger - Failed to parse: " << ex.what());
-                return 0;
-            }
+            return tryParseDouble(std::string(reply.get()->str, reply.get()->len));
         }
 
-        return 0;
+        return std::optional<double>(std::nullopt);
     }
 
-    std::vector<std::string> RedisConnection::extractArray(const RedisReplyHandle &reply)
+    cpp_dbc::expected<std::vector<std::string>, DBException> RedisDBConnection::sortedSetRange(
+        std::nothrow_t, const std::string &key, int64_t start, int64_t stop) noexcept
+    {
+        auto replyResult = executeRaw(std::nothrow, "ZRANGE", {key, std::to_string(start), std::to_string(stop)});
+        if (!replyResult.has_value())
+        {
+            return cpp_dbc::unexpected(replyResult.error());
+        }
+        return extractArray(std::nothrow, replyResult.value()).value();
+    }
+
+    cpp_dbc::expected<int64_t, DBException> RedisDBConnection::sortedSetSize(
+        std::nothrow_t, const std::string &key) noexcept
+    {
+        auto replyResult = executeRaw(std::nothrow, "ZCARD", {key});
+        if (!replyResult.has_value())
+        {
+            return cpp_dbc::unexpected(replyResult.error());
+        }
+        return extractInteger(std::nothrow, replyResult.value()).value();
+    }
+
+    // Server operations - nothrow versions
+
+    cpp_dbc::expected<std::vector<std::string>, DBException> RedisDBConnection::scanKeys(
+        std::nothrow_t, const std::string &pattern, int64_t count) noexcept
     {
         std::vector<std::string> result;
+        std::string cursor = "0";
+        bool done = false;
 
-        if (!reply.get() || reply.get()->type != REDIS_REPLY_ARRAY)
+        while (!done)
         {
-            return result;
-        }
-
-        for (size_t i = 0; i < reply.get()->elements; ++i)
-        {
-            redisReply *element = reply.get()->element[i];
-
-            // Defensive null check to prevent crashes
-            if (!element)
+            auto replyResult = executeRaw(std::nothrow, "SCAN", {cursor, "MATCH", pattern, "COUNT", std::to_string(count)});
+            if (!replyResult.has_value())
             {
-                result.emplace_back("");
-                continue;
+                return cpp_dbc::unexpected(replyResult.error());
+            }
+            const auto &reply = replyResult.value();
+
+            if (!reply.get() || reply.get()->type != REDIS_REPLY_ARRAY || reply.get()->elements != 2)
+            {
+                break;
             }
 
-            if (element->type == REDIS_REPLY_STRING || element->type == REDIS_REPLY_STATUS)
+            redisReply *cursorReply = reply.get()->element[0];
+            if (cursorReply->type == REDIS_REPLY_STRING)
             {
-                result.emplace_back(element->str, element->len);
+                cursor = std::string(cursorReply->str, cursorReply->len);
             }
-            else if (element->type == REDIS_REPLY_INTEGER)
+
+            redisReply *keysReply = reply.get()->element[1];
+            if (keysReply->type == REDIS_REPLY_ARRAY)
             {
-                result.emplace_back(std::to_string(element->integer));
+                for (size_t i = 0; i < keysReply->elements; ++i)
+                {
+                    redisReply *keyReply = keysReply->element[i];
+                    if (keyReply->type == REDIS_REPLY_STRING)
+                    {
+                        result.emplace_back(keyReply->str, keyReply->len);
+                    }
+                }
             }
-            else if (element->type == REDIS_REPLY_NIL)
+
+            if (cursor == "0")
             {
-                result.emplace_back("");
+                done = true;
             }
         }
 
         return result;
     }
 
-    std::optional<double> RedisConnection::tryParseDouble(const std::string &str) noexcept
+    cpp_dbc::expected<std::string, DBException> RedisDBConnection::executeCommand(
+        std::nothrow_t,
+        const std::string &command,
+        const std::vector<std::string> &args) noexcept
     {
-        try
+        auto replyResult = executeRaw(std::nothrow, command, args);
+        if (!replyResult.has_value())
         {
-            return std::stod(str);
+            return cpp_dbc::unexpected(replyResult.error());
         }
-        catch ([[maybe_unused]] const std::exception &ex)
+        const auto &reply = replyResult.value();
+
+        if (!reply.get())
         {
-            REDIS_DEBUG("RedisConnection::tryParseDouble - Failed to parse: " << str << " error: " << ex.what());
-            return std::nullopt;
+            return std::string{};
         }
-        catch (...)
+
+        switch (reply.get()->type)
         {
-            REDIS_DEBUG("RedisConnection::tryParseDouble - Failed to parse: " << str << " unknown error");
-            return std::nullopt;
+        case REDIS_REPLY_STATUS:
+        case REDIS_REPLY_STRING:
+            return std::string(reply.get()->str, reply.get()->len);
+
+        case REDIS_REPLY_INTEGER:
+            return std::to_string(reply.get()->integer);
+
+        case REDIS_REPLY_NIL:
+            return std::string("(nil)");
+
+        case REDIS_REPLY_ARRAY:
+        {
+            std::stringstream ss;
+            ss << "(array of " << reply.get()->elements << " elements)";
+            return ss.str();
+        }
+
+        default:
+            return std::string("(unknown reply type)");
         }
     }
 
-    // ============================================================================
-    // RedisConnection - DBConnection nothrow interface implementations
-    // ============================================================================
-
-    cpp_dbc::expected<void, DBException> RedisConnection::close(std::nothrow_t) noexcept
+    cpp_dbc::expected<bool, DBException> RedisDBConnection::flushDB(
+        std::nothrow_t, bool async) noexcept
     {
-        try
+        if (async)
         {
-            std::scoped_lock lock_(m_mutex);
-            if (m_closed)
-                return {};
-            REDIS_DEBUG("RedisConnection::close(nothrow) - Closing connection");
-            m_context.reset();
-            m_closed = true;
-            REDIS_DEBUG("RedisConnection::close(nothrow) - Connection closed");
+            auto replyResult = executeRaw(std::nothrow, "FLUSHDB", {"ASYNC"});
+            if (!replyResult.has_value())
+            {
+                return cpp_dbc::unexpected(replyResult.error());
+            }
+            const auto &reply = replyResult.value();
+            if (!reply.get())
+            {
+                return cpp_dbc::unexpected(DBException("9V0TERUH0YQ2",
+                                                       "flushDB failed: null reply",
+                                                       system_utils::captureCallStack()));
+            }
+            return reply.get()->type == REDIS_REPLY_STATUS &&
+                   std::string(reply.get()->str, reply.get()->len) == "OK";
+        }
+        else
+        {
+            auto replyResult = executeRaw(std::nothrow, "FLUSHDB", {});
+            if (!replyResult.has_value())
+            {
+                return cpp_dbc::unexpected(replyResult.error());
+            }
+            const auto &reply = replyResult.value();
+            if (!reply.get())
+            {
+                return cpp_dbc::unexpected(DBException("O4T6A13A7KTC",
+                                                       "flushDB failed: null reply",
+                                                       system_utils::captureCallStack()));
+            }
+            return reply.get()->type == REDIS_REPLY_STATUS &&
+                   std::string(reply.get()->str, reply.get()->len) == "OK";
+        }
+    }
+
+    cpp_dbc::expected<bool, DBException> RedisDBConnection::ping(std::nothrow_t) noexcept
+    {
+        auto replyResult = executeRaw(std::nothrow, "PING", {});
+        if (!replyResult.has_value())
+        {
+            return cpp_dbc::unexpected(replyResult.error());
+        }
+        return extractString(std::nothrow, replyResult.value()).value() == "PONG";
+    }
+
+    cpp_dbc::expected<std::map<std::string, std::string>, DBException> RedisDBConnection::getServerInfo(
+        std::nothrow_t) noexcept
+    {
+        std::map<std::string, std::string> result;
+
+        auto replyResult = executeRaw(std::nothrow, "INFO", {});
+        if (!replyResult.has_value())
+        {
+            return cpp_dbc::unexpected(replyResult.error());
+        }
+        const auto &reply = replyResult.value();
+
+        if (!reply.get() || reply.get()->type != REDIS_REPLY_STRING)
+        {
+            return result;
+        }
+
+        std::string info(reply.get()->str, reply.get()->len);
+        std::istringstream iss(info);
+        std::string line;
+
+        while (std::getline(iss, line))
+        {
+            // Remove trailing CR if present (Redis uses CRLF line endings)
+            if (!line.empty() && line.back() == '\r')
+            {
+                line.pop_back();
+            }
+
+            if (line.empty() || line[0] == '#')
+            {
+                continue;
+            }
+
+            size_t pos = line.find(':');
+            if (pos != std::string::npos)
+            {
+                std::string key = line.substr(0, pos);
+                std::string value = line.substr(pos + 1);
+                result[key] = value;
+            }
+        }
+
+        return result;
+    }
+
+    int RedisDBConnection::getDatabaseIndex(std::nothrow_t) const noexcept
+    {
+        return m_dbIndex;
+    }
+
+    cpp_dbc::expected<RedisReplyHandle, DBException> RedisDBConnection::executeRaw(
+        std::nothrow_t, const std::string &command, const std::vector<std::string> &args) noexcept
+    {
+        REDIS_LOCK_GUARD(m_mutex);
+
+        auto connCheck = validateConnection(std::nothrow);
+        if (!connCheck.has_value())
+        {
+            return cpp_dbc::unexpected(connCheck.error());
+        }
+
+        // Prepare the command and arguments
+        std::vector<const char *> argv;
+        std::vector<size_t> argvlen;
+
+        argv.push_back(command.c_str());
+        argvlen.push_back(command.length());
+
+        for (const auto &arg : args)
+        {
+            argv.push_back(arg.c_str());
+            argvlen.push_back(arg.length());
+        }
+
+        auto *reply = static_cast<redisReply *>(redisCommandArgv(
+            m_context.get(), static_cast<int>(argv.size()), argv.data(), argvlen.data()));
+
+        if (!reply)
+        {
+            return cpp_dbc::unexpected(DBException("IYULQRKMNKJ9",
+                                                   "Redis command execution failed: " + command,
+                                                   system_utils::captureCallStack()));
+        }
+
+        if (reply->type == REDIS_REPLY_ERROR)
+        {
+            std::string errorMsg = reply->str ? reply->str : "Unknown error";
+            freeReplyObject(reply);
+            return cpp_dbc::unexpected(DBException("MOPD5WOXBBPJ",
+                                                   "Redis command error: " + errorMsg,
+                                                   system_utils::captureCallStack()));
+        }
+
+        return RedisReplyHandle(std::nothrow, reply);
+    }
+
+    cpp_dbc::expected<void, DBException> RedisDBConnection::selectDatabase(
+        std::nothrow_t, int index) noexcept
+    {
+        auto replyResult = executeRaw(std::nothrow, "SELECT", {std::to_string(index)});
+        if (!replyResult.has_value())
+        {
+            return cpp_dbc::unexpected(replyResult.error());
+        }
+
+        const auto &reply = replyResult.value();
+        if (reply.get()->type == REDIS_REPLY_STATUS &&
+            std::string(reply.get()->str, reply.get()->len) == "OK")
+        {
+            m_dbIndex = index;
             return {};
         }
-        catch (const DBException &e)
-        {
-            return cpp_dbc::unexpected(e);
-        }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("JS1AQU3IVXMG",
-                std::string("Exception in close: ") + e.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("2G3CVDMF77RN",
-                "Unknown exception in close",
-                system_utils::captureCallStack()));
-        }
-    }
 
-    cpp_dbc::expected<void, DBException> RedisConnection::reset(std::nothrow_t) noexcept
-    {
-        try
-        {
-            // Redis has no transaction state to reset; this is a no-op
-            return {};
-        }
-        catch (const DBException &e)
-        {
-            return cpp_dbc::unexpected(e);
-        }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("BN1EIHAOCZZB",
-                std::string("Exception in reset: ") + e.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("WBSY09JYSLVA",
-                "Unknown exception in reset",
-                system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<bool, DBException> RedisConnection::isClosed(std::nothrow_t) const noexcept
-    {
-        return m_closed.load();
-    }
-
-    cpp_dbc::expected<void, DBException> RedisConnection::returnToPool(std::nothrow_t) noexcept
-    {
-        return reset(std::nothrow);
-    }
-
-    cpp_dbc::expected<bool, DBException> RedisConnection::isPooled(std::nothrow_t) const noexcept
-    {
-        return false;
-    }
-
-    cpp_dbc::expected<std::string, DBException> RedisConnection::getURL(std::nothrow_t) const noexcept
-    {
-        try
-        {
-            return m_url;
-        }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("LE7RHOIPQSA5",
-                std::string("Exception in getURL: ") + e.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("JKHJGVFHTG27",
-                "Unknown exception in getURL",
-                system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<void, DBException> RedisConnection::prepareForPoolReturn(std::nothrow_t) noexcept
-    {
-        try
-        {
-            // Redis has no transaction state or open cursors to clean up; this is a no-op
-            return {};
-        }
-        catch (const DBException &e)
-        {
-            return cpp_dbc::unexpected(e);
-        }
-        catch (const std::exception &e)
-        {
-            return cpp_dbc::unexpected(DBException("8TV446WG7S01",
-                std::string("Exception in prepareForPoolReturn: ") + e.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("84KIJ3GX10KN",
-                "Unknown exception in prepareForPoolReturn",
-                system_utils::captureCallStack()));
-        }
+        return cpp_dbc::unexpected(DBException("4Y6O0DLL7OEX",
+                                               "Failed to select Redis database: " + std::to_string(index),
+                                               system_utils::captureCallStack()));
     }
 
 } // namespace cpp_dbc::Redis

@@ -14,7 +14,7 @@
  * See the LICENSE.md file in the project root for more information.
 
  @file 21_041_test_postgresql_real_connection.cpp
- @brief Tests for PostgreSQL database operations
+ @brief Tests for PostgreSQL database operations with real connections
 
 */
 
@@ -28,59 +28,62 @@
 
 #include "21_001_test_postgresql_real_common.hpp"
 
+#if USE_POSTGRESQL
 // Test case to verify PostgreSQL connection
 TEST_CASE("PostgreSQL connection test", "[21_041_01_postgresql_real_connection]")
 {
-#if USE_POSTGRESQL
-    // Skip this test if PostgreSQL support is not enabled
+    // Get PostgreSQL configuration
+    auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
+
+    // Extract connection parameters
+    std::string username = dbConfig.getUsername();
+    std::string password = dbConfig.getPassword();
+    std::string connStr = dbConfig.createConnectionString();
+
+    // Register the PostgreSQL driver
+    cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
+
     SECTION("Test PostgreSQL connection")
     {
-        // Get PostgreSQL configuration
-        auto dbConfig = postgresql_test_helpers::getPostgreSQLConfig("dev_postgresql");
-
-        // Get connection parameters
-        std::string username = dbConfig.getUsername();
-        std::string password = dbConfig.getPassword();
-        std::string connStr = dbConfig.createConnectionString();
-        // Register the PostgreSQL driver
-        cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::PostgreSQL::PostgreSQLDBDriver>());
-
         try
         {
             // Attempt to connect to PostgreSQL
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to PostgreSQL with connection string: " + connStr);
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
 
-            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::RelationalDBConnection>(
+                cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
+            REQUIRE(conn != nullptr);
 
-            // If we get here, the connection was successful
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL connection successful!");
-
-            // Verify that the connection is valid by executing a simple query
+            // Execute a simple query to verify the connection
             auto resultSet = conn->executeQuery("SELECT 1 as test_value");
-
-            // Check that we can retrieve a result
             REQUIRE(resultSet->next());
             REQUIRE(resultSet->getInt("test_value") == 1);
 
+            // Verify connection state and URL
+            CHECK_FALSE(conn->isClosed());
+
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Connection URL: " + conn->getURL());
+
+            CHECK(conn->getURL() == connStr);
+
             // Close the connection
             conn->close();
+            CHECK(conn->isClosed());
         }
-        catch (const cpp_dbc::DBException &e)
+        catch (const cpp_dbc::DBException &ex)
         {
-            // If we get here, the connection failed
-            // std::string errorMsg = e.what_s();
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL connection error: " + e.what_s());
-
-            // Since we're just testing connectivity, we'll mark this as a success
-            // with a message indicating that the connection failed
-            WARN("PostgreSQL connection failed: " + e.what_s());
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "PostgreSQL connection error: " + std::string(ex.what_s()));
+            WARN("PostgreSQL connection failed: " + std::string(ex.what_s()));
             WARN("This is expected if PostgreSQL is not installed or the database doesn't exist");
             WARN("The test is still considered successful for CI purposes");
         }
     }
-#else
-    // Skip this test if PostgreSQL support is not enabled
-    SKIP("PostgreSQL support is not enabled");
-#endif
 }
+#else
+// Skip this test if PostgreSQL support is not enabled
+TEST_CASE("PostgreSQL connection test (skipped)", "[21_041_02_postgresql_real_connection]")
+{
+    SKIP("PostgreSQL support is not enabled");
+}
+#endif

@@ -20,8 +20,6 @@
 
 #include "cpp_dbc/drivers/relational/driver_postgresql.hpp"
 
-#if USE_POSTGRESQL
-
 #include <array>
 #include <cstring>
 #include <sstream>
@@ -35,6 +33,8 @@
 
 #include "postgresql_internal.hpp"
 
+#if USE_POSTGRESQL
+
 namespace cpp_dbc::PostgreSQL
 {
 
@@ -47,6 +47,7 @@ namespace cpp_dbc::PostgreSQL
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
+    #ifdef __cpp_exceptions
     std::shared_ptr<RelationalDBConnection> PostgreSQLDBDriver::connectRelational(const std::string &url,
                                                                                   const std::string &user,
                                                                                   const std::string &password,
@@ -59,8 +60,9 @@ namespace cpp_dbc::PostgreSQL
         }
         return result.value();
     }
+    #endif // __cpp_exceptions
 
-    bool PostgreSQLDBDriver::acceptsURL(const std::string &url)
+    bool PostgreSQLDBDriver::acceptsURL(const std::string &url) noexcept
     {
         return url.starts_with("cpp_dbc:postgresql://");
     }

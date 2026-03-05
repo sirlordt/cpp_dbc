@@ -13,7 +13,7 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file collection_04.cpp
- * @brief MongoDB MongoDBCollection - Part 4 (UPDATE throwing versions, DELETE nothrow versions)
+ * @brief MongoDB MongoDBCollection - Part 4 (nothrow API: updateOne, updateMany, replaceOne)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
@@ -34,93 +34,288 @@ namespace cpp_dbc::MongoDB
 {
 
     // ====================================================================
-    // UPDATE OPERATIONS - throwing versions (WRAPPERS)
+    // NOTHROW API - updateOne, updateMany, replaceOne (implementations)
     // ====================================================================
 
-    DocumentUpdateResult MongoDBCollection::updateOne(
+    expected<DocumentUpdateResult, DBException> MongoDBCollection::updateOne(
+        std::nothrow_t,
         const std::string &filter,
         const std::string &update,
-        const DocumentUpdateOptions &options)
+        const DocumentUpdateOptions &options) noexcept
     {
-        auto result = updateOne(std::nothrow, filter, update, options);
-        if (!result)
+        try
         {
-            throw result.error();
+            MONGODB_DEBUG("MongoDBCollection::updateOne(nothrow) - Updating in: " << m_name);
+            MONGODB_LOCK_GUARD(*m_connMutex);
+
+            if (m_client.expired())
+            {
+                return unexpected<DBException>(DBException(
+                    "E8F9A0B1C2D3",
+                    "Connection has been closed",
+                    system_utils::captureCallStack()));
+            }
+
+            auto filterResult = parseFilter(std::nothrow, filter);
+            if (!filterResult.has_value())
+            {
+                return unexpected<DBException>(filterResult.error());
+            }
+            BsonHandle filterBson = std::move(filterResult.value());
+
+            auto updateBsonResult = makeBsonHandleFromJson(std::nothrow, update);
+            if (!updateBsonResult.has_value())
+            {
+                return unexpected<DBException>(updateBsonResult.error());
+            }
+            BsonHandle updateBson = std::move(updateBsonResult.value());
+
+            bson_t opts = BSON_INITIALIZER;
+            if (options.upsert)
+            {
+                BSON_APPEND_BOOL(&opts, "upsert", true);
+            }
+
+            bson_error_t error;
+            bson_t reply;
+            bson_init(&reply);
+
+            bool success = mongoc_collection_update_one(
+                m_collection.get(), filterBson.get(), updateBson.get(), &opts, &reply, &error);
+            bson_destroy(&opts);
+
+            DocumentUpdateResult result;
+            result.acknowledged = success;
+
+            if (success)
+            {
+                bson_iter_t iter;
+                if (bson_iter_init_find(&iter, &reply, "matchedCount"))
+                {
+                    result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                }
+                if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
+                {
+                    result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                }
+                if (bson_iter_init_find(&iter, &reply, "upsertedId") && BSON_ITER_HOLDS_OID(&iter))
+                {
+                    const bson_oid_t *oid = bson_iter_oid(&iter);
+                    std::array<char, 25> oidStr{};
+                    bson_oid_to_string(oid, oidStr.data());
+                    result.upsertedId = oidStr.data();
+                }
+            }
+            else
+            {
+                bson_destroy(&reply);
+                return unexpected<DBException>(DBException(
+                    "F9A0B1C2D3E4",
+                    std::string("updateOne failed: ") + error.message,
+                    system_utils::captureCallStack()));
+            }
+
+            bson_destroy(&reply);
+            return result;
         }
-        return *result;
+        catch (const DBException &ex)
+        {
+            return unexpected<DBException>(ex);
+        }
+        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "A0B1C2D3E4F5",
+                "Memory allocation failed in updateOne",
+                system_utils::captureCallStack()));
+        }
+        catch (const std::exception &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "B1C2D3E4F5A6",
+                std::string("Unexpected error in updateOne: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return unexpected<DBException>(DBException(
+                "C2D3E4F5A6B7",
+                "Unknown error in updateOne",
+                system_utils::captureCallStack()));
+        }
     }
 
-    DocumentUpdateResult MongoDBCollection::updateMany(
+    expected<DocumentUpdateResult, DBException> MongoDBCollection::updateMany(
+        std::nothrow_t,
         const std::string &filter,
         const std::string &update,
-        const DocumentUpdateOptions &options)
+        const DocumentUpdateOptions &options) noexcept
     {
-        auto result = updateMany(std::nothrow, filter, update, options);
-        if (!result)
+        try
         {
-            throw result.error();
+            MONGODB_DEBUG("MongoDBCollection::updateMany(nothrow) - Updating in: " << m_name);
+            MONGODB_LOCK_GUARD(*m_connMutex);
+
+            if (m_client.expired())
+            {
+                return unexpected<DBException>(DBException(
+                    "D3E4F5A6B7C8",
+                    "Connection has been closed",
+                    system_utils::captureCallStack()));
+            }
+
+            auto filterResult = parseFilter(std::nothrow, filter);
+            if (!filterResult.has_value())
+            {
+                return unexpected<DBException>(filterResult.error());
+            }
+            BsonHandle filterBson = std::move(filterResult.value());
+
+            auto updateBsonResult = makeBsonHandleFromJson(std::nothrow, update);
+            if (!updateBsonResult.has_value())
+            {
+                return unexpected<DBException>(updateBsonResult.error());
+            }
+            BsonHandle updateBson = std::move(updateBsonResult.value());
+
+            bson_t opts = BSON_INITIALIZER;
+            if (options.upsert)
+            {
+                BSON_APPEND_BOOL(&opts, "upsert", true);
+            }
+
+            bson_error_t error;
+            bson_t reply;
+            bson_init(&reply);
+
+            bool success = mongoc_collection_update_many(
+                m_collection.get(), filterBson.get(), updateBson.get(), &opts, &reply, &error);
+            bson_destroy(&opts);
+
+            DocumentUpdateResult result;
+            result.acknowledged = success;
+
+            if (success)
+            {
+                bson_iter_t iter;
+                if (bson_iter_init_find(&iter, &reply, "matchedCount"))
+                {
+                    result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                }
+                if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
+                {
+                    result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                }
+            }
+            else
+            {
+                bson_destroy(&reply);
+                return unexpected<DBException>(DBException(
+                    "E4F5A6B7C8D9",
+                    std::string("updateMany failed: ") + error.message,
+                    system_utils::captureCallStack()));
+            }
+
+            bson_destroy(&reply);
+            return result;
         }
-        return *result;
+        catch (const DBException &ex)
+        {
+            return unexpected<DBException>(ex);
+        }
+        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "F5A6B7C8D9E0",
+                "Memory allocation failed in updateMany",
+                system_utils::captureCallStack()));
+        }
+        catch (const std::exception &ex)
+        {
+            return unexpected<DBException>(DBException(
+                "A6B7C8D9E0F1",
+                std::string("Unexpected error in updateMany: ") + ex.what(),
+                system_utils::captureCallStack()));
+        }
+        catch (...)
+        {
+            return unexpected<DBException>(DBException(
+                "B7C8D9E0F1A2",
+                "Unknown error in updateMany",
+                system_utils::captureCallStack()));
+        }
     }
 
-    DocumentUpdateResult MongoDBCollection::replaceOne(
+    expected<DocumentUpdateResult, DBException> MongoDBCollection::replaceOne(
+        std::nothrow_t,
         const std::string &filter,
         std::shared_ptr<DocumentDBData> replacement,
-        const DocumentUpdateOptions &options)
-    {
-        auto result = replaceOne(std::nothrow, filter, replacement, options);
-        if (!result)
-        {
-            throw result.error();
-        }
-        return *result;
-    }
-
-    // ====================================================================
-    // DELETE OPERATIONS - nothrow versions (REAL IMPLEMENTATIONS)
-    // ====================================================================
-
-    expected<DocumentDeleteResult, DBException> MongoDBCollection::deleteOne(
-        std::nothrow_t,
-        const std::string &filter) noexcept
+        const DocumentUpdateOptions &options) noexcept
     {
         try
         {
-            MONGODB_DEBUG("MongoDBCollection::deleteOne(nothrow) - Deleting from: " << m_name);
+            MONGODB_DEBUG("MongoDBCollection::replaceOne(nothrow) - Replacing in: " << m_name);
             MONGODB_LOCK_GUARD(*m_connMutex);
 
             if (m_client.expired())
             {
                 return unexpected<DBException>(DBException(
-                    "B3C4D5E6F7A8",
+                    "C8D9E0F1A2B3",
                     "Connection has been closed",
                     system_utils::captureCallStack()));
             }
 
-            BsonHandle filterBson = parseFilter(filter);
+            auto mongoDoc = std::dynamic_pointer_cast<MongoDBDocument>(replacement);
+            if (!mongoDoc)
+            {
+                return unexpected<DBException>(DBException(
+                    "C3D9E8F7A2B1",
+                    "Replacement must be a MongoDBDocument",
+                    system_utils::captureCallStack()));
+            }
+
+            auto filterResult = parseFilter(std::nothrow, filter);
+            if (!filterResult.has_value())
+            {
+                return unexpected<DBException>(filterResult.error());
+            }
+            BsonHandle filterBson = std::move(filterResult.value());
+
+            bson_t opts = BSON_INITIALIZER;
+            if (options.upsert)
+            {
+                BSON_APPEND_BOOL(&opts, "upsert", true);
+            }
 
             bson_error_t error;
             bson_t reply;
             bson_init(&reply);
 
-            bool success = mongoc_collection_delete_one(
-                m_collection.get(), filterBson.get(), nullptr, &reply, &error);
+            bool success = mongoc_collection_replace_one(
+                m_collection.get(), filterBson.get(), mongoDoc->getBson(), &opts, &reply, &error);
+            bson_destroy(&opts);
 
-            DocumentDeleteResult result;
+            DocumentUpdateResult result;
             result.acknowledged = success;
 
             if (success)
             {
                 bson_iter_t iter;
-                if (bson_iter_init_find(&iter, &reply, "deletedCount"))
-                    result.deletedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                if (bson_iter_init_find(&iter, &reply, "matchedCount"))
+                {
+                    result.matchedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                }
+                if (bson_iter_init_find(&iter, &reply, "modifiedCount"))
+                {
+                    result.modifiedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
+                }
             }
             else
             {
                 bson_destroy(&reply);
                 return unexpected<DBException>(DBException(
-                    "C4D5E6F7A8B9",
-                    std::string("deleteOne failed: ") + error.message,
+                    "CQPAGOVXJN0Z",
+                    std::string("replaceOne failed: ") + error.message,
                     system_utils::captureCallStack()));
             }
 
@@ -134,160 +329,22 @@ namespace cpp_dbc::MongoDB
         catch ([[maybe_unused]] const std::bad_alloc &ex)
         {
             return unexpected<DBException>(DBException(
-                "D5E6F7A8B9C0",
-                "Memory allocation failed in deleteOne",
+                "SAOB1UJ2HYAN",
+                "Memory allocation failed in replaceOne",
                 system_utils::captureCallStack()));
         }
         catch (const std::exception &ex)
         {
             return unexpected<DBException>(DBException(
-                "E6F7A8B9C0D1",
-                std::string("Unexpected error in deleteOne: ") + ex.what(),
+                "EA1OE9V91RLD",
+                std::string("Unexpected error in replaceOne: ") + ex.what(),
                 system_utils::captureCallStack()));
         }
         catch (...)
         {
             return unexpected<DBException>(DBException(
-                "F7A8B9C0D1E2",
-                "Unknown error in deleteOne",
-                system_utils::captureCallStack()));
-        }
-    }
-
-    expected<DocumentDeleteResult, DBException> MongoDBCollection::deleteMany(
-        std::nothrow_t,
-        const std::string &filter) noexcept
-    {
-        try
-        {
-            MONGODB_DEBUG("MongoDBCollection::deleteMany(nothrow) - Deleting from: " << m_name);
-            MONGODB_LOCK_GUARD(*m_connMutex);
-
-            if (m_client.expired())
-            {
-                return unexpected<DBException>(DBException(
-                    "A8B9C0D1E2F3",
-                    "Connection has been closed",
-                    system_utils::captureCallStack()));
-            }
-
-            BsonHandle filterBson = parseFilter(filter);
-
-            bson_error_t error;
-            bson_t reply;
-            bson_init(&reply);
-
-            bool success = mongoc_collection_delete_many(
-                m_collection.get(), filterBson.get(), nullptr, &reply, &error);
-
-            DocumentDeleteResult result;
-            result.acknowledged = success;
-
-            if (success)
-            {
-                bson_iter_t iter;
-                if (bson_iter_init_find(&iter, &reply, "deletedCount"))
-                    result.deletedCount = static_cast<uint64_t>(bson_iter_as_int64(&iter));
-            }
-            else
-            {
-                bson_destroy(&reply);
-                return unexpected<DBException>(DBException(
-                    "B9C0D1E2F3A4",
-                    std::string("deleteMany failed: ") + error.message,
-                    system_utils::captureCallStack()));
-            }
-
-            bson_destroy(&reply);
-            return result;
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "C0D1E2F3A4B5",
-                "Memory allocation failed in deleteMany",
-                system_utils::captureCallStack()));
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "D1E2F3A4B5C6",
-                std::string("Unexpected error in deleteMany: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "E2F3A4B5C6D7",
-                "Unknown error in deleteMany",
-                system_utils::captureCallStack()));
-        }
-    }
-
-    expected<DocumentDeleteResult, DBException> MongoDBCollection::deleteById(
-        std::nothrow_t,
-        const std::string &id) noexcept
-    {
-        try
-        {
-            // Use BSON construction to prevent JSON injection
-            bson_t *filterBson = bson_new();
-            if (!filterBson)
-            {
-                return unexpected<DBException>(DBException(
-                    "F3A4B5C6D7E7",
-                    "Failed to allocate BSON for filter",
-                    system_utils::captureCallStack()));
-            }
-
-            if (bson_oid_is_valid(id.c_str(), id.length()))
-            {
-                bson_oid_t oid;
-                bson_oid_init_from_string(&oid, id.c_str());
-                BSON_APPEND_OID(filterBson, "_id", &oid);
-            }
-            else
-            {
-                BSON_APPEND_UTF8(filterBson, "_id", id.c_str());
-            }
-
-            size_t length = 0;
-            char *json = bson_as_json(filterBson, &length);
-            bson_destroy(filterBson);
-
-            if (!json)
-            {
-                return unexpected<DBException>(DBException(
-                    "F3A4B5C6D7E9",
-                    "Failed to convert BSON filter to JSON",
-                    system_utils::captureCallStack()));
-            }
-
-            std::string filter(json, length);
-            bson_free(json);
-
-            return deleteOne(std::nothrow, filter);
-        }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "F3A4B5C6D7E8",
-                std::string("Error in deleteById: ") + ex.what(),
-                system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "A4B5C6D7E8F9",
-                "Unknown error in deleteById",
+                "NKRWKKNKU5MZ",
+                "Unknown error in replaceOne",
                 system_utils::captureCallStack()));
         }
     }

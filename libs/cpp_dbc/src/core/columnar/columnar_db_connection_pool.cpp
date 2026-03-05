@@ -83,6 +83,7 @@ namespace cpp_dbc
         // Pool initialization will be done in the factory method
     }
 
+    #ifdef __cpp_exceptions
     cpp_dbc::expected<void, DBException> ColumnarDBConnectionPool::initializePool(std::nothrow_t) noexcept
     {
         try
@@ -201,7 +202,7 @@ namespace cpp_dbc
         if (!result.has_value())
         {
             CP_DEBUG("ColumnarDBConnectionPool::~ColumnarDBConnectionPool - close failed: %s",
-                     result.error().what_s().c_str());
+                     result.error().what_s().data());
         }
 
         CP_DEBUG("ColumnarDBConnectionPool::~ColumnarDBConnectionPool - Destructor completed at %lld", (long long)std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
@@ -216,7 +217,7 @@ namespace cpp_dbc
             auto columnarConn = std::dynamic_pointer_cast<ColumnarDBConnection>(dbConn);
             if (!columnarConn)
             {
-                return cpp_dbc::unexpected(DBException("625AA68B72B8", "Connection pool only supports columnar database connections", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected(DBException("TP7X7T9LHSDV", "Connection pool only supports columnar database connections", system_utils::captureCallStack()));
             }
             return columnarConn;
         }
@@ -282,7 +283,7 @@ namespace cpp_dbc
         auto result = conn->executeQuery(std::nothrow, m_validationQuery);
         if (!result.has_value())
         {
-            CP_DEBUG("ColumnarDBConnectionPool::validateConnection - executeQuery failed: %s", result.error().what_s().c_str());
+            CP_DEBUG("ColumnarDBConnectionPool::validateConnection - executeQuery failed: %s", result.error().what_s().data());
             return false;
         }
         return true;
@@ -303,7 +304,7 @@ namespace cpp_dbc
             auto closeResult = conn->getUnderlyingColumnarConnection()->close(std::nothrow);
             if (!closeResult.has_value())
             {
-                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - close() during shutdown failed: %s", closeResult.error().what_s().c_str());
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - close() during shutdown failed: %s", closeResult.error().what_s().data());
             }
             return {};
         }
@@ -342,7 +343,7 @@ namespace cpp_dbc
             auto result = conn->getUnderlyingColumnarConnection()->prepareForPoolReturn(std::nothrow);
             if (!result.has_value())
             {
-                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", result.error().what_s().c_str());
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", result.error().what_s().data());
                 valid = false;
             }
         }
@@ -415,7 +416,7 @@ namespace cpp_dbc
             auto closeResult = conn->getUnderlyingColumnarConnection()->close(std::nothrow);
             if (!closeResult.has_value())
             {
-                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - close() on invalid connection failed: %s", closeResult.error().what_s().c_str());
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - close() on invalid connection failed: %s", closeResult.error().what_s().data());
             }
 
             // Replenish: create outside lock
@@ -424,7 +425,7 @@ namespace cpp_dbc
                 auto replacementResult = createPooledDBConnection(std::nothrow);
                 if (!replacementResult.has_value())
                 {
-                    CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Failed to create replacement: %s", replacementResult.error().what_s().c_str());
+                    CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Failed to create replacement: %s", replacementResult.error().what_s().data());
                 }
 
                 if (replacementResult.has_value())
@@ -466,7 +467,7 @@ namespace cpp_dbc
                         auto discardCloseResult = discardReplacement->getUnderlyingColumnarConnection()->close(std::nothrow);
                         if (!discardCloseResult.has_value())
                         {
-                            CP_DEBUG("ColumnarDBConnectionPool::returnConnection - close() on discarded replacement failed: %s", discardCloseResult.error().what_s().c_str());
+                            CP_DEBUG("ColumnarDBConnectionPool::returnConnection - close() on discarded replacement failed: %s", discardCloseResult.error().what_s().data());
                         }
                     }
                 }
@@ -525,7 +526,7 @@ namespace cpp_dbc
 
                                 if (!newConnResult.has_value())
                                 {
-                                    CP_DEBUG("ColumnarDBConnectionPool::getColumnarDBConnection - Failed to create connection: %s", newConnResult.error().what_s().c_str());
+                                    CP_DEBUG("ColumnarDBConnectionPool::getColumnarDBConnection - Failed to create connection: %s", newConnResult.error().what_s().data());
                                 }
                                 else
                                 {
@@ -545,7 +546,7 @@ namespace cpp_dbc
                                         auto closeResult = newConn->getUnderlyingColumnarConnection()->close(std::nothrow);
                                         if (!closeResult.has_value())
                                         {
-                                            CP_DEBUG("ColumnarDBConnectionPool::getColumnarDBConnection - close() on discarded candidate failed: %s", closeResult.error().what_s().c_str());
+                                            CP_DEBUG("ColumnarDBConnectionPool::getColumnarDBConnection - close() on discarded candidate failed: %s", closeResult.error().what_s().data());
                                         }
                                         lockPool.lock();
                                     }
@@ -597,7 +598,7 @@ namespace cpp_dbc
                             if (!m_running.load(std::memory_order_acquire))
                             {
                                 std::erase(m_waitQueue, &req);
-                                return cpp_dbc::unexpected(DBException("69677B95E2B2", "Connection pool is closed", system_utils::captureCallStack()));
+                                return cpp_dbc::unexpected(DBException("BM13U87YCH08", "Connection pool is closed", system_utils::captureCallStack()));
                             }
 
                             if (status == std::cv_status::timeout)
@@ -614,7 +615,7 @@ namespace cpp_dbc
                                     break;
                                 }
 
-                                return cpp_dbc::unexpected(DBException("99E01137B87B", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
+                                return cpp_dbc::unexpected(DBException("OAD202OF30N9", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
                             }
 
                             // Spurious wakeup: check idle again
@@ -668,13 +669,13 @@ namespace cpp_dbc
                         auto closeResult = result->getUnderlyingColumnarConnection()->close(std::nothrow);
                         if (!closeResult.has_value())
                         {
-                            CP_DEBUG("ColumnarDBConnectionPool::getColumnarDBConnection - close() on invalid connection failed: %s", closeResult.error().what_s().c_str());
+                            CP_DEBUG("ColumnarDBConnectionPool::getColumnarDBConnection - close() on invalid connection failed: %s", closeResult.error().what_s().data());
                         }
 
                         // Check deadline before retrying
                         if (steady_clock::now() >= deadline)
                         {
-                            return cpp_dbc::unexpected(DBException("99E01137B87B", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
+                            return cpp_dbc::unexpected(DBException("OAD202OF30N9", "Timeout waiting for connection from the pool", system_utils::captureCallStack()));
                         }
 
                         continue; // Retry
@@ -813,7 +814,7 @@ namespace cpp_dbc
                 auto pooledResult = createPooledDBConnection(std::nothrow);
                 if (!pooledResult.has_value())
                 {
-                    CP_DEBUG("ColumnarDBConnectionPool::maintenanceTask - Failed to create minIdle connection: %s", pooledResult.error().what_s().c_str());
+                    CP_DEBUG("ColumnarDBConnectionPool::maintenanceTask - Failed to create minIdle connection: %s", pooledResult.error().what_s().data());
                     break;
                 }
                 auto pooledConn = pooledResult.value();
@@ -953,7 +954,7 @@ namespace cpp_dbc
                 auto r = conn->getUnderlyingConnection(std::nothrow)->close(std::nothrow);
                 if (!r.has_value())
                 {
-                    CP_DEBUG("ColumnarDBConnectionPool::close - connection close failed: %s", r.error().what_s().c_str());
+                    CP_DEBUG("ColumnarDBConnectionPool::close - connection close failed: %s", r.error().what_s().data());
                     lastError = r;
                 }
             }
@@ -1015,7 +1016,7 @@ namespace cpp_dbc
                     auto closeResult = m_conn->close(std::nothrow);
                     if (!closeResult.has_value())
                     {
-                        CP_DEBUG("ColumnarPooledDBConnection::~ColumnarPooledDBConnection - close failed: %s", closeResult.error().what_s().c_str());
+                        CP_DEBUG("ColumnarPooledDBConnection::~ColumnarPooledDBConnection - close failed: %s", closeResult.error().what_s().data());
                     }
                 }
                 else
@@ -1088,7 +1089,8 @@ namespace cpp_dbc
                         auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<ColumnarPooledDBConnection>(shared_from_this()));
                         if (!returnResult.has_value())
                         {
-                            CP_DEBUG("ColumnarPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().c_str());
+                            CP_DEBUG("ColumnarPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().data());
+                            return returnResult;
                         }
                     }
                 }
@@ -1098,7 +1100,7 @@ namespace cpp_dbc
                     auto closeResult = m_conn->close(std::nothrow);
                     if (!closeResult.has_value())
                     {
-                        CP_DEBUG("ColumnarPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().c_str());
+                        CP_DEBUG("ColumnarPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().data());
                     }
                 }
             }
@@ -1111,7 +1113,7 @@ namespace cpp_dbc
                     auto closeResult = m_conn->close(std::nothrow);
                     if (!closeResult.has_value())
                     {
-                        CP_DEBUG("ColumnarPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().c_str());
+                        CP_DEBUG("ColumnarPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().data());
                     }
                 }
             }
@@ -1124,7 +1126,7 @@ namespace cpp_dbc
                     auto closeResult = m_conn->close(std::nothrow);
                     if (!closeResult.has_value())
                     {
-                        CP_DEBUG("ColumnarPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().c_str());
+                        CP_DEBUG("ColumnarPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().data());
                     }
                 }
             }
@@ -1189,7 +1191,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("0AF43G67D005", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("TVW92Q0P8I7Y", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->executeQuery(query);
@@ -1199,7 +1201,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            return cpp_dbc::unexpected(DBException("0AF43G67D005", "Connection is closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("TVW92Q0P8I7Y", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->executeQuery(std::nothrow, query);
@@ -1209,7 +1211,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("4E6D7284F5E2", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("IZTFCKPFH4TX", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->executeUpdate(query);
@@ -1219,7 +1221,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            return cpp_dbc::unexpected(DBException("4E6D7284F5E2", "Connection is closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("IZTFCKPFH4TX", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->executeUpdate(std::nothrow, query);
@@ -1269,7 +1271,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            throw DBException("1A5723BF02C7", "Connection is closed", system_utils::captureCallStack());
+            throw DBException("PAKKP3ZTKEH8", "Connection is closed", system_utils::captureCallStack());
         }
         updateLastUsedTime(std::nothrow);
         m_conn->rollback();
@@ -1279,7 +1281,7 @@ namespace cpp_dbc
     {
         if (m_closed.load(std::memory_order_acquire))
         {
-            return cpp_dbc::unexpected(DBException("1A5723BF02C7", "Connection is closed", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("PAKKP3ZTKEH8", "Connection is closed", system_utils::captureCallStack()));
         }
         updateLastUsedTime(std::nothrow);
         return m_conn->rollback(std::nothrow);
@@ -1351,7 +1353,8 @@ namespace cpp_dbc
                     auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<ColumnarPooledDBConnection>(this->shared_from_this()));
                     if (!returnResult.has_value())
                     {
-                        CP_DEBUG("ColumnarPooledDBConnection::returnToPool - returnConnection failed: %s", returnResult.error().what_s().c_str());
+                        CP_DEBUG("ColumnarPooledDBConnection::returnToPool - returnConnection failed: %s", returnResult.error().what_s().data());
+                        return returnResult;
                     }
                 }
             }
@@ -1434,6 +1437,27 @@ namespace cpp_dbc
     std::shared_ptr<ColumnarDBConnection> ColumnarPooledDBConnection::getUnderlyingColumnarConnection()
     {
         return m_conn;
+    }
+
+    bool ColumnarPooledDBConnection::ping()
+    {
+        auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+    #endif // __cpp_exceptions
+
+    cpp_dbc::expected<bool, DBException> ColumnarPooledDBConnection::ping(std::nothrow_t) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("1K6OKWCZQIDP", "Connection is closed", system_utils::captureCallStack()));
+        }
+        updateLastUsedTime(std::nothrow);
+        return m_conn->ping(std::nothrow);
     }
 
     // ScyllaDB connection pool implementation

@@ -156,7 +156,8 @@ namespace mongodb_test_helpers
         std::string connStr = buildMongoDBConnectionString(dbConfig);
 
         auto driver = getMongoDBDriver();
-        auto conn = driver->connectDocument(connStr, username, password);
+        cpp_dbc::DriverManager::registerDriver(driver);
+        auto conn = cpp_dbc::DriverManager::getDBConnection(connStr, username, password);
 
         return std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(conn);
     }
@@ -175,11 +176,16 @@ namespace mongodb_test_helpers
             // Build connection string for MongoDB
             std::string connStr = buildMongoDBConnectionString(dbConfig);
 
-            // Attempt to connect to MongoDB
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to MongoDB with connection string: " + connStr);
-
+            // Register the driver singleton in DriverManager so connection pools
+            // (which use DriverManager::getDBConnection internally) can find it.
             auto driver = getMongoDBDriver();
-            auto conn = driver->connectDocument(connStr, username, password);
+            cpp_dbc::DriverManager::registerDriver(driver);
+
+            // Attempt to connect to MongoDB via DriverManager (consistent with all other drivers)
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to MongoDB with connection string: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
+
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             if (!conn)
             {
@@ -190,23 +196,18 @@ namespace mongodb_test_helpers
             // If we get here, the connection was successful
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB connection successful!");
 
-            // Try to ping the database
-            auto mongoConn = std::dynamic_pointer_cast<cpp_dbc::MongoDB::MongoDBConnection>(conn);
-            if (mongoConn)
-            {
-                // Try to list collections as a simple connectivity test
-                auto collections = mongoConn->listCollections();
-                cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB has " + std::to_string(collections.size()) + " collections");
-            }
+            // Verify the connection with ping()
+            bool success = conn->ping();
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", std::string("MongoDB ping ") + (success ? "successful!" : "returned false"));
 
             // Close the connection
             conn->close();
 
-            return true;
+            return success;
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB connection error: " + std::string(e.what()));
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "MongoDB connection error: " + std::string(ex.what()));
             return false;
         }
     }

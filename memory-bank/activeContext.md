@@ -37,7 +37,61 @@ The code is organized in a modular fashion with clear separation between interfa
 
 Recent changes to the codebase include:
 
-1. **Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection** (2026-02-24 18:25 PST):
+1. **MongoDB Driver — Full Nothrow-First Refactor, Static Factory Pattern, `-fno-exceptions` Compatibility** (2026-03-04 14:29 PST):
+   - **Core Abstract Interfaces — `#ifdef __cpp_exceptions` Guard Separation:**
+     - All 5 document interfaces guard throwing methods with `#ifdef __cpp_exceptions`; nothrow methods always compile under `-fno-exceptions`
+     - `DocumentDBCursor`: +9 new nothrow pure-virtuals (`next`, `hasNext`, `count`, `getPosition`, `skip`, `limit`, `sort`, `isExhausted`, `rewind`)
+     - `DocumentDBData`: +17 nothrow pure-virtuals (all getters, setters, field ops)
+     - `DocumentDBCollection`: +4 nothrow pure-virtuals (`getName`, `getNamespace`, `estimatedDocumentCount`, `countDocuments`)
+     - `DocumentDBConnection`: `ping()` removed from abstract interface
+     - `DocumentDBDriver`: `getDefaultPort()` removed; `getURIScheme()` now `noexcept` returning full URL prefix; `supportsReplicaSets()`/`supportsSharding()`/`getDriverVersion()` all `noexcept`
+   - **MongoDBDriver — Double-Checked Locking:**
+     - `std::once_flag` → `std::atomic<bool>` + `std::mutex` (compatible with `-fno-exceptions`; allows re-init after `cleanup()`)
+     - Instance-level `m_mutex` removed; `connectDocument(std::nothrow_t)` calls `MongoDBConnection::create(std::nothrow)`
+   - **MongoDBConnection — Static Factory:**
+     - `create(std::nothrow_t, ...)` + private nothrow constructor + `initialize(std::nothrow_t)` helper
+     - Old public throwing constructor removed; all helpers converted to nothrow
+   - **MongoDBDocument — Static Factory + ID Caching:**
+     - `create(std::nothrow_t)` and `create(std::nothrow_t, bson_t*)` static factories
+     - `m_idCached`/`m_cachedId` for BSON `_id` field caching
+     - New `document_07.cpp` (776 lines): nothrow setters, field ops, clone/clear/isEmpty, getBson/getBsonMutable
+   - **MongoDBCursor/Collection — Full Nothrow:**
+     - Cursor constructor and helpers converted to nothrow; `skip`/`limit`/`sort` use `std::reference_wrapper<DocumentDBCursor>`
+     - Collection: new `getCollectionHandle(std::nothrow_t)` helper
+   - **Dead try/catch elimination** across all MongoDB `.cpp` files
+   - **Note:** MongoDB was the last driver to adopt these patterns — MySQL, PostgreSQL, SQLite, Firebird, ScyllaDB, and Redis already implement them. All 7 drivers now share the same nothrow-first, static factory, double-checked locking, and `-fno-exceptions` compatible architecture.
+   - **Other:** KV `""` → `std::string{}`; Firebird stub fixes; MySQL/PostgreSQL blob `using MemoryBlob::copyFrom`
+   - 41 files changed, +5956/-5321 lines
+
+2. **DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations** (2026-02-26 18:27 PST):
+   - **`DBException` — Fixed-Size Memory Layout:**
+     - Now inherits from `std::exception` (was `std::runtime_error`); constructor is `noexcept`
+     - `m_mark[13]`, `m_message[257]`, `m_full_message[271]` — fixed-size char arrays (no heap allocation)
+     - `m_callStack` stored as `std::shared_ptr<CallStackCapture>` — one allocation shared across copies
+     - `what_s()` returns `std::string_view` (was `const std::string&`); `getMark()` same
+     - `getCallStack()` returns `std::span<const StackFrame>` (was `const std::vector<StackFrame>&`)
+     - Pre-computed `m_full_message` in constructor — `what()` is zero-cost
+     - Long marks/messages left-truncated with `...[TRUNCATED]` marker
+   - **`system_utils::CallStackCapture` — Fixed-Size Stack Capture:**
+     - `StackFrame` now uses `char file[150]`, `char function[150]` (was `std::string`)
+     - New `CallStackCapture` struct: `StackFrame frames[10]`, `int count` — max 10 frames
+     - `captureCallStack()` returns `std::shared_ptr<CallStackCapture>` (was `std::vector<StackFrame>`)
+     - `printCallStack()` now also accepts `std::span<const StackFrame>`
+   - **Unified `ping()` in Base `DBConnection`:**
+     - `ping()` promoted to pure virtual in `DBConnection`: `virtual bool ping() = 0`
+     - Nothrow variant: `virtual cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept = 0`
+     - Removed Redis-specific `std::string ping()` from `KVDBConnection`; return type was `"PONG"` string
+     - Removed MongoDB-specific `bool ping()` from `DocumentDBConnection`
+     - Pool wrappers (relational, KV, columnar) updated with `bool ping()` override
+   - **All Examples/Benchmarks Updated for `std::string_view`:**
+     - 50+ example files: `+ ex.what_s()` → `+ std::string(ex.what_s())`
+     - `example_common.hpp`: all logging function params changed from `const std::string&` to `std::string_view`
+     - Redis examples: `std::string pong = conn->ping()` → `bool pong = conn->ping()` with `"PONG"/"FAILED"` output
+   - **Build System — Deferred libdw + Faster Test Builds:**
+     - `helper.sh`: `dw-on`/`dw-off` now deferred — later flags override earlier ones in same option list
+     - `build_test_cpp_dbc.sh`: adds `-DCPP_DBC_BUILD_EXAMPLES=OFF -DCPP_DBC_BUILD_BENCHMARKS=OFF` to skip non-test targets
+
+2. **Full Nothrow Pool API, Atomic int64_t Last-Used Time, MySQL Atomic Closed Flag, Destructor Safety, and Debug Macro Truncation Detection** (2026-02-24 18:25 PST):
    - **Pool Factory — Nothrow `create()` (All Families):**
      - All `create()` factories return `expected<shared_ptr<Pool>, DBException>` with `std::nothrow_t` (breaking change)
      - All internal pool methods (createDBConnection, createPooledDBConnection, validateConnection, returnConnection, initializePool) return `expected<...>` noexcept
@@ -513,7 +567,7 @@ Recent changes to the codebase include:
        - Connection validation with Redis ping command
        - Configurable pool parameters (initial size, max size, min idle, etc.)
      - **Redis Implementation:**
-       - `RedisConnectionPool` concrete implementation for Redis
+       - `RedisDBConnectionPool` concrete implementation for Redis
        - Factory pattern with `create` static methods for pool creation
        - Protected constructors to enforce factory method usage
        - Support for Redis authentication and custom connection options
@@ -539,8 +593,8 @@ Recent changes to the codebase include:
        - `KVDBConnection`: Base interface for key-value database connections
        - `KVDBDriver`: Base interface for key-value database drivers
      - **Redis Driver Implementation:**
-       - `RedisDriver`: Driver class for Redis connections
-       - `RedisConnection`: Connection management with proper resource cleanup
+       - `RedisDBDriver`: Driver class for Redis connections
+       - `RedisDBConnection`: Connection management with proper resource cleanup
      - **Features:**
        - String operations with TTL support
        - List operations (push, pop, range)

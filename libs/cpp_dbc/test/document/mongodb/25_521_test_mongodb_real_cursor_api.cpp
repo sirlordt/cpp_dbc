@@ -83,7 +83,7 @@ TEST_CASE("MongoDB cursor hasNext() and nextDocument() API", "[25_521_01_mongodb
         {
             // Expected behavior - any DBException indicates the cursor is exhausted
             exceptionThrown = true;
-            std::string errorMsg = e.what_s();
+            std::string errorMsg = std::string(e.what_s());
             // Just verify an exception was thrown - the specific message may vary
             INFO("Caught expected exception: " + errorMsg);
         }

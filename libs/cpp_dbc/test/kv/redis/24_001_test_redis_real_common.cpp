@@ -73,14 +73,14 @@ namespace redis_test_helpers
         return dbConfig;
     }
 
-    std::shared_ptr<cpp_dbc::Redis::RedisDriver> getRedisDriver()
+    std::shared_ptr<cpp_dbc::Redis::RedisDBDriver> getRedisDBDriver()
     {
-        static std::shared_ptr<cpp_dbc::Redis::RedisDriver> driver =
-            std::make_shared<cpp_dbc::Redis::RedisDriver>();
+        static std::shared_ptr<cpp_dbc::Redis::RedisDBDriver> driver =
+            std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
         return driver;
     }
 
-    std::string buildRedisConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig)
+    std::string buildRedisDBConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig)
     {
         std::string host = dbConfig.getHost();
         int port = dbConfig.getPort();
@@ -93,7 +93,7 @@ namespace redis_test_helpers
         return connStr;
     }
 
-    std::shared_ptr<cpp_dbc::KVDBConnection> getRedisConnection()
+    std::shared_ptr<cpp_dbc::KVDBConnection> getRedisDBConnection()
     {
         auto dbConfig = getRedisConfig("test_redis");
 
@@ -101,10 +101,13 @@ namespace redis_test_helpers
         std::string password = dbConfig.getPassword();
 
         // Build connection string for Redis
-        std::string connStr = buildRedisConnectionString(dbConfig);
+        std::string connStr = buildRedisDBConnectionString(dbConfig);
 
-        auto driver = getRedisDriver();
-        return driver->connectKV(connStr, username, password);
+        auto driver = getRedisDBDriver();
+        cpp_dbc::DriverManager::registerDriver(driver);
+        auto conn = cpp_dbc::DriverManager::getDBConnection(connStr, username, password);
+
+        return std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(conn);
     }
 
     bool canConnectToRedis()
@@ -119,13 +122,18 @@ namespace redis_test_helpers
             std::string password = dbConfig.getPassword();
 
             // Build connection string for Redis
-            std::string connStr = buildRedisConnectionString(dbConfig);
+            std::string connStr = buildRedisDBConnectionString(dbConfig);
 
-            // Attempt to connect to Redis
+            // Register the driver singleton in DriverManager so connection pools
+            // (which use DriverManager::getDBConnection internally) can find it.
+            auto driver = getRedisDBDriver();
+            cpp_dbc::DriverManager::registerDriver(driver);
+
+            // Attempt to connect to Redis via DriverManager (consistent with all other drivers)
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Attempting to connect to Redis with connection string: " + connStr);
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Username: " + username + ", Password: " + password);
 
-            auto driver = getRedisDriver();
-            auto conn = driver->connectKV(connStr, username, password);
+            auto conn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 
             if (!conn)
             {
@@ -136,18 +144,18 @@ namespace redis_test_helpers
             // If we get here, the connection was successful
             cpp_dbc::system_utils::logWithTimesMillis("TEST", "Redis connection successful!");
 
-            // Try to ping the server
-            std::string pingResult = conn->ping();
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Redis ping result: " + pingResult);
+            // Verify the connection with a PING command
+            bool success = conn->ping();
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", std::string("Redis ping ") + (success ? "successful!" : "returned false"));
 
             // Close the connection
             conn->close();
 
-            return true;
+            return success;
         }
-        catch (const std::exception &e)
+        catch (const std::exception &ex)
         {
-            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Redis connection error: " + std::string(e.what()));
+            cpp_dbc::system_utils::logWithTimesMillis("TEST", "Redis connection error: " + std::string(ex.what()));
             return false;
         }
     }

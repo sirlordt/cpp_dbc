@@ -90,8 +90,13 @@ namespace cpp_dbc
 
         // std::cout << "Driver '" << driverName << "' found, creating connection..." << std::endl;
 
-        // Use the driver to create a connection
-        return it->second->connect(url, user, password, options);
+        // Use the driver to create a connection (nothrow overload — logic lives there)
+        auto result = it->second->connect(std::nothrow, url, user, password, options);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::shared_ptr<DBConnection> DriverManager::getDBConnection(const config::DatabaseConfig &dbConfig)

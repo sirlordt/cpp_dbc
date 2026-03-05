@@ -13,265 +13,239 @@
  * See the LICENSE.md file in the project root for more information.
  *
  * @file document_06.cpp
- * @brief MongoDB MongoDBDocument - Part 6 (nothrow getters part 2, clone)
+ * @brief MongoDB MongoDBDocument - Part 6 (nothrow API: getString, getInt, getDouble, getBool, getBinary, getDocument)
  */
 
 #include "cpp_dbc/drivers/document/driver_mongodb.hpp"
 
 #if USE_MONGODB
 
-#include <algorithm>
-#include <array>
-#include <cstring>
-#include <iostream>
-#include <ranges>
-#include <sstream>
-#include <stdexcept>
 #include "cpp_dbc/common/system_utils.hpp"
 #include "mongodb_internal.hpp"
 
 namespace cpp_dbc::MongoDB
 {
 
-    expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> MongoDBDocument::getDocumentArray(
-        std::nothrow_t, const std::string &fieldPath, bool strict) const noexcept
+    // ====================================================================
+    // NOTHROW API - getString, getInt, getDouble, getBool, getBinary, getDocument (real implementations)
+    // ====================================================================
+
+    expected<std::string, DBException> MongoDBDocument::getString(std::nothrow_t, const std::string &fieldPath) const noexcept
     {
-        try
+        MONGODB_LOCK_GUARD(m_mutex);
+
+        bson_iter_t iter;
+        auto nav = navigateToField(std::nothrow, fieldPath, iter);
+        if (!nav.has_value())
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-
-            bson_iter_t iter;
-            if (!navigateToField(fieldPath, iter))
-            {
-                return unexpected<DBException>(DBException(
-                    "4D5E6F7A8B9C",
-                    "Field not found: " + fieldPath));
-            }
-
-            if (!BSON_ITER_HOLDS_ARRAY(&iter))
-            {
-                return unexpected<DBException>(DBException(
-                    "5E6F7A8B9C0D",
-                    "Field is not an array: " + fieldPath));
-            }
-
-            std::vector<std::shared_ptr<DocumentDBData>> result;
-
-            bson_iter_t arrayIter;
-            const uint8_t *data = nullptr;
-            uint32_t length = 0;
-            bson_iter_array(&iter, &length, &data);
-
-            bson_t arrayBson;
-            if (!bson_init_static(&arrayBson, data, length))
-            {
-                return unexpected<DBException>(DBException(
-                    "6F7A8B9C0D1E",
-                    "Failed to initialize array BSON"));
-            }
-
-            if (bson_iter_init(&arrayIter, &arrayBson))
-            {
-                size_t elementIndex = 0;
-                while (bson_iter_next(&arrayIter))
-                {
-                    if (BSON_ITER_HOLDS_DOCUMENT(&arrayIter))
-                    {
-                        const uint8_t *docData = nullptr;
-                        uint32_t docLength = 0;
-                        bson_iter_document(&arrayIter, &docLength, &docData);
-
-                        bson_t *subdoc = bson_new_from_data(docData, docLength);
-                        if (!subdoc)
-                        {
-                            return unexpected<DBException>(DBException(
-                                "6F7A8B9C0D1F",
-                                "Failed to construct subdocument at index " + std::to_string(elementIndex) + " in array field: " + fieldPath));
-                        }
-                        result.push_back(std::make_shared<MongoDBDocument>(subdoc));
-                    }
-                    else if (strict)
-                    {
-                        return unexpected<DBException>(DBException(
-                            "7A8B9C0D1E2F",
-                            "Unexpected element type at index " + std::to_string(elementIndex) + " in array field: " + fieldPath + " (expected document)"));
-                    }
-                    // If not strict, skip non-document elements
-                    elementIndex++;
-                }
-            }
-
-            return result;
+            return unexpected<DBException>(nav.error());
         }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        if (!*nav)
         {
             return unexpected<DBException>(DBException(
-                "M9N0O1P2Q3R4",
-                "Memory allocation failed in getDocumentArray"));
+                "P2Q3R4S5T6U7",
+                "Field not found: " + fieldPath,
+                system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        if (!BSON_ITER_HOLDS_UTF8(&iter))
         {
             return unexpected<DBException>(DBException(
-                "8B9C0D1E2F3A",
-                std::string("Error in getDocumentArray: ") + ex.what()));
+                "73PGMS31DBTT",
+                "Field is not a string: " + fieldPath,
+                system_utils::captureCallStack()));
         }
-        catch (...)
+
+        uint32_t length = 0;
+        const char *str = bson_iter_utf8(&iter, &length);
+        return std::string(str, length);
+    }
+
+    expected<int64_t, DBException> MongoDBDocument::getInt(std::nothrow_t, const std::string &fieldPath) const noexcept
+    {
+        MONGODB_LOCK_GUARD(m_mutex);
+
+        bson_iter_t iter;
+        auto nav = navigateToField(std::nothrow, fieldPath, iter);
+        if (!nav.has_value())
+        {
+            return unexpected<DBException>(nav.error());
+        }
+        if (!*nav)
         {
             return unexpected<DBException>(DBException(
-                "9C0D1E2F3A4B",
-                "Unknown error in getDocumentArray"));
+                "5KQJWMGPA4DR",
+                "Field not found: " + fieldPath,
+                system_utils::captureCallStack()));
+        }
+
+        if (BSON_ITER_HOLDS_INT32(&iter))
+        {
+            return static_cast<int64_t>(bson_iter_int32(&iter));
+        }
+        else if (BSON_ITER_HOLDS_INT64(&iter))
+        {
+            return bson_iter_int64(&iter);
+        }
+        else
+        {
+            return unexpected<DBException>(DBException(
+                "MPJ01JP0VTF9",
+                "Field is not an integer: " + fieldPath,
+                system_utils::captureCallStack()));
         }
     }
 
-    expected<std::vector<std::shared_ptr<DocumentDBData>>, DBException> MongoDBDocument::getDocumentArray(
-        std::nothrow_t, const std::string &fieldPath) const noexcept
+    expected<double, DBException> MongoDBDocument::getDouble(std::nothrow_t, const std::string &fieldPath) const noexcept
     {
-        // Default: tolerant mode (skip non-document elements)
-        return getDocumentArray(std::nothrow, fieldPath, false);
-    }
+        MONGODB_LOCK_GUARD(m_mutex);
 
-    expected<std::vector<std::string>, DBException> MongoDBDocument::getStringArray(
-        std::nothrow_t, const std::string &fieldPath, bool strict) const noexcept
-    {
-        try
+        bson_iter_t iter;
+        auto nav = navigateToField(std::nothrow, fieldPath, iter);
+        if (!nav.has_value())
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-
-            bson_iter_t iter;
-            if (!navigateToField(fieldPath, iter))
-            {
-                return unexpected<DBException>(DBException(
-                    "0D1E2F3A4B5C",
-                    "Field not found: " + fieldPath));
-            }
-
-            if (!BSON_ITER_HOLDS_ARRAY(&iter))
-            {
-                return unexpected<DBException>(DBException(
-                    "1E2F3A4B5C6D",
-                    "Field is not an array: " + fieldPath));
-            }
-
-            std::vector<std::string> result;
-
-            bson_iter_t arrayIter;
-            const uint8_t *data = nullptr;
-            uint32_t length = 0;
-            bson_iter_array(&iter, &length, &data);
-
-            bson_t arrayBson;
-            if (!bson_init_static(&arrayBson, data, length))
-            {
-                return unexpected<DBException>(DBException(
-                    "2F3A4B5C6D7E",
-                    "Failed to initialize array BSON"));
-            }
-
-            if (bson_iter_init(&arrayIter, &arrayBson))
-            {
-                size_t elementIndex = 0;
-                while (bson_iter_next(&arrayIter))
-                {
-                    if (BSON_ITER_HOLDS_UTF8(&arrayIter))
-                    {
-                        uint32_t strLength = 0;
-                        const char *str = bson_iter_utf8(&arrayIter, &strLength);
-                        result.emplace_back(str, strLength);
-                    }
-                    else if (strict)
-                    {
-                        return unexpected<DBException>(DBException(
-                            "8B9C0D1E2F3G",
-                            "Unexpected element type at index " + std::to_string(elementIndex) + " in array field: " + fieldPath + " (expected string)"));
-                    }
-                    // If not strict, skip non-string elements
-                    elementIndex++;
-                }
-            }
-
-            return result;
+            return unexpected<DBException>(nav.error());
         }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        if (!*nav)
         {
             return unexpected<DBException>(DBException(
-                "3A4B5C6D7E8F",
-                "Memory allocation failed in getStringArray"));
+                "RYTVNGX2A6I7",
+                "Field not found: " + fieldPath,
+                system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
+
+        if (BSON_ITER_HOLDS_DOUBLE(&iter))
+        {
+            return bson_iter_double(&iter);
+        }
+        else if (BSON_ITER_HOLDS_INT32(&iter))
+        {
+            return static_cast<double>(bson_iter_int32(&iter));
+        }
+        else if (BSON_ITER_HOLDS_INT64(&iter))
+        {
+            return static_cast<double>(bson_iter_int64(&iter));
+        }
+        else
         {
             return unexpected<DBException>(DBException(
-                "4B5C6D7E8F9A",
-                std::string("Error in getStringArray: ") + ex.what()));
-        }
-        catch (...)
-        {
-            return unexpected<DBException>(DBException(
-                "5C6D7E8F9A0B",
-                "Unknown error in getStringArray"));
+                "0FUWA2WLGIDG",
+                "Field is not a number: " + fieldPath,
+                system_utils::captureCallStack()));
         }
     }
 
-    expected<std::vector<std::string>, DBException> MongoDBDocument::getStringArray(
-        std::nothrow_t, const std::string &fieldPath) const noexcept
+    expected<bool, DBException> MongoDBDocument::getBool(std::nothrow_t, const std::string &fieldPath) const noexcept
     {
-        // Default: tolerant mode (skip non-string elements)
-        return getStringArray(std::nothrow, fieldPath, false);
-    }
+        MONGODB_LOCK_GUARD(m_mutex);
 
-    expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBDocument::clone(std::nothrow_t) const noexcept
-    {
-        try
+        bson_iter_t iter;
+        auto nav = navigateToField(std::nothrow, fieldPath, iter);
+        if (!nav.has_value())
         {
-            MONGODB_LOCK_GUARD(m_mutex);
-
-            if (!m_bson)
-            {
-                return unexpected<DBException>(DBException(
-                    "6D7E8F9A0B1C",
-                    "Document is not initialized"));
-            }
-
-            bson_t *copy = bson_copy(m_bson.get());
-            if (!copy)
-            {
-                return unexpected<DBException>(DBException(
-                    "7E8F9A0B1C2D",
-                    "Failed to clone document"));
-            }
-
-            auto doc = std::make_shared<MongoDBDocument>(copy);
-            return std::static_pointer_cast<DocumentDBData>(doc);
+            return unexpected<DBException>(nav.error());
         }
-        catch (const DBException &ex)
-        {
-            return unexpected<DBException>(ex);
-        }
-        catch ([[maybe_unused]] const std::bad_alloc &ex)
+        if (!*nav)
         {
             return unexpected<DBException>(DBException(
-                "8F9A0B1C2D3E",
-                "Memory allocation failed in clone"));
+                "051XCGDXXMHB",
+                "Field not found: " + fieldPath,
+                system_utils::captureCallStack()));
         }
-        catch (const std::exception &ex)
-        {
-            return unexpected<DBException>(DBException(
-                "9A0B1C2D3E4F",
-                std::string("Error in clone: ") + ex.what()));
-        }
-        catch (...)
+
+        if (!BSON_ITER_HOLDS_BOOL(&iter))
         {
             return unexpected<DBException>(DBException(
                 "0B1C2D3E4F5A",
-                "Unknown error in clone"));
+                "Field is not a boolean: " + fieldPath,
+                system_utils::captureCallStack()));
         }
+
+        return static_cast<bool>(bson_iter_bool(&iter));
+    }
+
+    expected<std::vector<uint8_t>, DBException> MongoDBDocument::getBinary(std::nothrow_t, const std::string &fieldPath) const noexcept
+    {
+        MONGODB_LOCK_GUARD(m_mutex);
+
+        bson_iter_t iter;
+        auto nav = navigateToField(std::nothrow, fieldPath, iter);
+        if (!nav.has_value())
+        {
+            return unexpected<DBException>(nav.error());
+        }
+        if (!*nav)
+        {
+            return unexpected<DBException>(DBException(
+                "3E4F5A6B7C8D",
+                "Field not found: " + fieldPath,
+                system_utils::captureCallStack()));
+        }
+
+        if (!BSON_ITER_HOLDS_BINARY(&iter))
+        {
+            return unexpected<DBException>(DBException(
+                "4F5A6B7C8D9E",
+                "Field is not binary: " + fieldPath,
+                system_utils::captureCallStack()));
+        }
+
+        bson_subtype_t subtype;
+        uint32_t length = 0;
+        const uint8_t *data = nullptr;
+        bson_iter_binary(&iter, &subtype, &length, &data);
+
+        return std::vector<uint8_t>(data, data + length);
+    }
+
+    expected<std::shared_ptr<DocumentDBData>, DBException> MongoDBDocument::getDocument(std::nothrow_t, const std::string &fieldPath) const noexcept
+    {
+        MONGODB_LOCK_GUARD(m_mutex);
+
+        bson_iter_t iter;
+        auto nav = navigateToField(std::nothrow, fieldPath, iter);
+        if (!nav.has_value())
+        {
+            return unexpected<DBException>(nav.error());
+        }
+        if (!*nav)
+        {
+            return unexpected<DBException>(DBException(
+                "8XRRGGDLL8T3",
+                "Field not found: " + fieldPath,
+                system_utils::captureCallStack()));
+        }
+
+        if (!BSON_ITER_HOLDS_DOCUMENT(&iter))
+        {
+            return unexpected<DBException>(DBException(
+                "19748SFF3VQI",
+                "Field is not a document: " + fieldPath,
+                system_utils::captureCallStack()));
+        }
+
+        const uint8_t *data = nullptr;
+        uint32_t length = 0;
+        bson_iter_document(&iter, &length, &data);
+
+        bson_t *subdoc = bson_new_from_data(data, length);
+        if (!subdoc)
+        {
+            return unexpected<DBException>(DBException(
+                "YB5QK5036ZKR",
+                "Failed to extract subdocument",
+                system_utils::captureCallStack()));
+        }
+
+        // Use the private nothrow factory to construct the document without invoking
+        // the throwing constructor — required to stay within this method's noexcept contract.
+        // subdoc is guaranteed non-null here (bson_new_from_data returned it above).
+        auto docResult = MongoDBDocument::create(std::nothrow, subdoc);
+        if (!docResult.has_value())
+        {
+            return unexpected<DBException>(docResult.error());
+        }
+        return std::static_pointer_cast<DocumentDBData>(docResult.value());
     }
 
 } // namespace cpp_dbc::MongoDB

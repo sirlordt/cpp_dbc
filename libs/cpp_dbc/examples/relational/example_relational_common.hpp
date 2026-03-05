@@ -206,7 +206,7 @@ namespace cpp_dbc::examples::relational
         }
         catch (const cpp_dbc::DBException &e)
         {
-            logError("Transaction failed: " + e.what_s());
+            logError("Transaction failed: " + std::string(e.what_s()));
             logStep("Rolling back transaction...");
             conn->rollback();
             logOk("Transaction rolled back");
@@ -323,7 +323,7 @@ namespace cpp_dbc::examples::relational
 
         if (!configResult)
         {
-            logError("Failed to load configuration: " + configResult.error().what_s());
+            logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
             return EXIT_ERROR_;
         }
 
@@ -342,7 +342,7 @@ namespace cpp_dbc::examples::relational
 
         if (!dbResult)
         {
-            logError("Failed to get database config: " + dbResult.error().what_s());
+            logError("Failed to get database config: " + std::string(dbResult.error().what_s()));
             return EXIT_ERROR_;
         }
 
@@ -390,7 +390,7 @@ namespace cpp_dbc::examples::relational
         }
         catch (const cpp_dbc::DBException &e)
         {
-            logError("Database error: " + e.what_s());
+            logError("Database error: " + std::string(e.what_s()));
             return EXIT_ERROR_;
         }
         catch (const std::exception &e)

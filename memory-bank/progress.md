@@ -2,7 +2,73 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All four connection pool families share a unified single-mutex + direct-handoff architecture with a complete nothrow API. `m_lastUsedTimeNs` is lock-free via `std::atomic<int64_t>` (portable to all platforms). MySQL `m_closed` is `std::atomic<bool>`. All result set destructors use nothrow close.
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. MongoDB was the last driver to adopt this architecture (2026-03-04). `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). All four connection pool families share a unified single-mutex + direct-handoff architecture with a complete nothrow API.
+
+### Recent Improvements (2026-03-04 14:29 PST)
+
+**MongoDB Driver — Full Nothrow-First Refactor, Static Factory Pattern, `-fno-exceptions` Compatibility:**
+
+1. **Core Abstract Interfaces — `#ifdef __cpp_exceptions` Guard:**
+   - All 5 document interfaces (`DocumentDBCollection`, `DocumentDBConnection`, `DocumentDBCursor`, `DocumentDBData`, `DocumentDBDriver`) wrap throwing methods in `#ifdef __cpp_exceptions`
+   - `DocumentDBCursor`: +9 nothrow pure-virtuals (`next`, `hasNext`, `count`, `getPosition`, `skip`, `limit`, `sort`, `isExhausted`, `rewind`)
+   - `DocumentDBData`: +17 nothrow pure-virtuals (getters, setters, field ops)
+   - `DocumentDBCollection`: +4 nothrow pure-virtuals (`getName`, `getNamespace`, `estimatedDocumentCount`, `countDocuments`)
+   - `ping()` removed from `DocumentDBConnection`; `getDefaultPort()` removed from `DocumentDBDriver`
+   - `getURIScheme()` now `noexcept`, returns full URL prefix; `supportsReplicaSets()`/`supportsSharding()`/`getDriverVersion()` all `noexcept`
+
+2. **MongoDBDriver — Double-Checked Locking:**
+   - `std::once_flag` → `std::atomic<bool>` + `std::mutex` (compatible with `-fno-exceptions`; allows re-init after `cleanup()`)
+   - Instance `m_mutex` removed; `connectDocument(std::nothrow_t)` calls `MongoDBConnection::create(std::nothrow)`
+
+3. **MongoDBConnection — Static Factory:**
+   - `create(std::nothrow_t, ...)` + private nothrow constructor + `initialize(std::nothrow_t)` helper
+   - Old public throwing constructor removed; all private helpers converted to nothrow
+
+4. **MongoDBDocument — Static Factory + ID Caching:**
+   - `create(std::nothrow_t)` and `create(std::nothrow_t, bson_t*)` static factories
+   - `m_idCached`/`m_cachedId` for BSON `_id` field caching (avoid repeated traversal)
+   - New `document_07.cpp` (776 lines): nothrow setters, field ops, clone/clear/isEmpty
+
+5. **MongoDBCursor/Collection — Full Nothrow:**
+   - Cursor constructor + helpers nothrow; `skip`/`limit`/`sort` use `std::reference_wrapper<DocumentDBCursor>`
+   - Collection: new `getCollectionHandle(std::nothrow_t)` helper
+
+6. **Dead try/catch Elimination:**
+   - Nothrow methods calling only nothrow methods no longer have try/catch blocks (across all MongoDB `.cpp` files)
+
+7. **Other:** `handles.hpp` `makeBsonHandleFromJson()` → nothrow; KV `""` → `std::string{}`; Firebird stub fixes; MySQL/PostgreSQL blob `using MemoryBlob::copyFrom`; 41 files, +5956/-5321 lines
+
+### Recent Improvements (2026-02-26 18:27 PST)
+
+**DBException Fixed-Size Refactor, Unified `ping()` Interface, `std::string_view` Return Types, and Build Optimizations:**
+
+1. **`DBException` — Fixed-Size Memory Layout:**
+   - Inherits from `std::exception` (was `std::runtime_error`); constructor is `noexcept`
+   - Fixed char arrays: `m_mark[13]`, `m_message[257]`, `m_full_message[271]`
+   - Call stack: `std::shared_ptr<CallStackCapture>` — one allocation, shared across copies
+   - `what_s()` / `getMark()` return `std::string_view`; `getCallStack()` returns `std::span<const StackFrame>`
+   - `what()` returns pre-computed `m_full_message` (zero-cost); long values left-truncated with `...[TRUNCATED]`
+
+2. **`system_utils::CallStackCapture` — Fixed-Size Stack:**
+   - `StackFrame` uses `char file[150]`, `char function[150]` (was `std::string`)
+   - New `CallStackCapture`: `StackFrame frames[10]`, `int count`
+   - `captureCallStack()` returns `std::shared_ptr<CallStackCapture>` (was `std::vector<StackFrame>`)
+   - `printCallStack()` accepts `std::span<const StackFrame>`
+
+3. **Unified `ping()` in Base `DBConnection`:**
+   - `virtual bool ping() = 0` and `virtual expected<bool, DBException> ping(std::nothrow_t) noexcept = 0` in `DBConnection`
+   - Removed Redis-specific `std::string ping()` from `KVDBConnection`
+   - Removed MongoDB-specific `bool ping()` from `DocumentDBConnection`
+   - All pool wrappers updated
+
+4. **All 50+ Examples Updated for `std::string_view`:**
+   - `+ ex.what_s()` → `+ std::string(ex.what_s())` across all database families
+   - `example_common.hpp` log functions: `const std::string&` → `std::string_view`
+   - Redis ping: `std::string` → `bool` with `"PONG"/"FAILED"` display
+
+5. **Build System Improvements:**
+   - `helper.sh`: `dw-on`/`dw-off` deferred — later flags override earlier ones in same option list
+   - `build_test_cpp_dbc.sh`: `-DCPP_DBC_BUILD_EXAMPLES=OFF -DCPP_DBC_BUILD_BENCHMARKS=OFF` for faster test-only builds
 
 ### Recent Improvements (2026-02-24 18:25 PST)
 
@@ -481,7 +547,7 @@ The project includes example code demonstrating:
   - Firebird: FirebirdConnectionPool
   - MongoDB: MongoDBConnectionPool
   - ScyllaDB: ScyllaConnectionPool (ColumnarDBConnectionPool)
-  - Redis: RedisConnectionPool
+  - Redis: RedisDBConnectionPool
 
 ### SQLite Support
 - Connection to SQLite databases

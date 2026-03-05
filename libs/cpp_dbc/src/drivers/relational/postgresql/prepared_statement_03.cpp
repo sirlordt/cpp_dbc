@@ -47,7 +47,7 @@ namespace cpp_dbc::PostgreSQL
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
-                return cpp_dbc::unexpected<DBException>(DBException("3C2333857671", "Invalid parameter index for setBlob", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("SZV5YN1UUMSY", "Invalid parameter index for setBlob", system_utils::captureCallStack()));
             }
 
             int idx = parameterIndex - 1;
@@ -165,7 +165,7 @@ namespace cpp_dbc::PostgreSQL
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
-                return cpp_dbc::unexpected<DBException>(DBException("13B0690421E5", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("K8J9LKO7GB19", "Invalid parameter index for setBinaryStream", system_utils::captureCallStack()));
             }
 
             int idx = parameterIndex - 1;
@@ -275,7 +275,7 @@ namespace cpp_dbc::PostgreSQL
 
             if (parameterIndex < 1 || parameterIndex > static_cast<int>(m_paramValues.size()))
             {
-                return cpp_dbc::unexpected<DBException>(DBException("D8D28AD75097", "Invalid parameter index for setBytes", system_utils::captureCallStack()));
+                return cpp_dbc::unexpected<DBException>(DBException("VVY0L1LZS14O", "Invalid parameter index for setBytes", system_utils::captureCallStack()));
             }
 
             int idx = parameterIndex - 1;

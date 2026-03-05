@@ -35,10 +35,11 @@
 namespace cpp_dbc::Firebird
 {
 
+#ifdef __cpp_exceptions
     bool FirebirdDBResultSet::next()
     {
         auto result = next(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -48,7 +49,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBResultSet::isBeforeFirst()
     {
         auto result = isBeforeFirst(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -58,7 +59,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBResultSet::isAfterLast()
     {
         auto result = isAfterLast(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -68,7 +69,7 @@ namespace cpp_dbc::Firebird
     uint64_t FirebirdDBResultSet::getRow()
     {
         auto result = getRow(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -78,7 +79,7 @@ namespace cpp_dbc::Firebird
     int FirebirdDBResultSet::getInt(size_t columnIndex)
     {
         auto result = getInt(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -87,18 +88,18 @@ namespace cpp_dbc::Firebird
 
     int FirebirdDBResultSet::getInt(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = getInt(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("C9D5E1F7A4B0", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-        return getInt(it->second);
+        return result.value();
     }
 
     int64_t FirebirdDBResultSet::getLong(size_t columnIndex)
     {
         auto result = getLong(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -107,18 +108,18 @@ namespace cpp_dbc::Firebird
 
     int64_t FirebirdDBResultSet::getLong(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = getLong(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("D0E6F2A8B5C1", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-        return getLong(it->second);
+        return result.value();
     }
 
     double FirebirdDBResultSet::getDouble(size_t columnIndex)
     {
         auto result = getDouble(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -127,18 +128,18 @@ namespace cpp_dbc::Firebird
 
     double FirebirdDBResultSet::getDouble(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = getDouble(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("E1F7A3B9C6D2", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-        return getDouble(it->second);
+        return result.value();
     }
 
     std::string FirebirdDBResultSet::getString(size_t columnIndex)
     {
         auto result = getString(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -147,18 +148,18 @@ namespace cpp_dbc::Firebird
 
     std::string FirebirdDBResultSet::getString(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = getString(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("F2A8B4C0D7E3", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-        return getString(it->second);
+        return result.value();
     }
 
     bool FirebirdDBResultSet::getBoolean(size_t columnIndex)
     {
         auto result = getBoolean(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -167,18 +168,18 @@ namespace cpp_dbc::Firebird
 
     bool FirebirdDBResultSet::getBoolean(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = getBoolean(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("A3B9C5D1E8F4", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-        return getBoolean(it->second);
+        return result.value();
     }
 
     bool FirebirdDBResultSet::isNull(size_t columnIndex)
     {
         auto result = isNull(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -187,18 +188,18 @@ namespace cpp_dbc::Firebird
 
     bool FirebirdDBResultSet::isNull(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = isNull(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("C5D1E7F3A0B6", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-        return isNull(it->second);
+        return result.value();
     }
 
     std::string FirebirdDBResultSet::getDate(size_t columnIndex)
     {
         auto result = getDate(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -207,18 +208,18 @@ namespace cpp_dbc::Firebird
 
     std::string FirebirdDBResultSet::getDate(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = getDate(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("KNA6XOZ8SB0Z", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-        return getDate(it->second);
+        return result.value();
     }
 
     std::string FirebirdDBResultSet::getTimestamp(size_t columnIndex)
     {
         auto result = getTimestamp(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -227,18 +228,18 @@ namespace cpp_dbc::Firebird
 
     std::string FirebirdDBResultSet::getTimestamp(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = getTimestamp(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("EVTK1VFQCYOU", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-        return getTimestamp(it->second);
+        return result.value();
     }
 
     std::string FirebirdDBResultSet::getTime(size_t columnIndex)
     {
         auto result = getTime(std::nothrow, columnIndex);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -247,18 +248,18 @@ namespace cpp_dbc::Firebird
 
     std::string FirebirdDBResultSet::getTime(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = getTime(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("1I5VNYYG4KTH", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-        return getTime(it->second);
+        return result.value();
     }
 
     std::vector<std::string> FirebirdDBResultSet::getColumnNames()
     {
         auto result = getColumnNames(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -268,7 +269,7 @@ namespace cpp_dbc::Firebird
     size_t FirebirdDBResultSet::getColumnCount()
     {
         auto result = getColumnCount(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -278,7 +279,7 @@ namespace cpp_dbc::Firebird
     void FirebirdDBResultSet::close()
     {
         auto result = close(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -287,7 +288,7 @@ namespace cpp_dbc::Firebird
     bool FirebirdDBResultSet::isEmpty()
     {
         auto result = isEmpty(std::nothrow);
-        if (!result)
+        if (!result.has_value())
         {
             throw result.error();
         }
@@ -296,82 +297,64 @@ namespace cpp_dbc::Firebird
 
     std::shared_ptr<Blob> FirebirdDBResultSet::getBlob(size_t columnIndex)
     {
-
-        FIREBIRD_LOCK_OR_THROW("BR4IRYH99OLH", "Connection lost");
-
-        if (columnIndex >= m_fieldCount)
+        auto result = getBlob(std::nothrow, columnIndex);
+        if (!result.has_value())
         {
-            throw DBException("D6E2F8A4B1C7", "Column index out of range: " + std::to_string(columnIndex),
-                              system_utils::captureCallStack());
+            throw result.error();
         }
-
-        if (m_nullIndicators[columnIndex] < 0)
-        {
-            return nullptr;
-        }
-
-        XSQLVAR *var = &m_sqlda->sqlvar[columnIndex];
-        if ((var->sqltype & ~1) != SQL_BLOB)
-        {
-            throw DBException("E7F3A9B5C2D8", "Column is not a BLOB type", system_utils::captureCallStack());
-        }
-
-        auto conn = m_connection.lock();
-        if (!conn)
-        {
-            throw DBException("F8A4B0C6D3E9", "Connection has been closed", system_utils::captureCallStack());
-        }
-
-        ISC_QUAD *blobId = reinterpret_cast<ISC_QUAD *>(var->sqldata);
-        // Use the connection-based constructor for memory safety
-        return std::make_shared<FirebirdBlob>(conn, *blobId);
+        return result.value();
     }
 
     std::shared_ptr<Blob> FirebirdDBResultSet::getBlob(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = getBlob(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("A9B5C1D7E4F0", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-        return getBlob(it->second);
+        return result.value();
     }
 
     std::shared_ptr<InputStream> FirebirdDBResultSet::getBinaryStream(size_t columnIndex)
     {
-        auto blob = getBlob(columnIndex);
-        if (!blob)
-            return nullptr;
-        return blob->getBinaryStream();
+        auto result = getBinaryStream(std::nothrow, columnIndex);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::shared_ptr<InputStream> FirebirdDBResultSet::getBinaryStream(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = getBinaryStream(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("B0C6D2E8F5A1", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-        return getBinaryStream(it->second);
+        return result.value();
     }
 
     std::vector<uint8_t> FirebirdDBResultSet::getBytes(size_t columnIndex)
     {
-        auto blob = getBlob(columnIndex);
-        if (!blob)
-            return std::vector<uint8_t>();
-        return blob->getBytes(0, blob->length());
+        auto result = getBytes(std::nothrow, columnIndex);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     std::vector<uint8_t> FirebirdDBResultSet::getBytes(const std::string &columnName)
     {
-        auto it = m_columnMap.find(columnName);
-        if (it == m_columnMap.end())
+        auto result = getBytes(std::nothrow, columnName);
+        if (!result.has_value())
         {
-            throw DBException("C1D7E3F9A6B2", "Column not found: " + columnName, system_utils::captureCallStack());
+            throw result.error();
         }
-        return getBytes(it->second);
+        return result.value();
     }
+#endif // __cpp_exceptions
 
 } // namespace cpp_dbc::Firebird
 

@@ -82,6 +82,7 @@ namespace cpp_dbc
          * stmt->executeUpdate();
          * ```
          */
+        #ifdef __cpp_exceptions
         virtual std::shared_ptr<ColumnarDBPreparedStatement> prepareStatement(const std::string &query) = 0;
 
         /**
@@ -135,6 +136,7 @@ namespace cpp_dbc
          */
         virtual void prepareForPoolReturn() = 0;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

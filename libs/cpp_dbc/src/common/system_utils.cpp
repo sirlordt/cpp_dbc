@@ -84,12 +84,12 @@ namespace cpp_dbc::system_utils
         return false;
     }
 
-    std::vector<StackFrame> captureCallStack([[maybe_unused]] bool captureAll, [[maybe_unused]] int skip) noexcept
+    std::shared_ptr<CallStackCapture> captureCallStack([[maybe_unused]] bool captureAll, [[maybe_unused]] int skip) noexcept
     {
 #if BACKWARD_HAS_DW == 0
         // When libdw support is disabled (--dw-off flag), skip stack trace capture
-        // to eliminate overhead in production builds. Return empty vector immediately.
-        return {};
+        // to eliminate overhead in production builds. Return nullptr immediately.
+        return nullptr;
 #else
         try
         {
@@ -105,42 +105,96 @@ namespace cpp_dbc::system_utils
             backward::TraceResolver tr;
             tr.load_stacktrace(st);
 
-            std::vector<StackFrame> frames;
+            // Allocate the capture on the heap. The try/catch ensures bad_alloc cannot
+            // escape — returning nullptr is a safe degradation (no stack trace, no crash).
+            auto capture = std::make_shared<CallStackCapture>();
 
-            for (size_t i = skip; i < st.size(); ++i)
+            const auto startFrame = static_cast<std::size_t>(skip);
+            for (std::size_t i = startFrame; i < st.size() && capture->count < CallStackCapture::MAX_FRAMES; ++i)
             {
                 backward::ResolvedTrace trace = tr.resolve(st[i]);
 
-                std::string filename = trace.source.filename;
-                std::string function = trace.object_function;
+                // backward-cpp resolves to std::string internally; we keep those as
+                // temporaries and copy only the result into the fixed char buffers.
+                const std::string &filename = trace.source.filename;
+                const std::string &function = trace.object_function;
 
-                if (captureAll == false && shouldSkipFrame(filename, function))
+                if (!captureAll && shouldSkipFrame(filename, function))
                 {
                     continue;
                 }
 
-                StackFrame frame;
-                frame.file = filename.empty() ? "??" : filename;
-                frame.line = trace.source.line;
-                frame.function = function.empty() ? "??" : function;
+                auto &frame = capture->frames[capture->count];
 
-                frames.push_back(frame);
+                // Copy source file path — left-truncated if path exceeds FILE_MAX-1 chars,
+                // preserving the filename/suffix which is more useful than the directory prefix.
+                {
+                    const std::string &src = filename.empty() ? std::string{"??"} : filename;
+                    constexpr std::size_t maxLen = StackFrame::FILE_MAX - 1;
+                    if (src.size() > maxLen)
+                    {
+                        // Keep the rightmost maxLen characters (filename + nearest dirs)
+                        std::strncpy(frame.file, src.c_str() + (src.size() - maxLen), maxLen);
+                    }
+                    else
+                    {
+                        std::strncpy(frame.file, src.c_str(), maxLen);
+                    }
+                    frame.file[maxLen] = '\0';
+                }
+
+                // Copy demangled function name — left-truncated if name exceeds FUNCTION_MAX-1 chars,
+                // preserving the method name and parameters rather than the namespace/return type prefix.
+                {
+                    const std::string &src = function.empty() ? std::string{"??"} : function;
+                    constexpr std::size_t maxLen = StackFrame::FUNCTION_MAX - 1;
+                    if (src.size() > maxLen)
+                    {
+                        // Keep the rightmost maxLen characters (method name + parameters)
+                        std::strncpy(frame.function, src.c_str() + (src.size() - maxLen), maxLen);
+                    }
+                    else
+                    {
+                        std::strncpy(frame.function, src.c_str(), maxLen);
+                    }
+                    frame.function[maxLen] = '\0';
+                }
+
+                frame.line = trace.source.line;
+                ++capture->count;
             }
 
-            return frames;
+            return capture;
         }
         catch (...)
         {
-            // Return empty vector if stack capture fails - noexcept guarantee
-            return {};
+            // Return nullptr if stack trace or allocation fails — noexcept guarantee.
+            // The caller (DBException) treats nullptr as "no stack trace available".
+            return nullptr;
         }
 #endif
     }
 
-    void printCallStack(const std::vector<StackFrame> &frames)
+    void printCallStack(const std::shared_ptr<CallStackCapture> &capture)
+    {
+        if (!capture)
+        {
+            std::cout << "Stack trace: (not available)\n";
+            return;
+        }
+        std::cout << "Stack trace (" << capture->count << " frames):\n";
+        for (std::size_t i = 0; i < capture->count; ++i)
+        {
+            std::cout << "  #" << i << " "
+                      << capture->frames[i].file << ":" << capture->frames[i].line
+                      << " in " << capture->frames[i].function << "\n";
+        }
+    }
+
+    void printCallStack(std::span<const StackFrame> frames)
     {
         std::cout << "Stack trace (" << frames.size() << " frames):\n";
-        for (size_t i = 0; i < frames.size(); ++i)
+        for (std::size_t i = 0; i < frames.size(); ++i)
         {
             std::cout << "  #" << i << " "
                       << frames[i].file << ":" << frames[i].line

@@ -90,6 +90,7 @@ namespace cpp_dbc
          * stmt->executeUpdate();
          * ```
          */
+        #ifdef __cpp_exceptions
         virtual void setInt(int parameterIndex, int value) = 0;
 
         /**
@@ -320,6 +321,7 @@ namespace cpp_dbc
          */
         virtual void close() = 0;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================

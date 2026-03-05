@@ -93,14 +93,14 @@ namespace cpp_dbc::SQLite
         // std::recursive_mutex m_resultSetsMutex;  // REMOVED (2026-02-15). Replaced by m_globalFileMutex to eliminate lock order violations.
 
         // Internal methods for statement registry
-        void registerStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
-        void unregisterStatement(std::weak_ptr<SQLiteDBPreparedStatement> stmt);
-        void closeAllStatements();
+        cpp_dbc::expected<void, DBException> registerStatement(std::nothrow_t, std::weak_ptr<SQLiteDBPreparedStatement> stmt) noexcept;
+        cpp_dbc::expected<void, DBException> unregisterStatement(std::nothrow_t, std::weak_ptr<SQLiteDBPreparedStatement> stmt) noexcept;
+        cpp_dbc::expected<void, DBException> closeAllStatements(std::nothrow_t) noexcept;
 
         // Internal methods for result set registry
-        void registerResultSet(std::weak_ptr<SQLiteDBResultSet> rs);
-        void unregisterResultSet(std::weak_ptr<SQLiteDBResultSet> rs);
-        void closeAllResultSets();
+        cpp_dbc::expected<void, DBException> registerResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept;
+        cpp_dbc::expected<void, DBException> unregisterResultSet(std::nothrow_t, std::weak_ptr<SQLiteDBResultSet> rs) noexcept;
+        cpp_dbc::expected<void, DBException> closeAllResultSets(std::nothrow_t) noexcept;
 
     protected:
         // Pool lifecycle overrides - only callable by pool infrastructure (via friend in RelationalDBConnection).
@@ -114,6 +114,42 @@ namespace cpp_dbc::SQLite
                            const std::map<std::string, std::string> &options = std::map<std::string, std::string>());
         ~SQLiteDBConnection() override;
 
+        static cpp_dbc::expected<std::shared_ptr<SQLiteDBConnection>, DBException>
+        create(std::nothrow_t,
+               const std::string &database,
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
+        {
+            try
+            {
+                return std::make_shared<SQLiteDBConnection>(database, options);
+            }
+            catch (const DBException &ex)
+            {
+                return cpp_dbc::unexpected(ex);
+            }
+            catch (const std::exception &ex)
+            {
+                return cpp_dbc::unexpected(DBException("5P5EU9UCUB1I", ex.what(), system_utils::captureCallStack()));
+            }
+            catch (...)
+            {
+                return cpp_dbc::unexpected(DBException("SPVGUUWT5LSG", "Unknown error creating SQLiteDBConnection", system_utils::captureCallStack()));
+            }
+        }
+
+        static std::shared_ptr<SQLiteDBConnection>
+        create(const std::string &database,
+               const std::map<std::string, std::string> &options = std::map<std::string, std::string>())
+        {
+            auto r = create(std::nothrow, database, options);
+            if (!r.has_value())
+            {
+                throw r.error();
+            }
+            return r.value();
+        }
+
+#ifdef __cpp_exceptions
         void close() override;
         void reset() override;
         bool isClosed() const override;
@@ -139,8 +175,12 @@ namespace cpp_dbc::SQLite
 
         // Get the connection URL
         std::string getURL() const override;
+        bool ping() override;
 
-        // Nothrow API
+#endif // __cpp_exceptions
+        // ====================================================================
+        // NOTHROW VERSIONS - Exception-free API
+        // ====================================================================
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
@@ -159,6 +199,7 @@ namespace cpp_dbc::SQLite
         cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
+        cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
     };
 
 } // namespace cpp_dbc::SQLite

@@ -75,13 +75,13 @@ namespace cpp_dbc::SQLite
         // Register with Connection
         if (auto connShared = m_connection.lock())
         {
-            connShared->registerResultSet(std::weak_ptr<SQLiteDBResultSet>(shared_from_this()));
+            [[maybe_unused]] auto regResult = connShared->registerResultSet(std::nothrow, std::weak_ptr<SQLiteDBResultSet>(shared_from_this()));
         }
 
         // Register with PreparedStatement if applicable
         if (auto prepStmtShared = m_preparedStatement.lock())
         {
-            prepStmtShared->registerResultSet(std::weak_ptr<SQLiteDBResultSet>(shared_from_this()));
+            [[maybe_unused]] auto regResult = prepStmtShared->registerResultSet(std::nothrow, std::weak_ptr<SQLiteDBResultSet>(shared_from_this()));
         }
     }
 
@@ -93,7 +93,7 @@ namespace cpp_dbc::SQLite
             auto closeResult = close(std::nothrow);
             if (!closeResult.has_value())
             {
-                SQLITE_DEBUG("SQLiteDBResultSet::destructor - close() failed: %s", closeResult.error().what_s().c_str());
+                SQLITE_DEBUG("SQLiteDBResultSet::destructor - close() failed: %s", closeResult.error().what_s().data());
             }
         }
 
@@ -101,6 +101,7 @@ namespace cpp_dbc::SQLite
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
+    #ifdef __cpp_exceptions
     bool SQLiteDBResultSet::next()
     {
         auto result = next(std::nothrow);
@@ -419,6 +420,7 @@ namespace cpp_dbc::SQLite
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::SQLite
 

@@ -54,7 +54,7 @@ namespace cpp_dbc
      * conn->close();
      * ```
      *
-     * Implementations: RedisConnection
+     * Implementations: RedisDBConnection
      *
      * @see DBConnection, KVDBData
      */
@@ -80,6 +80,7 @@ namespace cpp_dbc
          * conn->setString("config:mode", "production");               // no expiry
          * ```
          */
+        #ifdef __cpp_exceptions
         virtual bool setString(const std::string &key, const std::string &value,
                                std::optional<int64_t> expirySeconds = std::nullopt) = 0;
 
@@ -413,7 +414,6 @@ namespace cpp_dbc
          *
          * ```cpp
          * std::string result = conn->executeCommand("INFO", {"memory"});
-         * std::string pong = conn->ping();  // "PONG"
          * ```
          */
         virtual std::string executeCommand(const std::string &command,
@@ -425,12 +425,6 @@ namespace cpp_dbc
          * @return true if the operation was successful
          */
         virtual bool flushDB(bool async = false) = 0;
-
-        /**
-         * @brief Ping the server
-         * @return Server response ("PONG" for Redis)
-         */
-        virtual std::string ping() = 0;
 
         /**
          * @brief Get server information
@@ -447,6 +441,7 @@ namespace cpp_dbc
          */
         virtual void prepareForPoolReturn() = 0;
 
+        #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
@@ -789,13 +784,6 @@ namespace cpp_dbc
          */
         virtual expected<bool, DBException> flushDB(
             std::nothrow_t, bool async = false) noexcept = 0;
-
-        /**
-         * @brief Ping the server (nothrow version)
-         * @param nothrow std::nothrow tag to indicate exception-free operation
-         * @return expected containing server response, or DBException on failure
-         */
-        virtual expected<std::string, DBException> ping(std::nothrow_t) noexcept = 0;
 
         /**
          * @brief Get server information (nothrow version)

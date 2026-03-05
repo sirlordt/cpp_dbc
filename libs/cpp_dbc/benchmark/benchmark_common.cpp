@@ -1204,7 +1204,7 @@ namespace redis_benchmark_helpers
     }
 
     // Build a Redis connection string from a DatabaseConfig
-    std::string buildRedisConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig)
+    std::string buildRedisDBConnectionString(const cpp_dbc::config::DatabaseConfig &dbConfig)
     {
         std::string host = dbConfig.getHost();
         int port = dbConfig.getPort();
@@ -1229,13 +1229,13 @@ namespace redis_benchmark_helpers
             std::string password = dbConfig.getPassword();
 
             // Build connection string for Redis
-            std::string connStr = buildRedisConnectionString(dbConfig);
+            std::string connStr = buildRedisDBConnectionString(dbConfig);
 
             // Attempt to connect to Redis
             cpp_dbc::system_utils::logWithTimestampInfo("Attempting to connect to Redis with connection string: " + connStr);
 
             // Register the Redis driver
-            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDBDriver>());
 
             auto conn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(
                 cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
@@ -1250,8 +1250,8 @@ namespace redis_benchmark_helpers
             cpp_dbc::system_utils::logWithTimestampInfo("Redis connection successful!");
 
             // Try to ping the server
-            std::string pingResult = conn->ping();
-            cpp_dbc::system_utils::logWithTimestampInfo("Redis ping result: " + pingResult);
+            bool pingResult = conn->ping();
+            cpp_dbc::system_utils::logWithTimestampInfo(std::string("Redis ping: ") + (pingResult ? "PONG" : "FAILED"));
 
             // Close the connection
             conn->close();
@@ -1266,9 +1266,9 @@ namespace redis_benchmark_helpers
     }
 
     // Helper function to get a Redis driver instance
-    std::shared_ptr<cpp_dbc::Redis::RedisDriver> getRedisDriver()
+    std::shared_ptr<cpp_dbc::Redis::RedisDBDriver> getRedisDBDriver()
     {
-        return std::make_shared<cpp_dbc::Redis::RedisDriver>();
+        return std::make_shared<cpp_dbc::Redis::RedisDBDriver>();
     }
 
     // Helper function to generate a random key
@@ -1313,7 +1313,7 @@ namespace redis_benchmark_helpers
     }
 
     // Helper function to setup Redis connection
-    std::shared_ptr<cpp_dbc::KVDBConnection> setupRedisConnection(const std::string &keyPrefix, int itemCount)
+    std::shared_ptr<cpp_dbc::KVDBConnection> setupRedisDBConnection(const std::string &keyPrefix, int itemCount)
     {
         try
         {
@@ -1321,7 +1321,7 @@ namespace redis_benchmark_helpers
             auto dbConfig = getRedisConfig("dev_redis");
 
             // Get connection parameters
-            std::string connStr = buildRedisConnectionString(dbConfig);
+            std::string connStr = buildRedisDBConnectionString(dbConfig);
             std::string username = dbConfig.getUsername();
             std::string password = dbConfig.getPassword();
 
@@ -1338,7 +1338,7 @@ namespace redis_benchmark_helpers
             }
 
             // Register the Redis driver and get a connection
-            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDriver>());
+            cpp_dbc::DriverManager::registerDriver(std::make_shared<cpp_dbc::Redis::RedisDBDriver>());
             auto conn = std::dynamic_pointer_cast<cpp_dbc::KVDBConnection>(
                 cpp_dbc::DriverManager::getDBConnection(connStr, username, password));
 

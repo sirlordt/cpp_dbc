@@ -55,7 +55,7 @@ namespace cpp_dbc::PostgreSQL
      * @see closeAllStatements() for cleanup logic
      * @see m_activeStatements for design rationale
      */
-    void PostgreSQLDBConnection::registerStatement(std::weak_ptr<PostgreSQLDBPreparedStatement> stmt)
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::registerStatement(std::nothrow_t, std::weak_ptr<PostgreSQLDBPreparedStatement> stmt) noexcept
     {
         std::scoped_lock lock(m_statementsMutex);
         if (m_activeStatements.size() > 50)
@@ -63,6 +63,7 @@ namespace cpp_dbc::PostgreSQL
             std::erase_if(m_activeStatements, [](const auto &w) { return w.expired(); });
         }
         m_activeStatements.insert(stmt);
+        return {};
     }
 
     /**
@@ -78,7 +79,7 @@ namespace cpp_dbc::PostgreSQL
      *
      * @param stmt Weak pointer to the statement to unregister
      */
-    void PostgreSQLDBConnection::unregisterStatement(std::weak_ptr<PostgreSQLDBPreparedStatement> stmt)
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::unregisterStatement(std::nothrow_t, std::weak_ptr<PostgreSQLDBPreparedStatement> stmt) noexcept
     {
         std::scoped_lock lock(m_statementsMutex);
         // Remove expired weak_ptrs and the specified one
@@ -88,6 +89,7 @@ namespace cpp_dbc::PostgreSQL
             auto locked = w.lock();
             return !locked || (stmtLocked && locked.get() == stmtLocked.get());
         });
+        return {};
     }
 
     /**
@@ -118,7 +120,7 @@ namespace cpp_dbc::PostgreSQL
      *
      * @note This method is called by returnToPool() and close()
      */
-    void PostgreSQLDBConnection::closeAllStatements()
+    cpp_dbc::expected<void, DBException> PostgreSQLDBConnection::closeAllStatements(std::nothrow_t) noexcept
     {
         // CRITICAL: Must hold connection mutex to prevent other threads from using
         // the PGconn* connection while we close statements. Statement deallocation
@@ -140,8 +142,10 @@ namespace cpp_dbc::PostgreSQL
             // If weak_ptr is expired, statement was already destroyed - nothing to do
         }
         m_activeStatements.clear();
+        return {};
     }
 
+    #ifdef __cpp_exceptions
     void PostgreSQLDBConnection::prepareForPoolReturn()
     {
         auto result = prepareForPoolReturn(std::nothrow);
@@ -401,6 +405,32 @@ namespace cpp_dbc::PostgreSQL
         std::stringstream ss;
         ss << "stmt_" << counter;
         return ss.str();
+    }
+
+    bool PostgreSQLDBConnection::ping()
+    {
+        auto result = ping(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return *result;
+    }
+    #endif // __cpp_exceptions
+
+    cpp_dbc::expected<bool, DBException> PostgreSQLDBConnection::ping(std::nothrow_t) noexcept
+    {
+        auto result = executeQuery(std::nothrow, "SELECT 1");
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        auto closeResult = result.value()->close(std::nothrow);
+        if (!closeResult.has_value())
+        {
+            return cpp_dbc::unexpected(closeResult.error());
+        }
+        return true;
     }
 
 } // namespace cpp_dbc::PostgreSQL

@@ -51,8 +51,10 @@ namespace cpp_dbc
     class DBConnection
     {
     public:
+        DBConnection() = default;
         virtual ~DBConnection() = default;
 
+#ifdef __cpp_exceptions
         /**
          * @brief Close the database connection and release resources
          *
@@ -125,9 +127,22 @@ namespace cpp_dbc
          */
         virtual void reset() = 0;
 
-        // ====================================================================
-        // NOTHROW VERSIONS - Exception-free API
-        // ====================================================================
+        /**
+         * @brief Ping the server to verify the connection is alive
+         *
+         * Each driver implements the appropriate liveness check for its protocol:
+         * relational drivers execute a lightweight query, Redis sends PING,
+         * MongoDB sends a ping command, ScyllaDB executes an OPTIONS request.
+         *
+         * @return true if the connection is alive and the server responds
+         * @throws DBException if the check fails
+         */
+        virtual bool ping() = 0;
+
+#endif // __cpp_exceptions
+       // ====================================================================
+       // NOTHROW VERSIONS - Exception-free API
+       // ====================================================================
 
         /**
          * @brief Close the database connection (nothrow version)
@@ -173,6 +188,13 @@ namespace cpp_dbc
          * @return expected containing the connection URL string, or DBException on failure
          */
         virtual cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept = 0;
+
+        /**
+         * @brief Ping the server to verify the connection is alive (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate no-throw semantics
+         * @return expected containing true if alive, or DBException on failure
+         */
+        virtual cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

@@ -95,7 +95,7 @@ void testPoolConnection(std::shared_ptr<cpp_dbc::KVDBConnectionPool> pool, int t
     catch (const cpp_dbc::DBException &e)
     {
         std::lock_guard<std::mutex> lock(consoleMutex);
-        logError("Thread " + std::to_string(threadId) + " error: " + e.what_s());
+        logError("Thread " + std::to_string(threadId) + " error: " + std::string(e.what_s()));
     }
 }
 #endif
@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
     // Check for real error (DBException)
     if (!configResult)
     {
-        logError("Failed to load configuration: " + configResult.error().what_s());
+        logError("Failed to load configuration: " + std::string(configResult.error().what_s()));
         return 1;
     }
 
@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
     // Check for real error
     if (!dbResult)
     {
-        logError("Failed to get database config: " + dbResult.error().what_s());
+        logError("Failed to get database config: " + std::string(dbResult.error().what_s()));
         return 1;
     }
 
@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
 
         logStep("Creating Redis connection pool...");
         std::string url = "cpp_dbc:redis://" + dbConfig.getHost() + ":" + std::to_string(dbConfig.getPort()) + "/" + dbConfig.getDatabase();
-        auto poolResult = cpp_dbc::Redis::RedisConnectionPool::create(
+        auto poolResult = cpp_dbc::Redis::RedisDBConnectionPool::create(
             std::nothrow,
             url,
             dbConfig.getUsername(),
@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
     }
     catch (const cpp_dbc::DBException &e)
     {
-        logError("Database error: " + e.what_s());
+        logError("Database error: " + std::string(e.what_s()));
         return 1;
     }
     catch (const std::exception &e)

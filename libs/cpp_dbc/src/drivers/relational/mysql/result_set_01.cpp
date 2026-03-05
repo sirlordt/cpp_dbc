@@ -36,29 +36,31 @@ namespace cpp_dbc::MySQL
 
     // MySQLDBResultSet implementation
 
-    void MySQLDBResultSet::validateResultState() const
+    cpp_dbc::expected<void, DBException> MySQLDBResultSet::validateResultState(std::nothrow_t) const noexcept
     {
-#if DB_DRIVER_THREAD_SAFE
-        // Note: This is called from other methods that already hold the lock
-        // so we don't acquire the lock here
-#endif
+        // Note: This is called from other methods that already hold the lock,
+        // so we don't acquire the lock here.
         if (!m_result)
         {
-            throw DBException("E53694BC170E", "ResultSet has been closed or is invalid", system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("RUZI7TWB4Y3G", "ResultSet has been closed or is invalid", system_utils::captureCallStack()));
         }
+        return {};
     }
 
-    void MySQLDBResultSet::validateCurrentRow() const
+    cpp_dbc::expected<void, DBException> MySQLDBResultSet::validateCurrentRow(std::nothrow_t) const noexcept
     {
-#if DB_DRIVER_THREAD_SAFE
-        // Note: This is called from other methods that already hold the lock
-        // so we don't acquire the lock here
-#endif
-        validateResultState();
+        // Note: This is called from other methods that already hold the lock,
+        // so we don't acquire the lock here.
+        auto result = validateResultState(std::nothrow);
+        if (!result.has_value())
+        {
+            return result;
+        }
         if (!m_currentRow)
         {
-            throw DBException("F200B1E69DA7", "No current row - call next() first", system_utils::captureCallStack());
+            return cpp_dbc::unexpected(DBException("F200B1E69DA7", "No current row - call next() first", system_utils::captureCallStack()));
         }
+        return {};
     }
 
     MySQLDBResultSet::MySQLDBResultSet(MYSQL_RES *res) : m_result(res)
@@ -93,6 +95,7 @@ namespace cpp_dbc::MySQL
         }
     }
 
+    #ifdef __cpp_exceptions
     void MySQLDBResultSet::close()
     {
         auto result = close(std::nothrow);
@@ -412,6 +415,7 @@ namespace cpp_dbc::MySQL
         }
         return *result;
     }
+    #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::MySQL
 
