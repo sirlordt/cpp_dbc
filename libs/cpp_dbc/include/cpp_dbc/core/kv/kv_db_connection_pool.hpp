@@ -93,21 +93,31 @@ namespace cpp_dbc
         TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
         std::vector<std::shared_ptr<KVPooledDBConnection>> m_allConnections;
         std::queue<std::shared_ptr<KVPooledDBConnection>> m_idleConnections;
-        mutable std::mutex m_mutexPool;                 // Protects m_allConnections + m_idleConnections + CVs + m_waitQueue
-        std::condition_variable m_maintenanceCondition; // Wakes maintenance thread on close()
-        std::condition_variable m_connectionAvailable;  // Wakes borrowers (direct handoff or state change)
+        mutable std::mutex m_mutexPool;                 // Protects m_allConnections + m_idleConnections + m_waitQueue + m_pendingCreations + m_replenishNeeded
+        std::condition_variable m_maintenanceCondition; // Wakes maintenance thread on close() or replenish needed
         std::atomic<bool> m_running{true};
         std::atomic<int> m_activeConnections{0};
-        size_t m_pendingCreations{0}; // Connections being created outside lock (guarded by m_mutexPool)
+        size_t m_pendingCreations{0};  // Connections being created outside lock (guarded by m_mutexPool)
+        size_t m_replenishNeeded{0};   // Replacement connections requested by returnConnection() (guarded by m_mutexPool)
         std::jthread m_maintenanceThread;
 
         // Direct handoff mechanism: eliminates "stolen wakeup" race condition.
+        // Each waiter has its own condition_variable so that handoffs wake only the
+        // targeted waiter — not every sleeping thread (eliminates thundering herd).
+        // Multiple std::condition_variable instances sharing the same std::mutex is
+        // explicitly safe per the C++ standard; the CV-mutex association exists only
+        // for the duration of a single wait() call.
         struct ConnectionRequest
         {
             std::shared_ptr<KVPooledDBConnection> conn;
             bool fulfilled{false};
+            std::condition_variable cv; // Per-waiter: only this waiter is woken on handoff
         };
         std::deque<ConnectionRequest *> m_waitQueue;
+
+        // Notifies the first waiter in the queue, or no-op if the queue is empty.
+        // PRECONDITION: m_mutexPool must be held by the caller.
+        void notifyFirstWaiter(std::nothrow_t) noexcept;
 
         // Creates a new physical connection
         cpp_dbc::expected<std::shared_ptr<KVDBConnection>, DBException> createDBConnection(std::nothrow_t) noexcept;
@@ -298,6 +308,7 @@ namespace cpp_dbc
         bool ping() override;
         std::map<std::string, std::string> getServerInfo() override;
         void prepareForPoolReturn() override;
+        void prepareForBorrow() override;
 
         // KVPooledDBConnection specific method
         std::shared_ptr<KVDBConnection> getUnderlyingKVConnection();
@@ -431,6 +442,7 @@ namespace cpp_dbc
         cpp_dbc::expected<std::map<std::string, std::string>, DBException> getServerInfo(
             std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
         // DBConnection nothrow interface
         cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;

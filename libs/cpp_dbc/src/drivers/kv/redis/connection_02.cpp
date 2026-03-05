@@ -272,6 +272,15 @@ namespace cpp_dbc::Redis
         }
     }
 
+    void RedisDBConnection::prepareForBorrow()
+    {
+        auto result = prepareForBorrow(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
     RedisReplyHandle RedisDBConnection::executeRaw(
         const std::string &command, const std::vector<std::string> &args)
     {

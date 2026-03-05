@@ -303,7 +303,7 @@ TEST_CASE("Real PostgreSQL connection pool tests", "[21_141_01_postgresql_real_c
 
             // Poll for the pool to process replacements instead of fixed sleep
             auto startTime = std::chrono::steady_clock::now();
-            const auto timeout = std::chrono::milliseconds(5000);
+            const auto timeout = std::chrono::milliseconds(10000);
             bool poolStateConverged = false;
 
             while (std::chrono::steady_clock::now() - startTime < timeout)

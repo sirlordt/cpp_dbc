@@ -270,8 +270,24 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
             // Return the invalid connection to the pool
             conn->close();
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // Poll for the pool to process the replacement instead of fixed sleep
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(5000);
+            bool poolStateConverged = false;
 
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getActiveDBConnectionCount() == 0 &&
+                    pool->getTotalDBConnectionCount() == initialTotalCount &&
+                    pool->getIdleDBConnectionCount() == initialIdleCount)
+                {
+                    poolStateConverged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            REQUIRE(poolStateConverged);
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);
@@ -327,8 +343,24 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
                 conn->close();
             }
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            // Poll for the pool to process replacements instead of fixed sleep
+            auto startTime = std::chrono::steady_clock::now();
+            const auto timeout = std::chrono::milliseconds(10000);
+            bool poolStateConverged = false;
 
+            while (std::chrono::steady_clock::now() - startTime < timeout)
+            {
+                if (pool->getActiveDBConnectionCount() == 0 &&
+                    pool->getTotalDBConnectionCount() == initialTotalCount &&
+                    pool->getIdleDBConnectionCount() == initialIdleCount)
+                {
+                    poolStateConverged = true;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            REQUIRE(poolStateConverged);
             REQUIRE(pool->getActiveDBConnectionCount() == 0);
             REQUIRE(pool->getTotalDBConnectionCount() == initialTotalCount);
             REQUIRE(pool->getIdleDBConnectionCount() == initialIdleCount);

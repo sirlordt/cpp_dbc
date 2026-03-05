@@ -139,6 +139,7 @@ namespace cpp_dbc::ScyllaDB
         void commit() override;
         void rollback() override;
         void prepareForPoolReturn() override;
+        void prepareForBorrow() override;
 
 #endif // __cpp_exceptions
 
@@ -183,6 +184,7 @@ namespace cpp_dbc::ScyllaDB
         cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
     };
 } // namespace cpp_dbc::ScyllaDB
 

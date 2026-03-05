@@ -248,6 +248,15 @@ namespace cpp_dbc::ScyllaDB
         }
     }
 
+    void ScyllaDBConnection::prepareForBorrow()
+    {
+        auto result = prepareForBorrow(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
     #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::ScyllaDB

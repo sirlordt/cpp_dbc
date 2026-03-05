@@ -210,6 +210,7 @@ namespace cpp_dbc::Redis
         bool ping() override;
         std::map<std::string, std::string> getServerInfo() override;
         void prepareForPoolReturn() override;
+        void prepareForBorrow() override;
 
         /**
          * @brief Execute a Redis command and return the raw reply
@@ -262,6 +263,7 @@ namespace cpp_dbc::Redis
         cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
         cpp_dbc::expected<bool, DBException> setString(
             std::nothrow_t,

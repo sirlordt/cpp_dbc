@@ -136,6 +136,14 @@ namespace cpp_dbc
          */
         virtual void prepareForPoolReturn() = 0;
 
+        /**
+         * @brief Prepare the connection for borrowing from pool
+         *
+         * This method is called when a connection is borrowed from the pool.
+         * It allows drivers to refresh internal state (e.g., MVCC snapshots).
+         */
+        virtual void prepareForBorrow() = 0;
+
         #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
@@ -161,6 +169,9 @@ namespace cpp_dbc
 
         [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
             prepareForPoolReturn(std::nothrow_t) noexcept = 0;
+
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
+            prepareForBorrow(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

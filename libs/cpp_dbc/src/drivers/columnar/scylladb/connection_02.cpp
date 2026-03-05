@@ -201,6 +201,12 @@ namespace cpp_dbc::ScyllaDB
         return {};
     }
 
+    cpp_dbc::expected<void, DBException> ScyllaDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        // ScyllaDB/Cassandra connections are stateless; no refresh needed on borrow
+        return {};
+    }
+
 } // namespace cpp_dbc::ScyllaDB
 
 #endif // USE_SCYLLADB

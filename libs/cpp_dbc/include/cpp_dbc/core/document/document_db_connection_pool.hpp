@@ -118,7 +118,7 @@ namespace cpp_dbc
 
         // Notifies the first waiter in the queue, or no-op if the queue is empty.
         // PRECONDITION: m_mutexPool must be held by the caller.
-        void notifyFirstWaiter() noexcept;
+        void notifyFirstWaiter(std::nothrow_t) noexcept;
 
         // Creates a new physical connection
         cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException> createDBConnection(std::nothrow_t) noexcept;

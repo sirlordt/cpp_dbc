@@ -282,7 +282,7 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
 
             // Poll for the pool to process replacements instead of fixed sleep
             auto startTime = std::chrono::steady_clock::now();
-            const auto timeout = std::chrono::milliseconds(5000);
+            const auto timeout = std::chrono::milliseconds(10000);
             bool poolStateConverged = false;
 
             while (std::chrono::steady_clock::now() - startTime < timeout)

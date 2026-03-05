@@ -288,7 +288,7 @@ namespace cpp_dbc
         return result.value();
     }
 
-    void DocumentDBConnectionPool::notifyFirstWaiter() noexcept
+    void DocumentDBConnectionPool::notifyFirstWaiter(std::nothrow_t) noexcept
     {
         if (!m_waitQueue.empty())
         {
@@ -332,7 +332,7 @@ namespace cpp_dbc
                 conn->setActive(std::nothrow, false);
                 m_activeConnections--;
                 CP_DEBUG("DocumentDBConnectionPool::returnConnection - Connection not found in pool, SKIPPED");
-                notifyFirstWaiter();
+                notifyFirstWaiter(std::nothrow);
                 return cpp_dbc::unexpected(DBException("AX95P6TXEL5I", "returnConnection called with a connection not belonging to this pool (orphan)", system_utils::captureCallStack()));
             }
         }
@@ -418,7 +418,7 @@ namespace cpp_dbc
                 m_idleConnections = tempQueue;
 
                 // Notify first waiter: freed slot allows re-check of deadline or idle
-                notifyFirstWaiter();
+                notifyFirstWaiter(std::nothrow);
             }
 
             // Close outside lock
@@ -681,7 +681,7 @@ namespace cpp_dbc
                                 m_allConnections.erase(it);
                             }
                             // Notify first waiter: freed slot allows re-check of deadline or idle
-                            notifyFirstWaiter();
+                            notifyFirstWaiter(std::nothrow);
                         }
 
                         auto closeResult = result->getUnderlyingDocumentConnection()->close(std::nothrow);
@@ -703,13 +703,10 @@ namespace cpp_dbc
                 // ========================================
                 // Phase 3: prepareForBorrow (outside lock)
                 // ========================================
-                try
+                auto borrowResult = result->getUnderlyingDocumentConnection()->prepareForBorrow(std::nothrow);
+                if (!borrowResult.has_value())
                 {
-                    result->getUnderlyingDocumentConnection()->prepareForBorrow();
-                }
-                catch ([[maybe_unused]] const std::exception &ex)
-                {
-                    CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - Exception in prepareForBorrow: %s", ex.what());
+                    CP_DEBUG("DocumentDBConnectionPool::getDocumentDBConnection - prepareForBorrow failed: %s", borrowResult.error().what_s().data());
                 }
 
                 return cpp_dbc::expected<std::shared_ptr<DocumentDBConnection>, DBException>{

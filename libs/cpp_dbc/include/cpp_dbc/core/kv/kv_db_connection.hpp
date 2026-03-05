@@ -441,6 +441,14 @@ namespace cpp_dbc
          */
         virtual void prepareForPoolReturn() = 0;
 
+        /**
+         * @brief Prepare the connection for borrowing from pool
+         *
+         * This method is called when a connection is borrowed from the pool.
+         * For KV stores, this is typically a no-op.
+         */
+        virtual void prepareForBorrow() = 0;
+
         #endif // __cpp_exceptions
         // ====================================================================
         // NOTHROW VERSIONS - Exception-free API
@@ -799,6 +807,13 @@ namespace cpp_dbc
          * @return expected containing void on success, or DBException on failure
          */
         virtual expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept = 0;
+
+        /**
+         * @brief Prepare the connection for borrowing from pool (nothrow version)
+         * @param std::nothrow_t Nothrow tag to indicate exception-free operation
+         * @return expected containing void on success, or DBException on failure
+         */
+        virtual expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept = 0;
     };
 
 } // namespace cpp_dbc

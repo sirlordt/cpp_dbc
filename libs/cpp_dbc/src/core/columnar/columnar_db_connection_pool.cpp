@@ -289,6 +289,14 @@ namespace cpp_dbc
         return true;
     }
 
+    void ColumnarDBConnectionPool::notifyFirstWaiter(std::nothrow_t) noexcept
+    {
+        if (!m_waitQueue.empty())
+        {
+            m_waitQueue.front()->cv.notify_one();
+        }
+    }
+
     cpp_dbc::expected<void, DBException>
     ColumnarDBConnectionPool::returnConnection(std::nothrow_t, std::shared_ptr<ColumnarPooledDBConnection> conn) noexcept
     {
@@ -325,7 +333,7 @@ namespace cpp_dbc
                 CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Connection not found in pool, SKIPPED");
                 conn->setActive(std::nothrow, false);
                 m_activeConnections--;
-                m_connectionAvailable.notify_one();
+                notifyFirstWaiter(std::nothrow);
                 return cpp_dbc::unexpected(DBException("21H7Z45XJ7AK", "returnConnection called with a connection not belonging to this pool (orphan)", system_utils::captureCallStack()));
             }
         }
@@ -356,46 +364,47 @@ namespace cpp_dbc
             conn->setActive(std::nothrow, false);
             m_activeConnections--;
 
+            // Direct handoff: if threads are waiting, give the connection directly
+            // to the first waiter instead of pushing to idle.
             if (!m_waitQueue.empty())
             {
-                // Direct handoff to first waiter.
-                // Restore active state: we decremented above unconditionally,
-                // but the borrower skips setActive(true)/m_activeConnections++
-                // when handedOff=true, so we must restore here.
-                ConnectionRequest *req = m_waitQueue.front();
+                auto *request = m_waitQueue.front();
                 m_waitQueue.pop_front();
+                request->conn = conn;
+                request->fulfilled = true;
                 // Restore active state before handoff: setActive(false) + m_activeConnections--
                 // were called unconditionally above, so they must be undone here when a waiter
                 // takes the connection directly.
                 conn->setActive(std::nothrow, true);
                 m_activeConnections++;
-                req->conn = conn;
-                req->fulfilled = true;
-                m_connectionAvailable.notify_all();
+                request->cv.notify_one(); // Per-waiter: only the fulfilled waiter is woken
             }
             else
             {
                 m_idleConnections.push(conn);
-                m_connectionAvailable.notify_one();
+                // No notification needed: waitQueue is guaranteed empty here (checked above).
+                // The next borrower will find this idle connection directly in Step 1.
             }
         }
         else
         {
-            // Invalid connection: remove from pool, close outside lock, then replenish
+            // Invalid connection — remove from pool, create replacement.
+            // All notifications INSIDE lock to avoid Helgrind false positives.
+
+            // Step 1: Remove invalid from pool (under lock) + notify freed slot
             {
                 std::scoped_lock lockPool(m_mutexPool);
+
+                // CRITICAL: Mark inactive + closed BEFORE decrementing counter.
                 conn->setActive(std::nothrow, false);
-                conn->m_closed.store(true); // prevent destructor double-decrement
+                conn->m_closed.store(true);
                 m_activeConnections--;
 
-                // Remove from allConnections
                 auto it = std::ranges::find(m_allConnections, conn);
                 if (it != m_allConnections.end())
                 {
                     m_allConnections.erase(it);
                 }
-
-                // Remove from idle queue if present (defensive)
                 std::queue<std::shared_ptr<ColumnarPooledDBConnection>> tempQueue;
                 while (!m_idleConnections.empty())
                 {
@@ -408,69 +417,30 @@ namespace cpp_dbc
                 }
                 m_idleConnections = std::move(tempQueue);
 
-                // Notify inside lock: the freed slot allows waiting threads to create
-                m_connectionAvailable.notify_one();
+                // Notify first waiter: freed slot allows re-check of deadline or idle
+                notifyFirstWaiter(std::nothrow);
             }
 
-            // Close outside lock
-            auto closeResult = conn->getUnderlyingColumnarConnection()->close(std::nothrow);
-            if (!closeResult.has_value())
+            // Step 2: Close invalid connection OUTSIDE locks (I/O)
             {
-                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - close() on invalid connection failed: %s", closeResult.error().what_s().data());
+                auto closeResult = conn->getUnderlyingColumnarConnection()->close(std::nothrow);
+                if (!closeResult.has_value())
+                {
+                    CP_DEBUG("ColumnarDBConnectionPool::returnConnection - close failed on invalid connection: %s", closeResult.error().what_s().data());
+                }
             }
 
-            // Replenish: create outside lock
+            // Signal maintenance thread to create replacement asynchronously.
+            // The returning thread is NOT blocked by connection creation I/O
+            // (which takes 1.3-1.5s+ under Valgrind). Borrowers self-heal via
+            // Step 2 in getColumnarDBConnection() if the pool is temporarily short.
             if (m_running.load(std::memory_order_acquire))
             {
-                auto replacementResult = createPooledDBConnection(std::nothrow);
-                if (!replacementResult.has_value())
                 {
-                    CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Failed to create replacement: %s", replacementResult.error().what_s().data());
+                    std::scoped_lock lockPool(m_mutexPool);
+                    m_replenishNeeded++;
                 }
-
-                if (replacementResult.has_value())
-                {
-                    auto replacement = replacementResult.value();
-                    std::shared_ptr<ColumnarPooledDBConnection> discardReplacement;
-                    {
-                        std::scoped_lock lockPool(m_mutexPool);
-                        if (m_running.load(std::memory_order_acquire) && m_allConnections.size() < m_maxSize)
-                        {
-                            m_allConnections.push_back(replacement);
-
-                            if (!m_waitQueue.empty())
-                            {
-                                // Direct handoff to first waiter
-                                ConnectionRequest *req = m_waitQueue.front();
-                                m_waitQueue.pop_front();
-                                replacement->setActive(std::nothrow, true);
-                                m_activeConnections++;
-                                replacement->m_closed.store(false);
-                                req->conn = replacement;
-                                req->fulfilled = true;
-                                m_connectionAvailable.notify_all();
-                            }
-                            else
-                            {
-                                m_idleConnections.push(replacement);
-                                m_connectionAvailable.notify_one();
-                            }
-                        }
-                        else
-                        {
-                            replacement->m_closed.store(true);
-                            discardReplacement = replacement;
-                        }
-                    }
-                    if (discardReplacement)
-                    {
-                        auto discardCloseResult = discardReplacement->getUnderlyingColumnarConnection()->close(std::nothrow);
-                        if (!discardCloseResult.has_value())
-                        {
-                            CP_DEBUG("ColumnarDBConnectionPool::returnConnection - close() on discarded replacement failed: %s", discardCloseResult.error().what_s().data());
-                        }
-                    }
-                }
+                m_maintenanceCondition.notify_one();
             }
         }
 
@@ -570,7 +540,7 @@ namespace cpp_dbc
                             std::cv_status status;
                             try
                             {
-                                status = m_connectionAvailable.wait_until(lockPool, deadline);
+                                status = req.cv.wait_until(lockPool, deadline);
                             }
                             catch (const std::exception &ex)
                             {
@@ -655,17 +625,23 @@ namespace cpp_dbc
                     {
                         CP_DEBUG("ColumnarDBConnectionPool::getColumnarDBConnection - Validation failed, removing connection");
 
+                        // Validation failed — undo active marking, remove from pool
                         {
                             std::scoped_lock lockPool(m_mutexPool);
                             result->setActive(std::nothrow, false);
+                            result->m_closed.store(true);
                             m_activeConnections--;
+
                             auto it = std::ranges::find(m_allConnections, result);
                             if (it != m_allConnections.end())
                             {
                                 m_allConnections.erase(it);
                             }
+                            // Notify first waiter: freed slot allows re-check of deadline or idle
+                            notifyFirstWaiter(std::nothrow);
                         }
 
+                        // Close invalid connection outside lock
                         auto closeResult = result->getUnderlyingColumnarConnection()->close(std::nothrow);
                         if (!closeResult.has_value())
                         {
@@ -680,6 +656,13 @@ namespace cpp_dbc
 
                         continue; // Retry
                     }
+                }
+
+                // Phase 3: prepareForBorrow (outside lock)
+                auto borrowResult = result->getUnderlyingColumnarConnection()->prepareForBorrow(std::nothrow);
+                if (!borrowResult.has_value())
+                {
+                    CP_DEBUG("ColumnarDBConnectionPool::getColumnarDBConnection - prepareForBorrow failed: %s", borrowResult.error().what_s().data());
                 }
 
                 return cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException>{
@@ -738,11 +721,11 @@ namespace cpp_dbc
     {
         do
         {
+            // Wait 30 seconds, or wake early on close() or replenish request
             {
-                // Wait 30 seconds or until notified by close()
                 std::unique_lock lock(m_mutexPool);
                 m_maintenanceCondition.wait_for(lock, std::chrono::seconds(30), [this]
-                                                { return !m_running.load(std::memory_order_acquire); });
+                                                { return !m_running.load(std::memory_order_acquire) || m_replenishNeeded > 0; });
             }
 
             if (!m_running.load(std::memory_order_acquire))
@@ -752,6 +735,7 @@ namespace cpp_dbc
 
             auto now = std::chrono::steady_clock::now();
 
+            // Expire old connections under lock (no new connection creation here)
             {
                 std::scoped_lock lock(m_mutexPool);
 
@@ -802,29 +786,104 @@ namespace cpp_dbc
                 }
             }
 
-            // Replenish minIdle connections OUTSIDE lock
-            // (createPooledDBConnection may acquire driver-internal locks)
-            size_t currentTotal;
+            // Replenish replacement connections requested by returnConnection() (async).
+            // Each iteration: lock → check → unlock → create (I/O) → lock → register.
+            // This prevents m_mutexPool from being held during the slow createPooledDBConnection()
+            // which would block borrowers. The m_pendingCreations counter prevents overallocation
+            // by connection-creation I/O (1.3s+ under Valgrind).
+            while (m_running.load(std::memory_order_acquire)) // NOSONAR(cpp:S924) — two breaks needed: one for "nothing to replenish", one for creation failure
             {
-                std::scoped_lock lock(m_mutexPool);
-                currentTotal = m_allConnections.size() + m_pendingCreations;
-            }
-            while (m_running.load(std::memory_order_acquire) && currentTotal < m_minIdle)
-            {
-                auto pooledResult = createPooledDBConnection(std::nothrow);
-                if (!pooledResult.has_value())
                 {
-                    CP_DEBUG("ColumnarDBConnectionPool::maintenanceTask - Failed to create minIdle connection: %s", pooledResult.error().what_s().data());
-                    break;
+                    std::scoped_lock lock(m_mutexPool);
+                    if (m_replenishNeeded == 0 || m_allConnections.size() + m_pendingCreations >= m_maxSize)
+                    {
+                        m_replenishNeeded = 0; // Clear if pool already at max
+                        break;
+                    }
+                    m_pendingCreations++;
+                    m_replenishNeeded--;
                 }
-                auto pooledConn = pooledResult.value();
+
+                auto pooledResult = createPooledDBConnection(std::nothrow);
 
                 {
                     std::scoped_lock lock(m_mutexPool);
-                    m_idleConnections.push(pooledConn);
-                    m_allConnections.push_back(pooledConn);
-                    currentTotal = m_allConnections.size() + m_pendingCreations;
-                    m_connectionAvailable.notify_one();
+                    m_pendingCreations--;
+
+                    if (!pooledResult.has_value())
+                    {
+                        CP_DEBUG("ColumnarDBConnectionPool::maintenanceTask - Failed to create replacement: %s",
+                                 pooledResult.error().what_s().data());
+                        break; // Stop retrying — DB might be down
+                    }
+
+                    m_allConnections.push_back(pooledResult.value());
+
+                    if (!m_waitQueue.empty())
+                    {
+                        // Direct handoff to first waiter
+                        auto *req = m_waitQueue.front();
+                        m_waitQueue.pop_front();
+                        pooledResult.value()->setActive(std::nothrow, true);
+                        m_activeConnections++;
+                        req->conn = pooledResult.value();
+                        req->fulfilled = true;
+                        CP_DEBUG("maintenanceTask - REPLACEMENT HANDOFF: active=%d, waiters=%zu, total=%zu",
+                                 m_activeConnections.load(std::memory_order_acquire), m_waitQueue.size(), m_allConnections.size());
+                        req->cv.notify_one();
+                    }
+                    else
+                    {
+                        m_idleConnections.push(pooledResult.value());
+                        CP_DEBUG("maintenanceTask - REPLACEMENT: pushed to idle, active=%d, idle=%zu, total=%zu",
+                                 m_activeConnections.load(std::memory_order_acquire), m_idleConnections.size(), m_allConnections.size());
+                    }
+                }
+            }
+
+            // Replenish minIdle connections OUTSIDE lock
+            // (createPooledDBConnection may acquire driver-internal locks)
+            while (m_running.load(std::memory_order_acquire)) // NOSONAR(cpp:S924) — two breaks needed: one for "minIdle reached", one for creation failure
+            {
+                {
+                    std::scoped_lock lock(m_mutexPool);
+                    if (m_allConnections.size() + m_pendingCreations >= m_minIdle)
+                    {
+                        break;
+                    }
+                    m_pendingCreations++;
+                }
+
+                auto pooledResult = createPooledDBConnection(std::nothrow);
+
+                {
+                    std::scoped_lock lock(m_mutexPool);
+                    m_pendingCreations--;
+
+                    if (!pooledResult.has_value())
+                    {
+                        CP_DEBUG("ColumnarDBConnectionPool::maintenanceTask - Failed to create minIdle connection: %s",
+                                 pooledResult.error().what_s().data());
+                        break;
+                    }
+
+                    m_allConnections.push_back(pooledResult.value());
+
+                    if (!m_waitQueue.empty())
+                    {
+                        // Direct handoff to first waiter
+                        auto *req = m_waitQueue.front();
+                        m_waitQueue.pop_front();
+                        pooledResult.value()->setActive(std::nothrow, true);
+                        m_activeConnections++;
+                        req->conn = pooledResult.value();
+                        req->fulfilled = true;
+                        req->cv.notify_one();
+                    }
+                    else
+                    {
+                        m_idleConnections.push(pooledResult.value());
+                    }
                 }
             }
         } while (m_running.load(std::memory_order_acquire));
@@ -925,7 +984,11 @@ namespace cpp_dbc
         {
             std::scoped_lock lock(m_mutexPool);
             m_maintenanceCondition.notify_all();
-            m_connectionAvailable.notify_all();
+            // Wake every waiter individually so they see m_running == false and exit.
+            for (auto *r : m_waitQueue)
+            {
+                r->cv.notify_one();
+            }
         }
 
         if (m_maintenanceThread.joinable())
@@ -1424,9 +1487,29 @@ namespace cpp_dbc
         }
     }
 
+    void ColumnarPooledDBConnection::prepareForBorrow()
+    {
+        auto result = prepareForBorrow(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
     cpp_dbc::expected<void, DBException> ColumnarPooledDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
     {
         return m_conn->prepareForPoolReturn(std::nothrow);
+    }
+
+    cpp_dbc::expected<void, DBException> ColumnarPooledDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        if (m_closed.load(std::memory_order_acquire))
+        {
+            return cpp_dbc::unexpected(DBException("FQYTSNOGDGZE",
+                                                   "Connection is closed",
+                                                   system_utils::captureCallStack()));
+        }
+        return m_conn->prepareForBorrow(std::nothrow);
     }
 
     std::shared_ptr<DBConnection> ColumnarPooledDBConnection::getUnderlyingConnection(std::nothrow_t) noexcept

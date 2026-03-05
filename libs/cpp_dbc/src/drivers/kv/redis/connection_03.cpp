@@ -121,6 +121,12 @@ namespace cpp_dbc::Redis
         return {};
     }
 
+    cpp_dbc::expected<void, DBException> RedisDBConnection::prepareForBorrow(std::nothrow_t) noexcept
+    {
+        // Redis connections are stateless; no refresh needed on borrow
+        return {};
+    }
+
 } // namespace cpp_dbc::Redis
 
 #endif // USE_REDIS
