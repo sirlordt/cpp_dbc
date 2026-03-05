@@ -75,7 +75,6 @@ namespace cpp_dbc
         long m_maxLifetimeMillis{0};                      // Maximum lifetime of a connection
         bool m_testOnBorrow{false};                       // Test connection before borrowing
         bool m_testOnReturn{false};                       // Test connection when returning to pool
-        std::string m_validationQuery;                    // Query used to validate connections
         TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
         std::vector<std::shared_ptr<RelationalPooledDBConnection>> m_allConnections;
         std::queue<std::shared_ptr<RelationalPooledDBConnection>> m_idleConnections;
@@ -148,7 +147,6 @@ namespace cpp_dbc
                                    long maxLifetimeMillis = 1800000,
                                    bool testOnBorrow = true,
                                    bool testOnReturn = false,
-                                   const std::string &validationQuery = "SELECT 1",
                                    TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
         // Constructor that accepts a configuration object
@@ -169,7 +167,6 @@ namespace cpp_dbc
                                                                   long maxLifetimeMillis = 1800000,
                                                                   bool testOnBorrow = true,
                                                                   bool testOnReturn = false,
-                                                                  const std::string &validationQuery = "SELECT 1",
                                                                   TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) noexcept;
 
         static cpp_dbc::expected<std::shared_ptr<RelationalDBConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
@@ -240,9 +237,8 @@ namespace cpp_dbc
 
     protected:
         // Pool lifecycle overrides - only callable by RelationalDBConnectionPool (declared as friend).
-        void prepareForPoolReturn() override;
-        void prepareForBorrow() override;
-        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
+            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
 
     public:

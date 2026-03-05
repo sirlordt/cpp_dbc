@@ -581,10 +581,35 @@ namespace cpp_dbc::SQLite
         return m_url;
     }
 
-    cpp_dbc::expected<void, DBException> SQLiteDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    cpp_dbc::expected<void, DBException> SQLiteDBConnection::prepareForPoolReturn(
+        std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
     {
         // Delegate to reset() which closes result sets, statements, rolls back, and resets autocommit
-        return reset(std::nothrow);
+        auto resetResult = reset(std::nothrow);
+        if (!resetResult.has_value())
+        {
+            return resetResult;
+        }
+
+        // Restore transaction isolation level if requested by the pool
+        if (isolationLevel != TransactionIsolationLevel::TRANSACTION_NONE)
+        {
+            auto isoResult = getTransactionIsolation(std::nothrow);
+            if (!isoResult.has_value())
+            {
+                return cpp_dbc::unexpected(isoResult.error());
+            }
+            if (isoResult.value() != isolationLevel)
+            {
+                auto setResult = setTransactionIsolation(std::nothrow, isolationLevel);
+                if (!setResult.has_value())
+                {
+                    return setResult;
+                }
+            }
+        }
+
+        return {};
     }
 
     cpp_dbc::expected<void, DBException> SQLiteDBConnection::prepareForBorrow(std::nothrow_t) noexcept

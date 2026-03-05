@@ -171,7 +171,6 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         poolConfig.setMaxLifetimeMillis(10000);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
-        poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
         auto poolResult = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);
@@ -336,7 +335,6 @@ TEST_CASE("Real PostgreSQL connection tests", "[21_031_01_postgresql_real]")
         poolConfig.setMaxLifetimeMillis(60000);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(false);
-        poolConfig.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
         auto poolResult3 = cpp_dbc::PostgreSQL::PostgreSQLConnectionPool::create(std::nothrow, poolConfig);

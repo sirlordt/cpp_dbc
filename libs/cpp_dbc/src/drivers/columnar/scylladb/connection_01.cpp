@@ -239,22 +239,23 @@ namespace cpp_dbc::ScyllaDB
         }
     }
 
-    void ScyllaDBConnection::prepareForPoolReturn()
+    void ScyllaDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
-        auto result = prepareForPoolReturn(std::nothrow);
+        auto result = setTransactionIsolation(std::nothrow, level);
         if (!result.has_value())
         {
             throw result.error();
         }
     }
 
-    void ScyllaDBConnection::prepareForBorrow()
+    TransactionIsolationLevel ScyllaDBConnection::getTransactionIsolation()
     {
-        auto result = prepareForBorrow(std::nothrow);
+        auto result = getTransactionIsolation(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();
         }
+        return result.value();
     }
 
     #endif // __cpp_exceptions

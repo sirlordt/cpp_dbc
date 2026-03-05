@@ -40,7 +40,6 @@ namespace cpp_dbc
                                                        long maxLifetimeMillis,
                                                        bool testOnBorrow,
                                                        bool testOnReturn,
-                                                       const std::string &validationQuery,
                                                        TransactionIsolationLevel transactionIsolation)
         : m_poolAlive(std::make_shared<std::atomic<bool>>(true)),
           m_url(url),
@@ -56,7 +55,6 @@ namespace cpp_dbc
           m_maxLifetimeMillis(maxLifetimeMillis),
           m_testOnBorrow(testOnBorrow),
           m_testOnReturn(testOnReturn),
-          m_validationQuery(validationQuery),
           m_transactionIsolation(transactionIsolation)
     {
         // Pool initialization will be done in the factory method
@@ -77,7 +75,6 @@ namespace cpp_dbc
           m_maxLifetimeMillis(config.getMaxLifetimeMillis()),
           m_testOnBorrow(config.getTestOnBorrow()),
           m_testOnReturn(config.getTestOnReturn()),
-          m_validationQuery(config.getValidationQuery()),
           m_transactionIsolation(config.getTransactionIsolation())
     {
         // Pool initialization will be done in the factory method
@@ -111,7 +108,8 @@ namespace cpp_dbc
             }
 
             // Start maintenance thread — can throw std::system_error
-            m_maintenanceThread = std::jthread(&ColumnarDBConnectionPool::maintenanceTask, this);
+            m_maintenanceThread = std::jthread([this]
+                                               { maintenanceTask(); });
         }
         catch (const std::exception &ex)
         {
@@ -140,7 +138,6 @@ namespace cpp_dbc
                                                                                long maxLifetimeMillis,
                                                                                bool testOnBorrow,
                                                                                bool testOnReturn,
-                                                                               const std::string &validationQuery,
                                                                                TransactionIsolationLevel transactionIsolation) noexcept
     {
         try
@@ -148,7 +145,7 @@ namespace cpp_dbc
             auto pool = std::make_shared<ColumnarDBConnectionPool>(
                 DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
                 maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
-                testOnBorrow, testOnReturn, validationQuery, transactionIsolation);
+                testOnBorrow, testOnReturn, transactionIsolation);
 
             // Initialize the pool after construction (creates connections and starts maintenance thread)
             auto initResult = pool->initializePool(std::nothrow);
@@ -259,7 +256,7 @@ namespace cpp_dbc
         catch ([[maybe_unused]] const std::bad_weak_ptr &ex)
         {
             // Pool is not managed by shared_ptr, weakPool remains empty (stack-allocated pool)
-            CP_DEBUG("ColumnarDBConnectionPool::createPooledDBConnection - bad_weak_ptr: %s", ex.what());
+            CP_DEBUG("ColumnarDBConnectionPool::createPooledDBConnection - Pool not managed by shared_ptr: %s", ex.what());
         }
 
         // std::make_shared can throw std::bad_alloc, so wrap in try/catch
@@ -269,24 +266,29 @@ namespace cpp_dbc
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("S22KEYB5VH5Q", std::string("Failed to allocate pooled columnar connection: ") + ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("S22KEYB5VH5Q", std::string("Failed to create pooled columnar connection: ") + ex.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("0IWOOP1CUJ8O", "Unknown error allocating pooled columnar connection", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("0IWOOP1CUJ8O", "Failed to create pooled columnar connection: unknown error", system_utils::captureCallStack()));
         }
     }
 
     cpp_dbc::expected<bool, DBException>
     ColumnarDBConnectionPool::validateConnection(std::nothrow_t, std::shared_ptr<ColumnarDBConnection> conn) const noexcept
     {
-        auto result = conn->executeQuery(std::nothrow, m_validationQuery);
+        if (!conn)
+        {
+            return cpp_dbc::unexpected(DBException("13C79W9XO68B", "validateConnection called with null connection", system_utils::captureCallStack()));
+        }
+
+        auto result = conn->ping(std::nothrow);
         if (!result.has_value())
         {
-            CP_DEBUG("ColumnarDBConnectionPool::validateConnection - executeQuery failed: %s", result.error().what_s().data());
-            return false;
+            CP_DEBUG("ColumnarDBConnectionPool::validateConnection - ping failed: %s", result.error().what_s().data());
+            return cpp_dbc::unexpected(result.error());
         }
-        return true;
+        return result.value();
     }
 
     void ColumnarDBConnectionPool::notifyFirstWaiter(std::nothrow_t) noexcept
@@ -330,9 +332,9 @@ namespace cpp_dbc
             auto it = std::ranges::find(m_allConnections, conn);
             if (it == m_allConnections.end())
             {
-                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - Connection not found in pool, SKIPPED");
                 conn->setActive(std::nothrow, false);
                 m_activeConnections--;
+                CP_DEBUG("ColumnarDBConnectionPool::returnConnection - ORPHAN: connection not in allConnections, active=%d", m_activeConnections.load(std::memory_order_acquire));
                 notifyFirstWaiter(std::nothrow);
                 return cpp_dbc::unexpected(DBException("21H7Z45XJ7AK", "returnConnection called with a connection not belonging to this pool (orphan)", system_utils::captureCallStack()));
             }
@@ -346,9 +348,10 @@ namespace cpp_dbc
             valid = validateConnection(std::nothrow, conn->getUnderlyingColumnarConnection()).value_or(false);
         }
 
-        if (valid)
+        if (valid && !conn->m_closed.load(std::memory_order_acquire))
         {
-            auto result = conn->getUnderlyingColumnarConnection()->prepareForPoolReturn(std::nothrow);
+            auto result = conn->getUnderlyingColumnarConnection()->prepareForPoolReturn(
+                std::nothrow, m_transactionIsolation);
             if (!result.has_value())
             {
                 CP_DEBUG("ColumnarDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", result.error().what_s().data());
@@ -415,7 +418,7 @@ namespace cpp_dbc
                         tempQueue.push(c);
                     }
                 }
-                m_idleConnections = std::move(tempQueue);
+                m_idleConnections = tempQueue;
 
                 // Notify first waiter: freed slot allows re-check of deadline or idle
                 notifyFirstWaiter(std::nothrow);
@@ -445,6 +448,26 @@ namespace cpp_dbc
         }
 
         return {};
+    }
+
+    cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> ColumnarDBConnectionPool::getDBConnection(std::nothrow_t) noexcept
+    {
+        auto result = getColumnarDBConnection(std::nothrow);
+        if (!result.has_value())
+        {
+            return cpp_dbc::unexpected(result.error());
+        }
+        return std::static_pointer_cast<DBConnection>(result.value());
+    }
+
+    std::shared_ptr<DBConnection> ColumnarDBConnectionPool::getDBConnection()
+    {
+        auto result = getDBConnection(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
     }
 
     cpp_dbc::expected<std::shared_ptr<ColumnarDBConnection>, DBException> ColumnarDBConnectionPool::getColumnarDBConnection(std::nothrow_t) noexcept
@@ -620,6 +643,11 @@ namespace cpp_dbc
                     auto now = steady_clock::now();
                     auto timeSinceLastUse = duration_cast<milliseconds>(now - lastUsed).count();
 
+                    if (timeSinceLastUse > m_validationTimeoutMillis)
+                    {
+                        CP_DEBUG("borrow - VALIDATING (timeSinceLastUse=%lld ms > %ld ms)", (long long)timeSinceLastUse, m_validationTimeoutMillis);
+                    }
+
                     if (timeSinceLastUse > m_validationTimeoutMillis &&
                         !validateConnection(std::nothrow, result->getUnderlyingColumnarConnection()).value_or(false))
                     {
@@ -697,26 +725,6 @@ namespace cpp_dbc
         return result.value();
     }
 
-    cpp_dbc::expected<std::shared_ptr<DBConnection>, DBException> ColumnarDBConnectionPool::getDBConnection(std::nothrow_t) noexcept
-    {
-        auto result = getColumnarDBConnection(std::nothrow);
-        if (!result.has_value())
-        {
-            return cpp_dbc::unexpected(result.error());
-        }
-        return std::static_pointer_cast<DBConnection>(result.value());
-    }
-
-    std::shared_ptr<DBConnection> ColumnarDBConnectionPool::getDBConnection()
-    {
-        auto result = getDBConnection(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
     void ColumnarDBConnectionPool::maintenanceTask()
     {
         do
@@ -775,7 +783,7 @@ namespace cpp_dbc
                                 tempQueue.push(conn);
                             }
                         }
-                        m_idleConnections = std::move(tempQueue);
+                        m_idleConnections = tempQueue;
 
                         it = m_allConnections.erase(it);
                     }
@@ -968,7 +976,7 @@ namespace cpp_dbc
 
                 if (elapsed_seconds > 0 && elapsed_seconds % 1 == 0)
                 {
-                    CP_DEBUG("ColumnarDBConnectionPool::close - Waited %lld seconds for active connections", (long long)elapsed_seconds);
+                    CP_DEBUG("ColumnarDBConnectionPool::close - Waited %ld seconds for active connections", elapsed_seconds);
                 }
 
                 if (elapsed > std::chrono::seconds(10))
@@ -1062,7 +1070,7 @@ namespace cpp_dbc
 
     bool ColumnarPooledDBConnection::isPoolValid(std::nothrow_t) const noexcept
     {
-        return m_poolAlive && m_poolAlive->load(std::memory_order_acquire);
+        return m_poolAlive && m_poolAlive->load(std::memory_order_acquire) && !m_pool.expired();
     }
 
     ColumnarPooledDBConnection::~ColumnarPooledDBConnection()
@@ -1071,25 +1079,33 @@ namespace cpp_dbc
         {
             try
             {
-                // If the pool is no longer alive, close the physical connection.
-                // Use qualified call to avoid virtual dispatch in destructor.
-                // NOSONAR(cpp:S1699) - intentional qualified call in destructor to avoid virtual dispatch
-                if (!ColumnarPooledDBConnection::isPoolValid(std::nothrow))
+                // CRITICAL: Never call returnToPool() or shared_from_this() from destructor.
+                // When the destructor runs, refcount is already 0, so shared_from_this()
+                // throws bad_weak_ptr. Instead, do direct cleanup:
+                // 1. Decrement active counter if this connection was active
+                // 2. Close the underlying physical connection
+                if (m_active.load(std::memory_order_acquire))
                 {
-                    auto closeResult = m_conn->close(std::nothrow);
-                    if (!closeResult.has_value())
+                    if (auto pool = m_pool.lock())
                     {
-                        CP_DEBUG("ColumnarPooledDBConnection::~ColumnarPooledDBConnection - close failed: %s", closeResult.error().what_s().data());
+                        pool->m_activeConnections--;
                     }
+                    m_active.store(false);
                 }
-                else
+
+                auto closeResult = m_conn->close(std::nothrow);
+                if (!closeResult.has_value())
                 {
-                    ColumnarPooledDBConnection::returnToPool(); // NOSONAR(cpp:S1699) — qualified call in destructor intentional to avoid virtual dispatch
+                    CP_DEBUG("ColumnarPooledDBConnection::~ColumnarPooledDBConnection - close failed: %s", closeResult.error().what_s().data());
                 }
             }
             catch ([[maybe_unused]] const std::exception &ex)
             {
                 CP_DEBUG("ColumnarPooledDBConnection::~ColumnarPooledDBConnection - Exception: %s", ex.what());
+            }
+            catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions
+            {
+                CP_DEBUG("ColumnarPooledDBConnection::~ColumnarPooledDBConnection - Unknown exception");
             }
         }
     }
@@ -1160,25 +1176,51 @@ namespace cpp_dbc
                 else if (m_conn)
                 {
                     // If pool is invalid, actually close the connection
-                    auto closeResult = m_conn->close(std::nothrow);
-                    if (!closeResult.has_value())
+                    auto result = m_conn->close(std::nothrow);
+                    if (!result.has_value())
                     {
-                        CP_DEBUG("ColumnarPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().data());
+                        CP_DEBUG("ColumnarPooledDBConnection::close - Failed to close underlying connection: %s", result.error().what_s().data());
+                        return result;
                     }
                 }
             }
-            catch (const std::exception &ex)
+            catch (const std::bad_weak_ptr &ex)
             {
-                CP_DEBUG("ColumnarPooledDBConnection::close - Exception during return to pool: %s", ex.what());
+                // shared_from_this failed, just close the connection
                 m_closed.store(true);
                 if (m_conn)
                 {
-                    auto closeResult = m_conn->close(std::nothrow);
-                    if (!closeResult.has_value())
+                    auto result = m_conn->close(std::nothrow);
+                    if (!result.has_value())
                     {
-                        CP_DEBUG("ColumnarPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().data());
+                        return result;
                     }
                 }
+                return cpp_dbc::unexpected(DBException("6J52BKYDQQOM",
+                                                        std::string("Failed to obtain shared_from_this: ") + ex.what(),
+                                                        system_utils::captureCallStack()));
+            }
+            catch (const DBException &ex)
+            {
+                // DBException from underlying connection, just return it
+                m_closed.store(true);
+                if (m_conn)
+                {
+                    m_conn->close(std::nothrow);
+                }
+                return cpp_dbc::unexpected(ex);
+            }
+            catch (const std::exception &ex)
+            {
+                // Any other exception, close the connection and return error
+                m_closed.store(true);
+                if (m_conn)
+                {
+                    m_conn->close(std::nothrow);
+                }
+                return cpp_dbc::unexpected(DBException("3RWK215FSX9E",
+                                                        std::string("Exception in close: ") + ex.what(),
+                                                        system_utils::captureCallStack()));
             }
             catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
             {
@@ -1186,14 +1228,14 @@ namespace cpp_dbc
                 m_closed.store(true);
                 if (m_conn)
                 {
-                    auto closeResult = m_conn->close(std::nothrow);
-                    if (!closeResult.has_value())
-                    {
-                        CP_DEBUG("ColumnarPooledDBConnection::close - underlying close failed: %s", closeResult.error().what_s().data());
-                    }
+                    m_conn->close(std::nothrow);
                 }
+                return cpp_dbc::unexpected(DBException("UQQSB03ZV8CR",
+                                                        "Unknown exception in close",
+                                                        system_utils::captureCallStack()));
             }
         }
+
         return {};
     }
 
@@ -1478,27 +1520,41 @@ namespace cpp_dbc
         return prepareForPoolReturn(std::nothrow);
     }
 
-    void ColumnarPooledDBConnection::prepareForPoolReturn()
+    void ColumnarPooledDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
-        auto result = prepareForPoolReturn(std::nothrow);
+        auto result = setTransactionIsolation(std::nothrow, level);
         if (!result.has_value())
         {
             throw result.error();
         }
     }
 
-    void ColumnarPooledDBConnection::prepareForBorrow()
+    TransactionIsolationLevel ColumnarPooledDBConnection::getTransactionIsolation()
     {
-        auto result = prepareForBorrow(std::nothrow);
+        auto result = getTransactionIsolation(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();
         }
+        return result.value();
     }
 
-    cpp_dbc::expected<void, DBException> ColumnarPooledDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    cpp_dbc::expected<void, DBException>
+    ColumnarPooledDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
-        return m_conn->prepareForPoolReturn(std::nothrow);
+        return m_conn->setTransactionIsolation(std::nothrow, level);
+    }
+
+    cpp_dbc::expected<TransactionIsolationLevel, DBException>
+    ColumnarPooledDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
+    {
+        return m_conn->getTransactionIsolation(std::nothrow);
+    }
+
+    cpp_dbc::expected<void, DBException>
+    ColumnarPooledDBConnection::prepareForPoolReturn(std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
+    {
+        return m_conn->prepareForPoolReturn(std::nothrow, isolationLevel);
     }
 
     cpp_dbc::expected<void, DBException> ColumnarPooledDBConnection::prepareForBorrow(std::nothrow_t) noexcept

@@ -41,7 +41,6 @@ namespace cpp_dbc
                                                        long maxLifetimeMillis,
                                                        bool testOnBorrow,
                                                        bool testOnReturn,
-                                                       const std::string &validationQuery,
                                                        TransactionIsolationLevel transactionIsolation)
         : m_poolAlive(std::make_shared<std::atomic<bool>>(true)),
           m_url(url),
@@ -57,7 +56,6 @@ namespace cpp_dbc
           m_maxLifetimeMillis(maxLifetimeMillis),
           m_testOnBorrow(testOnBorrow),
           m_testOnReturn(testOnReturn),
-          m_validationQuery(validationQuery),
           m_transactionIsolation(transactionIsolation)
     {
         // Pool initialization will be done in the factory method
@@ -78,7 +76,6 @@ namespace cpp_dbc
           m_maxLifetimeMillis(config.getMaxLifetimeMillis()),
           m_testOnBorrow(config.getTestOnBorrow()),
           m_testOnReturn(config.getTestOnReturn()),
-          m_validationQuery(config.getValidationQuery()),
           m_transactionIsolation(config.getTransactionIsolation())
     {
         // Pool initialization will be done in the factory method
@@ -142,7 +139,6 @@ namespace cpp_dbc
                                                                                long maxLifetimeMillis,
                                                                                bool testOnBorrow,
                                                                                bool testOnReturn,
-                                                                               const std::string &validationQuery,
                                                                                TransactionIsolationLevel transactionIsolation) noexcept
     {
         try
@@ -150,7 +146,7 @@ namespace cpp_dbc
             auto pool = std::make_shared<DocumentDBConnectionPool>(
                 DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
                 maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
-                testOnBorrow, testOnReturn, validationQuery, transactionIsolation);
+                testOnBorrow, testOnReturn, transactionIsolation);
 
             // Initialize the pool after construction (creates connections and starts maintenance thread)
             auto initResult = pool->initializePool(std::nothrow);
@@ -268,22 +264,27 @@ namespace cpp_dbc
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("9W7G1U1XVSQA", std::string("Failed to allocate pooled document connection: ") + ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("9W7G1U1XVSQA", std::string("Failed to create pooled document connection: ") + ex.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("82ZVGZU2Q353", "Unknown error allocating pooled document connection", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("82ZVGZU2Q353", "Failed to create pooled document connection: unknown error", system_utils::captureCallStack()));
         }
     }
 
     cpp_dbc::expected<bool, DBException>
     DocumentDBConnectionPool::validateConnection(std::nothrow_t, std::shared_ptr<DocumentDBConnection> conn) const noexcept
     {
+        if (!conn)
+        {
+            return cpp_dbc::unexpected(DBException("GCEHF37I0W51", "validateConnection called with null connection", system_utils::captureCallStack()));
+        }
+
         auto result = conn->ping(std::nothrow);
         if (!result.has_value())
         {
             CP_DEBUG("DocumentDBConnectionPool::validateConnection - ping failed: %s", result.error().what_s().data());
-            return false;
+            return cpp_dbc::unexpected(result.error());
         }
         return result.value();
     }
@@ -347,7 +348,8 @@ namespace cpp_dbc
 
         if (valid && !conn->m_closed.load(std::memory_order_acquire))
         {
-            auto result = conn->getUnderlyingDocumentConnection()->prepareForPoolReturn(std::nothrow);
+            auto result = conn->getUnderlyingDocumentConnection()->prepareForPoolReturn(
+                std::nothrow, m_transactionIsolation);
             if (!result.has_value())
             {
                 CP_DEBUG("DocumentDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s", result.error().what_s().data());
@@ -1088,7 +1090,7 @@ namespace cpp_dbc
 
     bool DocumentPooledDBConnection::isPoolValid(std::nothrow_t) const noexcept
     {
-        return m_poolAlive && m_poolAlive->load(std::memory_order_acquire);
+        return m_poolAlive && m_poolAlive->load(std::memory_order_acquire) && !m_pool.expired();
     }
 
     DocumentPooledDBConnection::~DocumentPooledDBConnection()
@@ -1120,6 +1122,10 @@ namespace cpp_dbc
             catch ([[maybe_unused]] const std::exception &ex)
             {
                 CP_DEBUG("DocumentPooledDBConnection::~DocumentPooledDBConnection - Exception: %s", ex.what());
+            }
+            catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions
+            {
+                CP_DEBUG("DocumentPooledDBConnection::~DocumentPooledDBConnection - Unknown exception");
             }
         }
     }
@@ -1372,27 +1378,41 @@ namespace cpp_dbc
         return prepareForPoolReturn(std::nothrow);
     }
 
-    void DocumentPooledDBConnection::prepareForPoolReturn()
+    void DocumentPooledDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
-        auto result = prepareForPoolReturn(std::nothrow);
+        auto result = setTransactionIsolation(std::nothrow, level);
         if (!result.has_value())
         {
             throw result.error();
         }
     }
 
-    expected<void, DBException> DocumentPooledDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    TransactionIsolationLevel DocumentPooledDBConnection::getTransactionIsolation()
     {
-        return m_conn->prepareForPoolReturn(std::nothrow);
-    }
-
-    void DocumentPooledDBConnection::prepareForBorrow()
-    {
-        auto result = prepareForBorrow(std::nothrow);
+        auto result = getTransactionIsolation(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();
         }
+        return result.value();
+    }
+
+    expected<void, DBException>
+    DocumentPooledDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
+    {
+        return m_conn->setTransactionIsolation(std::nothrow, level);
+    }
+
+    expected<TransactionIsolationLevel, DBException>
+    DocumentPooledDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
+    {
+        return m_conn->getTransactionIsolation(std::nothrow);
+    }
+
+    expected<void, DBException>
+    DocumentPooledDBConnection::prepareForPoolReturn(std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
+    {
+        return m_conn->prepareForPoolReturn(std::nothrow, isolationLevel);
     }
 
     expected<void, DBException> DocumentPooledDBConnection::prepareForBorrow(std::nothrow_t) noexcept

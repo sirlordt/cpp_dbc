@@ -77,7 +77,6 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
         poolConfigLocal.setMaxLifetimeMillis(60000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(false);
-        poolConfigLocal.setValidationQuery("SELECT now() FROM system.local");
 
         // Create a connection pool using factory method
         auto poolResult = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(std::nothrow, poolConfigLocal);
@@ -168,7 +167,6 @@ TEST_CASE("Real ScyllaDB connection pool tests", "[26_141_01_scylladb_real_conne
         poolConfigLocal.setMaxLifetimeMillis(30000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(true);
-        poolConfigLocal.setValidationQuery("SELECT now() FROM system.local");
 
         // Create a connection pool
         auto poolResult2 = cpp_dbc::ScyllaDB::ScyllaConnectionPool::create(std::nothrow, poolConfigLocal);

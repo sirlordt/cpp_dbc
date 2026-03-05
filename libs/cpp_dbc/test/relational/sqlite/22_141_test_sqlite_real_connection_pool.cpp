@@ -108,7 +108,6 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
         poolConfigLocal.setMaxLifetimeMillis(60000); // Default value
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(false);
-        poolConfigLocal.setValidationQuery("SELECT 1");
 
         // Set the transaction isolation level to SERIALIZABLE for SQLite
         poolConfigLocal.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
@@ -187,7 +186,6 @@ TEST_CASE("Real SQLite connection pool tests", "[22_141_01_sqlite_real_connectio
         poolConfigLocal.setMaxLifetimeMillis(30000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(true);
-        poolConfigLocal.setValidationQuery("SELECT 1");
         poolConfigLocal.setTransactionIsolation(cpp_dbc::TransactionIsolationLevel::TRANSACTION_SERIALIZABLE);
 
         // Create a connection pool

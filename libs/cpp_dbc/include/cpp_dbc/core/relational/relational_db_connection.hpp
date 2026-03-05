@@ -315,32 +315,24 @@ namespace cpp_dbc
          * - Close all active prepared statements and result sets
          * - Rollback any active transaction
          * - Reset auto-commit to true
+         * - Restore transaction isolation level if @p isolationLevel is not TRANSACTION_NONE
+         *
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param isolationLevel The transaction isolation level to restore.
+         *        TRANSACTION_NONE (default) means "do not restore isolation level".
+         * @return expected containing void on success, or DBException on failure
          */
-        #ifdef __cpp_exceptions
-        virtual void prepareForPoolReturn() = 0;
+        virtual cpp_dbc::expected<void, DBException>
+            prepareForPoolReturn(std::nothrow_t,
+                TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept = 0;
 
         /**
          * @brief Prepare the connection for borrowing from pool
          *
          * Called when a connection is borrowed from the pool.
          * Firebird overrides this to ensure a fresh MVCC transaction snapshot.
-         */
-        virtual void prepareForBorrow() = 0;
-
-        #endif // __cpp_exceptions
-        // ====================================================================
-        // NOTHROW VERSIONS - Exception-free protected API
-        // ====================================================================
-
-        /**
-         * @brief Prepare the connection for return to pool (nothrow version)
-         * @return expected containing void on success, or DBException on failure
-         */
-        virtual cpp_dbc::expected<void, DBException>
-            prepareForPoolReturn(std::nothrow_t) noexcept = 0;
-
-        /**
-         * @brief Prepare the connection for borrowing from pool (nothrow version)
+         *
+         * @param nothrow std::nothrow tag to indicate exception-free operation
          * @return expected containing void on success, or DBException on failure
          */
         virtual cpp_dbc::expected<void, DBException>

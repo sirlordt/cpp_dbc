@@ -59,6 +59,9 @@ namespace cpp_dbc
      */
     class ColumnarDBConnection : public DBConnection
     {
+        friend class ColumnarDBConnectionPool;
+        friend class ColumnarPooledDBConnection;
+
     public:
         ~ColumnarDBConnection() override = default;
 
@@ -127,22 +130,17 @@ namespace cpp_dbc
         virtual void rollback() = 0;
 
         /**
-         * @brief Prepare the connection for return to pool
-         *
-         * This method is called when a connection is returned to the pool.
-         * It should:
-         * - Close all active prepared statements
-         * - Rollback any active transaction
+         * @brief Set the transaction isolation level
+         * @param level The desired isolation level
+         * @note For columnar stores, this stores the level in-memory (no database command).
          */
-        virtual void prepareForPoolReturn() = 0;
+        virtual void setTransactionIsolation(TransactionIsolationLevel level) = 0;
 
         /**
-         * @brief Prepare the connection for borrowing from pool
-         *
-         * This method is called when a connection is borrowed from the pool.
-         * It allows drivers to refresh internal state (e.g., MVCC snapshots).
+         * @brief Get the current transaction isolation level
+         * @return The current isolation level
          */
-        virtual void prepareForBorrow() = 0;
+        virtual TransactionIsolationLevel getTransactionIsolation() = 0;
 
         #endif // __cpp_exceptions
         // ====================================================================
@@ -167,9 +165,49 @@ namespace cpp_dbc
         [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
             rollback(std::nothrow_t) noexcept = 0;
 
+        /**
+         * @brief Set the transaction isolation level (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param level The desired isolation level
+         * @return expected containing void on success, or DBException on failure
+         */
         [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
-            prepareForPoolReturn(std::nothrow_t) noexcept = 0;
+            setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept = 0;
 
+        /**
+         * @brief Get the current transaction isolation level (nothrow version)
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing the current isolation level, or DBException on failure
+         */
+        [[nodiscard]] virtual cpp_dbc::expected<TransactionIsolationLevel, DBException>
+            getTransactionIsolation(std::nothrow_t) noexcept = 0;
+
+    protected:
+        /**
+         * @brief Prepare the connection for return to pool
+         *
+         * Called when a connection is returned to the pool. Implementations should:
+         * - Close all active prepared statements
+         * - Rollback any active transaction
+         *
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @param isolationLevel The transaction isolation level to restore.
+         *        TRANSACTION_NONE (default) means "do not restore isolation level".
+         * @return expected containing void on success, or DBException on failure
+         */
+        [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
+            prepareForPoolReturn(std::nothrow_t,
+                TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept = 0;
+
+        /**
+         * @brief Prepare the connection for borrowing from pool
+         *
+         * Called when a connection is borrowed from the pool.
+         * It allows drivers to refresh internal state (e.g., MVCC snapshots).
+         *
+         * @param nothrow std::nothrow tag to indicate exception-free operation
+         * @return expected containing void on success, or DBException on failure
+         */
         [[nodiscard]] virtual cpp_dbc::expected<void, DBException>
             prepareForBorrow(std::nothrow_t) noexcept = 0;
     };

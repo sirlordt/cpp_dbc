@@ -73,6 +73,7 @@ namespace cpp_dbc::ScyllaDB
         std::atomic<bool> m_closed{true};
         bool m_initFailed{false};
         DBException m_initError{"0J9B2L099DS6", "", {}};
+        TransactionIsolationLevel m_transactionIsolation{TransactionIsolationLevel::TRANSACTION_NONE};
 
 #if DB_DRIVER_THREAD_SAFE
         mutable std::recursive_mutex m_connMutex;
@@ -138,8 +139,8 @@ namespace cpp_dbc::ScyllaDB
         bool beginTransaction() override;
         void commit() override;
         void rollback() override;
-        void prepareForPoolReturn() override;
-        void prepareForBorrow() override;
+        void setTransactionIsolation(TransactionIsolationLevel level) override;
+        TransactionIsolationLevel getTransactionIsolation() override;
 
 #endif // __cpp_exceptions
 
@@ -183,7 +184,14 @@ namespace cpp_dbc::ScyllaDB
         cpp_dbc::expected<bool, DBException> beginTransaction(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> commit(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
+        cpp_dbc::expected<void, DBException>
+            setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+        cpp_dbc::expected<TransactionIsolationLevel, DBException>
+            getTransactionIsolation(std::nothrow_t) noexcept override;
+
+    protected:
+        cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
+            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
         cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
     };
 } // namespace cpp_dbc::ScyllaDB

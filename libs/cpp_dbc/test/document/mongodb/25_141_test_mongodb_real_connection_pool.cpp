@@ -73,7 +73,6 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         poolConfigLocal.setMaxLifetimeMillis(30000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(true);
-        poolConfigLocal.setValidationQuery("{\"ping\": 1}");
         // poolConfigLocal.setValidationInterval(1000);
 
         // Create a connection pool using factory method
@@ -163,7 +162,6 @@ TEST_CASE("Real MongoDB connection pool tests", "[25_141_01_mongodb_real_connect
         poolConfigLocal.setMaxLifetimeMillis(30000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(true);
-        poolConfigLocal.setValidationQuery("{\"ping\": 1}");
 
         // Create a connection pool
         auto poolResult = cpp_dbc::MongoDB::MongoDBConnectionPool::create(std::nothrow, poolConfigLocal);

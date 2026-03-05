@@ -85,7 +85,6 @@ TEST_CASE("Real MySQL connection pool tests", "[20_141_01_mysql_real_connection_
         poolConfigLocal.setMaxLifetimeMillis(60000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(false);
-        poolConfigLocal.setValidationQuery("SELECT 1");
 
         // Create a connection pool using factory method
         auto poolResult = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfigLocal);
@@ -161,7 +160,6 @@ TEST_CASE("Real MySQL connection pool tests", "[20_141_01_mysql_real_connection_
         poolConfigLocal.setMaxLifetimeMillis(30000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(true); // Enable test on return to detect invalid connections
-        poolConfigLocal.setValidationQuery("SELECT 1");
 
         // Create a connection pool
         auto poolResult2 = cpp_dbc::MySQL::MySQLConnectionPool::create(std::nothrow, poolConfigLocal);

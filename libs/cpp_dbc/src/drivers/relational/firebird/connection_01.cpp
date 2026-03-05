@@ -640,24 +640,6 @@ namespace cpp_dbc::Firebird
         return result.value();
     }
 
-    void FirebirdDBConnection::prepareForPoolReturn()
-    {
-        auto result = prepareForPoolReturn(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    void FirebirdDBConnection::prepareForBorrow()
-    {
-        auto result = prepareForBorrow(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
 #endif // __cpp_exceptions
 
 } // namespace cpp_dbc::Firebird

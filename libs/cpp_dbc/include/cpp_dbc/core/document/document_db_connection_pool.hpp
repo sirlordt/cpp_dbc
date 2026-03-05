@@ -90,7 +90,6 @@ namespace cpp_dbc
         long m_maxLifetimeMillis{0};                      // Maximum lifetime of a connection
         bool m_testOnBorrow{false};                       // Test connection before borrowing
         bool m_testOnReturn{false};                       // Test connection when returning to pool
-        std::string m_validationQuery;                    // Query used to validate connections
         TransactionIsolationLevel m_transactionIsolation; // Transaction isolation level for connections
         std::vector<std::shared_ptr<DocumentPooledDBConnection>> m_allConnections;
         std::queue<std::shared_ptr<DocumentPooledDBConnection>> m_idleConnections;
@@ -163,7 +162,6 @@ namespace cpp_dbc
                                  long maxLifetimeMillis = 1800000,
                                  bool testOnBorrow = true,
                                  bool testOnReturn = false,
-                                 const std::string &validationQuery = "{\"ping\": 1}",
                                  TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED);
 
         // Constructor that accepts a configuration object
@@ -184,7 +182,6 @@ namespace cpp_dbc
                                                                                                 long maxLifetimeMillis = 1800000,
                                                                                                 bool testOnBorrow = true,
                                                                                                 bool testOnReturn = false,
-                                                                                                const std::string &validationQuery = "{\"ping\": 1}",
                                                                                                 TransactionIsolationLevel transactionIsolation = TransactionIsolationLevel::TRANSACTION_READ_COMMITTED) noexcept;
 
         static cpp_dbc::expected<std::shared_ptr<DocumentDBConnectionPool>, DBException> create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
@@ -298,8 +295,8 @@ namespace cpp_dbc
         void commitTransaction(const std::string &sessionId) override;
         void abortTransaction(const std::string &sessionId) override;
         bool supportsTransactions() override;
-        void prepareForPoolReturn() override;
-        void prepareForBorrow() override;
+        void setTransactionIsolation(TransactionIsolationLevel level) override;
+        TransactionIsolationLevel getTransactionIsolation() override;
 
         #endif // __cpp_exceptions
         // ====================================================================
@@ -345,8 +342,10 @@ namespace cpp_dbc
         expected<void, DBException> commitTransaction(std::nothrow_t, const std::string &sessionId) noexcept override;
         expected<void, DBException> abortTransaction(std::nothrow_t, const std::string &sessionId) noexcept override;
         expected<bool, DBException> supportsTransactions(std::nothrow_t) noexcept override;
-        expected<void, DBException> prepareForPoolReturn(std::nothrow_t) noexcept override;
-        expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
+        expected<void, DBException>
+            setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
+        expected<TransactionIsolationLevel, DBException>
+            getTransactionIsolation(std::nothrow_t) noexcept override;
 
         // DBConnectionPooled interface methods
         std::chrono::time_point<std::chrono::steady_clock> getCreationTime(std::nothrow_t) const noexcept override;
@@ -361,6 +360,12 @@ namespace cpp_dbc
         // DocumentPooledDBConnection specific method
         std::shared_ptr<DocumentDBConnection> getUnderlyingDocumentConnection();
         #endif // __cpp_exceptions
+
+    protected:
+        // Pool lifecycle overrides - only callable by DocumentDBConnectionPool (declared as friend).
+        expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
+            TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
+        expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
     };
 
     // Specialized connection pool for MongoDB

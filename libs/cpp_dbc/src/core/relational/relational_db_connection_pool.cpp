@@ -40,7 +40,6 @@ namespace cpp_dbc
                                                            long maxLifetimeMillis,
                                                            bool testOnBorrow,
                                                            bool testOnReturn,
-                                                           const std::string &validationQuery,
                                                            TransactionIsolationLevel transactionIsolation)
         : m_poolAlive(std::make_shared<std::atomic<bool>>(true)),
           m_url(url),
@@ -56,7 +55,6 @@ namespace cpp_dbc
           m_maxLifetimeMillis(maxLifetimeMillis),
           m_testOnBorrow(testOnBorrow),
           m_testOnReturn(testOnReturn),
-          m_validationQuery(validationQuery),
           m_transactionIsolation(transactionIsolation)
     {
         // Pool initialization will be done in the factory method
@@ -77,7 +75,6 @@ namespace cpp_dbc
           m_maxLifetimeMillis(config.getMaxLifetimeMillis()),
           m_testOnBorrow(config.getTestOnBorrow()),
           m_testOnReturn(config.getTestOnReturn()),
-          m_validationQuery(config.getValidationQuery()),
           m_transactionIsolation(config.getTransactionIsolation())
     {
         // Pool initialization will be done in the factory method
@@ -140,7 +137,6 @@ namespace cpp_dbc
                                                                                                                    long maxLifetimeMillis,
                                                                                                                    bool testOnBorrow,
                                                                                                                    bool testOnReturn,
-                                                                                                                   const std::string &validationQuery,
                                                                                                                    TransactionIsolationLevel transactionIsolation) noexcept
     {
         try
@@ -148,7 +144,7 @@ namespace cpp_dbc
             auto pool = std::make_shared<RelationalDBConnectionPool>(
                 DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
                 maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
-                testOnBorrow, testOnReturn, validationQuery, transactionIsolation);
+                testOnBorrow, testOnReturn, transactionIsolation);
 
             // Initialize the pool after construction (creates connections and starts maintenance thread)
             auto initResult = pool->initializePool(std::nothrow);
@@ -229,7 +225,7 @@ namespace cpp_dbc
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("AVFFVWG2H5DF", ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("AVFFVWG2H5DF", "Failed to create relational database connection: " + std::string(ex.what()), system_utils::captureCallStack()));
         }
         catch (...)
         {
@@ -262,36 +258,40 @@ namespace cpp_dbc
         {
             weakPool = shared_from_this();
         }
-        catch (const std::bad_weak_ptr &ex)
+        catch ([[maybe_unused]] const std::bad_weak_ptr &ex)
         {
-            CP_DEBUG("RelationalDBConnectionPool::createPooledDBConnection - bad_weak_ptr: %s", ex.what());
+            CP_DEBUG("RelationalDBConnectionPool::createPooledDBConnection - Pool not managed by shared_ptr: %s", ex.what());
         }
 
         try
         {
-            auto pooledConn = std::make_shared<RelationalPooledDBConnection>(conn, weakPool, m_poolAlive);
-            return pooledConn;
+            return std::make_shared<RelationalPooledDBConnection>(conn, weakPool, m_poolAlive);
         }
         catch (const std::exception &ex)
         {
-            return cpp_dbc::unexpected(DBException("4B3YXUQCEX9F", ex.what(), system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("4B3YXUQCEX9F", std::string("Failed to create pooled relational connection: ") + ex.what(), system_utils::captureCallStack()));
         }
         catch (...)
         {
-            return cpp_dbc::unexpected(DBException("UTP1C9G6PMH9", "Unknown error wrapping relational connection in pool", system_utils::captureCallStack()));
+            return cpp_dbc::unexpected(DBException("UTP1C9G6PMH9", "Failed to create pooled relational connection: unknown error", system_utils::captureCallStack()));
         }
     }
 
     cpp_dbc::expected<bool, DBException>
     RelationalDBConnectionPool::validateConnection(std::nothrow_t, std::shared_ptr<RelationalDBConnection> conn) const noexcept
     {
-        auto resultSet = conn->executeQuery(std::nothrow, m_validationQuery);
-        if (!resultSet.has_value())
+        if (!conn)
         {
-            CP_DEBUG("RelationalDBConnectionPool::validateConnection - executeQuery failed: %s", resultSet.error().what_s().data());
-            return false;
+            return cpp_dbc::unexpected(DBException("V2RCUFQZR95Q", "validateConnection called with null connection", system_utils::captureCallStack()));
         }
-        return true;
+
+        auto result = conn->ping(std::nothrow);
+        if (!result.has_value())
+        {
+            CP_DEBUG("RelationalDBConnectionPool::validateConnection - ping failed: %s", result.error().what_s().data());
+            return cpp_dbc::unexpected(result.error());
+        }
+        return result.value();
     }
 
     void RelationalDBConnectionPool::notifyFirstWaiter(std::nothrow_t) noexcept
@@ -358,30 +358,13 @@ namespace cpp_dbc
 
         if (valid && !conn->m_closed.load(std::memory_order_acquire))
         {
-            auto resetResult = conn->getUnderlyingRelationalConnection()->reset(std::nothrow);
-            if (!resetResult.has_value())
+            auto prepResult = conn->getUnderlyingRelationalConnection()->prepareForPoolReturn(
+                std::nothrow, m_transactionIsolation);
+            if (!prepResult.has_value())
             {
-                CP_DEBUG("RelationalDBConnectionPool::returnConnection - reset failed: %s", resetResult.error().what_s().data());
+                CP_DEBUG("RelationalDBConnectionPool::returnConnection - prepareForPoolReturn failed: %s",
+                         prepResult.error().what_s().data());
                 valid = false;
-            }
-        }
-
-        if (valid && !conn->m_closed.load(std::memory_order_acquire))
-        {
-            auto isoResult = conn->getTransactionIsolation(std::nothrow);
-            if (!isoResult.has_value())
-            {
-                CP_DEBUG("RelationalDBConnectionPool::returnConnection - getTransactionIsolation failed: %s", isoResult.error().what_s().data());
-                valid = false;
-            }
-            else if (isoResult.value() != m_transactionIsolation)
-            {
-                auto setIsoResult = conn->setTransactionIsolation(std::nothrow, m_transactionIsolation);
-                if (!setIsoResult.has_value())
-                {
-                    CP_DEBUG("RelationalDBConnectionPool::returnConnection - setTransactionIsolation failed: %s", setIsoResult.error().what_s().data());
-                    valid = false;
-                }
             }
         }
 
@@ -1148,7 +1131,7 @@ namespace cpp_dbc
 
     bool RelationalPooledDBConnection::isPoolValid(std::nothrow_t) const noexcept
     {
-        return m_poolAlive && m_poolAlive->load(std::memory_order_acquire);
+        return m_poolAlive && m_poolAlive->load(std::memory_order_acquire) && !m_pool.expired();
     }
 
     RelationalPooledDBConnection::~RelationalPooledDBConnection()
@@ -1180,6 +1163,10 @@ namespace cpp_dbc
             catch ([[maybe_unused]] const std::exception &ex)
             {
                 CP_DEBUG("RelationalPooledDBConnection::~RelationalPooledDBConnection - Exception: %s", ex.what());
+            }
+            catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions
+            {
+                CP_DEBUG("RelationalPooledDBConnection::~RelationalPooledDBConnection - Unknown exception");
             }
         }
     }
@@ -1723,16 +1710,8 @@ namespace cpp_dbc
         return m_conn->getURL(std::nothrow);
     }
 
-    void RelationalPooledDBConnection::prepareForPoolReturn()
-    {
-        auto result = prepareForPoolReturn(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::prepareForPoolReturn(
+        std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
     {
         if (m_closed.load(std::memory_order_acquire))
         {
@@ -1740,16 +1719,7 @@ namespace cpp_dbc
                                                    "Connection is closed",
                                                    system_utils::captureCallStack()));
         }
-        return m_conn->prepareForPoolReturn(std::nothrow);
-    }
-
-    void RelationalPooledDBConnection::prepareForBorrow()
-    {
-        auto result = prepareForBorrow(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
+        return m_conn->prepareForPoolReturn(std::nothrow, isolationLevel);
     }
 
     cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::prepareForBorrow(std::nothrow_t) noexcept

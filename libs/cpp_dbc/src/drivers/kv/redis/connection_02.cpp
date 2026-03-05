@@ -263,22 +263,23 @@ namespace cpp_dbc::Redis
         return *result;
     }
 
-    void RedisDBConnection::prepareForPoolReturn()
+    void RedisDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
     {
-        auto result = prepareForPoolReturn(std::nothrow);
+        auto result = setTransactionIsolation(std::nothrow, level);
         if (!result.has_value())
         {
             throw result.error();
         }
     }
 
-    void RedisDBConnection::prepareForBorrow()
+    TransactionIsolationLevel RedisDBConnection::getTransactionIsolation()
     {
-        auto result = prepareForBorrow(std::nothrow);
+        auto result = getTransactionIsolation(std::nothrow);
         if (!result.has_value())
         {
             throw result.error();
         }
+        return result.value();
     }
 
     RedisReplyHandle RedisDBConnection::executeRaw(

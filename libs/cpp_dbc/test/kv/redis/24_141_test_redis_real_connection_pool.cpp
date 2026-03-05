@@ -70,7 +70,6 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
         poolConfigLocal.setMaxLifetimeMillis(60000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(false);
-        poolConfigLocal.setValidationQuery("PING");
 
         // Create a connection pool using factory method
         auto poolResult = cpp_dbc::Redis::RedisDBConnectionPool::create(std::nothrow, poolConfigLocal);
@@ -135,7 +134,6 @@ TEST_CASE("Real Redis connection pool tests", "[24_141_01_redis_real_connection_
         poolConfigLocal.setMaxLifetimeMillis(30000);
         poolConfigLocal.setTestOnBorrow(true);
         poolConfigLocal.setTestOnReturn(true);
-        poolConfigLocal.setValidationQuery("PING");
 
         // Create a connection pool
         auto poolResult2 = cpp_dbc::Redis::RedisDBConnectionPool::create(std::nothrow, poolConfigLocal);

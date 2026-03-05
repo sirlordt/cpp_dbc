@@ -115,9 +115,28 @@ namespace cpp_dbc::Redis
         }
     }
 
-    cpp_dbc::expected<void, DBException> RedisDBConnection::prepareForPoolReturn(std::nothrow_t) noexcept
+    cpp_dbc::expected<void, DBException>
+    RedisDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
     {
-        // Redis has no transaction state or open cursors to clean up; this is a no-op
+        m_transactionIsolation = level;
+        return {};
+    }
+
+    cpp_dbc::expected<TransactionIsolationLevel, DBException>
+    RedisDBConnection::getTransactionIsolation(std::nothrow_t) noexcept
+    {
+        return m_transactionIsolation;
+    }
+
+    cpp_dbc::expected<void, DBException>
+    RedisDBConnection::prepareForPoolReturn(std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
+    {
+        // Redis has no transaction state or open cursors to clean up.
+        // Restore isolation level if requested (store-only, no DB command).
+        if (isolationLevel != TransactionIsolationLevel::TRANSACTION_NONE)
+        {
+            m_transactionIsolation = isolationLevel;
+        }
         return {};
     }
 
