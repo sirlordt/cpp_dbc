@@ -58,18 +58,16 @@ namespace cpp_dbc::MongoDB
     // MongoDBConnection Implementation - Constructor, Destructor, Move
     // ============================================================================
 
-    // Private nothrow constructor — all connection logic lives here.
+    // Nothrow constructor — all connection logic lives here.
     // On failure, sets m_initFailed/m_initError instead of throwing.
-    // Called by the public throwing constructor (via delegation) and by create(nothrow_t).
-    MongoDBConnection::MongoDBConnection(std::nothrow_t,
+    // Public for std::make_shared access, but effectively private via PrivateCtorTag.
+    MongoDBConnection::MongoDBConnection(MongoDBConnection::PrivateCtorTag,
+                                         std::nothrow_t,
                                          const std::string &uri,
                                          const std::string &user,
                                          const std::string &password,
                                          const std::map<std::string, std::string> &options)
         : m_url(uri)
-#if DB_DRIVER_THREAD_SAFE
-        , m_connMutex(std::make_shared<std::recursive_mutex>())
-#endif
     {
         MONGODB_DEBUG("MongoDBConnection::constructor(nothrow) - Connecting to: " << uri);
         // Build the connection URI with credentials if provided

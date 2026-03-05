@@ -96,7 +96,11 @@ namespace cpp_dbc::Redis
     // RedisDBConnection Implementation
     // ============================================================================
 
+    // Nothrow constructor — all connection logic lives here.
+    // On failure, sets m_initFailed/m_initError instead of throwing.
+    // Public for std::make_shared access, but effectively private via PrivateCtorTag.
     RedisDBConnection::RedisDBConnection(
+        RedisDBConnection::PrivateCtorTag,
         std::nothrow_t,
         const std::string &uri,
         const std::string &user,

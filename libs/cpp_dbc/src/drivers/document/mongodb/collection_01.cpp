@@ -80,11 +80,13 @@ namespace cpp_dbc::MongoDB
     }
 
     // ============================================================================
-    // MongoDBCollection Implementation - Private Nothrow Constructor
+    // MongoDBCollection Implementation - Nothrow Constructors
+    // Public for std::make_shared access, but effectively private via PrivateCtorTag.
     // ============================================================================
 
 #if DB_DRIVER_THREAD_SAFE
-    MongoDBCollection::MongoDBCollection(std::nothrow_t,
+    MongoDBCollection::MongoDBCollection(MongoDBCollection::PrivateCtorTag,
+                                         std::nothrow_t,
                                          std::weak_ptr<mongoc_client_t> client,
                                          mongoc_collection_t *collection,
                                          const std::string &name,
@@ -108,7 +110,8 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBCollection::constructor(nothrow) - Done");
     }
 #else
-    MongoDBCollection::MongoDBCollection(std::nothrow_t,
+    MongoDBCollection::MongoDBCollection(MongoDBCollection::PrivateCtorTag,
+                                         std::nothrow_t,
                                          std::weak_ptr<mongoc_client_t> client,
                                          mongoc_collection_t *collection,
                                          const std::string &name,

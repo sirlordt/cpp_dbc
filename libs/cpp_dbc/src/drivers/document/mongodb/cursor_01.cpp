@@ -77,10 +77,12 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBCursor::destructor - Done");
     }
 
-    // Private nothrow constructors
+    // Nothrow constructors
+    // Public for std::make_shared access, but effectively private via PrivateCtorTag.
 
 #if DB_DRIVER_THREAD_SAFE
-    MongoDBCursor::MongoDBCursor(std::nothrow_t,
+    MongoDBCursor::MongoDBCursor(MongoDBCursor::PrivateCtorTag,
+                                 std::nothrow_t,
                                  std::weak_ptr<mongoc_client_t> client,
                                  mongoc_cursor_t *cursor,
                                  std::weak_ptr<MongoDBConnection> connection,
@@ -102,7 +104,8 @@ namespace cpp_dbc::MongoDB
         MONGODB_DEBUG("MongoDBCursor::constructor(nothrow) - Done");
     }
 #else
-    MongoDBCursor::MongoDBCursor(std::nothrow_t,
+    MongoDBCursor::MongoDBCursor(MongoDBCursor::PrivateCtorTag,
+                                 std::nothrow_t,
                                  std::weak_ptr<mongoc_client_t> client,
                                  mongoc_cursor_t *cursor,
                                  std::weak_ptr<MongoDBConnection> connection) noexcept

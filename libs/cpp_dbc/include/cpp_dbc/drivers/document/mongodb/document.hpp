@@ -36,6 +36,16 @@ namespace cpp_dbc::MongoDB
     {
     private:
         /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
+        /**
          * @brief The underlying BSON document
          *
          * This is an OWNING pointer that manages the lifecycle of the BSON document.
@@ -70,33 +80,6 @@ namespace cpp_dbc::MongoDB
          */
         DBException m_initError{"QBIW9CD0D9T6", "", {}};
 
-        // Private nothrow constructors: contain all initialization logic.
-        // Never throw — create(std::nothrow_t) is the only nothrow entry point.
-        // Errors are returned via std::unexpected from the factory.
-
-        /**
-         * @brief Private nothrow default constructor — creates an empty (null) document.
-         *
-         * Used exclusively by create(std::nothrow_t, bson_t*) to build a MongoDBDocument
-         * without invoking any throwing constructor.
-         * The resulting object has m_bson == nullptr until the factory assigns a handle.
-         */
-        explicit MongoDBDocument(std::nothrow_t) noexcept;
-
-        /**
-         * @brief Private nothrow constructor — takes ownership of an existing BSON pointer.
-         *
-         * Sets m_initFailed if bson is null, so the factory can detect failure.
-         */
-        explicit MongoDBDocument(std::nothrow_t, bson_t *bson) noexcept;
-
-        /**
-         * @brief Private nothrow constructor — parses a JSON string into a BSON document.
-         *
-         * Sets m_initFailed/m_initError if parsing fails, so the factory can detect failure.
-         */
-        explicit MongoDBDocument(std::nothrow_t, const std::string &json) noexcept;
-
         /**
          * @brief Helper to navigate to a nested field using dot notation (nothrow)
          * @param fieldPath The field path (e.g., "address.city")
@@ -112,6 +95,32 @@ namespace cpp_dbc::MongoDB
         expected<void, DBException> validateDocument(std::nothrow_t) const noexcept;
 
     public:
+        // Nothrow constructors: contain all initialization logic.
+        // Public for std::make_shared access, but effectively private via PrivateCtorTag.
+        // Errors are stored in m_initFailed/m_initError for the factory to inspect.
+
+        /**
+         * @brief Nothrow default constructor — creates an empty (null) document.
+         *
+         * Used exclusively by create(std::nothrow_t) to build a MongoDBDocument.
+         * The resulting object has m_bson == nullptr until the factory assigns a handle.
+         */
+        explicit MongoDBDocument(PrivateCtorTag, std::nothrow_t) noexcept;
+
+        /**
+         * @brief Nothrow constructor — takes ownership of an existing BSON pointer.
+         *
+         * Sets m_initFailed if bson is null, so the factory can detect failure.
+         */
+        explicit MongoDBDocument(PrivateCtorTag, std::nothrow_t, bson_t *bson) noexcept;
+
+        /**
+         * @brief Nothrow constructor — parses a JSON string into a BSON document.
+         *
+         * Sets m_initFailed/m_initError if parsing fails, so the factory can detect failure.
+         */
+        explicit MongoDBDocument(PrivateCtorTag, std::nothrow_t, const std::string &json) noexcept;
+
         ~MongoDBDocument() override = default;
 
         // Non-copyable and non-movable: always managed via shared_ptr from create().

@@ -38,11 +38,13 @@ namespace cpp_dbc::ScyllaDB
     // ScyllaDBConnection
     // ====================================================================
 
-    // Private nothrow constructor — contains all connection logic.
+    // Nothrow constructor — contains all connection logic.
     // Never throws: any failure is recorded in m_initFailed/m_initError so that
     // the delegating throwing constructor and the create() factory can both
     // reuse this code path without duplication.
-    ScyllaDBConnection::ScyllaDBConnection(std::nothrow_t,
+    // Public for std::make_shared access, but effectively private via PrivateCtorTag.
+    ScyllaDBConnection::ScyllaDBConnection(ScyllaDBConnection::PrivateCtorTag,
+                                           std::nothrow_t,
                                            const std::string &host,
                                            int port,
                                            const std::string &keyspace,

@@ -39,7 +39,11 @@ namespace cpp_dbc::Firebird
     // FirebirdDBConnection Implementation
     // ============================================================================
 
-    FirebirdDBConnection::FirebirdDBConnection(std::nothrow_t,
+    // Nothrow constructor — all connection logic lives here.
+    // On failure, sets m_initFailed/m_initError instead of throwing.
+    // Public for std::make_shared access, but effectively private via PrivateCtorTag.
+    FirebirdDBConnection::FirebirdDBConnection(FirebirdDBConnection::PrivateCtorTag,
+                                               std::nothrow_t,
                                                const std::string &host,
                                                int port,
                                                const std::string &database,

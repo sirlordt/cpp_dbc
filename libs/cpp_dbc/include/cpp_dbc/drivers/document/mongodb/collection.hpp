@@ -33,6 +33,16 @@ namespace cpp_dbc::MongoDB
     {
     private:
         /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
+        /**
          * @brief Weak reference to the MongoDB client
          */
         std::weak_ptr<mongoc_client_t> m_client;
@@ -115,17 +125,13 @@ namespace cpp_dbc::MongoDB
          */
         DBException m_initError{"6ZO43XQ0VJA4", "", {}};
 
-        /**
-         * @brief Private nothrow constructor — contains all construction logic
-         *
-         * Validates that the collection pointer is non-null.
-         * On failure, sets m_initFailed and m_initError instead of throwing.
-         * Called by the public throwing constructor (via delegation) and by create(nothrow_t).
-         *
-         * @note create(nothrow_t) uses `new` (not std::make_shared) to access this private constructor.
-         */
+    public:
+        // Nothrow constructors: contain all initialization logic.
+        // Public for std::make_shared access, but effectively private via PrivateCtorTag.
+        // Errors are stored in m_initFailed/m_initError for the factory to inspect.
 #if DB_DRIVER_THREAD_SAFE
-        MongoDBCollection(std::nothrow_t,
+        MongoDBCollection(PrivateCtorTag,
+                          std::nothrow_t,
                           std::weak_ptr<mongoc_client_t> client,
                           mongoc_collection_t *collection,
                           const std::string &name,
@@ -133,7 +139,8 @@ namespace cpp_dbc::MongoDB
                           std::weak_ptr<MongoDBConnection> connection,
                           SharedConnMutex connMutex);
 #else
-        MongoDBCollection(std::nothrow_t,
+        MongoDBCollection(PrivateCtorTag,
+                          std::nothrow_t,
                           std::weak_ptr<mongoc_client_t> client,
                           mongoc_collection_t *collection,
                           const std::string &name,
@@ -141,7 +148,6 @@ namespace cpp_dbc::MongoDB
                           std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>());
 #endif
 
-    public:
         ~MongoDBCollection() override = default;
 
         // Non-copyable, non-movable: always owned by shared_ptr, never moved by value
@@ -264,11 +270,10 @@ namespace cpp_dbc::MongoDB
                std::weak_ptr<MongoDBConnection> connection,
                SharedConnMutex connMutex) noexcept
         {
-            // Use `new` instead of std::make_shared: std::make_shared cannot access private constructors,
-            // but a static class member function can. The private nothrow constructor stores init
-            // errors in m_initFailed/m_initError rather than throwing, so no try/catch is needed here.
-            auto obj = std::shared_ptr<MongoDBCollection>(
-                new MongoDBCollection(std::nothrow, std::move(client), collection, name, databaseName, std::move(connection), std::move(connMutex)));
+            // The nothrow constructor stores init errors in m_initFailed/m_initError
+            // rather than throwing, so no try/catch is needed here.
+            auto obj = std::make_shared<MongoDBCollection>(
+                PrivateCtorTag{}, std::nothrow, std::move(client), collection, name, databaseName, std::move(connection), std::move(connMutex));
             if (obj->m_initFailed)
             {
                 return cpp_dbc::unexpected(obj->m_initError);
@@ -284,11 +289,10 @@ namespace cpp_dbc::MongoDB
                const std::string &databaseName,
                std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>()) noexcept
         {
-            // Use `new` instead of std::make_shared: std::make_shared cannot access private constructors,
-            // but a static class member function can. The private nothrow constructor stores init
-            // errors in m_initFailed/m_initError rather than throwing, so no try/catch is needed here.
-            auto obj = std::shared_ptr<MongoDBCollection>(
-                new MongoDBCollection(std::nothrow, std::move(client), collection, name, databaseName, std::move(connection)));
+            // The nothrow constructor stores init errors in m_initFailed/m_initError
+            // rather than throwing, so no try/catch is needed here.
+            auto obj = std::make_shared<MongoDBCollection>(
+                PrivateCtorTag{}, std::nothrow, std::move(client), collection, name, databaseName, std::move(connection));
             if (obj->m_initFailed)
             {
                 return cpp_dbc::unexpected(obj->m_initError);

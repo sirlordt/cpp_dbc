@@ -34,16 +34,17 @@ namespace cpp_dbc::MongoDB
 {
 
     // ============================================================================
-    // MongoDBDocument Implementation - Private nothrow constructors (always available)
+    // MongoDBDocument Implementation - Nothrow constructors (always available)
+    // Public for std::make_shared access, but effectively private via PrivateCtorTag.
     // ============================================================================
 
-    MongoDBDocument::MongoDBDocument(std::nothrow_t) noexcept
+    MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t) noexcept
     {
         // Intentionally empty — m_bson is default-initialized to nullptr via BsonHandle.
-        // Used by create(std::nothrow_t, bson_t*) as a base to assign a handle after construction.
+        // Used by create(std::nothrow_t) as a base to assign a handle after construction.
     }
 
-    MongoDBDocument::MongoDBDocument(std::nothrow_t, bson_t *bson) noexcept
+    MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t, bson_t *bson) noexcept
         : m_bson(bson)
     {
         if (!m_bson)
@@ -53,7 +54,7 @@ namespace cpp_dbc::MongoDB
         }
     }
 
-    MongoDBDocument::MongoDBDocument(std::nothrow_t, const std::string &json) noexcept
+    MongoDBDocument::MongoDBDocument(MongoDBDocument::PrivateCtorTag, std::nothrow_t, const std::string &json) noexcept
     {
         MONGODB_LOCK_GUARD(m_mutex);
 
@@ -182,9 +183,9 @@ namespace cpp_dbc::MongoDB
     expected<std::shared_ptr<MongoDBDocument>, DBException>
     MongoDBDocument::create(std::nothrow_t) noexcept
     {
-        // Use new directly — constructor is private, so std::make_shared cannot access it.
-        // No try/catch: std::bad_alloc from new is treated as unrecoverable (noexcept → terminate).
-        auto obj = std::shared_ptr<MongoDBDocument>(new MongoDBDocument(std::nothrow));
+        // The nothrow constructor stores init errors in m_initFailed/m_initError
+        // rather than throwing, so no try/catch is needed here.
+        auto obj = std::make_shared<MongoDBDocument>(PrivateCtorTag{}, std::nothrow);
         obj->m_bson.reset(bson_new());
         if (!obj->m_bson)
         {
@@ -199,10 +200,9 @@ namespace cpp_dbc::MongoDB
     expected<std::shared_ptr<MongoDBDocument>, DBException>
     MongoDBDocument::create(std::nothrow_t, bson_t *bson) noexcept
     {
-        // Use new directly — constructor is private, so std::make_shared cannot access it.
-        // The nothrow constructor stores init errors in m_initFailed/m_initError rather than
-        // throwing. No try/catch: std::bad_alloc is unrecoverable (noexcept → terminate).
-        auto obj = std::shared_ptr<MongoDBDocument>(new MongoDBDocument(std::nothrow, bson));
+        // The nothrow constructor stores init errors in m_initFailed/m_initError
+        // rather than throwing, so no try/catch is needed here.
+        auto obj = std::make_shared<MongoDBDocument>(PrivateCtorTag{}, std::nothrow, bson);
         if (obj->m_initFailed)
         {
             return unexpected<DBException>(obj->m_initError);
@@ -213,10 +213,9 @@ namespace cpp_dbc::MongoDB
     expected<std::shared_ptr<MongoDBDocument>, DBException>
     MongoDBDocument::create(std::nothrow_t, const std::string &json) noexcept
     {
-        // Use new directly — constructor is private, so std::make_shared cannot access it.
-        // The nothrow constructor stores init errors in m_initFailed/m_initError rather than
-        // throwing. No try/catch: std::bad_alloc is unrecoverable (noexcept → terminate).
-        auto obj = std::shared_ptr<MongoDBDocument>(new MongoDBDocument(std::nothrow, json));
+        // The nothrow constructor stores init errors in m_initFailed/m_initError
+        // rather than throwing, so no try/catch is needed here.
+        auto obj = std::make_shared<MongoDBDocument>(PrivateCtorTag{}, std::nothrow, json);
         if (obj->m_initFailed)
         {
             return unexpected<DBException>(obj->m_initError);

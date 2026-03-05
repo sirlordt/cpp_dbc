@@ -34,6 +34,16 @@ namespace cpp_dbc::MongoDB
     {
     private:
         /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
+        /**
          * @brief Weak reference to the MongoDB client
          *
          * This allows us to detect when the connection has been closed
@@ -136,23 +146,25 @@ namespace cpp_dbc::MongoDB
          */
         expected<mongoc_client_t *, DBException> getClient(std::nothrow_t) const noexcept;
 
-        // Private nothrow constructors: contain all initialization logic.
-        // Never throw — create(std::nothrow_t) is the only entry point.
+    public:
+        // Nothrow constructors: contain all initialization logic.
+        // Public for std::make_shared access, but effectively private via PrivateCtorTag.
         // Errors are stored in m_initFailed/m_initError for the factory to inspect.
 #if DB_DRIVER_THREAD_SAFE
-        MongoDBCursor(std::nothrow_t,
+        MongoDBCursor(PrivateCtorTag,
+                      std::nothrow_t,
                       std::weak_ptr<mongoc_client_t> client,
                       mongoc_cursor_t *cursor,
                       std::weak_ptr<MongoDBConnection> connection,
                       SharedConnMutex connMutex) noexcept;
 #else
-        MongoDBCursor(std::nothrow_t,
+        MongoDBCursor(PrivateCtorTag,
+                      std::nothrow_t,
                       std::weak_ptr<mongoc_client_t> client,
                       mongoc_cursor_t *cursor,
                       std::weak_ptr<MongoDBConnection> connection) noexcept;
 #endif
 
-    public:
         ~MongoDBCursor() override;
 
         // Non-copyable and non-movable: always managed via shared_ptr from create().
@@ -247,10 +259,10 @@ namespace cpp_dbc::MongoDB
                std::weak_ptr<MongoDBConnection> connection,
                SharedConnMutex connMutex) noexcept
         {
-            // Use new directly — constructor is private, so std::make_shared cannot access it.
-            // No try/catch needed: the nothrow constructor never throws.
-            auto obj = std::shared_ptr<MongoDBCursor>(
-                new MongoDBCursor(std::nothrow, std::move(client), cursor, std::move(connection), std::move(connMutex)));
+            // The nothrow constructor stores init errors in m_initFailed/m_initError
+            // rather than throwing, so no try/catch is needed here.
+            auto obj = std::make_shared<MongoDBCursor>(
+                PrivateCtorTag{}, std::nothrow, std::move(client), cursor, std::move(connection), std::move(connMutex));
             if (obj->m_initFailed)
             {
                 return cpp_dbc::unexpected(obj->m_initError);
@@ -264,10 +276,10 @@ namespace cpp_dbc::MongoDB
                mongoc_cursor_t *cursor,
                std::weak_ptr<MongoDBConnection> connection = std::weak_ptr<MongoDBConnection>()) noexcept
         {
-            // Use new directly — constructor is private, so std::make_shared cannot access it.
-            // No try/catch needed: the nothrow constructor never throws.
-            auto obj = std::shared_ptr<MongoDBCursor>(
-                new MongoDBCursor(std::nothrow, std::move(client), cursor, std::move(connection)));
+            // The nothrow constructor stores init errors in m_initFailed/m_initError
+            // rather than throwing, so no try/catch is needed here.
+            auto obj = std::make_shared<MongoDBCursor>(
+                PrivateCtorTag{}, std::nothrow, std::move(client), cursor, std::move(connection));
             if (obj->m_initFailed)
             {
                 return cpp_dbc::unexpected(obj->m_initError);

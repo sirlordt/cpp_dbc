@@ -25,7 +25,6 @@ namespace cpp_dbc::PostgreSQL
     {
         using MemoryBlob::copyFrom; // Unhide base-class copyFrom overloads (cpp:S1242)
 
-    private:
         /**
          * @brief Weak reference to the PostgreSQL connection handle
          *

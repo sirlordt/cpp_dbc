@@ -57,6 +57,16 @@ namespace cpp_dbc::ScyllaDB
     class ScyllaDBConnection final : public cpp_dbc::ColumnarDBConnection
     {
     private:
+        /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         std::shared_ptr<CassCluster> m_cluster; // Shared to keep cluster config alive if needed
         std::shared_ptr<CassSession> m_session; // Shared for PreparedStatement weak_ptr
         std::string m_url;
@@ -68,10 +78,18 @@ namespace cpp_dbc::ScyllaDB
         mutable std::recursive_mutex m_connMutex;
 #endif
 
-        // Private nothrow constructor: contains all connection logic.
-        // Never throws — stores any error in m_initFailed/m_initError for the
-        // caller (factory or delegating throwing constructor) to inspect.
-        ScyllaDBConnection(std::nothrow_t,
+    public:
+        /**
+         * @brief Nothrow constructor — contains all connection logic.
+         *
+         * Never throws — stores any error in m_initFailed/m_initError for the
+         * caller (factory or delegating throwing constructor) to inspect.
+         *
+         * Public for std::make_shared access, but effectively private:
+         * external code cannot construct PrivateCtorTag.
+         */
+        ScyllaDBConnection(PrivateCtorTag,
+                           std::nothrow_t,
                            const std::string &host,
                            int port,
                            const std::string &keyspace,
@@ -79,7 +97,6 @@ namespace cpp_dbc::ScyllaDB
                            const std::string &password,
                            const std::map<std::string, std::string> &options);
 
-    public:
         ~ScyllaDBConnection() override;
 
         // ====================================================================
@@ -138,11 +155,10 @@ namespace cpp_dbc::ScyllaDB
                const std::string &password,
                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
         {
-            // Use the private nothrow constructor directly via raw new — no try/catch
-            // needed because it never throws; errors are stored in m_initFailed/m_initError.
-            // std::make_shared cannot be used here because the nothrow constructor is private;
-            // only members of this class can access it, so new is the correct form.
-            auto obj = std::shared_ptr<ScyllaDBConnection>(new ScyllaDBConnection(std::nothrow, host, port, keyspace, user, password, options));
+            // The nothrow constructor stores init errors in m_initFailed/m_initError
+            // rather than throwing, so no try/catch is needed here.
+            auto obj = std::make_shared<ScyllaDBConnection>(
+                PrivateCtorTag{}, std::nothrow, host, port, keyspace, user, password, options);
             if (obj->m_initFailed)
             {
                 return cpp_dbc::unexpected(obj->m_initError);

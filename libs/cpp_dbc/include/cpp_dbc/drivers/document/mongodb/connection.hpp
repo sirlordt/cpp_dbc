@@ -47,6 +47,16 @@ namespace cpp_dbc::MongoDB
     {
     private:
         /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
+        /**
          * @brief The MongoDB client (shared_ptr for weak_ptr support)
          */
         MongoClientHandle m_client;
@@ -101,7 +111,7 @@ namespace cpp_dbc::MongoDB
          * within the same thread (e.g. registerCollection called while holding the lock)
          * never deadlock.
          */
-        SharedConnMutex m_connMutex;
+        SharedConnMutex m_connMutex{std::make_shared<std::recursive_mutex>()};
 #endif
 
         /**
@@ -131,22 +141,23 @@ namespace cpp_dbc::MongoDB
          */
         DBException m_initError{"31N7TQLDCNQT", "", {}};
 
+    public:
         /**
-         * @brief Private nothrow constructor — contains all connection logic
+         * @brief Nothrow constructor — contains all connection logic.
          *
          * All URI parsing, client creation, and ping logic lives here.
          * On failure, sets m_initFailed and m_initError instead of throwing.
-         * Called by the public throwing constructor (via delegation) and by create(nothrow_t).
          *
-         * @note create(nothrow_t) uses `new` (not std::make_shared) to access this private constructor.
+         * Public for std::make_shared access, but effectively private:
+         * external code cannot construct PrivateCtorTag.
          */
-        MongoDBConnection(std::nothrow_t,
+        MongoDBConnection(PrivateCtorTag,
+                          std::nothrow_t,
                           const std::string &uri,
                           const std::string &user,
                           const std::string &password,
                           const std::map<std::string, std::string> &options);
 
-    public:
         ~MongoDBConnection() override;
 
         // Non-copyable, non-movable: owns mutexes and a live DB connection
@@ -248,10 +259,9 @@ namespace cpp_dbc::MongoDB
                const std::string &password,
                const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
         {
-            // Use `new` instead of std::make_shared: std::make_shared cannot access private constructors,
-            // but a static class member function can. The private nothrow constructor stores init
-            // errors in m_initFailed/m_initError rather than throwing, so no try/catch is needed here.
-            auto obj = std::shared_ptr<MongoDBConnection>(new MongoDBConnection(std::nothrow, uri, user, password, options));
+            // The nothrow constructor stores init errors in m_initFailed/m_initError
+            // rather than throwing, so no try/catch is needed here.
+            auto obj = std::make_shared<MongoDBConnection>(PrivateCtorTag{}, std::nothrow, uri, user, password, options);
             if (obj->m_initFailed)
             {
                 return cpp_dbc::unexpected(obj->m_initError);

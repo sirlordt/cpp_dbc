@@ -40,6 +40,16 @@ namespace cpp_dbc::Redis
     class RedisDBConnection final : public KVDBConnection, public std::enable_shared_from_this<RedisDBConnection>
     {
     private:
+        /**
+         * @brief Private tag for the passkey idiom — enables std::make_shared
+         * from static factory methods while keeping the constructor
+         * effectively private (external code cannot construct PrivateCtorTag).
+         */
+        struct PrivateCtorTag
+        {
+            explicit PrivateCtorTag() = default;
+        };
+
         std::shared_ptr<redisContext> m_context;
         std::string m_url;
         int m_dbIndex{0};
@@ -47,19 +57,6 @@ namespace cpp_dbc::Redis
         mutable std::mutex m_mutex;
         bool m_initFailed{false};
         std::optional<DBException> m_initError{std::nullopt};
-
-        /**
-         * @brief Nothrow constructor — performs all connection setup without throwing.
-         *
-         * On failure, sets m_initFailed = true and stores the error in m_initError.
-         * Only intended to be called from the static create() factory methods.
-         */
-        RedisDBConnection(
-            std::nothrow_t,
-            const std::string &uri,
-            const std::string &user,
-            const std::string &password,
-            const std::map<std::string, std::string> &options) noexcept;
 
         /**
          * @brief Check if the connection is valid
@@ -101,6 +98,21 @@ namespace cpp_dbc::Redis
         static std::optional<double> tryParseDouble(const std::string &str) noexcept;
 
     public:
+        /**
+         * @brief Nothrow constructor — performs all connection setup without throwing.
+         *
+         * On failure, sets m_initFailed = true and stores the error in m_initError.
+         * Public for std::make_shared access, but effectively private:
+         * external code cannot construct PrivateCtorTag.
+         */
+        RedisDBConnection(
+            PrivateCtorTag,
+            std::nothrow_t,
+            const std::string &uri,
+            const std::string &user,
+            const std::string &password,
+            const std::map<std::string, std::string> &options) noexcept;
+
         /**
          * @brief Destructor
          */
@@ -232,26 +244,15 @@ namespace cpp_dbc::Redis
             const std::string &password,
             const std::map<std::string, std::string> &options = std::map<std::string, std::string>()) noexcept
         {
-            try
+            // The nothrow constructor stores init errors in m_initFailed/m_initError
+            // rather than throwing, so no try/catch is needed here.
+            auto conn = std::make_shared<RedisDBConnection>(
+                PrivateCtorTag{}, std::nothrow, uri, user, password, options);
+            if (conn->m_initFailed)
             {
-                // Use the private nothrow constructor directly (static member has access).
-                // Avoid std::make_shared here because it cannot call private constructors.
-                auto conn = std::shared_ptr<RedisDBConnection>( // NOSONAR(cpp:S5950) — private ctor
-                    new RedisDBConnection(std::nothrow, uri, user, password, options));
-                if (conn->m_initFailed)
-                {
-                    return cpp_dbc::unexpected(*conn->m_initError);
-                }
-                return conn;
+                return cpp_dbc::unexpected(*conn->m_initError);
             }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("4GHXP2YB13QO", ex.what(), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("T8G8EZ8RSCDL", "Unknown error creating RedisDBConnection", system_utils::captureCallStack()));
-            }
+            return conn;
         }
 
         cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override;
