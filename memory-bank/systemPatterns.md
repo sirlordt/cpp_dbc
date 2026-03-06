@@ -244,6 +244,14 @@ Client Application → DriverManager → ColumnarDBDriver → ColumnarDBConnecti
   - Pure virtual `createPooledDBConnection(std::nothrow_t)` — derived classes override to create family-specific pooled wrappers
   - Protected `acquireConnection()` — core borrow logic; `initializePool()` — called by factory after `make_shared`
   - Pool headers/sources moved from `core/` to `pool/` directory
+- **CRTP Pooled Connection Base (`PooledDBConnectionBase<D,C,P>`, 2026-03-06):**
+  - `pool/pooled_db_connection_base.hpp` + `.cpp` (~485 lines) — extracts close/returnToPool (race-condition fix), destructor cleanup, and pool metadata from all 4 family pooled connection wrappers
+  - `*Impl` methods for diamond-ambiguous DBConnection methods (close, isClosed, returnToPool, isPooled, getURL, reset, ping, prepareForPoolReturn, prepareForBorrow)
+  - `*Throw` methods under `#ifdef __cpp_exceptions` for throwing delegators
+  - DBConnectionPooled interface overrides directly (no diamond): `isPoolValid`, `getCreationTime`, `getLastUsedTime`, `setActive`, `isActive`, `getUnderlyingConnection`, `markPoolClosed`, `isPoolClosed`, `updateLastUsedTime`
+  - Explicit template instantiations for all 4 families in `.cpp`
+  - Family pooled connections provide one-line inline delegators to resolve diamond inheritance
+  - Friend declarations in all family connection classes and `DBConnectionPoolBase` for CRTP access
 - Connection pool implementations — thin derived classes inheriting from `DBConnectionPoolBase`:
   - `RelationalDBConnectionPool` for relational databases
   - `DocumentDBConnectionPool` for document databases

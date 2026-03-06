@@ -1,6 +1,61 @@
 # Changelog
 
-## 2026-03-06 01:59:06 PST [Current]
+## 2026-03-06 08:43:23 PST [Current]
+
+### CRTP `PooledDBConnectionBase<D,C,P>` — Unified Pooled Connection Logic via Template Inheritance
+
+This release extracts the duplicated pooled connection wrapper logic from all four family-specific `PooledDBConnection` classes (relational, document, columnar, key-value) into a single CRTP base template `PooledDBConnectionBase<Derived, ConnType, PoolType>`. Previously, each family's pooled connection wrapper (~200–300 lines each) contained near-identical implementations of close/returnToPool (with the race-condition fix), destructor cleanup, and pool metadata accessors. Now, `PooledDBConnectionBase` contains all this logic once, and the family-specific wrappers provide one-line inline delegators to resolve the diamond inheritance between `DBConnectionPooled::DBConnection` and `FamilyDBConnection::DBConnection`. Dead try/catch blocks in `create(std::nothrow_t, ...)` factory methods are also removed. Total: **17 files changed, +1312/-2230 lines** (net reduction of ~918 lines).
+
+#### New: `PooledDBConnectionBase<D,C,P>` — CRTP Template for Pooled Connections
+
+- New file: `include/cpp_dbc/pool/pooled_db_connection_base.hpp` — declares the CRTP template inheriting from `DBConnectionPooled`
+- New file: `src/pool/pooled_db_connection_base.cpp` (~485 lines) — complete implementation with explicit template instantiations for all four families:
+  - **Protected members** (moved from each family wrapper): `m_conn`, `m_pool`, `m_poolAlive`, `m_creationTime`, `m_lastUsedTimeNs`, `m_active`, `m_closed`
+  - **`*Impl` methods** for diamond-ambiguous DBConnection methods: `closeImpl`, `returnToPoolImpl`, `isClosedImpl`, `isPooledImpl`, `getURLImpl`, `resetImpl`, `pingImpl`, `prepareForPoolReturnImpl`, `prepareForBorrowImpl`
+  - **`*Throw` methods** (under `#ifdef __cpp_exceptions`): `closeThrow`, `isClosedThrow`, `returnToPoolThrow`, `isPooledThrow`, `getURLThrow`, `resetThrow`, `pingThrow`
+  - **DBConnectionPooled interface overrides** (no diamond): `isPoolValid`, `getCreationTime`, `getLastUsedTime`, `setActive`, `isActive`, `getUnderlyingConnection`, `markPoolClosed`, `isPoolClosed`, `updateLastUsedTime`
+  - **Destructor** with pool-aware cleanup: returns connection if pool alive, calls `decrementActiveCount()` otherwise
+  - Explicit instantiations: `RelationalPooledDBConnection`, `KVPooledDBConnection`, `DocumentPooledDBConnection`, `ColumnarPooledDBConnection`
+
+#### Family Pooled Connections — Now Thin CRTP Delegators
+
+Each family `PooledDBConnection` now inherits from `PooledDBConnectionBase<Derived, ConnType, PoolType>` and only provides:
+1. **One-line inline throwing delegators** (under `#ifdef __cpp_exceptions`): `close() { this->closeThrow(); }`, etc.
+2. **One-line inline nothrow delegators**: `close(std::nothrow_t) { return this->closeImpl(std::nothrow); }`, etc.
+3. **`prepareForPoolReturn` / `prepareForBorrow` overrides**: delegate to `prepareForPoolReturnImpl` / `prepareForBorrowImpl`
+4. **Family-specific methods** only (e.g., `prepareStatement`, `executeQuery` for columnar; KV get/set/hash operations; document CRUD)
+5. **Destructors changed to `= default`** — cleanup logic now lives in the CRTP base destructor
+
+- **`RelationalPooledDBConnection`**: relational-specific methods (prepareStatement, executeQuery, executeUpdate, transactions, BLOB)
+- **`DocumentPooledDBConnection`**: document-specific methods (collections, CRUD, aggregation, sessions)
+- **`ColumnarPooledDBConnection`**: columnar-specific methods (prepareStatement, executeQuery, executeUpdate, transactions)
+- **`KVPooledDBConnection`**: KV-specific methods (get/set/hash/list/set/sorted set operations, scan, flushDB)
+
+#### Friend Declarations for CRTP Access
+
+- All four family connection base classes (`RelationalDBConnection`, `DocumentDBConnection`, `ColumnarDBConnection`, `KVDBConnection`) gained: `template <typename, typename, typename> friend class PooledDBConnectionBase;` — required because the CRTP base calls `m_conn->prepareForPoolReturn(std::nothrow, ...)` and `m_conn->prepareForBorrow(std::nothrow)`, which are `protected`
+- `DBConnectionPoolBase` gained: `template <typename, typename, typename> friend class PooledDBConnectionBase;` — grants access to `returnConnection()` and `decrementActiveCount()`
+
+#### Dead try/catch Elimination in Pool Factory Methods
+
+- All four family pool `create(std::nothrow_t, ...)` factory methods: removed unnecessary try/catch blocks wrapping `std::make_shared` + `initializePool(std::nothrow)`. The only possible exception is `std::bad_alloc` from `std::make_shared`, which is a death-sentence exception per project conventions.
+
+#### Documentation: Connection Pool Integration Guide
+
+- `how_add_new_db_drivers.md`: Added comprehensive "Integrate with Connection Pool" section covering:
+  - Connection pool architecture (3-layer diagram)
+  - Scenario A: Adding a driver to an existing family (3 steps)
+  - Scenario B: Adding a new family (6 steps with full code examples)
+  - Updated Phase 1 checklist with pool integration items
+  - New "Forgetting Connection Pool Integration" pitfall (#11)
+
+#### CMakeLists.txt
+
+- Added `src/pool/pooled_db_connection_base.cpp` to library source list
+
+---
+
+## 2026-03-06 01:59:06 PST
 
 ### Unified Connection Pool Base Class (`DBConnectionPoolBase`) — Extracted Common Pool Logic into `pool/` Directory
 

@@ -16,8 +16,11 @@
  * @brief Thin document pool — delegates all pool infrastructure to DBConnectionPoolBase.
  *
  * Only contains: constructors, createDBConnection, createPooledDBConnection,
- * getDocumentDBConnection, factory methods, and the full
- * DocumentPooledDBConnection + MongoDB subclass implementations.
+ * getDocumentDBConnection, factory methods, and the document-specific
+ * DocumentPooledDBConnection methods (getDatabaseName, getCollection, etc.).
+ *
+ * Common pooled-connection logic (close, returnToPool, destructor, pool metadata)
+ * is inherited from PooledDBConnectionBase via CRTP.
  */
 
 #include "cpp_dbc/pool/document/document_db_connection_pool.hpp"
@@ -138,53 +141,31 @@ namespace cpp_dbc
                                                                                                                bool testOnReturn,
                                                                                                                TransactionIsolationLevel transactionIsolation) noexcept
     {
-        try
-        {
-            auto pool = std::make_shared<DocumentDBConnectionPool>(
-                DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
-                maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
-                testOnBorrow, testOnReturn, transactionIsolation);
+        auto pool = std::make_shared<DocumentDBConnectionPool>(
+            DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
+            maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
+            testOnBorrow, testOnReturn, transactionIsolation);
 
-            auto initResult = pool->initializePool(std::nothrow);
-            if (!initResult.has_value())
-            {
-                return cpp_dbc::unexpected(initResult.error());
-            }
+        auto initResult = pool->initializePool(std::nothrow);
+        if (!initResult.has_value())
+        {
+            return cpp_dbc::unexpected(initResult.error());
+        }
 
-            return pool;
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("TSH2S7H56QKI", "Failed to create connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("CQ827ZOIDL0H", "Failed to create connection pool: unknown error", system_utils::captureCallStack()));
-        }
+        return pool;
     }
 
     cpp_dbc::expected<std::shared_ptr<DocumentDBConnectionPool>, DBException> DocumentDBConnectionPool::create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept
     {
-        try
-        {
-            auto pool = std::make_shared<DocumentDBConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
+        auto pool = std::make_shared<DocumentDBConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
 
-            auto initResult = pool->initializePool(std::nothrow);
-            if (!initResult.has_value())
-            {
-                return cpp_dbc::unexpected(initResult.error());
-            }
+        auto initResult = pool->initializePool(std::nothrow);
+        if (!initResult.has_value())
+        {
+            return cpp_dbc::unexpected(initResult.error());
+        }
 
-            return pool;
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("TSH2S7H56QKI", "Failed to create connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("CQ827ZOIDL0H", "Failed to create connection pool: unknown error", system_utils::captureCallStack()));
-        }
+        return pool;
     }
 
     // ── Family-specific getter ───────────────────────────────────────────
@@ -225,363 +206,15 @@ namespace cpp_dbc
         std::shared_ptr<DocumentDBConnection> connection,
         std::weak_ptr<DocumentDBConnectionPool> connectionPool,
         std::shared_ptr<std::atomic<bool>> poolAlive) noexcept
-        : m_conn(connection), m_pool(connectionPool), m_poolAlive(poolAlive)
+        : Base(std::move(connection), std::move(connectionPool), std::move(poolAlive))
     {
-        // m_creationTime, m_lastUsedTimeNs, m_active, m_closed use in-class initializers
+        // All members initialized by CRTP base
     }
 
-    bool DocumentPooledDBConnection::isPoolValid(std::nothrow_t) const noexcept
-    {
-        return m_poolAlive && m_poolAlive->load(std::memory_order_acquire) && !m_pool.expired();
-    }
-
-    DocumentPooledDBConnection::~DocumentPooledDBConnection()
-    {
-        if (!m_closed.load(std::memory_order_acquire) && m_conn)
-        {
-            // CRITICAL: Never call returnToPool() or shared_from_this() from destructor.
-            // When the destructor runs, refcount is already 0, so shared_from_this()
-            // throws bad_weak_ptr. Instead, do direct cleanup:
-            // 1. Decrement active counter if this connection was active
-            // 2. Close the underlying physical connection
-            if (m_active.load(std::memory_order_acquire))
-            {
-                if (auto pool = m_pool.lock())
-                {
-                    pool->decrementActiveCount(std::nothrow);
-                }
-                m_active.store(false, std::memory_order_release);
-            }
-
-            auto closeResult = m_conn->close(std::nothrow);
-            if (!closeResult.has_value())
-            {
-                CP_DEBUG("DocumentPooledDBConnection::~DocumentPooledDBConnection - close failed: %s", closeResult.error().what_s().data());
-            }
-        }
-    }
-
-    cpp_dbc::expected<void, DBException> DocumentPooledDBConnection::close(std::nothrow_t) noexcept
-    {
-        // Use atomic exchange to ensure only one thread processes the close
-        bool expected = false;
-        if (m_closed.compare_exchange_strong(expected, true))
-        {
-            try
-            {
-                // Return to pool instead of actually closing
-                updateLastUsedTime(std::nothrow);
-
-                // Check if pool is still alive using the shared atomic flag
-                if (isPoolValid(std::nothrow))
-                {
-                    // Try to obtain a shared_ptr from the weak_ptr
-                    if (auto poolShared = m_pool.lock())
-                    {
-                        // ============================================================================
-                        // CRITICAL FIX: Race Condition in Connection Pool Return Flow
-                        // ============================================================================
-                        //
-                        // BUG DESCRIPTION:
-                        // ----------------
-                        // A race condition existed where m_closed was reset to false AFTER
-                        // returnConnection() completed. This created a window where another thread
-                        // could obtain the connection from the idle queue while m_closed was still
-                        // true, causing spurious "Connection is closed" errors.
-                        //
-                        // SEQUENCE OF EVENTS (BUG):
-                        // -------------------------
-                        // Thread A (returning connection):
-                        //   1. close() sets m_closed = true (compare_exchange)
-                        //   2. returnConnection() is called
-                        //   3. Inside returnConnection():
-                        //      - LOCK(m_mutexPool)
-                        //      - m_idleConnections.push(conn)  <-- Connection available with m_closed=TRUE
-                        //      - UNLOCK(m_mutexPool) <-- Race window opens here
-                        //   4. m_closed.store(false)  <-- Too late if Thread B already got the connection
-                        //
-                        // Thread B (acquiring connection) - executes between steps 3 and 4:
-                        //   1. getDocumentDBConnection() acquires m_mutexPool
-                        //   2. Pops connection from idle queue (m_closed is still TRUE)
-                        //   3. Returns connection to caller
-                        //   4. Caller calls ping() -> sees m_closed=true -> throws "Connection is closed"
-                        //
-                        // FIX:
-                        // ----
-                        // Reset m_closed to false BEFORE calling returnConnection(). This ensures
-                        // that when the connection becomes available in the idle queue, m_closed
-                        // is already false and any thread that obtains it will see the correct state.
-                        //
-                        // If returnConnection() fails or throws an exception, the catch blocks below
-                        // will close the underlying connection, maintaining correct error handling.
-                        // ============================================================================
-                        m_closed.store(false, std::memory_order_release);
-                        auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<DBConnectionPooled>(shared_from_this()));
-                        if (!returnResult.has_value())
-                        {
-                            CP_DEBUG("DocumentPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().data());
-                            return returnResult;
-                        }
-                    }
-                }
-                else if (m_conn)
-                {
-                    // If pool is invalid, actually close the connection
-                    auto result = m_conn->close(std::nothrow);
-                    if (!result.has_value())
-                    {
-                        CP_DEBUG("DocumentPooledDBConnection::close - Failed to close underlying connection: %s", result.error().what_s().data());
-                        return result;
-                    }
-                }
-
-                return {};
-            }
-            catch (const std::bad_weak_ptr &ex)
-            {
-                // shared_from_this failed, just close the connection
-                m_closed.store(true, std::memory_order_release);
-                if (m_conn)
-                {
-                    auto result = m_conn->close(std::nothrow);
-                    if (!result.has_value())
-                    {
-                        return result;
-                    }
-                }
-                return cpp_dbc::unexpected(DBException("B6ZEXDIEMWV7",
-                                                        "Failed to obtain shared_from_this: " + std::string(ex.what()),
-                                                        system_utils::captureCallStack()));
-            }
-            catch (const DBException &ex)
-            {
-                // DBException from underlying connection, just return it
-                m_closed.store(true, std::memory_order_release);
-                if (m_conn)
-                {
-                    m_conn->close(std::nothrow);
-                }
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                // Any other exception, close the connection and return error
-                m_closed.store(true, std::memory_order_release);
-                if (m_conn)
-                {
-                    m_conn->close(std::nothrow);
-                }
-                return cpp_dbc::unexpected(DBException("8XN84Y8GGSQU",
-                                                        "Exception in close: " + std::string(ex.what()),
-                                                        system_utils::captureCallStack()));
-            }
-            catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
-            {
-                CP_DEBUG("DocumentPooledDBConnection::close - Unknown exception caught");
-                m_closed.store(true, std::memory_order_release);
-                if (m_conn)
-                {
-                    m_conn->close(std::nothrow);
-                }
-                return cpp_dbc::unexpected(DBException("KK3USJBXJPR1",
-                                                        "Unknown exception in close",
-                                                        system_utils::captureCallStack()));
-            }
-        }
-
-        return {};
-    }
+    // ── Document-specific throwing methods ────────────────────────────────
 
 #ifdef __cpp_exceptions
 
-    void DocumentPooledDBConnection::close()
-    {
-        auto result = close(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    bool DocumentPooledDBConnection::isClosed() const
-    {
-        auto result = isClosed(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-#endif // __cpp_exceptions
-
-    cpp_dbc::expected<bool, DBException> DocumentPooledDBConnection::isClosed(std::nothrow_t) const noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return true;
-        }
-        return m_conn->isClosed(std::nothrow);
-    }
-
-    std::chrono::time_point<std::chrono::steady_clock> DocumentPooledDBConnection::getCreationTime(std::nothrow_t) const noexcept
-    {
-        return m_creationTime;
-    }
-
-    std::chrono::time_point<std::chrono::steady_clock> DocumentPooledDBConnection::getLastUsedTime(std::nothrow_t) const noexcept
-    {
-        return std::chrono::steady_clock::time_point{std::chrono::nanoseconds{m_lastUsedTimeNs.load(std::memory_order_acquire)}};
-    }
-
-    cpp_dbc::expected<void, DBException> DocumentPooledDBConnection::setActive(std::nothrow_t, bool isActive) noexcept
-    {
-        m_active.store(isActive, std::memory_order_release);
-        return {};
-    }
-
-    bool DocumentPooledDBConnection::isActive(std::nothrow_t) const noexcept
-    {
-        return m_active.load(std::memory_order_acquire);
-    }
-
-    void DocumentPooledDBConnection::markPoolClosed(std::nothrow_t, bool closed) noexcept
-    {
-        m_closed.store(closed, std::memory_order_release);
-    }
-
-    bool DocumentPooledDBConnection::isPoolClosed(std::nothrow_t) const noexcept
-    {
-        return m_closed.load(std::memory_order_acquire);
-    }
-
-    void DocumentPooledDBConnection::updateLastUsedTime(std::nothrow_t) noexcept
-    {
-        m_lastUsedTimeNs.store(std::chrono::steady_clock::now().time_since_epoch().count(), std::memory_order_release);
-    }
-
-    cpp_dbc::expected<void, DBException> DocumentPooledDBConnection::returnToPool(std::nothrow_t) noexcept
-    {
-        // Use atomic exchange to ensure only one thread processes the return
-        bool expected = false;
-        if (!m_closed.compare_exchange_strong(expected, true))
-        {
-            return {};
-        }
-
-        try
-        {
-            // Return to pool instead of actually closing
-            updateLastUsedTime(std::nothrow);
-
-            // Check if pool is still alive using the shared atomic flag
-            // Use qualified call to avoid virtual dispatch issues when called from destructor
-            if (DocumentPooledDBConnection::isPoolValid(std::nothrow))
-            {
-                // Try to obtain a shared_ptr from the weak_ptr
-                if (auto poolShared = m_pool.lock())
-                {
-                    // FIX: Reset m_closed BEFORE returnConnection() to prevent race condition
-                    // (see close(nothrow) method for full explanation of the bug)
-                    m_closed.store(false, std::memory_order_release);
-                    auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<DBConnectionPooled>(this->shared_from_this()));
-                    if (!returnResult.has_value())
-                    {
-                        CP_DEBUG("DocumentPooledDBConnection::returnToPool - returnConnection failed: %s", returnResult.error().what_s().data());
-                        return returnResult;
-                    }
-                }
-            }
-            return {};
-        }
-        catch (const std::exception &ex)
-        {
-            // Only shared_from_this() can throw here (std::bad_weak_ptr).
-            // All other inner calls are nothrow. Close the connection and return error.
-            CP_DEBUG("DocumentPooledDBConnection::returnToPool - shared_from_this failed: %s", ex.what());
-            m_closed.store(true, std::memory_order_release);
-            if (m_conn)
-            {
-                m_conn->close(std::nothrow);
-            }
-            return cpp_dbc::unexpected(DBException("JS9EDG2CRO9T",
-                                                   "Exception in returnToPool: " + std::string(ex.what()),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions
-        {
-            CP_DEBUG("DocumentPooledDBConnection::returnToPool - Unknown exception caught");
-            m_closed.store(true, std::memory_order_release);
-            if (m_conn)
-            {
-                m_conn->close(std::nothrow);
-            }
-            return cpp_dbc::unexpected(DBException("O7RKPD89YPAW",
-                                                   "Unknown exception in returnToPool",
-                                                   system_utils::captureCallStack()));
-        }
-    }
-
-#ifdef __cpp_exceptions
-
-    void DocumentPooledDBConnection::returnToPool()
-    {
-        auto result = returnToPool(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    bool DocumentPooledDBConnection::isPooled() const
-    {
-        auto result = isPooled(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    std::string DocumentPooledDBConnection::getURL() const
-    {
-        auto result = getURL(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    void DocumentPooledDBConnection::reset()
-    {
-        auto result = reset(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    void DocumentPooledDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
-    {
-        auto result = setTransactionIsolation(std::nothrow, level);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    TransactionIsolationLevel DocumentPooledDBConnection::getTransactionIsolation()
-    {
-        auto result = getTransactionIsolation(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    // Implementation of DocumentDBConnection interface methods
     std::string DocumentPooledDBConnection::getDatabaseName() const
     {
         auto result = getDatabaseName(std::nothrow);
@@ -730,16 +363,6 @@ namespace cpp_dbc
         return result.value();
     }
 
-    bool DocumentPooledDBConnection::ping()
-    {
-        auto result = ping(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
     std::string DocumentPooledDBConnection::startSession()
     {
         auto result = startSession(std::nothrow);
@@ -796,41 +419,28 @@ namespace cpp_dbc
         return result.value();
     }
 
+    void DocumentPooledDBConnection::setTransactionIsolation(TransactionIsolationLevel level)
+    {
+        auto result = setTransactionIsolation(std::nothrow, level);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+    }
+
+    TransactionIsolationLevel DocumentPooledDBConnection::getTransactionIsolation()
+    {
+        auto result = getTransactionIsolation(std::nothrow);
+        if (!result.has_value())
+        {
+            throw result.error();
+        }
+        return result.value();
+    }
+
 #endif // __cpp_exceptions
 
-    cpp_dbc::expected<bool, DBException> DocumentPooledDBConnection::isPooled(std::nothrow_t) const noexcept
-    {
-        return !m_active.load(std::memory_order_acquire);
-    }
-
-    cpp_dbc::expected<std::string, DBException> DocumentPooledDBConnection::getURL(std::nothrow_t) const noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("KV03UAMVXQX7", "Connection is closed", system_utils::captureCallStack()));
-        }
-        return m_conn->getURL(std::nothrow);
-    }
-
-    cpp_dbc::expected<void, DBException> DocumentPooledDBConnection::reset(std::nothrow_t) noexcept
-    {
-        if (!m_conn)
-        {
-            return cpp_dbc::unexpected(DBException("0CUYVUE519T6",
-                                                    "Underlying connection is null",
-                                                    system_utils::captureCallStack()));
-        }
-
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("DVVC2P4912ZE",
-                                                    "Connection is closed",
-                                                    system_utils::captureCallStack()));
-        }
-
-        updateLastUsedTime(std::nothrow);
-        return m_conn->reset(std::nothrow);
-    }
+    // ── Document-specific nothrow methods ─────────────────────────────────
 
     cpp_dbc::expected<void, DBException>
     DocumentPooledDBConnection::setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept
@@ -853,38 +463,6 @@ namespace cpp_dbc
         updateLastUsedTime(std::nothrow);
         return m_conn->getTransactionIsolation(std::nothrow);
     }
-
-    cpp_dbc::expected<void, DBException>
-    DocumentPooledDBConnection::prepareForPoolReturn(std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("IHKK4HM07XXA",
-                                                   "Connection is closed",
-                                                   system_utils::captureCallStack()));
-        }
-        return m_conn->prepareForPoolReturn(std::nothrow, isolationLevel);
-    }
-
-    cpp_dbc::expected<void, DBException> DocumentPooledDBConnection::prepareForBorrow(std::nothrow_t) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("LRG1PLMORCRX",
-                                                   "Connection is closed",
-                                                   system_utils::captureCallStack()));
-        }
-        return m_conn->prepareForBorrow(std::nothrow);
-    }
-
-    std::shared_ptr<DBConnection> DocumentPooledDBConnection::getUnderlyingConnection(std::nothrow_t) noexcept
-    {
-        return std::static_pointer_cast<DBConnection>(m_conn);
-    }
-
-    // ====================================================================
-    // NOTHROW VERSIONS - delegate to underlying connection
-    // ====================================================================
 
     cpp_dbc::expected<std::string, DBException> DocumentPooledDBConnection::getDatabaseName(std::nothrow_t) const noexcept
     {
@@ -1046,16 +624,6 @@ namespace cpp_dbc
         return m_conn->getServerStatus(std::nothrow);
     }
 
-    cpp_dbc::expected<bool, DBException> DocumentPooledDBConnection::ping(std::nothrow_t) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("218DK7FXM1U4", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->ping(std::nothrow);
-    }
-
     cpp_dbc::expected<std::string, DBException> DocumentPooledDBConnection::startSession(std::nothrow_t) noexcept
     {
         if (m_closed.load(std::memory_order_acquire))
@@ -1172,46 +740,24 @@ namespace cpp_dbc::MongoDB
                                                                                                           const std::string &username,
                                                                                                           const std::string &password) noexcept
     {
-        try
+        auto pool = std::make_shared<MongoDBConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+        auto initResult = pool->initializePool(std::nothrow);
+        if (!initResult.has_value())
         {
-            auto pool = std::make_shared<MongoDBConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
-            auto initResult = pool->initializePool(std::nothrow);
-            if (!initResult.has_value())
-            {
-                return cpp_dbc::unexpected(initResult.error());
-            }
-            return pool;
+            return cpp_dbc::unexpected(initResult.error());
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("WBORKFD9SLKV", "Failed to create MongoDB connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("1YU3JTHO2WBL", "Failed to create MongoDB connection pool: unknown error", system_utils::captureCallStack()));
-        }
+        return pool;
     }
 
     cpp_dbc::expected<std::shared_ptr<MongoDBConnectionPool>, DBException> MongoDBConnectionPool::create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept
     {
-        try
+        auto pool = std::make_shared<MongoDBConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
+        auto initResult = pool->initializePool(std::nothrow);
+        if (!initResult.has_value())
         {
-            auto pool = std::make_shared<MongoDBConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
-            auto initResult = pool->initializePool(std::nothrow);
-            if (!initResult.has_value())
-            {
-                return cpp_dbc::unexpected(initResult.error());
-            }
-            return pool;
+            return cpp_dbc::unexpected(initResult.error());
         }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("WBORKFD9SLKV", "Failed to create MongoDB connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("1YU3JTHO2WBL", "Failed to create MongoDB connection pool: unknown error", system_utils::captureCallStack()));
-        }
+        return pool;
     }
 
 } // namespace cpp_dbc::MongoDB

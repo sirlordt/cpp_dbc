@@ -16,8 +16,11 @@
  * @brief Thin relational pool — delegates all pool infrastructure to DBConnectionPoolBase.
  *
  * Only contains: constructors, createDBConnection, createPooledDBConnection,
- * getRelationalDBConnection, factory methods, and the full
- * RelationalPooledDBConnection + driver subclass implementations.
+ * getRelationalDBConnection, factory methods, and the relational-specific
+ * RelationalPooledDBConnection methods (prepareStatement, executeQuery, etc.).
+ *
+ * Common pooled-connection logic (close, returnToPool, destructor, pool metadata)
+ * is inherited from PooledDBConnectionBase via CRTP.
  */
 
 #include "cpp_dbc/pool/relational/relational_db_connection_pool.hpp"
@@ -138,53 +141,31 @@ namespace cpp_dbc
                                                                                                                    bool testOnReturn,
                                                                                                                    TransactionIsolationLevel transactionIsolation) noexcept
     {
-        try
-        {
-            auto pool = std::make_shared<RelationalDBConnectionPool>(
-                DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
-                maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
-                testOnBorrow, testOnReturn, transactionIsolation);
+        auto pool = std::make_shared<RelationalDBConnectionPool>(
+            DBConnectionPool::ConstructorTag{}, url, username, password, options, initialSize, maxSize, minIdle,
+            maxWaitMillis, validationTimeoutMillis, idleTimeoutMillis, maxLifetimeMillis,
+            testOnBorrow, testOnReturn, transactionIsolation);
 
-            auto initResult = pool->initializePool(std::nothrow);
-            if (!initResult.has_value())
-            {
-                return cpp_dbc::unexpected(initResult.error());
-            }
+        auto initResult = pool->initializePool(std::nothrow);
+        if (!initResult.has_value())
+        {
+            return cpp_dbc::unexpected(initResult.error());
+        }
 
-            return pool;
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("IUB7PTQDNW1R", "Failed to create connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("UQQX17ADP7LE", "Failed to create connection pool: unknown error", system_utils::captureCallStack()));
-        }
+        return pool;
     }
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBConnectionPool>, DBException> RelationalDBConnectionPool::create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept
     {
-        try
-        {
-            auto pool = std::make_shared<RelationalDBConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
+        auto pool = std::make_shared<RelationalDBConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
 
-            auto initResult = pool->initializePool(std::nothrow);
-            if (!initResult.has_value())
-            {
-                return cpp_dbc::unexpected(initResult.error());
-            }
+        auto initResult = pool->initializePool(std::nothrow);
+        if (!initResult.has_value())
+        {
+            return cpp_dbc::unexpected(initResult.error());
+        }
 
-            return pool;
-        }
-        catch (const std::exception &ex)
-        {
-            return cpp_dbc::unexpected(DBException("IUB7PTQDNW1R", "Failed to create connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-        }
-        catch (...)
-        {
-            return cpp_dbc::unexpected(DBException("UQQX17ADP7LE", "Failed to create connection pool: unknown error", system_utils::captureCallStack()));
-        }
+        return pool;
     }
 
     // ── Family-specific getter ───────────────────────────────────────────────
@@ -224,111 +205,15 @@ namespace cpp_dbc
     RelationalPooledDBConnection::RelationalPooledDBConnection(
         std::shared_ptr<RelationalDBConnection> connection,
         std::weak_ptr<RelationalDBConnectionPool> connectionPool,
-        std::shared_ptr<std::atomic<bool>> poolAlive)
-        : m_conn(connection), m_pool(connectionPool), m_poolAlive(poolAlive)
+        std::shared_ptr<std::atomic<bool>> poolAlive) noexcept
+        : Base(std::move(connection), std::move(connectionPool), std::move(poolAlive))
     {
-        // m_creationTime and m_lastUsedTimeNs use in-class initializers
+        // All members initialized by CRTP base
     }
 
-    bool RelationalPooledDBConnection::isPoolValid(std::nothrow_t) const noexcept
-    {
-        return m_poolAlive && m_poolAlive->load(std::memory_order_acquire) && !m_pool.expired();
-    }
-
-    RelationalPooledDBConnection::~RelationalPooledDBConnection()
-    {
-        if (!m_closed.load(std::memory_order_acquire) && m_conn)
-        {
-            // CRITICAL: Never call returnToPool() or shared_from_this() from destructor.
-            // When the destructor runs, refcount is already 0, so shared_from_this()
-            // throws bad_weak_ptr. Instead, do direct cleanup:
-            // 1. Decrement active counter if this connection was active
-            // 2. Close the underlying physical connection
-            if (m_active.load(std::memory_order_acquire))
-            {
-                if (auto pool = m_pool.lock())
-                {
-                    pool->decrementActiveCount(std::nothrow);
-                }
-                m_active.store(false, std::memory_order_release);
-            }
-
-            auto closeResult = m_conn->close(std::nothrow);
-            if (!closeResult.has_value())
-            {
-                CP_DEBUG("RelationalPooledDBConnection::~RelationalPooledDBConnection - close failed: %s", closeResult.error().what_s().data());
-            }
-        }
-    }
+    // ── Relational-specific throwing methods ─────────────────────────────────
 
 #ifdef __cpp_exceptions
-
-    void RelationalPooledDBConnection::close()
-    {
-        auto result = close(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    bool RelationalPooledDBConnection::isClosed() const
-    {
-        auto result = isClosed(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    void RelationalPooledDBConnection::returnToPool()
-    {
-        auto result = returnToPool(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    bool RelationalPooledDBConnection::isPooled() const
-    {
-        auto result = isPooled(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    std::string RelationalPooledDBConnection::getURL() const
-    {
-        auto result = getURL(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return result.value();
-    }
-
-    void RelationalPooledDBConnection::reset()
-    {
-        auto result = reset(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-    }
-
-    bool RelationalPooledDBConnection::ping()
-    {
-        auto result = ping(std::nothrow);
-        if (!result.has_value())
-        {
-            throw result.error();
-        }
-        return *result;
-    }
 
     std::shared_ptr<RelationalDBPreparedStatement> RelationalPooledDBConnection::prepareStatement(const std::string &sql)
     {
@@ -438,232 +323,7 @@ namespace cpp_dbc
 
 #endif // __cpp_exceptions
 
-    cpp_dbc::expected<void, cpp_dbc::DBException> RelationalPooledDBConnection::close(std::nothrow_t) noexcept
-    {
-        // Use atomic exchange to ensure only one thread processes the close
-        bool expected = false;
-        if (m_closed.compare_exchange_strong(expected, true))
-        {
-            try
-            {
-                // Return to pool instead of actually closing
-                updateLastUsedTime(std::nothrow);
-
-                // Check if pool is still alive using the shared atomic flag
-                if (isPoolValid(std::nothrow))
-                {
-                    // Try to obtain a shared_ptr from the weak_ptr
-                    if (auto poolShared = m_pool.lock())
-                    {
-                        // ============================================================================
-                        // CRITICAL FIX: Race Condition in Connection Pool Return Flow
-                        // ============================================================================
-                        //
-                        // BUG DESCRIPTION:
-                        // ----------------
-                        // A race condition existed where m_closed was reset to false AFTER
-                        // returnConnection() completed. This created a window where another thread
-                        // could obtain the connection from the idle queue while m_closed was still
-                        // true, causing spurious "Connection is closed" errors.
-                        //
-                        // FIX:
-                        // ----
-                        // Reset m_closed to false BEFORE calling returnConnection(). This ensures
-                        // that when the connection becomes available in the idle queue, m_closed
-                        // is already false and any thread that obtains it will see the correct state.
-                        //
-                        // If returnConnection() fails or throws an exception, the catch blocks below
-                        // will close the underlying connection, maintaining correct error handling.
-                        // ============================================================================
-                        m_closed.store(false, std::memory_order_release);
-                        auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<RelationalPooledDBConnection>(shared_from_this()));
-                        if (!returnResult.has_value())
-                        {
-                            CP_DEBUG("RelationalPooledDBConnection::close - returnConnection failed: %s", returnResult.error().what_s().data());
-                            return returnResult;
-                        }
-                    }
-                }
-                else if (m_conn)
-                {
-                    // If pool is invalid, actually close the connection
-                    auto result = m_conn->close(std::nothrow);
-                    if (!result.has_value())
-                    {
-                        CP_DEBUG("RelationalPooledDBConnection::close - Failed to close underlying connection: %s", result.error().what_s().data());
-                        return result;
-                    }
-                }
-
-                return {};
-            }
-            catch (const std::bad_weak_ptr &ex)
-            {
-                // shared_from_this failed, just close the connection
-                m_closed.store(true, std::memory_order_release);
-                if (m_conn)
-                {
-                    auto result = m_conn->close(std::nothrow);
-                    if (!result.has_value())
-                    {
-                        return result;
-                    }
-                }
-                return cpp_dbc::unexpected(DBException("54A9H0C3BX8E",
-                                                       "Failed to obtain shared_from_this: " + std::string(ex.what()),
-                                                       system_utils::captureCallStack()));
-            }
-            catch (const DBException &ex)
-            {
-                // DBException from underlying connection, just return it
-                m_closed.store(true, std::memory_order_release);
-                if (m_conn)
-                {
-                    m_conn->close(std::nothrow);
-                }
-                return cpp_dbc::unexpected(ex);
-            }
-            catch (const std::exception &ex)
-            {
-                // Any other exception, close the connection and return error
-                m_closed.store(true, std::memory_order_release);
-                if (m_conn)
-                {
-                    m_conn->close(std::nothrow);
-                }
-                return cpp_dbc::unexpected(DBException("VYPDCT5DIRVF",
-                                                       "Exception in close: " + std::string(ex.what()),
-                                                       system_utils::captureCallStack()));
-            }
-            catch (...) // NOSONAR - Catch-all to ensure m_closed is always set correctly on any exception
-            {
-                CP_DEBUG("RelationalPooledDBConnection::close - Unknown exception caught");
-                m_closed.store(true, std::memory_order_release);
-                if (m_conn)
-                {
-                    m_conn->close(std::nothrow);
-                }
-                return cpp_dbc::unexpected(DBException("85ZGPKW5MX8J",
-                                                       "Unknown exception in close",
-                                                       system_utils::captureCallStack()));
-            }
-        }
-
-        return {};
-    }
-
-    cpp_dbc::expected<void, cpp_dbc::DBException> RelationalPooledDBConnection::reset(std::nothrow_t) noexcept
-    {
-        if (!m_conn)
-        {
-            return cpp_dbc::unexpected(DBException("YNH9PJK5FCZF",
-                                                    "Underlying connection is null",
-                                                    system_utils::captureCallStack()));
-        }
-
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("9U7LGHL2AK0P",
-                                                    "Connection is closed",
-                                                    system_utils::captureCallStack()));
-        }
-
-        updateLastUsedTime(std::nothrow);
-        return m_conn->reset(std::nothrow);
-    }
-
-    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::isClosed(std::nothrow_t) const noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return true;
-        }
-        return m_conn->isClosed(std::nothrow);
-    }
-
-    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::returnToPool(std::nothrow_t) noexcept
-    {
-        // Use atomic exchange to ensure only one thread processes the return
-        bool expected = false;
-        if (!m_closed.compare_exchange_strong(expected, true))
-        {
-            return {}; // Already being returned/closed by another thread
-        }
-
-        try
-        {
-            updateLastUsedTime(std::nothrow);
-
-            // Check if pool is still alive using the shared atomic flag
-            // Use qualified call to avoid virtual dispatch issues when called from destructor
-            if (RelationalPooledDBConnection::isPoolValid(std::nothrow))
-            {
-                if (auto poolShared = m_pool.lock())
-                {
-                    // FIX: Reset m_closed BEFORE returnConnection() to prevent race condition
-                    // (see close() method for full explanation of the bug)
-                    m_closed.store(false, std::memory_order_release);
-                    auto returnResult = poolShared->returnConnection(std::nothrow, std::static_pointer_cast<RelationalPooledDBConnection>(this->shared_from_this()));
-                    if (!returnResult.has_value())
-                    {
-                        CP_DEBUG("RelationalPooledDBConnection::returnToPool - returnConnection failed: %s", returnResult.error().what_s().data());
-                        return returnResult;
-                    }
-                }
-            }
-            return {};
-        }
-        catch (const std::exception &ex)
-        {
-            // Only shared_from_this() can throw here (std::bad_weak_ptr).
-            // All other inner calls are nothrow. Close the connection and return error.
-            CP_DEBUG("RelationalPooledDBConnection::returnToPool - shared_from_this failed: %s", ex.what());
-            m_closed.store(true, std::memory_order_release);
-            if (m_conn)
-            {
-                m_conn->close(std::nothrow);
-            }
-            return cpp_dbc::unexpected(DBException("8BN1W05EH7WK",
-                                                   "Exception in returnToPool: " + std::string(ex.what()),
-                                                   system_utils::captureCallStack()));
-        }
-        catch (...) // NOSONAR(cpp:S2738) — fallback for non-std exceptions
-        {
-            CP_DEBUG("RelationalPooledDBConnection::returnToPool - Unknown exception caught");
-            m_closed.store(true, std::memory_order_release);
-            if (m_conn)
-            {
-                m_conn->close(std::nothrow);
-            }
-            return cpp_dbc::unexpected(DBException("UF9WYX7K0BXP",
-                                                   "Unknown exception in returnToPool",
-                                                   system_utils::captureCallStack()));
-        }
-    }
-
-    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::isPooled(std::nothrow_t) const noexcept
-    {
-        return !m_active.load(std::memory_order_acquire);
-    }
-
-    cpp_dbc::expected<std::string, DBException> RelationalPooledDBConnection::getURL(std::nothrow_t) const noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("A4B7C9D2E5F1", "Connection is closed", system_utils::captureCallStack()));
-        }
-        return m_conn->getURL(std::nothrow);
-    }
-
-    cpp_dbc::expected<bool, DBException> RelationalPooledDBConnection::ping(std::nothrow_t) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("7B5ASUOLCER7", "Connection is closed", system_utils::captureCallStack()));
-        }
-        updateLastUsedTime(std::nothrow);
-        return m_conn->ping(std::nothrow);
-    }
+    // ── Relational-specific nothrow methods ──────────────────────────────────
 
     cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> RelationalPooledDBConnection::prepareStatement(std::nothrow_t, const std::string &sql) noexcept
     {
@@ -775,70 +435,6 @@ namespace cpp_dbc
         return m_conn->getTransactionIsolation(std::nothrow);
     }
 
-    std::chrono::time_point<std::chrono::steady_clock> RelationalPooledDBConnection::getCreationTime(std::nothrow_t) const noexcept
-    {
-        return m_creationTime;
-    }
-
-    std::chrono::time_point<std::chrono::steady_clock> RelationalPooledDBConnection::getLastUsedTime(std::nothrow_t) const noexcept
-    {
-        return std::chrono::steady_clock::time_point{std::chrono::nanoseconds{m_lastUsedTimeNs.load(std::memory_order_acquire)}};
-    }
-
-    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::setActive(std::nothrow_t, bool isActive) noexcept
-    {
-        m_active.store(isActive, std::memory_order_release);
-        return {};
-    }
-
-    bool RelationalPooledDBConnection::isActive(std::nothrow_t) const noexcept
-    {
-        return m_active.load(std::memory_order_acquire);
-    }
-
-    void RelationalPooledDBConnection::markPoolClosed(std::nothrow_t, bool closed) noexcept
-    {
-        m_closed.store(closed, std::memory_order_release);
-    }
-
-    bool RelationalPooledDBConnection::isPoolClosed(std::nothrow_t) const noexcept
-    {
-        return m_closed.load(std::memory_order_acquire);
-    }
-
-    void RelationalPooledDBConnection::updateLastUsedTime(std::nothrow_t) noexcept
-    {
-        m_lastUsedTimeNs.store(std::chrono::steady_clock::now().time_since_epoch().count(), std::memory_order_release);
-    }
-
-    std::shared_ptr<DBConnection> RelationalPooledDBConnection::getUnderlyingConnection(std::nothrow_t) noexcept
-    {
-        return std::static_pointer_cast<DBConnection>(m_conn);
-    }
-
-    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::prepareForPoolReturn(
-        std::nothrow_t, TransactionIsolationLevel isolationLevel) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("73OMW2XSN96G",
-                                                   "Connection is closed",
-                                                   system_utils::captureCallStack()));
-        }
-        return m_conn->prepareForPoolReturn(std::nothrow, isolationLevel);
-    }
-
-    cpp_dbc::expected<void, DBException> RelationalPooledDBConnection::prepareForBorrow(std::nothrow_t) noexcept
-    {
-        if (m_closed.load(std::memory_order_acquire))
-        {
-            return cpp_dbc::unexpected(DBException("V4JST5V0D1K7",
-                                                   "Connection is closed",
-                                                   system_utils::captureCallStack()));
-        }
-        return m_conn->prepareForBorrow(std::nothrow);
-    }
-
     // ════════════════════════════════════════════════════════════════════════
     // Driver-specific subclasses
     // ════════════════════════════════════════════════════════════════════════
@@ -866,46 +462,24 @@ namespace cpp_dbc
                                                                                                          const std::string &username,
                                                                                                          const std::string &password) noexcept
         {
-            try
+            auto pool = std::make_shared<MySQLConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+            auto initResult = pool->initializePool(std::nothrow);
+            if (!initResult.has_value())
             {
-                auto pool = std::make_shared<MySQLConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
-                auto initResult = pool->initializePool(std::nothrow);
-                if (!initResult.has_value())
-                {
-                    return cpp_dbc::unexpected(initResult.error());
-                }
-                return pool;
+                return cpp_dbc::unexpected(initResult.error());
             }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("0T5TQ1XDNBRB", "Failed to create MySQL connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("C5UGEAU0RKS4", "Failed to create MySQL connection pool: unknown error", system_utils::captureCallStack()));
-            }
+            return pool;
         }
 
         cpp_dbc::expected<std::shared_ptr<MySQLConnectionPool>, DBException> MySQLConnectionPool::create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept
         {
-            try
+            auto pool = std::make_shared<MySQLConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
+            auto initResult = pool->initializePool(std::nothrow);
+            if (!initResult.has_value())
             {
-                auto pool = std::make_shared<MySQLConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
-                auto initResult = pool->initializePool(std::nothrow);
-                if (!initResult.has_value())
-                {
-                    return cpp_dbc::unexpected(initResult.error());
-                }
-                return pool;
+                return cpp_dbc::unexpected(initResult.error());
             }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("0T5TQ1XDNBRB", "Failed to create MySQL connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("C5UGEAU0RKS4", "Failed to create MySQL connection pool: unknown error", system_utils::captureCallStack()));
-            }
+            return pool;
         }
     }
 
@@ -932,46 +506,24 @@ namespace cpp_dbc
                                                                                                                    const std::string &username,
                                                                                                                    const std::string &password) noexcept
         {
-            try
+            auto pool = std::make_shared<PostgreSQLConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+            auto initResult = pool->initializePool(std::nothrow);
+            if (!initResult.has_value())
             {
-                auto pool = std::make_shared<PostgreSQLConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
-                auto initResult = pool->initializePool(std::nothrow);
-                if (!initResult.has_value())
-                {
-                    return cpp_dbc::unexpected(initResult.error());
-                }
-                return pool;
+                return cpp_dbc::unexpected(initResult.error());
             }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("0OBRVLS9RYQW", "Failed to create PostgreSQL connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("9DYJNX5U6MOH", "Failed to create PostgreSQL connection pool: unknown error", system_utils::captureCallStack()));
-            }
+            return pool;
         }
 
         cpp_dbc::expected<std::shared_ptr<PostgreSQLConnectionPool>, DBException> PostgreSQLConnectionPool::create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept
         {
-            try
+            auto pool = std::make_shared<PostgreSQLConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
+            auto initResult = pool->initializePool(std::nothrow);
+            if (!initResult.has_value())
             {
-                auto pool = std::make_shared<PostgreSQLConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
-                auto initResult = pool->initializePool(std::nothrow);
-                if (!initResult.has_value())
-                {
-                    return cpp_dbc::unexpected(initResult.error());
-                }
-                return pool;
+                return cpp_dbc::unexpected(initResult.error());
             }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("0OBRVLS9RYQW", "Failed to create PostgreSQL connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("9DYJNX5U6MOH", "Failed to create PostgreSQL connection pool: unknown error", system_utils::captureCallStack()));
-            }
+            return pool;
         }
     }
 
@@ -1002,46 +554,24 @@ namespace cpp_dbc
                                                                                                            const std::string &username,
                                                                                                            const std::string &password) noexcept
         {
-            try
+            auto pool = std::make_shared<SQLiteConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+            auto initResult = pool->initializePool(std::nothrow);
+            if (!initResult.has_value())
             {
-                auto pool = std::make_shared<SQLiteConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
-                auto initResult = pool->initializePool(std::nothrow);
-                if (!initResult.has_value())
-                {
-                    return cpp_dbc::unexpected(initResult.error());
-                }
-                return pool;
+                return cpp_dbc::unexpected(initResult.error());
             }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("8TTDZKLT3XJI", "Failed to create SQLite connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("AJSTB8D4DFG5", "Failed to create SQLite connection pool: unknown error", system_utils::captureCallStack()));
-            }
+            return pool;
         }
 
         cpp_dbc::expected<std::shared_ptr<SQLiteConnectionPool>, DBException> SQLiteConnectionPool::create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept
         {
-            try
+            auto pool = std::make_shared<SQLiteConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
+            auto initResult = pool->initializePool(std::nothrow);
+            if (!initResult.has_value())
             {
-                auto pool = std::make_shared<SQLiteConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
-                auto initResult = pool->initializePool(std::nothrow);
-                if (!initResult.has_value())
-                {
-                    return cpp_dbc::unexpected(initResult.error());
-                }
-                return pool;
+                return cpp_dbc::unexpected(initResult.error());
             }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("8TTDZKLT3XJI", "Failed to create SQLite connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("AJSTB8D4DFG5", "Failed to create SQLite connection pool: unknown error", system_utils::captureCallStack()));
-            }
+            return pool;
         }
     }
 
@@ -1068,46 +598,24 @@ namespace cpp_dbc
                                                                                                                const std::string &username,
                                                                                                                const std::string &password) noexcept
         {
-            try
+            auto pool = std::make_shared<FirebirdConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
+            auto initResult = pool->initializePool(std::nothrow);
+            if (!initResult.has_value())
             {
-                auto pool = std::make_shared<FirebirdConnectionPool>(DBConnectionPool::ConstructorTag{}, url, username, password);
-                auto initResult = pool->initializePool(std::nothrow);
-                if (!initResult.has_value())
-                {
-                    return cpp_dbc::unexpected(initResult.error());
-                }
-                return pool;
+                return cpp_dbc::unexpected(initResult.error());
             }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("IAPR1BE2PCQL", "Failed to create Firebird connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("LP5EF7QAB5B4", "Failed to create Firebird connection pool: unknown error", system_utils::captureCallStack()));
-            }
+            return pool;
         }
 
         cpp_dbc::expected<std::shared_ptr<FirebirdConnectionPool>, DBException> FirebirdConnectionPool::create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept
         {
-            try
+            auto pool = std::make_shared<FirebirdConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
+            auto initResult = pool->initializePool(std::nothrow);
+            if (!initResult.has_value())
             {
-                auto pool = std::make_shared<FirebirdConnectionPool>(DBConnectionPool::ConstructorTag{}, config);
-                auto initResult = pool->initializePool(std::nothrow);
-                if (!initResult.has_value())
-                {
-                    return cpp_dbc::unexpected(initResult.error());
-                }
-                return pool;
+                return cpp_dbc::unexpected(initResult.error());
             }
-            catch (const std::exception &ex)
-            {
-                return cpp_dbc::unexpected(DBException("IAPR1BE2PCQL", "Failed to create Firebird connection pool: " + std::string(ex.what()), system_utils::captureCallStack()));
-            }
-            catch (...)
-            {
-                return cpp_dbc::unexpected(DBException("LP5EF7QAB5B4", "Failed to create Firebird connection pool: unknown error", system_utils::captureCallStack()));
-            }
+            return pool;
         }
     }
 

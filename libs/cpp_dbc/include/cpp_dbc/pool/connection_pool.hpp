@@ -82,6 +82,12 @@ namespace cpp_dbc
      */
     class DBConnectionPoolBase : public DBConnectionPool, public std::enable_shared_from_this<DBConnectionPoolBase>
     {
+        // Grant access to returnConnection() and decrementActiveCount() for the
+        // CRTP pooled-connection base. These are protected in DBConnectionPoolBase
+        // but PooledDBConnectionBase is not in its inheritance hierarchy.
+        template <typename, typename, typename>
+        friend class PooledDBConnectionBase;
+
     private:
         // Shared flag to indicate if the pool is still alive (shared with all pooled connections)
         std::shared_ptr<std::atomic<bool>> m_poolAlive{std::make_shared<std::atomic<bool>>(true)};

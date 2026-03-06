@@ -12,6 +12,14 @@
 
 ## Completed Tasks
 
+- CRTP `PooledDBConnectionBase<D,C,P>` — Unified Pooled Connection Logic via Template Inheritance (2026-03-06):
+  - New CRTP template `PooledDBConnectionBase<Derived, ConnType, PoolType>` in `pool/pooled_db_connection_base.hpp` + `.cpp` (~485 lines) — extracts close/returnToPool (race-condition fix), destructor cleanup, and pool metadata from all 4 family pooled connection wrappers
+  - All 4 family `PooledDBConnection` classes now inherit from the CRTP base with one-line inline delegators resolving diamond inheritance
+  - Dead try/catch removed from all `create(std::nothrow_t)` factory methods (death-sentence exception rule)
+  - `how_add_new_db_drivers.md` updated with comprehensive connection pool integration guide (Scenario A/B)
+  - Friend declarations added to all family connection classes and `DBConnectionPoolBase` for CRTP access
+  - 17 files changed, +1312/-2230 lines (net reduction of ~918 lines)
+
 - Unified Connection Pool Base Class (`DBConnectionPoolBase`) — Extracted Common Pool Logic into `pool/` Directory (2026-03-06):
   - New `DBConnectionPoolBase` class in `include/cpp_dbc/pool/connection_pool.hpp` + `src/pool/connection_pool.cpp` (955 lines) — contains all pool infrastructure (connection lifecycle, maintenance thread, direct handoff, HikariCP validation skip, phase-based lock protocol)
   - All four family pools (`RelationalDBConnectionPool`, `DocumentDBConnectionPool`, `ColumnarDBConnectionPool`, `KVDBConnectionPool`) now inherit from `DBConnectionPoolBase` as thin derived classes

@@ -61,6 +61,7 @@ namespace cpp_dbc
     {
         friend class ColumnarDBConnectionPool;
         friend class ColumnarPooledDBConnection;
+        template <typename, typename, typename> friend class PooledDBConnectionBase;
 
     public:
         ~ColumnarDBConnection() override = default;

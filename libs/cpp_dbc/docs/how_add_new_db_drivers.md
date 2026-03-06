@@ -16,6 +16,7 @@ This guide explains how to add support for a new database management system (DBM
    - [Create Header Files (.hpp)](#create-header-files-hpp)
    - [Create Source Files (.cpp)](#create-source-files-cpp)
    - [Update Main Header (cpp_dbc.hpp)](#update-main-header-cpp_dbchpp)
+   - [Integrate with Connection Pool](#integrate-with-connection-pool)
 4. [Phase 2: Update Build Configuration](#phase-2-update-build-configuration)
    - [Update CMakeLists.txt](#update-cmakeliststxt)
    - [Create FindModule for CMake](#create-findmodule-for-cmake)
@@ -90,6 +91,8 @@ These are the fundamental classes that all drivers inherit from:
 | `pool/db_connection_pool.hpp` | `DBConnectionPool` | Base class for connection pools |
 | `pool/db_connection_pooled.hpp` | `DBConnectionPooled` | Wrapper for pooled connections |
 | `pool/connection_pool.hpp` | `DBConnectionPoolBase` | Unified pool base class (all pool infrastructure) |
+| `pool/pooled_db_connection_base.hpp` | `PooledDBConnectionBase<D,C,P>` | CRTP base for all family-specific pooled connection wrappers (close/returnToPool race-condition fix, destructor cleanup, pool metadata) |
+| `pool/<family>/<family>_db_connection_pool.hpp` | `<Family>DBConnectionPool`, `<Family>PooledDBConnection` | Family-specific pool class + pooled connection wrapper |
 | `core/streams.hpp` | `InputStream` | Stream interface for BLOB data |
 
 ### Family-Specific Interfaces
@@ -343,6 +346,321 @@ Add the conditional include for the new driver header (around line 80-107):
 - Document: `cpp_dbc/drivers/document/driver_<name>.hpp`
 - Key-Value: `cpp_dbc/drivers/kv/driver_<name>.hpp`
 - Columnar: `cpp_dbc/drivers/columnar/driver_<name>.hpp`
+
+### Integrate with Connection Pool
+
+Every driver must be visible to the connection pool system. The required work depends on whether the driver belongs to an **existing family** or introduces a **new family**.
+
+#### Connection Pool Architecture
+
+The pool system has three layers:
+
+```
+DBConnectionPoolBase (connection_pool.hpp / connection_pool.cpp)
+  └── <Family>DBConnectionPool (pool/<family>/<family>_db_connection_pool.hpp/.cpp)
+        └── <Driver>ConnectionPool (same file, e.g. ScyllaDBConnectionPool)
+
+PooledDBConnectionBase<Derived, ConnType, PoolType>  (CRTP template)
+  └── <Family>PooledDBConnection (inline delegators in pool/<family>/ header)
+```
+
+| File | Role |
+|------|------|
+| `pool/connection_pool.hpp` / `.cpp` | `DBConnectionPoolBase` — all shared pool infrastructure (maintenance thread, direct handoff, phase-based lock protocol). **Do not modify when adding a driver.** |
+| `pool/pooled_db_connection_base.hpp` / `.cpp` | `PooledDBConnectionBase<D,C,P>` — CRTP base with close/returnToPool (race-condition fix), destructor cleanup, pool metadata. Explicit template instantiations for each family at the bottom of the `.cpp`. |
+| `pool/<family>/<family>_db_connection_pool.hpp` / `.cpp` | Family pool class + pooled connection wrapper + per-driver pool subclasses (e.g. `ScyllaDBConnectionPool`). |
+
+#### Scenario A: Adding a Driver to an Existing Family
+
+When adding a driver to an existing family (relational, kv, document, columnar), the `<Family>PooledDBConnection` and `<Family>DBConnectionPool` already exist. You only need to add a **driver subclass pool**.
+
+##### 1. Add the Pool Subclass in the Family Pool Header
+
+Add a new class at the bottom of `pool/<family>/<family>_db_connection_pool.hpp`, inside the driver's namespace:
+
+```cpp
+// In pool/relational/relational_db_connection_pool.hpp
+namespace cpp_dbc::SQLServer
+{
+    class SQLServerConnectionPool final : public RelationalDBConnectionPool
+    {
+    public:
+        SQLServerConnectionPool(DBConnectionPool::ConstructorTag,
+                                const std::string &url,
+                                const std::string &username,
+                                const std::string &password) noexcept;
+
+        explicit SQLServerConnectionPool(DBConnectionPool::ConstructorTag,
+                                         const config::DBConnectionPoolConfig &config) noexcept;
+
+        ~SQLServerConnectionPool() override = default;
+
+        SQLServerConnectionPool(const SQLServerConnectionPool &) = delete;
+        SQLServerConnectionPool &operator=(const SQLServerConnectionPool &) = delete;
+
+#ifdef __cpp_exceptions
+        static std::shared_ptr<SQLServerConnectionPool> create(
+            const std::string &url, const std::string &username, const std::string &password);
+        static std::shared_ptr<SQLServerConnectionPool> create(
+            const config::DBConnectionPoolConfig &config);
+#endif
+
+        static cpp_dbc::expected<std::shared_ptr<SQLServerConnectionPool>, DBException>
+        create(std::nothrow_t, const std::string &url, const std::string &username,
+               const std::string &password) noexcept;
+        static cpp_dbc::expected<std::shared_ptr<SQLServerConnectionPool>, DBException>
+        create(std::nothrow_t, const config::DBConnectionPoolConfig &config) noexcept;
+    };
+} // namespace cpp_dbc::SQLServer
+```
+
+##### 2. Implement the Pool Subclass in the Family Pool .cpp
+
+Add the constructors and factory methods at the bottom of the family pool `.cpp` file. Follow the existing pattern (e.g., `ScyllaDBConnectionPool` in `columnar_db_connection_pool.cpp`, `RedisDBConnectionPool` in `kv_db_connection_pool.cpp`):
+
+```cpp
+// In pool/relational/relational_db_connection_pool.cpp
+namespace cpp_dbc::SQLServer
+{
+    SQLServerConnectionPool::SQLServerConnectionPool(DBConnectionPool::ConstructorTag,
+                                                     const std::string &url,
+                                                     const std::string &username,
+                                                     const std::string &password)
+        : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, url, username, password)
+    {
+        // Driver-specific initialization if needed
+    }
+
+    SQLServerConnectionPool::SQLServerConnectionPool(DBConnectionPool::ConstructorTag,
+                                                     const config::DBConnectionPoolConfig &config) noexcept
+        : RelationalDBConnectionPool(DBConnectionPool::ConstructorTag{}, config)
+    {
+        // Driver-specific initialization if needed
+    }
+
+#ifdef __cpp_exceptions
+    std::shared_ptr<SQLServerConnectionPool> SQLServerConnectionPool::create(
+        const std::string &url, const std::string &username, const std::string &password)
+    {
+        auto result = create(std::nothrow, url, username, password);
+        if (!result.has_value()) { throw result.error(); }
+        return result.value();
+    }
+
+    std::shared_ptr<SQLServerConnectionPool> SQLServerConnectionPool::create(
+        const config::DBConnectionPoolConfig &config)
+    {
+        auto result = create(std::nothrow, config);
+        if (!result.has_value()) { throw result.error(); }
+        return result.value();
+    }
+#endif
+
+    cpp_dbc::expected<std::shared_ptr<SQLServerConnectionPool>, DBException>
+    SQLServerConnectionPool::create(std::nothrow_t, const std::string &url,
+                                    const std::string &username,
+                                    const std::string &password) noexcept
+    {
+        auto pool = std::make_shared<SQLServerConnectionPool>(
+            DBConnectionPool::ConstructorTag{}, url, username, password);
+        auto initResult = pool->initializePool(std::nothrow);
+        if (!initResult.has_value())
+        {
+            return cpp_dbc::unexpected(initResult.error());
+        }
+        return pool;
+    }
+
+    cpp_dbc::expected<std::shared_ptr<SQLServerConnectionPool>, DBException>
+    SQLServerConnectionPool::create(std::nothrow_t,
+                                    const config::DBConnectionPoolConfig &config) noexcept
+    {
+        auto pool = std::make_shared<SQLServerConnectionPool>(
+            DBConnectionPool::ConstructorTag{}, config);
+        auto initResult = pool->initializePool(std::nothrow);
+        if (!initResult.has_value())
+        {
+            return cpp_dbc::unexpected(initResult.error());
+        }
+        return pool;
+    }
+} // namespace cpp_dbc::SQLServer
+```
+
+> **Important**: The `create(std::nothrow_t, ...)` factory methods must NOT use try/catch. The only possible exception is `std::bad_alloc` from `std::make_shared`, which is a death-sentence exception (see project conventions). The `initializePool(std::nothrow)` call is `noexcept` and returns `expected`.
+
+##### 3. No Changes Needed To
+
+- `pool/pooled_db_connection_base.hpp/.cpp` — the CRTP base is already instantiated for the family
+- `pool/connection_pool.hpp/.cpp` — the unified pool base doesn't change per driver
+- The family connection base class (e.g., `RelationalDBConnection`) — friend declarations already cover the family
+
+#### Scenario B: Adding a New Family (e.g., Graph, TimeSeries)
+
+When introducing an entirely new family, you must create the full pool stack from scratch.
+
+##### 1. Create the Family Connection Base Class with Friend Declarations
+
+In `core/<family>/<family>_db_connection.hpp`, include the CRTP friend:
+
+```cpp
+class GraphDBConnection : public DBConnection
+{
+    friend class GraphDBConnectionPool;
+    friend class GraphPooledDBConnection;
+    template <typename, typename, typename> friend class PooledDBConnectionBase;
+
+    // ... protected and public members ...
+};
+```
+
+The `PooledDBConnectionBase` friend declaration is **required** because the CRTP base calls `m_conn->prepareForPoolReturn(std::nothrow, ...)` and `m_conn->prepareForBorrow(std::nothrow)`, which are `protected` in the connection class.
+
+##### 2. Create the Family Pool Header
+
+Create `pool/<family>/<family>_db_connection_pool.hpp` with:
+
+1. **Forward declaration** of the family `DBConnectionPool`
+2. **`<Family>PooledDBConnection`** — uses the CRTP base with inline delegators
+3. **`<Family>DBConnectionPool`** — inherits from `DBConnectionPoolBase`
+4. **Driver subclass pools** (e.g., `Neo4jConnectionPool`)
+
+Use an existing family pool header (e.g., `pool/columnar/columnar_db_connection_pool.hpp`) as the template. Key elements:
+
+```cpp
+#include "cpp_dbc/pool/connection_pool.hpp"
+#include "cpp_dbc/pool/pooled_db_connection_base.hpp"
+#include "cpp_dbc/core/<family>/<family>_db_connection.hpp"
+
+namespace cpp_dbc
+{
+    class GraphDBConnectionPool;
+
+    // ── Pooled Connection Wrapper (CRTP) ────────────────────────────────────
+    class GraphPooledDBConnection final
+        : public PooledDBConnectionBase<GraphPooledDBConnection, GraphDBConnection, GraphDBConnectionPool>,
+          public GraphDBConnection,
+          public std::enable_shared_from_this<GraphPooledDBConnection>
+    {
+        using Base = PooledDBConnectionBase<GraphPooledDBConnection, GraphDBConnection, GraphDBConnectionPool>;
+
+    public:
+        GraphPooledDBConnection(
+            std::shared_ptr<GraphDBConnection> connection,
+            std::weak_ptr<GraphDBConnectionPool> connectionPool,
+            std::shared_ptr<std::atomic<bool>> poolAlive) noexcept;
+        ~GraphPooledDBConnection() override = default;
+
+        // Delete copy/move
+        GraphPooledDBConnection(const GraphPooledDBConnection &) = delete;
+        GraphPooledDBConnection &operator=(const GraphPooledDBConnection &) = delete;
+
+#ifdef __cpp_exceptions
+        // ── Diamond-resolving throwing delegators ──
+        void close() final { this->closeThrow(); }
+        bool isClosed() const override { return this->isClosedThrow(); }
+        void returnToPool() final { this->returnToPoolThrow(); }
+        bool isPooled() const override { return this->isPooledThrow(); }
+        std::string getURL() const override { return this->getURLThrow(); }
+        void reset() override { this->resetThrow(); }
+        bool ping() override { return this->pingThrow(); }
+
+        // ── Family-specific throwing methods ──
+        // ... graph-specific method throwing delegators ...
+#endif
+
+        // ── Diamond-resolving nothrow delegators ──
+        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override
+        { return this->closeImpl(std::nothrow); }
+        // ... (same pattern for all diamond methods) ...
+
+        // ── Pool return/borrow delegators ──
+    protected:
+        cpp_dbc::expected<void, DBException>
+        prepareForPoolReturn(std::nothrow_t,
+            TransactionIsolationLevel il = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override
+        { return this->prepareForPoolReturnImpl(std::nothrow, il); }
+
+        cpp_dbc::expected<void, DBException>
+        prepareForBorrow(std::nothrow_t) noexcept override
+        { return this->prepareForBorrowImpl(std::nothrow); }
+
+    public:
+        // ── Family-specific nothrow methods ──
+        // ... graph-specific method declarations ...
+    };
+
+    // ── Family Pool Class ───────────────────────────────────────────────────
+    class GraphDBConnectionPool : public DBConnectionPoolBase
+    {
+        // ... same pattern as ColumnarDBConnectionPool ...
+    };
+
+} // namespace cpp_dbc
+```
+
+> **Key point — Diamond inheritance**: Each `PooledDBConnection` has TWO `DBConnection` subobjects (one via `DBConnectionPooled`, one via the family connection class). The CRTP base overrides the `DBConnectionPooled` path directly, and provides `*Impl` methods for diamond-ambiguous methods (`close`, `isClosed`, `returnToPool`, `isPooled`, `getURL`, `reset`, `ping`, `prepareForPoolReturn`, `prepareForBorrow`). The derived class provides one-line inline delegators that forward to these `*Impl` methods, resolving the diamond.
+
+##### 3. Create the Family Pool Source File
+
+Create `pool/<family>/<family>_db_connection_pool.cpp` with:
+
+- `<Family>PooledDBConnection` constructor (delegates to CRTP `Base`)
+- `<Family>DBConnectionPool` methods: constructors, destructor, `createDBConnection()`, `createPooledDBConnection()`, factory methods, family-specific getter
+- `<Family>PooledDBConnection` family-specific method implementations
+- Driver subclass pool implementations (e.g., `Neo4jConnectionPool`)
+
+Use `pool/columnar/columnar_db_connection_pool.cpp` as the reference implementation.
+
+##### 4. Add CRTP Explicit Instantiation
+
+In `pool/pooled_db_connection_base.cpp`, add the new family's explicit template instantiation at the bottom:
+
+```cpp
+// ── Explicit instantiations ───────────────────────────────────────────────
+template class PooledDBConnectionBase<RelationalPooledDBConnection, RelationalDBConnection, RelationalDBConnectionPool>;
+template class PooledDBConnectionBase<KVPooledDBConnection, KVDBConnection, KVDBConnectionPool>;
+template class PooledDBConnectionBase<DocumentPooledDBConnection, DocumentDBConnection, DocumentDBConnectionPool>;
+template class PooledDBConnectionBase<ColumnarPooledDBConnection, ColumnarDBConnection, ColumnarDBConnectionPool>;
+template class PooledDBConnectionBase<GraphPooledDBConnection, GraphDBConnection, GraphDBConnectionPool>;  // NEW
+```
+
+Also add the corresponding `#include` at the top of that file:
+
+```cpp
+#include "cpp_dbc/pool/<family>/<family>_db_connection_pool.hpp"
+```
+
+##### 5. Add Friend Declaration in DBConnectionPoolBase
+
+In `pool/connection_pool.hpp`, the `PooledDBConnectionBase` template friend is already declared:
+
+```cpp
+template <typename, typename, typename> friend class PooledDBConnectionBase;
+```
+
+No changes needed here — the friend covers all instantiations.
+
+##### 6. Register the New Pool Source in CMakeLists.txt
+
+Add the new pool `.cpp` file to `libs/cpp_dbc/CMakeLists.txt`:
+
+```cmake
+target_sources(cpp_dbc PRIVATE
+    # ... existing pool sources ...
+    src/pool/<family>/<family>_db_connection_pool.cpp
+)
+```
+
+##### Summary: Files Modified for a New Family Pool
+
+| File | Action |
+|------|--------|
+| `core/<family>/<family>_db_connection.hpp` | Add `template <typename,typename,typename> friend class PooledDBConnectionBase;` |
+| `pool/<family>/<family>_db_connection_pool.hpp` | **CREATE** — `<Family>PooledDBConnection` (CRTP) + `<Family>DBConnectionPool` + driver subclass pools |
+| `pool/<family>/<family>_db_connection_pool.cpp` | **CREATE** — all implementations |
+| `pool/pooled_db_connection_base.cpp` | Add `#include` and explicit template instantiation for the new family |
+| `libs/cpp_dbc/CMakeLists.txt` | Add `src/pool/<family>/<family>_db_connection_pool.cpp` to sources |
 
 ---
 
@@ -1504,6 +1822,16 @@ endif()
 - [ ] Updated `libs/cpp_dbc/include/cpp_dbc/cpp_dbc.hpp`
   - [ ] Added `#ifndef USE_<DRIVER>` macro definition
   - [ ] Added `#if USE_<DRIVER>` conditional include
+- [ ] Connection Pool Integration
+  - **Existing family** (relational, kv, document, columnar):
+    - [ ] Added driver subclass pool class in `pool/<family>/<family>_db_connection_pool.hpp`
+    - [ ] Added driver subclass pool implementation in `pool/<family>/<family>_db_connection_pool.cpp`
+  - **New family** (graph, timeseries, etc.) — all of the above, plus:
+    - [ ] Added `template <typename,typename,typename> friend class PooledDBConnectionBase;` to `core/<family>/<family>_db_connection.hpp`
+    - [ ] Created `pool/<family>/<family>_db_connection_pool.hpp` with `<Family>PooledDBConnection` (CRTP) + `<Family>DBConnectionPool`
+    - [ ] Created `pool/<family>/<family>_db_connection_pool.cpp` with all implementations
+    - [ ] Added explicit template instantiation + `#include` in `pool/pooled_db_connection_base.cpp`
+    - [ ] Added `src/pool/<family>/<family>_db_connection_pool.cpp` to `libs/cpp_dbc/CMakeLists.txt`
 
 ### Phase 2: Build Configuration
 - [ ] Updated `libs/cpp_dbc/CMakeLists.txt`
@@ -1735,7 +2063,16 @@ Examples are essential documentation for users. Don't skip Phase 5:
 - The API demonstrated should match the driver's family (don't show SQL for a KV store)
 - Use the next available family number for the new driver
 
-### 11. Forgetting CMake Config Files
+### 11. Forgetting Connection Pool Integration
+A new driver is useless without pool support. For **existing families**, add the driver subclass pool (e.g., `SQLServerConnectionPool`) in the family pool header/cpp. For **new families**, you must create the entire pool stack:
+- `<Family>PooledDBConnection` using CRTP base `PooledDBConnectionBase<D,C,P>`
+- `<Family>DBConnectionPool` inheriting from `DBConnectionPoolBase`
+- Explicit template instantiation in `pooled_db_connection_base.cpp`
+- `PooledDBConnectionBase` friend declaration in the family connection class
+
+See [Integrate with Connection Pool](#integrate-with-connection-pool) for full details.
+
+### 12. Forgetting CMake Config Files
 The installed package configuration files also need updates:
 - `libs/cpp_dbc/cmake/cpp_dbc-config.cmake` - For package consumers
 - `libs/cpp_dbc/cmake/FindCPPDBC.cmake` - For fallback discovery

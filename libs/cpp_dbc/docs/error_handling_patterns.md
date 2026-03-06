@@ -34,7 +34,7 @@ All cpp_dbc errors are wrapped in `DBException`:
 ```cpp
 // Location: libs/cpp_dbc/include/cpp_dbc/core/db_exception.hpp
 
-class DBException : public std::runtime_error
+class DBException : public std::exception
 {
 private:
     char m_mark[13]{};           // 12-char error code + NUL (fixed-size)

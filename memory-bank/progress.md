@@ -2,7 +2,29 @@
 
 ## Current Status
 
-The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. MongoDB was the last driver to adopt this architecture (2026-03-04). `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). All four connection pool families now inherit from a unified `DBConnectionPoolBase` class that contains all pool infrastructure (connection lifecycle, maintenance thread, direct handoff, HikariCP validation skip, phase-based lock protocol). Pool headers/sources moved from `core/` to `pool/` directory (2026-03-06).
+The CPP_DBC library is in active development. All 7 database drivers (MySQL, PostgreSQL, SQLite, Firebird, MongoDB, ScyllaDB, Redis) now implement the nothrow-first dual-API pattern with `-fno-exceptions` compatibility: `#ifdef __cpp_exceptions` guards, static factory construction, double-checked locking for driver init, and dead try/catch elimination. MongoDB was the last driver to adopt this architecture (2026-03-04). `DBException` is a fixed-size, `noexcept`-constructible value type (~560 bytes). The connection pool system is now fully deduplicated: `DBConnectionPoolBase` contains all pool infrastructure, and `PooledDBConnectionBase<D,C,P>` (CRTP) contains all pooled connection wrapper logic. Pool headers/sources live in `pool/` directory (2026-03-06).
+
+### Recent Improvements (2026-03-06 08:43 PST)
+
+**CRTP `PooledDBConnectionBase<D,C,P>` — Unified Pooled Connection Logic via Template Inheritance:**
+
+1. **New CRTP Template — `PooledDBConnectionBase<Derived, ConnType, PoolType>`:**
+   - `pool/pooled_db_connection_base.hpp` + `.cpp` (~485 lines) — extracts close/returnToPool (race-condition fix), destructor cleanup, and pool metadata from all 4 family pooled connection wrappers
+   - `*Impl` methods for diamond-ambiguous DBConnection methods; `*Throw` methods under `#ifdef __cpp_exceptions`
+   - DBConnectionPooled interface overrides (no diamond): `isPoolValid`, `getCreationTime`, `getLastUsedTime`, `setActive`, `isActive`, etc.
+   - Explicit template instantiations for all 4 families
+
+2. **Family Pooled Connections — Thin CRTP Delegators:**
+   - One-line inline throwing/nothrow delegators resolve diamond inheritance
+   - Destructors changed to `= default`; only family-specific methods remain
+
+3. **Friend Declarations:** All 4 family connection classes + `DBConnectionPoolBase` gained `template <typename,typename,typename> friend class PooledDBConnectionBase;`
+
+4. **Dead try/catch Elimination:** All `create(std::nothrow_t)` factory methods cleaned up
+
+5. **Documentation:** `how_add_new_db_drivers.md` updated with pool integration guide (Scenario A/B)
+
+6. **Impact:** 17 files changed, +1312/-2230 lines (net reduction of ~918 lines)
 
 ### Recent Improvements (2026-03-06 01:59 PST)
 

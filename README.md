@@ -80,7 +80,8 @@ Each database driver can be enabled or disabled at compile time to reduce depend
   - `include/cpp_dbc/pool/db_connection_pool.hpp`: Generic connection pool interface for all database types
   - `include/cpp_dbc/pool/db_connection_pooled.hpp`: Generic pooled connection interface
   - `include/cpp_dbc/pool/connection_pool.hpp` & `src/pool/connection_pool.cpp`: Unified connection pool base class (`DBConnectionPoolBase`) — all pool infrastructure (connection lifecycle, maintenance thread, direct handoff, HikariCP validation skip, phase-based lock protocol)
-  - `include/cpp_dbc/pool/relational/relational_db_connection_pool.hpp` & `src/pool/relational/relational_db_connection_pool.cpp`: Relational database connection pooling (thin wrapper around `DBConnectionPoolBase`)
+  - `include/cpp_dbc/pool/pooled_db_connection_base.hpp` & `src/pool/pooled_db_connection_base.cpp`: CRTP base template `PooledDBConnectionBase<D,C,P>` — common pooled connection logic (close/returnToPool race-condition fix, destructor cleanup, pool metadata), inherited by all family pooled wrappers
+  - `include/cpp_dbc/pool/relational/relational_db_connection_pool.hpp` & `src/pool/relational/relational_db_connection_pool.cpp`: Relational database connection pooling (thin CRTP delegator around `PooledDBConnectionBase` + `DBConnectionPoolBase`)
   - `include/cpp_dbc/pool/document/document_db_connection_pool.hpp` & `src/pool/document/document_db_connection_pool.cpp`: Document database connection pooling
   - `include/cpp_dbc/pool/columnar/columnar_db_connection_pool.hpp` & `src/pool/columnar/columnar_db_connection_pool.cpp`: Columnar database connection pooling
   - `include/cpp_dbc/pool/kv/kv_db_connection_pool.hpp` & `src/pool/kv/kv_db_connection_pool.cpp`: Key-value database connection pooling

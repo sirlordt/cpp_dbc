@@ -23,6 +23,7 @@
 
 #include "../../cpp_dbc.hpp"
 #include "cpp_dbc/pool/connection_pool.hpp"
+#include "cpp_dbc/pool/pooled_db_connection_base.hpp"
 #include "cpp_dbc/core/relational/relational_db_connection.hpp"
 #include "cpp_dbc/core/relational/relational_db_prepared_statement.hpp"
 #include "cpp_dbc/core/relational/relational_db_result_set.hpp"
@@ -122,54 +123,46 @@ namespace cpp_dbc
         cpp_dbc::expected<std::shared_ptr<RelationalDBConnection>, DBException> getRelationalDBConnection(std::nothrow_t) noexcept;
     };
 
-    // RelationalPooledDBConnection wraps a physical relational database connection
-    class RelationalPooledDBConnection final : public DBConnectionPooled, public RelationalDBConnection, public std::enable_shared_from_this<RelationalPooledDBConnection>
+    // RelationalPooledDBConnection wraps a physical relational database connection.
+    // Common pool logic (close, returnToPool, destructor, metadata) is in PooledDBConnectionBase via CRTP.
+    class RelationalPooledDBConnection final
+        : public PooledDBConnectionBase<RelationalPooledDBConnection, RelationalDBConnection, RelationalDBConnectionPool>
+        , public RelationalDBConnection
+        , public std::enable_shared_from_this<RelationalPooledDBConnection>
     {
     private:
-        std::shared_ptr<RelationalDBConnection> m_conn;
-        std::weak_ptr<RelationalDBConnectionPool> m_pool; // Weak pointer to connection pool
-        std::shared_ptr<std::atomic<bool>> m_poolAlive;   // Shared flag to check if pool is still alive
-        std::chrono::time_point<std::chrono::steady_clock> m_creationTime{std::chrono::steady_clock::now()};
-        // Store last-used time as nanoseconds since epoch in an atomic int64_t.
-        // std::atomic<int64_t> is lock-free on every supported 64-bit platform,
-        // unlike std::atomic<time_point> which is not portable to ARM32/MIPS.
-        // See: libs/cpp_dbc/docs/bugs/firebird_helgrind_analysis.md (Context 1)
-        static_assert(std::atomic<int64_t>::is_always_lock_free,
-                      "int64_t atomic must be lock-free on this platform");
-        std::atomic<int64_t> m_lastUsedTimeNs{m_creationTime.time_since_epoch().count()};
-
-        std::atomic<bool> m_active{false};
-        std::atomic<bool> m_closed{false};
-
+        using Base = PooledDBConnectionBase<RelationalPooledDBConnection, RelationalDBConnection, RelationalDBConnectionPool>;
         friend class RelationalDBConnectionPool;
 
-        // Helper method to check if pool is still valid
-        bool isPoolValid(std::nothrow_t) const noexcept override;
-
     protected:
-        // Pool lifecycle overrides - only callable by RelationalDBConnectionPool (declared as friend).
         cpp_dbc::expected<void, DBException> prepareForPoolReturn(std::nothrow_t,
-                                                                  TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override;
-        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override;
+                                                                  TransactionIsolationLevel isolationLevel = TransactionIsolationLevel::TRANSACTION_NONE) noexcept override
+        {
+            return this->prepareForPoolReturnImpl(std::nothrow, isolationLevel);
+        }
+        cpp_dbc::expected<void, DBException> prepareForBorrow(std::nothrow_t) noexcept override
+        {
+            return this->prepareForBorrowImpl(std::nothrow);
+        }
 
     public:
         RelationalPooledDBConnection(
             std::shared_ptr<RelationalDBConnection> connection,
             std::weak_ptr<RelationalDBConnectionPool> connectionPool,
-            std::shared_ptr<std::atomic<bool>> poolAlive);
-        ~RelationalPooledDBConnection() override;
+            std::shared_ptr<std::atomic<bool>> poolAlive) noexcept;
+        ~RelationalPooledDBConnection() override = default;
 
 #ifdef __cpp_exceptions
-        // DBConnection interface methods
-        void close() override;
-        bool isClosed() const override;
-        void returnToPool() override;
-        bool isPooled() const override;
-        std::string getURL() const override;
-        void reset() override;
-        bool ping() override;
+        // ── Diamond-resolving throwing delegators ──
+        void close() override { this->closeThrow(); }
+        bool isClosed() const override { return this->isClosedThrow(); }
+        void returnToPool() override { this->returnToPoolThrow(); }
+        bool isPooled() const override { return this->isPooledThrow(); }
+        std::string getURL() const override { return this->getURLThrow(); }
+        void reset() override { this->resetThrow(); }
+        bool ping() override { return this->pingThrow(); }
 
-        // RelationalDBConnection interface methods
+        // ── Relational-specific throwing methods ──
         std::shared_ptr<RelationalDBPreparedStatement> prepareStatement(const std::string &sql) override;
         std::shared_ptr<RelationalDBResultSet> executeQuery(const std::string &sql) override;
         uint64_t executeUpdate(const std::string &sql) override;
@@ -192,16 +185,16 @@ namespace cpp_dbc
         // NOTHROW VERSIONS - Exception-free API
         // ====================================================================
 
-        // DBConnection nothrow interface
-        cpp_dbc::expected<void, cpp_dbc::DBException> close(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<void, cpp_dbc::DBException> reset(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override;
-        cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override;
+        // ── Diamond-resolving nothrow delegators ──
+        cpp_dbc::expected<void, DBException> close(std::nothrow_t) noexcept override { return this->closeImpl(std::nothrow); }
+        cpp_dbc::expected<void, DBException> reset(std::nothrow_t) noexcept override { return this->resetImpl(std::nothrow); }
+        cpp_dbc::expected<bool, DBException> isClosed(std::nothrow_t) const noexcept override { return this->isClosedImpl(std::nothrow); }
+        cpp_dbc::expected<void, DBException> returnToPool(std::nothrow_t) noexcept override { return this->returnToPoolImpl(std::nothrow); }
+        cpp_dbc::expected<bool, DBException> isPooled(std::nothrow_t) const noexcept override { return this->isPooledImpl(std::nothrow); }
+        cpp_dbc::expected<std::string, DBException> getURL(std::nothrow_t) const noexcept override { return this->getURLImpl(std::nothrow); }
+        cpp_dbc::expected<bool, DBException> ping(std::nothrow_t) noexcept override { return this->pingImpl(std::nothrow); }
 
-        // RelationalDBConnection nothrow interface
+        // ── Relational-specific nothrow methods ──
         cpp_dbc::expected<std::shared_ptr<RelationalDBPreparedStatement>, DBException> prepareStatement(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<std::shared_ptr<RelationalDBResultSet>, DBException> executeQuery(std::nothrow_t, const std::string &sql) noexcept override;
         cpp_dbc::expected<uint64_t, DBException> executeUpdate(std::nothrow_t, const std::string &sql) noexcept override;
@@ -213,18 +206,6 @@ namespace cpp_dbc
         cpp_dbc::expected<void, DBException> rollback(std::nothrow_t) noexcept override;
         cpp_dbc::expected<void, DBException> setTransactionIsolation(std::nothrow_t, TransactionIsolationLevel level) noexcept override;
         cpp_dbc::expected<TransactionIsolationLevel, DBException> getTransactionIsolation(std::nothrow_t) noexcept override;
-
-        // DBConnectionPooled interface methods
-        std::chrono::time_point<std::chrono::steady_clock> getCreationTime(std::nothrow_t) const noexcept override;
-        std::chrono::time_point<std::chrono::steady_clock> getLastUsedTime(std::nothrow_t) const noexcept override;
-        cpp_dbc::expected<void, DBException> setActive(std::nothrow_t, bool active) noexcept override;
-        bool isActive(std::nothrow_t) const noexcept override;
-
-        // Implementation of DBConnectionPooled interface
-        std::shared_ptr<DBConnection> getUnderlyingConnection(std::nothrow_t) noexcept override;
-        void markPoolClosed(std::nothrow_t, bool closed) noexcept override;
-        bool isPoolClosed(std::nothrow_t) const noexcept override;
-        void updateLastUsedTime(std::nothrow_t) noexcept override;
     };
 
     // Specialized connection pools for MySQL, PostgreSQL, SQLite, and Firebird

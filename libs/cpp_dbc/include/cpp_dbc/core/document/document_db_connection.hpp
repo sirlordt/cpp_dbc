@@ -62,6 +62,7 @@ namespace cpp_dbc
     {
         friend class DocumentDBConnectionPool;
         friend class DocumentPooledDBConnection;
+        template <typename, typename, typename> friend class PooledDBConnectionBase;
 
     public:
         ~DocumentDBConnection() override = default;

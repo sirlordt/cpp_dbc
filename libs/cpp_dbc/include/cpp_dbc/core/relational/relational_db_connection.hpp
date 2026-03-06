@@ -73,6 +73,7 @@ namespace cpp_dbc
     {
         friend class RelationalDBConnectionPool;
         friend class RelationalPooledDBConnection;
+        template <typename, typename, typename> friend class PooledDBConnectionBase;
 
     public:
         ~RelationalDBConnection() override = default;

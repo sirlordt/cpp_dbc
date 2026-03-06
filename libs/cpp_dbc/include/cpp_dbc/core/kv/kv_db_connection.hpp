@@ -63,6 +63,7 @@ namespace cpp_dbc
     {
         friend class KVDBConnectionPool;
         friend class KVPooledDBConnection;
+        template <typename, typename, typename> friend class PooledDBConnectionBase;
 
     public:
         ~KVDBConnection() override = default;
